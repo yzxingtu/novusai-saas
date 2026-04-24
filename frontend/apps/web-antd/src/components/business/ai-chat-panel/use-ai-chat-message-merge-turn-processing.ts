@@ -22,7 +22,7 @@ import {
 import {
   mergeTurnFlow,
   normalizeTurnFlowViewModel,
-} from './use-ai-chat-turn-flow';
+} from './chat-message-turn-flow-ingestion';
 
 function resolvePersistedAssistantError(
   metadata: null | Record<string, unknown>,

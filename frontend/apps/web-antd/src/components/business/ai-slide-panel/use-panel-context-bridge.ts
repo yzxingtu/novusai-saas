@@ -30,7 +30,7 @@ interface UsePanelContextBridgeOptions {
   applyVariables: (
     agentId: number,
     values: Record<string, string>,
-    persist?: boolean,
+    persist: boolean,
   ) => void;
   clearMentionedAgent: () => void;
   clearPendingRichTextTask: (taskId?: string) => void;

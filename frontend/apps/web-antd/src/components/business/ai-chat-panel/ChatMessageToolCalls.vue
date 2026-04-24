@@ -145,7 +145,7 @@ function getEmbeddedToolHint(toolItem: ToolDisplayItem): string {
       toolCallsForDisplay.length > 0
     "
     class="text-muted-foreground/72 flex items-center gap-1.5 px-1.5 py-0.5"
-    :class="compact ? 'text-[11px]' : 'text-xs'"
+    :class="compact ? 'text-[10px]' : 'text-[10.5px]'"
   >
     <span class="typing-dots"><span></span><span></span><span></span></span>
     <span>{{ $t('common.globalAiChat.generating') }}</span>
@@ -160,11 +160,11 @@ function getEmbeddedToolHint(toolItem: ToolDisplayItem): string {
     <button
       v-if="!embedded"
       type="button"
-      class="tool-group-toggle group flex w-full cursor-pointer select-none items-center rounded-[18px] border text-left transition-colors"
+      class="tool-group-toggle group flex w-full cursor-pointer select-none items-center rounded-[14px] border text-left transition-colors"
       :class="
         compact
-          ? 'gap-1.5 px-2.5 py-2 text-[10.5px]'
-          : 'gap-2 px-3 py-2.5 text-[11px]'
+          ? 'gap-1.5 px-2.5 py-[7px] text-[10px]'
+          : 'gap-2 px-3 py-[9px] text-[10.5px]'
       "
       data-testid="tool-group-toggle"
       @click="toggleToolGroupExpand(index)"
@@ -177,12 +177,12 @@ function getEmbeddedToolHint(toolItem: ToolDisplayItem): string {
           icon="lucide:wrench"
           class="shrink-0 text-muted-foreground/60"
           :class="[
-            compact ? 'size-3' : 'size-3.5',
+            compact ? 'size-2.5' : 'size-3',
             toolGroupSummary?.running ? 'tc-pill-pulse' : '',
           ]"
         />
       </span>
-      <span class="text-muted-foreground/76 flex-1 font-medium">
+      <span class="text-muted-foreground/74 flex-1 font-medium">
         <template v-if="toolGroupSummary?.running">
           {{
             $t('common.globalAiChat.toolGroupRunning', {
@@ -245,8 +245,8 @@ function getEmbeddedToolHint(toolItem: ToolDisplayItem): string {
             embedded
               ? 'mt-0 border-l-0 pl-0'
               : compact
-                ? 'ml-2 mt-1 border-l pl-3'
-                : 'ml-2.5 mt-1 border-l pl-3.5'
+                ? 'ml-1.5 mt-1 border-l pl-2.5'
+                : 'ml-2 mt-1 border-l pl-3'
           "
         >
           <div
@@ -309,14 +309,14 @@ function getEmbeddedToolHint(toolItem: ToolDisplayItem): string {
                 :class="
                   embedded
                     ? 'tool-call-inline'
-                    : 'tool-call-card group/tc overflow-hidden rounded-[18px] border transition-colors'
+                    : 'tool-call-card group/tc overflow-hidden rounded-[14px] border transition-colors'
                 "
               >
                 <template v-if="embedded">
                   <button
                     type="button"
                     class="flex w-full items-start gap-2 rounded-[14px] bg-transparent text-left transition-colors hover:bg-muted/[0.05]"
-                    :class="compact ? 'px-2.5 py-2' : 'px-3 py-2.5'"
+                    :class="compact ? 'px-2.5 py-[7px]' : 'px-3 py-[9px]'"
                     :data-testid="`tool-call-toggle-${toolItem.index}`"
                     :title="
                       toolItem.hasDetails
@@ -365,7 +365,7 @@ function getEmbeddedToolHint(toolItem: ToolDisplayItem): string {
                     <div class="min-w-0 flex-1">
                       <div class="flex min-w-0 flex-wrap items-start gap-1.5">
                         <span
-                          class="min-w-0 flex-1 text-[11px] text-muted-foreground/70"
+                          class="min-w-0 flex-1 text-[10.5px] text-muted-foreground/68"
                         >
                           <span class="block truncate">
                             <template v-if="toolItem.tc.skillName">
@@ -390,7 +390,7 @@ function getEmbeddedToolHint(toolItem: ToolDisplayItem): string {
                       </div>
                       <p
                         v-if="getToolCardSummary(toolItem)"
-                        class="mt-1 whitespace-pre-wrap break-words text-[10px] leading-5 text-muted-foreground/70"
+                        class="mt-1 whitespace-pre-wrap break-words text-[9.5px] leading-[1.1rem] text-muted-foreground/68"
                       >
                         {{ getToolCardSummary(toolItem) }}
                       </p>
@@ -447,7 +447,7 @@ function getEmbeddedToolHint(toolItem: ToolDisplayItem): string {
 
                     <span
                       v-if="toolItem.hasDetails"
-                      class="text-muted-foreground/48 ml-auto inline-flex shrink-0 items-center gap-1 pt-0.5 text-[10px]"
+                      class="text-muted-foreground/48 ml-auto inline-flex shrink-0 items-center gap-1 pt-0.5 text-[9.5px]"
                     >
                       <span>{{
                         $t(
@@ -497,8 +497,8 @@ function getEmbeddedToolHint(toolItem: ToolDisplayItem): string {
                     class="flex w-full select-none items-center text-left"
                     :class="[
                       compact
-                        ? 'gap-1.5 px-2.5 py-2 text-[10.5px]'
-                        : 'gap-2 px-3 py-2.5 text-[11px]',
+                        ? 'gap-1.5 px-2.5 py-[7px] text-[10px]'
+                        : 'gap-2 px-3 py-[9px] text-[10.5px]',
                       toolItem.hasDetails ? 'cursor-pointer' : 'cursor-default',
                     ]"
                     :data-testid="`tool-call-toggle-${toolItem.index}`"
@@ -552,7 +552,7 @@ function getEmbeddedToolHint(toolItem: ToolDisplayItem): string {
                     </span>
 
                     <div
-                      class="min-w-0 flex-1 text-[11px] text-muted-foreground/70"
+                      class="min-w-0 flex-1 text-[10.5px] text-muted-foreground/68"
                     >
                       <span class="block truncate">
                         <template v-if="toolItem.tc.skillName">
@@ -567,7 +567,7 @@ function getEmbeddedToolHint(toolItem: ToolDisplayItem): string {
                       </span>
                       <p
                         v-if="getToolCardSummary(toolItem)"
-                        class="mt-0.5 line-clamp-2 break-words text-[10px] leading-4 text-muted-foreground/60"
+                        class="mt-0.5 line-clamp-2 break-words text-[9.5px] leading-[1.05rem] text-muted-foreground/62"
                       >
                         {{ getToolCardSummary(toolItem) }}
                       </p>
@@ -630,7 +630,7 @@ function getEmbeddedToolHint(toolItem: ToolDisplayItem): string {
                     :data-testid="`tool-call-details-${toolItem.index}`"
                   >
                     <div class="min-h-0 overflow-hidden px-1 pb-1 pt-1">
-                      <div class="rounded-[16px] bg-background/76">
+                      <div class="rounded-[12px] bg-background/78">
                         <ToolCallDetails
                           :compact="compact"
                           :raw-expanded="isToolRawExpanded(toolItem.index)"
@@ -684,47 +684,55 @@ function getEmbeddedToolHint(toolItem: ToolDisplayItem): string {
 
 <style scoped>
 .tool-group-toggle {
-  border-color: hsl(var(--border) / 0.12);
+  border-color: hsl(var(--border) / 0.1);
   background:
     radial-gradient(
       circle at 100% 0%,
-      hsl(var(--primary) / 0.05),
+      hsl(var(--primary) / 0.04),
       transparent 38%
     ),
     linear-gradient(
       180deg,
-      hsl(var(--background) / 0.84) 0%,
+      hsl(var(--background) / 0.82) 0%,
       hsl(var(--background) / 0.72) 100%
     );
   backdrop-filter: blur(10px);
   box-shadow:
-    0 12px 26px -30px hsl(var(--foreground) / 0.18),
+    0 10px 22px -30px hsl(var(--foreground) / 0.14),
     0 1px 0 hsl(var(--background) / 0.72) inset;
 }
 
 .tool-group-toggle:hover {
-  border-color: hsl(var(--primary) / 0.18);
+  border-color: hsl(var(--primary) / 0.16);
 }
 
 .tool-group-icon {
-  border: 1px solid hsl(var(--primary) / 0.12);
-  background: hsl(var(--primary) / 0.08);
+  border: 1px solid hsl(var(--primary) / 0.1);
+  background: hsl(var(--primary) / 0.07);
 }
 
 .tool-group-count {
-  border: 1px solid hsl(var(--border) / 0.12);
-  background: hsl(var(--background) / 0.78);
+  border: 1px solid hsl(var(--border) / 0.1);
+  background: hsl(var(--background) / 0.76);
 }
 
 .tool-call-card {
   background:
     radial-gradient(
       circle at top left,
-      hsl(var(--primary) / 0.03),
+      hsl(var(--primary) / 0.025),
       transparent 32%
     ),
-    hsl(var(--background) / 0.62);
+    hsl(var(--background) / 0.66);
   border-color: hsl(var(--border) / 0.1);
-  box-shadow: 0 12px 28px -34px hsl(var(--foreground) / 0.14);
+  box-shadow: 0 10px 22px -32px hsl(var(--foreground) / 0.12);
+}
+
+.tool-call-inline {
+  border-bottom: 1px solid hsl(var(--border) / 0.08);
+}
+
+.tool-call-inline:last-child {
+  border-bottom: none;
 }
 </style>

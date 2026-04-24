@@ -283,8 +283,8 @@ function getRichTextDraftCopyContent(mode: RichTextAIApplyMode) {
         <div class="assistant-message-surface">
           <div
             v-if="showTopSection"
-            class="assistant-message-top border-b border-border/30"
-            :class="compact ? 'px-2.5 py-1.5' : 'px-3 py-2.5'"
+            class="assistant-message-top border-b border-border/20"
+            :class="compact ? 'px-2.5 py-[7px]' : 'px-3 py-[8px]'"
           >
             <ChatMessageKernel
               v-if="hasKernelSections || showTurnDiagnostics"
@@ -312,9 +312,9 @@ function getRichTextDraftCopyContent(mode: RichTextAIApplyMode) {
 
           <div
             class="assistant-message-body"
-            :class="compact ? 'px-3 py-3' : 'px-3.5 py-3.5'"
+            :class="compact ? 'px-3 py-3' : 'px-4 py-[15px]'"
           >
-            <div class="space-y-2.5">
+            <div class="space-y-2">
               <ChatMessageContentBlock
                 :msg="msg"
                 :index="index"
@@ -323,15 +323,15 @@ function getRichTextDraftCopyContent(mode: RichTextAIApplyMode) {
               <ChatMessageErrorCard :msg="msg" :compact="compact" />
             </div>
 
-              <div
-                v-if="hasPostContentSections"
-                class="assistant-message-support space-y-2.5 border-t border-border/40"
-                :class="compact ? 'mt-2.5 pt-2.5' : 'mt-2.5 pt-2.5'"
-              >
+            <div
+              v-if="hasPostContentSections"
+              class="assistant-message-support space-y-1.5 border-t border-border/24"
+              :class="compact ? 'mt-2.5 pt-2.5' : 'mt-2.5 pt-2.5'"
+            >
               <div
                 v-if="msg.requestFailedRetry"
-                class="assistant-inline-panel flex items-center justify-between gap-2 rounded-2xl border px-2.5 py-2"
-                :class="compact ? 'text-[10px]' : 'text-[10.5px]'"
+                class="assistant-inline-panel flex items-center justify-between gap-2 rounded-[16px] border px-2.5 py-2"
+                :class="compact ? 'text-[9.5px]' : 'text-[10px]'"
               >
                 <span
                   class="text-muted-foreground/78 inline-flex min-w-0 items-center gap-1.5"
@@ -362,7 +362,7 @@ function getRichTextDraftCopyContent(mode: RichTextAIApplyMode) {
                 <div
                   v-for="(img, ii) in msg.imageResults"
                   :key="ii"
-                  class="assistant-inline-media group/img relative overflow-hidden rounded-[18px] border"
+                  class="assistant-inline-media group/img relative overflow-hidden rounded-[16px] border"
                 >
                   <img
                     :src="
@@ -438,12 +438,16 @@ function getRichTextDraftCopyContent(mode: RichTextAIApplyMode) {
                     btn.style === 'primary'
                       ? 'primary'
                       : btn.style === 'danger'
-                        ? 'default'
-                        : 'default'
+                      ? 'default'
+                      : 'default'
                   "
                   :danger="btn.style === 'danger'"
                   :disabled="!!msg.actionButtonsUsed"
-                  :class="compact ? '!rounded-full !text-xs' : '!rounded-full'"
+                  :class="
+                    compact
+                      ? '!rounded-full !text-[11px]'
+                      : '!rounded-full !text-[11px]'
+                  "
                   @click="emit('actionClick', props.index, btn.value)"
                 >
                   {{ btn.label }}
@@ -485,64 +489,93 @@ function getRichTextDraftCopyContent(mode: RichTextAIApplyMode) {
   min-width: 0;
   width: 100%;
   overflow: hidden;
-  border: 1px solid hsl(var(--border) / 0.18);
-  border-radius: 22px;
-  background:
-    linear-gradient(
-      180deg,
-      hsl(var(--card) / 0.995) 0%,
-      hsl(var(--background) / 0.992) 54%,
-      hsl(var(--background) / 0.985) 100%
-    );
-  box-shadow:
-    0 22px 36px -34px hsl(var(--foreground) / 0.14),
-    0 1px 0 hsl(var(--background) / 0.72) inset;
-}
-
-.assistant-message-surface::before {
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 2px;
-  content: '';
-  background:
-    linear-gradient(
-      180deg,
-      hsl(var(--primary) / 0.26) 0%,
-      hsl(var(--primary) / 0.04) 72%,
-      transparent 100%
-    );
+  border: 1px solid hsl(var(--border) / 0.12);
+  border-radius: 18px;
+  background: hsl(var(--card) / 0.985);
+  box-shadow: 0 18px 30px -36px hsl(var(--foreground) / 0.11);
 }
 
 .assistant-message-top {
-  background: linear-gradient(
-    180deg,
-    hsl(var(--primary) / 0.05) 0%,
-    hsl(var(--muted) / 0.04) 42%,
-    hsl(var(--background) / 0.98) 100%
-  );
+  background: hsl(var(--muted) / 0.12);
 }
 
 .assistant-message-body {
-  background:
-    linear-gradient(
-      180deg,
-      hsl(var(--background) / 0.992) 0%,
-      hsl(var(--background) / 0.982) 100%
-    );
+  background: transparent;
 }
 
 .assistant-message-support {
-  background: linear-gradient(
-    180deg,
-    transparent 0%,
-    hsl(var(--primary) / 0.02) 100%
-  );
+  background: transparent;
 }
 
 .assistant-inline-panel,
 .assistant-inline-media {
-  border-color: hsl(var(--border) / 0.2);
-  background: hsl(var(--background) / 0.92);
-  box-shadow: 0 12px 20px -26px hsl(var(--foreground) / 0.1);
+  border-color: hsl(var(--border) / 0.16);
+  background: hsl(var(--background) / 0.94);
+  box-shadow: 0 10px 16px -28px hsl(var(--foreground) / 0.06);
+}
+
+.assistant-message-surface :deep(.chat-message-kernel-shell) {
+  border-color: hsl(var(--border) / 0.12);
+  border-radius: 12px;
+  background: hsl(var(--background) / 0.82);
+  box-shadow: none;
+}
+
+.assistant-message-surface :deep(.chat-message-kernel-overview) {
+  gap: 0.5rem;
+}
+
+.assistant-message-surface :deep(.kernel-overview-group) {
+  padding: 0.38rem 0.5rem;
+  border-color: hsl(var(--border) / 0.12);
+  border-radius: 11px;
+  background: hsl(var(--background) / 0.74);
+}
+
+.assistant-message-surface :deep(.kernel-overview-pill),
+.assistant-message-surface :deep(.digest-label),
+.assistant-message-surface :deep(.turn-process-pill) {
+  border-color: hsl(var(--primary) / 0.14);
+  background: hsl(var(--primary) / 0.07);
+  color: hsl(var(--primary) / 0.76);
+}
+
+.assistant-message-surface :deep(.kernel-overview-copy),
+.assistant-message-surface :deep(.digest-summary),
+.assistant-message-surface :deep(.digest-section-copy) {
+  color: hsl(var(--foreground) / 0.74);
+}
+
+.assistant-message-surface :deep(.kernel-overview-count),
+.assistant-message-surface :deep(.digest-evidence-count),
+.assistant-message-surface :deep(.turn-process-count) {
+  border-color: hsl(var(--border) / 0.12);
+  background: hsl(var(--muted) / 0.2);
+  color: hsl(var(--muted-foreground) / 0.58);
+}
+
+.assistant-message-surface :deep(.kernel-overview-chevron),
+.assistant-message-surface :deep(.digest-chevron),
+.assistant-message-surface :deep(.turn-process-chevron) {
+  border-color: hsl(var(--border) / 0.12);
+  background: hsl(var(--background) / 0.82);
+}
+
+.assistant-message-surface :deep(.turn-digest-toggle),
+.assistant-message-surface :deep(.turn-process-toggle) {
+  border-color: hsl(var(--border) / 0.1);
+  border-radius: 12px;
+  background: hsl(var(--background) / 0.68);
+}
+
+.assistant-message-surface :deep(.turn-stage-detail-surface) {
+  border-color: hsl(var(--border) / 0.1);
+  background: hsl(var(--background) / 0.76);
+}
+
+.assistant-message-surface :deep(.digest-evidence-chip),
+.assistant-message-surface :deep(.digest-evidence-more) {
+  border-color: hsl(var(--border) / 0.12);
+  background: hsl(var(--background) / 0.74);
 }
 </style>

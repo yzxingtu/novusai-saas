@@ -121,33 +121,44 @@ export const buildRichToolHistoryMessages = () => [
         skill_name: '数据查询',
         tool_name: 'query_records',
       },
-    },
-    tool_calls: [
-      {
-        display_name: '数据查询',
-        duration_ms: 120,
-        function: {
-          arguments: '{"question":"统计今天调用情况"}',
-          name: 'query_records',
-        },
-        id: 'tc_history_1',
-        pending_confirmation: {
-          action: 'query',
-          preview: { sql: 'SELECT 1' },
-          table: 'ai_call_logs',
-          tool_name: 'query_records',
-        },
-        result_link: '/admin/ai/chat',
-        skill_name: '数据查询',
-        success: true,
-        summary: '按今天范围统计调用',
-        summary_payload: {
-          filters: ['today'],
-          tables: ['ai_call_logs'],
-          tool_kind: 'query_records',
-        },
+      pending_confirmation: {
+        action: 'query',
+        preview: { sql: 'SELECT 1' },
+        table: 'ai_call_logs',
+        tool_name: 'query_records',
       },
-    ],
+    },
+    turn_flow: {
+      completion_reason: 'completed',
+      evidence: [
+        {
+          id: 'tc_history_1',
+          display_name: '数据查询',
+          kind: 'tool',
+          output: '{"success": true}',
+          result_link: '/admin/ai/chat',
+          skill_name: '数据查询',
+          snippet: '按今天范围统计调用',
+          status: 'success',
+          summary_payload: {
+            filters: ['today'],
+            tables: ['ai_call_logs'],
+            tool_kind: 'query_records',
+          },
+          tool_call_id: 'tc_history_1',
+          tool_name: 'query_records',
+          title: '数据查询',
+        },
+      ],
+      timeline: [
+        {
+          id: 'turn-tool-execution',
+          status: 'completed',
+          tool_call_ids: ['tc_history_1'],
+          type: 'tool_execution',
+        },
+      ],
+    },
   }),
   buildToolMessage('{"success": true}', {
     metadata: {
@@ -199,19 +210,36 @@ export const buildNativeSearchInterruptedMessages = () => [
 export const buildThinkingDedupHistoryMessages = () => [
   buildUserMessage('那广州今天的天气呢？'),
   buildAssistantMessage('', {
-    metadata: {
-      thinking_content:
-        '**Considering tool responses** I have the weather details now.',
-    },
-    tool_calls: [
-      {
-        function: {
-          arguments: '{"city":"广州"}',
-          name: 'get_current_weather',
+    turn_flow: {
+      evidence: [
+        {
+          id: 'tc_weather_1',
+          display_name: 'get_current_weather',
+          kind: 'tool',
+          status: 'running',
+          tool_call_id: 'tc_weather_1',
+          tool_name: 'get_current_weather',
+          title: 'get_current_weather',
         },
-        id: 'tc_weather_1',
-      },
-    ],
+      ],
+      timeline: [
+        {
+          detail_lines: [
+            '**Considering tool responses** I have the weather details now.',
+          ],
+          id: 'turn-thinking',
+          status: 'completed',
+          summary: '**Considering tool responses** I have the weather details now.',
+          type: 'thinking',
+        },
+        {
+          id: 'turn-tool-execution',
+          status: 'running',
+          tool_call_ids: ['tc_weather_1'],
+          type: 'tool_execution',
+        },
+      ],
+    },
   }),
   buildToolMessage('{"city":"广州","condition":"多云"}', {
     metadata: {
@@ -221,9 +249,37 @@ export const buildThinkingDedupHistoryMessages = () => [
     tool_name: 'get_current_weather',
   }),
   buildAssistantMessage('广州今天多云，气温 24 到 29 摄氏度。', {
-    metadata: {
-      thinking_content:
-        '**Considering tool responses** I have the weather details now.',
+    turn_flow: {
+      completion_reason: 'completed',
+      evidence: [
+        {
+          id: 'tc_weather_1',
+          display_name: 'get_current_weather',
+          kind: 'tool',
+          output: '{"city":"广州","condition":"多云"}',
+          status: 'success',
+          tool_call_id: 'tc_weather_1',
+          tool_name: 'get_current_weather',
+          title: 'get_current_weather',
+        },
+      ],
+      timeline: [
+        {
+          detail_lines: [
+            '**Considering tool responses** I have the weather details now.',
+          ],
+          id: 'turn-thinking',
+          status: 'completed',
+          summary: '**Considering tool responses** I have the weather details now.',
+          type: 'thinking',
+        },
+        {
+          id: 'turn-tool-execution',
+          status: 'completed',
+          tool_call_ids: ['tc_weather_1'],
+          type: 'tool_execution',
+        },
+      ],
     },
   }),
 ];

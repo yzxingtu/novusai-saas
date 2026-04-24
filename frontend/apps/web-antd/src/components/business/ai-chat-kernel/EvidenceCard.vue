@@ -410,7 +410,7 @@ function getEvidenceIcon(kind: string) {
       v-if="canToggleDigest"
       type="button"
       data-testid="turn-digest-toggle"
-      class="turn-digest-toggle flex w-full min-w-0 items-center gap-2 rounded-[14px] px-2 py-1.5 text-left"
+      class="turn-digest-toggle flex w-full min-w-0 items-center gap-2 rounded-[12px] px-2 py-1.5 text-left"
       :aria-expanded="digestExpanded"
       @click="toggleDigestExpanded"
     >
@@ -423,13 +423,13 @@ function getEvidenceIcon(kind: string) {
       <span
         v-if="digestPreviewText"
         class="text-foreground/72 min-w-0 flex-1 truncate"
-        :class="compact ? 'text-[11px]' : 'text-[11.5px]'"
+        :class="compact ? 'text-[10.5px]' : 'text-[11px]'"
       >
         {{ digestPreviewText }}
       </span>
       <span
         v-if="hasEvidence"
-        class="digest-evidence-count inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px]"
+        class="digest-evidence-count inline-flex items-center rounded-full px-1.5 py-0.5 text-[9.5px]"
       >
         {{ preparedEvidence.length + state.hiddenEvidenceCount }}
       </span>
@@ -477,8 +477,8 @@ function getEvidenceIcon(kind: string) {
           class="digest-summary line-clamp-2"
           :class="
             compact
-              ? 'text-[11px] leading-[1.22rem]'
-              : 'text-[11.5px] leading-[1.28rem]'
+              ? 'text-[10.5px] leading-[1.18rem]'
+              : 'text-[11px] leading-[1.24rem]'
           "
         >
           {{ displayAnswerSummary || fallbackAnswerSummary }}
@@ -491,7 +491,7 @@ function getEvidenceIcon(kind: string) {
           >
             <p
               v-if="section.title"
-              class="text-[10px] font-medium text-foreground/56"
+              class="text-[9.5px] font-medium text-foreground/56"
             >
               {{ section.title }}
             </p>
@@ -499,8 +499,8 @@ function getEvidenceIcon(kind: string) {
               class="digest-section-copy line-clamp-2"
               :class="
                 compact
-                  ? 'text-[10.5px] leading-[1.18rem]'
-                  : 'text-[11px] leading-[1.24rem]'
+                  ? 'text-[10px] leading-[1.14rem]'
+                  : 'text-[10.5px] leading-[1.2rem]'
               "
             >
               {{ section.body || section.content }}
@@ -545,8 +545,8 @@ function getEvidenceIcon(kind: string) {
 
 <style scoped>
 .turn-digest-toggle {
-  border: 1px solid hsl(var(--border) / 0.1);
-  background: hsl(var(--background) / 0.62);
+  border: 1px solid hsl(var(--border) / 0.08);
+  background: hsl(var(--background) / 0.58);
   transition:
     background-color 160ms ease,
     border-color 160ms ease,
@@ -554,14 +554,14 @@ function getEvidenceIcon(kind: string) {
 }
 
 .turn-digest-toggle:hover {
-  border-color: hsl(var(--primary) / 0.1);
-  background: hsl(var(--muted) / 0.08);
+  border-color: hsl(var(--primary) / 0.08);
+  background: hsl(var(--muted) / 0.06);
 }
 
 .digest-label {
-  color: hsl(var(--muted-foreground) / 0.6);
-  border: 1px solid hsl(var(--border) / 0.14);
-  background: hsl(var(--muted) / 0.1);
+  color: hsl(var(--muted-foreground) / 0.58);
+  border: 1px solid hsl(var(--border) / 0.12);
+  background: hsl(var(--muted) / 0.08);
 }
 
 .digest-live-state {
@@ -571,14 +571,14 @@ function getEvidenceIcon(kind: string) {
 
 .digest-evidence-count {
   color: hsl(var(--muted-foreground) / 0.54);
-  border: 1px solid hsl(var(--border) / 0.14);
-  background: hsl(var(--background) / 0.72);
+  border: 1px solid hsl(var(--border) / 0.12);
+  background: hsl(var(--background) / 0.68);
 }
 
 .digest-chevron {
   color: hsl(var(--muted-foreground) / 0.46);
-  border: 1px solid hsl(var(--border) / 0.14);
-  background: hsl(var(--background) / 0.72);
+  border: 1px solid hsl(var(--border) / 0.12);
+  background: hsl(var(--background) / 0.68);
 }
 
 .turn-digest-toggle:hover .digest-chevron {
@@ -587,7 +587,7 @@ function getEvidenceIcon(kind: string) {
 }
 
 .turn-digest-body {
-  margin-top: 0.375rem;
+  margin-top: 0.3rem;
 }
 
 .turn-digest-body-enter-active,
@@ -605,14 +605,14 @@ function getEvidenceIcon(kind: string) {
   max-height: 0;
   opacity: 0;
   margin-top: 0;
-  transform: translateY(-4px);
+  transform: translateY(-3px);
 }
 
 .turn-digest-body-enter-to,
 .turn-digest-body-leave-from {
-  max-height: 18rem;
+  max-height: 14rem;
   opacity: 1;
-  margin-top: 0.375rem;
+  margin-top: 0.3rem;
   transform: translateY(0);
 }
 

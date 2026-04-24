@@ -545,7 +545,7 @@ watch(
           ? $t('common.globalAiChat.turnTimelineCollapse')
           : $t('common.globalAiChat.turnTimelineExpand')
       "
-      class="turn-process-toggle group flex w-full items-center gap-2 rounded-[16px] px-2.5 py-2 text-left"
+      class="turn-process-toggle group flex w-full items-center gap-2 rounded-[12px] px-2.5 py-1.5 text-left"
       @click="toggleProcessExpanded"
     >
       <span
@@ -560,8 +560,8 @@ watch(
             class="text-foreground/74 min-w-0 flex-1 truncate font-medium"
             :class="
               compact
-                ? 'text-[10.5px] leading-[1.08rem]'
-                : 'text-[11px] leading-[1.14rem]'
+                ? 'text-[10px] leading-[1.02rem]'
+                : 'text-[10.5px] leading-[1.08rem]'
             "
           >
             {{
@@ -571,13 +571,13 @@ watch(
           </p>
           <span
             v-if="processStatusLabel"
-            class="inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium"
+            class="inline-flex items-center rounded-full border px-1.5 py-0.5 text-[9.5px] font-medium"
             :class="getProcessStatusClass()"
           >
             {{ processStatusLabel }}
           </span>
           <span
-            class="turn-process-count inline-flex items-center rounded-full px-1.5 py-0.5 text-[9.5px]"
+            class="turn-process-count inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px]"
           >
             {{
               $t('common.globalAiChat.turnStageCount', {
@@ -612,7 +612,7 @@ watch(
       <div class="min-h-0 overflow-hidden">
         <div
           class="turn-process-track relative mt-1.5 border-l"
-          :class="compact ? 'space-y-1.5 pl-2.5' : 'space-y-2 pl-3'"
+          :class="compact ? 'space-y-1.5 pl-2.5' : 'space-y-1.5 pl-3'"
         >
           <div
             v-for="(stage, stageIndex) in visibleTimeline"
@@ -647,26 +647,26 @@ watch(
               <div class="flex min-w-0 flex-wrap items-center gap-1.5">
                 <span
                   class="text-foreground/72 truncate font-medium"
-                  :class="compact ? 'text-[10px]' : 'text-[10.5px]'"
+                  :class="compact ? 'text-[9.75px]' : 'text-[10px]'"
                 >
                   {{ getStageTypeLabel(stage) }}
                 </span>
                 <span
                   v-if="shouldShowStageStatus(stage)"
-                  class="inline-flex shrink-0 items-center rounded-full border px-1.5 py-0.5 text-[9.5px] font-medium"
+                  class="inline-flex shrink-0 items-center rounded-full border px-1.5 py-0.5 text-[9px] font-medium"
                   :class="getStageStatusClass(stage)"
                 >
                   {{ getStageStatusLabel(stage) }}
                 </span>
               </div>
               <p
-                  class="text-muted-foreground/56 mt-0.5"
-                  :class="
-                    compact
-                      ? 'text-[9.5px] leading-[1.02rem]'
-                      : 'text-[10px] leading-[1.08rem]'
-                  "
-                >
+                class="text-muted-foreground/56 mt-0.5"
+                :class="
+                  compact
+                    ? 'text-[9px] leading-[1rem]'
+                    : 'text-[9.5px] leading-[1.04rem]'
+                "
+              >
                 {{ getVisibleStageSummary(stage) }}
               </p>
 
@@ -685,7 +685,7 @@ watch(
                     :class="compact ? 'pl-0.5' : 'pl-1'"
                   >
                     <div
-                      class="turn-stage-detail-surface min-w-0 rounded-[16px] border"
+                      class="turn-stage-detail-surface min-w-0 rounded-[14px] border"
                       :class="compact ? 'px-2.5 py-1.5' : 'px-2.5 py-2'"
                     >
                       <ChatMessageThinkingBlock
@@ -788,13 +788,8 @@ watch(
 
 <style scoped>
 .turn-process-toggle {
-  border: 1px solid hsl(var(--border) / 0.12);
-  background:
-    linear-gradient(
-      180deg,
-      hsl(var(--primary) / 0.025) 0%,
-      hsl(var(--background) / 0.82) 100%
-    );
+  border: 1px solid hsl(var(--border) / 0.1);
+  background: hsl(var(--background) / 0.62);
   transition:
     background-color 160ms ease,
     border-color 160ms ease,
@@ -802,21 +797,21 @@ watch(
 }
 
 .turn-process-toggle:hover {
-  border-color: hsl(var(--primary) / 0.12);
-  background: hsl(var(--primary) / 0.035);
-  box-shadow: 0 12px 24px -28px hsl(var(--foreground) / 0.14);
+  border-color: hsl(var(--primary) / 0.1);
+  background: hsl(var(--primary) / 0.025);
+  box-shadow: 0 8px 16px -28px hsl(var(--foreground) / 0.09);
 }
 
 .turn-process-pill {
   color: hsl(var(--primary) / 0.76);
-  border: 1px solid hsl(var(--primary) / 0.12);
-  background: hsl(var(--primary) / 0.05);
+  border: 1px solid hsl(var(--primary) / 0.1);
+  background: hsl(var(--primary) / 0.04);
 }
 
 .turn-process-count {
   color: hsl(var(--muted-foreground) / 0.56);
-  border: 1px solid hsl(var(--border) / 0.14);
-  background: hsl(var(--muted) / 0.28);
+  border: 1px solid hsl(var(--border) / 0.12);
+  background: hsl(var(--muted) / 0.22);
 }
 
 .turn-process-track {
@@ -825,8 +820,8 @@ watch(
 
 .turn-process-chevron {
   color: hsl(var(--muted-foreground) / 0.46);
-  border: 1px solid hsl(var(--border) / 0.14);
-  background: hsl(var(--background) / 0.82);
+  border: 1px solid hsl(var(--border) / 0.12);
+  background: hsl(var(--background) / 0.74);
 }
 
 .turn-process-toggle:hover .turn-process-chevron {
@@ -835,13 +830,13 @@ watch(
 }
 
 .turn-stage-detail-surface {
-  border-color: hsl(var(--border) / 0.14);
-  background: hsl(var(--background) / 0.8);
-  box-shadow: 0 10px 16px -24px hsl(var(--foreground) / 0.16);
+  border-color: hsl(var(--border) / 0.12);
+  background: hsl(var(--background) / 0.78);
+  box-shadow: 0 8px 14px -24px hsl(var(--foreground) / 0.1);
 }
 
 .turn-stage-card {
-  padding: 0.25rem 0.15rem 0.1rem;
+  padding: 0.2rem 0.1rem 0.05rem;
 }
 
 .turn-stage-inline-markdown {

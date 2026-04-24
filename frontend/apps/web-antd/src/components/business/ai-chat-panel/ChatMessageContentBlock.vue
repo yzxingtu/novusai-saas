@@ -267,12 +267,12 @@ function toggleExpand() {
   <div
     v-if="hasContentBody"
     class="assistant-content-block relative"
-    :class="compact ? 'text-[14.5px]' : 'text-[15.5px]'"
+    :class="compact ? 'text-[13.75px]' : 'text-[14.75px]'"
   >
     <div
       class="assistant-content-body transition-[max-height] duration-200"
       :class="[
-        compact ? 'leading-[1.8]' : 'leading-[1.84]',
+        compact ? 'leading-[1.76]' : 'leading-[1.84]',
         canCollapse && !expanded
           ? 'relative max-h-[300px] overflow-hidden'
           : '',
@@ -309,7 +309,7 @@ function toggleExpand() {
     <button
       v-if="canCollapse && !msg.streaming"
       type="button"
-      class="hover:border-primary/18 mt-2.5 inline-flex items-center gap-1.5 rounded-full border border-border/22 bg-background/72 px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-primary/[0.04] hover:text-primary"
+      class="hover:border-primary/18 mt-2.5 inline-flex items-center gap-1.5 rounded-full border border-border/20 bg-background/72 px-2.5 py-1 text-[10.5px] font-medium text-muted-foreground transition-colors hover:bg-primary/[0.04] hover:text-primary"
       @click="toggleExpand"
     >
       {{
@@ -321,14 +321,14 @@ function toggleExpand() {
     <p
       v-if="canCollapse && !expanded && !msg.streaming"
       data-testid="collapsed-message-hint"
-      class="text-muted-foreground/68 mt-1.5 text-[11px] leading-5"
+      class="text-muted-foreground/64 mt-1.5 text-[10.5px] leading-5"
     >
       {{ $t('common.globalAiChat.collapsedMessageHint') }}
     </p>
     <div
       v-if="isTruncatedByLength"
       data-testid="truncation-warning"
-      class="border-amber-500/18 mt-2 flex items-center gap-1.5 rounded-xl border bg-amber-500/[0.08] px-2.5 py-2 text-[12px] text-amber-700 dark:text-amber-300"
+      class="border-amber-500/18 mt-2 flex items-center gap-1.5 rounded-[14px] border bg-amber-500/[0.08] px-2.5 py-2 text-[11px] text-amber-700 dark:text-amber-300"
     >
       <IconifyIcon icon="lucide:triangle-alert" class="size-3.5 shrink-0" />
       <span>{{ $t('common.globalAiChat.responseTruncated') }}</span>
@@ -351,86 +351,86 @@ function toggleExpand() {
 .assistant-content-block :deep(.markdown-render h2),
 .assistant-content-block :deep(.markdown-render h3),
 .assistant-content-block :deep(.markdown-render h4) {
-  margin: 1em 0 0.5em;
+  margin: 0.95em 0 0.45em;
   font-weight: 600;
-  line-height: 1.35;
+  line-height: 1.3;
   color: hsl(var(--foreground) / 0.94);
 }
 
 .assistant-content-block :deep(.markdown-render h1) {
-  font-size: 1.15em;
+  font-size: 1.1em;
 }
 
 .assistant-content-block :deep(.markdown-render h2) {
-  font-size: 1.08em;
+  font-size: 1.04em;
 }
 
 .assistant-content-block :deep(.markdown-render h3),
 .assistant-content-block :deep(.markdown-render h4) {
-  font-size: 1.04em;
+  font-size: 1em;
 }
 
 .assistant-content-block :deep(.markdown-render p) {
-  margin: 0.55em 0;
+  margin: 0.48em 0;
 }
 
 .assistant-content-block :deep(.markdown-render ul),
 .assistant-content-block :deep(.markdown-render ol) {
-  margin: 0.6em 0;
-  padding-left: 1.35em;
+  margin: 0.55em 0;
+  padding-left: 1.2em;
 }
 
 .assistant-content-block :deep(.markdown-render li + li) {
-  margin-top: 0.28em;
+  margin-top: 0.22em;
 }
 
 .assistant-content-block :deep(.markdown-render hr) {
-  margin: 1em 0;
-  border-color: hsl(var(--border) / 0.55);
+  margin: 0.9em 0;
+  border-color: hsl(var(--border) / 0.42);
 }
 
 .assistant-content-block :deep(.markdown-render blockquote) {
-  margin: 0.85em 0;
-  padding: 0.75em 0.95em;
-  color: hsl(var(--muted-foreground) / 0.96);
+  margin: 0.8em 0;
+  padding: 0.72em 0.9em;
+  color: hsl(var(--muted-foreground) / 0.92);
   border-left-width: 2px;
-  border-left-color: hsl(var(--primary) / 0.24);
-  border-radius: 0 12px 12px 0;
-  background: hsl(var(--muted) / 0.2);
+  border-left-color: hsl(var(--primary) / 0.22);
+  border-radius: 0 10px 10px 0;
+  background: hsl(var(--muted) / 0.18);
 }
 
 .assistant-content-block :deep(.markdown-render a) {
   font-weight: 500;
-  box-shadow: inset 0 -1px 0 hsl(var(--primary) / 0.22);
+  box-shadow: inset 0 -1px 0 hsl(var(--primary) / 0.18);
 }
 
 .assistant-content-block :deep(.md-code-block) {
-  border-color: hsl(var(--border) / 0.42);
-  border-radius: 14px;
-  background: hsl(var(--muted) / 0.1);
+  border-color: hsl(var(--border) / 0.22);
+  border-radius: 12px;
+  background: hsl(var(--muted) / 0.08);
 }
 
 .assistant-content-block :deep(.md-code-header) {
-  padding: 0.42rem 0.8rem;
-  background: hsl(var(--muted) / 0.28);
+  padding: 0.4rem 0.72rem;
+  background: hsl(var(--muted) / 0.22);
 }
 
 .assistant-content-block :deep(.md-code-block pre.hljs) {
-  padding: 0.95rem 1rem;
-  background: hsl(var(--background) / 0.94);
+  padding: 0.88rem 0.95rem;
+  background: hsl(var(--background) / 0.95);
 }
 
 .assistant-content-block :deep(.markdown-render code:not(.hljs code)) {
-  padding: 0.15rem 0.38rem;
-  border-radius: 6px;
-  background: hsl(var(--muted) / 0.45);
+  padding: 0.12rem 0.34rem;
+  border-radius: 5px;
+  background: hsl(var(--muted) / 0.38);
 }
 
 .assistant-content-block :deep(.markdown-render table) {
-  margin: 0.75em 0;
+  margin: 0.7em 0;
 }
 
 .assistant-content-block :deep(.markdown-render th) {
-  background: hsl(var(--muted) / 0.42);
+  background: hsl(var(--muted) / 0.34);
 }
 </style>

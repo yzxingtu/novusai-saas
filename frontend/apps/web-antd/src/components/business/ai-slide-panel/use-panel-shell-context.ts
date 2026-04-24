@@ -103,7 +103,7 @@ interface UsePanelShellContextOptions {
   applyVariables: (
     agentId: number,
     values: Record<string, string>,
-    persist?: boolean,
+    persist: boolean,
   ) => void;
 }
 

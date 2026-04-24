@@ -743,6 +743,8 @@
     "sqlStatement": "SQL Statement",
     "resultSummary": "Result Summary",
     "errorMessage": "Error Message",
+    "requestData": "Request Data",
+    "responseData": "Response Data",
     "viewDetail": "View Detail",
     "copyPayload": "Copy",
     "linkedDecision": "Linked Execution Decision",

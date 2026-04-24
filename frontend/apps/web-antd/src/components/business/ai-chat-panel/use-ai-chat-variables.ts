@@ -36,7 +36,7 @@ export function useAIChatVariables(
   applyVariables: (
     agentId: number,
     values: Record<string, string>,
-    persist?: boolean,
+    persist: boolean,
   ) => void;
   clearConversationVarsCache: () => void;
   ensureAgentVarsLoaded: (agentId: number) => void;
@@ -54,7 +54,7 @@ export function useAIChatVariables(
   function applyVariables(
     agentId: number,
     values: Record<string, string>,
-    persist = false,
+    persist: boolean = false,
   ) {
     allAgentsVariables.value[agentId] = { ...values };
     if (persist) {

@@ -16,7 +16,7 @@ interface UsePanelShellHeaderContextOptions {
   applyVariables: (
     agentId: number,
     values: Record<string, string>,
-    persist?: boolean,
+    persist: boolean,
   ) => void;
   agentsWithVarsInConversation: Ref<AgentItem[]>;
   allAgentsVariables: Ref<Record<number, Record<string, string>>>;

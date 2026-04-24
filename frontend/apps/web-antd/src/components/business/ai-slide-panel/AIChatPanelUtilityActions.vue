@@ -84,7 +84,7 @@ const effectiveHeaderMoreMenuItems = computed(
       class="flex shrink-0 items-center"
       :class="
         compact
-          ? 'gap-0 rounded-xl border border-border/40 bg-muted/15 px-1 py-1'
+          ? 'gap-1'
           : 'flex-wrap gap-1.5'
       "
     >
@@ -108,9 +108,8 @@ const effectiveHeaderMoreMenuItems = computed(
             {{ $t('user.aiChat.varsModal.editVars') }}
           </span>
           <span
-            v-if="hasHeaderVariableValues"
-            class="rounded-full bg-green-500"
-            :class="compact ? 'absolute right-1 top-1 size-1.5' : 'size-2'"
+            v-if="hasHeaderVariableValues && !compact"
+            class="size-2 rounded-full bg-green-500"
           ></span>
         </button>
       </Tooltip>
@@ -210,9 +209,8 @@ const effectiveHeaderMoreMenuItems = computed(
             {{ $t('common.aiPanel.memory') }}
           </span>
           <span
-            v-if="headerMemoryHasAttention && !showMemoryPanel"
-            class="rounded-full bg-primary"
-            :class="compact ? 'absolute right-1.5 top-1.5 size-1.5' : 'size-2'"
+            v-if="headerMemoryHasAttention && !showMemoryPanel && !compact"
+            class="size-2 rounded-full bg-primary"
           ></span>
         </button>
       </Tooltip>
@@ -237,9 +235,8 @@ const effectiveHeaderMoreMenuItems = computed(
               {{ $t('common.aiPanel.moreActions') }}
             </span>
             <span
-              v-if="headerMoreHasAttention"
-              class="rounded-full bg-primary"
-              :class="compact ? 'absolute right-1.5 top-1.5 size-1.5' : 'size-2'"
+              v-if="headerMoreHasAttention && !compact"
+              class="size-2 rounded-full bg-primary"
             ></span>
           </button>
         </Tooltip>
@@ -253,8 +250,8 @@ const effectiveHeaderMoreMenuItems = computed(
 
 <style scoped>
 .ai-panel-utility-chip {
-  border-color: hsl(var(--border) / 0.28);
-  background: hsl(var(--background) / 0.92);
-  box-shadow: 0 10px 18px -28px hsl(var(--foreground) / 0.12);
+  border-color: hsl(var(--border) / 0.2);
+  background: hsl(var(--background) / 0.9);
+  box-shadow: 0 8px 16px -28px hsl(var(--foreground) / 0.1);
 }
 </style>

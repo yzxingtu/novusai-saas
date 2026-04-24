@@ -743,6 +743,8 @@
     "sqlStatement": "SQL 语句",
     "resultSummary": "结果摘要",
     "errorMessage": "错误信息",
+    "requestData": "请求数据",
+    "responseData": "响应数据",
     "viewDetail": "查看详情",
     "copyPayload": "复制内容",
     "linkedDecision": "关联执行决策",

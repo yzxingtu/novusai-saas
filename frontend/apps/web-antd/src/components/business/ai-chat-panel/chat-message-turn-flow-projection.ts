@@ -218,7 +218,7 @@ export function applyNativeSearchStatusToTurnFlow(
   message.turnFlow = flow;
 }
 
-export function appendThinkingDeltaToTurnFlow(
+function appendPersistedThinkingDeltaToTurnFlow(
   message: ChatMessage,
   delta: string | undefined,
 ): void {
@@ -261,7 +261,7 @@ export function promoteStreamingContentToThinkingTurnFlow(
   message.content = '';
 }
 
-export function applyOptimizingToolsToTurnFlow(
+function applyPersistedOptimizingToolsToTurnFlow(
   message: ChatMessage,
   selection: { selected?: number; total?: number },
 ): void {
@@ -309,7 +309,7 @@ function toEvidenceIdFromRagSource(source: RagSource, index: number): string {
   return `rag-${toEvidenceKindFromRagSource(source)}-${sourceKey ?? index + 1}`;
 }
 
-export function applyRagSourcesToTurnFlow(
+function applyPersistedRagSourcesToTurnFlow(
   message: ChatMessage,
   sources: RagSource[] | undefined,
 ): void {
@@ -345,10 +345,7 @@ export interface PersistedAssistantTurnFlowFallbackInput {
   toolCalls?: ToolCallEvent[];
 }
 
-export type AssistantTurnFlowProjectionInput =
-  PersistedAssistantTurnFlowFallbackInput;
-
-export function applyPersistedAssistantFieldFallbackToTurnFlow(
+export function applyPersistedAssistantLegacyFallbackToTurnFlow(
   message: ChatMessage,
   input: PersistedAssistantTurnFlowFallbackInput,
 ): void {
@@ -380,14 +377,14 @@ export function applyPersistedAssistantFieldFallbackToTurnFlow(
   // Persisted-history compatibility only: live streaming owns canonical
   // turnFlow upstream and must never route through this fallback seam.
   if (hasSelectionInput) {
-    applyOptimizingToolsToTurnFlow(message, {
+    applyPersistedOptimizingToolsToTurnFlow(message, {
       ...(selected === undefined ? {} : { selected }),
       ...(total === undefined ? {} : { total }),
     });
   }
 
   if (thinkingContent) {
-    appendThinkingDeltaToTurnFlow(message, thinkingContent);
+    appendPersistedThinkingDeltaToTurnFlow(message, thinkingContent);
   }
 
   if (toolCalls) {
@@ -395,9 +392,6 @@ export function applyPersistedAssistantFieldFallbackToTurnFlow(
   }
 
   if (ragSources) {
-    applyRagSourcesToTurnFlow(message, ragSources);
+    applyPersistedRagSourcesToTurnFlow(message, ragSources);
   }
 }
-
-export const projectAssistantFieldsIntoTurnFlow =
-  applyPersistedAssistantFieldFallbackToTurnFlow;

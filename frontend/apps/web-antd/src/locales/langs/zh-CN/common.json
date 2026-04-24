@@ -28,6 +28,7 @@
   "cancel": "取消",
   "close": "关闭",
   "confirm": "确认",
+  "copy": "复制",
   "delete": "删除",
   "edit": "编辑",
   "add": "添加",
@@ -403,9 +404,9 @@
     "history": "历史对话",
     "noHistory": "暂无历史对话",
     "welcomeDesc": "选择一个 AI 助理开始对话",
-    "processing": "正在整理回复...",
-    "thinking": "正在思考...",
-    "thinkingCollapsed": "思路摘记",
+    "processing": "思考中...",
+    "thinking": "思考",
+    "thinkingCollapsed": "思考摘要",
     "thinkingExpandHint": "展开思路",
     "thinkingExpand": "展开思路",
     "thinkingCollapse": "收起思路",
@@ -554,7 +555,7 @@
     "referenceLinkFallback": "参考链接",
     "turnRetrievalSummary": "找到 {count} 条来源",
     "turnStageType": {
-      "thinking": "思路整理",
+      "thinking": "思考",
       "tool_selection": "挑选工具",
       "tool_execution": "调用工具",
       "retrieval": "查找来源",
@@ -570,7 +571,7 @@
       "interrupted": "已中断"
     },
     "turnStageSummary": {
-      "thinking": "正在查看上下文并整理思路",
+      "thinking": "正在查看上下文并思考",
       "tool_selection": "正在看看哪些工具更合适",
       "tool_execution": "正在调用已选工具",
       "retrieval": "正在整理可用来源",

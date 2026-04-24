@@ -171,18 +171,18 @@ const messageRenderEntries = computed(() =>
 
 const contentShellClass = computed(() =>
   props.compact
-    ? 'w-full space-y-2.5'
-    : 'mx-auto min-h-full w-full max-w-[46rem] space-y-3.5',
+    ? 'mx-auto min-h-full w-full max-w-[48rem] space-y-3'
+    : 'mx-auto min-h-full w-full max-w-[46rem] space-y-4',
 );
 
 const transcriptRailClass = computed(() =>
   props.compact
-    ? 'w-full space-y-2.5'
-    : 'mx-auto w-full max-w-[46rem] space-y-3',
+    ? 'mx-auto w-full max-w-[48rem] space-y-3'
+    : 'mx-auto w-full max-w-[46rem] space-y-4',
 );
 
 const messageListClass = computed(() =>
-  props.compact ? 'space-y-2.5' : 'space-y-3.5',
+  props.compact ? 'space-y-3' : 'space-y-4',
 );
 
 const visibleAssistantAgentIds = computed(() => {
@@ -266,8 +266,8 @@ watch(
 <template>
   <div
     :ref="(element) => registerContainer?.(element as HTMLDivElement | null)"
-    class="flex-1 overflow-y-auto"
-    :class="compact ? 'px-2.5 py-2.5' : 'px-4 py-3.5 sm:px-5 lg:px-6'"
+    class="transcript-scroll flex-1 overflow-y-auto"
+    :class="compact ? 'px-3 py-3.5' : 'px-5 py-4 sm:px-6 lg:px-8'"
     @scroll="emit('scroll')"
   >
     <div :class="contentShellClass">
@@ -276,10 +276,10 @@ watch(
         class="flex h-full items-center justify-center"
       >
         <div
-          class="ai-chat-empty-card w-full max-w-[25rem] rounded-[26px] border px-5 py-5 text-center"
+          class="ai-chat-empty-card w-full max-w-[25rem] rounded-[24px] border px-5 py-5 text-center"
         >
           <div
-            class="ai-chat-empty-orb mx-auto mb-2.5 flex size-10 items-center justify-center rounded-[18px] text-primary ring-1"
+            class="ai-chat-empty-orb mx-auto mb-2.5 flex size-10 items-center justify-center rounded-[16px] text-primary ring-1"
           >
             <IconifyIcon icon="lucide:message-square-text" class="size-4.5" />
           </div>
@@ -288,9 +288,7 @@ watch(
           >
             {{ $t('common.globalAiChat.assistant') }}
           </div>
-          <div
-            class="text-foreground/84 text-[11.5px] font-semibold leading-6 tracking-[0.01em]"
-          >
+          <div class="text-foreground/84 text-[11px] font-semibold leading-6">
             {{
               effectiveWelcomeMessage || $t('common.globalAiChat.welcomeDesc')
             }}
@@ -484,37 +482,22 @@ watch(
         <Transition name="fade">
           <div
             v-if="routing"
-            class="routing-card border-border/22 relative overflow-hidden rounded-[18px] border px-3 py-2 backdrop-blur-sm"
+            class="routing-card border-border/22 relative overflow-hidden rounded-[16px] border px-3 py-2 backdrop-blur-sm"
           >
             <div class="relative z-[1] flex items-center gap-2">
-              <div
-                class="relative flex size-5.5 items-center justify-center rounded-[14px] bg-primary/10"
-              >
+              <div class="flex size-5.5 items-center justify-center rounded-[14px] bg-primary/10">
                 <IconifyIcon
                   icon="lucide:route"
                   class="size-3 text-primary"
                 />
-                <span
-                  class="routing-dot absolute -right-0.5 -top-0.5 size-2 rounded-full bg-primary"
-                ></span>
               </div>
               <div class="flex flex-col gap-0.5">
                 <span class="text-[10px] font-medium text-foreground/80">
                   {{ $t('common.globalAiChat.routingAgent') }}
                 </span>
-                <div class="flex items-center gap-1">
-                  <span
-                    class="routing-dot size-1 rounded-full bg-primary/60"
-                  ></span>
-                  <span
-                    class="routing-dot size-1 rounded-full bg-primary/60"
-                    style="animation-delay: 0.15s"
-                  ></span>
-                  <span
-                    class="routing-dot size-1 rounded-full bg-primary/60"
-                    style="animation-delay: 0.3s"
-                  ></span>
-                </div>
+                <span class="text-[9.5px] text-muted-foreground/62">
+                  {{ $t('common.globalAiChat.turnStageStatus.running') }}
+                </span>
               </div>
             </div>
             <div class="routing-shimmer absolute inset-0"></div>
@@ -577,33 +560,48 @@ watch(
 </template>
 
 <style scoped>
+.transcript-scroll {
+  background:
+    radial-gradient(
+      circle at top,
+      hsl(var(--primary) / 0.035),
+      transparent 28%
+    ),
+    linear-gradient(
+      180deg,
+      hsl(var(--background) / 0.985) 0%,
+      hsl(var(--background)) 100%
+    );
+}
+
 .ai-chat-empty-card {
   background: linear-gradient(
     180deg,
-    hsl(var(--card)) 0%,
-    hsl(var(--background) / 0.98) 100%
+    hsl(var(--card) / 0.98) 0%,
+    hsl(var(--background) / 0.985) 100%
   );
-  border-color: hsl(var(--border) / 0.32);
+  border-color: hsl(var(--border) / 0.24);
   box-shadow:
-    0 24px 38px -34px hsl(var(--foreground) / 0.14),
-    0 1px 0 hsl(var(--primary) / 0.05) inset;
+    0 20px 34px -34px hsl(var(--foreground) / 0.12),
+    0 1px 0 hsl(var(--primary) / 0.04) inset;
 }
 
 .ai-chat-empty-orb {
   background: linear-gradient(
     180deg,
     hsl(var(--background)) 0%,
-    hsl(var(--muted) / 0.42) 100%
+    hsl(var(--muted) / 0.3) 100%
   );
-  border-color: hsl(var(--border) / 0.32);
-  box-shadow: 0 14px 24px -24px hsl(var(--foreground) / 0.1);
+  border-color: hsl(var(--border) / 0.24);
+  box-shadow: 0 12px 22px -24px hsl(var(--foreground) / 0.08);
 }
 
 .routing-card {
   background: linear-gradient(
     180deg,
     hsl(var(--background) / 0.98) 0%,
-    hsl(var(--primary) / 0.035) 100%
+    hsl(var(--primary) / 0.03) 100%
   );
+  box-shadow: 0 14px 28px -30px hsl(var(--foreground) / 0.14);
 }
 </style>

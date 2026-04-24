@@ -41,17 +41,17 @@ const tokenSummary = computed(
 <template>
   <div
     v-if="isVisible"
-    class="flex items-center justify-center gap-1.5 border-t border-border/16 bg-background/94 px-2.5 py-1 text-[9.5px] text-muted-foreground/64"
+    class="flex items-center justify-center gap-1 border-t border-border/12 bg-background/92 px-2 py-0.5 text-[8.75px] text-muted-foreground/58"
   >
-    <IconifyIcon icon="lucide:activity" class="size-3 text-primary/62" />
+    <IconifyIcon icon="lucide:activity" class="size-2.5 text-primary/60" />
     <span>{{ tokenSummary }}</span>
     <span v-if="hasExportActions" class="text-border/70">·</span>
     <ADropdown v-if="hasExportActions" :trigger="['click']" placement="bottomRight">
       <button
-        class="inline-flex size-5 items-center justify-center rounded-full border border-transparent transition-colors hover:border-border/30 hover:bg-muted/60 hover:text-foreground/82"
+        class="inline-flex size-4.5 items-center justify-center rounded-full border border-transparent transition-colors hover:border-border/24 hover:bg-muted/55 hover:text-foreground/78"
         type="button"
       >
-        <IconifyIcon icon="lucide:download" class="size-3" />
+        <IconifyIcon icon="lucide:download" class="size-2.5" />
       </button>
       <template #overlay>
         <AMenu :items="exportMenuItems" />

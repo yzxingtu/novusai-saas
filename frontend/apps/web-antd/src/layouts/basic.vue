@@ -531,7 +531,12 @@ watch(
     <template #header-right-51>
       <div
         v-if="aiEnabled"
-        class="group relative mr-1 flex h-8 cursor-pointer items-center gap-2 rounded-2xl bg-accent/50 px-3 py-0.5 transition-colors hover:bg-accent sm:mr-4"
+        class="group relative mr-1 flex h-8 cursor-pointer items-center gap-2 rounded-2xl px-3 py-0.5 transition-colors sm:mr-4"
+        :class="
+          aiPanelStore.hasUnread
+            ? 'bg-primary/[0.06] ring-1 ring-primary/12 hover:bg-primary/[0.08]'
+            : 'bg-accent/50 hover:bg-accent'
+        "
         @click="commandBarRef?.show()"
       >
         <IconifyIcon
@@ -548,10 +553,6 @@ watch(
         >
           Ctrl K
         </kbd>
-        <span
-          v-if="aiPanelStore.hasUnread"
-          class="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-destructive"
-        ></span>
       </div>
     </template>
     <template #extra>

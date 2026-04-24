@@ -4,6 +4,7 @@ import { IconifyIcon } from '@vben/icons';
 import { Input, Spin } from 'ant-design-vue';
 
 import { $t } from '#/locales';
+import { toAvatarDisplayUrl } from '#/utils/image';
 
 import { useUserAIChatContext } from './ai-chat-context';
 import UserAIChatConversationList from './UserAIChatConversationList.vue';
@@ -11,6 +12,10 @@ import UserAIChatConversationList from './UserAIChatConversationList.vue';
 const { conversationSearch, onSelectAgent, onStartNewChat, chat } =
   useUserAIChatContext();
 const { agents, agentsLoading, selectedAgentId, conversations } = chat;
+
+function resolveAgentAvatar(avatar: null | string | undefined) {
+  return avatar ? toAvatarDisplayUrl(avatar) : '';
+}
 </script>
 
 <template>
@@ -49,7 +54,7 @@ const { agents, agentsLoading, selectedAgentId, conversations } = chat;
           >
             <img
               v-if="agent.avatar"
-              :src="agent.avatar"
+              :src="resolveAgentAvatar(agent.avatar)"
               :alt="agent.name"
               class="size-8 rounded-lg object-cover"
             />

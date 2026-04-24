@@ -1,58 +1,65 @@
-import type { ChatMessage, ToolCallEvent } from './types';
+import type { ChatMessage } from './types';
 import type { AssistantTurnMergeState } from './use-ai-chat-message-merge-turn-state';
 
+import { $t } from '#/locales';
+
+import {
+  buildToolEvidencePayload,
+  getOrCreateCanonicalTurnFlow,
+  syncToolExecutionStage,
+  upsertToolEvidence,
+} from './chat-message-turn-flow-ingestion';
 import { toTurnFlowFirstChatMessage } from './turn-flow-first-message';
 import { isTurnFailure } from './use-ai-chat-message-context';
 import {
-  finalizeNativeSearchToolCall,
-  markNativeSearchToolCallError,
+  NATIVE_WEB_SEARCH_PROVIDER,
   NATIVE_WEB_SEARCH_TOOL_NAME,
   resolveNativeSearchToolStatus,
-  upsertNativeSearchToolCall,
 } from './use-ai-chat-message-native-search';
-import { applyPersistedAssistantFieldFallbackToTurnFlow } from './chat-message-turn-flow-projection';
 
-function resolveMergedToolCalls(
+function applyNativeSearchDiagnosticsToTurnFlow(
+  message: ChatMessage,
   state: AssistantTurnMergeState,
-): ToolCallEvent[] {
+) {
   const nativeSearchStatus = resolveNativeSearchToolStatus(
     state.turnContextDiagnosticsRaw,
     state.turnLastRunSummaryRaw,
     state.turnRecordRaw,
   );
-  let mergedToolCalls = nativeSearchStatus
-    ? upsertNativeSearchToolCall(state.toolCalls, nativeSearchStatus)
-    : state.toolCalls;
-
-  const hasPendingNativeSearchTool = mergedToolCalls.some(
-    (toolCall) =>
-      toolCall.name === NATIVE_WEB_SEARCH_TOOL_NAME &&
-      toolCall.status === 'running',
-  );
-  if (!hasPendingNativeSearchTool) {
-    return mergedToolCalls;
+  if (!nativeSearchStatus) {
+    return;
   }
 
-  const shouldFinalizeNativeSearchAsSuccess =
-    state.turnSelectedToolNames.includes('web_search') ||
-    (!state.hasPartial &&
-      !state.hasInterrupted &&
-      !isTurnFailure(
+  const finalStatus =
+    nativeSearchStatus === 'running' &&
+    (state.hasInterrupted ||
+      isTurnFailure(
         state.turnOutcome,
         state.turnTerminationReason ?? state.turnCompletionReason,
-      ));
-
-  mergedToolCalls =
-    (shouldFinalizeNativeSearchAsSuccess
-      ? finalizeNativeSearchToolCall(mergedToolCalls)
-      : markNativeSearchToolCallError(mergedToolCalls)) ?? [];
-  return mergedToolCalls;
+      ))
+      ? 'error'
+      : nativeSearchStatus;
+  const flow = getOrCreateCanonicalTurnFlow(message);
+  upsertToolEvidence(
+    flow,
+    buildToolEvidencePayload({
+      displayName: $t('common.globalAiChat.toolNativeSearch'),
+      summaryPayload: {
+        provider: NATIVE_WEB_SEARCH_PROVIDER,
+        status: finalStatus,
+      },
+      toolCallId: NATIVE_WEB_SEARCH_TOOL_NAME,
+      toolName: NATIVE_WEB_SEARCH_TOOL_NAME,
+      status: finalStatus,
+    }),
+  );
+  syncToolExecutionStage(flow);
+  message.turnFlow = flow;
 }
 
 export function buildAssistantMessageFromState(
   state: AssistantTurnMergeState,
 ): ChatMessage {
-  const mergedToolCalls = resolveMergedToolCalls(state);
   const mergedContent =
     state.trustedFinalContent ?? state.contentParts.join('\n\n');
   const assistantMessage: ChatMessage = {
@@ -137,18 +144,8 @@ export function buildAssistantMessageFromState(
   }
   if (state.turnFlow) {
     assistantMessage.turnFlow = state.turnFlow;
-  }
-
-  // Historical fallback only: live turns already own canonical turnFlow upstream.
-  if (!state.turnFlow) {
-    applyPersistedAssistantFieldFallbackToTurnFlow(assistantMessage, {
-      ragSources: state.turnRagSources,
-      thinkingContent:
-        state.thinkingContentParts.length > 0
-          ? state.thinkingContentParts.join('\n\n')
-          : undefined,
-      toolCalls: mergedToolCalls,
-    });
+  } else {
+    applyNativeSearchDiagnosticsToTurnFlow(assistantMessage, state);
   }
 
   return toTurnFlowFirstChatMessage(assistantMessage);

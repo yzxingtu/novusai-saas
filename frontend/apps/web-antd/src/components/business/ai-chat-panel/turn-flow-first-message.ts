@@ -1,6 +1,6 @@
 import type { ChatMessage } from './types';
 
-import { normalizeTurnFlowViewModel } from './use-ai-chat-turn-flow';
+import { normalizeTurnFlowViewModel } from './chat-message-turn-flow-ingestion';
 
 type TurnFlowRecord = Record<string, unknown>;
 

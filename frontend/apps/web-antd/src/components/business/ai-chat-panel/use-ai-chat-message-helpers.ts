@@ -30,14 +30,11 @@ export {
   normalizeStringList,
 } from './use-ai-chat-message-normalizers';
 export {
-  appendThinkingDeltaToTurnFlow,
   applyCanonicalDoneEvent,
   applyCanonicalTurnAnswerCardEvent,
   applyCanonicalTurnEvidenceEvent,
   applyCanonicalTurnStageEvent,
   applyNativeSearchStatusToTurnFlow,
-  applyOptimizingToolsToTurnFlow,
-  applyRagSourcesToTurnFlow,
   applyStreamingToolResultToTurnFlow,
   applyStreamingToolStartToTurnFlow,
   mergeTurnFlow,

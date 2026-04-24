@@ -44,8 +44,18 @@ export interface UserAIChatContext {
   effectiveWelcomeMessage: ComputedRef<string>;
   effectiveSuggestedQuestions: ComputedRef<string[]>;
   chatHeaderSubtitle: ComputedRef<string>;
-  selectedAgentHasVariables: ComputedRef<boolean>;
-  selectedAgentVarsConfigured: ComputedRef<boolean>;
+  agentsWithVarsInConversation: ComputedRef<
+    Array<{
+      id: number;
+      input_variables?: InputVariable[] | null;
+      name: string;
+    }>
+  >;
+  headerHasVariables: ComputedRef<boolean>;
+  headerVarsConfigured: ComputedRef<boolean>;
+  multiVarsModalVisible: Ref<boolean>;
+  multiVarsFormValues: Record<number, Record<string, string>>;
+  multiVarsPersist: Ref<boolean>;
   varsModalVisible: Ref<boolean>;
   varsFormValues: Record<string, string>;
   varsModalAgent: Ref<null | VarsModalAgent>;
@@ -59,6 +69,17 @@ export interface UserAIChatContext {
   cancelEditTitle: () => void;
   onToggleMemory: () => Promise<void>;
   onClearMemory: () => void;
+  onMultiPersistChange: (value: boolean) => void;
+  onMultiVarValueChange: (payload: {
+    agentId: number;
+    name: string;
+    value: string;
+  }) => void;
+  onMultiVarsCancel: () => void;
+  onMultiVarsConfirm: () => void;
+  onSinglePersistChange: (value: boolean) => void;
+  onSingleVarValueChange: (payload: { name: string; value: string }) => void;
+  openHeaderVarsModal: () => void;
   openSelectedAgentVarsModal: () => void;
   onVarsConfirm: () => void;
   onVarsCancel: () => void;

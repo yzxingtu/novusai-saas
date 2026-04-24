@@ -42,7 +42,7 @@ function onUserAttachmentImageError(event: Event, att: ChatAttachment) {
   <div class="flex justify-end" :class="compact ? 'gap-2' : 'gap-3'">
     <div
       class="group/user-message"
-      :class="compact ? 'max-w-[86%]' : 'max-w-[44rem]'"
+      :class="compact ? 'max-w-[88%]' : 'max-w-[44rem]'"
     >
       <!-- Attachments -->
       <div
@@ -104,11 +104,11 @@ function onUserAttachmentImageError(event: Event, att: ChatAttachment) {
       </div>
       <div
         v-if="msg.content"
-        class="user-message-bubble whitespace-pre-wrap rounded-[20px] rounded-br-[12px] border px-3.5 py-2.5 text-primary-foreground"
+        class="user-message-bubble whitespace-pre-wrap rounded-[18px] rounded-br-[12px] border px-4 py-3 text-primary-foreground"
         :class="
           compact
-            ? 'text-[14px] leading-[1.76]'
-            : 'text-[14.5px] leading-[1.8]'
+            ? 'text-[13.5px] leading-[1.74]'
+            : 'text-[14.25px] leading-[1.8]'
         "
       >
         {{ msg.content }}
@@ -124,13 +124,13 @@ function onUserAttachmentImageError(event: Event, att: ChatAttachment) {
       >
         <span
           v-if="msg.created_at"
-          class="mr-1 text-[9px] tabular-nums text-muted-foreground/40"
+          class="mr-1 text-[9px] tabular-nums text-muted-foreground/42"
         >
           {{ formatTimeOnly(msg.created_at) }}
         </span>
         <Tooltip :title="$t('common.globalAiChat.copy')">
           <button
-            class="user-action-button flex size-[18px] items-center justify-center rounded-md"
+            class="user-action-button flex size-5 items-center justify-center rounded-full"
             @click="emit('copy', msg.content)"
           >
             <IconifyIcon icon="lucide:copy" class="size-2.5" />
@@ -138,7 +138,7 @@ function onUserAttachmentImageError(event: Event, att: ChatAttachment) {
         </Tooltip>
         <Tooltip :title="$t('common.globalAiChat.editResend')">
           <button
-            class="user-action-button flex size-[18px] items-center justify-center rounded-md"
+            class="user-action-button flex size-5 items-center justify-center rounded-full"
             @click="emit('edit', props.index)"
           >
             <IconifyIcon icon="lucide:pencil" class="size-2.5" />
@@ -153,12 +153,12 @@ function onUserAttachmentImageError(event: Event, att: ChatAttachment) {
 .user-message-bubble {
   background: linear-gradient(
     135deg,
-    hsl(var(--primary) / 0.94) 0%,
-    hsl(var(--primary) / 0.9) 58%,
-    hsl(var(--primary) / 0.86) 100%
+    hsl(var(--primary) / 0.9) 0%,
+    hsl(var(--primary) / 0.84) 60%,
+    hsl(var(--primary) / 0.8) 100%
   );
-  border-color: hsl(var(--primary) / 0.12);
-  box-shadow: 0 14px 24px -24px hsl(var(--primary) / 0.24);
+  border-color: hsl(var(--primary) / 0.14);
+  box-shadow: 0 14px 24px -26px hsl(var(--primary) / 0.2);
 }
 
 .user-attachment {
@@ -175,9 +175,9 @@ function onUserAttachmentImageError(event: Event, att: ChatAttachment) {
 }
 
 .user-action-button {
-  color: hsl(var(--muted-foreground) / 0.62);
-  background: transparent;
-  border: 1px solid transparent;
+  color: hsl(var(--muted-foreground) / 0.58);
+  background: hsl(var(--background) / 0.7);
+  border: 1px solid hsl(var(--border) / 0.1);
   transition:
     background-color 160ms ease,
     border-color 160ms ease,
@@ -187,7 +187,7 @@ function onUserAttachmentImageError(event: Event, att: ChatAttachment) {
 
 .user-action-button:hover {
   color: hsl(var(--foreground) / 0.84);
-  background: hsl(var(--muted) / 0.5);
-  border-color: hsl(var(--border) / 0.2);
+  background: hsl(var(--primary) / 0.08);
+  border-color: hsl(var(--primary) / 0.16);
 }
 </style>

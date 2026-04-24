@@ -18,7 +18,7 @@ interface UsePanelVarsEditorOptions {
   applyVariables: (
     agentId: number,
     values: Record<string, string>,
-    persist?: boolean,
+    persist: boolean,
   ) => void;
   ensureAgentVarsLoaded: (agentId: number) => void;
   varsFormValues: Record<string, string>;

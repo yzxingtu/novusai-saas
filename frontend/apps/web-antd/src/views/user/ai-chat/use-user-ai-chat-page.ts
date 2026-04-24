@@ -55,6 +55,7 @@ export function useUserAIChatPage() {
   });
 
   const {
+    agentsWithVarsInConversation,
     agents,
     selectedAgentId,
     selectedAgent,
@@ -84,18 +85,33 @@ export function useUserAIChatPage() {
   } = chat;
 
   const {
+    headerVariablesConfigured,
+    multiVarsFormValues,
+    multiVarsModalVisible,
+    multiVarsPersist,
+    onMultiPersistChange,
+    onMultiVarValueChange,
+    onMultiVarsCancel,
+    onMultiVarsConfirm,
+    onSinglePersistChange,
+    onSingleVarValueChange,
+    openHeaderVarsModal,
+    openSelectedAgentVarsModal,
     openVarsModal,
     onVarsCancel,
     onVarsConfirm,
     pendingSendState,
+    showHeaderVarsButton,
     varsFormValues,
     varsModalAgent,
     varsModalVisible,
     varsPersist,
   } = useUserAIChatVarsModal({
+    agentsWithVarsInConversation,
     allAgentsVariables,
     applyVariables,
     ensureAgentVarsLoaded,
+    selectedAgent,
     sendMessage,
   });
 
@@ -315,24 +331,6 @@ export function useUserAIChatPage() {
     return $t('user.aiChat.workspace.noAgentSelected');
   });
 
-  const selectedAgentInputVariables = computed(() =>
-    getAgentInputVariables(selectedAgent.value),
-  );
-  const selectedAgentHasVariables = computed(
-    () => selectedAgentInputVariables.value.length > 0,
-  );
-  const selectedAgentVarsConfigured = computed(
-    () =>
-      Object.keys(allAgentsVariables.value[selectedAgent.value?.id ?? 0] ?? {})
-        .length > 0,
-  );
-
-  function openSelectedAgentVarsModal() {
-    const agent = selectedAgent.value;
-    if (!agent) return;
-    openVarsModal(selectedAgentInputVariables.value, agent.id, agent.name);
-  }
-
   async function applyRouteIntent() {
     const conversationId = parsePositiveQueryNumber(route.query.conversationId);
     const agentId = parsePositiveQueryNumber(route.query.agentId);
@@ -372,8 +370,12 @@ export function useUserAIChatPage() {
     effectiveWelcomeMessage,
     effectiveSuggestedQuestions,
     chatHeaderSubtitle,
-    selectedAgentHasVariables,
-    selectedAgentVarsConfigured,
+    agentsWithVarsInConversation,
+    headerHasVariables: showHeaderVarsButton,
+    headerVarsConfigured: headerVariablesConfigured,
+    multiVarsModalVisible,
+    multiVarsFormValues,
+    multiVarsPersist,
     varsModalVisible,
     varsFormValues,
     varsModalAgent,
@@ -387,6 +389,13 @@ export function useUserAIChatPage() {
     cancelEditTitle,
     onToggleMemory,
     onClearMemory,
+    onMultiPersistChange,
+    onMultiVarValueChange,
+    onMultiVarsCancel,
+    onMultiVarsConfirm,
+    onSinglePersistChange,
+    onSingleVarValueChange,
+    openHeaderVarsModal,
     openSelectedAgentVarsModal,
     onVarsConfirm,
     onVarsCancel,

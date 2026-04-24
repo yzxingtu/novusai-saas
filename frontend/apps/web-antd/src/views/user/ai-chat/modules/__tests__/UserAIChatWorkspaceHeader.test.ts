@@ -17,21 +17,20 @@ const memoryLoading = ref(false);
 const clearingMemory = ref(false);
 const lastMemoryUpdated = ref<null | string>(null);
 const chatHeaderSubtitle = ref('');
-const selectedAgentHasVariables = ref(false);
-const selectedAgentVarsConfigured = ref(false);
+const headerHasVariables = ref(false);
+const headerVarsConfigured = ref(false);
 const showMemoryPanel = ref(false);
 
 const workspaceActions = {
   onStartNewChat: vi.fn(),
   onToggleMemory: vi.fn().mockResolvedValue(undefined),
   openMobileSidebar: vi.fn(),
-  openSelectedAgentVarsModal: vi.fn(),
+  openHeaderVarsModal: vi.fn(),
 };
 
 const workspaceContext = {
   openMobileSidebar: workspaceActions.openMobileSidebar,
   page: {
-    apiPrefix: '/api/user',
     chat: {
       activeConversationId,
       clearingMemory,
@@ -41,11 +40,11 @@ const workspaceContext = {
       streaming,
     },
     chatHeaderSubtitle,
+    headerHasVariables,
+    headerVarsConfigured,
     onStartNewChat: workspaceActions.onStartNewChat,
     onToggleMemory: workspaceActions.onToggleMemory,
-    openSelectedAgentVarsModal: workspaceActions.openSelectedAgentVarsModal,
-    selectedAgentHasVariables,
-    selectedAgentVarsConfigured,
+    openHeaderVarsModal: workspaceActions.openHeaderVarsModal,
     showMemoryPanel,
   },
 };
@@ -53,24 +52,27 @@ const workspaceContext = {
 function resetWorkspaceState() {
   selectedAgent.value = {
     avatar: '/avatars/navigator.png',
-    description: 'A routing specialist for travel planning',
-    id: 17,
-    model_name: 'gpt-5.4-mini',
-    name: 'Navigator',
-  };
+      description: 'A routing specialist for travel planning',
+      id: 17,
+      knowledge_base_ids: [101],
+      knowledge_bases: [{ kb_name: 'Trips', knowledge_base_id: 101 }],
+      model_name: 'gpt-5.4-mini',
+      name: 'Navigator',
+      skills: [{ name: 'route-planner', skill_id: 21 }],
+    };
   activeConversationId.value = 42;
   streaming.value = false;
   memoryLoading.value = false;
   clearingMemory.value = false;
   lastMemoryUpdated.value = null;
   chatHeaderSubtitle.value = 'Conversation checkpoint';
-  selectedAgentHasVariables.value = false;
-  selectedAgentVarsConfigured.value = false;
+  headerHasVariables.value = false;
+  headerVarsConfigured.value = false;
   showMemoryPanel.value = false;
   workspaceActions.onStartNewChat.mockClear();
   workspaceActions.onToggleMemory.mockClear();
   workspaceActions.openMobileSidebar.mockClear();
-  workspaceActions.openSelectedAgentVarsModal.mockClear();
+  workspaceActions.openHeaderVarsModal.mockClear();
 }
 
 vi.mock('../user-ai-chat-workspace-context', () => ({
@@ -106,20 +108,21 @@ vi.mock('ant-design-vue', () => ({
   }),
 }));
 
-vi.mock('#/components/business/agent-profile-popover', () => ({
-  AgentProfilePopover: defineComponent({
-    name: 'AgentProfilePopoverStub',
+vi.mock('#/components/business/ai-chat-panel/ChatMessageAgentAvatar.vue', () => ({
+  default: defineComponent({
+    name: 'ChatMessageAgentAvatarStub',
     props: {
       agentAvatar: { default: null, type: String },
       agentDescription: { default: null, type: String },
       agentId: { default: null, type: Number },
+      agentKnowledgeBaseIds: { default: null, type: Array },
+      agentKnowledgeBases: { default: null, type: Array },
       agentName: { default: null, type: String },
-      apiPrefix: { default: '', type: String },
+      agentSkills: { default: null, type: Array },
       modelName: { default: null, type: String },
-      size: { default: 'md', type: String },
     },
     template:
-      '<div data-testid="agent-profile-popover-stub" :data-agent-avatar="agentAvatar || \'\'" :data-agent-description="agentDescription || \'\'" :data-agent-id="String(agentId ?? \'\')" :data-agent-name="agentName || \'\'" :data-api-prefix="apiPrefix" :data-model-name="modelName || \'\'" :data-size="size"></div>',
+      '<div data-testid="agent-avatar-stub" :data-agent-avatar="agentAvatar || \'\'" :data-agent-description="agentDescription || \'\'" :data-agent-id="String(agentId ?? \'\')" :data-agent-kb-ids="JSON.stringify(agentKnowledgeBaseIds || [])" :data-agent-kbs="JSON.stringify(agentKnowledgeBases || [])" :data-agent-name="agentName || \'\'" :data-agent-skills="JSON.stringify(agentSkills || [])" :data-model-name="modelName || \'\'"></div>',
   }),
 }));
 
@@ -140,16 +143,18 @@ describe('userAIChatWorkspaceHeader', () => {
     expect(wrapper.text()).not.toContain('Navigator');
     expect(wrapper.text()).not.toContain('gpt-5.4-mini');
 
-    const profileTrigger = wrapper.get('[data-testid="agent-profile-popover-stub"]');
+    const profileTrigger = wrapper.get('[data-testid="agent-avatar-stub"]');
     expect(profileTrigger.attributes('data-agent-name')).toBe('Navigator');
     expect(profileTrigger.attributes('data-model-name')).toBe('gpt-5.4-mini');
-    expect(profileTrigger.attributes('data-api-prefix')).toBe('/api/user');
-    expect(profileTrigger.attributes('data-size')).toBe('md');
+    expect(profileTrigger.attributes('data-agent-kb-ids')).toBe('[101]');
+    expect(profileTrigger.attributes('data-agent-skills')).toContain(
+      'route-planner',
+    );
   });
 
   it('keeps vars, new chat, and memory actions discoverable and clickable', async () => {
-    selectedAgentHasVariables.value = true;
-    selectedAgentVarsConfigured.value = true;
+    headerHasVariables.value = true;
+    headerVarsConfigured.value = true;
     lastMemoryUpdated.value = '2026-04-25T09:00:00Z';
 
     const wrapper = mount(UserAIChatWorkspaceHeader);
@@ -176,7 +181,7 @@ describe('userAIChatWorkspaceHeader', () => {
       .trigger('click');
     await wrapper.get('[data-testid="user-ai-chat-memory-button"]').trigger('click');
 
-    expect(workspaceActions.openSelectedAgentVarsModal).toHaveBeenCalledTimes(1);
+    expect(workspaceActions.openHeaderVarsModal).toHaveBeenCalledTimes(1);
     expect(workspaceActions.onStartNewChat).toHaveBeenCalledTimes(1);
     expect(workspaceActions.onToggleMemory).toHaveBeenCalledTimes(1);
   });

@@ -240,90 +240,93 @@ const summaryStats = computed(() => {
     <template #content>
       <div
         data-testid="agent-profile-popover-content"
-        class="agent-profile-popover w-[336px] max-w-[calc(100vw-28px)]"
+        class="agent-profile-popover w-[320px] max-w-[calc(100vw-28px)]"
       >
-        <div class="agent-profile-hero rounded-[22px] px-3 py-3">
+        <div class="agent-profile-panel px-3 py-3">
           <div class="flex min-w-0 items-start gap-3">
             <div
-              class="agent-profile-avatar flex size-12 shrink-0 items-center justify-center rounded-[18px] text-sm font-semibold text-primary"
+              class="agent-profile-avatar flex size-11 shrink-0 items-center justify-center rounded-[16px] text-sm font-semibold text-primary"
             >
               <img
                 v-if="resolvedAvatarUrl"
                 :src="resolvedAvatarUrl"
                 :alt="resolvedName"
-                class="size-full rounded-[18px] object-cover"
+                class="size-full rounded-[16px] object-cover"
               />
               <span v-else-if="avatarInitial">{{ avatarInitial }}</span>
               <IconifyIcon v-else icon="lucide:bot" class="size-4" />
             </div>
             <div class="min-w-0 flex-1">
-              <div class="flex min-w-0 items-center gap-1.5">
-                <div
-                  class="truncate text-[13px] font-semibold tracking-[0.01em] text-foreground/90"
-                >
-                  {{ resolvedName }}
+              <div class="flex min-w-0 items-start justify-between gap-2">
+                <div class="min-w-0 flex-1">
+                  <div
+                    class="truncate text-[13px] font-semibold tracking-[0.01em] text-foreground/90"
+                  >
+                    {{ resolvedName }}
+                  </div>
                 </div>
                 <div
                   v-if="modelName"
-                  class="agent-model-chip inline-flex min-w-0 items-center gap-1 rounded-full px-2 py-0.5 text-[9px]"
+                  class="agent-model-chip inline-flex min-w-0 max-w-[52%] items-center gap-1 rounded-full px-2 py-0.5 text-[9px]"
+                  data-testid="agent-profile-model-chip"
                 >
                   <IconifyIcon icon="lucide:cpu" class="size-2.5 shrink-0" />
                   <span class="truncate">{{ modelName }}</span>
                 </div>
               </div>
-              <div class="mt-2 grid grid-cols-3 gap-1.5">
-                <div
-                  v-for="stat in summaryStats"
-                  :key="stat.key"
-                  class="agent-profile-stat-card"
-                >
-                  <div class="flex items-center gap-1 text-primary/70">
-                    <IconifyIcon :icon="stat.icon" class="size-3 shrink-0" />
-                    <span class="agent-profile-stat-label truncate">{{
-                      stat.label
-                    }}</span>
-                  </div>
-                  <strong class="agent-profile-stat-value">{{ stat.value }}</strong>
-                </div>
-              </div>
+              <p
+                data-testid="agent-profile-description"
+                class="agent-profile-description mt-1.5 text-[10.5px] leading-5"
+                :class="agentDescription ? '' : 'italic'"
+                :title="agentDescription || $t('common.globalAiChat.noDescription')"
+              >
+                {{ agentDescription || $t('common.globalAiChat.noDescription') }}
+              </p>
             </div>
           </div>
-        </div>
 
-        <p
-          class="agent-profile-description mt-3 rounded-[18px] border px-3 py-2.5 text-[10.5px] leading-5"
-          :class="agentDescription ? '' : 'italic'"
-        >
-          {{ agentDescription || $t('common.globalAiChat.noDescription') }}
-        </p>
-
-        <div class="mt-3 grid gap-2.5">
-          <section
-            class="agent-profile-section rounded-[18px] p-2.5"
-            data-testid="agent-profile-skills-section"
-          >
+          <div class="agent-profile-summary mt-3">
             <div
-              class="agent-profile-section-title mb-2 flex items-center justify-between gap-2"
+              v-for="stat in summaryStats"
+              :key="stat.key"
+              class="agent-profile-stat-pill"
             >
-              <span class="inline-flex items-center gap-1.5">
-                <IconifyIcon icon="lucide:package" class="size-3" />
-                <span>{{ $t('common.globalAiChat.skillPackages') }}</span>
+              <span class="flex min-w-0 items-center gap-1">
+                <IconifyIcon
+                  :icon="stat.icon"
+                  class="size-3 shrink-0 text-primary/72"
+                />
+                <span class="agent-profile-stat-label truncate">{{
+                  stat.label
+                }}</span>
               </span>
-              <span class="agent-profile-count-badge">
-                {{ skillPackageChips.length + skillEntryChips.length }}
-              </span>
+              <strong class="agent-profile-stat-value">{{ stat.value }}</strong>
             </div>
-            <div class="space-y-2">
+          </div>
+
+          <div class="mt-3 space-y-3">
+            <section
+              class="agent-profile-section"
+              data-testid="agent-profile-skills-section"
+            >
               <div
-                class="agent-profile-subsection"
+                class="agent-profile-row"
                 data-testid="agent-profile-skill-packages-section"
               >
-                <div class="agent-profile-subtitle">
-                  {{ $t('common.globalAiChat.skillPackages') }}
+                <div class="agent-profile-section-title">
+                  <span class="inline-flex min-w-0 items-center gap-1.5">
+                    <IconifyIcon icon="lucide:package" class="size-3 shrink-0" />
+                    <span class="truncate">{{
+                      $t('common.globalAiChat.skillPackages')
+                    }}</span>
+                  </span>
+                  <span class="agent-profile-count-badge">
+                    {{ skillPackageChips.length }}
+                  </span>
                 </div>
                 <div
                   v-if="skillPackageChips.length > 0"
-                  class="flex flex-wrap gap-1.5"
+                  class="agent-profile-chip-list"
                 >
                   <span
                     v-for="chip in skillPackageChips"
@@ -344,15 +347,23 @@ const summaryStats = computed(() => {
               </div>
 
               <div
-                class="agent-profile-subsection"
+                class="agent-profile-row"
                 data-testid="agent-profile-skill-entries-section"
               >
-                <div class="agent-profile-subtitle">
-                  {{ $t('common.globalAiChat.skillEntries') }}
+                <div class="agent-profile-section-title">
+                  <span class="inline-flex min-w-0 items-center gap-1.5">
+                    <IconifyIcon icon="lucide:wrench" class="size-3 shrink-0" />
+                    <span class="truncate">{{
+                      $t('common.globalAiChat.skillEntries')
+                    }}</span>
+                  </span>
+                  <span class="agent-profile-count-badge">
+                    {{ skillEntryChips.length }}
+                  </span>
                 </div>
                 <div
                   v-if="skillEntryChips.length > 0"
-                  class="flex flex-wrap gap-1.5"
+                  class="agent-profile-chip-list"
                 >
                   <span
                     v-for="chip in skillEntryChips"
@@ -371,52 +382,55 @@ const summaryStats = computed(() => {
                   {{ $t('common.globalAiChat.noSkillsInPackage') }}
                 </div>
               </div>
-            </div>
-          </section>
+            </section>
 
-          <section
-            class="agent-profile-section rounded-[18px] p-2.5"
-            data-testid="agent-profile-kb-section"
-          >
-            <div
-              class="agent-profile-section-title mb-2 flex items-center justify-between gap-2"
+            <section
+              class="agent-profile-section"
+              data-testid="agent-profile-kb-section"
             >
-              <span class="inline-flex items-center gap-1.5">
-                <IconifyIcon icon="lucide:book-open" class="size-3" />
-                <span>{{ $t('common.globalAiChat.mentionSectionKbs') }}</span>
-              </span>
-              <span class="agent-profile-count-badge">
-                {{ knowledgeBaseChips.length }}
-              </span>
-            </div>
-            <div
-              v-if="knowledgeBaseChips.length > 0"
-              class="flex flex-wrap gap-1.5"
-            >
-              <span
-                v-for="chip in knowledgeBaseChips"
-                :key="chip.id"
-                data-testid="agent-profile-kb-chip"
-                class="agent-profile-chip"
+              <div class="agent-profile-section-title">
+                <span class="inline-flex min-w-0 items-center gap-1.5">
+                  <IconifyIcon icon="lucide:book-open" class="size-3 shrink-0" />
+                  <span class="truncate">{{
+                    $t('common.globalAiChat.mentionSectionKbs')
+                  }}</span>
+                </span>
+                <span class="agent-profile-count-badge">
+                  {{ knowledgeBaseChips.length }}
+                </span>
+              </div>
+              <div
+                v-if="knowledgeBaseChips.length > 0"
+                class="agent-profile-chip-list"
               >
-                {{ chip.label }}
-              </span>
-            </div>
-            <div
-              v-else
-              data-testid="agent-profile-kb-empty"
-              class="agent-profile-empty"
-            >
-              {{ $t('common.globalAiChat.noKnowledgeBases') }}
-            </div>
-          </section>
-        </div>
+                <span
+                  v-for="chip in knowledgeBaseChips"
+                  :key="chip.id"
+                  data-testid="agent-profile-kb-chip"
+                  class="agent-profile-chip"
+                >
+                  {{ chip.label }}
+                </span>
+              </div>
+              <div
+                v-else
+                data-testid="agent-profile-kb-empty"
+                class="agent-profile-empty"
+              >
+                {{ $t('common.globalAiChat.noKnowledgeBases') }}
+              </div>
+            </section>
+          </div>
 
-        <div
-          class="agent-profile-footer mt-3 flex items-center justify-between rounded-[16px] px-2.5 py-2 text-[9.5px]"
-        >
-          <span>{{ $t('common.globalAiChat.agentProfileHint') }}</span>
-          <span v-if="agentId" class="font-mono">#{{ agentId }}</span>
+          <div
+            data-testid="agent-profile-footer"
+            class="agent-profile-footer mt-3 flex items-center justify-between gap-2"
+          >
+            <span class="truncate">{{
+              $t('common.globalAiChat.agentProfileHint')
+            }}</span>
+            <span v-if="agentId" class="agent-profile-id">#{{ agentId }}</span>
+          </div>
         </div>
       </div>
     </template>
@@ -449,86 +463,90 @@ const summaryStats = computed(() => {
 .agent-profile-avatar {
   position: relative;
   overflow: hidden;
-  background: linear-gradient(
-    180deg,
-    hsl(var(--background)) 0%,
-    hsl(var(--muted) / 0.42) 100%
-  );
-  border: 1px solid hsl(var(--border) / 0.5);
-  box-shadow:
-    0 16px 28px -24px hsl(var(--foreground) / 0.14),
-    0 1px 0 hsl(var(--background) / 0.84) inset;
+  background: hsl(var(--background) / 0.96);
+  border: 1px solid hsl(var(--border) / 0.38);
+  box-shadow: 0 10px 20px -26px hsl(var(--foreground) / 0.1);
 }
 
 .assistant-agent-avatar:hover {
-  transform: translateY(-1px);
-  box-shadow:
-    0 22px 32px -26px hsl(var(--foreground) / 0.16),
-    0 1px 0 hsl(var(--background) / 0.84) inset;
-  border-color: hsl(var(--primary) / 0.24);
+  box-shadow: 0 12px 22px -28px hsl(var(--foreground) / 0.12);
+  border-color: hsl(var(--primary) / 0.18);
 }
 
 .agent-profile-popover {
   color: hsl(var(--foreground) / 0.86);
 }
 
-.agent-profile-hero {
-  border: 1px solid hsl(var(--primary) / 0.12);
-  background:
-    radial-gradient(
-      circle at top left,
-      hsl(var(--primary) / 0.1),
-      transparent 42%
-    ),
-    linear-gradient(
-      180deg,
-      hsl(var(--background) / 0.98) 0%,
-      hsl(var(--muted) / 0.12) 100%
-    );
-  box-shadow: 0 18px 32px -30px hsl(var(--foreground) / 0.12);
+.agent-profile-panel {
+  max-height: min(70vh, 34rem);
+  overflow-y: auto;
+  border: 1px solid hsl(var(--border) / 0.28);
+  border-radius: 22px;
+  background: hsl(var(--background) / 0.98);
+  box-shadow: 0 18px 34px -34px hsl(var(--foreground) / 0.12);
 }
 
-.agent-profile-stat-card {
+.agent-profile-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.agent-profile-stat-pill {
+  display: inline-flex;
   min-width: 0;
-  padding: 0.55rem 0.6rem;
-  border: 1px solid hsl(var(--border) / 0.28);
-  border-radius: 16px;
-  background: hsl(var(--background) / 0.82);
+  max-width: 100%;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid hsl(var(--border) / 0.22);
+  border-radius: 999px;
+  background: hsl(var(--background) / 0.9);
 }
 
 .agent-profile-stat-label {
   color: hsl(var(--muted-foreground) / 0.68);
   font-size: 9px;
-  line-height: 0.9rem;
+  line-height: 1rem;
+  white-space: nowrap;
 }
 
 .agent-profile-stat-value {
-  display: block;
-  margin-top: 0.35rem;
   color: hsl(var(--foreground) / 0.9);
-  font-size: 13px;
+  font-size: 11px;
   line-height: 1rem;
 }
 
 .agent-model-chip {
   color: hsl(var(--foreground) / 0.7);
-  border: 1px solid hsl(var(--primary) / 0.12);
-  background: hsl(var(--primary) / 0.05);
+  border: 1px solid hsl(var(--border) / 0.2);
+  background: hsl(var(--muted) / 0.18);
 }
 
 .agent-profile-description {
   color: hsl(var(--muted-foreground) / 0.76);
-  border-color: hsl(var(--border) / 0.36);
-  background: hsl(var(--background) / 0.9);
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
 }
 
 .agent-profile-section {
-  border: 1px solid hsl(var(--border) / 0.36);
-  background: hsl(var(--background) / 0.92);
-  box-shadow: 0 12px 24px -28px hsl(var(--foreground) / 0.12);
+  display: grid;
+  gap: 0.75rem;
+}
+
+.agent-profile-row + .agent-profile-row,
+.agent-profile-section + .agent-profile-section {
+  padding-top: 0.75rem;
+  border-top: 1px solid hsl(var(--border) / 0.26);
 }
 
 .agent-profile-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
   color: hsl(var(--muted-foreground) / 0.74);
   font-size: 10px;
   font-weight: 600;
@@ -543,10 +561,17 @@ const summaryStats = computed(() => {
   min-width: 1.5rem;
   padding: 0.1rem 0.45rem;
   border-radius: 999px;
-  color: hsl(var(--primary) / 0.78);
-  background: hsl(var(--primary) / 0.08);
+  color: hsl(var(--muted-foreground) / 0.72);
+  background: hsl(var(--muted) / 0.22);
   font-size: 9px;
   font-weight: 700;
+}
+
+.agent-profile-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.45rem;
 }
 
 .agent-profile-chip {
@@ -557,27 +582,13 @@ const summaryStats = computed(() => {
   padding: 2px 8px;
   overflow: hidden;
   font-size: 10px;
-  line-height: 18px;
+  line-height: 17px;
   color: hsl(var(--foreground) / 0.82);
   text-overflow: ellipsis;
   white-space: nowrap;
-  background: hsl(var(--muted) / 0.36);
-  border: 1px solid hsl(var(--border) / 0.34);
+  background: hsl(var(--muted) / 0.2);
+  border: 1px solid hsl(var(--border) / 0.24);
   border-radius: 999px;
-}
-
-.agent-profile-subsection + .agent-profile-subsection {
-  padding-top: 8px;
-  border-top: 1px solid hsl(var(--border) / 0.12);
-}
-
-.agent-profile-subtitle {
-  margin-bottom: 0.4rem;
-  color: hsl(var(--muted-foreground) / 0.66);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
 }
 
 .agent-profile-empty {
@@ -587,8 +598,16 @@ const summaryStats = computed(() => {
 }
 
 .agent-profile-footer {
-  border: 1px solid hsl(var(--border) / 0.3);
-  background: hsl(var(--muted) / 0.28);
   color: hsl(var(--muted-foreground) / 0.64);
+  padding-top: 0.75rem;
+  border-top: 1px solid hsl(var(--border) / 0.22);
+  font-size: 9.5px;
+}
+
+.agent-profile-id {
+  color: hsl(var(--foreground) / 0.7);
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    'Liberation Mono', 'Courier New', monospace;
 }
 </style>

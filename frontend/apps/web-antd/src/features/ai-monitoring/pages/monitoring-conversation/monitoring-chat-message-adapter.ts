@@ -6,12 +6,9 @@ import type {
 import type {
   ChatAttachment,
   ChatMessage,
-  RagSource,
-  ToolCallEvent,
 } from '#/types/ai-chat';
 
 import { toTurnFlowFirstChatMessage } from '#/components/business/ai-chat-panel/turn-flow-first-message';
-import { projectAssistantFieldsIntoTurnFlow } from '#/components/business/ai-chat-panel/use-ai-chat-turn-flow';
 import { $t } from '#/locales';
 import { toAbsoluteApiUrl } from '#/utils/image';
 
@@ -31,12 +28,6 @@ function asString(value: unknown): string | undefined {
 
 function asBoolean(value: unknown): boolean | undefined {
   return typeof value === 'boolean' ? value : undefined;
-}
-
-function asFiniteNumber(value: unknown): number | undefined {
-  return typeof value === 'number' && Number.isFinite(value)
-    ? value
-    : undefined;
 }
 
 function normalizeIdentityPart(value: unknown): string | undefined {
@@ -99,76 +90,6 @@ function resolvePersistedAssistantError(
     source: 'sse',
     traceId: asString(metadata.error_trace_id),
   };
-}
-
-function parseToolArguments(
-  value: unknown,
-): Record<string, unknown> | undefined {
-  if (!value) {
-    return undefined;
-  }
-  if (typeof value === 'string') {
-    try {
-      const parsed = JSON.parse(value);
-      return asRecord(parsed) ?? { raw: value };
-    } catch {
-      return { raw: value };
-    }
-  }
-  return asRecord(value) ?? undefined;
-}
-
-function normalizeToolCalls(value: unknown): ToolCallEvent[] | undefined {
-  if (!Array.isArray(value)) {
-    return undefined;
-  }
-  const toolCalls = value
-    .map((item) => {
-      const record = asRecord(item);
-      if (!record) {
-        return null;
-      }
-      const functionInfo = asRecord(record.function);
-      const name = asString(functionInfo?.name) || asString(record.name);
-      if (!name) {
-        return null;
-      }
-      const success = asBoolean(record.success);
-      let status: ToolCallEvent['status'] = 'running';
-      if (success === false) {
-        status = 'error';
-      } else if (success === true) {
-        status = 'success';
-      }
-      return {
-        id: asString(record.id),
-        name,
-        status,
-        arguments: parseToolArguments(
-          functionInfo?.arguments ?? record.arguments ?? record.args,
-        ),
-        output: asString(record.output),
-        error: asString(record.error),
-        durationMs:
-          asFiniteNumber(record.duration_ms) ??
-          asFiniteNumber(record.durationMs),
-        skillName: asString(record.skill_name),
-        summary: asString(record.summary),
-        summaryPayload: asRecord(record.summary_payload) ?? undefined,
-        resultLink: asString(record.result_link),
-        errorType: asString(record.error_type),
-      } as ToolCallEvent;
-    })
-    .filter((item): item is ToolCallEvent => item !== null);
-
-  return toolCalls.length > 0 ? toolCalls : undefined;
-}
-
-function readLegacyToolCalls(
-  message: MonitoringConversationMessage,
-): unknown[] | undefined {
-  const toolCalls = (message as unknown as Record<string, unknown>).tool_calls;
-  return Array.isArray(toolCalls) ? toolCalls : undefined;
 }
 
 function normalizeAttachments(value: unknown): ChatAttachment[] | undefined {
@@ -377,12 +298,5 @@ export function toMonitoringChatMessage(
     contextSources,
     error: persistedError,
   };
-  projectAssistantFieldsIntoTurnFlow(nextMessage, {
-    ragSources: Array.isArray(metadata?.rag_sources)
-      ? (metadata.rag_sources as RagSource[])
-      : undefined,
-    thinkingContent: asString(metadata?.thinking_content),
-    toolCalls: normalizeToolCalls(readLegacyToolCalls(message)),
-  });
   return toTurnFlowFirstChatMessage(nextMessage);
 }

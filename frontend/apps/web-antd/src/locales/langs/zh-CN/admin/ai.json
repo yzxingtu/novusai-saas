@@ -608,6 +608,7 @@
       "ragHint": "智能体级 RAG 配置是运行时检索入口；多知识库会按知识库独立召回后再融合。",
       "kbWeight": "权重",
       "kbEnabled": "启用",
+      "skillEnabled": "启用",
       "kbDocCount": "文档数",
       "kbEmbeddingModel": "Embedding 模型",
       "kbEmbeddingDimensions": "向量维度",

@@ -1,19 +1,24 @@
 <script lang="ts" setup>
 import { IconifyIcon } from '@vben/icons';
 
-import { Drawer } from 'ant-design-vue';
+import { Drawer, Input } from 'ant-design-vue';
 
 import { $t } from '#/locales';
+import { toAvatarDisplayUrl } from '#/utils/image';
 
 import { useUserAIChatContext } from './ai-chat-context';
 import UserAIChatConversationList from './UserAIChatConversationList.vue';
 
-const { mobileSidebarOpen, onSelectAgent, onStartNewChat, chat } =
+const { conversationSearch, mobileSidebarOpen, onSelectAgent, onStartNewChat, chat } =
   useUserAIChatContext();
-const { agents, selectedAgentId } = chat;
+const { agents, conversations, selectedAgentId } = chat;
 
 function closeMobileSidebar() {
   mobileSidebarOpen.value = false;
+}
+
+function resolveAgentAvatar(avatar: null | string | undefined) {
+  return avatar ? toAvatarDisplayUrl(avatar) : '';
 }
 </script>
 
@@ -64,7 +69,7 @@ function closeMobileSidebar() {
           >
             <img
               v-if="agent.avatar"
-              :src="agent.avatar"
+              :src="resolveAgentAvatar(agent.avatar)"
               :alt="agent.name"
               class="size-7 rounded-lg object-cover"
             />
@@ -91,6 +96,21 @@ function closeMobileSidebar() {
           {{ $t('common.aiPanel.newChat') }}
         </button>
       </div>
+      <Input
+        v-if="conversations.length > 3"
+        v-model:value="conversationSearch"
+        :placeholder="$t('common.globalAiChat.searchHistory')"
+        size="small"
+        allow-clear
+        class="mb-2 !rounded-lg"
+      >
+        <template #prefix>
+          <IconifyIcon
+            icon="lucide:search"
+            class="size-3 text-muted-foreground"
+          />
+        </template>
+      </Input>
       <UserAIChatConversationList variant="mobile" />
     </div>
   </Drawer>

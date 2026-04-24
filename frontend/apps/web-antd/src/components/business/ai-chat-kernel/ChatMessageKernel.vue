@@ -294,14 +294,14 @@ function handleReject() {
     <div
       v-if="hasDigestContent"
       data-testid="chat-message-kernel-header"
-      class="chat-message-kernel-shell overflow-hidden rounded-[16px] border"
+      class="chat-message-kernel-shell overflow-hidden rounded-[14px] border"
     >
       <button
         v-if="canCollapseKernel"
         type="button"
         data-testid="chat-message-kernel-overview-toggle"
         class="chat-message-kernel-overview flex w-full min-w-0 items-center gap-2 text-left"
-        :class="compact ? 'px-2.5 py-2' : 'px-3 py-2.5'"
+        :class="compact ? 'px-2.5 py-1.5' : 'px-2.5 py-1.5'"
         :aria-expanded="isKernelExpanded"
         @click="toggleKernelExpanded"
       >
@@ -366,9 +366,9 @@ function handleReject() {
         <div
           v-if="showKernelBody"
           data-testid="chat-message-kernel-body"
-          class="space-y-1"
+          class="space-y-0.5"
           :class="[
-            compact ? 'px-2.5 py-1.5' : 'px-3 py-2',
+            compact ? 'px-2.5 py-1.5' : 'px-2.5 py-1.5',
             canCollapseKernel ? 'border-t border-border/10' : '',
           ]"
         >
@@ -408,15 +408,9 @@ function handleReject() {
 
 <style scoped>
 .chat-message-kernel-shell {
-  border-color: hsl(var(--border) / 0.15);
-  background:
-    linear-gradient(
-      180deg,
-      hsl(var(--primary) / 0.02) 0%,
-      hsl(var(--background) / 0.988) 42%,
-      hsl(var(--muted) / 0.03) 100%
-    );
-  box-shadow: 0 16px 26px -32px hsl(var(--foreground) / 0.12);
+  border-color: hsl(var(--border) / 0.12);
+  background: hsl(var(--background) / 0.86);
+  box-shadow: 0 10px 18px -28px hsl(var(--foreground) / 0.08);
 }
 
 .chat-message-kernel-overview {
@@ -431,40 +425,40 @@ function handleReject() {
 
 .kernel-overview-group {
   min-width: 0;
-  padding: 0.55rem 0.65rem;
-  border: 1px solid hsl(var(--border) / 0.16);
-  border-radius: 16px;
-  background: hsl(var(--background) / 0.82);
+  padding: 0.34rem 0.5rem;
+  border: 1px solid hsl(var(--border) / 0.12);
+  border-radius: 11px;
+  background: hsl(var(--background) / 0.72);
 }
 
 .kernel-overview-pill {
   display: inline-flex;
   align-items: center;
   border-radius: 9999px;
-  padding: 0.16rem 0.55rem;
+  padding: 0.1rem 0.4rem;
   color: hsl(var(--primary) / 0.76);
   border: 1px solid hsl(var(--primary) / 0.12);
   background: hsl(var(--primary) / 0.05);
-  font-size: 0.58rem;
+  font-size: 0.52rem;
   font-weight: 600;
-  letter-spacing: 0.07em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
 .kernel-overview-copy {
   color: hsl(var(--foreground) / 0.72);
-  font-size: 0.7rem;
-  line-height: 1rem;
+  font-size: 0.62rem;
+  line-height: 0.92rem;
 }
 
 .kernel-overview-count {
   color: hsl(var(--muted-foreground) / 0.56);
-  border: 1px solid hsl(var(--border) / 0.14);
-  background: hsl(var(--muted) / 0.32);
+  border: 1px solid hsl(var(--border) / 0.12);
+  background: hsl(var(--muted) / 0.24);
   border-radius: 9999px;
-  padding: 0.16rem 0.45rem;
-  font-size: 0.62rem;
-  line-height: 0.9rem;
+  padding: 0.1rem 0.36rem;
+  font-size: 0.55rem;
+  line-height: 0.82rem;
 }
 
 .kernel-overview-divider {
@@ -475,8 +469,8 @@ function handleReject() {
 
 .kernel-overview-chevron {
   color: hsl(var(--muted-foreground) / 0.44);
-  border: 1px solid hsl(var(--border) / 0.14);
-  background: hsl(var(--background) / 0.84);
+  border: 1px solid hsl(var(--border) / 0.12);
+  background: hsl(var(--background) / 0.78);
 }
 
 .chat-message-kernel-overview:hover .kernel-overview-chevron {

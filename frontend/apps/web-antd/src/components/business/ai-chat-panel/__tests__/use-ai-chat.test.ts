@@ -1666,7 +1666,7 @@ describe('useAIChat interrupted stream recovery', () => {
     });
   });
 
-  it('deduplicates repeated persisted thinking blocks inside one merged assistant turn', async () => {
+  it('deduplicates repeated canonical thinking stages inside one merged assistant turn', async () => {
     apiMocks.getChatConversationMessagesApi.mockResolvedValue(
       buildConversationDetail(buildThinkingDedupHistoryMessages()),
     );
@@ -1693,7 +1693,7 @@ describe('useAIChat interrupted stream recovery', () => {
     expect(assistantMessage?.turnFlow).toBeDefined();
   });
 
-  it('canonicalizes legacy persisted metadata into turnFlow for shared display helpers', async () => {
+  it('keeps persisted canonical turnFlow available to shared display helpers', async () => {
     apiMocks.getChatConversationMessagesApi.mockResolvedValue(
       buildConversationDetail([
         buildUserMessage('查一下企业知识库策略'),
@@ -1701,27 +1701,46 @@ describe('useAIChat interrupted stream recovery', () => {
           metadata: {
             completion_reason: 'completed',
             context_sources: [{ kind: 'knowledge_base', name: 'policy_kb' }],
-            rag_sources: [
-              {
-                doc_id: 11,
-                doc_name: '合规流程文档',
-                score: 0.92,
-                snippet: '流程要求先审计后执行',
-                source_kind: 'formal_kb',
-              },
-            ],
             selected_tool_names: ['query_records'],
-            thinking_content: '先检查可用上下文，再输出最终建议。',
             turn_outcome: 'success',
           },
-          tool_calls: [
-            {
-              function: { name: 'query_records' },
-              id: 'tc_legacy_flow_1',
-              success: true,
-              summary: '查询到匹配记录',
-            },
-          ],
+          turn_flow: {
+            completion_reason: 'completed',
+            evidence: [
+              {
+                id: 'tc_policy_lookup_1',
+                kind: 'tool',
+                snippet: '查询到匹配记录',
+                status: 'success',
+                tool_call_id: 'tc_policy_lookup_1',
+                tool_name: 'query_records',
+                title: 'query_records',
+              },
+              {
+                id: 'kb-policy-11',
+                doc_name: '合规流程文档',
+                kind: 'knowledge_base',
+                score: 0.92,
+                snippet: '流程要求先审计后执行',
+                title: '合规流程文档',
+              },
+            ],
+            timeline: [
+              {
+                detail_lines: ['先检查可用上下文，再输出最终建议。'],
+                id: 'turn-thinking',
+                status: 'completed',
+                summary: '先检查可用上下文，再输出最终建议。',
+                type: 'thinking',
+              },
+              {
+                id: 'turn-tool-execution',
+                status: 'completed',
+                tool_call_ids: ['tc_policy_lookup_1'],
+                type: 'tool_execution',
+              },
+            ],
+          },
         }),
       ]),
     );
@@ -1903,7 +1922,7 @@ describe('useAIChat interrupted stream recovery', () => {
     ]);
   });
 
-  it('preserves repeated idless persisted legacy toolCalls as separate fallback evidence rows', async () => {
+  it('ignores legacy-only persisted toolCalls when canonical turnFlow is missing', async () => {
     apiMocks.getChatConversationMessagesApi.mockResolvedValue(
       buildConversationDetail([
         buildUserMessage('回放一下旧工具记录'),
@@ -1951,18 +1970,7 @@ describe('useAIChat interrupted stream recovery', () => {
       throw new Error('assistant message missing');
     }
 
-    expect(getToolCallsForDisplay(assistantMessage)).toEqual([
-      expect.objectContaining({
-        name: 'query_records',
-        output: 'first legacy output',
-        summary: 'first legacy summary',
-      }),
-      expect.objectContaining({
-        name: 'query_records',
-        output: 'second legacy output',
-        summary: 'second legacy summary',
-      }),
-    ]);
+    expect(getToolCallsForDisplay(assistantMessage)).toBeUndefined();
   });
 
   it('deduplicates repeated persisted assistant content blocks inside one merged turn', async () => {

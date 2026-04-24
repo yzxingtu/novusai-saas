@@ -3,7 +3,7 @@ import { IconifyIcon } from '@vben/icons';
 
 import { Spin, Tooltip } from 'ant-design-vue';
 
-import { AgentProfilePopover } from '#/components/business/agent-profile-popover';
+import ChatMessageAgentAvatar from '#/components/business/ai-chat-panel/ChatMessageAgentAvatar.vue';
 import { $t } from '#/locales';
 
 import { useUserAIChatWorkspaceContext } from './user-ai-chat-workspace-context';
@@ -11,15 +11,14 @@ import { useUserAIChatWorkspaceContext } from './user-ai-chat-workspace-context'
 const workspace = useUserAIChatWorkspaceContext();
 const {
   page: {
-    apiPrefix,
     chat,
     chatHeaderSubtitle,
-    selectedAgentHasVariables,
-    selectedAgentVarsConfigured,
+    headerHasVariables,
+    headerVarsConfigured,
     showMemoryPanel,
     onToggleMemory,
     onStartNewChat,
-    openSelectedAgentVarsModal,
+    openHeaderVarsModal,
   },
 } = workspace;
 const {
@@ -35,7 +34,7 @@ const {
 <template>
   <div>
     <div
-      class="flex shrink-0 items-start justify-between gap-3 border-b border-border/40 px-4 py-3"
+      class="flex shrink-0 items-start justify-between gap-3 border-b border-border/20 px-4 py-3"
     >
       <div class="flex min-w-0 items-start gap-3">
         <button
@@ -52,27 +51,28 @@ const {
             data-testid="user-ai-chat-agent-profile-trigger"
             class="shrink-0"
           >
-            <AgentProfilePopover
+            <ChatMessageAgentAvatar
               :agent-avatar="selectedAgent.avatar"
               :agent-description="selectedAgent.description"
               :agent-id="selectedAgent.id"
+              :agent-knowledge-base-ids="selectedAgent.knowledge_base_ids"
+              :agent-knowledge-bases="selectedAgent.knowledge_bases"
               :agent-name="selectedAgent.name"
-              :api-prefix="apiPrefix"
+              :agent-skills="selectedAgent.skills"
               :model-name="selectedAgent.model_name"
-              size="md"
             />
           </div>
           <div class="min-w-0">
             <div
               data-testid="user-ai-chat-workspace-title"
-              class="text-sm font-semibold text-foreground"
+              class="text-sm font-semibold text-foreground/88"
             >
               {{ $t('user.aiChat.title') }}
             </div>
             <div
               v-if="chatHeaderSubtitle"
               data-testid="user-ai-chat-workspace-subtitle"
-              class="truncate text-[11px] text-muted-foreground"
+              class="mt-0.5 truncate text-[11px] text-muted-foreground/72"
             >
               {{ chatHeaderSubtitle }}
             </div>
@@ -82,20 +82,20 @@ const {
 
       <div class="flex shrink-0 items-center gap-1">
         <Tooltip
-          v-if="selectedAgentHasVariables"
+          v-if="headerHasVariables"
           :title="$t('user.aiChat.varsModal.editVars')"
         >
           <button
             data-testid="user-ai-chat-vars-button"
-            class="hover:bg-primary/8 flex h-8 items-center gap-1 rounded-lg px-2 text-xs font-medium text-primary transition-colors"
-            @click="openSelectedAgentVarsModal"
+            class="hover:bg-primary/8 flex h-8 items-center gap-1 rounded-lg px-2 text-[11px] font-medium text-primary transition-colors"
+            @click="openHeaderVarsModal"
           >
             <IconifyIcon icon="lucide:sliders-horizontal" class="size-3.5" />
             <span class="hidden sm:inline">{{
               $t('user.aiChat.varsModal.editVars')
             }}</span>
             <span
-              v-if="selectedAgentVarsConfigured"
+              v-if="headerVarsConfigured"
               class="size-1.5 rounded-full bg-green-500"
             ></span>
           </button>
@@ -117,7 +117,7 @@ const {
         >
           <button
             data-testid="user-ai-chat-memory-button"
-            class="flex h-8 items-center gap-1 rounded-lg px-2 transition-colors hover:bg-muted disabled:opacity-40"
+            class="flex h-8 items-center gap-1 rounded-lg px-2 text-[11px] transition-colors hover:bg-muted disabled:opacity-40"
             :class="
               showMemoryPanel
                 ? 'bg-primary/10 text-primary'

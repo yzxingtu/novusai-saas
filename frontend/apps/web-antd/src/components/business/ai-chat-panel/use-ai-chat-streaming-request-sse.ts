@@ -1,6 +1,5 @@
 import type { StreamRequestDeps } from './use-ai-chat-streaming-request';
 import type { StreamRequestLifecycle } from './use-ai-chat-streaming-request-lifecycle';
-import type { RagSource } from './types';
 
 import { nextTick } from 'vue';
 
@@ -15,14 +14,11 @@ import {
   formatLocalizedList,
 } from './display-formatters';
 import {
-  appendThinkingDeltaToTurnFlow,
   applyCanonicalDoneEvent,
   applyCanonicalTurnAnswerCardEvent,
   applyCanonicalTurnEvidenceEvent,
   applyCanonicalTurnStageEvent,
   applyNativeSearchStatusToTurnFlow,
-  applyOptimizingToolsToTurnFlow,
-  applyRagSourcesToTurnFlow,
   applyStreamingToolResultToTurnFlow,
   applyStreamingToolStartToTurnFlow,
   isTurnFailure,
@@ -115,21 +111,6 @@ export function createStreamSseHandler(
             break;
           }
           msg.content = '';
-          break;
-        }
-        case 'optimizing_tools': {
-          applyOptimizingToolsToTurnFlow(msg, {
-            selected: event.selected as number | undefined,
-            total: event.total as number | undefined,
-          });
-          deps.scrollToBottom();
-          break;
-        }
-        case 'thinking': {
-          if (event.delta) {
-            appendThinkingDeltaToTurnFlow(msg, event.delta);
-            deps.scrollToBottom();
-          }
           break;
         }
         case 'tool_call': {
@@ -252,11 +233,6 @@ export function createStreamSseHandler(
               revisedPrompt: (event.revised_prompt as string) || undefined,
             });
             deps.scrollToBottom();
-          } else if (event.event === 'rag_sources' && event.sources) {
-            applyRagSourcesToTurnFlow(
-              msg,
-              event.sources as RagSource[],
-            );
           } else if (event.event === 'message' && event.delta) {
             msg.content += event.delta as string;
             deps.scrollToBottom();
