@@ -351,6 +351,7 @@ function onSendClick() {
           @paste="emit('paste', $event)"
         />
         <button
+          type="button"
           class="send-btn flex size-8 shrink-0 items-center justify-center rounded-xl transition-colors disabled:opacity-40"
           :class="
             sendState === 'streaming'
@@ -372,13 +373,25 @@ function onSendClick() {
             "
             size="small"
           />
-          <IconifyIcon
+          <span
+            v-else-if="sendState === 'streaming'"
+            aria-hidden="true"
+            class="block size-3 rounded-[2px] bg-current"
+          ></span>
+          <svg
             v-else
-            :icon="
-              sendState === 'streaming' ? 'lucide:square' : 'lucide:arrow-up'
-            "
-            class="size-3.5"
-          />
+            viewBox="0 0 16 16"
+            aria-hidden="true"
+            class="size-4"
+            fill="none"
+            stroke="currentColor"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="1.7"
+          >
+            <path d="M8 12V4" />
+            <path d="M4.75 7.25 8 4l3.25 3.25" />
+          </svg>
         </button>
       </div>
 

@@ -24,6 +24,18 @@ import {
 import { MarkdownRender } from '#/components/business/markdown-render';
 import { $t } from '#/locales';
 
+import {
+  getMeaningfulStageSummary,
+  getMeaningfulStageTitle,
+  getProcessHeadlineForStage,
+  getStageStatusLabel,
+  getStageSummary,
+  getStageTypeLabel,
+  normalizeComparableStageCopy,
+  normalizeMeaningfulTranscriptCopy,
+  readMetricNumber,
+} from './turn-stage-presentation';
+
 const props = withDefaults(
   defineProps<{
     compact?: boolean;
@@ -120,98 +132,6 @@ function resolveMessageIdentity(msg: ChatMessage): string {
 }
 
 const messageIdentity = computed(() => resolveMessageIdentity(props.msg));
-
-const GENERIC_STAGE_STATUS_TOKENS = new Set([
-  'completed',
-  'error',
-  'failed',
-  'in progress',
-  'interrupted',
-  'running',
-  'skipped',
-]);
-
-const GENERIC_STAGE_COPY_BY_TYPE: Record<
-  TurnFlowStageForDisplay['type'],
-  readonly string[]
-> = {
-  answer_assembly: [
-    'answer assembly',
-    'assembling answer',
-    'assembling the final answer',
-    'final answer assembly',
-    'response assembly',
-  ],
-  completed: [
-    'complete',
-    'completed',
-    'done',
-    'process complete',
-    'process completed',
-    'turn complete',
-    'turn completed',
-    'workflow complete',
-    'workflow completed',
-  ],
-  failed: [
-    'error',
-    'errored',
-    'failed',
-    'failure',
-    'process failed',
-    'turn failed',
-    'workflow failed',
-  ],
-  retrieval: [
-    'evidence retrieval',
-    'information retrieval',
-    'no evidence retrieved',
-    'retrieval',
-    'source retrieval',
-  ],
-  thinking: ['analysis', 'reasoning', 'thinking'],
-  tool_execution: [
-    'executing tools',
-    'no tools executed',
-    'tool call execution',
-    'tool calls',
-    'tool execution',
-  ],
-  tool_selection: [
-    'select tools',
-    'selecting tools',
-    'tool filtering',
-    'tool selection',
-  ],
-};
-
-const GENERIC_STAGE_COPY_PATTERNS: Record<
-  TurnFlowStageForDisplay['type'],
-  readonly RegExp[]
-> = {
-  answer_assembly: [/^assembling (the )?(final )?answer$/],
-  completed: [/^(process|turn|workflow) completed$/],
-  failed: [/^(process|turn|workflow) failed$/],
-  retrieval: [
-    /^(found|retrieved|retrieving) \d+ (sources?|results?|items?|documents?|evidence)( .*)?$/,
-  ],
-  thinking: [
-    /^(completed )?(analysis|reasoning|thinking)( and planning)?$/,
-    /^(analysis|reasoning|thinking) complete$/,
-  ],
-  tool_execution: [
-    /^(executed|executing) \d+ tool calls?$/,
-    /^tool calls? executed \d+$/,
-  ],
-  tool_selection: [
-    /^(selected|selecting) \d+ of \d+ tools?$/,
-    /^\d+ of \d+ tools? selected$/,
-  ],
-};
-
-const TRANSCRIPT_COPY_MEANINGFUL_CHAR_RE = /[\p{L}\p{N}]/u;
-const TRANSCRIPT_COPY_SYMBOL_ONLY_RE = /^[\p{P}\p{S}\s]+$/u;
-
 const GENERIC_STAGE_DETAIL_COPY_BY_TYPE: Record<
   TurnFlowStageForDisplay['type'],
   readonly string[]
@@ -301,263 +221,8 @@ const GENERIC_STAGE_DETAIL_COPY_PATTERNS: Record<
   ],
 };
 
-function normalizeMeaningfulTranscriptCopy(value: unknown): string | undefined {
-  const normalized = normalizeOptionalString(value);
-  if (
-    !normalized ||
-    TRANSCRIPT_COPY_SYMBOL_ONLY_RE.test(normalized) ||
-    !TRANSCRIPT_COPY_MEANINGFUL_CHAR_RE.test(normalized)
-  ) {
-    return undefined;
-  }
-  return normalized;
-}
-
-function normalizeComparableStageCopy(value: string): string {
-  return value
-    .normalize('NFKC')
-    .toLocaleLowerCase()
-    .replaceAll(/[_-]+/g, ' ')
-    .replaceAll(/[\p{P}\p{S}]+/gu, ' ')
-    .replaceAll(/\s+/gu, ' ')
-    .trim();
-}
-
-function normalizeAsciiStageCopy(value: unknown): string | undefined {
-  const normalized = normalizeOptionalString(value);
-  const containsNonAscii = [...(normalized ?? '')].some(
-    (character) => (character.codePointAt(0) ?? 0) > 127,
-  );
-  if (!normalized || containsNonAscii || !/[A-Z]/i.test(normalized)) {
-    return undefined;
-  }
-  const collapsed = normalized
-    .toLowerCase()
-    .replaceAll(/[_-]+/g, ' ')
-    .replaceAll(/[^a-z0-9 ]+/g, ' ')
-    .replaceAll(/\s+/g, ' ')
-    .trim();
-  return collapsed.length > 0 ? collapsed : undefined;
-}
-
-function isGenericBackendStageCopy(
-  stage: TurnFlowStageForDisplay,
-  value: unknown,
-) {
-  const normalized = normalizeAsciiStageCopy(value);
-  if (!normalized) {
-    return false;
-  }
-  const normalizedType = stage.type.replaceAll('_', ' ');
-  const normalizedStatus = stage.status.replaceAll('_', ' ');
-  return (
-    GENERIC_STAGE_STATUS_TOKENS.has(normalized) ||
-    GENERIC_STAGE_COPY_BY_TYPE[stage.type].includes(normalized) ||
-    GENERIC_STAGE_COPY_PATTERNS[stage.type].some((pattern) =>
-      pattern.test(normalized),
-    ) ||
-    normalized === normalizedType ||
-    normalized === `${normalizedType} ${normalizedStatus}` ||
-    normalized === `${normalizedStatus} ${normalizedType}`
-  );
-}
-
-function getMeaningfulStageTitle(stage: TurnFlowStageForDisplay) {
-  const title = normalizeMeaningfulTranscriptCopy(stage.title);
-  if (!title || isGenericBackendStageCopy(stage, title)) {
-    return undefined;
-  }
-  return title;
-}
-
-function getMeaningfulStageSummary(stage: TurnFlowStageForDisplay) {
-  const summary = normalizeMeaningfulTranscriptCopy(stage.summary);
-  if (!summary || isGenericBackendStageCopy(stage, summary)) {
-    return undefined;
-  }
-  return summary === getMeaningfulStageTitle(stage) ? undefined : summary;
-}
-
 function getStageKey(stage: TurnFlowStageForDisplay, index: number) {
   return `${messageIdentity.value}:${stage.id}-${index}`;
-}
-
-function getStageTypeLabel(stage: TurnFlowStageForDisplay) {
-  const stageTitle = getMeaningfulStageTitle(stage);
-  if (stageTitle) {
-    return stageTitle;
-  }
-  return $t(`common.globalAiChat.turnStageType.${stage.type}`);
-}
-
-function getStageStatusLabel(stage: TurnFlowStageForDisplay) {
-  return $t(`common.globalAiChat.turnStageStatus.${stage.status}`);
-}
-
-function normalizeMetricNumber(value: unknown): number | undefined {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return value;
-  }
-  if (typeof value === 'string') {
-    const parsed = Number(value);
-    if (Number.isFinite(parsed)) {
-      return parsed;
-    }
-  }
-  return undefined;
-}
-
-function readMetricNumber(
-  metrics: Record<string, number | string>,
-  keys: string[],
-): number | undefined {
-  for (const key of keys) {
-    const normalized = normalizeMetricNumber(metrics[key]);
-    if (normalized !== undefined) {
-      return normalized;
-    }
-  }
-  return undefined;
-}
-
-function readMetricText(
-  metrics: Record<string, number | string>,
-  keys: string[],
-): string | undefined {
-  for (const key of keys) {
-    const normalized = normalizeOptionalString(metrics[key]);
-    if (normalized) {
-      return normalized;
-    }
-  }
-  return undefined;
-}
-
-function getMetricSummaryForStage(
-  stage: TurnFlowStageForDisplay,
-): string | undefined {
-  const metrics = stage.metrics ?? {};
-  if (stage.type === 'tool_selection') {
-    const selected = readMetricNumber(metrics, [
-      'selected',
-      'candidate_tools_count',
-      'candidateToolsCount',
-      'selected_count',
-      'selectedCount',
-    ]);
-    const total = Math.max(
-      selected ?? 0,
-      readMetricNumber(metrics, [
-        'total',
-        'all_tools_count',
-        'allToolsCount',
-        'total_tools_count',
-        'totalToolsCount',
-        'candidate_count',
-        'candidateCount',
-      ]) ?? 0,
-    );
-    if (total > 0) {
-      return $t('common.globalAiChat.optimizingTools', {
-        total,
-        selected: selected ?? 0,
-      });
-    }
-  }
-
-  if (stage.type === 'tool_execution') {
-    const total = Math.max(
-      readMetricNumber(metrics, ['total', 'tool_rounds', 'tool_call_count']) ??
-        0,
-      (readMetricNumber(metrics, ['completed_tool_calls']) ?? 0) +
-        (readMetricNumber(metrics, ['failed_tool_calls']) ?? 0),
-    );
-    if (total > 0) {
-      return stage.status === 'running'
-        ? $t('common.globalAiChat.toolGroupRunning', { count: total })
-        : $t('common.globalAiChat.toolGroupSummary', { count: total });
-    }
-  }
-
-  if (stage.type === 'retrieval') {
-    const count = readMetricNumber(metrics, [
-      'count',
-      'source_count',
-      'sourceCount',
-      'result_count',
-      'resultCount',
-      'evidence_count',
-      'evidenceCount',
-      'total',
-    ]);
-    if (count !== undefined && count > 0) {
-      return $t('common.globalAiChat.turnRetrievalSummary', { count });
-    }
-  }
-
-  return undefined;
-}
-
-function getStageSummary(stage: TurnFlowStageForDisplay) {
-  const stageSummary = getMeaningfulStageSummary(stage);
-  if (stageSummary) {
-    return stageSummary;
-  }
-
-  if (stage.type === 'failed') {
-    const errorSurface = props.state.flow.errorSurface;
-    const errorMessage =
-      (typeof errorSurface?.message === 'string' &&
-        errorSurface.message.trim()) ||
-      (typeof errorSurface?.summary === 'string' &&
-        errorSurface.summary.trim()) ||
-      undefined;
-    if (errorMessage) {
-      return errorMessage;
-    }
-  }
-
-  const metricSummary = getMetricSummaryForStage(stage);
-  if (metricSummary) {
-    return metricSummary;
-  }
-
-  const metrics = stage.metrics ?? {};
-  if (stage.type === 'tool_execution' && stage.status === 'running') {
-    const provider =
-      readMetricText(metrics, [
-        'provider',
-        'selected_backend',
-        'selectedBackend',
-        'provider_name',
-        'providerName',
-      ]) ?? readMetricText(metrics, ['provider_chain', 'providerChain']);
-    if (provider) {
-      return `${$t('common.globalAiChat.toolSearchProvider')}: ${provider}`;
-    }
-  }
-
-  if (stage.status === 'running') {
-    return $t(`common.globalAiChat.turnStageSummary.${stage.type}`);
-  }
-
-  return `${getStageTypeLabel(stage)} · ${getStageStatusLabel(stage)}`;
-}
-
-function getProcessHeadlineForStage(stage: TurnFlowStageForDisplay) {
-  const stageSummary = getMeaningfulStageSummary(stage);
-  if (stageSummary) {
-    return stageSummary;
-  }
-
-  const metricSummary = getMetricSummaryForStage(stage);
-  if (metricSummary) {
-    return metricSummary;
-  }
-
-  return stage.status === 'completed'
-    ? getStageTypeLabel(stage)
-    : getStageSummary(stage);
 }
 
 function getStageStatusClass(stage: TurnFlowStageForDisplay) {
@@ -816,12 +481,22 @@ const visibleTimeline = computed(() =>
   timeline.value.filter((stage) => shouldRenderStage(stage)),
 );
 
+function getVisibleStageSummary(stage: TurnFlowStageForDisplay) {
+  return getStageSummary(stage, {
+    errorSurface: props.state.flow.errorSurface,
+  });
+}
+
 const processHeadline = computed(() => {
   const liveStage = visibleTimeline.value.findLast(
     (stage) => stage.status === 'running',
   );
   const stage = liveStage ?? visibleTimeline.value.at(-1);
-  return stage ? getProcessHeadlineForStage(stage) : undefined;
+  return stage
+    ? getProcessHeadlineForStage(stage, {
+        errorSurface: props.state.flow.errorSurface,
+      })
+    : undefined;
 });
 
 function syncProcessExpanded(nextExpanded: boolean) {
@@ -870,11 +545,11 @@ watch(
           ? $t('common.globalAiChat.turnTimelineCollapse')
           : $t('common.globalAiChat.turnTimelineExpand')
       "
-      class="turn-process-toggle group flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left"
+      class="turn-process-toggle group flex w-full items-center gap-2 rounded-[16px] px-2.5 py-2 text-left"
       @click="toggleProcessExpanded"
     >
       <span
-        class="turn-process-pill inline-flex shrink-0 items-center rounded-full px-1.5 py-0.5 text-[8px] font-medium uppercase tracking-[0.14em]"
+        class="turn-process-pill inline-flex shrink-0 items-center rounded-full px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-[0.1em]"
       >
         {{ $t('common.globalAiChat.turnTimeline') }}
       </span>
@@ -885,8 +560,8 @@ watch(
             class="text-foreground/74 min-w-0 flex-1 truncate font-medium"
             :class="
               compact
-                ? 'text-[9.75px] leading-[1.05rem]'
-                : 'text-[10.25px] leading-[1.1rem]'
+                ? 'text-[11px] leading-[1.14rem]'
+                : 'text-[11.5px] leading-[1.18rem]'
             "
           >
             {{
@@ -896,13 +571,13 @@ watch(
           </p>
           <span
             v-if="processStatusLabel"
-            class="inline-flex items-center rounded-full border px-1.5 py-0.5 text-[8.5px] font-medium"
+            class="inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium"
             :class="getProcessStatusClass()"
           >
             {{ processStatusLabel }}
           </span>
           <span
-            class="turn-process-count inline-flex items-center rounded-full px-1.5 py-0.5 text-[8.5px]"
+            class="turn-process-count inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px]"
           >
             {{
               $t('common.globalAiChat.turnStageCount', {
@@ -937,7 +612,7 @@ watch(
       <div class="min-h-0 overflow-hidden">
         <div
           class="turn-process-track relative mt-1.5 border-l"
-          :class="compact ? 'space-y-1.5 pl-2.5' : 'space-y-1.5 pl-3'"
+          :class="compact ? 'space-y-1.5 pl-2.5' : 'space-y-2 pl-3'"
         >
           <div
             v-for="(stage, stageIndex) in visibleTimeline"
@@ -972,27 +647,27 @@ watch(
               <div class="flex min-w-0 flex-wrap items-center gap-1.5">
                 <span
                   class="text-foreground/72 truncate font-medium"
-                  :class="compact ? 'text-[9.5px]' : 'text-[10px]'"
+                  :class="compact ? 'text-[10.5px]' : 'text-[11px]'"
                 >
                   {{ getStageTypeLabel(stage) }}
                 </span>
                 <span
                   v-if="shouldShowStageStatus(stage)"
-                  class="inline-flex shrink-0 items-center rounded-full border px-1.5 py-0.5 text-[8.5px] font-medium"
+                  class="inline-flex shrink-0 items-center rounded-full border px-1.5 py-0.5 text-[9.5px] font-medium"
                   :class="getStageStatusClass(stage)"
                 >
                   {{ getStageStatusLabel(stage) }}
                 </span>
               </div>
               <p
-                class="text-muted-foreground/58 mt-0.5"
+                class="text-muted-foreground/56 mt-0.5"
                 :class="
                   compact
-                    ? 'text-[8.75px] leading-[1rem]'
-                    : 'text-[9.25px] leading-[1.05rem]'
+                    ? 'text-[10px] leading-[1.1rem]'
+                    : 'text-[10.5px] leading-[1.16rem]'
                 "
               >
-                {{ getStageSummary(stage) }}
+                {{ getVisibleStageSummary(stage) }}
               </p>
 
               <div
@@ -1034,7 +709,7 @@ watch(
                       <div
                         v-else-if="hasToolSelectionBody(stage)"
                         class="inline-flex max-w-full items-center gap-1.5 rounded-lg bg-muted/[0.05] px-2.5 py-2 text-muted-foreground/70"
-                        :class="compact ? 'text-[9.5px]' : 'text-[10px]'"
+                        :class="compact ? 'text-[10.5px]' : 'text-[11px]'"
                       >
                         <IconifyIcon
                           icon="lucide:sparkles"
@@ -1078,20 +753,20 @@ watch(
                                 class="flex min-w-0 flex-wrap items-center gap-1.5"
                               >
                                 <span
-                                  class="text-foreground/74 truncate text-[10px] font-medium"
+                                  class="text-foreground/74 truncate text-[11px] font-medium"
                                 >
                                   {{ source.doc_name }}
                                 </span>
                                 <span
                                   v-if="source.knowledge_base_name"
-                                  class="text-muted-foreground/58 text-[9px]"
+                                  class="text-muted-foreground/58 text-[10px]"
                                 >
                                   {{ source.knowledge_base_name }}
                                 </span>
                               </div>
                               <p
                                 v-if="source.snippet"
-                                class="mt-0.5 line-clamp-2 text-[10px] leading-5 text-muted-foreground/60"
+                                class="mt-0.5 line-clamp-2 text-[10.5px] leading-5 text-muted-foreground/60"
                               >
                                 {{ source.snippet }}
                               </p>
@@ -1113,9 +788,14 @@ watch(
 
 <style scoped>
 .turn-process-toggle {
-  border: 1px solid hsl(var(--border) / 0.16);
-  background: hsl(var(--background) / 0.76);
-  box-shadow: 0 10px 18px -26px hsl(var(--foreground) / 0.12);
+  border: 1px solid hsl(var(--border) / 0.14);
+  background:
+    linear-gradient(
+      180deg,
+      hsl(var(--background) / 0.82) 0%,
+      hsl(var(--muted) / 0.04) 100%
+    );
+  box-shadow: 0 10px 18px -28px hsl(var(--foreground) / 0.12);
   transition:
     background-color 160ms ease,
     border-color 160ms ease,
@@ -1124,20 +804,20 @@ watch(
 
 .turn-process-toggle:hover {
   border-color: hsl(var(--primary) / 0.14);
-  background: hsl(var(--muted) / 0.1);
-  box-shadow: 0 12px 20px -26px hsl(var(--foreground) / 0.14);
+  background: hsl(var(--muted) / 0.08);
+  box-shadow: 0 12px 20px -28px hsl(var(--foreground) / 0.14);
 }
 
 .turn-process-pill {
-  color: hsl(var(--muted-foreground) / 0.58);
+  color: hsl(var(--muted-foreground) / 0.56);
   border: 1px solid hsl(var(--border) / 0.24);
-  background: hsl(var(--background) / 0.84);
+  background: hsl(var(--background) / 0.86);
 }
 
 .turn-process-count {
-  color: hsl(var(--muted-foreground) / 0.6);
+  color: hsl(var(--muted-foreground) / 0.58);
   border: 1px solid hsl(var(--border) / 0.18);
-  background: hsl(var(--background) / 0.76);
+  background: hsl(var(--background) / 0.8);
 }
 
 .turn-process-track {
@@ -1157,15 +837,20 @@ watch(
 
 .turn-stage-detail-surface {
   border-color: hsl(var(--border) / 0.16);
-  background: hsl(var(--background) / 0.84);
-  box-shadow: 0 10px 18px -28px hsl(var(--foreground) / 0.12);
+  background:
+    linear-gradient(
+      180deg,
+      hsl(var(--background) / 0.86) 0%,
+      hsl(var(--muted) / 0.03) 100%
+    );
+  box-shadow: 0 10px 18px -30px hsl(var(--foreground) / 0.12);
 }
 
 .turn-stage-inline-markdown {
   min-width: 0;
   color: hsl(var(--foreground) / 0.7);
-  font-size: 0.72rem;
-  line-height: 1.25rem;
+  font-size: 0.82rem;
+  line-height: 1.35rem;
 }
 
 .turn-stage-inline-markdown :deep(p:first-child) {

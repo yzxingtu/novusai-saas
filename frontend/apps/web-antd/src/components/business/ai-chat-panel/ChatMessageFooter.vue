@@ -32,18 +32,18 @@ const emit = defineEmits<{
     v-if="msg.content && !msg.streaming"
     data-testid="assistant-message-footer"
     class="assistant-message-footer text-muted-foreground/52 flex flex-wrap items-center justify-between gap-1.5"
-    :class="[compact ? 'text-[7.5px]' : 'text-[8px]']"
+    :class="[compact ? 'text-[10px]' : 'text-[10.5px]']"
   >
     <div class="flex min-w-0 flex-1 flex-wrap items-center gap-x-1 gap-y-1">
       <span
         v-if="msg.created_at"
-        class="assistant-footer-chip rounded-full px-1.5 py-px text-[6.5px] tabular-nums"
+        class="assistant-footer-chip rounded-full px-2 py-0.5 text-[10px] tabular-nums"
       >
         {{ formatTimeOnly(msg.created_at) }}
       </span>
       <span
         v-if="!compact && (msg.tokenUsage || msg.durationMs)"
-        class="assistant-footer-chip rounded-full px-1.5 py-px text-[6.5px] text-foreground/48 tabular-nums"
+        class="assistant-footer-chip rounded-full px-2 py-0.5 text-[10px] text-foreground/48 tabular-nums"
       >
         <template v-if="msg.tokenUsage">
           {{ msg.tokenUsage }} {{ $t('common.globalAiChat.tokens') }}
@@ -63,9 +63,9 @@ const emit = defineEmits<{
         :title="$t('common.globalAiChat.memoryUpdated')"
       >
         <span
-          class="assistant-footer-memory inline-flex items-center gap-0.5 rounded-full px-1.5 py-px text-[6.5px] text-primary"
+          class="assistant-footer-memory inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] text-primary"
         >
-          <IconifyIcon icon="lucide:brain" class="size-[7px]" />
+          <IconifyIcon icon="lucide:brain" class="size-3" />
           <span>{{ $t('common.globalAiChat.memoryUpdated') }}</span>
         </span>
       </Tooltip>
@@ -73,18 +73,20 @@ const emit = defineEmits<{
     <div class="ml-auto flex shrink-0 items-center gap-0.5">
       <Tooltip :title="$t('common.globalAiChat.copy')">
         <button
-          class="assistant-footer-action flex size-[13px] items-center justify-center rounded-full"
+          type="button"
+          class="assistant-footer-action flex size-7 items-center justify-center rounded-full"
           @click="emit('copy', msg.content)"
         >
-          <IconifyIcon icon="lucide:copy" class="size-2.5" />
+          <IconifyIcon icon="lucide:copy" class="size-3.5" />
         </button>
       </Tooltip>
       <Tooltip :title="$t('common.globalAiChat.regenerate')">
         <button
-          class="assistant-footer-action flex size-[13px] items-center justify-center rounded-full"
+          type="button"
+          class="assistant-footer-action flex size-7 items-center justify-center rounded-full"
           @click="emit('regenerate', props.index)"
         >
-          <IconifyIcon icon="lucide:refresh-cw" class="size-2.5" />
+          <IconifyIcon icon="lucide:refresh-cw" class="size-3.5" />
         </button>
       </Tooltip>
     </div>

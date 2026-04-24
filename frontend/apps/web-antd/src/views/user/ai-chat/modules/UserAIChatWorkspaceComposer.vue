@@ -307,6 +307,7 @@ const setFileInputRef: VNodeRef = (element) => {
         />
 
         <button
+          type="button"
           class="flex size-8 shrink-0 items-center justify-center rounded-xl transition-colors disabled:opacity-40"
           :class="
             streaming
@@ -322,11 +323,25 @@ const setFileInputRef: VNodeRef = (element) => {
           @click="streaming ? stopGeneration() : handleSendClick()"
         >
           <Spin v-if="!streaming && sending" size="small" />
-          <IconifyIcon
+          <span
+            v-else-if="streaming"
+            aria-hidden="true"
+            class="block size-3.5 rounded-[2px] bg-current"
+          ></span>
+          <svg
             v-else
-            :icon="streaming ? 'lucide:square' : 'lucide:arrow-up'"
+            viewBox="0 0 16 16"
+            aria-hidden="true"
             class="size-4"
-          />
+            fill="none"
+            stroke="currentColor"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="1.7"
+          >
+            <path d="M8 12V4" />
+            <path d="M4.75 7.25 8 4l3.25 3.25" />
+          </svg>
         </button>
       </div>
 

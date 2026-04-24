@@ -257,7 +257,7 @@ const summaryStats = computed(() => {
           </div>
           <div class="min-w-0 flex-1">
             <div
-              class="truncate text-[13px] font-semibold tracking-[0.01em] text-foreground/90"
+              class="truncate text-[14px] font-semibold tracking-[0.01em] text-foreground/90"
             >
               {{ resolvedName }}
             </div>
@@ -276,7 +276,7 @@ const summaryStats = computed(() => {
             </div>
             <div
               v-if="modelName"
-              class="agent-model-chip mt-2 inline-flex min-w-0 items-center gap-1 rounded-full px-2 py-1 text-[9px]"
+              class="agent-model-chip mt-2 inline-flex min-w-0 items-center gap-1 rounded-full px-2 py-1 text-[10px]"
             >
               <IconifyIcon icon="lucide:cpu" class="size-3 shrink-0" />
               <span class="truncate">{{ modelName }}</span>
@@ -285,7 +285,7 @@ const summaryStats = computed(() => {
         </div>
 
         <p
-          class="agent-profile-description mt-3 rounded-[18px] border px-3 py-2.5 text-[10.5px] leading-5"
+          class="agent-profile-description mt-3 rounded-[18px] border px-3 py-2.5 text-[11.5px] leading-6"
           :class="agentDescription ? '' : 'italic'"
         >
           {{ agentDescription || $t('common.globalAiChat.noDescription') }}
@@ -397,7 +397,7 @@ const summaryStats = computed(() => {
         </div>
 
         <div
-          class="agent-profile-footer mt-3 flex items-center justify-between rounded-[16px] px-2.5 py-2 text-[9px]"
+          class="agent-profile-footer mt-3 flex items-center justify-between rounded-[16px] px-2.5 py-2 text-[10px]"
         >
           <span>{{ $t('common.globalAiChat.agentProfileHint') }}</span>
           <span v-if="agentId" class="font-mono">#{{ agentId }}</span>
@@ -424,7 +424,6 @@ const summaryStats = computed(() => {
         {{ avatarInitial }}
       </span>
       <IconifyIcon v-else icon="lucide:bot" class="size-3.5" />
-      <span class="assistant-agent-avatar-dot"></span>
     </button>
   </Popover>
 </template>
@@ -453,18 +452,6 @@ const summaryStats = computed(() => {
   border-color: hsl(var(--primary) / 0.24);
 }
 
-.assistant-agent-avatar-dot {
-  position: absolute;
-  right: 2px;
-  bottom: 2px;
-  width: 7px;
-  height: 7px;
-  background: hsl(var(--primary));
-  border: 2px solid hsl(var(--background));
-  border-radius: 999px;
-  opacity: 0.84;
-}
-
 .agent-profile-popover {
   color: hsl(var(--foreground) / 0.86);
 }
@@ -479,8 +466,8 @@ const summaryStats = computed(() => {
   background: hsl(var(--muted) / 0.4);
   border: 1px solid hsl(var(--border) / 0.36);
   border-radius: 999px;
-  font-size: 9px;
-  line-height: 1rem;
+  font-size: 10px;
+  line-height: 1.05rem;
 }
 
 .agent-model-chip {
@@ -503,7 +490,7 @@ const summaryStats = computed(() => {
 
 .agent-profile-section-title {
   color: hsl(var(--muted-foreground) / 0.74);
-  font-size: 10px;
+  font-size: 10.5px;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -516,8 +503,8 @@ const summaryStats = computed(() => {
   align-items: center;
   padding: 2px 8px;
   overflow: hidden;
-  font-size: 9px;
-  line-height: 16px;
+  font-size: 10px;
+  line-height: 18px;
   color: hsl(var(--foreground) / 0.82);
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -534,7 +521,7 @@ const summaryStats = computed(() => {
 .agent-profile-subtitle {
   margin-bottom: 0.4rem;
   color: hsl(var(--muted-foreground) / 0.66);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -542,7 +529,7 @@ const summaryStats = computed(() => {
 
 .agent-profile-empty {
   color: hsl(var(--muted-foreground) / 0.48);
-  font-size: 9px;
+  font-size: 10px;
   font-style: italic;
 }
 

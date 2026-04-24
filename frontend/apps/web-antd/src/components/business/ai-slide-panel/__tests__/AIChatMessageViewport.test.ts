@@ -21,7 +21,10 @@ vi.mock('#/locales', () => ({
 vi.mock('@vben/icons', () => ({
   IconifyIcon: defineComponent({
     name: 'IconifyIconStub',
-    template: '<span class="iconify-stub"></span>',
+    props: {
+      icon: { type: String, required: false, default: '' },
+    },
+    template: '<span class="iconify-stub" :data-icon="icon"></span>',
   }),
 }));
 
@@ -345,6 +348,86 @@ describe('aiChatMessageViewport', () => {
         .attributes('data-compact'),
     ).toBe('false');
     expect(wrapper.html()).toContain('max-w-[48rem]');
+  });
+
+  it('renders manual scroll controls and emits scroll navigation events when streaming is idle', async () => {
+    const wrapper = mount(AIChatMessageViewport, {
+      props: {
+        apiPrefix: '/tenant',
+        chatMessages: [
+          {
+            clientKey: 'assistant-scroll-controls',
+            content: 'manual viewport controls',
+            role: 'assistant',
+          } satisfies ChatMessage,
+        ],
+        getPendingOpsForMessage: () => [],
+        getRichTextDraftState: () => null,
+        showScrollToBottom: true,
+        showScrollToTop: true,
+        streaming: false,
+      },
+      global: {
+        stubs: {
+          ChatMessageItem: defineComponent({
+            name: 'ChatMessageItemStub',
+            template: '<div />',
+          }),
+        },
+      },
+    });
+
+    const scrollControls = wrapper.findAll('.sticky button');
+    const scrollToTopButton = wrapper.get(
+      'button[aria-label="common.globalAiChat.scrollToTop"]',
+    );
+    const scrollToBottomButton = scrollControls.find(
+      (button) => button.element !== scrollToTopButton.element,
+    );
+
+    expect(scrollControls).toHaveLength(2);
+    expect(scrollToTopButton.element.tagName).toBe('BUTTON');
+    expect(scrollToBottomButton).toBeTruthy();
+    expect(scrollToBottomButton?.element.tagName).toBe('BUTTON');
+
+    await scrollToTopButton.trigger('click');
+    await scrollToBottomButton!.trigger('click');
+
+    expect(wrapper.emitted('scrollToTop')).toHaveLength(1);
+    expect(wrapper.emitted('scrollToBottom')).toHaveLength(1);
+  });
+
+  it('keeps manual scroll controls hidden while streaming is active', () => {
+    const wrapper = mount(AIChatMessageViewport, {
+      props: {
+        apiPrefix: '/tenant',
+        chatMessages: [
+          {
+            clientKey: 'assistant-scroll-controls-streaming',
+            content: 'streaming viewport controls',
+            role: 'assistant',
+          } satisfies ChatMessage,
+        ],
+        getPendingOpsForMessage: () => [],
+        getRichTextDraftState: () => null,
+        showScrollToBottom: true,
+        showScrollToTop: true,
+        streaming: true,
+      },
+      global: {
+        stubs: {
+          ChatMessageItem: defineComponent({
+            name: 'ChatMessageItemStub',
+            template: '<div />',
+          }),
+        },
+      },
+    });
+
+    expect(wrapper.findAll('.sticky button')).toHaveLength(0);
+    expect(
+      wrapper.find('button[aria-label="common.globalAiChat.scrollToTop"]').exists(),
+    ).toBe(false);
   });
 
   it('keeps canonical turnFlow payload intact while stripping legacy display fields', () => {

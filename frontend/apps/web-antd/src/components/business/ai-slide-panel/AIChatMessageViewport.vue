@@ -516,24 +516,53 @@ watch(
       </div>
     </div>
 
-    <div class="sticky bottom-2 z-10 flex justify-center gap-2">
+    <div
+      class="pointer-events-none sticky bottom-3 z-10 ml-auto mt-3 flex w-fit flex-col items-end gap-1.5 pr-1"
+    >
       <Transition name="fade">
         <button
           v-if="showScrollToTop && !streaming"
-          class="border-border/38 bg-background/96 inline-flex size-8 items-center justify-center rounded-full border text-muted-foreground shadow-[0_10px_24px_-18px_hsl(var(--foreground)/0.14)] backdrop-blur-sm transition-all hover:border-primary/20 hover:bg-muted/30 hover:text-foreground"
+          type="button"
+          class="pointer-events-auto inline-flex size-9 items-center justify-center rounded-2xl border border-border/34 bg-background/96 text-muted-foreground shadow-[0_14px_28px_-22px_hsl(var(--foreground)/0.16)] backdrop-blur-sm transition-all hover:-translate-y-0.5 hover:border-primary/22 hover:bg-background hover:text-foreground"
           :aria-label="$t('common.globalAiChat.scrollToTop')"
           @click="emit('scrollToTop')"
         >
-          <IconifyIcon icon="lucide:arrow-up" class="size-3.5" />
+          <svg
+            viewBox="0 0 16 16"
+            aria-hidden="true"
+            class="size-4"
+            fill="none"
+            stroke="currentColor"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="1.6"
+          >
+            <path d="M8 12V4" />
+            <path d="M4.75 7.25 8 4l3.25 3.25" />
+          </svg>
         </button>
       </Transition>
       <Transition name="fade">
         <button
           v-if="showScrollToBottom && !streaming"
-          class="border-border/38 bg-background/96 inline-flex size-8 items-center justify-center rounded-full border text-muted-foreground shadow-[0_10px_24px_-18px_hsl(var(--foreground)/0.14)] backdrop-blur-sm transition-all hover:border-primary/20 hover:bg-muted/30 hover:text-foreground"
+          type="button"
+          class="pointer-events-auto inline-flex size-9 items-center justify-center rounded-2xl border border-border/34 bg-background/96 text-muted-foreground shadow-[0_14px_28px_-22px_hsl(var(--foreground)/0.16)] backdrop-blur-sm transition-all hover:-translate-y-0.5 hover:border-primary/22 hover:bg-background hover:text-foreground"
+          :aria-label="$t('common.globalAiChat.scrollToBottom')"
           @click="emit('scrollToBottom')"
         >
-          <IconifyIcon icon="lucide:arrow-down" class="size-3.5" />
+          <svg
+            viewBox="0 0 16 16"
+            aria-hidden="true"
+            class="size-4"
+            fill="none"
+            stroke="currentColor"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="1.6"
+          >
+            <path d="M8 4v8" />
+            <path d="M4.75 8.75 8 12l3.25-3.25" />
+          </svg>
         </button>
       </Transition>
     </div>

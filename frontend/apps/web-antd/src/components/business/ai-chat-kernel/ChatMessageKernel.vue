@@ -19,6 +19,7 @@ import ActionConsentGate from './ActionConsentGate.vue';
 import EvidenceCard from './EvidenceCard.vue';
 import { buildTurnFlowState } from './TurnFlowState';
 import TurnTimeline from './TurnTimeline.vue';
+import { getProcessHeadlineForStage } from './turn-stage-presentation';
 
 const props = withDefaults(
   defineProps<{
@@ -218,7 +219,7 @@ const processPreviewText = computed(() => {
     normalizeText(resolvedState.value.flow.errorSurface?.message) ||
     normalizeText(resolvedState.value.flow.errorSurface?.summary);
   if (errorMessage) {
-    return truncatePreview(errorMessage, 42);
+    return truncatePreview(errorMessage, 38);
   }
 
   for (let index = visibleProcessStages.value.length - 1; index >= 0; index -= 1) {
@@ -226,9 +227,13 @@ const processPreviewText = computed(() => {
     if (!stage) {
       continue;
     }
-    const preview = normalizeText(stage.summary) || normalizeText(stage.title);
+    const preview = normalizeText(
+      getProcessHeadlineForStage(stage, {
+        errorSurface: resolvedState.value.flow.errorSurface,
+      }),
+    );
     if (preview) {
-      return truncatePreview(preview, 42);
+      return truncatePreview(preview, 38);
     }
   }
 
@@ -296,7 +301,7 @@ function handleReject() {
         type="button"
         data-testid="chat-message-kernel-overview-toggle"
         class="chat-message-kernel-overview flex w-full min-w-0 items-center gap-2 text-left"
-        :class="compact ? 'px-2.5 py-1.5' : 'px-3 py-2'"
+        :class="compact ? 'px-3 py-2' : 'px-3.5 py-2'"
         :aria-expanded="isKernelExpanded"
         @click="toggleKernelExpanded"
       >
@@ -403,23 +408,26 @@ function handleReject() {
 
 <style scoped>
 .chat-message-kernel-shell {
-  border-color: hsl(var(--border) / 0.18);
-  background: linear-gradient(
-    180deg,
-    hsl(var(--background) / 0.98) 0%,
-    hsl(var(--muted) / 0.05) 100%
-  );
-  box-shadow: 0 14px 24px -32px hsl(var(--foreground) / 0.14);
+  border-color: hsl(var(--border) / 0.16);
+  background:
+    linear-gradient(
+      180deg,
+      hsl(var(--background) / 0.985) 0%,
+      hsl(var(--muted) / 0.045) 100%
+    );
+  box-shadow: 0 14px 24px -32px hsl(var(--foreground) / 0.12);
 }
 
 .chat-message-kernel-overview {
   transition:
     background-color 160ms ease,
-    border-color 160ms ease;
+    border-color 160ms ease,
+    box-shadow 160ms ease;
 }
 
 .chat-message-kernel-overview:hover {
   background: hsl(var(--muted) / 0.08);
+  box-shadow: inset 0 1px 0 hsl(var(--primary) / 0.06);
 }
 
 .kernel-overview-group {
@@ -430,30 +438,30 @@ function handleReject() {
   display: inline-flex;
   align-items: center;
   border-radius: 9999px;
-  padding: 0.125rem 0.5rem;
-  color: hsl(var(--muted-foreground) / 0.58);
+  padding: 0.18rem 0.6rem;
+  color: hsl(var(--muted-foreground) / 0.56);
   border: 1px solid hsl(var(--border) / 0.18);
   background: hsl(var(--background) / 0.88);
-  font-size: 0.5rem;
+  font-size: 0.62rem;
   font-weight: 600;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
 .kernel-overview-copy {
-  color: hsl(var(--foreground) / 0.76);
-  font-size: 0.625rem;
-  line-height: 1rem;
+  color: hsl(var(--foreground) / 0.74);
+  font-size: 0.74rem;
+  line-height: 1.1rem;
 }
 
 .kernel-overview-count {
-  color: hsl(var(--muted-foreground) / 0.62);
+  color: hsl(var(--muted-foreground) / 0.6);
   border: 1px solid hsl(var(--border) / 0.16);
-  background: hsl(var(--background) / 0.8);
+  background: hsl(var(--background) / 0.82);
   border-radius: 9999px;
-  padding: 0.125rem 0.45rem;
-  font-size: 0.5625rem;
-  line-height: 0.875rem;
+  padding: 0.16rem 0.5rem;
+  font-size: 0.66rem;
+  line-height: 0.95rem;
 }
 
 .kernel-overview-divider {
@@ -463,9 +471,9 @@ function handleReject() {
 }
 
 .kernel-overview-chevron {
-  color: hsl(var(--muted-foreground) / 0.5);
+  color: hsl(var(--muted-foreground) / 0.48);
   border: 1px solid hsl(var(--border) / 0.16);
-  background: hsl(var(--background) / 0.82);
+  background: hsl(var(--background) / 0.84);
 }
 
 .chat-message-kernel-overview:hover .kernel-overview-chevron {

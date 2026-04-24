@@ -410,26 +410,26 @@ function getEvidenceIcon(kind: string) {
       v-if="canToggleDigest"
       type="button"
       data-testid="turn-digest-toggle"
-      class="turn-digest-toggle flex w-full min-w-0 items-center gap-1.5 rounded-lg px-1 py-1 text-left"
+      class="turn-digest-toggle flex w-full min-w-0 items-center gap-2 rounded-xl px-1.5 py-1.5 text-left"
       :aria-expanded="digestExpanded"
       @click="toggleDigestExpanded"
     >
       <span
         class="digest-label inline-flex items-center rounded-full px-1.5 py-0.5 font-medium uppercase tracking-[0.12em]"
-        :class="compact ? 'text-[8px]' : 'text-[8.5px]'"
+        :class="compact ? 'text-[9px]' : 'text-[9.5px]'"
       >
         {{ $t(digestLabelKey) }}
       </span>
       <span
         v-if="digestPreviewText"
         class="text-foreground/72 min-w-0 flex-1 truncate"
-        :class="compact ? 'text-[10px]' : 'text-[10.5px]'"
+        :class="compact ? 'text-[11px]' : 'text-[11.5px]'"
       >
         {{ digestPreviewText }}
       </span>
       <span
         v-if="hasEvidence"
-        class="digest-evidence-count inline-flex items-center rounded-full px-1.5 py-0.5 text-[8.5px]"
+        class="digest-evidence-count inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px]"
       >
         {{ preparedEvidence.length + state.hiddenEvidenceCount }}
       </span>
@@ -449,7 +449,7 @@ function getEvidenceIcon(kind: string) {
     <div
       v-else
       class="flex min-w-0 flex-wrap items-center gap-1.5"
-      :class="compact ? 'text-[8px]' : 'text-[8.5px]'"
+      :class="compact ? 'text-[9px]' : 'text-[9.5px]'"
     >
       <span
         class="digest-label inline-flex items-center rounded-full px-1.5 py-0.5 font-medium uppercase tracking-[0.12em]"
@@ -459,11 +459,11 @@ function getEvidenceIcon(kind: string) {
       <span
         v-if="isProvisionalAnswerCard"
         data-testid="chat-message-kernel-evidence-live-state"
-        class="digest-live-state inline-flex items-center rounded-full border px-1.5 py-0.5 text-[8px] font-medium text-primary"
+        class="digest-live-state inline-flex items-center rounded-full border px-1.5 py-0.5 text-[9px] font-medium text-primary"
         :class="msg.streaming ? 'tc-pill-pulse' : ''"
-        >
-          {{ $t(provisionalStatusLabelKey) }}
-        </span>
+      >
+        {{ $t(provisionalStatusLabelKey) }}
+      </span>
     </div>
 
     <Transition name="turn-digest-body">
@@ -477,8 +477,8 @@ function getEvidenceIcon(kind: string) {
           class="digest-summary line-clamp-2"
           :class="
             compact
-              ? 'text-[9.75px] leading-[1.05rem]'
-              : 'text-[10px] leading-[1.15rem]'
+              ? 'text-[11px] leading-[1.22rem]'
+              : 'text-[11.5px] leading-[1.28rem]'
           "
         >
           {{ displayAnswerSummary || fallbackAnswerSummary }}
@@ -491,7 +491,7 @@ function getEvidenceIcon(kind: string) {
           >
             <p
               v-if="section.title"
-              class="text-[8.5px] font-medium text-foreground/56"
+              class="text-[10px] font-medium text-foreground/56"
             >
               {{ section.title }}
             </p>
@@ -499,8 +499,8 @@ function getEvidenceIcon(kind: string) {
               class="digest-section-copy line-clamp-2"
               :class="
                 compact
-                  ? 'text-[9.25px] leading-[1.05rem]'
-                  : 'text-[9.75px] leading-[1.15rem]'
+                  ? 'text-[10.5px] leading-[1.18rem]'
+                  : 'text-[11px] leading-[1.24rem]'
               "
             >
               {{ section.body || section.content }}
@@ -519,7 +519,7 @@ function getEvidenceIcon(kind: string) {
             :title="item.label"
             class="digest-evidence-chip inline-flex max-w-full items-center gap-1 rounded-full border transition-colors"
             :class="[
-              compact ? 'px-2 py-0.5 text-[8.25px]' : 'px-2 py-0.5 text-[8.75px]',
+              compact ? 'px-2 py-0.5 text-[9.5px]' : 'px-2 py-0.5 text-[10px]',
               item.href
                 ? 'hover:border-primary/20 hover:bg-primary/[0.05] hover:text-primary'
                 : '',
@@ -533,7 +533,7 @@ function getEvidenceIcon(kind: string) {
           </component>
           <span
             v-if="state.hiddenEvidenceCount > 0"
-            class="digest-evidence-more inline-flex items-center rounded-full border border-dashed px-2 py-0.5 text-[8.25px]"
+            class="digest-evidence-more inline-flex items-center rounded-full border border-dashed px-2 py-0.5 text-[9.5px]"
           >
             +{{ state.hiddenEvidenceCount }}
           </span>
