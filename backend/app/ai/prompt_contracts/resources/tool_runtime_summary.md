@@ -1,5 +1,4 @@
 ---
-[RUNTIME SUMMARY]
-Path: {{ execution_path }}
-Intents: {{ intent_summary }}
-Tools: {{ allowed_tools }}
+runtime.path={{ execution_path }}
+runtime.intents={{ intent_summary }}
+runtime.tools={{ allowed_tools }}

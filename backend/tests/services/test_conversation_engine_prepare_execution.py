@@ -120,18 +120,61 @@ def _build_structured_skill_result() -> SkillResolveResult:
 
 
 def _build_intent_plan(*kinds: str) -> list[IntentPlan]:
+    page_goal_by_kind = {
+        "page_read": "page_summary",
+        "page_summary": "page_summary",
+        "page_screenshot": "page_screenshot",
+        "page_search": "search",
+        "page_form_read": "form_read",
+        "page_form_write": "form_write",
+        "page_editor_read": "editor_read",
+        "page_editor_write": "editor_write",
+        "page_navigation": "navigation",
+        "page_pagination": "pagination",
+        "page_row_detail": "row_detail",
+    }
+    family_by_kind = {
+        "web_research": "web_research",
+        "weather_query": "weather",
+        "time_query": "time_ops",
+    }
     return [
         IntentPlan(
             intent_id=f"intent-{index}",
-            kind=kind,
-            family="memory" if kind.startswith("memory_") else "none",
+            kind=(
+                "page_workflow"
+                if str(kind).strip() in page_goal_by_kind or str(kind).strip() == "page_workflow"
+                else kind
+            ),
+            family=(
+                "page_ops"
+                if str(kind).strip() in page_goal_by_kind or str(kind).strip() == "page_workflow"
+                else ("memory" if kind.startswith("memory_") else family_by_kind.get(kind, "none"))
+            ),
             order=index,
             user_visible_label=kind,
             source_text="test intent",
             shortcircuit=kind.startswith("memory_"),
+            metadata=(
+                {
+                    "page_workflow_kind": "page_workflow",
+                    "page_workflow_goal": page_goal_by_kind.get(str(kind).strip(), "page_summary"),
+                }
+                if str(kind).strip() in page_goal_by_kind or str(kind).strip() == "page_workflow"
+                else {}
+            ),
         )
         for index, kind in enumerate(kinds, start=1)
     ]
+
+
+def _assert_single_page_workflow_intent(
+    prep: Any,
+    *,
+    goal: str,
+) -> None:
+    assert [intent.kind for intent in prep.intent_plan] == ["page_workflow"]
+    assert prep.intent_plan[0].metadata["page_workflow_goal"] == goal
 
 
 @pytest.fixture(autouse=True)
@@ -264,10 +307,16 @@ async def test_prepare_execution_uses_current_user_text_for_optimizer_before_res
     assert prep.continuation_context.research_target_text == (
         "Search current public information about Sample Topic."
     )
-    assert prep.execution_path == "fast"
-    assert [intent.kind for intent in prep.intent_plan] == ["direct_reply"]
-    assert prep.tools == []
-    assert prep.tool_use_policy == ToolUsePolicy()
+    assert prep.execution_path == "normal"
+    assert [intent.kind for intent in prep.intent_plan] == ["web_research"]
+    assert [tool.name for tool in prep.tools] == ["web_search", "fetch_url"]
+    assert prep.tool_use_policy == ToolUsePolicy(
+        family="web_research",
+        mode="required",
+        allowed_tool_names=["web_search", "fetch_url"],
+        retry_on_contract_breach=True,
+        reason="intent:web_research",
+    )
 
 
 @pytest.mark.asyncio
@@ -667,7 +716,7 @@ async def test_prepare_execution_keeps_page_continuation_runtime_facts_and_diagn
                 ],
                 metadata={
                     "turn_record": {
-                        "active_intent_kind": "page_summary",
+                        "active_intent_kind": "page_workflow",
                         "last_page_key": "admin.runtime.records",
                     }
                 },
@@ -723,7 +772,7 @@ async def test_prepare_execution_keeps_page_continuation_runtime_facts_and_diagn
     assert prep.continuation_context.last_tool_name == "ui_get_snapshot"
     assert prep.continuation_context.last_page_key == "admin.runtime.records"
     assert prep.continuation_context.research_target_text == "admin.runtime.records"
-    assert [intent.kind for intent in prep.intent_plan] == ["page_summary"]
+    _assert_single_page_workflow_intent(prep, goal="page_summary")
     assert [tool.name for tool in prep.tools] == [
         "ui_get_snapshot",
         "ui_read_region",
@@ -810,7 +859,7 @@ async def test_prepare_execution_selects_page_ops_for_local_page_content_request
         mode="required",
         allowed_tool_names=["ui_get_snapshot", "ui_read_region"],
         retry_on_contract_breach=True,
-        reason="intent:page_summary",
+        reason="intent:page_workflow",
     )
 
 
@@ -931,7 +980,7 @@ async def test_prepare_execution_prefers_form_discovery_when_no_active_form_exis
             skill_result=_build_structured_skill_result(),
         )
 
-    assert [intent.kind for intent in prep.intent_plan] == ["page_form_write"]
+    _assert_single_page_workflow_intent(prep, goal="form_write")
     assert prep.tool_use_policy.family == "page_ops"
     assert prep.tool_use_policy.allowed_tool_names == [
         "ui_list_interactables",
@@ -1138,9 +1187,10 @@ async def test_prepare_execution_allows_page_and_weather_tools_for_mixed_request
     ]
     assert prep.execution_path == "fast"
     assert [intent.kind for intent in prep.intent_plan] == [
-        "page_summary",
+        "page_workflow",
         "weather_query",
     ]
+    assert prep.intent_plan[0].metadata["page_workflow_goal"] == "page_summary"
     assert prep.diagnostics["capability_injection_decision"] == {
         "all_shortcircuit": True,
         "skills_injected": False,
@@ -2171,7 +2221,7 @@ async def test_prepare_execution_skips_runtime_capability_summary_when_dynamic_a
         )
 
     assert "[CAPABILITIES]" not in prep.messages[0].content
-    assert "[TOOL USAGE RULES]" in prep.messages[0].content
+    assert "[TOOL RUNTIME SUMMARY]" in prep.messages[0].content
     assert "[CAPABILITY REPORTING]" not in prep.messages[0].content
     assert "[TURN CAPABILITIES]" not in prep.messages[0].content
     assert "You have 2 tool(s) available" not in prep.messages[0].content
@@ -2230,13 +2280,16 @@ async def test_prepare_execution_keeps_runtime_capability_summary_when_dynamic_a
 
     assert "[CAPABILITIES]" not in prep.messages[0].content
     assert "[TOOL RUNTIME SUMMARY]" in prep.messages[0].content
-    assert "Selected skills for this turn: Research Skill." in prep.messages[0].content
+    assert "runtime.selected_skills=Research Skill" in prep.messages[0].content
     assert (
         prep.diagnostics["runtime_capability_summary"]["selection_semantics"]
         == "capability_reporting_inventory"
     )
     assert prep.diagnostics["runtime_capability_summary"]["selection_live"] is False
     assert prep.diagnostics["runtime_capability_summary"]["live_turn_bound"] is False
+    assert "knowledge_base_hint" not in prep.diagnostics["runtime_capability_summary"]
+    assert "page_context_hint" not in prep.diagnostics["runtime_capability_summary"]
+    assert "memory_hint" not in prep.diagnostics["runtime_capability_summary"]
     assert (
         prep.diagnostics["runtime_capability_manifest"]["boundaries"][
             "selection_semantics"
@@ -2563,8 +2616,8 @@ async def test_prepare_execution_applies_execution_trust_policy_to_ask_tools() -
             skill_result=skill_result,
         )
 
-    assert prep.tool_consent_modes["web_search"] == "ask"
-    assert prep.tool_consent_modes["delete_records"] == "ask"
+    assert prep.tool_consent_modes["web_search"] == "auto"
+    assert "delete_records" not in prep.tool_consent_modes
 
 
 @pytest.mark.asyncio
@@ -2905,8 +2958,9 @@ async def test_prepare_execution_builds_deep_structured_plan_for_666_style_turn(
     assert [intent.kind for intent in prep.intent_plan] == [
         "weather_query",
         "web_research",
-        "page_summary",
+        "page_workflow",
     ]
+    assert prep.intent_plan[2].metadata["page_workflow_goal"] == "page_summary"
     assert prep.execution_path == "deep"
     assert prep.execution_budget is not None
     assert prep.execution_budget.max_candidate_tools == 8
@@ -3001,7 +3055,7 @@ async def test_prepare_execution_page_summary_turn_keeps_page_only_candidates() 
         )
 
     assert prep.execution_path == "fast"
-    assert [intent.kind for intent in prep.intent_plan] == ["page_summary"]
+    _assert_single_page_workflow_intent(prep, goal="page_summary")
     assert [tool.name for tool in prep.tools] == [
         "ui_get_snapshot",
         "ui_read_region",
@@ -3063,7 +3117,7 @@ async def test_prepare_execution_page_search_turn_keeps_full_workflow_candidates
         )
 
     assert prep.execution_path == "fast"
-    assert [intent.kind for intent in prep.intent_plan] == ["page_search"]
+    _assert_single_page_workflow_intent(prep, goal="search")
     assert [tool.name for tool in prep.tools] == [
         "ui_click",
         "ui_fill_form",
@@ -3111,7 +3165,7 @@ async def test_prepare_execution_page_search_with_weather_keyword_stays_page_onl
         )
 
     assert prep.execution_path == "fast"
-    assert [intent.kind for intent in prep.intent_plan] == ["page_search"]
+    _assert_single_page_workflow_intent(prep, goal="search")
     assert {"web_search", "fetch_url"} & {
         tool.name for tool in prep.tools
     } == set()
@@ -3245,7 +3299,7 @@ async def test_prepare_execution_page_screenshot_keeps_capture_screenshot_tool()
             skill_result=_build_structured_skill_result(),
         )
 
-    assert [intent.kind for intent in prep.intent_plan] == ["page_screenshot"]
+    _assert_single_page_workflow_intent(prep, goal="page_screenshot")
     assert [tool.name for tool in prep.tools] == ["ui_get_snapshot"]
     assert prep.tool_use_policy.allowed_tool_names == ["ui_get_snapshot"]
 
@@ -3292,7 +3346,7 @@ async def test_prepare_execution_editor_write_keeps_editor_mutation_tools() -> N
             skill_result=_build_structured_skill_result(),
         )
 
-    assert [intent.kind for intent in prep.intent_plan] == ["page_editor_write"]
+    _assert_single_page_workflow_intent(prep, goal="editor_write")
     assert prep.tool_use_policy.allowed_tool_names == [
         "ui_open_surface",
         "ui_fill_form",

@@ -31,17 +31,6 @@ def _page_tools() -> list[ToolDefinition]:
     ]
 
 
-def _intent(kind: str) -> IntentPlan:
-    return IntentPlan(
-        intent_id=f"intent-{kind}",
-        kind=kind,
-        family="page_ops",
-        order=1,
-        user_visible_label=kind,
-        source_text=kind,
-    )
-
-
 def _workflow_intent(goal: str) -> IntentPlan:
     return IntentPlan(
         intent_id=f"intent-page-workflow-{goal}",
@@ -71,7 +60,7 @@ def _web_intent(*, metadata: dict | None = None) -> IntentPlan:
 
 def test_tool_router_prioritizes_screenshot_tools_over_generic_page_read() -> None:
     decision = ToolRouter.route(
-        intents=[_intent("page_screenshot")],
+        intents=[_workflow_intent("page_screenshot")],
         tools=_page_tools(),
         budget=_budget(),
         input_variables={"page_context": {"page_key": "admin.ai.logs"}},
@@ -81,7 +70,7 @@ def test_tool_router_prioritizes_screenshot_tools_over_generic_page_read() -> No
     assert [tool.name for tool in decision.candidate_tools] == [
         "ui_get_snapshot",
     ]
-    assert decision.intent_preferred_tools["intent-page_screenshot"] == [
+    assert decision.intent_preferred_tools["intent-page-workflow-page_screenshot"] == [
         "ui_get_snapshot",
     ]
 
@@ -90,7 +79,7 @@ def test_tool_router_prefers_surface_discovery_before_form_write_when_form_not_o
     None
 ):
     decision = ToolRouter.route(
-        intents=[_intent("page_form_write")],
+        intents=[_workflow_intent("form_write")],
         tools=_page_tools(),
         budget=_budget(),
         input_variables={
@@ -99,13 +88,12 @@ def test_tool_router_prefers_surface_discovery_before_form_write_when_form_not_o
         user_text="帮我新增一条记录并提交表单",
     )
 
-    assert decision.intent_allowed_tools["intent-page_form_write"] == [
+    assert decision.intent_allowed_tools["intent-page-workflow-form_write"] == [
         "ui_list_interactables",
         "ui_open_surface",
         "ui_click",
         "ui_get_form_state",
         "ui_fill_form",
-        "ui_set_field",
         "ui_submit_form",
     ]
 
@@ -127,7 +115,6 @@ def test_tool_router_supports_canonical_page_workflow_goal_metadata() -> None:
         "ui_click",
         "ui_get_form_state",
         "ui_fill_form",
-        "ui_set_field",
         "ui_submit_form",
     ]
 
@@ -136,7 +123,7 @@ def test_tool_router_prefers_form_surface_discovery_before_form_read_when_form_n
     None
 ):
     decision = ToolRouter.route(
-        intents=[_intent("page_form_read")],
+        intents=[_workflow_intent("form_read")],
         tools=_page_tools(),
         budget=_budget(),
         input_variables={
@@ -145,7 +132,7 @@ def test_tool_router_prefers_form_surface_discovery_before_form_read_when_form_n
         user_text="先打开编辑表单并读取字段",
     )
 
-    assert decision.intent_allowed_tools["intent-page_form_read"] == [
+    assert decision.intent_allowed_tools["intent-page-workflow-form_read"] == [
         "ui_list_interactables",
         "ui_click",
         "ui_open_surface",
@@ -159,7 +146,11 @@ def test_tool_router_prefers_snapshot_verification_when_navigation_surface_is_al
     None
 ):
     plan = ToolRouter.page_intent_tool_plan(
-        "page_navigation",
+        "page_workflow",
+        intent_metadata={
+            "page_workflow_kind": "page_workflow",
+            "page_workflow_goal": "navigation",
+        },
         input_variables={
             "page_context": {
                 "page_key": "admin.suppliers",
@@ -188,9 +179,41 @@ def test_tool_router_prefers_snapshot_verification_when_navigation_surface_is_al
     assert plan.workflow_state.active_surface_kind == "drawer"
 
 
+def test_tool_router_navigation_plan_is_page_key_agnostic() -> None:
+    def _plan_for(page_key: str):
+        return ToolRouter.page_intent_tool_plan(
+            "page_workflow",
+            intent_metadata={
+                "page_workflow_kind": "page_workflow",
+                "page_workflow_goal": "navigation",
+            },
+            input_variables={
+                "page_context": {
+                    "page_key": page_key,
+                    "ui_epoch": 7,
+                    "active_surface_id": "drawer-active",
+                    "surface_stack": [
+                        {"surface_id": "page-root", "kind": "page"},
+                        {"surface_id": "drawer-active", "kind": "drawer"},
+                    ],
+                }
+            },
+        )
+
+    conversations_plan = _plan_for("admin.ai.conversations")
+    generic_plan = _plan_for("admin.runtime.records")
+
+    assert conversations_plan.workflow_stage == generic_plan.workflow_stage
+    assert conversations_plan.workflow_phase == generic_plan.workflow_phase
+    assert conversations_plan.preferred_names == generic_plan.preferred_names
+    assert conversations_plan.allowed_names == generic_plan.allowed_names
+    assert conversations_plan.workflow_state.active_surface_kind == "drawer"
+    assert generic_plan.workflow_state.active_surface_kind == "drawer"
+
+
 def test_tool_router_keeps_form_write_mutation_chain_when_active_form_exists() -> None:
     decision = ToolRouter.route(
-        intents=[_intent("page_form_write")],
+        intents=[_workflow_intent("form_write")],
         tools=_page_tools(),
         budget=_budget(),
         input_variables={
@@ -208,7 +231,7 @@ def test_tool_router_keeps_form_write_mutation_chain_when_active_form_exists() -
         user_text="帮我新增一条记录并提交表单",
     )
 
-    assert decision.intent_allowed_tools["intent-page_form_write"] == [
+    assert decision.intent_allowed_tools["intent-page-workflow-form_write"] == [
         "ui_get_form_state",
         "ui_fill_form",
         "ui_set_field",
@@ -216,7 +239,11 @@ def test_tool_router_keeps_form_write_mutation_chain_when_active_form_exists() -
         "ui_open_surface",
     ]
     plan = ToolRouter.page_intent_tool_plan(
-        "page_form_write",
+        "page_workflow",
+        intent_metadata={
+            "page_workflow_kind": "page_workflow",
+            "page_workflow_goal": "form_write",
+        },
         input_variables={
             "page_context": {
                 "page_key": "admin.ai.agents",
@@ -237,7 +264,11 @@ def test_tool_router_opens_row_detail_surface_before_read_when_no_overlay_exists
     None
 ):
     plan = ToolRouter.page_intent_tool_plan(
-        "page_row_detail",
+        "page_workflow",
+        intent_metadata={
+            "page_workflow_kind": "page_workflow",
+            "page_workflow_goal": "row_detail",
+        },
         input_variables={
             "page_context": {
                 "page_key": "admin.ai.logs",
@@ -265,7 +296,7 @@ def test_tool_router_opens_row_detail_surface_before_read_when_no_overlay_exists
 
 def test_tool_router_keeps_editor_tools_when_many_page_operations_exist() -> None:
     decision = ToolRouter.route(
-        intents=[_intent("page_editor_write")],
+        intents=[_workflow_intent("editor_write")],
         tools=_page_tools(),
         budget=_budget(),
         input_variables={
@@ -277,7 +308,7 @@ def test_tool_router_keeps_editor_tools_when_many_page_operations_exist() -> Non
         user_text="帮我替换这一段正文并更新标题",
     )
 
-    assert decision.intent_allowed_tools["intent-page_editor_write"] == [
+    assert decision.intent_allowed_tools["intent-page-workflow-editor_write"] == [
         "ui_open_surface",
         "ui_fill_form",
         "ui_submit_form",
@@ -286,14 +317,14 @@ def test_tool_router_keeps_editor_tools_when_many_page_operations_exist() -> Non
 
 def test_tool_router_prefers_row_detail_tools_for_detail_request() -> None:
     decision = ToolRouter.route(
-        intents=[_intent("page_row_detail")],
+        intents=[_workflow_intent("row_detail")],
         tools=_page_tools(),
         budget=_budget(),
         input_variables={"page_context": {"page_key": "admin.ai.logs", "ui_epoch": 2}},
         user_text="查看这条记录详情",
     )
 
-    assert decision.intent_preferred_tools["intent-page_row_detail"] == [
+    assert decision.intent_preferred_tools["intent-page-workflow-row_detail"] == [
         "ui_click",
         "ui_open_surface",
         "ui_read_region",
@@ -305,14 +336,14 @@ def test_tool_router_prefers_row_detail_tools_for_detail_request() -> None:
 
 def test_tool_router_prefers_pagination_tools_for_page_jump_request() -> None:
     decision = ToolRouter.route(
-        intents=[_intent("page_pagination")],
+        intents=[_workflow_intent("pagination")],
         tools=_page_tools(),
         budget=_budget(),
         input_variables={"page_context": {"page_key": "admin.ai.logs", "ui_epoch": 2}},
         user_text="跳到下一页",
     )
 
-    assert decision.intent_allowed_tools["intent-page_pagination"] == [
+    assert decision.intent_allowed_tools["intent-page-workflow-pagination"] == [
         "ui_click",
         "ui_set_field",
         "ui_read_table",
@@ -324,19 +355,19 @@ def test_tool_router_prefers_pagination_tools_for_page_jump_request() -> None:
 
 def test_tool_router_prefers_table_read_tools_for_table_summary_request() -> None:
     decision = ToolRouter.route(
-        intents=[_intent("page_summary")],
+        intents=[_workflow_intent("table_summary")],
         tools=_page_tools(),
         budget=_budget(),
         input_variables={"page_context": {"page_key": "admin.ai.logs", "ui_epoch": 2}},
         user_text="帮我列出这个表格前5条标题和时间",
     )
 
-    assert decision.intent_allowed_tools["intent-page_summary"] == [
+    assert decision.intent_allowed_tools["intent-page-workflow-table_summary"] == [
         "ui_read_table",
         "ui_get_snapshot",
         "ui_read_region",
     ]
-    assert decision.intent_preferred_tools["intent-page_summary"] == [
+    assert decision.intent_preferred_tools["intent-page-workflow-table_summary"] == [
         "ui_read_table",
         "ui_get_snapshot",
         "ui_read_region",

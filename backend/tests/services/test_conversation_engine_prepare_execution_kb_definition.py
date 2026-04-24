@@ -110,5 +110,9 @@ async def test_prepare_execution_injects_bound_kb_for_definition_question() -> N
     assert prep.execution_path == "normal"
     assert prep.rag_source_kinds == ["formal_kb"]
     assert "knowledge_base" in prep.diagnostics["context_source_kinds"]
-    assert "Knowledge-base context is available this turn." in prep.messages[0].content
+    assert (
+        "knowledge_base"
+        in prep.diagnostics["runtime_capability_summary"]["context_source_kinds"]
+    )
+    assert "Knowledge-base context is available this turn." not in prep.messages[0].content
     inject_mock.assert_awaited_once()

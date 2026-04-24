@@ -1,3 +1,9 @@
+"""Test type: behavioral.
+
+Verifies OpenAI-compatible request payload behavior without mocking the payload
+builder decisions that route Responses API continuation state.
+"""
+
 from __future__ import annotations
 
 import pytest
@@ -42,14 +48,41 @@ class _BuilderAdapterStub:
     ) -> list[dict]:
         _ = supports_vision, supports_audio, supports_video
         self.converted_messages = list(messages)
-        return [
-            {
-                "type": "message",
-                "role": message.role,
-                "content": message.content,
-            }
-            for message in messages
-        ]
+        converted: list[dict] = []
+        for message in messages:
+            if message.role == "tool":
+                converted.append(
+                    {
+                        "type": "function_call_output",
+                        "call_id": message.tool_call_id or "",
+                        "output": message.content or "",
+                    }
+                )
+                continue
+            if message.role == "assistant" and message.tool_calls:
+                for tool_call in message.tool_calls:
+                    function = tool_call.get("function") or {}
+                    tc_id = tool_call.get("call_id") or tool_call.get("id") or ""
+                    converted.append(
+                        {
+                            "type": "function_call",
+                            "call_id": tc_id,
+                            "id": tool_call.get("id") or tc_id,
+                            "name": function.get("name", ""),
+                            "arguments": function.get("arguments", "{}") or "{}",
+                            "status": "completed",
+                        }
+                    )
+                if not (message.content or "").strip():
+                    continue
+            converted.append(
+                {
+                    "type": "message",
+                    "role": message.role,
+                    "content": message.content,
+                }
+            )
+        return converted
 
 
 def test_convert_tools_for_responses_injects_native_web_search() -> None:
@@ -218,10 +251,90 @@ async def test_build_responses_request_uses_previous_response_id_for_pure_tool_f
     assert [message.role for message in adapter.converted_messages] == ["tool"]
     assert request["input"] == [
         {
-            "type": "message",
-            "role": "tool",
-            "content": '{"ok":true}',
+            "type": "function_call_output",
+            "call_id": "call_1",
+            "output": '{"ok":true}',
         }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_build_responses_stream_request_omits_previous_response_id_for_tool_followup() -> (
+    None
+):
+    adapter = _BuilderAdapterStub()
+
+    request = await build_responses_request(
+        adapter=adapter,
+        messages=[
+            ChatMessage(role="system", content="You are helpful."),
+            ChatMessage(role="user", content="查一下北京天气"),
+            ChatMessage(
+                role="assistant",
+                content="",
+                tool_calls=[
+                    {
+                        "id": "call_weather_1",
+                        "type": "function",
+                        "function": {
+                            "name": "get_current_weather",
+                            "arguments": '{"city":"北京"}',
+                        },
+                    }
+                ],
+                metadata={
+                    "protocol_path": "responses",
+                    "responses_response_id": "resp_tool_round_1",
+                },
+            ),
+            ChatMessage(
+                role="tool",
+                content='{"temperature":"12°C","condition":"晴"}',
+                tool_call_id="call_weather_1",
+            ),
+        ],
+        model="gpt-5.4-xhigh",
+        tools=[
+            {
+                "type": "function",
+                "function": {
+                    "name": "get_current_weather",
+                    "parameters": {},
+                },
+            }
+        ],
+        tool_choice="required",
+        stream=True,
+        kwargs={},
+        reasoning_summary_model_prefixes=("gpt-5",),
+    )
+
+    assert "previous_response_id" not in request
+    assert request["stream"] is True
+    assert [message.role for message in adapter.converted_messages] == [
+        "user",
+        "assistant",
+        "tool",
+    ]
+    assert request["input"] == [
+        {
+            "type": "message",
+            "role": "user",
+            "content": "查一下北京天气",
+        },
+        {
+            "type": "function_call",
+            "call_id": "call_weather_1",
+            "id": "call_weather_1",
+            "name": "get_current_weather",
+            "arguments": '{"city":"北京"}',
+            "status": "completed",
+        },
+        {
+            "type": "function_call_output",
+            "call_id": "call_weather_1",
+            "output": '{"temperature":"12°C","condition":"晴"}',
+        },
     ]
 
 

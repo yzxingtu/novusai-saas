@@ -1,3 +1,9 @@
+"""
+Test type: behavioral
+Scope: ConversationQueryEngine rescue and retry stop-loss behavior.
+Mock strategy: only adapter/protocol transport edges are faked; runtime decisions are real.
+"""
+
 from __future__ import annotations
 
 from types import SimpleNamespace
@@ -327,7 +333,7 @@ async def test_runtime_query_engine_does_not_sync_rescue_reasoning_only_timeout_
 
 
 @pytest.mark.asyncio
-async def test_runtime_query_engine_retries_retryable_sync_rescue_once_before_success(
+async def test_runtime_query_engine_does_not_retry_sync_rescue_after_retryable_failure(
     monkeypatch,
 ) -> None:
     adapter = _ReasoningOnlyThenRetryableRescueAdapter()
@@ -341,7 +347,50 @@ async def test_runtime_query_engine_retries_retryable_sync_rescue_once_before_su
 
     monkeypatch.setattr("app.ai.runtime.query_engine.asyncio.sleep", _noop_sleep)
 
-    chunks = await query_engine.run_stream_turn(
+    with pytest.raises(ProviderError, match="service unavailable"):
+        await query_engine.run_stream_turn(
+            messages=[ChatMessage(role="user", content="继续")],
+            model="gpt-5.4",
+            temperature=0.0,
+            max_tokens=None,
+            top_p=1.0,
+            tools=None,
+            tool_choice=None,
+            supports_vision=False,
+            supports_audio=False,
+            supports_video=False,
+        )
+
+    assert adapter.chat_calls == 1
+    assert adapter.chat_kwargs[0]["_runtime_reasoning_effort_override"] == "low"
+    assert query_engine.turn_record.turn_outcome == "failed"
+    assert query_engine.turn_record.metadata["sync_rescue_attempt_count"] == 1
+    assert query_engine.turn_record.metadata["sync_rescue_retry_count"] == 0
+
+
+@pytest.mark.asyncio
+async def test_runtime_query_engine_applies_max_retry_override_to_non_ui_turns() -> (
+    None
+):
+    query_engine = ConversationQueryEngine(
+        adapter=_ReasoningOnlyThenTimeoutAdapter(),
+        strict_contract=False,
+    )
+
+    captured_extra_kwargs: list[dict[str, object]] = []
+
+    async def _fake_chat(*, protocol_path, command, turn_record):
+        _ = protocol_path, turn_record
+        captured_extra_kwargs.append(dict(command.extra_kwargs or {}))
+        return ChatResponse(
+            message=ChatMessage(role="assistant", content="ok"),
+            finish_reason="stop",
+            model="gpt-5.4",
+        )
+
+    query_engine.runner.chat = _fake_chat  # type: ignore[method-assign]
+
+    response = await query_engine.run_chat_turn(
         messages=[ChatMessage(role="user", content="继续")],
         model="gpt-5.4",
         temperature=0.0,
@@ -354,20 +403,9 @@ async def test_runtime_query_engine_retries_retryable_sync_rescue_once_before_su
         supports_video=False,
     )
 
-    assert [chunk.reasoning_delta for chunk in chunks if chunk.reasoning_delta] == [
-        "先检查页面上下文"
-    ]
-    assert [chunk.delta for chunk in chunks if chunk.delta] == [
-        "rescued after retry"
-    ]
-    assert adapter.chat_calls == 2
-    assert all(
-        kwargs.get("_runtime_reasoning_effort_override") == "low"
-        for kwargs in adapter.chat_kwargs
-    )
-    assert query_engine.turn_record.turn_outcome == "success"
-    assert query_engine.turn_record.metadata["sync_rescue"] is True
-    assert query_engine.turn_record.metadata["sync_rescue_retry_count"] == 1
+    assert response.message.content == "ok"
+    assert captured_extra_kwargs[0]["_runtime_client_max_retries_override"] == 0
+    assert "timeout_seconds" not in captured_extra_kwargs[0]
 
 
 @pytest.mark.asyncio

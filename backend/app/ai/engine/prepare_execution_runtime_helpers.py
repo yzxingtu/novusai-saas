@@ -67,13 +67,10 @@ def apply_runtime_capability_injection(
     force_capability_summary: bool,
     context_sources: list[dict[str, Any]] | None,
     tools: list[Any],
-    input_variables: dict[str, Any] | None,
-    continuation_context: Any,
     runtime_capability_summary: dict[str, Any] | None,
     ordered_requested_families: list[str],
     intent_plan: list[Any],
     execution_path: str,
-    execution_budget: Any,
     should_skip_capability_summary: Callable[..., bool],
     inject_runtime_summary: Callable[..., bool],
     resolve_capability_injection_decision: Callable[..., dict[str, Any]],
@@ -85,23 +82,12 @@ def apply_runtime_capability_injection(
     )
     diagnostics["capability_reporting_query"] = force_capability_summary
     capability_summary_injected = inject_runtime_summary(
-        tools,
-        input_variables,
-        continuation_context=continuation_context,
+        tools=tools,
         runtime_capability_summary=runtime_capability_summary,
         ordered_requested_families=ordered_requested_families,
         skip_capability_summary=skip_capability_summary,
         intent_plan=intent_plan,
         execution_path=execution_path,
-        execution_budget=execution_budget,
-        include_knowledge_base_hint=intent_flags["has_knowledge_intent"],
-        include_page_context_hint=intent_flags["has_page_intent"],
-        include_memory_hint=bool(
-            intent_flags.get(
-                "memory_context_enabled",
-                intent_flags.get("has_memory_intent", False),
-            )
-        ),
     )
     capability_injection_decision = resolve_capability_injection_decision(
         diagnostics=diagnostics,

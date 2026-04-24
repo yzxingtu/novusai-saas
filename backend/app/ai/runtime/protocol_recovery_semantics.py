@@ -67,11 +67,16 @@ def fallback_block_reason(exc: BaseException) -> str | None:
 def should_skip_sync_rescue_after_stream_error(error: BaseException | None) -> bool:
     if error is None:
         return False
-    return fallback_block_reason(error) in {
+    block_reason = fallback_block_reason(error)
+    if block_reason in {
         "provider_rate_limit",
         "provider_timeout",
         "provider_connection_error",
-    }
+    }:
+        return True
+
+    status_code = extract_status_code(error)
+    return bool(status_code is not None and 500 <= status_code < 600)
 
 
 def should_cross_protocol_fallback_from_responses_error(

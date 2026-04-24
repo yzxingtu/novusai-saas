@@ -5,7 +5,6 @@ import type {
   AgentKnowledgeBaseBindingsByAgentId,
   AgentKnowledgeBaseBindingSummary,
   AgentSkillBindingsByAgentId,
-  AgentSkillBindingSummary,
   ChatMessage,
   RichTextAIApplyMode,
   RichTextAIApplyTarget,
@@ -14,24 +13,24 @@ import type {
 
 import type { TurnFlowState } from '#/components/business/ai-chat-kernel/TurnFlowState';
 
-import { computed } from 'vue';
+import { computed, toRef } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
 import { Button } from 'ant-design-vue';
 
 import ChatMessageKernel from '#/components/business/ai-chat-kernel/ChatMessageKernel.vue';
-import { buildTurnFlowState } from '#/components/business/ai-chat-kernel/TurnFlowState';
 import RichTextDraftCard from '#/components/business/ai-chat-panel/RichTextDraftCard.vue';
 import { useDiagnosticsPolicy } from '#/composables/use-diagnostics-policy';
 import { $t } from '#/locales';
 
 import { shouldRenderTurnDiagnostics } from './chat-message-diagnostics-visibility';
-import ChatMessageAgentAvatar from './ChatMessageAgentAvatar.vue';
+import AgentIdentityRail from './AgentIdentityRail.vue';
 import ChatMessageContentBlock from './ChatMessageContentBlock.vue';
 import ChatMessageDiagnostics from './ChatMessageDiagnostics.vue';
 import ChatMessageErrorCard from './ChatMessageErrorCard.vue';
 import ChatMessageFooter from './ChatMessageFooter.vue';
+import { useAssistantMessageViewModel } from './use-assistant-message-vm';
 
 const props = withDefaults(
   defineProps<{
@@ -91,139 +90,32 @@ const { showDiagnostics } = useDiagnosticsPolicy({
   apiPrefix: computed(() => props.apiPrefix),
   forceShow: computed(() => props.forceShowDiagnostics),
 });
-const resolvedKernelState = computed(
-  () => props.kernelState ?? buildTurnFlowState(props.msg, props.pendingOps),
-);
+const {
+  hasActionButtons,
+  hasGeneratedImages,
+  hasKernelSections,
+  hasPostContentSections,
+  hasRichTextDraftCard,
+  resolvedKernelState,
+  resolvedMessageAgent,
+  showFooter,
+} = useAssistantMessageViewModel({
+  agentKnowledgeBaseMap: toRef(props, 'agentKnowledgeBaseMap'),
+  agentKnowledgeBases: toRef(props, 'agentKnowledgeBases'),
+  agents: toRef(props, 'agents'),
+  agentSkillMap: toRef(props, 'agentSkillMap'),
+  kernelState: toRef(props, 'kernelState'),
+  msg: toRef(props, 'msg'),
+  pendingOps: toRef(props, 'pendingOps'),
+  richTextState: toRef(props, 'richTextState'),
+  selectedAgent: toRef(props, 'selectedAgent'),
+});
 const showTurnDiagnostics = computed(() =>
   shouldRenderTurnDiagnostics(props.msg, showDiagnostics.value),
-);
-const hasKernelSections = computed(
-  () =>
-    resolvedKernelState.value.timeline.length > 0 ||
-    Boolean(resolvedKernelState.value.answerCard) ||
-    resolvedKernelState.value.selectedEvidence.length > 0 ||
-    Boolean(resolvedKernelState.value.pendingAction),
-);
-const hasGeneratedImages = computed(
-  () => (props.msg.imageResults?.length ?? 0) > 0,
-);
-const hasActionButtons = computed(
-  () =>
-    (props.msg.actionButtons?.length ?? 0) > 0 && props.msg.streaming !== true,
-);
-const showFooter = computed(
-  () => Boolean(props.msg.content) && props.msg.streaming !== true,
 );
 const showKernelSection = computed(
   () => hasKernelSections.value || showTurnDiagnostics.value,
 );
-const hasRichTextDraftCard = computed(
-  () =>
-    props.msg.source === 'rich_text_ai' &&
-    Boolean(props.msg.richTextAI) &&
-    !props.msg.streaming &&
-    !props.richTextState?.discarded,
-);
-const hasPostContentSections = computed(
-  () =>
-    props.msg.requestFailedRetry === true ||
-    showKernelSection.value ||
-    hasGeneratedImages.value ||
-    hasRichTextDraftCard.value ||
-    hasActionButtons.value ||
-    showFooter.value,
-);
-const agentFromMessage = computed(() => {
-  const messageAgentId = props.msg.agent_id;
-  if (typeof messageAgentId !== 'number') {
-    return null;
-  }
-  return props.agents.find((agent) => agent.id === messageAgentId) ?? null;
-});
-
-const fallbackAgent = computed(() =>
-  typeof props.msg.agent_id === 'number' ? null : props.selectedAgent,
-);
-
-const resolvedAgentSource = computed(
-  () => agentFromMessage.value ?? fallbackAgent.value,
-);
-
-const messageAgentKnowledgeBases = computed(() => {
-  const agentId =
-    typeof props.msg.agent_id === 'number'
-      ? props.msg.agent_id
-      : (resolvedAgentSource.value?.id ?? null);
-  if (
-    agentId === null ||
-    !props.agentKnowledgeBaseMap ||
-    !Object.prototype.hasOwnProperty.call(props.agentKnowledgeBaseMap, agentId)
-  ) {
-    return null;
-  }
-  return props.agentKnowledgeBaseMap[agentId] ?? null;
-});
-
-const selectedAgentKnowledgeBases = computed(() => {
-  const resolvedAgentId =
-    props.msg.agent_id ?? resolvedAgentSource.value?.id ?? null;
-  if (resolvedAgentId === null || resolvedAgentId !== props.selectedAgent?.id) {
-    return null;
-  }
-  return props.agentKnowledgeBases;
-});
-
-const messageAgentSkills = computed<AgentSkillBindingSummary[] | null>(() => {
-  const agentId =
-    typeof props.msg.agent_id === 'number'
-      ? props.msg.agent_id
-      : (resolvedAgentSource.value?.id ?? null);
-  if (
-    agentId === null ||
-    !props.agentSkillMap ||
-    !Object.prototype.hasOwnProperty.call(props.agentSkillMap, agentId)
-  ) {
-    return null;
-  }
-  return props.agentSkillMap[agentId] ?? null;
-});
-
-const selectedAgentSkills = computed<AgentSkillBindingSummary[] | null>(() => {
-  const resolvedAgentId =
-    props.msg.agent_id ?? resolvedAgentSource.value?.id ?? null;
-  if (resolvedAgentId === null || resolvedAgentId !== props.selectedAgent?.id) {
-    return null;
-  }
-  return props.selectedAgent?.skills ?? null;
-});
-
-const resolvedMessageAgent = computed(() => {
-  const source = resolvedAgentSource.value;
-  return {
-    avatar: props.msg.agent_avatar ?? source?.avatar ?? null,
-    description: props.msg.agent_description ?? source?.description ?? null,
-    id: props.msg.agent_id ?? source?.id ?? null,
-    knowledgeBaseIds:
-      props.msg.agent_knowledge_base_ids ?? source?.knowledge_base_ids ?? null,
-    knowledgeBases:
-      props.msg.agent_knowledge_bases ??
-      messageAgentKnowledgeBases.value ??
-      source?.knowledge_bases ??
-      selectedAgentKnowledgeBases.value ??
-      null,
-    modelName: props.msg.model_name ?? source?.model_name ?? null,
-    name:
-      props.msg.agent_name ??
-      source?.name ??
-      $t('common.globalAiChat.assistant'),
-    skills:
-      props.msg.agent_skills ??
-      messageAgentSkills.value ??
-      source?.skills ??
-      selectedAgentSkills.value ??
-      null,
-  };
-});
 
 function pickRichTextDraftCopyContent(
   ...values: Array<null | string | undefined>
@@ -267,7 +159,7 @@ function getRichTextDraftCopyContent(mode: RichTextAIApplyMode) {
       "
     >
       <div class="assistant-avatar-rail shrink-0 pt-0.5">
-        <ChatMessageAgentAvatar
+        <AgentIdentityRail
           :agent-avatar="resolvedMessageAgent.avatar"
           :agent-description="resolvedMessageAgent.description"
           :agent-id="resolvedMessageAgent.id"
@@ -284,9 +176,32 @@ function getRichTextDraftCopyContent(mode: RichTextAIApplyMode) {
         <div class="assistant-message-surface">
           <div
             class="assistant-message-body"
-            :class="compact ? 'px-3 py-3' : 'px-4 py-[15px]'"
+            :class="compact ? 'px-3 py-3' : 'px-4 py-4'"
           >
-            <div class="space-y-2">
+            <div class="space-y-2.5">
+              <ChatMessageKernel
+                v-if="showKernelSection"
+                :compact="compact"
+                :countdown-now="countdownNow"
+                :msg="msg"
+                :pending-ops="pendingOps"
+                :state="resolvedKernelState"
+                @copy="(content) => emit('copy', content)"
+                @confirm="emit('confirm', props.index)"
+                @reject="emit('reject', props.index)"
+                @consent-confirm="emit('consentConfirm', props.index)"
+                @consent-reject="emit('consentReject', props.index)"
+              >
+                <template v-if="showTurnDiagnostics" #diagnostics>
+                  <ChatMessageDiagnostics
+                    :api-prefix="apiPrefix"
+                    :compact="compact"
+                    :force-show="forceShowDiagnostics"
+                    :msg="msg"
+                  />
+                </template>
+              </ChatMessageKernel>
+
               <ChatMessageContentBlock
                 :msg="msg"
                 :index="index"
@@ -298,7 +213,7 @@ function getRichTextDraftCopyContent(mode: RichTextAIApplyMode) {
             <div
               v-if="hasPostContentSections"
               class="assistant-message-support border-border/24 space-y-1.5 border-t"
-              :class="compact ? 'mt-2.5 pt-2.5' : 'mt-2.5 pt-2.5'"
+              :class="compact ? 'mt-3 pt-2.5' : 'mt-3.5 pt-3'"
             >
               <div
                 v-if="msg.requestFailedRetry"
@@ -327,29 +242,6 @@ function getRichTextDraftCopyContent(mode: RichTextAIApplyMode) {
                   {{ $t('common.globalAiChat.retry') }}
                 </Button>
               </div>
-
-              <ChatMessageKernel
-                v-if="showKernelSection"
-                :compact="compact"
-                :countdown-now="countdownNow"
-                :msg="msg"
-                :pending-ops="pendingOps"
-                :state="resolvedKernelState"
-                @copy="(content) => emit('copy', content)"
-                @confirm="emit('confirm', props.index)"
-                @reject="emit('reject', props.index)"
-                @consent-confirm="emit('consentConfirm', props.index)"
-                @consent-reject="emit('consentReject', props.index)"
-              >
-                <template v-if="showTurnDiagnostics" #diagnostics>
-                  <ChatMessageDiagnostics
-                    :api-prefix="apiPrefix"
-                    :compact="compact"
-                    :force-show="forceShowDiagnostics"
-                    :msg="msg"
-                  />
-                </template>
-              </ChatMessageKernel>
 
               <div
                 v-if="hasGeneratedImages"
@@ -486,33 +378,40 @@ function getRichTextDraftCopyContent(mode: RichTextAIApplyMode) {
   min-width: 0;
   width: 100%;
   overflow: hidden;
-  border: 1px solid hsl(var(--border) / 0.12);
-  border-radius: 18px;
+  border: 1px solid hsl(var(--border) / 0.1);
+  border-radius: 20px;
   background:
     radial-gradient(
       circle at top left,
-      hsl(var(--primary) / 0.08),
-      transparent 26%
+      hsl(var(--primary) / 0.1),
+      transparent 22%
+    ),
+    radial-gradient(
+      circle at bottom right,
+      hsl(var(--primary) / 0.05),
+      transparent 24%
     ),
     linear-gradient(
       180deg,
-      hsl(var(--background) / 0.995) 0%,
-      hsl(var(--background) / 0.982) 100%
+      hsl(var(--background) / 0.996) 0%,
+      hsl(var(--background) / 0.985) 100%
     );
-  box-shadow: 0 24px 40px -44px hsl(var(--foreground) / 0.16);
+  box-shadow:
+    0 24px 48px -44px hsl(var(--foreground) / 0.18),
+    0 10px 24px -26px hsl(var(--foreground) / 0.08);
 }
 
 .assistant-message-surface::before {
   position: absolute;
   top: 0;
-  left: 1rem;
-  right: 1rem;
+  left: 1.25rem;
+  right: 1.25rem;
   height: 1px;
   content: '';
   background: linear-gradient(
     90deg,
     transparent,
-    hsl(var(--primary) / 0.58),
+    hsl(var(--primary) / 0.62),
     transparent
   );
 }
@@ -528,72 +427,14 @@ function getRichTextDraftCopyContent(mode: RichTextAIApplyMode) {
 .assistant-inline-panel,
 .assistant-inline-media {
   border-color: hsl(var(--border) / 0.16);
-  background: hsl(var(--background) / 0.96);
-  box-shadow: 0 12px 20px -32px hsl(var(--foreground) / 0.08);
+  background: hsl(var(--background) / 0.94);
+  box-shadow: 0 12px 22px -32px hsl(var(--foreground) / 0.1);
 }
 
 .assistant-message-surface :deep(.chat-message-kernel-shell) {
-  border-color: hsl(var(--border) / 0.12);
-  border-radius: 12px;
-  background: hsl(var(--background) / 0.82);
-  box-shadow: none;
-}
-
-.assistant-message-surface :deep(.chat-message-kernel-overview) {
-  gap: 0.5rem;
-}
-
-.assistant-message-surface :deep(.kernel-overview-group) {
-  padding: 0.38rem 0.5rem;
-  border-color: hsl(var(--border) / 0.12);
-  border-radius: 11px;
-  background: hsl(var(--background) / 0.74);
-}
-
-.assistant-message-surface :deep(.kernel-overview-pill),
-.assistant-message-surface :deep(.digest-label),
-.assistant-message-surface :deep(.turn-process-pill) {
-  border-color: hsl(var(--primary) / 0.14);
-  background: hsl(var(--primary) / 0.07);
-  color: hsl(var(--primary) / 0.76);
-}
-
-.assistant-message-surface :deep(.kernel-overview-copy),
-.assistant-message-surface :deep(.digest-summary),
-.assistant-message-surface :deep(.digest-section-copy) {
-  color: hsl(var(--foreground) / 0.74);
-}
-
-.assistant-message-surface :deep(.kernel-overview-count),
-.assistant-message-surface :deep(.digest-evidence-count),
-.assistant-message-surface :deep(.turn-process-count) {
-  border-color: hsl(var(--border) / 0.12);
-  background: hsl(var(--muted) / 0.2);
-  color: hsl(var(--muted-foreground) / 0.58);
-}
-
-.assistant-message-surface :deep(.kernel-overview-chevron),
-.assistant-message-surface :deep(.digest-chevron),
-.assistant-message-surface :deep(.turn-process-chevron) {
-  border-color: hsl(var(--border) / 0.12);
-  background: hsl(var(--background) / 0.82);
-}
-
-.assistant-message-surface :deep(.turn-digest-toggle),
-.assistant-message-surface :deep(.turn-process-toggle) {
-  border-color: hsl(var(--border) / 0.1);
-  border-radius: 12px;
-  background: hsl(var(--background) / 0.68);
-}
-
-.assistant-message-surface :deep(.turn-stage-detail-surface) {
-  border-color: hsl(var(--border) / 0.1);
-  background: hsl(var(--background) / 0.76);
-}
-
-.assistant-message-surface :deep(.digest-evidence-chip),
-.assistant-message-surface :deep(.digest-evidence-more) {
-  border-color: hsl(var(--border) / 0.12);
-  background: hsl(var(--background) / 0.74);
+  border-color: hsl(var(--border) / 0.08);
+  border-radius: 16px;
+  background: hsl(var(--background) / 0.72);
+  box-shadow: inset 0 1px 0 hsl(var(--background) / 0.52);
 }
 </style>

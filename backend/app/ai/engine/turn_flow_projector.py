@@ -110,6 +110,23 @@ def _normalize_token(value: Any) -> str:
     return str(value or "").strip().lower()
 
 
+def _has_safe_untrusted_fallback_output(
+    *,
+    diagnostics_payload: Mapping[str, Any],
+    turn_record: Mapping[str, Any],
+) -> bool:
+    sources = (
+        diagnostics_payload,
+        _as_dict(turn_record.get("metadata")),
+        turn_record,
+    )
+    return any(
+        bool(_as_dict(source).get("untrusted_final_output_fallback_applied"))
+        or bool(_as_dict(source).get("stripped_untrusted_final_output"))
+        for source in sources
+    )
+
+
 def _resolved_turn_outcome(
     *,
     diagnostics_payload: Mapping[str, Any],
@@ -176,7 +193,7 @@ def _evidence_kind_from_source(source: Mapping[str, Any]) -> str:
         return "knowledge_base"
     if raw_kind in {"tool", "tool_result", "function"}:
         return "tool"
-    if raw_kind in {"page", "page_read", "page_write"}:
+    if raw_kind == "page":
         return "page"
     if raw_kind in {"memory", "long_term_memory", "session_memory"}:
         return "memory"
@@ -193,12 +210,23 @@ def build_turn_evidence_items(
     evidence_items: list[TurnEvidenceItem] = []
     for index, raw_source in enumerate(rag_sources or []):
         source = _as_dict(raw_source)
-        url = _as_text(source.get("url"))
-        source_ref = _as_text(source.get("source_ref")) or _as_text(source.get("id"))
+        source_metadata = _as_dict(source.get("metadata"))
+        url = _as_text(source.get("url")) or _as_text(
+            source_metadata.get("url") or source_metadata.get("source_url")
+        )
+        source_ref = (
+            _as_text(source.get("source_ref"))
+            or _as_text(source.get("id"))
+            or _as_text(source_metadata.get("source_ref"))
+            or _as_text(source_metadata.get("id"))
+        )
         title = (
             _as_text(source.get("title"))
             or _as_text(source.get("name"))
+            or _as_text(source_metadata.get("title"))
+            or _as_text(source_metadata.get("name"))
             or _as_text(source.get("snippet"))
+            or _as_text(source_metadata.get("snippet"))
             or f"Source {index + 1}"
         )
         evidence_items.append(
@@ -207,13 +235,127 @@ def build_turn_evidence_items(
                 kind=_evidence_kind_from_source(source),  # type: ignore[arg-type]
                 title=title,
                 url=url,
-                snippet=_as_text(source.get("snippet") or source.get("summary")),
-                badge=_as_text(source.get("badge") or source.get("label")),
-                score=_as_float(source.get("score")),
+                snippet=_as_text(
+                    source.get("snippet")
+                    or source.get("summary")
+                    or source_metadata.get("snippet")
+                    or source_metadata.get("content")
+                    or source_metadata.get("summary")
+                ),
+                badge=_as_text(
+                    source.get("badge")
+                    or source.get("label")
+                    or source_metadata.get("badge")
+                    or source_metadata.get("label")
+                ),
+                score=_as_float(source.get("score") or source_metadata.get("score")),
                 tool_call_id=_as_text(
-                    source.get("tool_call_id") or source.get("toolCallId")
+                    source.get("tool_call_id")
+                    or source.get("toolCallId")
+                    or source_metadata.get("tool_call_id")
+                    or source_metadata.get("toolCallId")
                 ),
                 source_ref=source_ref,
+            )
+        )
+    return evidence_items
+
+
+def _resolve_evidence_sources(
+    *,
+    diagnostics_payload: dict[str, Any],
+    turn_record: dict[str, Any],
+    rag_sources: list[dict[str, Any]] | None,
+) -> list[dict[str, Any]]:
+    turn_record_metadata = _as_dict(turn_record.get("metadata"))
+    turn_record_diagnostics = _as_dict(turn_record_metadata.get("turn_diagnostics"))
+    for candidate in (
+        diagnostics_payload.get("context_sources"),
+        turn_record.get("context_sources"),
+        turn_record_metadata.get("context_sources"),
+        turn_record_diagnostics.get("context_sources"),
+    ):
+        normalized = [_as_dict(item) for item in _as_list(candidate) if _as_dict(item)]
+        if normalized:
+            return normalized
+    return [_as_dict(item) for item in _as_list(rag_sources) if _as_dict(item)]
+
+
+def _tool_result_payload(result: Any) -> dict[str, Any]:
+    if isinstance(result, Mapping):
+        return dict(result)
+    raw_payload = getattr(result, "__dict__", None)
+    return dict(raw_payload or {}) if isinstance(raw_payload, dict) else {}
+
+
+def _tool_evidence_snippet(
+    *,
+    summary: str | None,
+    output: str | None,
+    error: str | None,
+    max_length: int = 280,
+) -> str | None:
+    candidate = summary or error or output
+    text = _as_text(candidate)
+    if not text:
+        return None
+    compact = " ".join(text.split())
+    if len(compact) <= max_length:
+        return compact
+    return f"{compact[: max_length - 3]}..."
+
+
+def build_tool_evidence_items(
+    tool_results: list[Any] | None,
+) -> list[TurnEvidenceItem]:
+    evidence_items: list[TurnEvidenceItem] = []
+    for index, raw_result in enumerate(tool_results or []):
+        result = _tool_result_payload(raw_result)
+        tool_name = _as_text(result.get("name")) or f"tool_{index + 1}"
+        tool_call_id = _as_text(result.get("tool_call_id")) or _as_text(
+            result.get("id")
+        )
+        display_name = _as_text(result.get("display_name"))
+        output = _as_text(result.get("output"))
+        error = _as_public_error_text(result.get("error"))
+        summary = _as_text(result.get("summary"))
+        summary_payload = _as_dict(result.get("summary_payload")) or None
+        success = bool(result.get("success")) and not error
+        evidence_items.append(
+            TurnEvidenceItem(
+                id=tool_call_id or f"tool_{index + 1}_{tool_name}",
+                kind="tool",
+                title=display_name or tool_name,
+                arguments=_as_dict(result.get("arguments")) or None,
+                badge=_as_text(result.get("error_type")),
+                display_name=display_name,
+                duration_ms=(
+                    _as_int(result.get("duration_ms"))
+                    if result.get("duration_ms") is not None
+                    else None
+                ),
+                error=error,
+                error_type=_as_text(result.get("error_type")),
+                output=output,
+                result_link=_as_text(result.get("result_link")),
+                skill_name=_as_text(result.get("skill_name")),
+                skill_type=_as_text(result.get("skill_type")),
+                snippet=_tool_evidence_snippet(
+                    summary=summary,
+                    output=output,
+                    error=error,
+                ),
+                source_ref=tool_name,
+                started_at=(
+                    _as_int(result.get("started_at"))
+                    if result.get("started_at") is not None
+                    else None
+                ),
+                status="success" if success else "error",
+                summary_payload=summary_payload,
+                tool_call_id=tool_call_id,
+                tool_name=tool_name,
+                url=_as_text(result.get("result_link")),
             )
         )
     return evidence_items
@@ -324,10 +466,28 @@ def _tool_execution_stage(
     tool_selection_stage: TurnFlowStage,
     diagnostics_payload: dict[str, Any],
     terminal_failure: bool,
+    tool_results: list[Any] | None = None,
 ) -> TurnFlowStage:
     round_count = _count_turn_events(turn_events, "turn.tool_round")
     completed_count = _count_turn_events(turn_events, "turn.tool_completed")
     failed_count = _count_turn_events(turn_events, "turn.tool_failed")
+    normalized_tool_results = [
+        _tool_result_payload(result)
+        for result in (tool_results or [])
+        if _tool_result_payload(result)
+    ]
+    tool_call_ids = [
+        tool_call_id
+        for tool_call_id in (
+            _as_text(result.get("tool_call_id")) or _as_text(result.get("id"))
+            for result in normalized_tool_results
+        )
+        if tool_call_id
+    ]
+    if normalized_tool_results:
+        completed_count = sum(1 for result in normalized_tool_results if result.get("success"))
+        failed_count = len(normalized_tool_results) - completed_count
+        round_count = max(round_count, len(normalized_tool_results))
     has_hosted_web_search_progress = _has_provider_event_kind(
         diagnostics_payload,
         "web_search_in_progress",
@@ -358,10 +518,12 @@ def _tool_execution_stage(
         summary=summary,
         detail_lines=[summary],
         metrics={
+            "tool_call_count": completed_count + failed_count,
             "tool_rounds": round_count,
             "completed_tool_calls": completed_count,
             "failed_tool_calls": failed_count,
         },
+        tool_call_ids=tool_call_ids,
     )
 
 
@@ -462,22 +624,26 @@ def _answer_card(
     terminal_failure: bool,
     final_output_source: str | None,
     error: str | None,
+    safe_untrusted_fallback_output: str | None = None,
 ) -> TurnAnswerCard:
     trusted_output = (
         output.strip()
         if is_trusted_assistant_final_output_source(final_output_source)
         else ""
     )
+    safe_fallback_output = str(safe_untrusted_fallback_output or "").strip()
     safe_error = _as_public_error_text(error) or ""
     if trusted_output:
         summary = trusted_output
+    elif safe_fallback_output:
+        summary = safe_fallback_output
     elif terminal_failure and safe_error:
         summary = safe_error
     else:
         summary = "No trusted assistant final answer."
     if len(summary) > 280:
         summary = f"{summary[:277]}..."
-    confidence = "medium" if trusted_output else "low"
+    confidence = "medium" if (trusted_output or safe_fallback_output) else "low"
     if trusted_output and (completion_reason or "") in {"completed", "stop"}:
         confidence = "high"
     if terminal_failure or (completion_reason or "") in {"error", "interrupted"}:
@@ -497,6 +663,7 @@ def build_turn_flow_view_model(
     diagnostics_payload: dict[str, Any] | None,
     turn_record: dict[str, Any] | None,
     rag_sources: list[dict[str, Any]] | None,
+    tool_results: list[Any] | None = None,
     output: str,
     completion_reason: str | None,
     interrupted: bool,
@@ -518,6 +685,14 @@ def build_turn_flow_view_model(
         _as_text(diagnostics.get("final_output_source"))
         or _as_text(record.get("final_output_source"))
         or None
+    )
+    safe_untrusted_fallback_output = (
+        str(output or "").strip()
+        if _has_safe_untrusted_fallback_output(
+            diagnostics_payload=diagnostics,
+            turn_record=record,
+        )
+        else ""
     )
     trusted_output = (
         str(output or "").strip()
@@ -559,7 +734,14 @@ def build_turn_flow_view_model(
         else None
     )
 
-    evidence_items = build_turn_evidence_items(rag_sources)
+    retrieval_sources = _resolve_evidence_sources(
+        diagnostics_payload=diagnostics,
+        turn_record=record,
+        rag_sources=rag_sources,
+    )
+    rag_evidence_items = build_turn_evidence_items(retrieval_sources)
+    tool_evidence_items = build_tool_evidence_items(tool_results)
+    evidence_items = [*rag_evidence_items, *tool_evidence_items]
     turn_events = _extract_turn_events(diagnostics)
     tool_selection = _tool_selection_stage(diagnostics)
     timeline: list[TurnFlowStage] = [
@@ -587,10 +769,11 @@ def build_turn_flow_view_model(
             tool_selection,
             diagnostics,
             terminal_failure,
+            tool_results=tool_results,
         ),
-        _retrieval_stage(evidence_items),
+        _retrieval_stage(rag_evidence_items),
         _answer_assembly_stage(
-            output=trusted_output,
+            output=trusted_output or safe_untrusted_fallback_output,
             interrupted=interrupted,
             terminal_failure=terminal_failure,
             error_surface=error_surface,
@@ -611,6 +794,7 @@ def build_turn_flow_view_model(
         terminal_failure=terminal_failure,
         final_output_source=final_output_source,
         error=error_message,
+        safe_untrusted_fallback_output=safe_untrusted_fallback_output,
     )
     flow = TurnFlowViewModel(
         timeline=timeline,

@@ -16,11 +16,16 @@ from app.ai.adapters.openai_compatible.support.native_web_search_result_builder 
 from app.ai.adapters.openai_compatible.support.native_web_search_stream_runtime import (
     consume_native_web_search_stream,
 )
+from app.ai.adapters.openai_compatible.support.client_options import (
+    with_client_retry_override,
+)
 from app.ai.exceptions import AIGatewayError
 from app.ai.web_search.types import SearchProviderRun
 from app.core.logging import LogManager
 
 logger = LogManager.get_logger("ai")
+
+_NATIVE_WEB_SEARCH_CLIENT_MAX_RETRIES = 0
 
 
 class NativeWebSearchAdapterProtocol(Protocol):
@@ -67,7 +72,11 @@ async def native_web_search_via_stream(
 ) -> SearchProviderRun | None:
     _ = locale
     try:
-        stream = await adapter.client.responses.create(
+        client = with_client_retry_override(
+            adapter.client,
+            max_retries=_NATIVE_WEB_SEARCH_CLIENT_MAX_RETRIES,
+        )
+        stream = await client.responses.create(
             **build_native_web_search_request(
                 model=model,
                 query=query,
@@ -149,7 +158,11 @@ async def native_web_search_via_responses(
             stream=False,
             wire_api="responses",
         )
-        response = await adapter.client.responses.create(
+        client = with_client_retry_override(
+            adapter.client,
+            max_retries=_NATIVE_WEB_SEARCH_CLIENT_MAX_RETRIES,
+        )
+        response = await client.responses.create(
             **build_native_web_search_request(
                 model=model,
                 query=query,

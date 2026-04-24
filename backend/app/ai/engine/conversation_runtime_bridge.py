@@ -527,6 +527,10 @@ async def stream_llm_chunks(
                             ),
                         ),
                     )
+                    if not had_fallback_blocking_chunk_before_error:
+                        had_fallback_blocking_chunk_before_error = bool(
+                            str(streamed_output or "").strip()
+                        )
                     setattr(
                         runtime_stream_exc,
                         "_novusai_stream_failover_blocked",
@@ -568,7 +572,6 @@ async def stream_llm_chunks(
             )
             if (
                 not failover_attempted
-                and streamed_chunk_count == 0
                 and not failover_blocked
             ):
                 failover_selection = await _resolve_runtime_model_failover(

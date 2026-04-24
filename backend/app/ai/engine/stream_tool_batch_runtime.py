@@ -11,6 +11,7 @@ from typing import Any
 from app.ai.tools.semantic_defaults import is_ui_page_tool_name
 from app.ai.tools.types import ToolDefinition, ToolResult
 from app.ai.types import ChatMessage, ChatResponse
+from app.ai.web_search.types import STATUS_NO_RESULTS
 from app.core.i18n import _
 
 from . import tool_processor as tool_processor_mod
@@ -158,6 +159,58 @@ def _build_page_abort_output(
     return suffix
 
 
+def _is_no_result_web_search(result: ToolResult) -> bool:
+    if result.name != "web_search":
+        return False
+    payload = (
+        dict(result.summary_payload)
+        if isinstance(result.summary_payload, dict)
+        else {}
+    )
+    status = str(payload.get("status") or "").strip()
+    if status == STATUS_NO_RESULTS:
+        return True
+    raw_result_count = payload.get("result_count")
+    try:
+        result_count = int(raw_result_count) if raw_result_count is not None else None
+    except (TypeError, ValueError):
+        result_count = None
+    return result_count is not None and result_count <= 0
+
+
+def _should_emit_tool_result_preview(
+    *,
+    result: ToolResult,
+    follow_up_message: ChatMessage | None,
+    current_response_text: str,
+) -> bool:
+    result_summary = str(result.summary or "").strip()
+    if (
+        not result.success
+        or not result_summary
+        or follow_up_message is not None
+        or current_response_text
+        or result.name not in {"fetch_url", "web_search"}
+    ):
+        return False
+    return not _is_no_result_web_search(result)
+
+
+def _attach_canonical_tool_result_detail(
+    tool_call: dict[str, Any],
+    *,
+    result: ToolResult,
+) -> None:
+    """Persist rich tool result detail onto canonical tool-call payloads."""
+    tool_call["success"] = bool(result.success)
+    if result.output:
+        tool_call["output"] = result.output
+    if result.error:
+        tool_call["error"] = result.error
+    if result.error_type:
+        tool_call["error_type"] = result.error_type
+
+
 async def _apply_single_result(
     *,
     runtime: StreamToolBatchRuntimeInput,
@@ -179,6 +232,10 @@ async def _apply_single_result(
         result=result,
         skill_info=skill_info,
     )
+    _attach_canonical_tool_result_detail(
+        tool_call,
+        result=result,
+    )
     state.round_tool_results.append(result)
     await callbacks.emit_event(
         processor.build_tool_call_event(
@@ -198,12 +255,10 @@ async def _apply_single_result(
     )
     result_summary = str(result.summary or "").strip()
     current_response_text = str(runtime.response.message.content or "").strip()
-    if (
-        result.success
-        and result_summary
-        and follow_up_message is None
-        and not current_response_text
-        and result.name in {"fetch_url", "web_search"}
+    if _should_emit_tool_result_preview(
+        result=result,
+        follow_up_message=follow_up_message,
+        current_response_text=current_response_text,
     ):
         await callbacks.emit_chunk(result_summary)
     if tool_message is not None:
@@ -329,6 +384,16 @@ async def _run_sequential_batch(
                 success=False,
                 error=_("page_operation.error.json_parse_failed"),
                 error_type=parse_error,
+            )
+            processor.annotate_tool_call(
+                tool_call,
+                duration_ms=0,
+                result=err_result,
+                skill_info=processor.get_skill_info(func_name),
+            )
+            _attach_canonical_tool_result_detail(
+                tool_call,
+                result=err_result,
             )
             state.round_tool_results.append(err_result)
             await callbacks.emit_event(

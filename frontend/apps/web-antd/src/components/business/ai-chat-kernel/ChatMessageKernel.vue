@@ -4,7 +4,7 @@ import type { TurnFlowState } from './TurnFlowState';
 import type { PendingPageOpForDisplay } from '#/components/business/ai-chat-panel/pending-page-op';
 import type { ChatMessage } from '#/types/ai-chat';
 
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
@@ -19,7 +19,10 @@ import ActionConsentGate from './ActionConsentGate.vue';
 import EvidenceCard from './EvidenceCard.vue';
 import { buildTurnFlowState } from './TurnFlowState';
 import TurnTimeline from './TurnTimeline.vue';
-import { getProcessHeadlineForStage } from './turn-stage-presentation';
+import {
+  getProcessHeadlineForStage,
+  isNoopSkippedStage,
+} from './turn-stage-presentation';
 
 const props = withDefaults(
   defineProps<{
@@ -44,6 +47,8 @@ const emit = defineEmits<{
   copy: [content: string];
   reject: [];
 }>();
+
+const KERNEL_AUTO_COLLAPSE_DELAY_MS = 220;
 
 const resolvedState = computed(
   () => props.state ?? buildTurnFlowState(props.msg, props.pendingOps),
@@ -77,21 +82,16 @@ const visibleKernelTimeline = computed(() =>
     if (stage.type === 'completed') {
       return false;
     }
+    if (isNoopSkippedStage(stage)) {
+      return false;
+    }
     if (
       stage.type === 'answer_assembly' &&
       stage.status === 'completed' &&
       Boolean(
         resolvedState.value.answerCard ||
-        normalizeMergedTextPart(props.msg.content),
+          normalizeMergedTextPart(props.msg.content),
       )
-    ) {
-      return false;
-    }
-    if (
-      stage.status === 'skipped' &&
-      (stage.type === 'tool_selection' ||
-        stage.type === 'tool_execution' ||
-        stage.type === 'retrieval')
     ) {
       return false;
     }
@@ -111,6 +111,11 @@ const hasKernelFailure = computed(
 );
 const hasDigestContent = computed(
   () => hasTimeline.value || hasDigestCard.value,
+);
+const kernelBodyLayout = computed(() =>
+  !props.compact && hasDigestCard.value && hasTimeline.value
+    ? 'split'
+    : 'stacked',
 );
 const canCollapseKernel = computed(
   () =>
@@ -175,13 +180,14 @@ function truncatePreview(value: string, limit: number) {
 
 const messageIdentity = computed(() => resolveMessageIdentity(props.msg));
 const isKernelExpanded = ref(false);
+let kernelAutoCollapseTimer: ReturnType<typeof globalThis.setTimeout> | undefined;
 const showKernelBody = computed(
   () => !canCollapseKernel.value || isKernelExpanded.value,
 );
 const digestPreviewText = computed(() => {
   const summary = normalizeText(resolvedState.value.answerCard?.summary);
   if (summary) {
-    return truncatePreview(summary, 64);
+    return truncatePreview(summary, 96);
   }
 
   const firstSection = resolvedState.value.answerCard?.sections?.find(
@@ -194,19 +200,19 @@ const digestPreviewText = computed(() => {
     firstSection?.title || firstSection?.body || firstSection?.content,
   );
   if (sectionPreview) {
-    return truncatePreview(sectionPreview, 64);
+    return truncatePreview(sectionPreview, 96);
   }
 
   const evidencePreview = normalizeText(
     resolvedState.value.selectedEvidence[0]?.label,
   );
   if (evidencePreview) {
-    return truncatePreview(evidencePreview, 64);
+    return truncatePreview(evidencePreview, 96);
   }
 
   const preparedPreview = normalizeText(preparedDigestBody.value);
   if (preparedPreview) {
-    return truncatePreview(preparedPreview, 64);
+    return truncatePreview(preparedPreview, 96);
   }
 
   return '';
@@ -218,17 +224,14 @@ const digestOverviewLabelKey = computed(() =>
     ? 'common.globalAiChat.turnAnswerCardTitle'
     : 'common.globalAiChat.turnEvidenceTitle',
 );
-const visibleProcessStages = computed(() => {
-  const stages = visibleKernelTimeline.value;
-  return stages.length > 0 ? stages : resolvedState.value.timeline;
-});
+const visibleProcessStages = computed(() => visibleKernelTimeline.value);
 const processStageCount = computed(() => visibleProcessStages.value.length);
 const processPreviewText = computed(() => {
   const errorMessage =
     normalizeText(resolvedState.value.flow.errorSurface?.message) ||
     normalizeText(resolvedState.value.flow.errorSurface?.summary);
   if (errorMessage) {
-    return truncatePreview(errorMessage, 38);
+    return truncatePreview(errorMessage, 64);
   }
 
   for (
@@ -246,12 +249,18 @@ const processPreviewText = computed(() => {
       }),
     );
     if (preview) {
-      return truncatePreview(preview, 38);
+      return truncatePreview(preview, 64);
     }
   }
 
   return '';
 });
+const kernelHeadline = computed(
+  () =>
+    digestPreviewText.value ||
+    processPreviewText.value ||
+    $t('common.globalAiChat.processing'),
+);
 const kernelStatusLabelKey = computed(() => {
   if (props.msg.streaming || hasRunningTimelineStage.value) {
     return 'common.globalAiChat.processing';
@@ -279,6 +288,9 @@ const kernelStatusClass = computed(() => {
   }
   return 'kernel-status-completed';
 });
+const kernelEvidenceCount = computed(
+  () => resolvedState.value.selectedEvidence.length,
+);
 
 function syncKernelExpanded(nextExpanded: boolean) {
   if (isKernelExpanded.value === nextExpanded) {
@@ -287,7 +299,27 @@ function syncKernelExpanded(nextExpanded: boolean) {
   isKernelExpanded.value = nextExpanded;
 }
 
+function clearKernelAutoCollapseTimer() {
+  if (kernelAutoCollapseTimer === undefined) {
+    return;
+  }
+  globalThis.clearTimeout(kernelAutoCollapseTimer);
+  kernelAutoCollapseTimer = undefined;
+}
+
+function scheduleKernelAutoCollapse() {
+  clearKernelAutoCollapseTimer();
+  if (!canCollapseKernel.value) {
+    return;
+  }
+  kernelAutoCollapseTimer = globalThis.setTimeout(() => {
+    kernelAutoCollapseTimer = undefined;
+    syncKernelExpanded(false);
+  }, KERNEL_AUTO_COLLAPSE_DELAY_MS);
+}
+
 function toggleKernelExpanded() {
+  clearKernelAutoCollapseTimer();
   if (!canCollapseKernel.value) {
     return;
   }
@@ -297,6 +329,7 @@ function toggleKernelExpanded() {
 watch(
   messageIdentity,
   () => {
+    clearKernelAutoCollapseTimer();
     syncKernelExpanded(props.msg.streaming === true);
   },
   { immediate: true },
@@ -308,9 +341,25 @@ watch(
     if (isStreaming === wasStreaming) {
       return;
     }
-    syncKernelExpanded(isStreaming);
+    if (isStreaming) {
+      clearKernelAutoCollapseTimer();
+      syncKernelExpanded(true);
+      return;
+    }
+    scheduleKernelAutoCollapse();
   },
 );
+
+watch(canCollapseKernel, (collapsible) => {
+  if (collapsible) {
+    return;
+  }
+  clearKernelAutoCollapseTimer();
+});
+
+onBeforeUnmount(() => {
+  clearKernelAutoCollapseTimer();
+});
 
 function handleApprove() {
   if (resolvedState.value.pendingAction?.kind === 'confirmation') {
@@ -337,110 +386,146 @@ function handleReject() {
       class="chat-message-kernel-shell overflow-hidden rounded-[18px] border"
     >
       <button
-        v-if="canCollapseKernel"
         type="button"
         data-testid="chat-message-kernel-overview-toggle"
-        class="chat-message-kernel-overview flex w-full min-w-0 items-center gap-2.5 text-left"
-        :class="compact ? 'px-2.5 py-2' : 'px-3 py-2.5'"
+        class="chat-message-kernel-overview flex w-full min-w-0 items-start justify-between gap-3 text-left"
+        :class="compact ? 'px-2.5 py-2.5' : 'px-3.5 py-3'"
         :aria-expanded="isKernelExpanded"
         @click="toggleKernelExpanded"
       >
-        <div class="flex min-w-0 flex-1 flex-wrap items-stretch gap-2">
-          <div
-            v-if="hasDigestCard"
-            class="kernel-overview-group flex min-w-0 flex-1 items-center gap-2"
-          >
-            <span class="kernel-overview-icon shrink-0">
-              <IconifyIcon icon="lucide:sparkles" class="size-3" />
+        <div class="min-w-0 flex-1">
+          <div class="flex min-w-0 flex-wrap items-center gap-1.5">
+            <span
+              v-if="hasDigestCard"
+              class="kernel-overview-pill kernel-overview-pill-primary"
+            >
+              {{ $t(digestOverviewLabelKey) }}
             </span>
-            <span class="flex min-w-0 flex-1 flex-col">
-              <span class="kernel-overview-label">
-                {{ $t(digestOverviewLabelKey) }}
-              </span>
-              <span
-                v-if="digestPreviewText"
-                class="kernel-overview-copy min-w-0 truncate"
-              >
-                {{ digestPreviewText }}
-              </span>
+            <span v-if="hasTimeline" class="kernel-overview-pill">
+              {{ $t('common.globalAiChat.turnTimeline') }}
             </span>
           </div>
 
           <div
-            v-if="hasTimeline"
-            class="kernel-overview-group flex min-w-0 flex-1 items-center gap-2"
+            class="kernel-overview-headline mt-1.5 min-w-0"
+            :class="
+              compact
+                ? 'text-[10.5px] leading-[1.1rem]'
+                : 'text-[11px] leading-[1.18rem]'
+            "
           >
-            <span class="kernel-overview-icon shrink-0">
-              <IconifyIcon icon="lucide:list-todo" class="size-3" />
-            </span>
-            <span class="flex min-w-0 flex-1 flex-col">
-              <span class="kernel-overview-label">
-                {{ $t('common.globalAiChat.turnTimeline') }}
-              </span>
-              <span
-                v-if="processPreviewText"
-                class="kernel-overview-copy min-w-0 truncate"
-              >
-                {{ processPreviewText }}
-              </span>
-            </span>
-            <span class="kernel-overview-meta shrink-0">
+            {{ kernelHeadline }}
+          </div>
+
+          <div class="mt-2 flex min-w-0 flex-wrap items-center gap-1.5">
+            <span
+              v-if="processStageCount > 0"
+              class="kernel-overview-meta-chip shrink-0"
+            >
               {{
                 $t('common.globalAiChat.turnStageCount', {
                   count: processStageCount,
                 })
               }}
             </span>
+            <span
+              v-if="kernelEvidenceCount > 0"
+              class="kernel-overview-meta-chip shrink-0"
+            >
+              {{
+                $t('common.globalAiChat.turnRetrievalSummary', {
+                  count: kernelEvidenceCount,
+                })
+              }}
+            </span>
+            <span
+              v-if="digestPreviewText && processPreviewText"
+              class="kernel-overview-subcopy truncate"
+            >
+              {{ processPreviewText }}
+            </span>
           </div>
         </div>
 
-        <span :class="['kernel-status-chip shrink-0', kernelStatusClass]">
-          <IconifyIcon
-            :icon="kernelStatusIcon"
-            class="kernel-status-icon size-3"
-            :class="
-              props.msg.streaming || hasRunningTimelineStage
-                ? 'kernel-status-spin'
-                : ''
-            "
-          />
-          <span class="truncate">{{ $t(kernelStatusLabelKey) }}</span>
-        </span>
+        <div class="flex shrink-0 items-start gap-1.5">
+          <span :class="['kernel-status-chip shrink-0', kernelStatusClass]">
+            <IconifyIcon
+              :icon="kernelStatusIcon"
+              class="kernel-status-icon size-3"
+              :class="
+                props.msg.streaming || hasRunningTimelineStage
+                  ? 'kernel-status-spin'
+                  : ''
+              "
+            />
+            <span class="truncate">{{ $t(kernelStatusLabelKey) }}</span>
+          </span>
 
-        <span
-          class="kernel-overview-chevron inline-flex shrink-0 items-center justify-center rounded-full p-1"
-        >
-          <IconifyIcon
-            icon="lucide:chevron-down"
-            class="size-3 transition-transform duration-200"
-            :style="{
-              transform: isKernelExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
-            }"
-          />
-        </span>
+          <span
+            v-if="canCollapseKernel"
+            class="kernel-overview-chevron inline-flex shrink-0 items-center justify-center rounded-full p-1"
+          >
+            <IconifyIcon
+              icon="lucide:chevron-down"
+              class="size-3 transition-transform duration-200"
+              :style="{
+                transform: isKernelExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+              }"
+            />
+          </span>
+        </div>
       </button>
 
       <Transition name="chat-message-kernel-body">
         <div
           v-if="showKernelBody"
           data-testid="chat-message-kernel-body"
-          class="space-y-2"
+          class="kernel-body-layout"
+          :data-layout="kernelBodyLayout"
           :class="[
-            compact ? 'px-2.5 pb-2.5 pt-2' : 'px-3 pb-3 pt-2.5',
+            compact ? 'px-2.5 pb-2.5 pt-2' : 'px-3.5 pb-3.5 pt-2.5',
             canCollapseKernel ? 'border-t border-border/12' : '',
+            kernelBodyLayout === 'split'
+              ? 'kernel-body-layout-split'
+              : 'space-y-2.5',
           ]"
         >
-          <EvidenceCard
+          <div
             v-if="hasDigestCard"
-            :compact="compact"
-            :msg="msg"
-            :state="resolvedState"
-          />
+            data-testid="chat-message-kernel-digest-panel"
+            class="space-y-1.5"
+            :class="[
+              kernelBodyLayout === 'split'
+                ? 'kernel-detail-panel kernel-detail-panel-raised'
+                : '',
+            ]"
+          >
+            <div class="kernel-section-caption">
+              {{ $t(digestOverviewLabelKey) }}
+            </div>
+            <EvidenceCard
+              :compact="compact"
+              :msg="msg"
+              :state="resolvedState"
+            />
+          </div>
 
           <div
             v-if="hasTimeline"
-            :class="hasDigestCard ? 'border-t border-border/10 pt-1.5' : ''"
+            data-testid="chat-message-kernel-timeline-panel"
+            class="space-y-1.5"
+            :class="[
+              kernelBodyLayout === 'split'
+                ? 'kernel-detail-panel kernel-detail-panel-raised'
+                : '',
+              hasDigestCard && kernelBodyLayout !== 'split'
+                ? 'border-t border-border/10 pt-2'
+                : '',
+            ]"
           >
+            <div class="kernel-section-caption">
+              {{ $t('common.globalAiChat.turnTimeline') }}
+            </div>
             <TurnTimeline
               :compact="compact"
               :countdown-now="countdownNow"
@@ -467,19 +552,19 @@ function handleReject() {
 <style scoped>
 .chat-message-kernel-shell {
   position: relative;
-  border-color: hsl(var(--border) / 0.14);
+  border-color: hsl(var(--border) / 0.1);
   background:
     radial-gradient(
       circle at top right,
       hsl(var(--primary) / 0.08),
-      transparent 24%
+      transparent 22%
     ),
     linear-gradient(
       180deg,
-      hsl(var(--background) / 0.985) 0%,
-      hsl(var(--background) / 0.965) 100%
+      hsl(var(--background) / 0.988) 0%,
+      hsl(var(--background) / 0.972) 100%
     );
-  box-shadow: 0 18px 38px -36px hsl(var(--foreground) / 0.16);
+  box-shadow: 0 18px 42px -38px hsl(var(--foreground) / 0.12);
 }
 
 .chat-message-kernel-overview {
@@ -490,62 +575,60 @@ function handleReject() {
 }
 
 .chat-message-kernel-overview:hover {
-  background: hsl(var(--muted) / 0.18);
+  background: hsl(var(--muted) / 0.14);
   transform: translateY(-1px);
 }
 
-.kernel-overview-group {
-  min-width: 0;
-  padding: 0.48rem 0.62rem;
-  border: 1px solid hsl(var(--border) / 0.1);
-  border-radius: 14px;
-  background: hsl(var(--background) / 0.88);
-  box-shadow: inset 0 1px 0 hsl(var(--background) / 0.6);
-}
-
-.kernel-overview-icon {
+.kernel-overview-pill {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: 1.5rem;
-  height: 1.5rem;
+  gap: 0.35rem;
+  padding: 0.22rem 0.5rem;
   border-radius: 9999px;
-  color: hsl(var(--primary) / 0.76);
-  border: 1px solid hsl(var(--primary) / 0.12);
-  background: hsl(var(--primary) / 0.05);
-}
-
-.kernel-overview-label {
-  color: hsl(var(--muted-foreground) / 0.6);
+  border: 1px solid hsl(var(--border) / 0.1);
+  background: hsl(var(--background) / 0.7);
+  color: hsl(var(--muted-foreground) / 0.64);
   font-size: 0.52rem;
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  line-height: 0.75rem;
 }
 
-.kernel-overview-copy {
-  color: hsl(var(--foreground) / 0.74);
-  font-size: 0.68rem;
-  line-height: 0.98rem;
+.kernel-overview-pill-primary {
+  border-color: hsl(var(--primary) / 0.14);
+  background: hsl(var(--primary) / 0.08);
+  color: hsl(var(--primary) / 0.82);
 }
 
-.kernel-overview-meta {
-  color: hsl(var(--muted-foreground) / 0.56);
+.kernel-overview-headline {
+  color: hsl(var(--foreground) / 0.82);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.kernel-overview-meta-chip {
+  color: hsl(var(--muted-foreground) / 0.6);
   border: 1px solid hsl(var(--border) / 0.08);
-  background: hsl(var(--muted) / 0.18);
+  background: hsl(var(--muted) / 0.16);
   border-radius: 9999px;
-  padding: 0.1rem 0.36rem;
+  padding: 0.16rem 0.42rem;
   font-size: 0.55rem;
-  line-height: 0.82rem;
+  line-height: 0.8rem;
+}
+
+.kernel-overview-subcopy {
+  min-width: 0;
+  color: hsl(var(--muted-foreground) / 0.58);
+  font-size: 0.6rem;
+  line-height: 0.85rem;
 }
 
 .kernel-status-chip {
   display: inline-flex;
-  max-width: 9.5rem;
+  max-width: 9rem;
   align-items: center;
   gap: 0.35rem;
-  padding: 0.28rem 0.52rem;
+  padding: 0.32rem 0.56rem;
   border-radius: 9999px;
   border: 1px solid hsl(var(--border) / 0.1);
   font-size: 0.58rem;
@@ -580,34 +663,54 @@ function handleReject() {
 }
 
 .kernel-overview-chevron {
-  color: hsl(var(--muted-foreground) / 0.44);
+  color: hsl(var(--muted-foreground) / 0.46);
   border: 1px solid hsl(var(--border) / 0.1);
-  background: hsl(var(--background) / 0.9);
+  background: hsl(var(--background) / 0.76);
 }
 
-.chat-message-kernel-overview:hover .kernel-overview-chevron {
-  color: hsl(var(--primary) / 0.76);
-  border-color: hsl(var(--primary) / 0.14);
+.kernel-section-caption {
+  color: hsl(var(--muted-foreground) / 0.54);
+  font-size: 0.55rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.kernel-body-layout-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1.02fr) minmax(0, 0.98fr);
+  gap: 0.85rem;
+  align-items: start;
+}
+
+.kernel-detail-panel {
+  min-width: 0;
+}
+
+.kernel-detail-panel-raised {
+  padding: 0.72rem 0.78rem 0.78rem;
+  border: 1px solid hsl(var(--border) / 0.08);
+  border-radius: 15px;
+  background:
+    linear-gradient(
+      180deg,
+      hsl(var(--background) / 0.88) 0%,
+      hsl(var(--background) / 0.78) 100%
+    );
+  box-shadow:
+    inset 0 1px 0 hsl(var(--background) / 0.58),
+    0 14px 26px -32px hsl(var(--foreground) / 0.16);
 }
 
 .chat-message-kernel-body-enter-active,
 .chat-message-kernel-body-leave-active {
-  overflow: hidden;
-  transition:
-    max-height 180ms ease,
-    opacity 160ms ease;
+  transition: all 200ms ease;
 }
 
 .chat-message-kernel-body-enter-from,
 .chat-message-kernel-body-leave-to {
-  max-height: 0;
   opacity: 0;
-}
-
-.chat-message-kernel-body-enter-to,
-.chat-message-kernel-body-leave-from {
-  max-height: 28rem;
-  opacity: 1;
+  transform: translateY(-3px);
 }
 
 @keyframes kernel-status-spin {

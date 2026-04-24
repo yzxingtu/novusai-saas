@@ -10,6 +10,18 @@ build_turn_flow_view_model = turn_flow_projector.build_turn_flow_view_model
 def test_build_turn_flow_view_model_contains_required_contract() -> None:
     turn_flow = build_turn_flow_view_model(
         diagnostics_payload={
+            "context_sources": [
+                {
+                    "kind": "web",
+                    "name": "Example source",
+                    "metadata": {
+                        "source_ref": "src_1",
+                        "title": "Example source",
+                        "url": "https://example.com",
+                        "snippet": "example snippet",
+                    },
+                }
+            ],
             "tool_filtering": {"all_tools_count": 15, "candidate_tools_count": 0},
             "turn_events": [
                 {"kind": "turn.started", "timestamp_ms": 1, "data": {}},
@@ -17,15 +29,7 @@ def test_build_turn_flow_view_model_contains_required_contract() -> None:
             ],
         },
         turn_record={"termination_reason": "completed"},
-        rag_sources=[
-            {
-                "id": "src_1",
-                "kind": "web",
-                "title": "Example source",
-                "url": "https://example.com",
-                "snippet": "example snippet",
-            }
-        ],
+        rag_sources=[],
         output="Final answer body",
         completion_reason="completed",
         interrupted=False,
@@ -47,6 +51,138 @@ def test_build_turn_flow_view_model_contains_required_contract() -> None:
     assert len(turn_flow["evidence"]) == 1
     assert isinstance(turn_flow["answer_card"], dict)
     assert turn_flow["completion_reason"] == "completed"
+
+
+def test_build_turn_flow_view_model_prefers_canonical_context_sources_over_legacy_rag_sources() -> None:
+    turn_flow = build_turn_flow_view_model(
+        diagnostics_payload={
+            "context_sources": [
+                {
+                    "kind": "page",
+                    "name": "Current page",
+                    "metadata": {
+                        "source_ref": "ctx_page_1",
+                        "title": "Current page",
+                        "snippet": "Read page state",
+                    },
+                }
+            ],
+            "tool_filtering": {"all_tools_count": 1, "candidate_tools_count": 0},
+            "turn_events": [],
+        },
+        turn_record={"termination_reason": "completed"},
+        rag_sources=[
+            {
+                "id": "legacy_page_write",
+                "kind": "page_write",
+                "title": "Legacy write alias",
+                "snippet": "Should not be primary",
+            }
+        ],
+        output="已读取页面。",
+        completion_reason="completed",
+        interrupted=False,
+        error=None,
+    )
+
+    assert turn_flow["evidence"] == [
+        {
+            "arguments": None,
+            "badge": None,
+            "display_name": None,
+            "duration_ms": None,
+            "error": None,
+            "error_type": None,
+            "id": "evidence_1",
+            "kind": "page",
+            "output": None,
+            "result_link": None,
+            "score": None,
+            "skill_name": None,
+            "skill_type": None,
+            "snippet": "Read page state",
+            "source_ref": "ctx_page_1",
+            "started_at": None,
+            "status": None,
+            "summary_payload": None,
+            "title": "Current page",
+            "tool_call_id": None,
+            "tool_name": None,
+            "url": None,
+        }
+    ]
+
+
+def test_build_turn_flow_view_model_projects_tool_results_into_canonical_evidence() -> None:
+    turn_flow = build_turn_flow_view_model(
+        diagnostics_payload={
+            "tool_filtering": {"all_tools_count": 15, "candidate_tools_count": 1},
+            "turn_events": [
+                {"kind": "turn.started", "timestamp_ms": 1, "data": {}},
+                {"kind": "turn.tool_round", "timestamp_ms": 4, "data": {}},
+                {
+                    "kind": "turn.tool_completed",
+                    "timestamp_ms": 9,
+                    "data": {
+                        "tool_call_id": "tc_weather_1",
+                        "tool_name": "get_current_weather",
+                    },
+                },
+            ],
+        },
+        turn_record={"termination_reason": "completed"},
+        rag_sources=[],
+        tool_results=[
+            {
+                "display_name": "天气查询",
+                "duration_ms": 2917,
+                "name": "get_current_weather",
+                "output": "北京晴，18°C",
+                "success": True,
+                "summary": "已查询北京天气",
+                "summary_payload": {"temperature_c": 18},
+                "tool_call_id": "tc_weather_1",
+            }
+        ],
+        output="北京今天晴，18°C",
+        completion_reason="completed",
+        interrupted=False,
+        error=None,
+    )
+
+    tool_execution_stage = next(
+        stage for stage in turn_flow["timeline"] if stage.get("type") == "tool_execution"
+    )
+
+    assert tool_execution_stage["tool_call_ids"] == ["tc_weather_1"]
+    assert turn_flow["evidence"] == [
+        {
+            "arguments": None,
+            "badge": None,
+            "display_name": "天气查询",
+            "duration_ms": 2917,
+            "error": None,
+            "error_type": None,
+            "id": "tc_weather_1",
+            "kind": "tool",
+            "output": "北京晴，18°C",
+            "result_link": None,
+            "score": None,
+            "skill_name": None,
+            "skill_type": None,
+            "snippet": "已查询北京天气",
+            "source_ref": "get_current_weather",
+            "started_at": None,
+            "status": "success",
+            "summary_payload": {"temperature_c": 18},
+            "title": "天气查询",
+            "tool_call_id": "tc_weather_1",
+            "tool_name": "get_current_weather",
+            "url": None,
+        }
+    ]
+
+
 def test_build_turn_evidence_events_emits_retrieval_and_items() -> None:
     events = build_turn_evidence_events(
         [
@@ -208,6 +344,39 @@ def test_build_turn_flow_view_model_ignores_untrusted_tool_evidence_answer_text(
     assert answer_assembly_stage["status"] == "skipped"
     assert answer_card.get("summary") == "No trusted assistant final answer."
     assert answer_card.get("confidence_label") == "low"
+
+
+def test_build_turn_flow_view_model_surfaces_safe_untrusted_fallback_output() -> None:
+    turn_flow = build_turn_flow_view_model(
+        diagnostics_payload={
+            "final_output_source": "tool_evidence_completed",
+            "stripped_untrusted_final_output": True,
+            "untrusted_final_output_fallback_applied": True,
+            "tool_filtering": {"all_tools_count": 2, "candidate_tools_count": 1},
+            "turn_events": [],
+        },
+        turn_record={"termination_reason": "completed"},
+        rag_sources=[],
+        output="这次处理没有成功生成最终答复，请再试一次。",
+        completion_reason="completed",
+        interrupted=False,
+        error=None,
+    )
+
+    answer_assembly_stage = next(
+        stage for stage in turn_flow["timeline"] if stage.get("type") == "answer_assembly"
+    )
+    answer_card = turn_flow["answer_card"] or {}
+
+    assert answer_assembly_stage["status"] == "completed"
+    assert answer_card.get("summary") == "这次处理没有成功生成最终答复，请再试一次。"
+    assert answer_card.get("sections") == [
+        {
+            "id": "final_answer",
+            "title": "Answer",
+            "content": "这次处理没有成功生成最终答复，请再试一次。",
+        }
+    ]
 
 
 def test_build_turn_flow_view_model_prefers_public_error_for_untrusted_failed_output() -> None:

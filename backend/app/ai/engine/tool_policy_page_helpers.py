@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.ai.text_semantics import mentions_page_detail_operation, mentions_page_summary
+from app.ai.text_semantics import mentions_page_detail_operation
 from app.ai.tools.types import ToolDefinition
 
 from .intent_page_rules import detect_page_signal
@@ -12,10 +12,7 @@ from .intent_runtime_accessors import (
     resolve_active_intent_kind_from_input_variables,
     resolve_intent_plan_view,
 )
-from .page_workflow_state_machine import (
-    legacy_page_intent_kind_for_goal,
-    resolve_page_workflow_goal,
-)
+from .page_workflow_state_machine import resolve_page_workflow_goal
 from .tool_policy_semantics import tool_semantic_family
 from .turn_research_helpers import has_page_context
 
@@ -30,15 +27,7 @@ def _canonicalize_page_workflow_goal(
     *,
     user_text: str | None = None,
 ) -> str:
-    normalized_goal = str(goal or "").strip()
-    if normalized_goal != "page_summary":
-        return normalized_goal
-    inferred_goal = resolve_page_workflow_goal(
-        intent_kind="page_summary",
-        intent_metadata=None,
-        user_text=user_text,
-    )
-    return str(inferred_goal or normalized_goal).strip()
+    return str(goal or "").strip()
 
 
 def _page_workflow_goal_from_kind(
@@ -58,7 +47,7 @@ def _page_workflow_goal_from_kind(
     )
 
 
-def _page_intent_alias(
+def _page_intent_kind(
     kind: str | None,
     *,
     metadata: dict[str, Any] | None = None,
@@ -70,11 +59,7 @@ def _page_intent_alias(
         metadata=payload,
         user_text=user_text,
     )
-    mapped_alias = legacy_page_intent_kind_for_goal(workflow_goal)
-    if mapped_alias:
-        return mapped_alias
-    normalized = str(kind or "").strip()
-    return normalized if normalized.startswith("page_") else ""
+    return "page_workflow" if workflow_goal else ""
 
 
 def _runtime_page_metadata(
@@ -115,7 +100,7 @@ def first_page_intent_kind(
         active_intent_kind = resolve_active_intent_kind_from_input_variables(
             input_variables
         )
-        active_page_intent = _page_intent_alias(
+        active_page_intent = _page_intent_kind(
             active_intent_kind,
             metadata=runtime_page_metadata,
             user_text=user_text,
@@ -128,17 +113,15 @@ def first_page_intent_kind(
             input_variables=input_variables,
         )
         if detected_signal:
-            return _page_intent_alias(
+            return _page_intent_kind(
                 detected_signal.kind,
                 metadata=detected_signal.metadata,
                 user_text=user_text,
             )
-        if has_page_context(input_variables) and mentions_page_summary(user_text):
-            return "page_summary"
         return None
     for intent in intents:
         if intent.family == "page_ops":
-            return _page_intent_alias(
+            return _page_intent_kind(
                 intent.kind,
                 metadata=getattr(intent, "metadata", None),
                 user_text=getattr(intent, "source_text", None) or user_text,
@@ -176,8 +159,6 @@ def first_page_workflow_goal(
                 metadata=detected_signal.metadata,
                 user_text=user_text,
             )
-        if has_page_context(input_variables) and mentions_page_summary(user_text):
-            return "page_summary"
         return None
     for intent in intents:
         if intent.family != "page_ops":

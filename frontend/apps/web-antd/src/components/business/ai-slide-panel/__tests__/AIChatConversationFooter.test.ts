@@ -45,6 +45,9 @@ describe('aiChatConversationFooter', () => {
 
     expect(wrapper.text()).toContain('3 common.globalAiChat.messages');
     expect(wrapper.text()).toContain('1,024 common.globalAiChat.tokens');
+    expect(wrapper.find('[data-testid="ai-chat-footer-summary"]').exists()).toBe(
+      true,
+    );
     expect(wrapper.find('button').exists()).toBe(false);
   });
 

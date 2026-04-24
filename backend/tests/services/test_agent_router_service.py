@@ -1,4 +1,9 @@
-"""AgentRouterService routing hardening tests / AgentRouterService 路由硬约束测试。"""
+"""
+Test type: behavioral
+Scope: AgentRouterService routing hardening / AgentRouterService 路由硬约束
+Mock strategy: service collaborators are mocked where needed, but routing-policy
+classification helpers execute real logic.
+"""
 
 from __future__ import annotations
 
@@ -182,13 +187,13 @@ def test_agent_supports_families_treats_time_as_runtime_baseline() -> None:
     )
 
 
-def test_requested_tool_families_treats_colloquial_here_question_as_page_ops() -> None:
+def test_requested_tool_families_leaves_colloquial_here_question_unrouted() -> None:
     families = requested_tool_families(
         "这里都有啥？",
         _thin_page_context("admin.ai.agents"),
     )
 
-    assert families == ["page_ops"]
+    assert families == []
 
 
 @pytest.mark.parametrize(

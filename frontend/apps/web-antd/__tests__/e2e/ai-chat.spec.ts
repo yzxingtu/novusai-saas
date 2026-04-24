@@ -458,20 +458,40 @@ async function expectTranscriptFirst(surface: Locator) {
   await expect(kernelHeader).toBeVisible({ timeout: 10_000 });
   await expect(transcript).toBeVisible({ timeout: 10_000 });
 
-  const [kernelBox, transcriptBox] = await Promise.all([
-    kernelHeader.boundingBox(),
-    transcript.boundingBox(),
-  ]);
+  await expect
+    .poll(
+      async () =>
+        surface.evaluate((surfaceElement) => {
+          const kernelHeaderElement = surfaceElement.querySelector(
+            '[data-testid="chat-message-kernel-header"]',
+          );
+          const transcriptElement = surfaceElement.querySelector(
+            '.assistant-message-body, .assistant-content-block',
+          );
 
-  expect(kernelBox, 'Expected visible kernel header bounding box').not.toBeNull();
-  expect(
-    transcriptBox,
-    'Expected visible transcript bounding box',
-  ).not.toBeNull();
-  expect(
-    kernelBox!.y,
-    'Expected process header to render below transcript content',
-  ).toBeGreaterThan(transcriptBox!.y);
+          if (
+            !(kernelHeaderElement instanceof HTMLElement) ||
+            !(transcriptElement instanceof HTMLElement)
+          ) {
+            return null;
+          }
+
+          const kernelBox = kernelHeaderElement.getBoundingClientRect();
+          const transcriptBox = transcriptElement.getBoundingClientRect();
+
+          return {
+            hasKernelBox: kernelBox.height > 0 && kernelBox.width > 0,
+            hasTranscriptBox: transcriptBox.height > 0 && transcriptBox.width > 0,
+            transcriptFirst: kernelBox.top > transcriptBox.top,
+          };
+        }),
+      { timeout: 10_000 },
+    )
+    .toEqual({
+      hasKernelBox: true,
+      hasTranscriptBox: true,
+      transcriptFirst: true,
+    });
 }
 
 async function expectDiagnosticsHiddenByDefault(surface: Locator) {

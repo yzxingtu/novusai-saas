@@ -276,6 +276,16 @@ def parse_tool_arguments(
         return {}, None
     try:
         parsed = json.loads(raw_args)
+        if isinstance(parsed, str):
+            repaired = try_repair_json(parsed)
+            if repaired is not None:
+                return repaired, None
+            try:
+                nested = json.loads(parsed)
+            except json.JSONDecodeError:
+                nested = None
+            if isinstance(nested, dict):
+                return nested, None
         if not isinstance(parsed, dict):
             return None, "invalid_tool_arguments_json"
         return parsed, None

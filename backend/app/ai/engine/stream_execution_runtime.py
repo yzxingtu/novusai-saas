@@ -11,14 +11,17 @@ from typing import TYPE_CHECKING, Any
 
 from app.ai.sse import SSEChunkEncoder
 from app.ai.types import ChatMessage, ChatResponse
+from app.core.i18n import _
 from app.core.response import (
     build_error_event,
     build_exception_debug,
-    build_public_error_text,
     resolve_public_error_message,
 )
 from app.enums.common import UserRoleEnum
 from app.middleware.trace import trace_id_var
+from app.services.ai.conversation_turn_flow_projector import (
+    ConversationTurnFlowProjector,
+)
 
 from .base import log_user_type_for_call_log
 from .failure_classifier import FailureClassifier
@@ -50,6 +53,8 @@ from .stream_tool_batch_runtime import (
 )
 from .tool_execution_helpers import (
     normalize_tool_call_outcome as _normalize_tool_call_outcome_impl,
+)
+from .tool_execution_helpers import (
     recover_tool_results_from_messages as _recover_tool_results_from_messages_impl,
 )
 from .turn_executor import ToolBatchResult
@@ -61,6 +66,17 @@ if TYPE_CHECKING:
     from .stream_handler import StreamExecutionHandler
     from .turn_executor import ModelRoundResult
     from .types import ToolUsePolicy
+
+
+_CANONICAL_TOOL_CALLS_METADATA_KEY = "canonical_tool_calls"
+_TRANSPORT_DISCONNECT_TOKENS = (
+    "requestresponsecycle.run_asgi",
+    "client disconnected",
+    "connection closed",
+    "transport close",
+    "listen_for_disconnect",
+)
+
 
 class StreamIOAdapter:
     """Transport adapter for streaming TurnExecutor execution."""
@@ -119,6 +135,78 @@ class StreamIOAdapter:
                 sandbox.set_runtime_model_info(runtime_model_info)
         raw_turn_record = metadata.get("runtime_turn_record")
         self.handler._stream_generation_view().replace_runtime_turn_record(raw_turn_record)
+
+    def _ensure_runtime_turn_record_state(self) -> None:
+        if not hasattr(self.handler, "_runtime_turn_record"):
+            self.handler._runtime_turn_record = {}
+        if not hasattr(self.handler, "_runtime_turn_record_source"):
+            self.handler._runtime_turn_record_source = None
+        if not hasattr(self.handler, "_runtime_turn_record_overlays"):
+            self.handler._runtime_turn_record_overlays = {}
+
+    def _store_canonical_tool_calls(self, tool_calls: Any) -> None:
+        normalized_tool_calls = [
+            dict(item) for item in (tool_calls or []) if isinstance(item, dict)
+        ]
+        if not normalized_tool_calls:
+            return
+
+        self._ensure_runtime_turn_record_state()
+        view = self.handler._stream_generation_view()
+        runtime_state = getattr(view, "runtime", None)
+        runtime_turn_record_source = getattr(
+            runtime_state,
+            "runtime_turn_record_source",
+            None,
+        )
+        if runtime_turn_record_source is not None:
+            source_metadata = getattr(runtime_turn_record_source, "metadata", None)
+            if isinstance(source_metadata, dict):
+                source_metadata[_CANONICAL_TOOL_CALLS_METADATA_KEY] = list(
+                    normalized_tool_calls
+                )
+            else:
+                with suppress(Exception):
+                    runtime_turn_record_source.metadata = {
+                        _CANONICAL_TOOL_CALLS_METADATA_KEY: list(
+                            normalized_tool_calls
+                        )
+                    }
+
+        view.refresh_runtime_turn_record()
+        turn_record_payload = (
+            dict(view.runtime_turn_record)
+            if isinstance(view.runtime_turn_record, dict)
+            else {}
+        )
+        turn_record_metadata = (
+            dict(turn_record_payload.get("metadata") or {})
+            if isinstance(turn_record_payload.get("metadata"), dict)
+            else {}
+        )
+        turn_record_metadata[_CANONICAL_TOOL_CALLS_METADATA_KEY] = list(
+            normalized_tool_calls
+        )
+        turn_record_payload["metadata"] = turn_record_metadata
+        view.runtime_turn_record = turn_record_payload
+
+    @staticmethod
+    def _store_tool_calls_on_response(
+        response: ChatResponse | None,
+        *,
+        tool_calls: list[dict[str, Any]],
+    ) -> None:
+        if response is None:
+            return
+        response.metadata = dict(response.metadata or {})
+        response.metadata[_CANONICAL_TOOL_CALLS_METADATA_KEY] = list(tool_calls)
+        message_metadata = (
+            dict(response.message.metadata or {})
+            if isinstance(response.message.metadata, dict)
+            else {}
+        )
+        message_metadata[_CANONICAL_TOOL_CALLS_METADATA_KEY] = list(tool_calls)
+        response.message.metadata = message_metadata
 
     async def call_llm(
         self,
@@ -209,6 +297,16 @@ class StreamIOAdapter:
         )
         if runtime_outcome.output_override is not None:
             self.handler._stream_generation_view().output = runtime_outcome.output_override
+        if runtime_outcome.effective_tool_calls:
+            self._store_canonical_tool_calls(runtime_outcome.effective_tool_calls)
+            self._store_tool_calls_on_response(
+                response=response,
+                tool_calls=runtime_outcome.effective_tool_calls,
+            )
+            self._store_tool_calls_on_response(
+                response=runtime_outcome.response,
+                tool_calls=runtime_outcome.effective_tool_calls,
+            )
 
         return ToolBatchResult(
             response=runtime_outcome.response,
@@ -392,6 +490,150 @@ async def _cancel_executor_task(task: asyncio.Task[Any] | None) -> None:
         await task
 
 
+def _is_cancelled_base_exception(exc: BaseException) -> bool:
+    return isinstance(exc, asyncio.CancelledError) or type(exc).__name__ == "CancelledError"
+
+
+def _is_transport_disconnect_cancellation(exc: BaseException) -> bool:
+    lowered_error = str(exc or "").strip().lower()
+    return any(token in lowered_error for token in _TRANSPORT_DISCONNECT_TOKENS)
+
+
+def _mark_transport_disconnect_result(result: Any) -> None:
+    diagnostics = dict(getattr(result, "diagnostics", None) or {})
+    diagnostics["transport_disconnect"] = True
+    result.diagnostics = diagnostics
+
+    turn_record = (
+        dict(result.turn_record)
+        if isinstance(getattr(result, "turn_record", None), dict)
+        else {}
+    )
+    turn_record["transport_disconnect"] = True
+    metadata = (
+        dict(turn_record.get("metadata") or {})
+        if isinstance(turn_record.get("metadata"), dict)
+        else {}
+    )
+    metadata["transport_disconnect"] = True
+    turn_record["metadata"] = metadata
+    result.turn_record = turn_record
+
+
+def _resolve_canonical_tool_calls(turn_record: Any) -> list[dict[str, Any]]:
+    if not isinstance(turn_record, dict):
+        return []
+    metadata = (
+        dict(turn_record.get("metadata") or {})
+        if isinstance(turn_record.get("metadata"), dict)
+        else {}
+    )
+    candidates = [
+        turn_record.get(_CANONICAL_TOOL_CALLS_METADATA_KEY),
+        metadata.get(_CANONICAL_TOOL_CALLS_METADATA_KEY),
+    ]
+    for metadata_key in ("orchestration", "turn_diagnostics"):
+        nested = metadata.get(metadata_key)
+        if isinstance(nested, dict):
+            candidates.append(nested.get(_CANONICAL_TOOL_CALLS_METADATA_KEY))
+
+    for candidate in candidates:
+        if not isinstance(candidate, list):
+            continue
+        normalized = [dict(item) for item in candidate if isinstance(item, dict)]
+        if normalized:
+            return normalized
+    return []
+
+
+def _persist_canonical_turn_flow_metadata(
+    turn_record: dict[str, Any],
+    *,
+    turn_flow: dict[str, Any],
+    tool_calls: list[dict[str, Any]],
+) -> None:
+    turn_record["turn_flow"] = turn_flow
+    metadata = (
+        dict(turn_record.get("metadata") or {})
+        if isinstance(turn_record.get("metadata"), dict)
+        else {}
+    )
+    metadata["turn_flow"] = turn_flow
+    metadata[_CANONICAL_TOOL_CALLS_METADATA_KEY] = list(tool_calls)
+    for metadata_key in ("orchestration", "turn_diagnostics"):
+        nested = (
+            dict(metadata.get(metadata_key) or {})
+            if isinstance(metadata.get(metadata_key), dict)
+            else {}
+        )
+        nested["turn_flow"] = turn_flow
+        nested[_CANONICAL_TOOL_CALLS_METADATA_KEY] = list(tool_calls)
+        metadata[metadata_key] = nested
+    turn_record["metadata"] = metadata
+
+
+def _hydrate_artifacts_turn_flow_from_canonical_tool_calls(
+    artifacts: StreamFinalizationArtifacts,
+) -> None:
+    turn_record = (
+        dict(artifacts.result.turn_record)
+        if isinstance(artifacts.result.turn_record, dict)
+        else {}
+    )
+    if not turn_record:
+        return
+
+    canonical_tool_calls = _resolve_canonical_tool_calls(turn_record)
+    if not canonical_tool_calls:
+        return
+
+    diagnostics_payload = (
+        dict(artifacts.diagnostics_payload)
+        if isinstance(artifacts.diagnostics_payload, dict)
+        else {}
+    )
+    metadata_payload = dict(diagnostics_payload)
+    metadata_payload["turn_record"] = turn_record
+    normalized_turn_flow = ConversationTurnFlowProjector.normalize_turn_flow(
+        turn_record.get("turn_flow"),
+        turn_outcome=str(turn_record.get("turn_outcome") or "").strip() or None,
+        completion_reason=artifacts.result.completion_reason,
+        interrupted=bool(getattr(artifacts.result, "interrupted", False)),
+        failure_kind=(
+            str(
+                diagnostics_payload.get("failure_kind")
+                or turn_record.get("failure_kind")
+                or ""
+            ).strip()
+            or None
+        ),
+        final_output_source=(
+            str(
+                diagnostics_payload.get("final_output_source")
+                or turn_record.get("final_output_source")
+                or ""
+            ).strip()
+            or None
+        ),
+        metadata=metadata_payload,
+        content=getattr(artifacts.result, "output", ""),
+        tool_calls=canonical_tool_calls,
+    )
+    if not isinstance(normalized_turn_flow, dict):
+        return
+
+    diagnostics_payload["turn_flow"] = normalized_turn_flow
+    artifacts.diagnostics_payload = diagnostics_payload
+    if isinstance(getattr(artifacts.result, "diagnostics", None), dict):
+        artifacts.result.diagnostics["turn_flow"] = normalized_turn_flow
+    _persist_canonical_turn_flow_metadata(
+        turn_record,
+        turn_flow=normalized_turn_flow,
+        tool_calls=canonical_tool_calls,
+    )
+    artifacts.result.turn_record = turn_record
+
+
 def _resolve_stream_exception_completion_reason(handler: Any) -> str:
     state = getattr(handler, "_state", None)
     if state is None:
@@ -420,6 +662,23 @@ def _resolve_stream_exception_completion_reason(handler: Any) -> str:
     return failure_kind
 
 
+def _resolve_completion_reason_public_error_message(
+    *,
+    completion_reason: str,
+    fallback_message: str | None,
+) -> str:
+    normalized_reason = str(completion_reason or "").strip().lower()
+    if normalized_reason == "provider_timeout":
+        return _("ai.error.provider_timeout")
+    if normalized_reason == "provider_unavailable":
+        return _("ai.error.provider_connection")
+    if normalized_reason == "provider_error":
+        return _("ai.error.provider_server_error")
+    if normalized_reason == "tool_error":
+        return _("common.server_error")
+    return resolve_public_error_message(fallback_message=fallback_message)
+
+
 def _sync_exception_runtime_metadata(handler: Any, exc: BaseException) -> None:
     view = ensure_stream_generation_view(handler)
 
@@ -445,6 +704,13 @@ def _register_stream_exception_failure(handler: Any, exc: BaseException) -> None
     if failure_kind == "none":
         return
 
+    state = getattr(handler, "_state", None)
+    if state is None:
+        return
+
+    existing_failure_kind = str(
+        getattr(state, "provider_failure_kind", "") or ""
+    ).strip().lower()
     event_payload = dict(failure_event or {})
     protocol_path = str(getattr(exc, "_novusai_runtime_protocol_path", "") or "").strip()
     if not protocol_path:
@@ -457,7 +723,18 @@ def _register_stream_exception_failure(handler: Any, exc: BaseException) -> None
     if protocol_path and "protocol_path" not in event_payload:
         event_payload["protocol_path"] = protocol_path
 
-    handler._state.register_provider_failure(
+    # Preserve the original classified provider/tool failure when cancellation is only
+    # the outer transport symptom after a more specific runtime failure was already
+    # recorded. This keeps graceful timeout/interruption copy and done semantics aligned.
+    if (
+        failure_kind == "server_interrupt"
+        and existing_failure_kind not in {"", "none", "server_interrupt"}
+    ):
+        if event_payload:
+            state.provider_events.append(dict(event_payload))
+        return
+
+    state.register_provider_failure(
         kind=failure_kind,
         event=event_payload or None,
     )
@@ -667,12 +944,19 @@ async def _handle_stream_exception(
     )
 
     public_error_message = resolve_stream_public_error_message(exc)
-    logger.error(
-        "Stream execution failed: agent={} error={}",
-        getattr(handler.agent, "id", None),
-        str(exc),
-        exc_info=True,
-    )
+    if completion_reason == "provider_timeout":
+        logger.info(
+            "Stream provider timeout: agent={} error={}",
+            getattr(handler.agent, "id", None),
+            str(exc),
+        )
+    else:
+        logger.error(
+            "Stream execution failed: agent={} error={}",
+            getattr(handler.agent, "id", None),
+            str(exc),
+            exc_info=True,
+        )
     view = ensure_stream_generation_view(handler)
     if _should_emit_graceful_exception_done(handler):
         try:
@@ -822,6 +1106,148 @@ async def _handle_stream_base_exception(
         yield ""
 
 
+async def _handle_stream_cancelled_exception(
+    handler: Any,
+    *,
+    exc: BaseException,
+    executor_task: asyncio.Task[Any] | None,
+    messages: list[Any],
+    rag_sources: list[dict[str, Any]] | None,
+    output: str,
+    total_tokens: int,
+    all_tool_results: list[Any],
+    turn_start_message_index: int,
+    logger: Any,
+) -> AsyncIterator[str]:
+    await _cancel_executor_task(executor_task)
+    _sync_exception_runtime_metadata(handler, exc)
+    _register_stream_exception_failure(handler, exc)
+    completion_reason = _resolve_stream_exception_completion_reason(handler)
+    transport_disconnect = _is_transport_disconnect_cancellation(exc)
+    recovered_tool_results = _resolve_exception_tool_results(
+        all_tool_results=all_tool_results,
+        messages=messages,
+        turn_start_message_index=turn_start_message_index,
+    )
+    if transport_disconnect:
+        logger.info(
+            "Stream cancelled after client disconnect: agent={} error={}",
+            getattr(handler.agent, "id", None),
+            str(exc),
+        )
+    elif completion_reason == "provider_timeout":
+        logger.info(
+            "Stream cancelled after provider timeout: agent={} error={}",
+            getattr(handler.agent, "id", None),
+            str(exc),
+        )
+    else:
+        logger.warning(
+            "Stream cancelled: agent={} error={}",
+            getattr(handler.agent, "id", None),
+            str(exc),
+            exc_info=True,
+        )
+    handler._update_turn_progress(interrupted_stage=handler._interrupted_stage)
+
+    view = ensure_stream_generation_view(handler)
+    duration_ms = int((time.perf_counter() - handler.start_time) * 1000)
+    partial_output = str(view.output or output or "").strip()
+    public_error_message = _resolve_completion_reason_public_error_message(
+        completion_reason=completion_reason,
+        fallback_message=resolve_stream_public_error_message(exc),
+    )
+    if not partial_output and not transport_disconnect:
+        partial_output = public_error_message
+        if partial_output:
+            for chunk in handler._chunk_text_for_streaming(partial_output):
+                try:
+                    yield SSEChunkEncoder.encode({"event": "message", "delta": chunk})
+                except Exception as yield_exc:
+                    logger.debug(
+                        "stream_handler interruption message yield skipped: {}",
+                        yield_exc,
+                    )
+                    break
+    elif (
+        not transport_disconnect
+        and
+        completion_reason != "interrupted"
+        and public_error_message
+        and public_error_message not in partial_output
+    ):
+        interruption_suffix = f"\n\n{public_error_message}"
+        partial_output = f"{partial_output}{interruption_suffix}"
+        for chunk in handler._chunk_text_for_streaming(interruption_suffix):
+            try:
+                yield SSEChunkEncoder.encode({"event": "message", "delta": chunk})
+            except Exception as yield_exc:
+                logger.debug(
+                    "stream_handler interruption suffix yield skipped: {}",
+                    yield_exc,
+                )
+                break
+
+    partial_tokens = view.total_tokens
+    if partial_tokens is None:
+        partial_tokens = total_tokens
+    append_partial_assistant_output(
+        messages,
+        output=partial_output,
+        reasoning_output=view.reasoning_output,
+    )
+    interrupted_result = build_terminal_result(
+        handler,
+        messages=messages,
+        rag_sources=rag_sources,
+        output=partial_output,
+        total_tokens=partial_tokens,
+        tool_results=recovered_tool_results,
+        duration_ms=duration_ms,
+        error=public_error_message or resolve_public_error_message(exc),
+        completion_reason=completion_reason,
+        interrupted=True,
+        include_provider_state=completion_reason != "interrupted",
+    )
+    if transport_disconnect:
+        _mark_transport_disconnect_result(interrupted_result)
+    on_complete_extra = None
+    if handler.on_complete and not view.runtime.on_complete_called:
+        on_complete_extra = await handler._await_on_complete_before_done(
+            interrupted_result
+        )
+        post_done_callback = handler._pop_post_done_callback(on_complete_extra)
+        if post_done_callback is not None:
+            handler._schedule_background_callback(post_done_callback)
+
+    try:
+        yield build_done_event(
+            handler,
+            artifacts=StreamFinalizationArtifacts(
+                result=interrupted_result,
+                diagnostics_payload=dict(interrupted_result.diagnostics or {}),
+                response_metadata={},
+                resolved_protocol_path=str(
+                    (interrupted_result.turn_record or {}).get("protocol_path") or ""
+                ).strip(),
+            ),
+            on_complete_extra=on_complete_extra,
+        )
+    except Exception as yield_exc:
+        logger.debug(
+            "stream_handler cancelled done event yield skipped: {}",
+            yield_exc,
+        )
+
+    try:
+        yield SSEChunkEncoder.done()
+    except Exception as yield_done_exc:
+        logger.debug(
+            "stream_handler cancelled done yield skipped (client disconnected?): {}",
+            yield_done_exc,
+        )
+
+
 async def run_stream_execution(
     handler: Any,
     *,
@@ -865,6 +1291,7 @@ async def run_stream_execution(
             turn_execution=turn_execution,
             logger=logger,
         )
+        _hydrate_artifacts_turn_flow_from_canonical_tool_calls(artifacts)
         for immediate_event in artifacts.immediate_events:
             yield immediate_event
         for replay_event in artifacts.replay_events:
@@ -897,6 +1324,28 @@ async def run_stream_execution(
             yield event
 
     except BaseException as exc:
+        if _is_cancelled_base_exception(exc):
+            current_task = asyncio.current_task()
+            if isinstance(exc, asyncio.CancelledError) and current_task is not None and hasattr(
+                current_task,
+                "uncancel",
+            ):
+                with suppress(Exception):
+                    current_task.uncancel()
+            async for event in _handle_stream_cancelled_exception(
+                handler,
+                exc=exc,
+                executor_task=executor_task,
+                messages=messages,
+                rag_sources=rag_sources,
+                output=output,
+                total_tokens=total_tokens,
+                all_tool_results=all_tool_results,
+                turn_start_message_index=turn_start_message_index,
+                logger=logger,
+            ):
+                yield event
+            return
         async for event in _handle_stream_base_exception(
             handler,
             exc=exc,

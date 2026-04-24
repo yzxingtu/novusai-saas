@@ -9,6 +9,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
+from app.ai.skills.activation import execution_tools_for_turn
 from app.ai.skills.resolver import SkillResolveResult
 from app.ai.tools.types import ToolDefinition
 from app.ai.types import ChatMessage
@@ -129,11 +130,7 @@ async def build_prepared_execution_context(
 
     messages = context_assembly.messages
     rag_sources = context_assembly.rag_sources
-    tools = (
-        list(skill_result.startup_activated_tools())
-        if skill_result and skill_result.tools
-        else []
-    )
+    tools = list(execution_tools_for_turn(skill_result)) if skill_result else []
     if tools and sandbox is None:
         logger.info(
             "Skip tool exposure because sandbox is unavailable: agent_id={} tool_count={}",

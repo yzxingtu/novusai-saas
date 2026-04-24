@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from app.ai.runtime.types import capability_pack_descriptor_is_live
+from app.ai.skills.activation import activated_tools_for_turn
 
 
 @dataclass
@@ -70,11 +71,7 @@ class CapabilityDescriptionBuilder:
         if not skill_result:
             return []
 
-        tools = (
-            list(skill_result.activated_tools())
-            if hasattr(skill_result, "activated_tools")
-            else list(getattr(skill_result, "tools", []) or [])
-        )
+        tools = list(activated_tools_for_turn(skill_result))
         descriptors = list(getattr(skill_result, "capability_descriptors", []) or [])
         activation = getattr(skill_result, "turn_activation", None)
         if activation is not None and activation.applied:

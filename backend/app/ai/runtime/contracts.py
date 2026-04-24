@@ -77,11 +77,24 @@ class TurnEvidenceItem:
     id: str
     kind: TurnEvidenceKind
     title: str
+    arguments: dict[str, Any] | None = None
     url: str | None = None
     snippet: str | None = None
     badge: str | None = None
     score: float | None = None
+    display_name: str | None = None
+    duration_ms: int | None = None
+    error: str | None = None
+    error_type: str | None = None
+    output: str | None = None
+    result_link: str | None = None
+    skill_name: str | None = None
+    skill_type: str | None = None
+    started_at: int | None = None
+    status: Literal["error", "running", "success"] | None = None
+    summary_payload: dict[str, Any] | None = None
     tool_call_id: str | None = None
+    tool_name: str | None = None
     source_ref: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -89,11 +102,26 @@ class TurnEvidenceItem:
             "id": self.id,
             "kind": self.kind,
             "title": self.title,
+            "arguments": dict(self.arguments or {}) if self.arguments else None,
             "url": self.url,
             "snippet": self.snippet,
             "badge": self.badge,
             "score": self.score,
+            "display_name": self.display_name,
+            "duration_ms": self.duration_ms,
+            "error": self.error,
+            "error_type": self.error_type,
+            "output": self.output,
+            "result_link": self.result_link,
+            "skill_name": self.skill_name,
+            "skill_type": self.skill_type,
+            "started_at": self.started_at,
+            "status": self.status,
+            "summary_payload": (
+                dict(self.summary_payload or {}) if self.summary_payload else None
+            ),
             "tool_call_id": self.tool_call_id,
+            "tool_name": self.tool_name,
             "source_ref": self.source_ref,
         }
 

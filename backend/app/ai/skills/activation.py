@@ -75,6 +75,20 @@ def _descriptor_is_auto_injected_runtime_builtin(descriptor: Any) -> bool:
     return isinstance(metadata, dict) and metadata.get("auto_injected") is True
 
 
+def _turn_activation(skill_result: Any) -> TurnSkillActivation | None:
+    activation = getattr(skill_result, "turn_activation", None)
+    return activation if isinstance(activation, TurnSkillActivation) else None
+
+
+def _tool_has_skill_owner(tool: Any) -> bool:
+    if tool_is_auto_injected_runtime_builtin(tool):
+        return False
+    return any(
+        str(getattr(tool, attr, "") or "").strip()
+        for attr in ("source_skill_id", "source_skill_name", "source_package_name")
+    )
+
+
 def _skill_name_has_live_execution(skill_result: Any, skill_name: str) -> bool:
     normalized_skill_name = str(skill_name or "").strip()
     if not normalized_skill_name:
@@ -305,6 +319,82 @@ def _skill_names_for_runtime_policy(
     return _stable_unique(selected)
 
 
+def activated_tools_for_turn(skill_result: Any | None) -> list[Any]:
+    if skill_result is None:
+        return []
+    tools = list(getattr(skill_result, "tools", []) or [])
+    activation = _turn_activation(skill_result)
+    if activation is None or not activation.applied:
+        return tools
+
+    activated_tool_names = {
+        str(name or "").strip()
+        for name in activation.activated_tool_names or []
+        if str(name or "").strip()
+    }
+    if not activated_tool_names:
+        return []
+    return [
+        tool
+        for tool in tools
+        if str(getattr(tool, "name", "") or "").strip() in activated_tool_names
+    ]
+
+
+def execution_tools_for_turn(skill_result: Any | None) -> list[Any]:
+    if skill_result is None:
+        return []
+    tools = list(getattr(skill_result, "tools", []) or [])
+    activation = _turn_activation(skill_result)
+    if activation is None or not activation.applied:
+        return tools
+
+    activated_tool_names = {
+        str(name or "").strip()
+        for name in activation.activated_tool_names or []
+        if str(name or "").strip()
+    }
+    return [
+        tool
+        for tool in tools
+        if (
+            not _tool_has_skill_owner(tool)
+            or str(getattr(tool, "name", "") or "").strip() in activated_tool_names
+        )
+    ]
+
+
+def execution_selected_tool_names_for_turn(skill_result: Any | None) -> list[str]:
+    return _stable_unique(
+        [
+            getattr(tool, "name", None)
+            for tool in execution_tools_for_turn(skill_result)
+        ]
+    )
+
+
+def execution_capability_descriptors_for_turn(skill_result: Any | None) -> list[Any]:
+    if skill_result is None:
+        return []
+    descriptors = list(getattr(skill_result, "capability_descriptors", []) or [])
+    activation = _turn_activation(skill_result)
+    if activation is None or not activation.applied:
+        return descriptors
+
+    activated_skill_names = {
+        str(name or "").strip()
+        for name in activation.activated_skill_names or []
+        if str(name or "").strip()
+    }
+    if not activated_skill_names:
+        return []
+    return [
+        descriptor
+        for descriptor in descriptors
+        if str(getattr(descriptor, "name", "") or "").strip() in activated_skill_names
+    ]
+
+
 def apply_turn_skill_activation(
     *,
     skill_result: Any | None,
@@ -392,6 +482,10 @@ def apply_turn_skill_activation(
 
 
 __all__ = [
+    "activated_tools_for_turn",
+    "execution_capability_descriptors_for_turn",
+    "execution_selected_tool_names_for_turn",
+    "execution_tools_for_turn",
     "TurnSkillActivation",
     "apply_turn_skill_activation",
     "resolve_startup_intent_flags",

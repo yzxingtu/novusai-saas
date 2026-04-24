@@ -88,6 +88,43 @@ def _intent(
     )
 
 
+def _page_workflow_intent(
+    intent_id: str,
+    *,
+    goal: str,
+    order: int,
+    status: str = "pending",
+    allowed_tool_names: list[str] | None = None,
+    metadata: dict | None = None,
+) -> IntentPlan:
+    payload = dict(metadata or {})
+    payload.setdefault("page_workflow_kind", "page_workflow")
+    payload.setdefault("page_workflow_goal", goal)
+    return _intent(
+        intent_id,
+        kind="page_workflow",
+        family="page_ops",
+        order=order,
+        label="page_workflow",
+        status=status,
+        allowed_tool_names=allowed_tool_names,
+        metadata=payload,
+    )
+
+
+def _page_continuation_context(**overrides: object) -> SimpleNamespace:
+    payload = {
+        "active": True,
+        "continuation_capable_families": ["page_ops"],
+        "family": "page_ops",
+        "active_intent_kind": "page_workflow",
+        "last_tool_name": "ui_get_snapshot",
+        "tool_families": ["page_ops"],
+    }
+    payload.update(overrides)
+    return SimpleNamespace(**payload)
+
+
 def test_intent_planner_splits_666_style_turn_into_stable_ordered_intents() -> None:
     intents = IntentPlanner.plan_turn(
         messages=[
@@ -109,12 +146,12 @@ def test_intent_planner_splits_666_style_turn_into_stable_ordered_intents() -> N
     assert [intent.kind for intent in intents] == [
         "weather_query",
         "web_research",
-        "page_summary",
+        "page_workflow",
     ]
     assert [intent.user_visible_label for intent in intents] == [
         "weather",
         "rail_search",
-        "page_summary",
+        "page_workflow",
     ]
 
 
@@ -136,7 +173,7 @@ def test_intent_planner_keeps_page_follow_up_in_page_family() -> None:
         ],
         tools=_mixed_tools(),
         input_variables=_page_context(),
-        continuation_context=None,
+        continuation_context=_page_continuation_context(),
     )
 
     assert len(intents) == 1
@@ -164,7 +201,7 @@ def test_detect_requested_turn_intents_aligns_with_planner_for_page_row_detail()
         input_variables=input_variables,
     )
 
-    assert intents == ["weather", "page_summary"]
+    assert intents == ["weather", "page_workflow"]
 
 
 def test_post_tool_contract_breach_keeps_page_intent_when_page_not_executed() -> None:
@@ -218,8 +255,8 @@ def test_post_tool_contract_breach_keeps_page_intent_when_page_not_executed() ->
 
     assert breach_type == "unfinished_multi_intent_reply"
     assert retry_policy is not None
-    assert diagnostics["requested_intents"] == ["weather", "page_summary"]
-    assert diagnostics["unfinished_intents"] == ["page_summary"]
+    assert diagnostics["requested_intents"] == ["weather", "page_workflow"]
+    assert diagnostics["unfinished_intents"] == ["page_workflow"]
     assert "ui_get_snapshot" in retry_policy.allowed_tool_names
 
 
@@ -268,7 +305,7 @@ def test_post_tool_contract_breach_native_web_evidence_keeps_page_intent_pending
             input_variables={
                 **_page_context(),
                 "_runtime_intent_facts": {
-                    "requested_intents": ["weather", "page_summary"],
+                    "requested_intents": ["weather", "page_workflow"],
                 },
             },
         )
@@ -277,7 +314,7 @@ def test_post_tool_contract_breach_native_web_evidence_keeps_page_intent_pending
     assert breach_type == "unfinished_multi_intent_reply"
     assert retry_policy is not None
     assert diagnostics["completed_intents"] == ["weather"]
-    assert diagnostics["unfinished_intents"] == ["page_summary"]
+    assert diagnostics["unfinished_intents"] == ["page_workflow"]
     assert diagnostics["native_web_search_evidence"] is True
 
 
@@ -367,8 +404,8 @@ def test_post_tool_contract_breach_retries_cross_page_navigation_after_snapshot_
     assert breach_type == "unfinished_multi_intent_reply"
     assert retry_policy is not None
     assert retry_policy.family == "page_ops"
-    assert diagnostics["requested_intents"] == ["page_navigation"]
-    assert diagnostics["unfinished_intents"] == ["page_navigation"]
+    assert diagnostics["requested_intents"] == ["page_workflow"]
+    assert diagnostics["unfinished_intents"] == ["page_workflow"]
     assert "ui_list_interactables" in retry_policy.allowed_tool_names
     assert "ui_open_surface" in retry_policy.allowed_tool_names
 
@@ -455,10 +492,9 @@ def test_post_tool_contract_breach_detects_dsml_page_tool_leak() -> None:
 
 def test_recovery_manager_keeps_page_navigation_pending_after_snapshot_only() -> None:
     intents = [
-        _intent(
+        _page_workflow_intent(
             "intent-1",
-            kind="page_navigation",
-            family="page_ops",
+            goal="navigation",
             order=1,
             allowed_tool_names=[
                 "ui_list_interactables",
@@ -466,6 +502,10 @@ def test_recovery_manager_keeps_page_navigation_pending_after_snapshot_only() ->
                 "ui_open_surface",
                 "ui_get_snapshot",
             ],
+            metadata={
+                "page_workflow_stage": "discover_navigation_target",
+                "page_workflow_phase": "navigate_or_open",
+            },
         )
     ]
 
@@ -507,7 +547,7 @@ def test_recovery_manager_keeps_page_navigation_pending_after_snapshot_only() ->
 
     assert decision is not None
     assert decision.action == "retry_intent"
-    assert decision.metadata["page_workflow"]["intent_kind"] == "page_navigation"
+    assert decision.metadata["page_workflow"]["intent_kind"] == "page_workflow"
     assert decision.metadata["page_workflow"]["progress"]["status"] == "action_pending"
 
     message = RecoveryManager.build_recovery_message(
@@ -525,10 +565,9 @@ def test_recovery_manager_completes_page_navigation_after_action_then_snapshot()
     None
 ):
     intents = [
-        _intent(
+        _page_workflow_intent(
             "intent-1",
-            kind="page_navigation",
-            family="page_ops",
+            goal="navigation",
             order=1,
             allowed_tool_names=[
                 "ui_list_interactables",
@@ -536,7 +575,10 @@ def test_recovery_manager_completes_page_navigation_after_action_then_snapshot()
                 "ui_open_surface",
                 "ui_get_snapshot",
             ],
-            metadata={"page_workflow_stage": "discover_navigation_target"},
+            metadata={
+                "page_workflow_stage": "discover_navigation_target",
+                "page_workflow_phase": "navigate_or_open",
+            },
         )
     ]
 
@@ -589,10 +631,9 @@ def test_recovery_manager_keeps_submit_stage_form_write_pending_after_fill_only(
     None
 ):
     intents = [
-        _intent(
+        _page_workflow_intent(
             "intent-1",
-            kind="page_form_write",
-            family="page_ops",
+            goal="form_write",
             order=1,
             allowed_tool_names=[
                 "ui_get_form_state",
@@ -601,7 +642,10 @@ def test_recovery_manager_keeps_submit_stage_form_write_pending_after_fill_only(
                 "ui_submit_form",
                 "ui_open_surface",
             ],
-            metadata={"page_workflow_stage": "submit_active_form"},
+            metadata={
+                "page_workflow_stage": "submit_active_form",
+                "page_workflow_phase": "submit",
+            },
         )
     ]
 
@@ -634,10 +678,9 @@ def test_recovery_manager_keeps_submit_stage_form_write_pending_after_fill_only(
 
 def test_recovery_manager_keeps_row_detail_pending_after_open_without_read() -> None:
     intents = [
-        _intent(
+        _page_workflow_intent(
             "intent-1",
-            kind="page_row_detail",
-            family="page_ops",
+            goal="row_detail",
             order=1,
             allowed_tool_names=[
                 "ui_list_interactables",
@@ -647,7 +690,10 @@ def test_recovery_manager_keeps_row_detail_pending_after_open_without_read() -> 
                 "ui_read_table",
                 "ui_get_snapshot",
             ],
-            metadata={"page_workflow_stage": "open_detail_surface"},
+            metadata={
+                "page_workflow_stage": "open_detail_surface",
+                "page_workflow_phase": "navigate_or_open",
+            },
         )
     ]
 
@@ -680,9 +726,7 @@ def test_recovery_manager_keeps_row_detail_pending_after_open_without_read() -> 
 
 
 def test_path_selector_routes_fast_normal_and_deep_by_intent_shape() -> None:
-    fast = PathSelector.select(
-        [_intent("intent-1", kind="page_summary", family="page_ops", order=1)]
-    )
+    fast = PathSelector.select([_page_workflow_intent("intent-1", goal="page_summary", order=1)])
     normal = PathSelector.select(
         [
             _intent("intent-1", kind="weather_query", family="weather", order=1),
@@ -693,7 +737,7 @@ def test_path_selector_routes_fast_normal_and_deep_by_intent_shape() -> None:
         [
             _intent("intent-1", kind="weather_query", family="weather", order=1),
             _intent("intent-2", kind="web_research", family="web_research", order=2),
-            _intent("intent-3", kind="page_summary", family="page_ops", order=3),
+            _page_workflow_intent("intent-3", goal="page_summary", order=3),
         ]
     )
 
@@ -758,7 +802,7 @@ def test_tool_router_caps_mixed_candidates_and_preserves_page_summary_focus() ->
     intents = [
         _intent("intent-1", kind="weather_query", family="weather", order=1),
         _intent("intent-2", kind="web_research", family="web_research", order=2),
-        _intent("intent-3", kind="page_summary", family="page_ops", order=3),
+        _page_workflow_intent("intent-3", goal="page_summary", order=3),
     ]
 
     decision = ToolRouter.route(
@@ -795,7 +839,7 @@ def test_tool_router_allows_open_and_read_tools_for_page_form_read_without_activ
         max_candidate_tools=8,
         max_tool_result_bytes=4096,
     )
-    intents = [_intent("intent-1", kind="page_form_read", family="page_ops", order=1)]
+    intents = [_page_workflow_intent("intent-1", goal="form_read", order=1)]
     tools = [
         _tool("ui_list_interactables", "List interactables"),
         _tool("ui_click", "Click ui"),
@@ -891,11 +935,16 @@ def test_recovery_manager_retries_only_unfinished_page_intent() -> None:
         ),
         _intent(
             "intent-3",
-            kind="page_summary",
+            kind="page_workflow",
             family="page_ops",
             order=3,
             status="pending",
             allowed_tool_names=["ui_get_snapshot"],
+            label="page_workflow",
+            metadata={
+                "page_workflow_kind": "page_workflow",
+                "page_workflow_goal": "page_summary",
+            },
         ),
     ]
     budget = BudgetGuard.build_default("deep", intent_count=3)
@@ -913,7 +962,7 @@ def test_recovery_manager_retries_only_unfinished_page_intent() -> None:
     assert message.role == "system"
     assert message.internal_only is True
     assert "Allowed tools for this recovery: ui_get_snapshot." in message.content
-    assert "Unfinished requested intents: page_summary." in message.content
+    assert "Unfinished requested intents: page_workflow." in message.content
 
 
 def test_recovery_manager_unions_allowed_tools_for_multiple_unfinished_intents() -> (
@@ -928,18 +977,16 @@ def test_recovery_manager_unions_allowed_tools_for_multiple_unfinished_intents()
             status="completed",
             allowed_tool_names=["get_current_weather"],
         ),
-        _intent(
+        _page_workflow_intent(
             "intent-2",
-            kind="page_summary",
-            family="page_ops",
+            goal="page_summary",
             order=2,
             status="pending",
             allowed_tool_names=["ui_get_snapshot"],
         ),
-        _intent(
+        _page_workflow_intent(
             "intent-3",
-            kind="page_row_detail",
-            family="page_ops",
+            goal="row_detail",
             order=3,
             status="pending",
             allowed_tool_names=["ui_read_region"],
@@ -968,10 +1015,9 @@ def test_recovery_manager_retry_tools_do_not_mix_cross_family_unfinished_intents
             status="pending",
             allowed_tool_names=["web_search", "fetch_url"],
         ),
-        _intent(
+        _page_workflow_intent(
             "intent-2",
-            kind="page_summary",
-            family="page_ops",
+            goal="page_summary",
             order=2,
             status="pending",
             allowed_tool_names=["ui_get_snapshot"],
@@ -992,10 +1038,9 @@ def test_recovery_manager_retry_tools_do_not_mix_cross_family_unfinished_intents
 
 def test_recovery_manager_returns_partial_when_retry_budget_is_exhausted() -> None:
     intents = [
-        _intent(
+        _page_workflow_intent(
             "intent-3",
-            kind="page_summary",
-            family="page_ops",
+            goal="page_summary",
             order=3,
             status="pending",
             allowed_tool_names=["ui_get_snapshot"],
@@ -1076,10 +1121,15 @@ def test_execution_state_machine_accumulates_usage_and_emits_turn_diagnostics() 
         ),
         _intent(
             "intent-2",
-            kind="page_summary",
+            kind="page_workflow",
             family="page_ops",
             order=2,
             allowed_tool_names=["ui_get_snapshot"],
+            label="page_workflow",
+            metadata={
+                "page_workflow_kind": "page_workflow",
+                "page_workflow_goal": "page_summary",
+            },
         ),
     ]
     budget = BudgetGuard.build_default("normal", intent_count=2)
@@ -1170,7 +1220,7 @@ def test_execution_state_machine_accumulates_usage_and_emits_turn_diagnostics() 
 def test_execution_state_machine_partial_exit_surfaces_active_page_workflow() -> None:
     intent = _intent(
         "intent-1",
-        kind="page_navigation",
+        kind="page_workflow",
         family="page_ops",
         order=1,
         allowed_tool_names=[
@@ -1179,7 +1229,9 @@ def test_execution_state_machine_partial_exit_surfaces_active_page_workflow() ->
             "ui_open_surface",
             "ui_get_snapshot",
         ],
+        label="page_workflow",
         metadata={
+            "page_workflow_kind": "page_workflow",
             "page_workflow_stage": "discover_navigation_target",
             "page_workflow_phase": "navigate_or_open",
             "page_workflow_goal": "navigation",
@@ -1234,7 +1286,7 @@ def test_execution_state_machine_partial_exit_surfaces_active_page_workflow() ->
 
     payload = state.build_diagnostics_payload()
 
-    assert payload["active_page_workflow"]["intent_kind"] == "page_navigation"
+    assert payload["active_page_workflow"]["intent_kind"] == "page_workflow"
     assert payload["active_page_workflow"]["progress"]["status"] == "verify_pending"
     assert payload["recovery"]["active_page_workflow"]["stage"] == (
         "discover_navigation_target"
@@ -2037,11 +2089,304 @@ async def test_stream_llm_chunks_retries_with_runtime_failover_before_first_chun
         chunks.append(chunk)
 
     assert attempts == ["primary-model", "fallback-model"]
+    assert [chunk.reasoning_delta for chunk in chunks if chunk.reasoning_delta] == []
     assert len(chunks) == 1
-    assert chunks[0].delta == "fallback stream"
+    assert [chunk.delta for chunk in chunks if chunk.delta] == ["fallback stream"]
     assert chunks[0].metadata["runtime_model_failover"] == {
         "from_model_code": "primary-model",
         "to_model_code": "fallback-model",
     }
 
 
+@pytest.mark.asyncio
+async def test_stream_llm_chunks_allows_runtime_failover_after_reasoning_only_chunk(
+    monkeypatch,
+) -> None:
+    from app.ai.engine import conversation_runtime_bridge as bridge
+
+    attempts: list[str] = []
+
+    async def fake_prepare_stream_runtime(
+        engine,
+        *,
+        agent,
+        messages,
+        tenant_id,
+        route_result=None,
+        skip_metering_preflight=False,
+    ):
+        _ = engine, agent, messages, tenant_id, skip_metering_preflight
+        provider_code = (
+            getattr(route_result, "provider_code", None) or "primary-provider"
+        )
+        model_code = getattr(route_result, "model_code", None) or "primary-model"
+        model_id = getattr(route_result, "model_id", None) or 1
+        return SimpleNamespace(
+            provider=SimpleNamespace(code=provider_code, id=model_id),
+            ai_model=SimpleNamespace(id=model_id, supports_streaming=True),
+            model_code=model_code,
+            runtime_info={"model_id": model_id, "provider_name": provider_code},
+            is_vision=False,
+            is_audio=False,
+            is_video=False,
+            estimated_input=256,
+        )
+
+    async def fake_build_runtime_stream_entrypoint_plan(
+        engine,
+        *,
+        runtime_context=None,
+        runtime_preparer,
+        **kwargs,
+    ):
+        active_runtime_context = runtime_context or await runtime_preparer(
+            engine,
+            agent=kwargs["agent"],
+            messages=kwargs["messages"],
+            tenant_id=kwargs["tenant_id"],
+            route_result=kwargs["route_result"],
+            skip_metering_preflight=kwargs["skip_metering_preflight"],
+        )
+
+        class _Accounting:
+            async def finalize_success(self, **kwargs):
+                _ = kwargs
+                return None
+
+            async def log_failure(self, **kwargs):
+                _ = kwargs
+                return None
+
+        return SimpleNamespace(
+            runtime_context=active_runtime_context,
+            query_engine=SimpleNamespace(turn_record={"metadata": {}}),
+            accounting=_Accounting(),
+            request_context=SimpleNamespace(),
+            audit_context=SimpleNamespace(),
+            request_log_data={},
+        )
+
+    async def fake_iterate_runtime_stream_entrypoint(
+        *,
+        plan,
+        agent,
+        selected_skill_names,
+    ):
+        _ = agent, selected_skill_names
+        attempts.append(plan.runtime_context.model_code)
+        if plan.runtime_context.model_code == "primary-model":
+            yield ChatChunk(delta="", reasoning_delta="先检查页面上下文")
+            raise AIGatewayError("bad gateway", status_code=502)
+        yield ChatChunk(delta="fallback stream", finish_reason="stop", total_tokens=1)
+
+    async def fake_resolve_runtime_model_failover(
+        engine,
+        *,
+        runtime_context,
+        tools,
+        error,
+        logger,
+    ):
+        _ = engine, tools, logger
+        assert runtime_context.model_code == "primary-model"
+        assert isinstance(error, AIGatewayError)
+        return bridge.RuntimeModelFailoverSelection(
+            route_result=RouteResult(
+                provider_code="fallback-provider",
+                model_code="fallback-model",
+                model_id=2,
+                tier="standard",
+                reason="runtime_provider_failover",
+                is_overridden=True,
+            ),
+            metadata={
+                "from_model_code": "primary-model",
+                "to_model_code": "fallback-model",
+            },
+        )
+
+    monkeypatch.setattr(bridge, "prepare_stream_runtime", fake_prepare_stream_runtime)
+    monkeypatch.setattr(
+        bridge,
+        "build_runtime_stream_entrypoint_plan",
+        fake_build_runtime_stream_entrypoint_plan,
+    )
+    monkeypatch.setattr(
+        bridge,
+        "iterate_runtime_stream_entrypoint",
+        fake_iterate_runtime_stream_entrypoint,
+    )
+    monkeypatch.setattr(
+        bridge,
+        "_resolve_runtime_model_failover",
+        fake_resolve_runtime_model_failover,
+    )
+
+    engine = SimpleNamespace(
+        logger=None,
+        gateway=SimpleNamespace(),
+        db=SimpleNamespace(),
+    )
+    chunks = []
+    async for chunk in bridge.stream_llm_chunks(
+        engine,
+        agent=SimpleNamespace(id=1),
+        messages=[ChatMessage(role="user", content="hi")],
+        tenant_id=1,
+        conversation_id=3,
+        tools=None,
+    ):
+        chunks.append(chunk)
+
+    assert attempts == ["primary-model", "fallback-model"]
+    assert [chunk.reasoning_delta for chunk in chunks if chunk.reasoning_delta] == [
+        "先检查页面上下文"
+    ]
+    assert len(chunks) == 2
+    assert [chunk.delta for chunk in chunks if chunk.delta] == ["fallback stream"]
+
+
+@pytest.mark.asyncio
+async def test_stream_llm_chunks_blocks_runtime_failover_after_visible_output_chunk(
+    monkeypatch,
+) -> None:
+    from app.ai.engine import conversation_runtime_bridge as bridge
+
+    attempts: list[str] = []
+    failover_requests: list[str] = []
+
+    async def fake_prepare_stream_runtime(
+        engine,
+        *,
+        agent,
+        messages,
+        tenant_id,
+        route_result=None,
+        skip_metering_preflight=False,
+    ):
+        _ = engine, agent, messages, tenant_id, skip_metering_preflight
+        provider_code = (
+            getattr(route_result, "provider_code", None) or "primary-provider"
+        )
+        model_code = getattr(route_result, "model_code", None) or "primary-model"
+        model_id = getattr(route_result, "model_id", None) or 1
+        return SimpleNamespace(
+            provider=SimpleNamespace(code=provider_code, id=model_id),
+            ai_model=SimpleNamespace(id=model_id, supports_streaming=True),
+            model_code=model_code,
+            runtime_info={"model_id": model_id, "provider_name": provider_code},
+            is_vision=False,
+            is_audio=False,
+            is_video=False,
+            estimated_input=256,
+        )
+
+    async def fake_build_runtime_stream_entrypoint_plan(
+        engine,
+        *,
+        runtime_context=None,
+        runtime_preparer,
+        **kwargs,
+    ):
+        active_runtime_context = runtime_context or await runtime_preparer(
+            engine,
+            agent=kwargs["agent"],
+            messages=kwargs["messages"],
+            tenant_id=kwargs["tenant_id"],
+            route_result=kwargs["route_result"],
+            skip_metering_preflight=kwargs["skip_metering_preflight"],
+        )
+
+        class _Accounting:
+            async def finalize_success(self, **kwargs):
+                _ = kwargs
+                return None
+
+            async def log_failure(self, **kwargs):
+                _ = kwargs
+                return None
+
+        return SimpleNamespace(
+            runtime_context=active_runtime_context,
+            query_engine=SimpleNamespace(turn_record={"metadata": {}}),
+            accounting=_Accounting(),
+            request_context=SimpleNamespace(),
+            audit_context=SimpleNamespace(),
+            request_log_data={},
+        )
+
+    async def fake_iterate_runtime_stream_entrypoint(
+        *,
+        plan,
+        agent,
+        selected_skill_names,
+    ):
+        _ = agent, selected_skill_names
+        attempts.append(plan.runtime_context.model_code)
+        if plan.runtime_context.model_code == "primary-model":
+            yield ChatChunk(delta="partial answer", finish_reason=None, total_tokens=1)
+            raise AIGatewayError("bad gateway", status_code=502)
+        yield ChatChunk(delta="fallback stream", finish_reason="stop", total_tokens=2)
+
+    async def fake_resolve_runtime_model_failover(
+        engine,
+        *,
+        runtime_context,
+        tools,
+        error,
+        logger,
+    ):
+        _ = engine, tools, error, logger
+        failover_requests.append(runtime_context.model_code)
+        return bridge.RuntimeModelFailoverSelection(
+            route_result=RouteResult(
+                provider_code="fallback-provider",
+                model_code="fallback-model",
+                model_id=2,
+                tier="standard",
+                reason="runtime_provider_failover",
+                is_overridden=True,
+            ),
+            metadata={
+                "from_model_code": "primary-model",
+                "to_model_code": "fallback-model",
+            },
+        )
+
+    monkeypatch.setattr(bridge, "prepare_stream_runtime", fake_prepare_stream_runtime)
+    monkeypatch.setattr(
+        bridge,
+        "build_runtime_stream_entrypoint_plan",
+        fake_build_runtime_stream_entrypoint_plan,
+    )
+    monkeypatch.setattr(
+        bridge,
+        "iterate_runtime_stream_entrypoint",
+        fake_iterate_runtime_stream_entrypoint,
+    )
+    monkeypatch.setattr(
+        bridge,
+        "_resolve_runtime_model_failover",
+        fake_resolve_runtime_model_failover,
+    )
+
+    engine = SimpleNamespace(
+        logger=None,
+        gateway=SimpleNamespace(),
+        db=SimpleNamespace(),
+    )
+    chunks: list[ChatChunk] = []
+    with pytest.raises(AIGatewayError):
+        async for chunk in bridge.stream_llm_chunks(
+            engine,
+            agent=SimpleNamespace(id=1),
+            messages=[ChatMessage(role="user", content="hi")],
+            tenant_id=1,
+            conversation_id=4,
+            tools=None,
+        ):
+            chunks.append(chunk)
+
+    assert attempts == ["primary-model"]
+    assert failover_requests == []
+    assert [chunk.delta for chunk in chunks if chunk.delta] == ["partial answer"]

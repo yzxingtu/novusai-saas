@@ -18,7 +18,9 @@ from app.enums.agent import (
 from app.enums.common import RecycleStageEnum, ResourceScopeEnum
 from app.models.ai.agent import Agent
 from app.models.ai.agent_conversation import AgentConversation
+from app.models.ai.agent_kb_binding import AgentKnowledgeBaseBinding
 from app.models.ai.agent_skill_grant import AgentSkillGrant
+from app.models.ai.skill import Skill
 from app.models.ai.tenant_agent_publication import TenantAgentPublication
 from app.repositories.system.resource_tenant_assignment_repository import (
     assigned_resource_ids_subquery,
@@ -120,7 +122,12 @@ class AgentRepository(TenantRepository[Agent]):
         query = self._apply_sort(query, spec.sort, sortable_fields)
         query = query.offset(spec.offset).limit(spec.limit)
         query = query.options(
-            selectinload(Agent.skill_grants).selectinload(AgentSkillGrant.skill),
+            selectinload(Agent.skill_grants)
+            .selectinload(AgentSkillGrant.skill)
+            .selectinload(Skill.package),
+            selectinload(Agent.kb_bindings).selectinload(
+                AgentKnowledgeBaseBinding.knowledge_base
+            ),
         )
 
         result = await self.db.execute(query)
@@ -205,7 +212,12 @@ class AgentRepository(TenantRepository[Agent]):
         query = self._apply_sort(query, spec.sort, sortable_fields)
         query = query.offset(spec.offset).limit(spec.limit)
         query = query.options(
-            selectinload(Agent.skill_grants).selectinload(AgentSkillGrant.skill),
+            selectinload(Agent.skill_grants)
+            .selectinload(AgentSkillGrant.skill)
+            .selectinload(Skill.package),
+            selectinload(Agent.kb_bindings).selectinload(
+                AgentKnowledgeBaseBinding.knowledge_base
+            ),
         )
 
         result = await self.db.execute(query)
@@ -501,7 +513,12 @@ class AdminAgentRepository(BaseRepository[Agent]):
         query = self._apply_sort(query, spec.sort, sortable_fields)
         query = query.offset(spec.offset).limit(spec.limit)
         query = query.options(
-            selectinload(Agent.skill_grants).selectinload(AgentSkillGrant.skill),
+            selectinload(Agent.skill_grants)
+            .selectinload(AgentSkillGrant.skill)
+            .selectinload(Skill.package),
+            selectinload(Agent.kb_bindings).selectinload(
+                AgentKnowledgeBaseBinding.knowledge_base
+            ),
         )
 
         result = await self.db.execute(query)

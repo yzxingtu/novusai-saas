@@ -1,3 +1,10 @@
+"""
+Test type: behavioral
+Scope: tool-policy intent projection and canonical page_workflow runtime facts
+Mock strategy: intent planner may be blocked in focused fallback tests, but page
+intent canonicalization and completion tracking run through the real helpers.
+"""
+
 from __future__ import annotations
 
 import pytest
@@ -22,6 +29,7 @@ def _intent_payload(
     label: str,
     source_text: str,
     requires_tools: bool = True,
+    metadata: dict | None = None,
 ) -> dict:
     return {
         "intent_id": intent_id,
@@ -31,6 +39,7 @@ def _intent_payload(
         "user_visible_label": label,
         "source_text": source_text,
         "requires_tools": requires_tools,
+        "metadata": dict(metadata or {}),
     }
 
 
@@ -83,11 +92,15 @@ def test_first_page_intent_kind_uses_precomputed_plan(
         "_runtime_intent_plan": [
             _intent_payload(
                 intent_id="intent-1",
-                kind="page_summary",
+                kind="page_workflow",
                 family="page_ops",
                 order=1,
-                label="page_summary",
+                label="page_workflow",
                 source_text="page",
+                metadata={
+                    "page_workflow_kind": "page_workflow",
+                    "page_workflow_goal": "page_summary",
+                },
             )
         ]
     }
@@ -98,7 +111,7 @@ def test_first_page_intent_kind_uses_precomputed_plan(
             tools=[ToolDefinition(name="ui_get_snapshot")],
             input_variables=input_variables,
         )
-        == "page_summary"
+        == "page_workflow"
     )
 
 
@@ -112,7 +125,8 @@ def test_detect_requested_turn_intents_uses_runtime_intent_facts(
 
     input_variables = {
         "_runtime_intent_facts": {
-            "requested_intents": ["weather", "page_summary"],
+            "requested_intents": ["weather", "page_workflow"],
+            "page_workflow_goal": "page_summary",
         }
     }
 
@@ -121,7 +135,7 @@ def test_detect_requested_turn_intents_uses_runtime_intent_facts(
         tools=[ToolDefinition(name="ui_get_snapshot")],
         input_variables=input_variables,
     )
-    assert intents == ["weather", "page_summary"]
+    assert intents == ["weather", "page_workflow"]
 
 
 def test_detect_requested_turn_intents_prefers_active_page_intent_over_stale_summary(
@@ -134,8 +148,9 @@ def test_detect_requested_turn_intents_prefers_active_page_intent_over_stale_sum
 
     input_variables = {
         "_runtime_intent_facts": {
-            "requested_intents": ["weather", "page_summary"],
-            "active_intent_kind": "page_navigation",
+            "requested_intents": ["weather", "page_workflow"],
+            "active_intent_kind": "page_workflow",
+            "page_workflow_goal": "navigation",
         }
     }
 
@@ -145,7 +160,7 @@ def test_detect_requested_turn_intents_prefers_active_page_intent_over_stale_sum
         input_variables=input_variables,
     )
 
-    assert intents == ["weather", "page_navigation"]
+    assert intents == ["weather", "page_workflow"]
 
 
 def test_detect_requested_turn_intents_uses_canonical_page_workflow_runtime_facts(
@@ -170,7 +185,7 @@ def test_detect_requested_turn_intents_uses_canonical_page_workflow_runtime_fact
         input_variables=input_variables,
     )
 
-    assert intents == ["weather", "page_navigation"]
+    assert intents == ["weather", "page_workflow"]
 
 
 def test_first_page_intent_kind_uses_runtime_intent_facts(
@@ -182,7 +197,10 @@ def test_first_page_intent_kind_uses_runtime_intent_facts(
     monkeypatch.setattr(IntentPlanner, "plan_turn", _fail_plan_turn)
 
     input_variables = {
-        "_runtime_intent_facts": {"active_intent_kind": "page_row_detail"}
+        "_runtime_intent_facts": {
+            "active_intent_kind": "page_workflow",
+            "page_workflow_goal": "row_detail",
+        }
     }
 
     assert (
@@ -191,7 +209,7 @@ def test_first_page_intent_kind_uses_runtime_intent_facts(
             tools=[ToolDefinition(name="ui_get_snapshot")],
             input_variables=input_variables,
         )
-        == "page_row_detail"
+        == "page_workflow"
     )
 
 
@@ -216,11 +234,11 @@ def test_first_page_intent_kind_uses_canonical_page_workflow_runtime_facts(
             tools=[ToolDefinition(name="ui_read_region")],
             input_variables=input_variables,
         )
-        == "page_row_detail"
+        == "page_workflow"
     )
 
 
-def test_first_page_workflow_goal_promotes_table_summary_over_stale_summary_metadata(
+def test_first_page_workflow_goal_preserves_canonical_page_summary_metadata(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     def _fail_plan_turn(*_args: object, **_kwargs: object) -> None:
@@ -241,7 +259,20 @@ def test_first_page_workflow_goal_promotes_table_summary_over_stale_summary_meta
             tools=[ToolDefinition(name="ui_read_table")],
             input_variables=input_variables,
         )
-        == "table_summary"
+        == "page_summary"
+    )
+
+
+def test_first_page_intent_kind_does_not_infer_from_colloquial_page_question() -> (
+    None
+):
+    assert (
+        first_page_intent_kind(
+            user_text="这里都有啥？",
+            tools=[ToolDefinition(name="ui_get_snapshot")],
+            input_variables={"page_context": {"page_key": "admin.ai.logs", "ui_epoch": 1}},
+        )
+        is None
     )
 
 
@@ -295,14 +326,14 @@ def test_collect_completed_turn_intents_uses_active_page_intent_over_stale_summa
         tools=[],
         input_variables={
             "_runtime_intent_facts": {
-                "requested_intents": ["page_summary"],
-                "active_intent_kind": "page_navigation",
+                "requested_intents": ["page_workflow"],
+                "active_intent_kind": "page_workflow",
+                "page_workflow_goal": "navigation",
             }
         },
     )
 
-    assert "page_summary" not in completed
-    assert "page_navigation" not in completed
+    assert "page_workflow" not in completed
 
 
 def test_collect_completed_turn_intents_keeps_navigation_pending_until_action_and_verify() -> (
@@ -332,13 +363,15 @@ def test_collect_completed_turn_intents_keeps_navigation_pending_until_action_an
                 {
                     **_intent_payload(
                         intent_id="intent-1",
-                        kind="page_navigation",
+                        kind="page_workflow",
                         family="page_ops",
                         order=1,
-                        label="page_navigation",
+                        label="page_workflow",
                         source_text="添加供应商",
                     ),
                     "metadata": {
+                        "page_workflow_kind": "page_workflow",
+                        "page_workflow_goal": "navigation",
                         "page_workflow_stage": "discover_navigation_target",
                     },
                 }
@@ -346,7 +379,7 @@ def test_collect_completed_turn_intents_keeps_navigation_pending_until_action_an
         },
     )
 
-    assert "page_navigation" not in completed
+    assert "page_workflow" not in completed
 
 
 def test_collect_completed_turn_intents_marks_navigation_complete_after_click_and_verify() -> (
@@ -383,13 +416,15 @@ def test_collect_completed_turn_intents_marks_navigation_complete_after_click_an
                 {
                     **_intent_payload(
                         intent_id="intent-1",
-                        kind="page_navigation",
+                        kind="page_workflow",
                         family="page_ops",
                         order=1,
-                        label="page_navigation",
+                        label="page_workflow",
                         source_text="添加供应商",
                     ),
                     "metadata": {
+                        "page_workflow_kind": "page_workflow",
+                        "page_workflow_goal": "navigation",
                         "page_workflow_stage": "discover_navigation_target",
                     },
                 }
@@ -397,7 +432,7 @@ def test_collect_completed_turn_intents_marks_navigation_complete_after_click_an
         },
     )
 
-    assert "page_navigation" in completed
+    assert "page_workflow" in completed
 
 
 def test_collect_completed_turn_intents_prefers_explicit_page_progress_over_snapshot_match() -> (
@@ -427,10 +462,10 @@ def test_collect_completed_turn_intents_prefers_explicit_page_progress_over_snap
                 {
                     **_intent_payload(
                         intent_id="intent-1",
-                        kind="page_navigation",
+                        kind="page_workflow",
                         family="page_ops",
                         order=1,
-                        label="page_navigation",
+                        label="page_workflow",
                         source_text="打开供应商页面",
                     ),
                     "metadata": {
@@ -447,7 +482,7 @@ def test_collect_completed_turn_intents_prefers_explicit_page_progress_over_snap
         },
     )
 
-    assert "page_navigation" not in completed
+    assert "page_workflow" not in completed
 
 
 def test_collect_completed_turn_intents_tracks_rail_fetch_evidence() -> None:

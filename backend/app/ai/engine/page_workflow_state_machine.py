@@ -24,22 +24,24 @@ _TABLE_SUMMARY_TERMS = (
     "表格",
 )
 _PAGE_WORKFLOW_KIND = "page_workflow"
-LEGACY_PAGE_WORKFLOW_GOALS: dict[str, str] = {
-    "page_summary": "page_summary",
-    "page_screenshot": "page_screenshot",
-    "page_navigation": "navigation",
-    "page_search": "search",
-    "page_pagination": "pagination",
-    "page_row_detail": "row_detail",
-    "page_form_read": "form_read",
-    "page_form_write": "form_write",
-    "page_editor_read": "editor_read",
-    "page_editor_write": "editor_write",
-}
-
-_LEGACY_PAGE_WORKFLOW_ALIAS_BY_GOAL = {
-    goal: alias for alias, goal in LEGACY_PAGE_WORKFLOW_GOALS.items()
-}
+_EDITOR_CONTEXT_TERMS = ("editor", "编辑器")
+_EDITOR_WRITE_TERMS = (
+    "标题",
+    "正文",
+    "content",
+    "text",
+    "html",
+    "替换",
+    "改写",
+    "追加",
+    "插入",
+    "更新",
+    "rewrite",
+    "replace",
+    "append",
+    "insert",
+    "update",
+)
 
 
 def _ordered_unique_tool_names(*groups: list[str]) -> list[str]:
@@ -64,6 +66,28 @@ def _looks_like_table_summary_request(user_text: str | None) -> bool:
     if not normalized:
         return False
     return any(term in normalized for term in _TABLE_SUMMARY_TERMS)
+
+
+def _looks_like_editor_write_request(
+    *,
+    user_text: str | None,
+    page_context: Mapping[str, Any],
+) -> bool:
+    normalized = _normalized_user_text(user_text)
+    if not normalized:
+        return False
+    active_form_summary = (
+        page_context.get("active_form_summary")
+        if isinstance(page_context.get("active_form_summary"), Mapping)
+        else {}
+    )
+    entity_name = str(active_form_summary.get("entity_name") or "").strip().lower()
+    if not (
+        any(term in entity_name for term in _EDITOR_CONTEXT_TERMS)
+        or any(term in normalized for term in _EDITOR_CONTEXT_TERMS)
+    ):
+        return False
+    return any(term in normalized for term in _EDITOR_WRITE_TERMS)
 
 
 @dataclass(frozen=True)
@@ -207,17 +231,7 @@ def resolve_page_workflow_goal(
         return metadata_goal
     if intent_kind == _PAGE_WORKFLOW_KIND:
         return "table_summary" if _looks_like_table_summary_request(user_text) else ""
-    legacy_goal = LEGACY_PAGE_WORKFLOW_GOALS.get(intent_kind, "")
-    if legacy_goal == "page_summary" and _looks_like_table_summary_request(user_text):
-        return "table_summary"
-    return legacy_goal
-
-
-def legacy_page_intent_kind_for_goal(workflow_goal: str) -> str:
-    normalized_goal = str(workflow_goal or "").strip()
-    if normalized_goal == "table_summary":
-        return "page_summary"
-    return _LEGACY_PAGE_WORKFLOW_ALIAS_BY_GOAL.get(normalized_goal, "")
+    return ""
 
 
 class PageWorkflowStateMachine:
@@ -306,6 +320,7 @@ class PageWorkflowStateMachine:
         intent_metadata: dict[str, Any] | None = None,
         user_text: str | None = None,
     ) -> PageIntentToolPlan:
+        page_context = page_context_payload(input_variables)
         workflow_state = cls.resolve_state(input_variables=input_variables)
 
         workflow_goal = resolve_page_workflow_goal(
@@ -313,6 +328,15 @@ class PageWorkflowStateMachine:
             intent_metadata=intent_metadata,
             user_text=user_text,
         )
+        if (
+            workflow_goal == "form_write"
+            and isinstance(page_context, Mapping)
+            and _looks_like_editor_write_request(
+                user_text=user_text,
+                page_context=page_context,
+            )
+        ):
+            workflow_goal = "editor_write"
 
         if workflow_goal in {"page_summary", "table_summary"}:
             table_like_summary = workflow_goal == "table_summary"
@@ -398,8 +422,8 @@ class PageWorkflowStateMachine:
             allowed_names = [
                 "ui_click",
                 "ui_fill_form",
-                "ui_set_field",
                 "ui_submit_form",
+                "ui_set_field",
                 "ui_read_table",
                 "ui_read_region",
                 "ui_list_interactables",
@@ -407,8 +431,8 @@ class PageWorkflowStateMachine:
             preferred_names = [
                 "ui_click",
                 "ui_fill_form",
-                "ui_set_field",
                 "ui_submit_form",
+                "ui_set_field",
                 "ui_read_table",
                 "ui_read_region",
                 "ui_list_interactables",
@@ -596,7 +620,6 @@ class PageWorkflowStateMachine:
                 "ui_click",
                 "ui_get_form_state",
                 "ui_fill_form",
-                "ui_set_field",
                 "ui_submit_form",
             ]
             return _plan(
@@ -606,7 +629,6 @@ class PageWorkflowStateMachine:
                     "ui_click",
                     "ui_get_form_state",
                     "ui_fill_form",
-                    "ui_set_field",
                     "ui_submit_form",
                     "ui_list_interactables",
                 ],
@@ -703,7 +725,5 @@ __all__ = [
     "PageIntentToolPlan",
     "PageWorkflowState",
     "PageWorkflowStateMachine",
-    "LEGACY_PAGE_WORKFLOW_GOALS",
-    "legacy_page_intent_kind_for_goal",
     "resolve_page_workflow_goal",
 ]

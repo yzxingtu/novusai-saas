@@ -22,18 +22,6 @@ _CAPABILITY_REPORTING_QUERY_TERMS = (
     "what can you do this turn",
     "what can you do",
 )
-_LEGACY_PAGE_WORKFLOW_GOALS: dict[str, str] = {
-    "page_summary": "page_summary",
-    "page_screenshot": "page_screenshot",
-    "page_navigation": "navigation",
-    "page_search": "search",
-    "page_pagination": "pagination",
-    "page_row_detail": "row_detail",
-    "page_form_read": "form_read",
-    "page_form_write": "form_write",
-    "page_editor_read": "editor_read",
-    "page_editor_write": "editor_write",
-}
 _PAGE_WORKFLOW_COMPLETION_SIGNAL_NAMES: dict[str, tuple[str, ...]] = {
     "page_summary": (
         "ui_get_snapshot",
@@ -219,7 +207,7 @@ def _page_workflow_goal(
     metadata_goal = str(metadata.get("page_workflow_goal") or "").strip()
     if metadata_goal:
         return metadata_goal
-    return _LEGACY_PAGE_WORKFLOW_GOALS.get(str(intent_kind or "").strip(), "")
+    return ""
 
 
 def _page_workflow_completion_mode(

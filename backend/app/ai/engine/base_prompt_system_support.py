@@ -49,7 +49,7 @@ from .system_prompt_helpers import (
 from .system_prompt_helpers import (
     is_capability_reporting_query as _is_capability_reporting_query_impl,
 )
-from .types import ExecutionBudget, IntentPlan, ResearchContinuationContext
+from .types import IntentPlan
 
 
 class BasePromptSystemSupportMixin:
@@ -61,32 +61,20 @@ class BasePromptSystemSupportMixin:
     def _inject_runtime_summary(
         messages: list[ChatMessage],
         tools: list[ToolDefinition],
-        _input_variables: dict[str, Any] | None = None,
-        continuation_context: ResearchContinuationContext | None = None,
         runtime_capability_summary: dict[str, Any] | None = None,
         ordered_requested_families: list[str] | None = None,
         skip_capability_summary: bool = False,
         intent_plan: list[IntentPlan] | None = None,
         execution_path: str | None = None,
-        execution_budget: ExecutionBudget | None = None,
-        include_knowledge_base_hint: bool = True,
-        include_page_context_hint: bool = True,
-        include_memory_hint: bool = True,
     ) -> bool:
         return _inject_runtime_summary_impl(
             messages=messages,
             tools=tools,
-            input_variables=_input_variables,
-            continuation_context=continuation_context,
             runtime_capability_summary=runtime_capability_summary,
             ordered_requested_families=ordered_requested_families,
             skip_capability_summary=skip_capability_summary,
             intent_plan=intent_plan,
             execution_path=execution_path,
-            execution_budget=execution_budget,
-            include_knowledge_base_hint=include_knowledge_base_hint,
-            include_page_context_hint=include_page_context_hint,
-            include_memory_hint=include_memory_hint,
             render_contract=render_prompt_contract,
         )
 

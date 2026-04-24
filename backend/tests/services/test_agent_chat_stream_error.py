@@ -1,4 +1,9 @@
-"""AgentChatService stream error persistence tests / 流式异常持久化测试。"""
+"""
+Test type: behavioral
+Scope: AgentChatService stream error persistence and terminal failure handling.
+Mock strategy: transport/session seams are mocked, while conversation-side
+stream persistence logic runs through the real persistence service.
+"""
 
 from __future__ import annotations
 
@@ -94,6 +99,37 @@ def _build_failed_result(
         prune_stats=None,
         tool_planner=None,
     )
+
+
+def _build_provider_timeout_result() -> ExecutionResult:
+    result = _build_failed_result(
+        output=_("ai.error.provider_timeout"),
+        error="Request timed out.",
+    )
+    result.completion_reason = "provider_timeout"
+    result.provider_failure_kind = "provider_timeout"
+    result.diagnostics = {
+        "failure_kind": "provider_timeout",
+        "protocol_path": "responses",
+        "final_output_source": "partial_output",
+    }
+    result.turn_record = {
+        "turn_outcome": "failed",
+        "termination_reason": "provider_timeout",
+        "protocol_path": "responses",
+        "failure_kind": "provider_timeout",
+        "final_output_source": "partial_output",
+        "metadata": {
+            "stream_failure_error_type": "ProviderTimeoutError",
+            "stream_failure_has_meaningful_chunk": False,
+        },
+    }
+    result.messages = [
+        {"role": "system", "content": "sys"},
+        {"role": "user", "content": "通过页面感知能力添加一个测试的智能体"},
+        {"role": "assistant", "content": result.output},
+    ]
+    return result
 
 
 def _build_success_result(
@@ -514,6 +550,138 @@ async def test_stream_on_complete_uses_interrupted_copy_for_cancelled_streams(
 
     error_payload = cb_conv_svc.message_repo.create.await_args_list[0].args[0]
     assert error_payload["content"] == _("ai.stream.error.interrupted")
+
+
+@pytest.mark.asyncio
+async def test_stream_on_complete_skips_error_message_for_transport_disconnect(
+    mock_db,
+):
+    service = await _build_stream_service(mock_db)
+    on_complete, _hook_registry = await _capture_on_complete(service, mock_db)
+
+    cb_db = AsyncMock()
+    cb_db.commit = AsyncMock()
+    cb_db.rollback = AsyncMock()
+    conversation = _build_conversation()
+    cb_conv_svc = MagicMock()
+    cb_conv_svc.repo.get_by_id = AsyncMock(return_value=conversation)
+    cb_conv_svc.message_repo.count_by_conversation = AsyncMock(return_value=1)
+    cb_conv_svc.message_repo.get_next_sequence = AsyncMock(return_value=2)
+    cb_conv_svc.message_repo.create = AsyncMock()
+    _attach_stream_persistence_contract(cb_conv_svc, cb_db)
+
+    with (
+        patch(
+            "app.services.ai.agent_chat_service.async_session_factory",
+            return_value=_SessionManager(cb_db),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.ConversationService",
+            return_value=cb_conv_svc,
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.AgentQuotaManager.adjust_usage",
+            new=AsyncMock(),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.AgentQuotaManager.record_user_usage",
+            new=AsyncMock(),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.AgentStatsManager.record_chat",
+            new=AsyncMock(),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.BaseEngine._publish_execution_failed",
+            new=AsyncMock(),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.BaseEngine._publish_execution_completed",
+            new=AsyncMock(),
+        ),
+    ):
+        disconnect_result = _build_failed_result(
+            error=(
+                "CancelledError: Cancelled via cancel scope 0xabc by <Task pending "
+                "name='Task-118' coro=<RequestResponseCycle.run_asgi()>>"
+            )
+        )
+        disconnect_result.interrupted = True
+        disconnect_result.completion_reason = "interrupted"
+        disconnect_result.diagnostics = {"transport_disconnect": True}
+        disconnect_result.turn_record = {
+            "transport_disconnect": True,
+            "metadata": {"transport_disconnect": True},
+        }
+        extra = await on_complete(disconnect_result)
+
+    assert extra is not None
+    assert extra["persisted_message_count"] == 0
+    assert cb_conv_svc.message_repo.create.await_count == 0
+    assert "last_error" not in conversation.metadata_
+
+
+@pytest.mark.asyncio
+async def test_stream_on_complete_skips_provider_timeout_terminal_copy_persistence(
+    mock_db,
+):
+    service = await _build_stream_service(mock_db)
+    on_complete, _hook_registry = await _capture_on_complete(service, mock_db)
+
+    cb_db = AsyncMock()
+    cb_db.commit = AsyncMock()
+    cb_db.rollback = AsyncMock()
+    conversation = _build_conversation()
+    cb_conv_svc = MagicMock()
+    cb_conv_svc.repo.get_by_id = AsyncMock(return_value=conversation)
+    cb_conv_svc.persist_chat_messages = AsyncMock(return_value=([], 1))
+    cb_conv_svc.update_stats = AsyncMock()
+    cb_conv_svc.message_repo.count_by_conversation = AsyncMock(return_value=1)
+    cb_conv_svc.message_repo.get_next_sequence = AsyncMock(return_value=2)
+    cb_conv_svc.message_repo.create = AsyncMock()
+    _attach_stream_persistence_contract(cb_conv_svc, cb_db)
+
+    with (
+        patch(
+            "app.services.ai.agent_chat_service.async_session_factory",
+            return_value=_SessionManager(cb_db),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.ConversationService",
+            return_value=cb_conv_svc,
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.AgentQuotaManager.adjust_usage",
+            new=AsyncMock(),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.AgentQuotaManager.record_user_usage",
+            new=AsyncMock(),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.AgentStatsManager.record_chat",
+            new=AsyncMock(),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.BaseEngine._publish_execution_failed",
+            new=AsyncMock(),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.BaseEngine._publish_execution_completed",
+            new=AsyncMock(),
+        ),
+        patch(
+            "app.services.ai.agent_chat_stream_persistence_orchestrator.logger"
+        ) as logger_mock,
+    ):
+        extra = await on_complete(_build_provider_timeout_result())
+
+    assert extra is not None
+    assert extra["persisted_message_count"] == 0
+    cb_conv_svc.persist_chat_messages.assert_not_awaited()
+    assert cb_conv_svc.message_repo.create.await_count == 0
+    logger_mock.warning.assert_not_called()
+    logger_mock.error.assert_not_called()
 
 
 @pytest.mark.asyncio

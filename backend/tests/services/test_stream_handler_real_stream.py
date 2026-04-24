@@ -1,4 +1,8 @@
-"""StreamExecutionHandler 真实流式行为测试 / Test."""
+"""
+Test type: behavioral
+Scope: StreamExecutionHandler real streaming behavior and terminal SSE semantics.
+Mock strategy: runtime flow stays real; only transport/external infra seams are faked.
+"""
 
 from __future__ import annotations
 
@@ -910,6 +914,81 @@ async def test_stream_handler_preserves_runtime_protocol_for_zero_chunk_provider
         event.get("delta", "") for event in events if event.get("event") == "message"
     )
     assert fallback_text
+
+
+@pytest.mark.asyncio
+async def test_stream_handler_cancelled_after_provider_timeout_preserves_timeout_done_reason() -> (
+    None
+):
+    from app.ai.engine.types import ExecutionResult
+
+    captured: list[ExecutionResult] = []
+    completed = asyncio.Event()
+
+    async def on_complete(result: ExecutionResult) -> None:
+        captured.append(result)
+        completed.set()
+
+    handler = _build_handler(_FakeEngine())
+    handler.on_complete = on_complete
+
+    async def _raise_cancelled_after_timeout():
+        handler._state.register_provider_failure(
+            kind="provider_timeout",
+            event={"kind": "provider_timeout", "protocol_path": "responses"},
+        )
+        raise asyncio.CancelledError("cancelled after provider timeout")
+
+    handler._run_with_turn_executor = _raise_cancelled_after_timeout
+
+    events: list[dict] = []
+    async for raw in handler.generate():
+        if raw.strip().startswith("data: {"):
+            events.append(_parse_sse_payload(raw))
+
+    await asyncio.wait_for(completed.wait(), timeout=1)
+
+    assert len(captured) == 1
+    result = captured[0]
+    assert result.interrupted is True
+    assert result.completion_reason == "provider_timeout"
+    assert result.provider_failure_kind == "provider_timeout"
+
+    done_payload = next(event for event in events if event.get("event") == "done")
+    assert done_payload["completion_reason"] == "provider_timeout"
+    assert done_payload["termination_reason"] == "provider_timeout"
+    assert not any(event.get("error") is True for event in events)
+
+    fallback_text = "".join(
+        event.get("delta", "") for event in events if event.get("event") == "message"
+    )
+    assert fallback_text.strip()
+
+
+@pytest.mark.asyncio
+async def test_stream_handler_provider_timeout_uses_low_noise_logging() -> None:
+    from app.ai.engine.types import ExecutionResult
+
+    captured: list[ExecutionResult] = []
+    completed = asyncio.Event()
+
+    async def on_complete(result: ExecutionResult) -> None:
+        captured.append(result)
+        completed.set()
+
+    handler = _build_handler(_BrokenProviderTimeoutEngine())
+    handler.on_complete = on_complete
+
+    with patch("app.ai.engine.stream_handler.logger") as logger_mock:
+        async for _raw in handler.generate():
+            pass
+
+    await asyncio.wait_for(completed.wait(), timeout=1)
+
+    assert len(captured) == 1
+    logger_mock.error.assert_not_called()
+    logger_mock.warning.assert_not_called()
+    logger_mock.info.assert_called()
 
 
 @pytest.mark.asyncio
@@ -2944,6 +3023,15 @@ async def test_handle_tool_calls_trims_unexecuted_tail_on_early_exit():
     assert [tc["id"] for tc in (assistant_round.tool_calls or [])] == [
         "call_snapshot",
     ]
+    canonical_tool_calls = handler._runtime_turn_record["metadata"][
+        "canonical_tool_calls"
+    ]
+    assert [tool_call["id"] for tool_call in canonical_tool_calls] == ["call_snapshot"]
+    assert canonical_tool_calls[0]["success"] is True
+    assert canonical_tool_calls[0]["output"] == (
+        '{"name": "ui_get_snapshot", "page_key": "tenant.crm.detail"}'
+    )
+    assert canonical_tool_calls[0]["function"]["name"] == "ui_get_snapshot"
     assert [msg.tool_call_id for msg in messages if msg.role == "tool"] == [
         "call_snapshot",
     ]
@@ -3023,11 +3111,12 @@ async def test_parse_error_abort_after_consecutive_ui_action_failures():
 @pytest.mark.asyncio
 async def test_interrupted_calls_on_complete_with_partial_result():
     """
-    中断（CancelledError）时 on_complete 应收到带 messages/output/tool_results 的 partial ExecutionResult。
+    中断（CancelledError）时 on_complete 应收到 partial ExecutionResult，且 SSE 以 interrupted done 收口。
     """
     from app.ai.engine.types import ExecutionResult
 
     captured: list[ExecutionResult] = []
+    events: list[dict] = []
 
     async def on_complete(result: ExecutionResult) -> None:
         captured.append(result)
@@ -3044,9 +3133,9 @@ async def test_interrupted_calls_on_complete_with_partial_result():
     handler = _build_handler(engine)
     handler.on_complete = on_complete
 
-    with pytest.raises(asyncio.CancelledError):
-        async for _ in handler.generate():
-            pass
+    async for raw in handler.generate():
+        if raw.strip().startswith("data: {"):
+            events.append(_parse_sse_payload(raw))
 
     if handler._background_tasks:
         await asyncio.wait_for(
@@ -3054,6 +3143,7 @@ async def test_interrupted_calls_on_complete_with_partial_result():
             timeout=1,
         )
 
+    done_payload = next(event for event in events if event.get("event") == "done")
     assert len(captured) == 1
     r = captured[0]
     assert r.partial is True
@@ -3061,8 +3151,96 @@ async def test_interrupted_calls_on_complete_with_partial_result():
     assert r.completion_reason == "interrupted"
     assert r.success is False
     assert r.output == "部"
-    # Should have messages (prep.messages passed through)
     assert r.messages is not None
+    assert done_payload["completion_reason"] == "interrupted"
+    assert done_payload["termination_reason"] == "interrupted"
+
+
+@pytest.mark.asyncio
+async def test_interrupted_without_visible_output_still_emits_readable_message():
+    """
+    无正文即被 CancelledError 中断时，仍要落成可读 interrupted 文案，而不是空白 assistant。
+    """
+    from app.ai.engine.types import ExecutionResult
+
+    captured: list[ExecutionResult] = []
+    completed = asyncio.Event()
+
+    async def on_complete(result: ExecutionResult) -> None:
+        captured.append(result)
+        completed.set()
+
+    handler = _build_handler(_FakeEngine())
+    handler.on_complete = on_complete
+
+    async def _raise_cancelled_without_output():
+        raise asyncio.CancelledError("simulated cancel before visible output")
+
+    handler._run_with_turn_executor = _raise_cancelled_without_output
+
+    events: list[dict] = []
+    async for raw in handler.generate():
+        if raw.strip().startswith("data: {"):
+            events.append(_parse_sse_payload(raw))
+
+    await asyncio.wait_for(completed.wait(), timeout=1)
+
+    done_payload = next(event for event in events if event.get("event") == "done")
+    fallback_text = "".join(
+        event.get("delta", "") for event in events if event.get("event") == "message"
+    ).strip()
+
+    assert len(captured) == 1
+    result = captured[0]
+    assert result.interrupted is True
+    assert result.completion_reason == "interrupted"
+    assert result.output.strip()
+    assert fallback_text
+    assert done_payload["completion_reason"] == "interrupted"
+    assert done_payload["termination_reason"] == "interrupted"
+
+
+@pytest.mark.asyncio
+async def test_transport_disconnect_cancel_does_not_synthesize_error_reply():
+    from app.ai.engine.types import ExecutionResult
+
+    captured: list[ExecutionResult] = []
+    completed = asyncio.Event()
+
+    async def on_complete(result: ExecutionResult) -> None:
+        captured.append(result)
+        completed.set()
+
+    handler = _build_handler(_FakeEngine())
+    handler.on_complete = on_complete
+
+    async def _raise_transport_disconnect_cancel():
+        raise asyncio.CancelledError(
+            "Cancelled via cancel scope 0xabc by <Task pending name='Task-118' "
+            "coro=<RequestResponseCycle.run_asgi() running at httptools_impl.py:416>>"
+        )
+
+    handler._run_with_turn_executor = _raise_transport_disconnect_cancel
+
+    events: list[dict] = []
+    async for raw in handler.generate():
+        if raw.strip().startswith("data: {"):
+            events.append(_parse_sse_payload(raw))
+
+    await asyncio.wait_for(completed.wait(), timeout=1)
+
+    assert len(captured) == 1
+    result = captured[0]
+    assert result.interrupted is True
+    assert result.output == ""
+    assert result.diagnostics["transport_disconnect"] is True
+    assert result.turn_record["transport_disconnect"] is True
+    assert result.turn_record["metadata"]["transport_disconnect"] is True
+    assert not any(event.get("event") == "message" for event in events)
+
+    done_payload = next(event for event in events if event.get("event") == "done")
+    assert done_payload["completion_reason"] == "interrupted"
+    assert done_payload["termination_reason"] == "interrupted"
 
 
 @pytest.mark.asyncio

@@ -442,6 +442,23 @@ class AuthService(AuthCaptchaVerificationMixin):
             captcha_provider_code=captcha_provider_code,
         )
 
+    async def authenticate_tenant_user_by_dev_bootstrap(
+        self,
+        bootstrap_secret: str,
+        *,
+        request_host: str | None,
+        username: str,
+        tenant_code: str,
+        client_ip: str | None = None,
+    ) -> dict[str, Any]:
+        return await self._tenant_user_domain.authenticate_by_dev_bootstrap(
+            bootstrap_secret=bootstrap_secret,
+            request_host=request_host,
+            username=username,
+            tenant_code=tenant_code,
+            client_ip=client_ip,
+        )
+
     async def _issue_tenant_user_tokens(
         self,
         user: TenantUser,

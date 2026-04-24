@@ -13,23 +13,11 @@ from app.ai.engine.system_prompt_helpers import (
     is_capability_reporting_query,
     resolve_capability_injection_decision,
 )
-from app.ai.engine.types import ExecutionBudget, IntentPlan, ResearchContinuationContext
+from app.ai.engine.types import IntentPlan
 from app.ai.runtime.types import TurnRecord
 from app.ai.tools.types import ToolDefinition
 from app.ai.types import ChatMessage
 from app.ai.utils.token_estimator import estimate_tokens
-
-
-def _sample_budget() -> ExecutionBudget:
-    return ExecutionBudget(
-        max_prompt_tokens=2000,
-        max_completion_tokens=800,
-        max_tool_rounds=4,
-        max_elapsed_ms=20000,
-        max_retry_per_intent=1,
-        max_candidate_tools=8,
-        max_tool_result_bytes=16000,
-    )
 
 
 def test_build_system_message_renders_identity_and_variables() -> None:
@@ -79,7 +67,6 @@ def test_inject_runtime_summary_is_idempotent_for_same_signature() -> None:
         tools=tools,
         intent_plan=intents,
         execution_path="normal",
-        execution_budget=_sample_budget(),
     )
     first_content = messages[0].content
     first_signature = (messages[0].metadata or {}).get("runtime_summary_signature")
@@ -89,7 +76,6 @@ def test_inject_runtime_summary_is_idempotent_for_same_signature() -> None:
         tools=tools,
         intent_plan=intents,
         execution_path="normal",
-        execution_budget=_sample_budget(),
     )
 
     assert injected_first is False
@@ -113,10 +99,10 @@ def test_inject_runtime_summary_omits_retired_runtime_narration() -> None:
     intents = [
         IntentPlan(
             intent_id="intent-1",
-            kind="page_search",
+            kind="page_workflow",
             family="page_ops",
             order=1,
-            user_visible_label="page_search",
+            user_visible_label="page_workflow",
             source_text="搜索当前页面中的记录",
             allowed_tool_names=["ui_click", "ui_read_table", "ui_list_interactables"],
             preferred_tool_names=[
@@ -124,56 +110,20 @@ def test_inject_runtime_summary_omits_retired_runtime_narration() -> None:
                 "ui_read_table",
                 "ui_list_interactables",
             ],
+            metadata={
+                "page_workflow_kind": "page_workflow",
+                "page_workflow_goal": "search",
+            },
         )
     ]
-    continuation = ResearchContinuationContext(
-        active=True,
-        family="web_research",
-        origin="continuation",
-        research_target_text="最新 AI 新闻",
-        recent_web_queries=["latest ai news"],
-        search_query_count=1,
-        fetched_url_count=0,
-        research_instruction_texts=["找最新来源"],
-    )
-
     inject_runtime_summary(
         messages=messages,
         tools=tools,
-        input_variables={
-            "page_context": {
-                "page_key": "admin.runtime.records",
-                "ui_epoch": 9,
-                "page_data": {
-                    "search_inputs": [
-                        {
-                            "locator": 'input[name="title"]',
-                            "label": "搜索记录标题",
-                            "placeholder": "搜索记录标题",
-                        }
-                    ],
-                    "visible_tables": [
-                        {
-                            "locator": '[data-testid="records-table"]',
-                            "label": "记录管理",
-                            "row_count": 12,
-                            "column_count": 6,
-                        }
-                    ],
-                },
-            }
-        },
-        continuation_context=continuation,
         runtime_capability_summary={
             "selected_skill_names": ["browser", "researcher"],
-            "context_line": "knowledge_base, memory, page_context",
-            "knowledge_base_hint": True,
-            "page_context_hint": True,
-            "memory_hint": True,
         },
         intent_plan=intents,
         execution_path="normal",
-        execution_budget=_sample_budget(),
     )
 
     content = messages[0].content
@@ -187,13 +137,13 @@ def test_inject_runtime_summary_omits_retired_runtime_narration() -> None:
     assert "Knowledge-base context is available this turn." not in content
     assert "Page context is available this turn." not in content
     assert "Memory context may already be attached this turn." not in content
-    assert "Path: normal" in content
-    assert "Intents: page_search" in content
+    assert "runtime.path=normal" in content
+    assert "runtime.intents=page_workflow" in content
     assert (
-        "Tools: web_search, fetch_url, ui_click, ui_read_table, "
+        "runtime.tools=web_search, fetch_url, ui_click, ui_read_table, "
         "ui_list_interactables" in content
     )
-    assert "Selected skills: browser, researcher." in content
+    assert "runtime.selected_skills=browser, researcher" in content
     assert estimate_tokens(content) - before_tokens <= 120
 
 
@@ -248,7 +198,7 @@ def test_base_engine_wrappers_delegate_to_extracted_helpers() -> None:
 def test_page_submit_completion_signals_follow_state_machine_contract() -> None:
     assert BaseEngine._intent_completion_signals(
         "page_ops",
-        intent_kind="page_form_write",
+        intent_kind="page_workflow",
         allowed_tool_names=[
             "ui_get_form_state",
             "ui_fill_form",
@@ -261,6 +211,8 @@ def test_page_submit_completion_signals_follow_state_machine_contract() -> None:
             "ui_submit_form",
         ],
         intent_metadata={
+            "page_workflow_kind": "page_workflow",
+            "page_workflow_goal": "form_write",
             "page_workflow_phase": "submit",
             "page_workflow_completion": {
                 "mode": "verify_only",

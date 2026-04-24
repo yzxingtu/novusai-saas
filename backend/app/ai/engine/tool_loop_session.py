@@ -14,6 +14,7 @@ from app.ai.types import ChatMessage, ChatResponse
 from app.core.logging import LogManager
 
 from .intent_plan_accessors import resolve_intent_plan_from_input_variables
+from .page_workflow_state_machine import resolve_page_workflow_goal
 from .types import ExecutionBudget, ResearchContinuationContext, ToolUsePolicy
 
 logger = LogManager.get_logger("ai.engine")
@@ -178,9 +179,39 @@ def _target_page_recovery_intent(
 ) -> Any | None:
     normalized_workflow_goal = str(workflow_goal or "").strip()
 
+    def _historical_page_workflow_goal_from_legacy_intent_kind(value: Any) -> str:
+        # HISTORICAL_READ_FALLBACK: older stored intent plans may still carry
+        # legacy page_* kinds without canonical page_workflow_* metadata.
+        return {
+            "page_summary": "page_summary",
+            "table_summary": "table_summary",
+            "page_navigation": "navigation",
+            "page_search": "search",
+            "page_pagination": "pagination",
+            "page_row_detail": "row_detail",
+            "page_form_read": "form_read",
+            "page_form_write": "form_write",
+            "page_editor_read": "editor_read",
+            "page_editor_write": "editor_write",
+            "page_screenshot": "page_screenshot",
+        }.get(str(value or "").strip(), "")
+
     def _intent_workflow_goal(intent: Any) -> str:
         metadata = dict(getattr(intent, "metadata", {}) or {})
-        return str(metadata.get("page_workflow_goal") or "").strip()
+        workflow_goal_value = str(
+            resolve_page_workflow_goal(
+                intent_kind=str(getattr(intent, "kind", "") or "").strip(),
+                intent_metadata=metadata,
+                user_text=str(getattr(intent, "source_text", "") or "").strip()
+                or None,
+            )
+            or ""
+        ).strip()
+        if workflow_goal_value:
+            return workflow_goal_value
+        return _historical_page_workflow_goal_from_legacy_intent_kind(
+            getattr(intent, "kind", ""),
+        )
 
     unfinished = [
         intent
@@ -363,43 +394,11 @@ def append_ordered_progress_hint(
         str | None,
     ],
 ) -> None:
-    if len(session.ordered_requested_families) <= 1:
-        return
-    if not session.completed_families:
-        return
-    remaining_families = [
-        family
-        for family in session.ordered_requested_families
-        if family not in session.completed_families
-    ]
-    if not remaining_families:
-        return
-    done_names = [
-        family
-        for family in session.ordered_requested_families
-        if family in session.completed_families
-    ]
-    hint_key = f"{'->'.join(done_names)}|{'->'.join(remaining_families)}"
-    if hint_key in session.issued_progress_hint_keys:
-        return
-    session.issued_progress_hint_keys.add(hint_key)
-    hint = build_ordered_capability_hint(
-        session.ordered_requested_families,
-        list(all_tools or session.all_tools_full),
-        input_variables,
-    )
-    if not hint:
-        return
-    messages.append(
-        ChatMessage(
-            role="system",
-            content=(
-                f"{hint}\n"
-                f"Completed families: {', '.join(done_names)}.\n"
-                f"Next family to prioritize: {remaining_families[0]}."
-            ),
-        )
-    )
+    # Retired prompt-narration seam: multi-family follow-up focus is now owned
+    # by tool subset selection and runtime intent metadata, not by injecting a
+    # fresh system hint between rounds.
+    _ = session, messages, all_tools, input_variables, build_ordered_capability_hint
+    return
 
 
 def apply_round_recovery_and_focus(

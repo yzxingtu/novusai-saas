@@ -74,3 +74,97 @@ def test_build_agent_base_item_filters_deleted_and_inactive_skills():
     item = build_agent_base_item(agent)
 
     assert item["skills"] == [{"id": 10, "name": "active"}]
+
+
+def test_build_agent_base_item_includes_skill_package_summary():
+    package = SimpleNamespace(id=7, name="Research Pack")
+    skill = SimpleNamespace(
+        id=10,
+        name="Search",
+        package=package,
+        package_id=7,
+        type="toolkit",
+        is_deleted=False,
+        is_active=True,
+    )
+    agent = SimpleNamespace(
+        id=1,
+        tenant_id=None,
+        name="agent-with-package",
+        avatar=None,
+        description=None,
+        status="published",
+        scope="admin_only",
+        execution_mode="conversation",
+        is_system=False,
+        published_version=None,
+        welcome_message=None,
+        suggested_questions=None,
+        input_variables=[],
+        created_at=None,
+        updated_at=None,
+        model=None,
+        skill_grants=[SimpleNamespace(skill=skill, is_deleted=False, enabled=True)],
+    )
+
+    item = build_agent_base_item(agent)
+
+    assert item["skills"] == [
+        {
+            "id": 10,
+            "name": "Search",
+            "package_id": 7,
+            "package_name": "Research Pack",
+            "type": "toolkit",
+        }
+    ]
+
+
+def test_build_agent_base_item_includes_enabled_knowledge_base_summary():
+    knowledge_base = SimpleNamespace(id=21, name="FAQ 库", is_deleted=False)
+    disabled_knowledge_base = SimpleNamespace(id=22, name="旧库", is_deleted=False)
+    agent = SimpleNamespace(
+        id=1,
+        tenant_id=None,
+        name="agent-with-kb",
+        avatar=None,
+        description=None,
+        status="published",
+        scope="admin_only",
+        execution_mode="conversation",
+        is_system=False,
+        published_version=None,
+        welcome_message=None,
+        suggested_questions=None,
+        input_variables=[],
+        created_at=None,
+        updated_at=None,
+        model=None,
+        skill_grants=[],
+        kb_bindings=[
+            SimpleNamespace(
+                knowledge_base=knowledge_base,
+                knowledge_base_id=21,
+                is_deleted=False,
+                enabled=True,
+            ),
+            SimpleNamespace(
+                knowledge_base=disabled_knowledge_base,
+                knowledge_base_id=22,
+                is_deleted=False,
+                enabled=False,
+            ),
+        ],
+    )
+
+    item = build_agent_base_item(agent)
+
+    assert item["knowledge_base_ids"] == [21]
+    assert item["knowledge_bases"] == [
+        {
+            "enabled": True,
+            "knowledge_base_id": 21,
+            "kb_name": "FAQ 库",
+            "name": "FAQ 库",
+        }
+    ]

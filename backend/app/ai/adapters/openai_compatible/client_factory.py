@@ -7,9 +7,14 @@ from urllib.parse import urlparse
 
 from openai import AsyncOpenAI
 
+_DEFAULT_OPENAI_MAX_RETRIES = 0
+
 
 def build_openai_client(*, api_key: str, base_url: str | None) -> AsyncOpenAI:
-    kwargs: dict[str, Any] = {"api_key": api_key}
+    kwargs: dict[str, Any] = {
+        "api_key": api_key,
+        "max_retries": _DEFAULT_OPENAI_MAX_RETRIES,
+    }
     if base_url:
         kwargs["base_url"] = base_url
     return AsyncOpenAI(**kwargs)
@@ -44,6 +49,10 @@ def resolve_retry_client(
     if cached_client is not None and cached_base_url == retry_base_url:
         return cached_client, cached_base_url
     return (
-        AsyncOpenAI(api_key=api_key, base_url=retry_base_url),
+        AsyncOpenAI(
+            api_key=api_key,
+            base_url=retry_base_url,
+            max_retries=_DEFAULT_OPENAI_MAX_RETRIES,
+        ),
         retry_base_url,
     )

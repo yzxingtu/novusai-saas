@@ -62,6 +62,15 @@ def test_parse_arguments_repairs_bare_page_locator_object() -> None:
     assert args == {"table_locator": "div >:nth-of-type(2)"}
 
 
+def test_parse_arguments_repairs_quoted_bare_page_locator_object() -> None:
+    args, err = ToolCallProcessor.parse_arguments(
+        '"{\\"region_locator: 智能体管理}"'
+    )
+
+    assert err is None
+    assert args == {"region_locator": "智能体管理"}
+
+
 def test_embedded_quotes() -> None:
     """DeepSeek may embed unescaped quotes inside string values."""
     raw = '{"data": {"name": "她叫"小喵"的猫", "age": 3}}'

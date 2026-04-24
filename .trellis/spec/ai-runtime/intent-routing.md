@@ -23,9 +23,9 @@ Produce explicit, ordered intents before tool routing or context injection.
 - `web_research` for external search.
 - `time_query` and `weather_query` for tool families that are explicitly
 available.
-- `page_*` intents for page operations under the `page_ops` family. The current
-set includes summary, navigation, search, form read or write, editor read or
-write, pagination, row detail, and screenshot operations.
+- `page_workflow` for page operations under the `page_ops` family. Historical
+`page_*` kinds are bounded read-path aliases during migration only; live
+routing truth is `page_workflow` plus `IntentPlan.metadata.page_workflow_*`.
 
 ## Routing Rules
 
@@ -33,8 +33,9 @@ write, pagination, row detail, and screenshot operations.
 and page context are known.
 - Split user input into clauses and emit intents ordered by clause position.
 - If no intent signal is found, return a single `direct_reply` intent.
-- When a page continuation context is active, route to `page_*` intents and
-suppress `knowledge_query` or `web_research` signals from the same clause.
+- When a page continuation context is active, route to `page_workflow` with
+collapsed workflow metadata and suppress `knowledge_query` or `web_research`
+signals from the same clause.
 - Action-style page continuations such as `点击一下添加供应商`, `单击`, or
   `click` must override a prior read-only page intent and route to
   `page_navigation`; continuation inheritance must not pin those clauses to

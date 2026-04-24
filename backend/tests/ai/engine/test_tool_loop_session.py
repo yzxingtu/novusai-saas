@@ -1,7 +1,14 @@
+"""Test type: behavioral
+Scope: tool-loop recovery projection and retired progress-hint behavior.
+Mocked dependencies: none.
+"""
+
 from app.ai.engine.tool_loop_session import (
     ToolLoopSession,
+    append_ordered_progress_hint,
     apply_round_recovery_and_focus,
     build_tool_loop_session,
+    project_page_recovery_into_runtime_intent_plan,
 )
 from app.ai.engine.types import ToolUsePolicy
 from app.ai.tools.types import ToolDefinition, ToolResult
@@ -10,6 +17,42 @@ from app.ai.types import ChatMessage, ChatResponse
 
 def _tool(name: str) -> ToolDefinition:
     return ToolDefinition(name=name, description=name)
+
+
+class _IntentStub:
+    def __init__(
+        self,
+        *,
+        intent_id: str,
+        kind: str,
+        family: str = "page_ops",
+        status: str = "pending",
+        metadata: dict | None = None,
+        source_text: str = "",
+    ) -> None:
+        self.intent_id = intent_id
+        self.kind = kind
+        self.family = family
+        self.status = status
+        self.metadata = dict(metadata or {})
+        self.source_text = source_text
+        self.allowed_tool_names: list[str] = []
+        self.preferred_tool_names: list[str] = []
+        self.cached_result = None
+        self.completed_by_tool_names: list[str] = []
+
+    def to_dict(self) -> dict:
+        return {
+            "intent_id": self.intent_id,
+            "kind": self.kind,
+            "family": self.family,
+            "status": self.status,
+            "metadata": dict(self.metadata),
+            "source_text": self.source_text,
+            "allowed_tool_names": list(self.allowed_tool_names),
+            "preferred_tool_names": list(self.preferred_tool_names),
+            "completed_by_tool_names": list(self.completed_by_tool_names),
+        }
 
 
 def test_apply_round_recovery_and_focus_freezes_page_subset_without_system_hint() -> (
@@ -232,3 +275,96 @@ def test_build_tool_loop_session_uses_prepared_runtime_intent_plan() -> None:
     )
 
     assert session.ordered_requested_families == ["page_ops", "web_research"]
+
+
+def test_append_ordered_progress_hint_is_retired_noop() -> None:
+    session = ToolLoopSession(
+        current_response=ChatResponse(
+            message=ChatMessage(role="assistant", content="done")
+        ),
+        tools_full=[_tool("ui_get_snapshot"), _tool("web_search")],
+        all_tools_full=[_tool("ui_get_snapshot"), _tool("web_search")],
+        effective_policy=ToolUsePolicy(),
+        ordered_requested_families=["page_ops", "web_research"],
+        has_fetch_url_in_toolset=False,
+        total_tokens=0,
+        completion_tokens_used=0,
+        tracked_tool_rounds=0,
+        tracked_tool_result_bytes=0,
+        completed_families={"page_ops"},
+    )
+    messages = [ChatMessage(role="user", content="先看当前页面，再查一下官网")]
+
+    append_ordered_progress_hint(
+        session=session,
+        messages=messages,
+        all_tools=session.all_tools_full,
+        input_variables={"page_context": {"page_key": "synthetic.runtime.records"}},
+        build_ordered_capability_hint=lambda *_args: "Use the next tool family.",
+    )
+
+    assert [message.role for message in messages] == ["user"]
+    assert session.issued_progress_hint_keys == set()
+
+
+def test_project_page_recovery_targets_canonical_workflow_goal_before_legacy_kind() -> (
+    None
+):
+    navigation_intent = _IntentStub(
+        intent_id="intent-nav",
+        kind="page_navigation",
+        metadata={"page_workflow_goal": "navigation"},
+        source_text="打开供应商页面",
+    )
+    search_intent = _IntentStub(
+        intent_id="intent-search",
+        kind="page_search",
+        metadata={"page_workflow_goal": "search"},
+        source_text="搜索发票",
+    )
+    input_variables: dict[str, object] = {}
+
+    project_page_recovery_into_runtime_intent_plan(
+        intent_plan=[navigation_intent, search_intent],
+        input_variables=input_variables,
+        recovery_diagnostics={
+            "page_workflow_kind": "page_workflow",
+            "page_workflow_goal": "search",
+            "page_workflow_progress": {
+                "status": "needs_retry",
+                "continuation_required": True,
+            },
+        },
+        recovery_tool_names=["ui_read_region"],
+    )
+
+    assert navigation_intent.allowed_tool_names == []
+    assert search_intent.allowed_tool_names == ["ui_read_region"]
+    assert search_intent.metadata["page_workflow_goal"] == "search"
+
+
+def test_project_page_recovery_uses_legacy_kind_only_as_bounded_fallback() -> None:
+    legacy_navigation_intent = _IntentStub(
+        intent_id="intent-nav",
+        kind="page_navigation",
+        metadata={},
+        source_text="打开供应商页面",
+    )
+    input_variables: dict[str, object] = {}
+
+    project_page_recovery_into_runtime_intent_plan(
+        intent_plan=[legacy_navigation_intent],
+        input_variables=input_variables,
+        recovery_diagnostics={
+            "page_workflow_kind": "page_workflow",
+            "page_workflow_goal": "navigation",
+            "page_workflow_progress": {
+                "status": "needs_retry",
+                "continuation_required": True,
+            },
+        },
+        recovery_tool_names=["ui_click"],
+    )
+
+    assert legacy_navigation_intent.allowed_tool_names == ["ui_click"]
+    assert legacy_navigation_intent.metadata["page_workflow_goal"] == "navigation"

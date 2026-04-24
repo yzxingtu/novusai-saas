@@ -12,29 +12,21 @@ from app.ai.tools.types import ToolDefinition
 from app.ai.types import ChatMessage
 
 from .system_prompt_capability_hints import build_runtime_capability_hint
-from .types import ExecutionBudget, IntentPlan, ResearchContinuationContext
+from .types import IntentPlan, ResearchContinuationContext
 
 
 def inject_runtime_summary(
     *,
     messages: list[ChatMessage],
     tools: list[ToolDefinition],
-    input_variables: dict[str, Any] | None = None,
-    continuation_context: ResearchContinuationContext | None = None,
     runtime_capability_summary: dict[str, Any] | None = None,
     ordered_requested_families: list[str] | None = None,
     skip_capability_summary: bool = False,
     intent_plan: list[IntentPlan] | None = None,
     execution_path: str | None = None,
-    execution_budget: ExecutionBudget | None = None,
-    include_knowledge_base_hint: bool = True,
-    include_page_context_hint: bool = True,
-    include_memory_hint: bool = True,
     render_contract: Callable[..., str] = render_prompt_contract,
 ) -> bool:
     """Inject a compact one-shot runtime summary into the first system message."""
-    del input_variables, continuation_context
-
     if not messages or messages[0].role != "system":
         return False
 
@@ -51,24 +43,12 @@ def inject_runtime_summary(
         execution_path=execution_path or "fast",
         intent_summary=intent_summary,
         allowed_tools=", ".join(allowed_tool_names) or "none",
-        prompt_budget=(
-            execution_budget.max_prompt_tokens if execution_budget is not None else 0
-        ),
-        tool_round_budget=(
-            execution_budget.max_tool_rounds if execution_budget is not None else 0
-        ),
-        elapsed_budget_ms=(
-            execution_budget.max_elapsed_ms if execution_budget is not None else 0
-        ),
     )
 
     capability_summary_injected = False
     if not skip_capability_summary:
         runtime_capability_hint = build_runtime_capability_hint(
             runtime_capability_summary=runtime_capability_summary,
-            include_knowledge_base_hint=include_knowledge_base_hint,
-            include_page_context_hint=include_page_context_hint,
-            include_memory_hint=include_memory_hint,
             render_contract=render_contract,
         )
         if runtime_capability_hint:
@@ -81,9 +61,6 @@ def inject_runtime_summary(
                 "tools": allowed_tool_names,
                 "intent_summary": intent_summary,
                 "execution_path": execution_path or "fast",
-                "budget": (
-                    execution_budget.snapshot() if execution_budget is not None else None
-                ),
                 "selected_skill_names": list(
                     dict(runtime_capability_summary or {}).get("selected_skill_names")
                     or []

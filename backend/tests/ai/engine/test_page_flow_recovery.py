@@ -389,6 +389,36 @@ def test_build_page_no_progress_recovery_for_table_summary_request() -> None:
     assert diagnostics["workflow_goal"] == "table_summary"
 
 
+def test_build_page_no_progress_recovery_promotes_runtime_page_summary_to_table_summary() -> (
+    None
+):
+    preferred_tool_names, diagnostics = BaseEngine._build_page_no_progress_recovery(  # noqa: SLF001
+        messages=[ChatMessage(role="user", content="列出这个表格前5条标题和时间")],
+        tool_calls=[
+            {
+                "id": "call_1",
+                "type": "function",
+                "function": {"name": "ui_get_snapshot", "arguments": "{}"},
+            }
+        ],
+        tool_results=[_snapshot_result()],
+        tools=_page_tools(),
+        input_variables={
+            **_build_input_variables_without_form(),
+            "_runtime_intent_facts": {
+                "active_intent_kind": "page_workflow",
+                "page_workflow_goal": "page_summary",
+            },
+        },
+    )
+
+    assert preferred_tool_names == [
+        "ui_read_table",
+        "ui_read_region",
+    ]
+    _assert_page_workflow_metadata(diagnostics, "table_summary")
+
+
 def test_build_page_no_progress_recovery_skips_generic_page_summary_turn() -> None:
     preferred_tool_names, diagnostics = _recover("读一下当前页面有什么")
 

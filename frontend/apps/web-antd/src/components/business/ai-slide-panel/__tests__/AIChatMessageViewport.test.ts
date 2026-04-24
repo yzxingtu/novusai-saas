@@ -256,7 +256,9 @@ describe('aiChatMessageViewport', () => {
     });
 
     expect(ensureAgentKnowledgeBases).toHaveBeenCalledWith(9);
-    expect(wrapper.get('[data-testid="kb-probe"]').attributes('data-agent-id')).toBe('9');
+    expect(
+      wrapper.get('[data-testid="kb-probe"]').attributes('data-agent-id'),
+    ).toBe('9');
     expect(
       wrapper.get('[data-testid="kb-probe"]').attributes('data-has-map-entry'),
     ).toBe('true');
@@ -426,8 +428,50 @@ describe('aiChatMessageViewport', () => {
 
     expect(wrapper.findAll('.sticky button')).toHaveLength(0);
     expect(
-      wrapper.find('button[aria-label="common.globalAiChat.scrollToTop"]').exists(),
+      wrapper
+        .find('button[aria-label="common.globalAiChat.scrollToTop"]')
+        .exists(),
     ).toBe(false);
+  });
+
+  it('keeps pending approval chrome visible without exposing raw operation args', () => {
+    const wrapper = mount(AIChatMessageViewport, {
+      props: {
+        apiPrefix: '/tenant',
+        chatMessages: [],
+        countdownNow: 61_000,
+        getPendingOpsForMessage: () => [],
+        getRichTextDraftState: () => null,
+        unassociatedPendingOps: [
+          {
+            allowed: false,
+            invokeId: 'op-redact',
+            operationDescription: 'apply the change',
+            operationLabel: 'Update record',
+            params: {
+              internal_note: 'secretValue',
+              recordId: 42,
+            },
+            resolved: false,
+            startedAt: 1_000,
+          },
+        ],
+      },
+      global: {
+        stubs: {
+          ChatMessageItem: defineComponent({
+            name: 'ChatMessageItemStub',
+            template: '<div />',
+          }),
+        },
+      },
+    });
+
+    expect(wrapper.text()).toContain('Update record');
+    expect(wrapper.text()).toContain('apply the change');
+    expect(wrapper.text()).not.toContain('common.globalAiChat.args');
+    expect(wrapper.text()).not.toContain('secretValue');
+    expect(wrapper.find('details').exists()).toBe(false);
   });
 
   it('keeps canonical turnFlow payload intact while stripping legacy display fields', () => {

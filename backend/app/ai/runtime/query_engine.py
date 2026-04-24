@@ -24,7 +24,7 @@ from app.ai.runtime.tool_executor import ToolExecutor
 from app.ai.runtime.types import ContextSource, ProtocolPath, TurnRecord
 from app.ai.types import ChatChunk, ChatMessage, ChatResponse
 
-_SYNC_RESCUE_MAX_ATTEMPTS = 3
+_SYNC_RESCUE_MAX_ATTEMPTS = 1
 _SYNC_RESCUE_RETRY_BASE_DELAY_SECONDS = 0.5
 _SYNC_RESCUE_REASONING_EFFORT = "low"
 _PAGE_UI_TIMEOUT_SECONDS = 12.0
@@ -101,23 +101,22 @@ class ConversationQueryEngine:
         )
 
     @classmethod
-    def _apply_page_ui_latency_guards(cls, command: TurnCommand) -> TurnCommand:
-        if not cls._command_uses_page_ui_tools(command):
-            return command
-
+    def _apply_runtime_execution_guards(cls, command: TurnCommand) -> TurnCommand:
         extra_kwargs = dict(command.extra_kwargs or {})
         changed = False
-
-        if extra_kwargs.get("timeout") is None and extra_kwargs.get(
-            "timeout_seconds"
-        ) is None:
-            extra_kwargs["timeout_seconds"] = _PAGE_UI_TIMEOUT_SECONDS
-            changed = True
 
         if extra_kwargs.get(_RUNTIME_CLIENT_MAX_RETRIES_OVERRIDE_KEY) is None:
             extra_kwargs[_RUNTIME_CLIENT_MAX_RETRIES_OVERRIDE_KEY] = (
                 _PAGE_UI_CLIENT_MAX_RETRIES
             )
+            changed = True
+
+        if (
+            cls._command_uses_page_ui_tools(command)
+            and extra_kwargs.get("timeout") is None
+            and extra_kwargs.get("timeout_seconds") is None
+        ):
+            extra_kwargs["timeout_seconds"] = _PAGE_UI_TIMEOUT_SECONDS
             changed = True
 
         if not changed:
@@ -324,7 +323,7 @@ class ConversationQueryEngine:
             context_sources=context_sources,
             extra_kwargs=extra_kwargs,
         )
-        command = self._apply_page_ui_latency_guards(session.command)
+        command = self._apply_runtime_execution_guards(session.command)
         self.turn_record = session.turn_record
         last_error: Exception | None = None
         for index, protocol in enumerate(session.plan.protocol_chain):
@@ -436,7 +435,7 @@ class ConversationQueryEngine:
             context_sources=context_sources,
             extra_kwargs=extra_kwargs,
         )
-        command = self._apply_page_ui_latency_guards(session.command)
+        command = self._apply_runtime_execution_guards(session.command)
         self.turn_record = session.turn_record
         emitted_chunk_count = 0
 
@@ -511,6 +510,11 @@ class ConversationQueryEngine:
                     reason=failure_reason,
                 ):
                     continue
+                if self.recovery_policy.should_skip_sync_rescue_after_stream_error(
+                    stream_exc.cause
+                ):
+                    session.mark_failed()
+                    raise stream_exc.cause from stream_exc
                 session.turn_record.metadata["sync_rescue_attempted"] = True
                 try:
                     rescue_chunk = await self._attempt_sync_rescue_chunk(

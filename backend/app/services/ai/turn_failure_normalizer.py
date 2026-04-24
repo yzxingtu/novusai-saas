@@ -6,8 +6,6 @@ import re
 from collections.abc import Mapping
 from typing import Any
 
-from app.ai.engine.page_workflow_state_machine import legacy_page_intent_kind_for_goal
-
 _ERROR_TERMINATION_REASONS = frozenset(
     {
         "error",
@@ -36,6 +34,7 @@ _BUDGET_TERMINATION_REASONS = frozenset(
 )
 _NO_FAILURE_KINDS = frozenset({"none"})
 _TRUSTED_FINAL_OUTPUT_SOURCES = frozenset({"assistant", "recovery_evidence"})
+_INTERRUPTION_TERMINATION_REASONS = frozenset({"interrupted", "partial"})
 _GENERIC_FAILURE_TERMINATION_REASONS = frozenset(
     {"error", "failed", "terminal_failure"}
 )
@@ -58,11 +57,8 @@ _FAILURE_TERMINATION_BY_KIND = {
     "tool_execution_error": "tool_error",
     "server_interrupt": "interrupted",
 }
-_PAGE_WORKFLOW_GOAL_ALIASES = {
-    "page_workflow": "",
+_BOUNDED_HISTORICAL_PAGE_WORKFLOW_GOAL_ALIASES = {
     "page_read": "page_summary",
-    "page_summary": "page_summary",
-    "page_screenshot": "page_screenshot",
     "page_navigation": "navigation",
     "page_search": "search",
     "page_pagination": "pagination",
@@ -276,9 +272,6 @@ def normalize_failure_termination_reason(
 ) -> str | None:
     reason = _as_text(termination_reason)
     normalized_reason = (reason or "").strip().lower()
-    if reason and normalized_reason not in _GENERIC_FAILURE_TERMINATION_REASONS:
-        return reason
-
     normalized_budget_exit_reason = _as_text(budget_exit_reason)
     if normalized_budget_exit_reason:
         return normalized_budget_exit_reason
@@ -286,9 +279,18 @@ def normalize_failure_termination_reason(
     normalized_failure_kind = infer_failure_kind_from_diagnostics(
         {"failure_kind": failure_kind}
     ) or normalize_failure_kind(failure_kind)
-    if not normalized_failure_kind:
+    mapped_failure_reason = (
+        _FAILURE_TERMINATION_BY_KIND.get(normalized_failure_kind, reason)
+        if normalized_failure_kind
+        else None
+    )
+    if normalized_failure_kind and normalized_reason in _INTERRUPTION_TERMINATION_REASONS:
+        return mapped_failure_reason
+    if reason and normalized_reason not in _GENERIC_FAILURE_TERMINATION_REASONS:
         return reason
-    return _FAILURE_TERMINATION_BY_KIND.get(normalized_failure_kind, reason)
+    if mapped_failure_reason:
+        return mapped_failure_reason
+    return reason
 
 
 def normalize_turn_outcome(value: Any) -> str | None:
@@ -324,12 +326,33 @@ def derive_completed_tool_names(intent_plan: Any) -> list[str]:
     return names
 
 
-def _normalize_page_workflow_goal(value: Any) -> str | None:
+def _normalize_page_workflow_goal(
+    value: Any,
+    *,
+    allow_historical_alias_read_fallback: bool = False,
+) -> str | None:
     token = (_as_text(value) or "").strip().lower()
     if not token:
         return None
-    normalized = _PAGE_WORKFLOW_GOAL_ALIASES.get(token, token)
+    normalized = token
+    if allow_historical_alias_read_fallback:
+        normalized = _BOUNDED_HISTORICAL_PAGE_WORKFLOW_GOAL_ALIASES.get(
+            normalized,
+            normalized,
+        )
     return normalized or None
+
+
+def _historical_page_workflow_goal_from_kind(value: Any) -> str | None:
+    token = (_as_text(value) or "").strip().lower()
+    if not token or token == "page_workflow":
+        return None
+    if token == "page_summary" or token == "page_screenshot" or token.startswith("page_"):
+        return _normalize_page_workflow_goal(
+            token,
+            allow_historical_alias_read_fallback=True,
+        )
+    return None
 
 
 def _page_workflow_context_candidate(
@@ -343,13 +366,14 @@ def _page_workflow_context_candidate(
 
     metadata = _as_dict(normalized.get("metadata"))
     intent_id = _as_text(normalized.get("intent_id"))
-    intent_kind = _as_text(normalized.get("kind") or normalized.get("intent"))
-    workflow_goal = _normalize_page_workflow_goal(
+    original_intent_kind = _as_text(normalized.get("kind") or normalized.get("intent"))
+    raw_workflow_goal = _as_text(
         metadata.get("page_workflow_goal") or normalized.get("page_workflow_goal")
     )
-    if not workflow_goal and intent_kind:
-        workflow_goal = _PAGE_WORKFLOW_GOAL_ALIASES.get(intent_kind.lower()) or None
-    intent_kind_alias = legacy_page_intent_kind_for_goal(workflow_goal or "") or intent_kind
+    workflow_goal = _normalize_page_workflow_goal(
+        raw_workflow_goal,
+        allow_historical_alias_read_fallback=True,
+    )
     workflow_phase = _as_text(
         metadata.get("page_workflow_phase") or normalized.get("page_workflow_phase")
     )
@@ -360,13 +384,29 @@ def _page_workflow_context_candidate(
         metadata.get("page_workflow_progress")
         or normalized.get("page_workflow_progress")
     )
+    workflow_kind = _as_text(
+        metadata.get("page_workflow_kind") or normalized.get("page_workflow_kind")
+    )
+    has_page_workflow_metadata = bool(
+        workflow_kind
+        or raw_workflow_goal
+        or workflow_phase
+        or workflow_stage
+        or workflow_progress
+    )
+    historical_workflow_goal = None
+    if not has_page_workflow_metadata:
+        historical_workflow_goal = _historical_page_workflow_goal_from_kind(
+            original_intent_kind
+        )
     family = _as_text(normalized.get("family")) or default_family
     if family != "page_ops" and (
         workflow_goal
         or workflow_phase
         or workflow_stage
         or workflow_progress
-        or _normalize_page_workflow_goal(intent_kind)
+        or workflow_kind
+        or historical_workflow_goal
     ):
         family = "page_ops"
 
@@ -376,25 +416,29 @@ def _page_workflow_context_candidate(
         or workflow_phase
         or workflow_stage
         or workflow_progress
+        or workflow_kind
+        or historical_workflow_goal
     )
     if not is_page_ops:
         return {}
 
-    return {
+    canonical_intent_kind = workflow_kind or "page_workflow"
+    candidate = {
         "intent_id": intent_id,
         "family": family or "page_ops",
-        "intent_kind": intent_kind,
-        "intent_kind_alias": intent_kind_alias,
-        "goal": workflow_goal,
+        "intent_kind": canonical_intent_kind,
+        "goal": workflow_goal or historical_workflow_goal,
         "phase": workflow_phase,
         "stage": workflow_stage,
         "progress": workflow_progress,
-        "summary_like": bool(workflow_goal in _PAGE_SUMMARY_WORKFLOW_GOALS),
-        "has_metadata": bool(
-            workflow_goal or workflow_phase or workflow_stage or workflow_progress
+        "summary_like": bool(
+            (workflow_goal or historical_workflow_goal)
+            in _PAGE_SUMMARY_WORKFLOW_GOALS
         ),
+        "has_metadata": has_page_workflow_metadata,
         "is_page_ops": True,
     }
+    return candidate
 
 
 def extract_page_workflow_context(

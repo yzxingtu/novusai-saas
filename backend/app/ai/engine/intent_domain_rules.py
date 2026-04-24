@@ -18,9 +18,6 @@ from app.ai.engine.intent_domain_rules_terms import (
     _MEMORY_SAVE_TERMS,
     _NO_TOOL_REQUEST_TERMS,
     _NO_WEB_TERMS,
-    _PAGE_POINTER_TERMS,
-    _PAGE_SEARCH_QUALIFIER_TERMS,
-    _PAGE_SEARCH_TERMS,
     _TIME_TERMS,
     _WEATHER_ENGLISH_LOCATION_RE,
     _WEATHER_LOCATION_SUFFIX_RE,
@@ -110,6 +107,25 @@ _KNOWLEDGE_QUERY_PROFILE = (
     "what is explain introduce tell me about knowledge base document policy definition",
     "是什么 介绍一下 讲讲 说说 说明一下 科普一下 文档 资料 政策",
 )
+_EXPLICIT_KB_REFERENCE_RE = re.compile(
+    r"(?:知识库|knowledge base|\bkb\b)",
+    re.IGNORECASE,
+)
+_KNOWLEDGE_EXPLICIT_REFERENCE_TERMS = (
+    "根据",
+    "基于",
+    "结合",
+    "参考",
+    "引用",
+    "概括",
+    "总结",
+    "归纳",
+    "summarize",
+    "summary",
+    "based on",
+    "using",
+    "from the knowledge base",
+)
 _KNOWLEDGE_WEB_PREFIX_RE = re.compile(
     r"^(?:联网|上网)?\s*(?:查一下|查下|搜索一下|搜索|搜一下|搜一搜|搜搜|look up|search(?: online)?)\s*",
     re.IGNORECASE,
@@ -158,22 +174,7 @@ class IntentDomainRules:
         ) and any(tool in lowered for tool in _TOOL_INVOCATION_ASSERTION_TOOL_TERMS)
 
     @classmethod
-    def looks_like_page_search_request(cls, lowered: str) -> bool:
-        explicit_page_search = _first_position(lowered, _PAGE_SEARCH_TERMS) >= 0
-        if explicit_page_search:
-            return True
-        if "搜索" not in lowered and "搜" not in lowered and "查找" not in lowered:
-            return False
-        has_page_reference = (
-            _first_position(lowered, _PAGE_POINTER_TERMS + _PAGE_SEARCH_QUALIFIER_TERMS)
-            >= 0
-        )
-        return has_page_reference
-
-    @classmethod
     def generic_web_search_position(cls, lowered: str) -> int:
-        if cls.looks_like_page_search_request(lowered):
-            return -1
         if mentions_weather(lowered) and not any(
             token in lowered for token in (*_WEB_NOUN_TERMS, "官网", "链接", "网址")
         ):
@@ -183,12 +184,6 @@ class IntentDomainRules:
             _WEB_RESEARCH_PROFILE,
             min_score=1,
         )
-
-    @classmethod
-    def news_like_web_search_position(cls, lowered: str) -> int:
-        if cls.looks_like_page_search_request(lowered):
-            return -1
-        return _first_position(lowered, _WEB_NOUN_TERMS)
 
     @staticmethod
     def explicit_url(clause: str) -> str | None:
@@ -207,19 +202,7 @@ class IntentDomainRules:
     def explicitly_forbids_web_search(cls, lowered: str) -> bool:
         if not lowered:
             return False
-        if _SEARCH_ONLY_NO_WEB_RE.search(lowered):
-            return True
-        return any(
-            term in lowered
-            for term in (
-                "不要联网搜索",
-                "不联网搜索",
-                "不用联网搜索",
-                "无需联网搜索",
-                "不要搜索",
-                "不用搜索",
-            )
-        )
+        return _SEARCH_ONLY_NO_WEB_RE.search(lowered) is not None
 
     @classmethod
     def explicitly_forbids_all_web_access(cls, lowered: str) -> bool:
@@ -427,6 +410,19 @@ class IntentDomainRules:
         if position >= 0:
             return position
 
+        lowered = str(clause or "").strip().lower()
+        kb_reference = _EXPLICIT_KB_REFERENCE_RE.search(lowered)
+        if kb_reference and (
+            any(term in lowered for term in _KNOWLEDGE_EXPLICIT_REFERENCE_TERMS)
+            or _semantic_profile_position(
+                lowered,
+                _KNOWLEDGE_QUERY_PROFILE,
+                min_score=1,
+            )
+            >= 0
+        ):
+            return kb_reference.start()
+
         cleaned = _KNOWLEDGE_WEB_PREFIX_RE.sub("", str(clause or "").strip())
         if cleaned != str(clause or "").strip():
             position = cls.definition_like_knowledge_query_position(cleaned)
@@ -437,7 +433,6 @@ class IntentDomainRules:
                 mapped = lowered_original.find(matched)
                 return mapped if mapped >= 0 else position
 
-        lowered = str(clause or "").strip().lower()
         if not lowered or not cls.is_question_like_clause(lowered):
             return -1
         normalized_question = re.sub(r"[\s？?!.。]+", "", lowered)
@@ -541,23 +536,30 @@ class IntentDomainRules:
             lowered,
             explicit_url=explicit_url,
         )
+        explicit_kb_reference = _EXPLICIT_KB_REFERENCE_RE.search(lowered) is not None
+        knowledge_query_position = (
+            cls.knowledge_query_position(clause)
+            if cls.has_bound_kb(capability_bundle)
+            else -1
+        )
+        explicit_generic_web_search = "联网" in lowered or "上网" in lowered
         fetch_only_request = bool(explicit_url) or explicit_fetch_url_request
         if not forbids_all_web_access and "web_research" in families:
             if weather_position >= 0 and "weather" not in families:
-                    signals.append(
-                        _IntentSignal(
-                            "web_research",
-                            "web_research",
-                            "weather_web_research",
-                            offset + weather_position,
-                            metadata={"routing_mode": "structured_semantic"},
-                        )
+                signals.append(
+                    _IntentSignal(
+                        "web_research",
+                        "web_research",
+                        "weather_web_research",
+                        offset + weather_position,
+                        metadata={"routing_mode": "structured_semantic"},
                     )
+                )
+            generic_web_search_position = cls.generic_web_search_position(lowered)
             position_candidates = [
                 candidate
                 for candidate in (
-                    cls.news_like_web_search_position(lowered),
-                    cls.generic_web_search_position(lowered),
+                    generic_web_search_position,
                     lowered.find("fetch_url"),
                     explicit_url_position,
                 )
@@ -578,7 +580,14 @@ class IntentDomainRules:
                     and "weather" not in families
                     and not any(term in lowered for term in _WEB_NOUN_TERMS)
                 )
-                if not suppress_generic_weather_fallback:
+                suppress_explicit_kb_web_fallback = (
+                    explicit_kb_reference
+                    and knowledge_query_position >= 0
+                    and not explicit_url
+                    and not explicit_fetch_url_request
+                    and not explicit_generic_web_search
+                )
+                if not suppress_generic_weather_fallback and not suppress_explicit_kb_web_fallback:
                     metadata: dict[str, Any] = {}
                     if explicit_url:
                         metadata["explicit_url"] = explicit_url
@@ -604,7 +613,7 @@ class IntentDomainRules:
             has_memory_signal = any(
                 signal.kind in {"memory_save", "memory_recall"} for signal in signals
             )
-            position = cls.knowledge_query_position(clause)
+            position = knowledge_query_position
             if position >= 0 and not has_memory_signal:
                 signals.append(
                     _IntentSignal(

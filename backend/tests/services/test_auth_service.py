@@ -471,6 +471,92 @@ class TestTenantAdminDevBootstrap:
             )
 
 
+class TestTenantUserDevBootstrap:
+    """开发环境 tenant user bootstrap 测试 / Dev bootstrap tests for tenant user."""
+
+    @pytest.mark.asyncio
+    async def test_dev_bootstrap_success(self, mock_db, monkeypatch):
+        from app.core.config import settings
+        from app.services.common.auth_service import AuthService
+
+        tenant = _make_tenant(code="acme")
+        tenant_user = _make_tenant_user(username="e2e_user", tenant_id=tenant.id)
+        mock_db.execute.side_effect = [
+            make_scalar_result(tenant),
+            make_scalar_result(tenant_user),
+        ]
+        service = AuthService(mock_db)
+
+        monkeypatch.setattr(settings, "APP_ENV", "development", raising=False)
+        monkeypatch.setattr(
+            settings, "DEV_BOOTSTRAP_AUTH_ENABLED", True, raising=False
+        )
+        monkeypatch.setattr(
+            settings, "DEV_BOOTSTRAP_ALLOWED_HOSTS", "localhost,.local", raising=False
+        )
+        monkeypatch.setattr(
+            settings,
+            "DEV_TENANT_USER_BOOTSTRAP_SECRET",
+            "dev-tenant-user-secret",
+            raising=False,
+        )
+
+        with (
+            patch.object(service, "_record_active_tokens", new_callable=AsyncMock),
+            patch(
+                "app.services.common.auth_service.create_token_pair",
+                return_value={
+                    "access_token": "tenant_user_access",
+                    "refresh_token": "tenant_user_refresh",
+                    "access_jti": "tenant_user_access_jti",
+                    "refresh_jti": "tenant_user_refresh_jti",
+                    "token_type": "bearer",
+                },
+            ),
+        ):
+            result = await service.authenticate_tenant_user_by_dev_bootstrap(
+                "dev-tenant-user-secret",
+                request_host="acme.app.local",
+                username="e2e_user",
+                tenant_code="acme",
+                client_ip="127.0.0.1",
+            )
+
+        assert result["access_token"] == "tenant_user_access"
+        assert result["refresh_token"] == "tenant_user_refresh"
+        assert tenant_user.last_login_ip == "127.0.0.1"
+
+    @pytest.mark.asyncio
+    async def test_dev_bootstrap_rejects_wrong_secret(self, mock_db, monkeypatch):
+        from app.core.config import settings
+        from app.exceptions import AuthenticationException
+        from app.services.common.auth_service import AuthService
+
+        service = AuthService(mock_db)
+
+        monkeypatch.setattr(settings, "APP_ENV", "development", raising=False)
+        monkeypatch.setattr(
+            settings, "DEV_BOOTSTRAP_AUTH_ENABLED", True, raising=False
+        )
+        monkeypatch.setattr(
+            settings, "DEV_BOOTSTRAP_ALLOWED_HOSTS", "localhost", raising=False
+        )
+        monkeypatch.setattr(
+            settings,
+            "DEV_TENANT_USER_BOOTSTRAP_SECRET",
+            "dev-tenant-user-secret",
+            raising=False,
+        )
+
+        with pytest.raises(AuthenticationException):
+            await service.authenticate_tenant_user_by_dev_bootstrap(
+                "wrong-secret",
+                request_host="localhost",
+                username="e2e_user",
+                tenant_code="acme",
+            )
+
+
 class TestChangePassword:
     """密码修改测试 / Test."""
 

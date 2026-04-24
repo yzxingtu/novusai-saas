@@ -190,6 +190,7 @@ def build_execution_result(
             diagnostics_payload=diagnostics_payload,
             turn_record=turn_record_payload,
             rag_sources=rag_sources,
+            tool_results=tool_results,
             output=turn_flow_output,
             completion_reason=completion_reason,
             interrupted=interrupted,

@@ -183,7 +183,7 @@ export async function submitRuntimeForm(args: { confirm?: boolean; formSessionId
   awareness or selection logic.
 - When a `web_research` intent is pinned to an explicit external URL, route it
   directly to `fetch_url` when available instead of preferring `web_search`.
-- `page_form_write` routing must be runtime-state aware: when no active form session exists, expose discovery/open tools (`ui_list_interactables`, `ui_open_surface`, `ui_click`) before form mutation tools so the model can find and open the create/edit surface first; when an active form exists, prioritize form read/write tools instead.
+- `page_workflow_goal=form_write` routing must be runtime-state aware: when no active form session exists, expose discovery/open tools (`ui_list_interactables`, `ui_open_surface`, `ui_click`) before form mutation tools so the model can find and open the create/edit surface first; when an active form exists, prioritize form read/write tools instead.
 - Page-intent routing must project explicit workflow metadata into the live
   intent plan. `IntentPlan.metadata` is the canonical seam for
   `page_workflow_stage`, `page_workflow_phase`, `page_workflow_goal`,
@@ -191,12 +191,13 @@ export async function submitRuntimeForm(args: { confirm?: boolean; formSessionId
   recovery, and contract-breach checks must all consume that same metadata
   contract instead of re-inferring page progress from prompt hints or keeping
   a second stage table.
-- `page_navigation` and `page_row_detail` must distinguish
-  discover/open/verify phases using canonical UI runtime facts such as
+- `page_workflow_goal=navigation` and `page_workflow_goal=row_detail` must
+  distinguish discover/open/verify phases using canonical UI runtime facts such as
   `active_surface_id`, `surface_stack`, surface kind, and overlay presence.
   Opening or clicking a surface is not by itself the completion signal when the
   workflow stage still requires a follow-up read or verification step.
-- `page_editor_write` follows the same owner rule as `page_form_write`: once
+- `page_workflow_goal=editor_write` follows the same owner rule as
+  `page_workflow_goal=form_write`: once
   the active editor/form stage is `ready_to_submit`, completion must be gated
   on `ui_submit_form` rather than treating `ui_fill_form` as turn-complete.
 - Web-search orchestration stays separate from generic provider chat logic.

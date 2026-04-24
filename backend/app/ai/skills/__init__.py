@@ -8,11 +8,9 @@ Converts Skill (user-facing management unit) to ToolDefinition (LLM-facing calli
 from app.ai.skills.resolver import (
     SkillResolver,
     SkillResolveResult,
-    TurnSkillActivation,
 )
 
 __all__ = [
     "SkillResolver",
     "SkillResolveResult",
-    "TurnSkillActivation",
 ]

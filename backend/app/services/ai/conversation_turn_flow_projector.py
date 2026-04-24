@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from app.services.ai.conversation_diagnostics_projector import (
@@ -58,6 +59,10 @@ _HOSTED_SEARCH_INTENT_MARKERS = (
     "research",
     "联网",
     "检索",
+)
+_LEGACY_TOOL_CALLS_METADATA_KEYS = (
+    "canonical_tool_calls",
+    "canonicalToolCalls",
 )
 
 
@@ -464,13 +469,20 @@ def _map_source_kind(raw_kind: Any) -> str:
         return "web"
     if kind in {"knowledge", "knowledge_base", "kb", "formal_kb"}:
         return "knowledge_base"
-    if kind in {"page", "page_read", "page_write", "page_runtime"}:
+    if kind == "page":
         return "page"
     if kind in {"memory", "long_term_memory", "session_memory"}:
         return "memory"
     if kind in {"tool", "tool_call"}:
         return "tool"
     return "knowledge_base"
+
+
+def _map_legacy_source_kind(raw_kind: Any) -> str:
+    kind = str(raw_kind or "").strip().lower()
+    if kind in {"page_read", "page_write", "page_runtime"}:
+        return "page"
+    return _map_source_kind(raw_kind)
 
 
 def _normalize_timeline_item(item: Any) -> dict[str, Any] | None:
@@ -533,20 +545,38 @@ def _is_untrusted_final_output_failure(
     )
 
 
+def _has_safe_untrusted_fallback_output(*sources: Any) -> bool:
+    for source in sources:
+        payload = dict(source) if isinstance(source, dict) else {}
+        if not payload:
+            continue
+        if bool(payload.get("untrusted_final_output_fallback_applied")) or bool(
+            payload.get("stripped_untrusted_final_output")
+        ):
+            return True
+    return False
+
+
 def _resolve_failure_text_content_fallback(
     *,
     text_content: str | None,
     terminal_status: str,
     failure_kind: str | None,
     final_output_source: str | None,
+    safe_untrusted_fallback_output: bool = False,
 ) -> str | None:
     if terminal_status not in {"error", "interrupted"}:
         return text_content
     if _is_untrusted_final_output_failure(
         failure_kind=failure_kind,
         final_output_source=final_output_source,
-    ):
+    ) and not safe_untrusted_fallback_output:
         return None
+    if _is_untrusted_final_output_failure(
+        failure_kind=failure_kind,
+        final_output_source=final_output_source,
+    ):
+        return text_content
     return text_content
 
 
@@ -657,7 +687,7 @@ def _normalize_evidence_item(item: Any) -> dict[str, Any] | None:
     evidence_id = _to_non_empty_str(item.get("id"))
     if not evidence_id:
         return None
-    return {
+    payload = {
         "id": evidence_id,
         "kind": _map_source_kind(item.get("kind")),
         "title": _to_non_empty_str(item.get("title")) or "Source",
@@ -668,6 +698,346 @@ def _normalize_evidence_item(item: Any) -> dict[str, Any] | None:
         "tool_call_id": _to_non_empty_str(item.get("tool_call_id")),
         "source_ref": _to_non_empty_str(item.get("source_ref")),
     }
+    if payload["kind"] != "tool":
+        return payload
+
+    arguments_value = _normalize_tool_call_arguments(
+        item.get("arguments")
+        if item.get("arguments") is not None
+        else (
+            dict(item.get("function"))
+            if isinstance(item.get("function"), dict)
+            else {}
+        ).get("arguments")
+    )
+    if arguments_value is not None:
+        payload["arguments"] = arguments_value
+
+    optional_fields = {
+        "display_name": _to_non_empty_str(item.get("display_name")),
+        "duration_ms": _normalize_optional_int(item.get("duration_ms")),
+        "error": _to_non_empty_str(item.get("error")),
+        "error_type": _to_non_empty_str(item.get("error_type")),
+        "output": _to_non_empty_str(item.get("output")),
+        "result_link": _to_non_empty_str(item.get("result_link"))
+        or payload["url"],
+        "skill_name": _to_non_empty_str(item.get("skill_name")),
+        "skill_type": _to_non_empty_str(item.get("skill_type")),
+        "started_at": _normalize_optional_int(item.get("started_at")),
+        "status": _to_non_empty_str(item.get("status")),
+        "summary_payload": (
+            dict(item.get("summary_payload"))
+            if isinstance(item.get("summary_payload"), dict)
+            else None
+        ),
+        "tool_name": _to_non_empty_str(item.get("tool_name")) or payload["source_ref"],
+    }
+    for key, value in optional_fields.items():
+        if value is not None:
+            payload[key] = value
+    return payload
+
+
+def _normalize_tool_call_arguments(value: Any) -> dict[str, Any] | None:
+    if isinstance(value, dict):
+        return dict(value)
+    raw = _to_non_empty_str(value)
+    if not raw:
+        return None
+    try:
+        parsed = json.loads(raw)
+    except (TypeError, ValueError):
+        return {"raw": raw}
+    if isinstance(parsed, dict):
+        return dict(parsed)
+    return {"raw": raw}
+
+
+def _resolve_tool_calls(tool_calls: Any) -> list[dict[str, Any]]:
+    resolved: list[dict[str, Any]] = []
+    if not isinstance(tool_calls, list):
+        return resolved
+    resolved.extend(dict(item) for item in tool_calls if isinstance(item, dict))
+    return resolved
+
+
+def _resolve_legacy_tool_calls(metadata: dict[str, Any] | None) -> list[dict[str, Any]]:
+    resolved: list[dict[str, Any]] = []
+
+    def _extend(candidate: Any) -> None:
+        if not isinstance(candidate, list):
+            return
+        resolved.extend(dict(item) for item in candidate if isinstance(item, dict))
+
+    metadata_payload = dict(metadata) if isinstance(metadata, dict) else {}
+    turn_record = ConversationDiagnosticsProjector.normalize_turn_record_payload(
+        metadata_payload.get("turn_record")
+    )
+    turn_record_payload = dict(turn_record or {}) if isinstance(turn_record, dict) else {}
+    turn_record_metadata = (
+        dict(turn_record_payload.get("metadata") or {})
+        if isinstance(turn_record_payload.get("metadata"), dict)
+        else {}
+    )
+
+    for key in _LEGACY_TOOL_CALLS_METADATA_KEYS:
+        _extend(metadata_payload.get(key))
+        _extend(turn_record_payload.get(key))
+        _extend(turn_record_metadata.get(key))
+        for metadata_key in ("orchestration", "turn_diagnostics"):
+            nested = turn_record_metadata.get(metadata_key)
+            if isinstance(nested, dict):
+                _extend(nested.get(key))
+
+    return resolved
+
+
+def _build_tool_evidence_from_tool_call(
+    call: dict[str, Any],
+    index: int,
+) -> dict[str, Any] | None:
+    call_id = _to_non_empty_str(call.get("id")) or f"tool_{index + 1}"
+    tool_name = _to_non_empty_str(call.get("name")) or _to_non_empty_str(
+        (
+            dict(call.get("function"))
+            if isinstance(call.get("function"), dict)
+            else {}
+        ).get("name")
+    )
+    display_name = _to_non_empty_str(call.get("display_name"))
+    summary = _to_non_empty_str(call.get("summary"))
+    result_link = _to_non_empty_str(call.get("result_link"))
+    output = _to_non_empty_str(call.get("output"))
+    if not (tool_name or display_name or summary or result_link or output):
+        return None
+
+    payload: dict[str, Any] = {
+        "id": f"ev_tool_{call_id}",
+        "kind": "tool",
+        "title": display_name or tool_name or f"Tool {index + 1}",
+        "url": result_link,
+        "snippet": summary,
+        "badge": _to_non_empty_str(call.get("error_type")),
+        "score": None,
+        "tool_call_id": call_id,
+        "source_ref": tool_name or call_id,
+        "tool_name": tool_name or call_id,
+        "status": "success" if call.get("success") else "error",
+    }
+
+    arguments_value = _normalize_tool_call_arguments(
+        call.get("arguments")
+        if call.get("arguments") is not None
+        else (
+            dict(call.get("function"))
+            if isinstance(call.get("function"), dict)
+            else {}
+        ).get("arguments")
+    )
+    if arguments_value is not None:
+        payload["arguments"] = arguments_value
+
+    optional_fields = {
+        "display_name": display_name,
+        "duration_ms": _normalize_optional_int(call.get("duration_ms")),
+        "error": _to_non_empty_str(call.get("error")),
+        "error_type": _to_non_empty_str(call.get("error_type")),
+        "output": output,
+        "result_link": result_link,
+        "skill_name": _to_non_empty_str(call.get("skill_name")),
+        "skill_type": _to_non_empty_str(call.get("skill_type")),
+        "started_at": _normalize_optional_int(call.get("started_at")),
+        "summary_payload": (
+            dict(call.get("summary_payload"))
+            if isinstance(call.get("summary_payload"), dict)
+            else None
+        ),
+    }
+    for key, value in optional_fields.items():
+        if value is not None:
+            payload[key] = value
+    return payload
+
+
+def _build_context_source_evidence(
+    source: dict[str, Any],
+    index: int,
+) -> dict[str, Any] | None:
+    source_metadata = (
+        dict(source.get("metadata") or {})
+        if isinstance(source.get("metadata"), dict)
+        else {}
+    )
+    kind = _map_source_kind(
+        source.get("kind")
+        or source_metadata.get("kind")
+        or source_metadata.get("source_kind")
+    )
+    if kind == "tool":
+        return None
+    source_ref = _to_non_empty_str(
+        source_metadata.get("source_ref")
+        or source_metadata.get("chunk_id")
+        or source_metadata.get("id")
+        or source.get("name")
+    )
+    evidence_id = source_ref or f"ev_context_{index + 1}"
+    title = _to_non_empty_str(
+        source_metadata.get("title")
+        or source.get("name")
+        or source_metadata.get("name")
+        or source_metadata.get("source")
+        or source_metadata.get("chunk_id")
+    ) or f"Source {index + 1}"
+    return {
+        "id": evidence_id,
+        "kind": kind,
+        "title": title,
+        "url": _to_non_empty_str(
+            source_metadata.get("url") or source_metadata.get("source_url")
+        ),
+        "snippet": _to_non_empty_str(
+            source_metadata.get("snippet")
+            or source_metadata.get("content")
+            or source_metadata.get("summary")
+        ),
+        "badge": _to_non_empty_str(
+            source_metadata.get("badge") or source_metadata.get("label")
+        ),
+        "score": _normalize_optional_float(source_metadata.get("score")),
+        "tool_call_id": None,
+        "source_ref": source_ref,
+    }
+
+
+def _build_legacy_rag_evidence(
+    source: dict[str, Any],
+    index: int,
+) -> dict[str, Any]:
+    return {
+        "id": _to_non_empty_str(source.get("source_ref") or source.get("chunk_id"))
+        or f"ev_rag_{index + 1}",
+        "kind": _map_legacy_source_kind(source.get("kind") or source.get("source_kind")),
+        "title": _to_non_empty_str(
+            source.get("title")
+            or source.get("source")
+            or source.get("name")
+            or source.get("chunk_id")
+        )
+        or f"Source {index + 1}",
+        "url": _to_non_empty_str(source.get("url") or source.get("source_url")),
+        "snippet": _to_non_empty_str(source.get("snippet") or source.get("content")),
+        "badge": _to_non_empty_str(source.get("badge")),
+        "score": _normalize_optional_float(source.get("score")),
+        "tool_call_id": None,
+        "source_ref": _to_non_empty_str(source.get("source_ref") or source.get("chunk_id")),
+    }
+
+
+def _evidence_identity(item: dict[str, Any]) -> str:
+    kind = _to_non_empty_str(item.get("kind")) or "knowledge_base"
+    if kind == "tool":
+        return (
+            f"tool:{_to_non_empty_str(item.get('tool_call_id'))}"
+            or f"tool:{_to_non_empty_str(item.get('tool_name'))}"
+            or f"tool:{_to_non_empty_str(item.get('source_ref'))}"
+            or f"tool:{_to_non_empty_str(item.get('id'))}"
+        )
+    return (
+        f"{kind}:{_to_non_empty_str(item.get('url'))}"
+        or f"{kind}:{_to_non_empty_str(item.get('source_ref'))}"
+        or f"{kind}:{_to_non_empty_str(item.get('id'))}"
+    )
+
+
+def _merge_evidence_item(current: dict[str, Any], incoming: dict[str, Any]) -> dict[str, Any]:
+    merged = dict(current)
+    for key, value in incoming.items():
+        if value is None:
+            continue
+        existing = merged.get(key)
+        if existing in (None, "", [], {}):
+            merged[key] = value
+    return merged
+
+
+def _merge_missing_evidence(
+    existing: list[dict[str, Any]],
+    supplemental: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    merged = [dict(item) for item in existing]
+    indexed = {_evidence_identity(item): index for index, item in enumerate(merged)}
+    for item in supplemental:
+        key = _evidence_identity(item)
+        existing_index = indexed.get(key)
+        if existing_index is None:
+            indexed[key] = len(merged)
+            merged.append(dict(item))
+            continue
+        merged[existing_index] = _merge_evidence_item(merged[existing_index], item)
+    return merged
+
+
+def _supplement_evidence_from_tool_calls(
+    evidence: list[dict[str, Any]],
+    tool_calls: Any,
+) -> list[dict[str, Any]]:
+    if not isinstance(tool_calls, list) or not tool_calls:
+        return evidence
+    supplemental = [
+        item
+        for index, raw_call in enumerate(tool_calls)
+        if isinstance(raw_call, dict)
+        for item in [_build_tool_evidence_from_tool_call(raw_call, index)]
+        if item is not None
+    ]
+    if not supplemental:
+        return evidence
+    return _merge_missing_evidence(evidence, supplemental)
+
+
+def _ensure_timeline_refs(
+    timeline: list[dict[str, Any]],
+    *,
+    evidence: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    if not timeline or not evidence:
+        return timeline
+    tool_call_ids = [
+        tool_call_id
+        for tool_call_id in (
+            _to_non_empty_str(item.get("tool_call_id"))
+            for item in evidence
+            if _map_source_kind(item.get("kind")) == "tool"
+        )
+        if tool_call_id
+    ]
+    source_refs = [
+        evidence_id
+        for evidence_id in (
+            _to_non_empty_str(item.get("id"))
+            for item in evidence
+            if _map_source_kind(item.get("kind")) != "tool"
+        )
+        if evidence_id
+    ]
+    stabilized: list[dict[str, Any]] = []
+    for stage in timeline:
+        next_stage = dict(stage)
+        if (
+            next_stage.get("type") == "tool_execution"
+            and not _normalize_string_list(next_stage.get("tool_call_ids"))
+            and tool_call_ids
+        ):
+            next_stage["tool_call_ids"] = list(tool_call_ids)
+        if (
+            next_stage.get("type") == "retrieval"
+            and not _normalize_string_list(next_stage.get("source_refs"))
+            and source_refs
+        ):
+            next_stage["source_refs"] = list(source_refs)
+        stabilized.append(next_stage)
+    return stabilized
 
 
 def _normalize_evidence(value: Any) -> list[dict[str, Any]]:
@@ -760,11 +1130,13 @@ class ConversationTurnFlowProjector:
         final_output_source: str | None = None,
         metadata: dict[str, Any] | None = None,
         content: Any = None,
+        tool_calls: Any = None,
     ) -> dict[str, Any] | None:
         raw_payload = _resolve_canonical_turn_flow_payload(raw, metadata=metadata)
         if raw_payload is None:
             return None
         metadata_payload = dict(metadata) if isinstance(metadata, dict) else {}
+        resolved_tool_calls = _resolve_tool_calls(tool_calls)
         diagnostics = (
             ConversationDiagnosticsProjector.extract_turn_diagnostics_from_metadata(
                 metadata_payload
@@ -778,6 +1150,7 @@ class ConversationTurnFlowProjector:
             selected_tools = list(completed_tool_names)
         text_content = _to_non_empty_str(content)
         evidence = _normalize_evidence(raw_payload.get("evidence"))
+        evidence = _supplement_evidence_from_tool_calls(evidence, resolved_tool_calls)
         source_refs = [item["id"] for item in evidence]
         effective_completion_reason = _to_non_empty_str(
             completion_reason or raw_payload.get("completion_reason")
@@ -813,16 +1186,22 @@ class ConversationTurnFlowProjector:
             completion_reason=effective_completion_reason,
             source_refs=source_refs,
         )
+        timeline = _ensure_timeline_refs(timeline, evidence=evidence)
         timeline = _stabilize_timeline_statuses(
             timeline,
             selected_tools=selected_tools,
             completed_tool_names=completed_tool_names,
+        )
+        safe_untrusted_fallback_output = _has_safe_untrusted_fallback_output(
+            raw_payload,
+            metadata_payload,
         )
         failure_text_content = _resolve_failure_text_content_fallback(
             text_content=text_content,
             terminal_status=terminal_status,
             failure_kind=effective_failure_kind,
             final_output_source=effective_final_output_source,
+            safe_untrusted_fallback_output=safe_untrusted_fallback_output,
         )
         error_context = dict(raw_payload)
         if metadata_payload:
@@ -919,6 +1298,7 @@ class ConversationTurnFlowProjector:
             final_output_source=final_output_source,
             metadata=payload,
             content=content,
+            tool_calls=tool_calls,
         )
         if existing:
             return existing
@@ -932,7 +1312,9 @@ class ConversationTurnFlowProjector:
         )
 
         normalized_tool_calls = [
-            dict(item) for item in (tool_calls or []) if isinstance(item, dict)
+            dict(item)
+            for item in _resolve_tool_calls(tool_calls)
+            if isinstance(item, dict)
         ]
         text_content = _to_non_empty_str(content)
         completed_tool_names = derive_completed_tool_names(turn_meta.get("intent_plan"))
@@ -966,62 +1348,45 @@ class ConversationTurnFlowProjector:
                 )
             )
         unfinished_intents = _normalize_string_list(turn_meta.get("unfinished_intents"))
-        rag_sources = payload.get("rag_sources")
-        rag_items = [dict(item) for item in rag_sources if isinstance(item, dict)] if isinstance(rag_sources, list) else []
         context_sources = [
             dict(item) for item in (turn_meta.get("context_sources") or []) if isinstance(item, dict)
         ]
+        canonical_evidence = [
+            item
+            for index, source in enumerate(context_sources)
+            for item in [_build_context_source_evidence(source, index)]
+            if item is not None
+        ]
+        legacy_projection_allowed = not canonical_evidence and not normalized_tool_calls
+        legacy_tool_calls = (
+            _resolve_legacy_tool_calls(payload) if legacy_projection_allowed else []
+        )
+        if not normalized_tool_calls and legacy_projection_allowed:
+            normalized_tool_calls = [dict(item) for item in legacy_tool_calls]
+        rag_sources = payload.get("rag_sources") if legacy_projection_allowed else None
+        rag_items = (
+            [dict(item) for item in rag_sources if isinstance(item, dict)]
+            if isinstance(rag_sources, list)
+            else []
+        )
 
-        evidence: list[dict[str, Any]] = []
+        evidence: list[dict[str, Any]] = [dict(item) for item in canonical_evidence]
         for idx, source in enumerate(rag_items):
-            evidence.append(
-                {
-                    "id": f"ev_rag_{idx + 1}",
-                    "kind": _map_source_kind(source.get("kind") or source.get("source_kind")),
-                    "title": _to_non_empty_str(
-                        source.get("title")
-                        or source.get("source")
-                        or source.get("name")
-                        or source.get("chunk_id")
-                    )
-                    or f"Source {idx + 1}",
-                    "url": _to_non_empty_str(source.get("url") or source.get("source_url")),
-                    "snippet": _to_non_empty_str(source.get("snippet") or source.get("content")),
-                    "badge": _to_non_empty_str(source.get("badge")),
-                    "score": _normalize_optional_float(source.get("score")),
-                    "tool_call_id": None,
-                    "source_ref": _to_non_empty_str(source.get("source_ref") or source.get("chunk_id")),
-                }
-            )
+            evidence.append(_build_legacy_rag_evidence(source, idx))
 
         for idx, call in enumerate(normalized_tool_calls):
-            call_id = _to_non_empty_str(call.get("id")) or f"tool_{idx + 1}"
-            if not (
-                call.get("result_link")
-                or call.get("summary")
-                or call.get("display_name")
-                or call.get("name")
-            ):
-                continue
-            evidence.append(
-                {
-                    "id": f"ev_tool_{call_id}",
-                    "kind": "tool",
-                    "title": _to_non_empty_str(
-                        call.get("display_name") or call.get("name")
-                    )
-                    or f"Tool {idx + 1}",
-                    "url": _to_non_empty_str(call.get("result_link")),
-                    "snippet": _to_non_empty_str(call.get("summary")),
-                    "badge": _to_non_empty_str(call.get("error_type")),
-                    "score": None,
-                    "tool_call_id": call_id,
-                    "source_ref": call_id,
-                }
-            )
+            item = _build_tool_evidence_from_tool_call(call, idx)
+            if item is not None:
+                evidence.append(item)
 
         timeline: list[dict[str, Any]] = []
-        thinking_content = _to_non_empty_str(payload.get("thinking_content"))
+        thinking_content = (
+            _to_non_empty_str(payload.get("thinking_content"))
+            if legacy_projection_allowed
+            and not turn_meta.get("intent_plan")
+            and not turn_meta.get("tool_planner")
+            else None
+        )
         thinking_summary = _summarize_thinking_content(thinking_content)
         if thinking_content or turn_meta.get("intent_plan") or turn_meta.get("tool_planner"):
             timeline.append(
@@ -1120,8 +1485,9 @@ class ConversationTurnFlowProjector:
                 }
             )
 
-        has_retrieval_signal = bool(rag_items) or any(
-            _map_source_kind(item.get("kind")) in {"web", "knowledge_base", "memory"}
+        has_retrieval_signal = bool(canonical_evidence or rag_items) or any(
+            _map_source_kind(item.get("kind"))
+            in {"web", "knowledge_base", "memory", "page"}
             for item in context_sources
         )
         if has_retrieval_signal or has_hosted_search_progress:
@@ -1212,11 +1578,16 @@ class ConversationTurnFlowProjector:
                 }
             )
 
+        safe_untrusted_fallback_output = _has_safe_untrusted_fallback_output(
+            payload,
+            turn_meta,
+        )
         failure_text_content = _resolve_failure_text_content_fallback(
             text_content=text_content,
             terminal_status=terminal_status,
             failure_kind=failure_kind,
             final_output_source=final_output_source,
+            safe_untrusted_fallback_output=safe_untrusted_fallback_output,
         )
         failure_answer_summary = (
             failure_text_content or _specific_error_surface_message(error_surface)

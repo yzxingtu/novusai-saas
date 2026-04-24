@@ -61,16 +61,12 @@ def test_apply_runtime_capability_injection_updates_diagnostics() -> None:
         force_capability_summary=True,
         context_sources=[{"kind": "memory", "name": "profile"}],
         tools=[SimpleNamespace(name="save_memory")],
-        input_variables={"locale": "zh-CN"},
-        continuation_context=None,
         runtime_capability_summary={"tool_count": 1},
         ordered_requested_families=["memory"],
         intent_plan=[],
         execution_path="normal",
-        execution_budget=None,
         should_skip_capability_summary=lambda **_: False,
-        inject_runtime_summary=lambda *_args, **kwargs: injected_calls.append(kwargs)
-        or True,
+        inject_runtime_summary=lambda **kwargs: injected_calls.append(kwargs) or True,
         resolve_capability_injection_decision=lambda **kwargs: {
             "source_count": len(kwargs["context_sources"] or []),
             "capability_summary_injected": kwargs["capability_summary_injected"],
@@ -81,8 +77,10 @@ def test_apply_runtime_capability_injection_updates_diagnostics() -> None:
     assert diagnostics["capability_injection_decision"] == decision
     assert decision["source_count"] == 1
     assert decision["capability_summary_injected"] is True
-    assert injected_calls[0]["include_knowledge_base_hint"] is True
-    assert injected_calls[0]["include_memory_hint"] is True
+    assert injected_calls[0]["tools"][0].name == "save_memory"
+    assert injected_calls[0]["execution_path"] == "normal"
+    assert "include_knowledge_base_hint" not in injected_calls[0]
+    assert "include_memory_hint" not in injected_calls[0]
 
 
 def test_usage_metrics_import_paths_are_compatible() -> None:

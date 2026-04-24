@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import and_, or_, select
 
+from app.core.config import settings
 from app.core.i18n import _
 from app.core.logging import LogManager
 from app.core.security import TOKEN_SCOPE_TENANT_USER, TOKEN_TYPE_REFRESH
@@ -16,6 +17,7 @@ from app.enums.common import ApprovalStatusEnum
 from app.exceptions import (
     AuthenticationException,
     BusinessException,
+    NotFoundException,
     ValidationException,
 )
 from app.models import Tenant, TenantAdmin, TenantUser
@@ -218,6 +220,95 @@ class TenantUserLoginDomain:
             client_ip=client_ip,
         )
         return tokens
+
+    async def authenticate_by_dev_bootstrap(
+        self,
+        bootstrap_secret: str,
+        *,
+        request_host: str | None,
+        username: str,
+        tenant_code: str,
+        client_ip: str | None = None,
+    ) -> dict[str, Any]:
+        normalized_host = self._service._assert_dev_bootstrap_enabled(
+            "tenant_user",
+            request_host,
+        )
+        self._service._assert_dev_bootstrap_secret(
+            scope="tenant_user",
+            provided_secret=bootstrap_secret,
+            expected_secret=settings.DEV_TENANT_USER_BOOTSTRAP_SECRET,
+            request_host=normalized_host,
+        )
+
+        identifier = username.strip()
+        normalized_tenant_code = tenant_code.strip()
+        if not identifier or not normalized_tenant_code:
+            self._service._log_auth_warning(
+                "tenant_user.dev_bootstrap.failed",
+                reason="target_not_configured",
+                has_identifier=bool(identifier),
+                has_tenant_code=bool(normalized_tenant_code),
+                request_host=normalized_host,
+            )
+            raise NotFoundException()
+
+        tenant_result = await self._service.db.execute(
+            select(Tenant).where(
+                Tenant.code == normalized_tenant_code,
+                Tenant.is_deleted.is_(False),
+            )
+        )
+        tenant = tenant_result.scalar_one_or_none()
+        if tenant is None or not tenant.is_active:
+            self._service._log_auth_warning(
+                "tenant_user.dev_bootstrap.failed",
+                tenant_code=normalized_tenant_code,
+                request_host=normalized_host,
+                reason="tenant_disabled",
+            )
+            raise AuthenticationException(message=_("tenant.disabled"))
+
+        result = await self._service.db.execute(
+            select(TenantUser).where(
+                or_(
+                    TenantUser.username == identifier,
+                    TenantUser.email == identifier,
+                    TenantUser.phone == identifier,
+                ),
+                TenantUser.tenant_id == tenant.id,
+                TenantUser.is_deleted.is_(False),
+            )
+        )
+        user = result.scalar_one_or_none()
+        if user is None:
+            self._service._log_auth_warning(
+                "tenant_user.dev_bootstrap.failed",
+                identifier=self._service._mask_identifier(identifier),
+                tenant_code=normalized_tenant_code,
+                request_host=normalized_host,
+                reason="user_not_found",
+            )
+            raise AuthenticationException(message=_("auth.credentials_invalid"))
+
+        if not user.is_active:
+            self._service._log_auth_warning(
+                "tenant_user.dev_bootstrap.failed",
+                user_id=user.id,
+                username=user.username,
+                tenant_id=user.tenant_id,
+                tenant_code=normalized_tenant_code,
+                request_host=normalized_host,
+                reason="account_disabled",
+            )
+            raise AuthenticationException(message=_("auth.account_disabled"))
+
+        return await self.issue_tokens(
+            user=user,
+            client_ip=client_ip,
+            tenant_code=normalized_tenant_code,
+            event="tenant_user.dev_bootstrap.success",
+        )
 
 
 class TenantUserTokenDomain:

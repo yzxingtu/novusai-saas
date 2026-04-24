@@ -26,6 +26,11 @@ from app.ai.runtime.types import (
     ContextSource,
     collect_selected_skill_names,
 )
+from app.ai.skills.activation import (
+    execution_capability_descriptors_for_turn,
+    execution_selected_tool_names_for_turn,
+    execution_tools_for_turn,
+)
 from app.services.ai.model_capability_lookup import resolve_runtime_model_capabilities
 
 
@@ -106,12 +111,9 @@ class ContextAssembler:
             )
         activation = getattr(skill_result, "turn_activation", None)
         if activation is not None and activation.applied:
-            startup_selected_tool_names = (
-                list(getattr(skill_result, "startup_selected_tool_names", []) or [])
-                if hasattr(skill_result, "startup_selected_tool_names")
-                else list(getattr(skill_result, "selected_tool_names", []) or [])
+            bundle.selected_tool_names_override = list(
+                execution_selected_tool_names_for_turn(skill_result)
             )
-            bundle.selected_tool_names_override = list(startup_selected_tool_names)
             bundle.selected_skill_names_override = list(
                 getattr(skill_result, "selected_skill_names", []) or []
             )
@@ -249,16 +251,8 @@ class ContextAssembler:
 
         activation = getattr(skill_result, "turn_activation", None)
         if activation is not None and activation.applied:
-            tools = (
-                list(skill_result.startup_activated_tools())
-                if hasattr(skill_result, "startup_activated_tools")
-                else list(getattr(skill_result, "tools", []) or [])
-            )
-            descriptors = (
-                list(skill_result.startup_capability_descriptors())
-                if hasattr(skill_result, "startup_capability_descriptors")
-                else list(getattr(skill_result, "capability_descriptors", []) or [])
-            )
+            tools = list(execution_tools_for_turn(skill_result))
+            descriptors = list(execution_capability_descriptors_for_turn(skill_result))
         else:
             tools = list(getattr(skill_result, "tools", []) or [])
             descriptors = list(

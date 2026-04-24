@@ -505,10 +505,6 @@ class AIRuntimeInventoryService:
     def build_compact_summary(
         cls,
         manifest: RuntimeCapabilityManifest,
-        *,
-        include_knowledge_base_hint: bool = True,
-        include_page_context_hint: bool = True,
-        include_memory_hint: bool = True,
     ) -> dict[str, Any]:
         selected_skill_names = cls._stable_unique(
             [item.name for item in manifest.skills if item.status == "available"]
@@ -598,19 +594,6 @@ class AIRuntimeInventoryService:
                     )
                     if family
                 ]
-            ),
-            "knowledge_base_hint": bool(
-                include_knowledge_base_hint and "knowledge_base" in context_source_kinds
-            ),
-            "page_context_hint": bool(
-                include_page_context_hint and "page_context" in context_source_kinds
-            ),
-            "memory_hint": bool(
-                include_memory_hint
-                and (
-                    "session_memory" in context_source_kinds
-                    or "long_term_memory" in context_source_kinds
-                )
             ),
             "provider": manifest.provider,
             "model": manifest.model,

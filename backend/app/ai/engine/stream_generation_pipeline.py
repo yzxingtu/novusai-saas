@@ -268,6 +268,55 @@ def _is_generic_untrusted_fallback_output(output: str) -> bool:
     return normalized_output == build_untrusted_final_output_fallback()
 
 
+def _latest_auto_fetch_gate_reason(intent_plan: list[Any]) -> str | None:
+    for intent in reversed(list(intent_plan or [])):
+        metadata = getattr(intent, "metadata", None)
+        if not isinstance(metadata, dict):
+            continue
+        reason = str(metadata.get("auto_fetch_gate_reason") or "").strip()
+        if reason:
+            return reason
+    return None
+
+
+def _recover_completed_output_from_evidence(
+    view: Any,
+    *,
+    finalized_output: str,
+    trusted_stream_output: str,
+    tool_results: list[Any] | None,
+) -> tuple[str, str | None]:
+    if trusted_stream_output:
+        return "", None
+    if not _is_generic_untrusted_fallback_output(finalized_output):
+        return "", None
+    if _latest_auto_fetch_gate_reason(view.intent_plan) in {
+        "search_not_successful",
+        "search_no_results_completed",
+        "candidate_urls_exhausted",
+    }:
+        return "", None
+
+    intent_plan = list(view.intent_plan or [])
+    if not RecoveryManager.has_completed_output_evidence(
+        intent_plan,
+        tool_results=list(tool_results or []),
+    ):
+        return "", None
+
+    recovered_output = str(
+        RecoveryManager.build_completed_output(
+            intent_plan,
+            tool_results=list(tool_results or []),
+            reason="completed",
+        )
+        or ""
+    ).strip()
+    if not recovered_output or _is_generic_untrusted_fallback_output(recovered_output):
+        return "", None
+    return recovered_output, "recovery_evidence"
+
+
 def _append_output_if_missing(
     *,
     handler: Any,
@@ -405,9 +454,10 @@ def _finalize_completed_output(
     turn_start_message_index: int,
     output: str,
     response: Any,
+    tool_results: list[Any] | None,
     action_buttons: list[dict[str, str]] | None,
     final_output_source: str | None,
-) -> tuple[str, list[str]]:
+) -> tuple[str, list[str], str | None]:
     view = _resolve_generation_view(handler)
     current_turn_messages = messages[turn_start_message_index:]
     streamed_output = view.visible_stream_content.strip()
@@ -425,6 +475,34 @@ def _finalize_completed_output(
             diagnostics_payload.get("untrusted_final_output_fallback_applied")
             or diagnostics_payload.get("stripped_untrusted_final_output")
         )
+        recovered_output, recovered_output_source = _recover_completed_output_from_evidence(
+            view,
+            finalized_output=finalized_output,
+            trusted_stream_output=trusted_stream_output,
+            tool_results=tool_results,
+        )
+        if recovered_output:
+            output = recovered_output
+            if response is not None and getattr(response, "message", None) is not None:
+                response.message.content = recovered_output
+            _append_output_if_missing(
+                handler=handler,
+                messages=messages,
+                current_turn_messages=current_turn_messages,
+                output=recovered_output,
+                streamed_output=streamed_output,
+                action_buttons=action_buttons,
+                skip_final_assistant=False,
+            )
+            replay_chunks = (
+                view.chunk_text_for_streaming(recovered_output)
+                if view.should_replay_finalized_output(
+                    streamed_output=streamed_output,
+                    finalized_output=recovered_output,
+                )
+                else []
+            )
+            return output, replay_chunks, recovered_output_source
         if (
             finalized_output
             and not trusted_stream_output
@@ -450,7 +528,7 @@ def _finalize_completed_output(
                 )
                 else []
             )
-            return output, replay_chunks
+            return output, replay_chunks, final_output_source
         if (
             trusted_stream_output
             and finalized_output
@@ -477,7 +555,7 @@ def _finalize_completed_output(
                 )
                 else []
             )
-            return output, replay_chunks
+            return output, replay_chunks, final_output_source
 
         output = trusted_stream_output
         if response is not None and getattr(response, "message", None) is not None:
@@ -491,7 +569,7 @@ def _finalize_completed_output(
             action_buttons=action_buttons,
             skip_final_assistant=not bool(trusted_stream_output),
         )
-        return output, []
+        return output, [], final_output_source
 
     if view.should_preserve_streamed_assistant_output(
         final_output_source=final_output_source,
@@ -521,8 +599,8 @@ def _finalize_completed_output(
     )
 
     if output != streamed_output:
-        return output, view.chunk_text_for_streaming(output)
-    return output, []
+        return output, view.chunk_text_for_streaming(output), final_output_source
+    return output, [], final_output_source
 
 
 def _build_replay_events(
@@ -602,12 +680,13 @@ def finalize_successful_turn(
         (str(output or "").strip() or view.visible_stream_content.strip())
         and not skip_final_assistant
     ):
-        output, completed_reply_stream_chunks = _finalize_completed_output(
+        output, completed_reply_stream_chunks, final_output_source = _finalize_completed_output(
             handler,
             messages=messages,
             turn_start_message_index=turn_start_message_index,
             output=output,
             response=response,
+            tool_results=tool_results,
             action_buttons=action_buttons,
             final_output_source=final_output_source,
         )
@@ -633,6 +712,7 @@ def finalize_successful_turn(
         diagnostics_payload=diagnostics_payload,
         turn_record=turn_projection.turn_record,
         rag_sources=rag_sources,
+        tool_results=tool_results,
         output=str(output or ""),
         completion_reason=completion_reason,
         interrupted=paused_for_consent,
@@ -772,6 +852,7 @@ def build_terminal_result(
         diagnostics_payload=turn_projection.diagnostics,
         turn_record=turn_projection.turn_record,
         rag_sources=rag_sources,
+        tool_results=tool_results,
         output=str(output or ""),
         completion_reason=completion_reason,
         interrupted=interrupted,

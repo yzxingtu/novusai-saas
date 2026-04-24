@@ -13,10 +13,7 @@ from .intent_runtime_accessors import (
     resolve_intent_plan_view,
     resolve_requested_intents_from_input_variables,
 )
-from .page_workflow_state_machine import (
-    legacy_page_intent_kind_for_goal,
-    resolve_page_workflow_goal,
-)
+from .page_workflow_state_machine import resolve_page_workflow_goal
 from .system_prompt_intent_helpers import intent_completion_matches
 from .tool_policy_semantics import tool_semantic_family
 from .turn_research_helpers import (
@@ -38,23 +35,34 @@ def _push_unique(items: list[str], value: str) -> None:
         items.append(normalized)
 
 
-def _page_intent_alias(
+def _canonicalize_page_workflow_goal(
+    goal: str,
+    *,
+    user_text: str | None = None,
+) -> str:
+    normalized_goal = str(goal or "").strip()
+    if normalized_goal != "page_summary":
+        return normalized_goal
+    inferred_goal = resolve_page_workflow_goal(
+        intent_kind="page_workflow",
+        intent_metadata=None,
+        user_text=user_text,
+    )
+    return str(inferred_goal or normalized_goal).strip()
+
+
+def _page_intent_kind(
     kind: str | None,
     *,
     metadata: dict[str, Any] | None = None,
     user_text: str | None = None,
 ) -> str:
-    payload = dict(metadata or {})
-    workflow_goal = resolve_page_workflow_goal(
-        intent_kind=str(kind or "").strip(),
-        intent_metadata=payload,
+    workflow_goal = _page_workflow_goal(
+        kind,
+        metadata=metadata,
         user_text=user_text,
     )
-    mapped_alias = legacy_page_intent_kind_for_goal(workflow_goal)
-    if mapped_alias:
-        return mapped_alias
-    normalized = str(kind or "").strip()
-    return normalized if normalized.startswith("page_") else ""
+    return "page_workflow" if workflow_goal else ""
 
 
 def _runtime_page_metadata(
@@ -90,7 +98,7 @@ def _runtime_page_metadata(
     return None
 
 
-def _requested_page_intent_alias(
+def _requested_page_intent_kind(
     intent_name: str | None,
     *,
     runtime_page_metadata: dict[str, Any] | None = None,
@@ -98,12 +106,8 @@ def _requested_page_intent_alias(
     normalized = str(intent_name or "").strip()
     if not normalized:
         return ""
-    metadata = (
-        runtime_page_metadata
-        if normalized in {"page_workflow", "page_read"}
-        else None
-    )
-    return _page_intent_alias(
+    metadata = runtime_page_metadata if normalized.startswith("page_") else None
+    return _page_intent_kind(
         normalized,
         metadata=metadata,
     )
@@ -115,11 +119,34 @@ def _page_workflow_goal(
     metadata: dict[str, Any] | None = None,
     user_text: str | None = None,
 ) -> str:
-    return resolve_page_workflow_goal(
+    workflow_goal = resolve_page_workflow_goal(
         intent_kind=str(kind or "").strip(),
         intent_metadata=dict(metadata or {}),
         user_text=user_text,
     )
+    return _canonicalize_page_workflow_goal(
+        workflow_goal,
+        user_text=user_text,
+    )
+
+
+def _canonical_page_workflow_metadata(
+    kind: str | None,
+    *,
+    metadata: dict[str, Any] | None = None,
+    user_text: str | None = None,
+) -> dict[str, Any] | None:
+    payload = dict(metadata or {})
+    workflow_goal = _page_workflow_goal(
+        kind,
+        metadata=payload,
+        user_text=user_text,
+    )
+    if not workflow_goal:
+        return payload or None
+    payload.setdefault("page_workflow_kind", "page_workflow")
+    payload.setdefault("page_workflow_goal", workflow_goal)
+    return payload
 
 
 def _merge_active_page_intent(
@@ -132,7 +159,7 @@ def _merge_active_page_intent(
         _push_unique(merged, intent_name)
 
     runtime_page_metadata = _runtime_page_metadata(input_variables)
-    active_intent_kind = _page_intent_alias(
+    active_intent_kind = _page_intent_kind(
         resolve_active_intent_kind_from_input_variables(input_variables),
         metadata=runtime_page_metadata,
     )
@@ -176,7 +203,7 @@ def _requested_page_intents(
             continue
         _push_unique(
             intents,
-            _page_intent_alias(
+            _page_intent_kind(
                 intent.kind,
                 metadata=getattr(intent, "metadata", None),
                 user_text=getattr(intent, "source_text", None),
@@ -188,7 +215,7 @@ def _requested_page_intents(
     runtime_page_metadata = _runtime_page_metadata(input_variables)
     requested = resolve_requested_intents_from_input_variables(input_variables)
     for intent_name in requested:
-        normalized = _requested_page_intent_alias(
+        normalized = _requested_page_intent_kind(
             intent_name,
             runtime_page_metadata=runtime_page_metadata,
         )
@@ -238,7 +265,7 @@ def detect_requested_turn_intents(
             normalized_requested_intents: list[str] = []
             saw_page_intent = False
             for intent_name in requested_intents:
-                normalized_page_intent = _requested_page_intent_alias(
+                normalized_page_intent = _requested_page_intent_kind(
                     intent_name,
                     runtime_page_metadata=runtime_page_metadata,
                 )
@@ -257,7 +284,7 @@ def detect_requested_turn_intents(
         active_intent_kind = resolve_active_intent_kind_from_input_variables(
             input_variables
         )
-        normalized_active_page_intent = _page_intent_alias(
+        normalized_active_page_intent = _page_intent_kind(
             active_intent_kind,
             metadata=runtime_page_metadata,
         )
@@ -290,7 +317,7 @@ def detect_requested_turn_intents(
             _push("weather")
             continue
         if intent.family == "page_ops":
-            normalized_page_intent = _page_intent_alias(
+            normalized_page_intent = _page_intent_kind(
                 intent.kind,
                 metadata=getattr(intent, "metadata", None),
                 user_text=getattr(intent, "source_text", None),
@@ -343,11 +370,16 @@ def collect_completed_turn_intents(
 
     requested_page_intents = _requested_page_intents(input_variables)
     if requested_page_intents:
+        raw_runtime_page_metadata = _runtime_page_metadata(input_variables)
+        runtime_page_metadata = _canonical_page_workflow_metadata(
+            resolve_active_intent_kind_from_input_variables(input_variables),
+            metadata=raw_runtime_page_metadata,
+        )
         planned_intents: dict[str, Any] = {}
         for intent in resolve_intent_plan_view(input_variables):
             if intent.family != "page_ops" or not intent.requires_tools:
                 continue
-            intent_name = _page_intent_alias(
+            intent_name = _page_intent_kind(
                 intent.kind,
                 metadata=getattr(intent, "metadata", None),
                 user_text=getattr(intent, "source_text", None),
@@ -371,9 +403,13 @@ def collect_completed_turn_intents(
                 allowed_tool_names=successful_tool_names_ordered,
                 preferred_tool_names=successful_tool_names_ordered,
                 intent_metadata=(
-                    dict(planned_intent.metadata or {})
+                    _canonical_page_workflow_metadata(
+                        planned_intent.kind,
+                        metadata=dict(planned_intent.metadata or {}),
+                        user_text=getattr(planned_intent, "source_text", None),
+                    )
                     if planned_intent is not None
-                    else None
+                    else runtime_page_metadata if intent_name == "page_workflow" else None
                 ),
                 ):
                 completed.add(intent_name)
@@ -383,10 +419,12 @@ def collect_completed_turn_intents(
         "ui_read_table",
         "ui_list_interactables",
     }:
-        fallback_page_intent = _page_intent_alias(
-            resolve_active_intent_kind_from_input_variables(input_variables)
+        runtime_page_metadata = _runtime_page_metadata(input_variables)
+        fallback_page_intent = _page_intent_kind(
+            resolve_active_intent_kind_from_input_variables(input_variables),
+            metadata=runtime_page_metadata,
         )
-        completed.add(fallback_page_intent or "page_summary")
+        completed.add(fallback_page_intent or "page_workflow")
 
     rail_search_seen = any(mentions_rail_ticket(query) for query in successful_queries)
     rail_fetch_seen = any(

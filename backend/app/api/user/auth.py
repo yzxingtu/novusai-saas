@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.security import OAuth2PasswordRequestForm
 
 from app.configs.service import ConfigService
+from app.core.config import settings
 from app.core.deps import ActiveTenantUser, DbSession
 from app.core.i18n import _
 from app.core.rate_limit import check_login_rate_limit
@@ -25,6 +26,7 @@ from app.schemas.common import RefreshTokenRequest, TokenResponse
 from app.schemas.tenant import (
     LoginByCodeRequest,
     SendLoginCodeRequest,
+    TenantUserDevBootstrapRequest,
 )
 from app.schemas.tenant import (
     TenantUserChangePasswordRequest as ChangePasswordRequest,
@@ -44,6 +46,37 @@ from app.schemas.tenant.user import (
 from app.services.common import AuthService
 
 router = APIRouter(prefix="/auth", tags=["User Authentication"])
+
+
+if settings.APP_ENV.strip().lower() == "development":
+
+    @router.post("/dev/bootstrap", summary="开发环境企业用户 Bootstrap 登录")
+    @public
+    async def tenant_user_dev_bootstrap_login(
+        db: DbSession,
+        request: Request,
+        bootstrap_data: TenantUserDevBootstrapRequest,
+    ):
+        """
+        开发环境 bootstrap 登录 / Development bootstrap login.
+
+        仅在 development 环境注册，仍返回标准 access/refresh token 对。
+        Registered only in development and still returns a standard token pair.
+        """
+        auth_service = AuthService(db)
+        tokens = await auth_service.tenant_user_auth.authenticate_by_dev_bootstrap(
+            bootstrap_secret=bootstrap_data.bootstrap_secret,
+            request_host=request.url.hostname or request.headers.get("host"),
+            username=bootstrap_data.username,
+            tenant_code=bootstrap_data.tenant_code,
+            client_ip=request.client.host if request.client else None,
+        )
+        await db.commit()
+
+        return success(
+            data=TokenResponse(**tokens),
+            message=_("auth.login_success"),
+        )
 
 
 @router.post("/login", summary="用户登录（OAuth2 表单） / User login (OAuth2 form)")

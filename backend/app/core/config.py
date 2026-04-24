@@ -71,6 +71,7 @@ class Settings(BaseSettings):
     DEV_TENANT_BOOTSTRAP_SECRET: str = ""
     DEV_TENANT_BOOTSTRAP_USERNAME: str = ""
     DEV_TENANT_BOOTSTRAP_TENANT_CODE: str = ""
+    DEV_TENANT_USER_BOOTSTRAP_SECRET: str = ""
 
     # ========================================
     # 数据库配置 / Database Configuration

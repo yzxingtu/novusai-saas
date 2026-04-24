@@ -9,20 +9,21 @@ from app.core.i18n import _
 
 from .types import IntentPlan
 
-_PAGE_WORKFLOW_GOAL_ALIASES = {
-    "page_workflow": "",
-    "page_read": "page_summary",
-    "page_summary": "page_summary",
-    "page_screenshot": "page_screenshot",
-    "page_navigation": "navigation",
-    "page_search": "search",
-    "page_pagination": "pagination",
-    "page_row_detail": "row_detail",
-    "page_form_read": "form_read",
-    "page_form_write": "form_write",
-    "page_editor_read": "editor_read",
-    "page_editor_write": "editor_write",
-}
+_PAGE_WORKFLOW_GOALS = frozenset(
+    {
+        "editor_read",
+        "editor_write",
+        "form_read",
+        "form_write",
+        "navigation",
+        "page_screenshot",
+        "page_summary",
+        "pagination",
+        "row_detail",
+        "search",
+        "table_summary",
+    }
+)
 
 
 class RecoveryResultNormalizer:
@@ -741,10 +742,9 @@ class RecoveryResultNormalizer:
             return None
         metadata = dict(intent.metadata or {})
         workflow_goal = str(metadata.get("page_workflow_goal") or "").strip().lower()
-        if workflow_goal:
-            return _PAGE_WORKFLOW_GOAL_ALIASES.get(workflow_goal, workflow_goal) or None
-        intent_kind = str(intent.kind or "").strip().lower()
-        return _PAGE_WORKFLOW_GOAL_ALIASES.get(intent_kind) or None
+        if workflow_goal in _PAGE_WORKFLOW_GOALS:
+            return workflow_goal
+        return None
 
     @classmethod
     def _uses_generic_page_workflow_machine_label(
@@ -763,12 +763,9 @@ class RecoveryResultNormalizer:
         if not workflow_goal:
             return False
         candidates = {
-            str(intent.kind or "").strip().lower(),
             workflow_goal,
             "page_workflow",
         }
-        if workflow_goal == "page_summary":
-            candidates.add("page_read")
         return lowered in {item for item in candidates if item}
 
     @staticmethod

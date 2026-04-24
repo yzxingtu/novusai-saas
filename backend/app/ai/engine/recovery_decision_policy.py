@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from .page_workflow_state_machine import legacy_page_intent_kind_for_goal
 from .types import ExecutionBudget, IntentPlan, ProviderFailureKind, RecoveryDecision
 
 _BUDGET_EXIT_REASONS: frozenset[str] = frozenset(
@@ -65,14 +64,15 @@ def _page_workflow_snapshot(
         or workflow_progress
     ):
         return None
-    return {
+    workflow_kind = (
+        str(metadata.get("page_workflow_kind") or "page_workflow").strip()
+        or "page_workflow"
+    )
+    canonical_intent_kind = workflow_kind
+    snapshot = {
         "intent_id": intent.intent_id,
-        "intent_kind": intent.kind,
-        "workflow_kind": str(metadata.get("page_workflow_kind") or "page_workflow").strip()
-        or "page_workflow",
-        "intent_kind_alias": (
-            legacy_page_intent_kind_for_goal(workflow_goal) or intent.kind
-        ),
+        "intent_kind": canonical_intent_kind,
+        "workflow_kind": workflow_kind,
         "stage": workflow_stage,
         "phase": workflow_phase,
         "goal": workflow_goal,
@@ -86,6 +86,7 @@ def _page_workflow_snapshot(
         "completion": workflow_completion,
         "progress": workflow_progress,
     }
+    return snapshot
 
 
 def _attach_page_workflow_metadata(

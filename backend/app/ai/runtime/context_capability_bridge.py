@@ -28,6 +28,7 @@ from app.ai.runtime.contracts import (
 )
 from app.ai.runtime.manifest import AIRuntimeInventoryService
 from app.ai.runtime.types import CapabilityBundle
+from app.ai.skills.activation import execution_selected_tool_names_for_turn
 from app.core.logging import LogManager
 from app.services.ai.capability_awareness_config import (
     get_tenant_capability_awareness_settings,
@@ -117,12 +118,9 @@ class DefaultContextCapabilityBridge(ContextCapabilityBridge):
                 CapabilityRegistry._merge_fragment(bundle, fragment)
             activation = getattr(skill_result, "turn_activation", None)
             if activation is not None and activation.applied:
-                startup_selected_tool_names = (
-                    list(getattr(skill_result, "startup_selected_tool_names", []) or [])
-                    if hasattr(skill_result, "startup_selected_tool_names")
-                    else list(getattr(skill_result, "selected_tool_names", []) or [])
+                bundle.selected_tool_names_override = list(
+                    execution_selected_tool_names_for_turn(skill_result)
                 )
-                bundle.selected_tool_names_override = list(startup_selected_tool_names)
                 bundle.selected_skill_names_override = list(
                     getattr(skill_result, "selected_skill_names", []) or []
                 )
@@ -236,6 +234,7 @@ class DefaultContextCapabilityBridge(ContextCapabilityBridge):
         capability_inputs: ContextCapabilityInputs,
         capability_injection_decision: dict[str, Any],
     ) -> ContextCapabilityFinalization:
+        del intent_flags
         diagnostics: dict[str, Any] = {}
         decision = dict(capability_injection_decision or {})
         capability_bundle: CapabilityBundle | None = None
@@ -311,13 +310,7 @@ class DefaultContextCapabilityBridge(ContextCapabilityBridge):
             capability_injection_decision=decision,
             runtime_manifest=runtime_manifest.to_dict(),
             runtime_capability_summary=AIRuntimeInventoryService.build_compact_summary(
-                runtime_manifest,
-                include_knowledge_base_hint=intent_flags.get(
-                    "has_knowledge_intent",
-                    False,
-                ),
-                include_page_context_hint=intent_flags.get("has_page_intent", False),
-                include_memory_hint=intent_flags.get("memory_context_enabled", False),
+                runtime_manifest
             ),
         )
 

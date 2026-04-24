@@ -171,18 +171,18 @@ const messageRenderEntries = computed(() =>
 
 const contentShellClass = computed(() =>
   props.compact
-    ? 'mx-auto flex min-h-full w-full max-w-[46rem] flex-col gap-3'
-    : 'mx-auto flex min-h-full w-full max-w-[46rem] flex-col gap-4',
+    ? 'mx-auto flex min-h-full w-full max-w-[46rem] flex-col gap-2.5'
+    : 'mx-auto flex min-h-full w-full max-w-[46rem] flex-col gap-3',
 );
 
 const transcriptRailClass = computed(() =>
   props.compact
-    ? 'mx-auto w-full max-w-[46rem] space-y-2.5'
-    : 'mx-auto w-full max-w-[46rem] space-y-3.5',
+    ? 'mx-auto w-full max-w-[46rem] space-y-2'
+    : 'mx-auto w-full max-w-[46rem] space-y-3',
 );
 
 const messageListClass = computed(() =>
-  props.compact ? 'space-y-2.5' : 'space-y-3.5',
+  props.compact ? 'space-y-2' : 'space-y-3',
 );
 
 const visibleAssistantAgentIds = computed(() => {
@@ -269,50 +269,59 @@ watch(
     class="transcript-scroll flex-1 overflow-y-auto"
     :class="
       compact
-        ? 'px-2.5 py-2.5 sm:px-3 sm:py-3'
-        : 'px-4 py-3.5 sm:px-5 sm:py-4 lg:px-6 lg:py-5'
+        ? 'px-2 py-2 sm:px-2.5 sm:py-2.5'
+        : 'px-3 py-3 sm:px-4 sm:py-3.5 lg:px-5 lg:py-4'
     "
     @scroll="emit('scroll')"
   >
     <div :class="contentShellClass">
       <div
         v-if="chatMessages.length === 0 && !sending && !routing"
-        class="flex h-full items-center justify-center"
+        class="flex justify-center pt-2 sm:pt-3"
       >
         <div
-          class="ai-chat-empty-card w-full max-w-[24rem] rounded-[24px] border px-4 py-4 text-center"
+          class="ai-chat-empty-card w-full max-w-[21.5rem] rounded-[22px] border px-3.5 py-3.5 text-left"
         >
-          <div
-            class="ai-chat-empty-orb mx-auto mb-2.5 flex size-10 items-center justify-center rounded-[16px] text-primary ring-1"
-          >
-            <IconifyIcon icon="lucide:message-square-text" class="size-4.5" />
-          </div>
-          <div
-            class="mb-2 inline-flex items-center rounded-full border border-primary/14 bg-primary/[0.06] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-primary/84"
-          >
-            {{ $t('common.globalAiChat.assistant') }}
-          </div>
-          <div class="text-foreground/84 text-[11px] font-semibold leading-6">
-            {{
-              effectiveWelcomeMessage || $t('common.globalAiChat.welcomeDesc')
-            }}
-          </div>
-          <div class="text-muted-foreground/54 mt-1 text-[9.5px] leading-5">
-            {{ $t('common.globalAiChat.welcomeFirstTime') }}
+          <div class="flex items-start gap-3">
+            <div
+              class="ai-chat-empty-orb flex size-9 shrink-0 items-center justify-center rounded-[15px] text-primary ring-1"
+            >
+              <IconifyIcon icon="lucide:sparkles" class="size-4" />
+            </div>
+            <div class="min-w-0 flex-1">
+              <div
+                class="border-primary/14 text-primary/84 inline-flex items-center rounded-full border bg-primary/[0.06] px-2 py-0.5 text-[8.5px] font-semibold uppercase tracking-[0.14em]"
+              >
+                {{ $t('common.globalAiChat.turnAnswerCardTitle') }}
+              </div>
+              <div
+                class="text-foreground/84 mt-2 text-[10px] font-semibold leading-5"
+              >
+                {{
+                  effectiveWelcomeMessage ||
+                  $t('common.globalAiChat.welcomeDesc')
+                }}
+              </div>
+              <div
+                class="text-muted-foreground/54 mt-1 text-[8.75px] leading-4"
+              >
+                {{ $t('common.globalAiChat.welcomeFirstTime') }}
+              </div>
+            </div>
           </div>
           <div
             v-if="effectiveSuggestedQuestions.length > 0"
-            class="mt-3.5 flex flex-col gap-1.5"
+            class="mt-3 grid gap-1.5"
           >
             <button
               v-for="(question, questionIndex) in effectiveSuggestedQuestions"
               :key="questionIndex"
-              class="group/sq border-border/16 bg-background/86 text-foreground/80 hover:border-primary/20 flex items-center gap-2 rounded-[16px] border px-2.5 py-2 text-left text-[10px] transition-colors hover:bg-primary/[0.04]"
+              class="group/sq border-border/14 bg-background/76 flex items-center gap-2 rounded-[14px] border px-2.5 py-1.5 text-left text-[9px] text-foreground/80 transition-colors hover:border-primary/20 hover:bg-primary/[0.04]"
               @click="emit('askSuggested', question)"
             >
               <IconifyIcon
                 icon="lucide:message-circle"
-                class="text-primary/58 size-3.5 shrink-0 transition-colors group-hover/sq:text-primary"
+                class="text-primary/58 size-3 shrink-0 transition-colors group-hover/sq:text-primary"
               />
               <span class="truncate">{{ question }}</span>
               <IconifyIcon
@@ -367,7 +376,7 @@ watch(
         <div
           v-for="op in unassociatedPendingOps"
           :key="op.invokeId"
-          class="overflow-hidden rounded-lg border"
+          class="overflow-hidden rounded-[14px] border"
           :class="
             op.resolved
               ? 'border-border/20 bg-accent/10'
@@ -376,7 +385,7 @@ watch(
         >
           <div
             v-if="op.resolved"
-            class="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px]"
+            class="flex items-center gap-1.5 px-2.5 py-1.5 text-[10.5px]"
           >
             <IconifyIcon
               :icon="op.allowed ? 'lucide:check-circle' : 'lucide:x-circle'"
@@ -413,21 +422,21 @@ watch(
             <div class="flex items-center gap-1.5 px-2.5 py-1.5">
               <IconifyIcon
                 icon="lucide:shield-alert"
-                class="size-3.5 shrink-0 text-warning"
+                class="size-3 shrink-0 text-warning"
               />
               <div class="min-w-0 flex-1">
                 <div
-                  class="truncate text-[11px] font-medium text-foreground/80"
+                  class="truncate text-[10.5px] font-medium text-foreground/80"
                 >
                   {{ op.operationLabel }}
                 </div>
                 <div
                   v-if="op.operationDescription"
-                  class="truncate text-[10px] text-muted-foreground/60"
+                  class="truncate text-[9.5px] text-muted-foreground/60"
                 >
                   {{ op.operationDescription }}
                 </div>
-                <div class="mt-0.5 text-[10px] text-muted-foreground/50">
+                <div class="mt-0.5 text-[9.5px] text-muted-foreground/50">
                   {{
                     $t('shared.pageOperation.confirmCountdown', {
                       seconds: Math.max(
@@ -443,14 +452,14 @@ watch(
               </div>
               <div class="flex shrink-0 items-center gap-1">
                 <button
-                  class="inline-flex items-center gap-0.5 rounded-md bg-primary px-2 py-0.5 text-[11px] font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
+                  class="inline-flex items-center gap-0.5 rounded-full bg-primary px-2 py-0.5 text-[10px] font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
                   @click="emit('resolvePendingOp', op.invokeId, true)"
                 >
                   <IconifyIcon icon="lucide:check" class="size-3" />
                   {{ $t('shared.pageOperation.confirmOk') }}
                 </button>
                 <button
-                  class="inline-flex items-center gap-0.5 rounded-md border border-border/60 px-2 py-0.5 text-[11px] text-muted-foreground transition-colors hover:border-destructive/40 hover:text-destructive"
+                  class="inline-flex items-center gap-0.5 rounded-full border border-border/60 px-2 py-0.5 text-[10px] text-muted-foreground transition-colors hover:border-destructive/40 hover:text-destructive"
                   @click="emit('resolvePendingOp', op.invokeId, false)"
                 >
                   <IconifyIcon icon="lucide:x" class="size-3" />
@@ -458,48 +467,25 @@ watch(
                 </button>
               </div>
             </div>
-
-            <details
-              v-if="op.params && Object.keys(op.params).length > 0"
-              class="[&>summary::-webkit-details-marker]:hidden [&>summary]:list-none"
-            >
-              <summary
-                class="flex cursor-pointer items-center gap-1 border-t border-border/20 px-2.5 py-0.5 text-[10px] text-muted-foreground/60 hover:text-muted-foreground"
-              >
-                <IconifyIcon icon="lucide:code" class="size-2.5" />
-                {{ $t('common.globalAiChat.args') }}
-                <IconifyIcon
-                  icon="lucide:chevron-down"
-                  class="size-2.5 transition-transform duration-200 [details[open]>&]:rotate-180"
-                />
-              </summary>
-              <div class="border-t border-border/20 px-2.5 py-1">
-                <pre
-                  class="max-h-24 overflow-y-auto whitespace-pre-wrap rounded bg-accent/40 px-1.5 py-1 font-mono text-[10px] text-muted-foreground"
-                  >{{ JSON.stringify(op.params, null, 2) }}</pre
-                >
-              </div>
-            </details>
           </template>
         </div>
 
         <Transition name="fade">
           <div
             v-if="routing"
-            class="routing-card border-border/20 relative overflow-hidden rounded-[16px] border px-3 py-2 backdrop-blur-sm"
+            class="routing-card border-border/18 relative overflow-hidden rounded-[14px] border px-2.5 py-1.5 backdrop-blur-sm"
           >
             <div class="relative z-[1] flex items-center gap-2">
-              <div class="flex size-5.5 items-center justify-center rounded-[14px] bg-primary/10">
-                <IconifyIcon
-                  icon="lucide:route"
-                  class="size-3 text-primary"
-                />
+              <div
+                class="flex size-5 items-center justify-center rounded-[12px] bg-primary/10"
+              >
+                <IconifyIcon icon="lucide:route" class="size-3 text-primary" />
               </div>
               <div class="flex flex-col gap-0.5">
-                <span class="text-[10px] font-medium text-foreground/80">
+                <span class="text-[9.75px] font-medium text-foreground/80">
                   {{ $t('common.globalAiChat.routingAgent') }}
                 </span>
-                <span class="text-[9.5px] text-muted-foreground/62">
+                <span class="text-muted-foreground/62 text-[9px]">
                   {{ $t('common.globalAiChat.turnStageStatus.running') }}
                 </span>
               </div>
@@ -511,13 +497,13 @@ watch(
     </div>
 
     <div
-      class="pointer-events-none sticky bottom-3 z-10 ml-auto mt-3 flex w-fit flex-col items-end gap-1.5 pr-1"
+      class="pointer-events-none sticky bottom-2.5 z-10 ml-auto mt-2.5 flex w-fit flex-col items-end gap-1.5 pr-1"
     >
       <Transition name="fade">
         <button
           v-if="showScrollToTop && !streaming"
           type="button"
-          class="pointer-events-auto inline-flex size-8 items-center justify-center rounded-[18px] border border-border/34 bg-background/96 text-muted-foreground shadow-[0_14px_28px_-22px_hsl(var(--foreground)/0.16)] backdrop-blur-sm transition-all hover:-translate-y-0.5 hover:border-primary/22 hover:bg-background hover:text-foreground"
+          class="bg-background/94 hover:border-primary/22 pointer-events-auto inline-flex size-7 items-center justify-center rounded-[16px] border border-border/30 text-muted-foreground shadow-[0_12px_24px_-22px_hsl(var(--foreground)/0.16)] backdrop-blur-sm transition-all hover:-translate-y-0.5 hover:bg-background hover:text-foreground"
           :aria-label="$t('common.globalAiChat.scrollToTop')"
           @click="emit('scrollToTop')"
         >
@@ -540,7 +526,7 @@ watch(
         <button
           v-if="showScrollToBottom && !streaming"
           type="button"
-          class="pointer-events-auto inline-flex size-8 items-center justify-center rounded-[18px] border border-border/34 bg-background/96 text-muted-foreground shadow-[0_14px_28px_-22px_hsl(var(--foreground)/0.16)] backdrop-blur-sm transition-all hover:-translate-y-0.5 hover:border-primary/22 hover:bg-background hover:text-foreground"
+          class="bg-background/94 hover:border-primary/22 pointer-events-auto inline-flex size-7 items-center justify-center rounded-[16px] border border-border/30 text-muted-foreground shadow-[0_12px_24px_-22px_hsl(var(--foreground)/0.16)] backdrop-blur-sm transition-all hover:-translate-y-0.5 hover:bg-background hover:text-foreground"
           :aria-label="$t('common.globalAiChat.scrollToBottom')"
           @click="emit('scrollToBottom')"
         >
@@ -568,8 +554,8 @@ watch(
   background:
     radial-gradient(
       circle at top,
-      hsl(var(--primary) / 0.035),
-      transparent 28%
+      hsl(var(--primary) / 0.024),
+      transparent 24%
     ),
     linear-gradient(
       180deg,
@@ -581,12 +567,12 @@ watch(
 .ai-chat-empty-card {
   background: linear-gradient(
     180deg,
-    hsl(var(--card) / 0.98) 0%,
+    hsl(var(--card) / 0.975) 0%,
     hsl(var(--background) / 0.985) 100%
   );
-  border-color: hsl(var(--border) / 0.24);
+  border-color: hsl(var(--border) / 0.2);
   box-shadow:
-    0 20px 34px -34px hsl(var(--foreground) / 0.12),
+    0 18px 30px -34px hsl(var(--foreground) / 0.1),
     0 1px 0 hsl(var(--primary) / 0.04) inset;
 }
 
@@ -594,18 +580,18 @@ watch(
   background: linear-gradient(
     180deg,
     hsl(var(--background)) 0%,
-    hsl(var(--muted) / 0.3) 100%
+    hsl(var(--muted) / 0.24) 100%
   );
-  border-color: hsl(var(--border) / 0.24);
-  box-shadow: 0 12px 22px -24px hsl(var(--foreground) / 0.08);
+  border-color: hsl(var(--border) / 0.22);
+  box-shadow: 0 10px 18px -24px hsl(var(--foreground) / 0.08);
 }
 
 .routing-card {
   background: linear-gradient(
     180deg,
     hsl(var(--background) / 0.98) 0%,
-    hsl(var(--primary) / 0.03) 100%
+    hsl(var(--primary) / 0.024) 100%
   );
-  box-shadow: 0 14px 28px -30px hsl(var(--foreground) / 0.14);
+  box-shadow: 0 12px 22px -28px hsl(var(--foreground) / 0.1);
 }
 </style>

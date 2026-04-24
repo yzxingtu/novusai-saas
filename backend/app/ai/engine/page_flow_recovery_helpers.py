@@ -6,10 +6,14 @@ import json
 from collections.abc import Callable
 from typing import Any
 
+from app.ai.navigation_semantics import has_navigation_intent
 from app.ai.tools.types import ToolDefinition, ToolResult
 from app.ai.types import ChatMessage
 
 from .base_helpers import tool_call_name as _tool_call_name_impl
+from .page_workflow_state_machine import (
+    PageWorkflowStateMachine,
+)
 from .tool_policy_page_helpers import (
     first_page_workflow_goal as _first_page_workflow_goal_impl,
 )
@@ -17,6 +21,215 @@ from .tool_router import ToolRouter
 from .turn_research_helpers import (
     extract_last_user_text as _extract_last_user_text_impl,
 )
+
+_RECOVERY_PAGINATION_TERMS = (
+    "下一页",
+    "上一页",
+    "上一屏",
+    "下一屏",
+    "翻页",
+    "翻到",
+    "分页",
+    "page ",
+    "next page",
+    "previous page",
+    "prev page",
+)
+_RECOVERY_SEARCH_TERMS = (
+    "搜索",
+    "查找",
+    "筛选",
+    "过滤",
+    "keyword",
+    "keywords",
+    "filter",
+    "search",
+)
+_RECOVERY_FORM_READ_TERMS = (
+    "表单状态",
+    "读取表单",
+    "查看表单",
+    "读一下表单",
+    "表单有哪些字段",
+    "form state",
+    "read form",
+)
+_RECOVERY_FORM_WRITE_TERMS = (
+    "填写",
+    "提交",
+    "保存",
+    "创建",
+    "新增",
+    "添加",
+    "绑定",
+    "编辑",
+    "修改",
+    "更新",
+    "fill",
+    "submit",
+    "save",
+    "create",
+    "add",
+    "bind",
+    "edit",
+    "update",
+)
+_RECOVERY_ROW_DETAIL_TERMS = (
+    "详情",
+    "明细",
+    "详细",
+    "记录详情",
+    "详情页",
+    "detail",
+)
+_RECOVERY_RECORD_POINTER_TERMS = (
+    "这条记录",
+    "当前记录",
+    "这一行",
+    "这行",
+    "record",
+    "row",
+)
+_RECOVERY_NAVIGATION_TERMS = (
+    "打开",
+    "进入",
+    "跳转",
+    "切到",
+    "前往",
+    "打开到",
+    "click",
+    "open",
+    "go to",
+    "navigate",
+    "switch to",
+)
+_RECOVERY_NAVIGATION_TARGET_TERMS = (
+    "页面",
+    "列表",
+    "界面",
+    "面板",
+    "页",
+    "page",
+    "list",
+    "panel",
+    "drawer",
+    "弹窗",
+)
+_RECOVERY_SCREENSHOT_TERMS = (
+    "截图",
+    "截屏",
+    "screenshot",
+)
+_RECOVERY_TABLE_SUMMARY_STRONG_TERMS = (
+    "表格",
+    "table",
+    "前5条",
+    "前五条",
+    "标题",
+    "时间",
+    "columns",
+    "rows",
+)
+
+
+def _normalized_text(value: str | None) -> str:
+    return " ".join(str(value or "").strip().lower().split())
+
+
+def _contains_any(text: str, phrases: tuple[str, ...]) -> bool:
+    return any(phrase in text for phrase in phrases if phrase)
+
+
+def _looks_like_table_summary_request(user_text: str) -> bool:
+    return _contains_any(user_text, _RECOVERY_TABLE_SUMMARY_STRONG_TERMS)
+
+
+def _matches_pagination_request(user_text: str) -> bool:
+    return _contains_any(user_text, _RECOVERY_PAGINATION_TERMS)
+
+
+def _matches_search_request(user_text: str) -> bool:
+    return _contains_any(user_text, _RECOVERY_SEARCH_TERMS)
+
+
+def _matches_form_read_request(user_text: str) -> bool:
+    if _contains_any(user_text, _RECOVERY_FORM_READ_TERMS):
+        return True
+    return "表单" in user_text and any(
+        token in user_text for token in ("状态", "字段", "读取", "read")
+    )
+
+
+def _matches_form_write_request(user_text: str) -> bool:
+    return _contains_any(user_text, _RECOVERY_FORM_WRITE_TERMS)
+
+
+def _matches_row_detail_request(user_text: str) -> bool:
+    if _contains_any(user_text, _RECOVERY_ROW_DETAIL_TERMS):
+        return True
+    return _contains_any(user_text, _RECOVERY_RECORD_POINTER_TERMS) and any(
+        token in user_text for token in ("查看", "看", "read")
+    )
+
+
+def _matches_navigation_request(
+    *,
+    user_text: str,
+    page_context: dict[str, Any],
+) -> bool:
+    if has_navigation_intent(user_text, page_context):
+        return True
+    return _contains_any(user_text, _RECOVERY_NAVIGATION_TERMS) and _contains_any(
+        user_text,
+        _RECOVERY_NAVIGATION_TARGET_TERMS,
+    )
+
+
+def _recovery_workflow_goal(
+    *,
+    user_text: str,
+    page_context: dict[str, Any],
+    workflow_state: Any,
+    round_tool_names: list[str],
+    tool_results: list[ToolResult],
+) -> str:
+    normalized = _normalized_text(user_text)
+    if not normalized:
+        return ""
+
+    if _looks_like_table_summary_request(normalized):
+        return "table_summary"
+    if _contains_any(normalized, _RECOVERY_SCREENSHOT_TERMS):
+        return "page_screenshot"
+    if _matches_pagination_request(normalized):
+        return "pagination"
+    if _matches_search_request(normalized):
+        return "search"
+
+    missing_form_session = any(
+        _is_missing_active_form_result(result) for result in tool_results
+    )
+    if workflow_state.has_active_form:
+        if _matches_form_read_request(normalized):
+            return "form_read"
+        if _matches_form_write_request(normalized):
+            return "form_write"
+
+    if missing_form_session and (
+        _matches_form_write_request(normalized)
+        or any(name == "ui_get_form_state" for name in round_tool_names)
+    ):
+        return "form_write"
+
+    if _matches_row_detail_request(normalized):
+        return "row_detail"
+    if _matches_navigation_request(user_text=normalized, page_context=page_context):
+        return "navigation"
+    if _matches_form_read_request(normalized):
+        return "form_read"
+    if _matches_form_write_request(normalized):
+        return "form_write"
+    return ""
 
 
 def _is_missing_active_form_result(result: ToolResult) -> bool:
@@ -105,7 +318,13 @@ def _trim_recovery_tool_names(
         without_form_mutation = [
             name
             for name in trimmed
-            if name not in {"ui_fill_form", "ui_set_field", "ui_submit_form"}
+            if name
+            not in {
+                "ui_fill_form",
+                "ui_set_field",
+                "ui_submit_form",
+                "ui_get_form_state",
+            }
         ]
         if without_form_mutation:
             trimmed = without_form_mutation
@@ -189,6 +408,14 @@ def build_page_no_progress_recovery(
         return [], {}
 
     user_text = extract_last_user_text(messages)
+    workflow_state = PageWorkflowStateMachine.resolve_state(
+        input_variables=input_variables
+    )
+    round_tool_names = [
+        tool_call_name(tool_call)
+        for tool_call in tool_calls
+        if tool_call_name(tool_call)
+    ]
     workflow_goal = str(
         first_page_workflow_goal(
             user_text=user_text,
@@ -197,7 +424,20 @@ def build_page_no_progress_recovery(
         )
         or ""
     ).strip()
-    if not workflow_goal:
+    recovery_goal = _recovery_workflow_goal(
+        user_text=user_text,
+        page_context=page_context,
+        workflow_state=workflow_state,
+        round_tool_names=round_tool_names,
+        tool_results=tool_results,
+    )
+    if recovery_goal and (
+        not workflow_goal
+        or workflow_goal == "page_summary"
+        or (workflow_goal == "form_read" and recovery_goal == "form_write")
+    ):
+        workflow_goal = recovery_goal
+    if not workflow_goal or workflow_goal == "page_summary":
         return [], {}
 
     plan_metadata = {
@@ -215,11 +455,6 @@ def build_page_no_progress_recovery(
     if not workflow_goal:
         return [], {}
 
-    round_tool_names = [
-        tool_call_name(tool_call)
-        for tool_call in tool_calls
-        if tool_call_name(tool_call)
-    ]
     if not round_tool_names:
         return [], {}
 
@@ -252,8 +487,6 @@ def build_page_no_progress_recovery(
     )
     if snapshot_verified_navigation_progress:
         return [], {}
-    if workflow_goal == "page_summary":
-        return [], {}
     if (
         not repeated_snapshot
         and not only_snapshot_round
@@ -279,6 +512,16 @@ def build_page_no_progress_recovery(
             "ui_fill_form",
             "ui_set_field",
             "ui_submit_form",
+        ]
+    if workflow_goal == "search":
+        recovery_tool_names = [
+            "ui_click",
+            "ui_fill_form",
+            "ui_set_field",
+            "ui_submit_form",
+            "ui_read_table",
+            "ui_read_region",
+            "ui_list_interactables",
         ]
     if workflow_goal == "row_detail" and workflow_plan.workflow_phase == "read":
         recovery_tool_names = [

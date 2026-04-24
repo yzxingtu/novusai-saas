@@ -9,18 +9,16 @@ from types import SimpleNamespace
 from app.ai.engine.intent_page_rules import (
     detect_page_continuation_signal,
     detect_page_signal,
-    looks_like_page_jump_request,
-    looks_like_page_search_request,
-    looks_like_read_only_form_instruction,
-    looks_like_required_field_form_read,
+    looks_like_page_follow_up,
 )
 
 
 def _continuation_context(**overrides):
     payload = {
+        "active": True,
         "continuation_capable_families": ["page_ops"],
         "family": "page_ops",
-        "active_intent_kind": "page_summary",
+        "active_intent_kind": "page_workflow",
         "last_tool_name": "ui_get_snapshot",
         "tool_families": ["page_ops"],
     }
@@ -33,19 +31,6 @@ def _runtime_page_context(page_key: str, **extra):
         "page_key": page_key,
         "page_session_id": f"{page_key}-session",
         "ui_epoch": 1,
-        "suggested_tools": {
-            "primary": [
-                "ui_get_snapshot",
-                "ui_read_region",
-                "ui_read_table",
-                "ui_list_interactables",
-                "ui_click",
-                "ui_open_surface",
-                "ui_get_form_state",
-                "ui_fill_form",
-                "ui_submit_form",
-            ]
-        },
     }
     page_context.update(extra)
     return page_context
@@ -55,7 +40,6 @@ def _runtime_page_intent(
     *,
     kind: str = "page_workflow",
     workflow_goal: str,
-    workflow_alias: str,
     source_text: str = "继续看看",
 ) -> dict:
     return {
@@ -63,7 +47,7 @@ def _runtime_page_intent(
         "kind": kind,
         "family": "page_ops",
         "order": 1,
-        "user_visible_label": workflow_alias,
+        "user_visible_label": "page_workflow",
         "source_text": source_text,
         "status": "pending",
         "requires_tools": True,
@@ -86,13 +70,20 @@ def test_detect_page_continuation_signal_returns_page_summary() -> None:
     )
 
     assert signal is not None
-    assert signal.kind == "page_summary"
+    assert signal.kind == "page_workflow"
     assert signal.shortcircuit is True
     assert signal.metadata.get("continuation_source") == "page_ops"
     assert signal.metadata.get("routing_mode") == "deterministic_shortcircuit"
     assert signal.metadata.get("routing_provenance") == "page_continuation_guard"
     assert signal.metadata.get("page_workflow_kind") == "page_workflow"
     assert signal.metadata.get("page_workflow_goal") == "page_summary"
+    assert set(signal.metadata) == {
+        "continuation_source",
+        "routing_mode",
+        "routing_provenance",
+        "page_workflow_kind",
+        "page_workflow_goal",
+    }
     assert "page_workflow_intent_alias" not in signal.metadata
 
 
@@ -105,8 +96,9 @@ def test_detect_page_continuation_signal_prefers_screenshot() -> None:
     )
 
     assert signal is not None
-    assert signal.kind == "page_screenshot"
-    assert signal.shortcircuit is False
+    assert signal.kind == "page_workflow"
+    assert signal.shortcircuit is True
+    assert signal.metadata.get("page_workflow_goal") == "page_screenshot"
 
 
 def test_detect_page_continuation_signal_prefers_row_detail_with_ui_tools() -> None:
@@ -118,13 +110,12 @@ def test_detect_page_continuation_signal_prefers_row_detail_with_ui_tools() -> N
     )
 
     assert signal is not None
-    assert signal.kind == "page_row_detail"
+    assert signal.kind == "page_workflow"
     assert signal.shortcircuit is False
+    assert signal.metadata.get("page_workflow_goal") == "row_detail"
 
 
-def test_detect_page_continuation_signal_routes_click_follow_up_to_navigation() -> (
-    None
-):
+def test_detect_page_continuation_signal_routes_click_follow_up_to_navigation() -> None:
     signal = detect_page_continuation_signal(
         clause="点击一下添加供应商",
         offset=0,
@@ -133,8 +124,9 @@ def test_detect_page_continuation_signal_routes_click_follow_up_to_navigation() 
     )
 
     assert signal is not None
-    assert signal.kind == "page_navigation"
+    assert signal.kind == "page_workflow"
     assert signal.shortcircuit is False
+    assert signal.metadata.get("page_workflow_goal") == "navigation"
 
 
 def test_detect_page_continuation_signal_uses_runtime_page_workflow_metadata() -> None:
@@ -146,7 +138,6 @@ def test_detect_page_continuation_signal_uses_runtime_page_workflow_metadata() -
             "_runtime_intent_plan": [
                 _runtime_page_intent(
                     workflow_goal="pagination",
-                    workflow_alias="page_pagination",
                     source_text="把列表翻到下一页",
                 )
             ],
@@ -156,14 +147,16 @@ def test_detect_page_continuation_signal_uses_runtime_page_workflow_metadata() -
     )
 
     assert signal is not None
-    assert signal.kind == "page_pagination"
+    assert signal.kind == "page_workflow"
     assert signal.shortcircuit is False
     assert signal.metadata.get("page_workflow_kind") == "page_workflow"
     assert signal.metadata.get("page_workflow_goal") == "pagination"
     assert "page_workflow_intent_alias" not in signal.metadata
 
 
-def test_detect_page_signal_selects_page_search() -> None:
+def test_detect_page_signal_uses_page_reference_search_phrasing_as_summary_fallback() -> (
+    None
+):
     signal = detect_page_signal(
         clause="在页面里搜索张三",
         offset=0,
@@ -171,14 +164,117 @@ def test_detect_page_signal_selects_page_search() -> None:
     )
 
     assert signal is not None
-    assert signal.kind == "page_search"
+    assert signal.kind == "page_workflow"
     assert signal.metadata.get("routing_mode") == "deterministic_shortcircuit"
-    assert signal.metadata.get("routing_provenance") == "page_search_shortcircuit"
-    assert signal.metadata.get("page_workflow_kind") == "page_workflow"
-    assert signal.metadata.get("page_workflow_goal") == "search"
+    assert signal.metadata.get("routing_provenance") == "page_reference_fallback"
+    assert signal.metadata.get("page_workflow_goal") == "page_summary"
 
 
-def test_detect_page_signal_treats_colloquial_here_question_as_page_summary() -> None:
+def test_detect_page_signal_routes_table_summary_to_canonical_workflow_goal() -> None:
+    signal = detect_page_signal(
+        clause="列出这个表格前5条标题和时间",
+        offset=0,
+        input_variables={"page_context": _runtime_page_context("admin.ai.logs")},
+    )
+
+    assert signal is not None
+    assert signal.kind == "page_workflow"
+    assert signal.shortcircuit is True
+    assert signal.metadata.get("routing_mode") == "structured_semantic"
+    assert signal.metadata.get("routing_provenance") == "page_workflow_semantic_profile"
+    assert signal.metadata.get("page_workflow_goal") == "table_summary"
+
+
+def test_detect_page_signal_uses_navigation_catalog_semantics() -> None:
+    signal = detect_page_signal(
+        clause="添加供应商",
+        offset=0,
+        input_variables={
+            "page_context": _runtime_page_context(
+                "admin.runtime.records",
+                page_data={
+                    "navigation_catalog": [
+                        {
+                            "title": "供应商管理",
+                            "path": "/admin/suppliers",
+                            "page_key": "admin.suppliers",
+                            "description": "管理供应商并新增供应商",
+                            "keywords": ["供应商", "添加供应商"],
+                        }
+                    ]
+                },
+            )
+        },
+    )
+
+    assert signal is not None
+    assert signal.kind == "page_workflow"
+    assert signal.shortcircuit is False
+    assert signal.metadata.get("routing_mode") == "structured_semantic"
+    assert signal.metadata.get("routing_provenance") == "navigation_catalog_semantics"
+    assert signal.metadata.get("page_workflow_goal") == "navigation"
+    assert set(signal.metadata) == {
+        "routing_mode",
+        "routing_provenance",
+        "page_workflow_kind",
+        "page_workflow_goal",
+    }
+
+
+def test_detect_page_signal_routes_explicit_current_page_create_request_to_write_goal() -> (
+    None
+):
+    signal = detect_page_signal(
+        clause="在当前页面创建一条测试记录，名称叫 Consent-Recovery-E2E",
+        offset=0,
+        input_variables={
+            "page_context": _runtime_page_context("admin.ai.skill-packages")
+        },
+    )
+
+    assert signal is not None
+    assert signal.kind == "page_workflow"
+    assert signal.shortcircuit is False
+    assert signal.metadata.get("routing_mode") == "structured_semantic"
+    assert signal.metadata.get("routing_provenance") == "page_reference_write_semantics"
+    assert signal.metadata.get("page_workflow_goal") == "form_write"
+    assert set(signal.metadata) == {
+        "routing_mode",
+        "routing_provenance",
+        "page_workflow_kind",
+        "page_workflow_goal",
+    }
+
+
+def test_detect_page_signal_routes_explicit_page_record_shape_write_to_form_write() -> None:
+    signal = detect_page_signal(
+        clause="请帮我在这个页面编辑一条限速规则",
+        offset=0,
+        input_variables={"page_context": _runtime_page_context("admin.ai.quotas")},
+    )
+
+    assert signal is not None
+    assert signal.kind == "page_workflow"
+    assert signal.shortcircuit is False
+    assert signal.metadata.get("routing_mode") == "structured_semantic"
+    assert signal.metadata.get("routing_provenance") == "page_reference_write_semantics"
+    assert signal.metadata.get("page_workflow_goal") == "form_write"
+
+
+def test_detect_page_signal_supports_code_mixed_page_reference() -> None:
+    signal = detect_page_signal(
+        clause="这个page上有啥东西",
+        offset=0,
+        input_variables={"page_context": _runtime_page_context("admin.ai.logs")},
+    )
+
+    assert signal is not None
+    assert signal.kind == "page_workflow"
+    assert signal.metadata.get("page_workflow_goal") == "page_summary"
+    assert signal.metadata.get("routing_provenance") == "page_reference_fallback"
+
+
+def test_detect_page_signal_treats_colloquial_here_question_as_current_page_reference() -> None:
     signal = detect_page_signal(
         clause="这里都有啥？",
         offset=0,
@@ -186,11 +282,11 @@ def test_detect_page_signal_treats_colloquial_here_question_as_page_summary() ->
     )
 
     assert signal is not None
-    assert signal.kind == "page_summary"
+    assert signal.kind == "page_workflow"
+    assert signal.shortcircuit is True
     assert signal.metadata.get("routing_mode") == "deterministic_shortcircuit"
-    assert signal.metadata.get("routing_provenance") == "page_summary_shortcircuit"
+    assert signal.metadata.get("routing_provenance") == "page_reference_fallback"
     assert signal.metadata.get("page_workflow_goal") == "page_summary"
-    assert "page_workflow_intent_alias" not in signal.metadata
 
 
 def test_detect_page_signal_marks_page_reference_analysis_as_fallback_summary() -> None:
@@ -201,12 +297,12 @@ def test_detect_page_signal_marks_page_reference_analysis_as_fallback_summary() 
     )
 
     assert signal is not None
-    assert signal.kind == "page_summary"
+    assert signal.kind == "page_workflow"
     assert signal.metadata.get("routing_mode") == "deterministic_shortcircuit"
     assert signal.metadata.get("routing_provenance") == "page_reference_fallback"
 
 
-def test_detect_page_signal_respects_readonly_form_hint() -> None:
+def test_detect_page_signal_routes_form_read_from_readonly_state_request() -> None:
     signal = detect_page_signal(
         clause="先不要创建，查看表单状态",
         offset=0,
@@ -214,21 +310,14 @@ def test_detect_page_signal_respects_readonly_form_hint() -> None:
     )
 
     assert signal is not None
-    assert signal.kind == "page_form_read"
+    assert signal.kind == "page_workflow"
+    assert signal.metadata.get("page_workflow_goal") == "form_read"
+    assert signal.metadata.get("routing_provenance") == "active_page_action_semantics"
 
 
-def test_detect_page_signal_treats_required_field_probe_as_form_read() -> None:
-    signal = detect_page_signal(
-        clause="请帮我点击添加技能，看看表单里有哪些必填项，但不要提交",
-        offset=0,
-        input_variables={"page_context": _runtime_page_context("admin.ai.skills")},
-    )
-
-    assert signal is not None
-    assert signal.kind == "page_form_read"
-
-
-def test_detect_page_signal_treats_skill_binding_as_form_write() -> None:
+def test_detect_page_signal_treats_skill_binding_with_page_reference_as_summary() -> (
+    None
+):
     signal = detect_page_signal(
         clause="帮我给这个页面的智能体绑定几个技能测试一下",
         offset=0,
@@ -238,22 +327,24 @@ def test_detect_page_signal_treats_skill_binding_as_form_write() -> None:
     )
 
     assert signal is not None
-    assert signal.kind == "page_form_write"
-    assert signal.metadata.get("page_workflow_goal") == "form_write"
+    assert signal.kind == "page_workflow"
+    assert signal.metadata.get("page_workflow_goal") == "page_summary"
+    assert signal.metadata.get("routing_provenance") == "page_reference_fallback"
 
 
-def test_detect_page_signal_treats_specific_add_vendor_request_as_form_write() -> None:
+def test_detect_page_signal_does_not_infer_form_write_from_add_vendor_request() -> None:
     signal = detect_page_signal(
         clause="帮我点击一下添加供应商 添加一个测试的供应商",
         offset=0,
         input_variables={"page_context": _runtime_page_context("admin.ai.providers")},
     )
 
-    assert signal is not None
-    assert signal.kind == "page_form_write"
+    assert signal is None
 
 
-def test_detect_page_signal_treats_active_form_field_listing_as_form_read() -> None:
+def test_detect_page_signal_routes_form_read_from_active_form_field_listing() -> (
+    None
+):
     signal = detect_page_signal(
         clause="当前有哪些字段",
         offset=0,
@@ -266,7 +357,9 @@ def test_detect_page_signal_treats_active_form_field_listing_as_form_read() -> N
     )
 
     assert signal is not None
-    assert signal.kind == "page_form_read"
+    assert signal.kind == "page_workflow"
+    assert signal.metadata.get("page_workflow_goal") == "form_read"
+    assert signal.metadata.get("routing_provenance") == "active_page_action_semantics"
 
 
 def test_detect_page_signal_ignores_explicit_external_url_request() -> None:
@@ -294,7 +387,7 @@ def test_detect_page_signal_ignores_negated_page_reference_for_explicit_url_requ
     assert signal is None
 
 
-def test_detect_page_signal_selects_page_pagination() -> None:
+def test_detect_page_signal_routes_pagination_from_active_page_phrase() -> None:
     signal = detect_page_signal(
         clause="下一页",
         offset=0,
@@ -302,21 +395,14 @@ def test_detect_page_signal_selects_page_pagination() -> None:
     )
 
     assert signal is not None
-    assert signal.kind == "page_pagination"
+    assert signal.kind == "page_workflow"
+    assert signal.metadata.get("page_workflow_goal") == "pagination"
+    assert signal.metadata.get("routing_provenance") == "active_page_action_semantics"
 
 
-def test_detect_page_signal_selects_page_pagination_for_jump_to_numbered_page() -> None:
-    signal = detect_page_signal(
-        clause="翻到第3页",
-        offset=0,
-        input_variables={"page_context": _runtime_page_context("admin.ai.logs")},
-    )
-
-    assert signal is not None
-    assert signal.kind == "page_pagination"
-
-
-def test_detect_page_signal_selects_row_detail_for_detailed_info_phrase() -> None:
+def test_detect_page_signal_routes_row_detail_from_active_page_phrase() -> (
+    None
+):
     signal = detect_page_signal(
         clause="帮我看看第一条记录的详细信息",
         offset=0,
@@ -324,13 +410,65 @@ def test_detect_page_signal_selects_row_detail_for_detailed_info_phrase() -> Non
     )
 
     assert signal is not None
-    assert signal.kind == "page_row_detail"
+    assert signal.kind == "page_workflow"
     assert signal.metadata.get("page_workflow_goal") == "row_detail"
+    assert signal.metadata.get("routing_provenance") == "page_workflow_semantic_profile"
 
 
-def test_page_rule_helpers_cover_jump_search_readonly() -> None:
-    assert looks_like_page_jump_request("下一页")
-    assert looks_like_page_search_request("在页面里搜索")
-    assert looks_like_read_only_form_instruction("先不要创建")
-    assert looks_like_required_field_form_read("看看表单里有哪些必填项")
+def test_detect_page_signal_routes_search_from_active_page_phrase() -> None:
+    signal = detect_page_signal(
+        clause="请帮我搜索记录并清空筛选条件",
+        offset=0,
+        input_variables={"page_context": _runtime_page_context("admin.ai.logs")},
+    )
 
+    assert signal is not None
+    assert signal.kind == "page_workflow"
+    assert signal.metadata.get("page_workflow_goal") == "search"
+    assert signal.metadata.get("routing_provenance") == "active_page_action_semantics"
+
+
+def test_detect_page_signal_routes_form_write_from_active_page_phrase() -> None:
+    signal = detect_page_signal(
+        clause="请帮我新增一条记录",
+        offset=0,
+        input_variables={"page_context": _runtime_page_context("admin.ai.skills")},
+    )
+
+    assert signal is not None
+    assert signal.kind == "page_workflow"
+    assert signal.metadata.get("page_workflow_goal") == "form_write"
+    assert signal.metadata.get("routing_provenance") == "active_page_action_semantics"
+
+
+def test_detect_page_signal_does_not_special_case_business_nouns_as_page_detail() -> (
+    None
+):
+    signal = detect_page_signal(
+        clause="帮我看看这个对话的详细信息",
+        offset=0,
+        input_variables={"page_context": _runtime_page_context("admin.runtime.records")},
+    )
+
+    assert signal is None
+
+
+def test_detect_page_signal_does_not_special_case_admin_ai_conversations_page() -> (
+    None
+):
+    signal = detect_page_signal(
+        clause="帮我看看这个对话的详细信息",
+        offset=0,
+        input_variables={
+            "page_context": _runtime_page_context("admin.ai.conversations")
+        },
+    )
+
+    assert signal is None
+
+
+def test_page_follow_up_helper_covers_bounded_generic_actions() -> None:
+    assert looks_like_page_follow_up("继续看看") is True
+    assert looks_like_page_follow_up("点击一下") is True
+    assert looks_like_page_follow_up("截个图看") is True
+    assert looks_like_page_follow_up("这里都有啥？") is False

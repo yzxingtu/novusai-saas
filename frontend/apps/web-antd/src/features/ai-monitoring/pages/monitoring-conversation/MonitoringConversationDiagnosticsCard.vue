@@ -69,9 +69,15 @@ const canonicalTurnFlowDiagnostics = computed(() => {
       continue;
     }
     const terminalStage = flow.timeline[flow.timeline.length - 1];
+    const canonicalFailureKind =
+      asOptionalString(flow.failureKind) ||
+      ((flow.finalStageStatus === 'error' || flow.turnOutcome === 'failed') &&
+      asOptionalString(flow.completionReason)
+        ? asOptionalString(flow.completionReason)
+        : undefined);
     return {
       completion_reason: asOptionalString(flow.completionReason),
-      failure_kind: asOptionalString(flow.failureKind),
+      failure_kind: canonicalFailureKind,
       final_stage_status:
         asOptionalString(flow.finalStageStatus) ||
         asOptionalString(terminalStage?.status),

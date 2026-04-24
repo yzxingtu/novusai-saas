@@ -15,6 +15,7 @@ from app.ai.runtime.capabilities import CapabilityRegistry
 from app.ai.runtime.types import CapabilityBundle, CapabilityDescriptor
 from app.ai.skills.activation import (
     apply_turn_skill_activation,
+    execution_tools_for_turn,
     resolve_startup_intent_flags,
 )
 from app.ai.skills.resolver import (
@@ -391,7 +392,7 @@ def test_apply_turn_skill_activation_allows_catalog_runtime_policy_for_startup_p
     apply_turn_skill_activation(
         skill_result=result,
         request=request,
-        intent_flags=resolve_startup_intent_flags(request),
+        intent_flags={"has_page_intent": True, "has_web_research_intent": False},
         allow_catalog_skill_activation=True,
     )
 
@@ -441,7 +442,7 @@ def test_apply_turn_skill_activation_keeps_live_selection_execution_backed() -> 
     apply_turn_skill_activation(
         skill_result=result,
         request=request,
-        intent_flags=resolve_startup_intent_flags(request),
+        intent_flags={"has_page_intent": True, "has_web_research_intent": False},
     )
 
     assert result.turn_activation is not None
@@ -450,7 +451,7 @@ def test_apply_turn_skill_activation_keeps_live_selection_execution_backed() -> 
     assert result.turn_activation.activated_tool_names == []
     assert result.turn_activation.activated_skill_names == []
     assert result.selected_skill_names == ["Weather Skill"]
-    assert [tool.name for tool in result.startup_activated_tools()] == [
+    assert [tool.name for tool in execution_tools_for_turn(result)] == [
         "get_current_weather"
     ]
 

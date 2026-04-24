@@ -166,15 +166,6 @@ def _rebuild_runtime_capability_diagnostics(
     diagnostics["runtime_capability_manifest"] = manifest.to_dict()
     diagnostics["runtime_capability_summary"] = AIRuntimeInventoryService.build_compact_summary(
         manifest,
-        include_knowledge_base_hint=bool(
-            diagnostics.get("intent_flags", {}).get("has_knowledge_intent", True)
-        ),
-        include_page_context_hint=bool(
-            diagnostics.get("intent_flags", {}).get("has_page_intent", True)
-        ),
-        include_memory_hint=bool(
-            diagnostics.get("intent_flags", {}).get("memory_context_enabled", True)
-        ),
     )
 
 
@@ -270,6 +261,8 @@ def plan_execution_tools(
                 ToolRouter.page_intent_tool_plan(
                     intent.kind,
                     input_variables=request.input_variables,
+                    intent_metadata=intent.metadata,
+                    user_text=intent.source_text or request.current_user_text,
                 )
                 if intent.family == "page_ops"
                 else None
@@ -504,18 +497,13 @@ async def finalize_prepared_execution_runtime(
         force_capability_summary=force_capability_summary,
         context_sources=context_sources,
         tools=tools,
-        input_variables=request.input_variables,
-        continuation_context=continuation_context,
         runtime_capability_summary=runtime_capability_summary,
         ordered_requested_families=explicit_requested_families,
         intent_plan=intent_plan,
         execution_path=execution_path,
-        execution_budget=execution_budget,
         should_skip_capability_summary=_should_skip_capability_summary_impl,
-        inject_runtime_summary=lambda candidate_tools, input_variables, **kwargs: _inject_runtime_summary_impl(
+        inject_runtime_summary=lambda **kwargs: _inject_runtime_summary_impl(
             messages=messages,
-            tools=candidate_tools,
-            input_variables=input_variables,
             render_contract=render_contract,
             **kwargs,
         ),

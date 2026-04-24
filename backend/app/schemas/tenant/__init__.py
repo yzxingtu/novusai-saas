@@ -74,6 +74,7 @@ from app.schemas.tenant.user import (
     SendLoginCodeRequest,
     TenantUserChangePasswordRequest,
     TenantUserCreateRequest,
+    TenantUserDevBootstrapRequest,
     TenantUserLoginRequest,
     TenantUserProfileUpdateRequest,
     TenantUserRegisterRequest,
@@ -98,6 +99,7 @@ __all__ = [
     "TenantAdminUpdateProfileRequest",
     # TenantUser / 企业用户
     "TenantUserLoginRequest",
+    "TenantUserDevBootstrapRequest",
     "SendLoginCodeRequest",
     "LoginByCodeRequest",
     "TenantUserResponse",

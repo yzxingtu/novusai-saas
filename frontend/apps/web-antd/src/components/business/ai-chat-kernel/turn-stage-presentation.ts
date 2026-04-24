@@ -217,6 +217,98 @@ function readMetricText(
   return undefined;
 }
 
+function hasSkippedZeroSummary(
+  stage: TurnFlowStageForDisplay,
+  values: string[],
+): boolean {
+  if (stage.type === 'tool_selection') {
+    return values.some(
+      (value) =>
+        /^selected 0 of \d+ tools?$/.test(value) ||
+        /^\d+ of \d+ tools? selected$/.test(value) ||
+        value.includes('0 个工具') ||
+        value.includes('筛选了 0 个') ||
+        value.includes('无需调用工具'),
+    );
+  }
+  if (stage.type === 'tool_execution') {
+    return values.some(
+      (value) =>
+        value === 'no tools executed' ||
+        value.includes('0 个工具') ||
+        value.includes('未执行工具'),
+    );
+  }
+  if (stage.type === 'retrieval') {
+    return values.some(
+      (value) =>
+        value === 'no evidence retrieved' ||
+        value.includes('0 条来源') ||
+        value.includes('0 条证据') ||
+        value.includes('未检索到'),
+    );
+  }
+  return false;
+}
+
+export function isNoopSkippedStage(stage: TurnFlowStageForDisplay) {
+  if (stage.status !== 'skipped') {
+    return false;
+  }
+
+  const metrics = stage.metrics ?? {};
+  if (stage.type === 'tool_selection') {
+    const selected = readMetricNumber(metrics, [
+      'selected',
+      'candidate_tools_count',
+      'candidateToolsCount',
+      'selected_count',
+      'selectedCount',
+    ]);
+    if (selected !== undefined) {
+      return selected <= 0;
+    }
+  }
+
+  if (stage.type === 'tool_execution') {
+    const total = readMetricNumber(metrics, [
+      'total',
+      'tool_rounds',
+      'tool_call_count',
+      'completed_tool_calls',
+      'failed_tool_calls',
+    ]);
+    if (total !== undefined) {
+      return total <= 0;
+    }
+  }
+
+  if (stage.type === 'retrieval') {
+    const count = readMetricNumber(metrics, [
+      'count',
+      'source_count',
+      'sourceCount',
+      'result_count',
+      'resultCount',
+      'evidence_count',
+      'evidenceCount',
+      'total',
+    ]);
+    if (count !== undefined) {
+      return count <= 0;
+    }
+  }
+
+  const comparableValues = [
+    stage.title,
+    stage.summary,
+    ...(stage.detailLines ?? []),
+  ]
+    .map((value) => normalizeComparableStageCopy(String(value ?? '')))
+    .filter((value) => value.length > 0);
+  return hasSkippedZeroSummary(stage, comparableValues);
+}
+
 function getMetricSummaryForStage(
   stage: TurnFlowStageForDisplay,
 ): string | undefined {

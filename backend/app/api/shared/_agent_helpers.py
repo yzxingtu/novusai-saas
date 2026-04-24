@@ -21,13 +21,15 @@ def _normalize_input_variables(value: Any) -> list[Any]:
     return value if isinstance(value, list) else []
 
 
-def _extract_agent_relations(agent: Any) -> tuple[str | None, dict | None, list[dict]]:
+def _extract_agent_relations(
+    agent: Any,
+) -> tuple[str | None, dict | None, list[dict], list[int], list[dict]]:
     """
     从 ORM Agent 对象中安全提取关联的 model_name、model_capabilities 和 skills。
     Safely extract related model_name, model_capabilities and skills from ORM Agent object.
 
     Returns:
-        (model_name, model_capabilities, skills) 元组 / tuple
+        (model_name, model_capabilities, skills, knowledge_base_ids, knowledge_bases) 元组 / tuple
     """
     model_name = None
     model_capabilities: dict | None = None
@@ -57,11 +59,56 @@ def _extract_agent_relations(agent: Any) -> tuple[str | None, dict | None, list[
                     continue
                 if getattr(skill, "is_deleted", False) or not getattr(skill, "is_active", True):
                     continue
-                skills.append({"id": skill.id, "name": skill.name})
+                skill_item = {"id": skill.id, "name": skill.name}
+                package = getattr(skill, "package", None)
+                package_id = getattr(skill, "package_id", None)
+                package_name = getattr(package, "name", None) if package else None
+                skill_type = getattr(skill, "type", None)
+                if package_id is not None:
+                    skill_item["package_id"] = package_id
+                if package_name:
+                    skill_item["package_name"] = package_name
+                if skill_type:
+                    skill_item["type"] = skill_type
+                skills.append(skill_item)
     except AttributeError:
         pass
 
-    return model_name, model_capabilities, skills
+    knowledge_base_ids: list[int] = []
+    knowledge_bases: list[dict] = []
+    try:
+        bindings = getattr(agent, "kb_bindings", None)
+        if bindings is not None:
+            for binding in bindings:
+                if getattr(binding, "is_deleted", False) or not getattr(
+                    binding, "enabled", True
+                ):
+                    continue
+                knowledge_base = getattr(binding, "knowledge_base", None)
+                if not knowledge_base:
+                    continue
+                if getattr(knowledge_base, "is_deleted", False):
+                    continue
+                kb_id = getattr(binding, "knowledge_base_id", None) or getattr(
+                    knowledge_base, "id", None
+                )
+                if isinstance(kb_id, int):
+                    knowledge_base_ids.append(kb_id)
+                kb_name = getattr(knowledge_base, "name", None)
+                kb_item: dict[str, Any] = {}
+                if isinstance(kb_id, int):
+                    kb_item["knowledge_base_id"] = kb_id
+                if kb_name:
+                    kb_item["kb_name"] = kb_name
+                    kb_item["name"] = kb_name
+                if isinstance(getattr(binding, "enabled", None), bool):
+                    kb_item["enabled"] = bool(binding.enabled)
+                if kb_item:
+                    knowledge_bases.append(kb_item)
+    except AttributeError:
+        pass
+
+    return model_name, model_capabilities, skills, knowledge_base_ids, knowledge_bases
 
 
 def build_agent_base_item(agent: Any) -> dict[str, Any]:
@@ -71,7 +118,13 @@ def build_agent_base_item(agent: Any) -> dict[str, Any]:
     admin/tenant 各自在此基础上追加端特有的字段。
     admin/tenant each append endpoint-specific fields on top of this.
     """
-    model_name, model_capabilities, skills = _extract_agent_relations(agent)
+    (
+        model_name,
+        model_capabilities,
+        skills,
+        knowledge_base_ids,
+        knowledge_bases,
+    ) = _extract_agent_relations(agent)
 
     _otid = getattr(agent, "owner_tenant_id", None)
     # owner_type: 仅列表/详情展示用派生字段（非 ORM 列、非历史 owner_type 列）。
@@ -93,6 +146,8 @@ def build_agent_base_item(agent: Any) -> dict[str, Any]:
         "model_name": model_name,
         "model_capabilities": model_capabilities,
         "skills": skills,
+        "knowledge_base_ids": knowledge_base_ids,
+        "knowledge_bases": knowledge_bases,
         "published_version": agent.published_version,
         "welcome_message": agent.welcome_message,
         "suggested_questions": agent.suggested_questions,

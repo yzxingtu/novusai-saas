@@ -577,10 +577,19 @@ describe('turnTimeline', () => {
     expect(
       wrapper.get('[data-testid="turn-process-body"]').attributes('style') ??
         '',
+    ).toContain('grid-template-rows: 1fr');
+
+    vi.advanceTimersByTime(220);
+    await wrapper.vm.$nextTick();
+
+    expect(
+      wrapper.get('[data-testid="turn-process-body"]').attributes('style') ??
+        '',
     ).toContain('grid-template-rows: 0fr');
   });
 
   it('keeps the whole process panel expanded while streaming and auto-collapses it after completion', async () => {
+    vi.useFakeTimers();
     const liveMessage = createAssistantMessage({
       streaming: true,
       turnFlow: {
@@ -626,6 +635,14 @@ describe('turnTimeline', () => {
       msg: settledMessage,
       state: buildTurnFlowState(settledMessage),
     });
+    await wrapper.vm.$nextTick();
+
+    expect(
+      wrapper.get('[data-testid="turn-process-body"]').attributes('style') ??
+        '',
+    ).toContain('grid-template-rows: 1fr');
+
+    vi.advanceTimersByTime(220);
     await wrapper.vm.$nextTick();
 
     expect(

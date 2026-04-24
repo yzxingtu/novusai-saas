@@ -26,6 +26,28 @@ class TenantUserLoginRequest(BaseSchema):
     captcha_provider_code: str | None = Field(None, description="验证码提供方标识")
 
 
+class TenantUserDevBootstrapRequest(BaseSchema):
+    """开发环境企业用户 bootstrap 登录请求 / Dev bootstrap request for tenant users."""
+
+    bootstrap_secret: str = Field(
+        ...,
+        min_length=1,
+        description="开发环境 bootstrap 密钥 / Development bootstrap secret",
+    )
+    username: str = Field(
+        ...,
+        min_length=1,
+        max_length=255,
+        description="用户名、邮箱或手机号 / Username, email, or phone",
+    )
+    tenant_code: str = Field(
+        ...,
+        min_length=1,
+        max_length=50,
+        description="企业编码 / Tenant code",
+    )
+
+
 class SendLoginCodeRequest(BaseSchema):
     """发送登录验证码请求 / Send login code request."""
 
@@ -170,6 +192,7 @@ class ResetPasswordRequest(BaseSchema):
 
 __all__ = [
     "TenantUserLoginRequest",
+    "TenantUserDevBootstrapRequest",
     "SendLoginCodeRequest",
     "LoginByCodeRequest",
     "TenantUserResponse",

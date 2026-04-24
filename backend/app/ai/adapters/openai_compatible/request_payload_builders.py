@@ -274,7 +274,7 @@ async def build_responses_request(
     instructions = _combine_system_instructions(messages)
     if instructions:
         request_params["instructions"] = instructions
-    if continuation_anchor is not None:
+    if continuation_anchor is not None and not stream:
         anchor_index, response_id = continuation_anchor
         continuation_input_messages = _exclude_system_messages(
             messages[anchor_index + 1 :]

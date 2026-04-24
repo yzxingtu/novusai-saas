@@ -1,3 +1,9 @@
+"""
+Test type: behavioral
+Scope: OpenAI-compatible native web search live-path request handling.
+Mock strategy: fake client transport only; native-web-search orchestration stays real.
+"""
+
 from __future__ import annotations
 
 from types import SimpleNamespace
@@ -41,6 +47,16 @@ class _FakeAsyncStream:
 
     async def aclose(self) -> None:
         return None
+
+
+class _FakeResponsesClient:
+    def __init__(self, create_impl):
+        self.responses = SimpleNamespace(create=create_impl)
+        self.with_options_calls: list[dict[str, object]] = []
+
+    def with_options(self, **kwargs):
+        self.with_options_calls.append(dict(kwargs))
+        return self
 
 
 def _make_adapter() -> OpenAIAdapter:
@@ -129,6 +145,53 @@ async def test_native_web_search_normalizes_url_citations_and_sources() -> None:
     assert create.await_args.kwargs["tool_choice"] == "required"
     assert create.await_args.kwargs["include"] == ["web_search_call.action.sources"]
     assert create.await_args.kwargs["tools"][0]["type"] == "web_search"
+
+
+@pytest.mark.asyncio
+async def test_native_web_search_applies_zero_sdk_retries_to_non_stream_request() -> (
+    None
+):
+    adapter = _make_adapter()
+    response = SimpleNamespace(
+        status="completed",
+        output=[
+            SimpleNamespace(
+                type="message",
+                content=[
+                    SimpleNamespace(
+                        type="output_text",
+                        text="Example Source",
+                        annotations=[
+                            SimpleNamespace(
+                                type="url_citation",
+                                title="Example Source",
+                                url="https://example.com/article",
+                                start_index=0,
+                                end_index=14,
+                            )
+                        ],
+                    )
+                ],
+            )
+        ],
+    )
+    create = AsyncMock(return_value=response)
+    client = _FakeResponsesClient(create)
+    adapter.client = client
+
+    run = await adapter.native_web_search(
+        query="OpenAI",
+        max_results=5,
+        locale="en",
+        timeout_seconds=20,
+        model="gpt-5.4",
+        provider_label="openai",
+        backend_key="native:openai:gpt-5.4",
+    )
+
+    assert run.status == STATUS_SUCCESS
+    assert client.with_options_calls == [{"max_retries": 0}]
+    assert create.await_count == 1
 
 
 @pytest.mark.asyncio
@@ -255,7 +318,8 @@ async def test_native_web_search_renders_prompt_contract_and_attempts_stream_fal
         "app.ai.adapters.openai_compatible.support.native_web_search_support.render_prompt_contract",
         _fake_render,
     )
-    adapter.client = SimpleNamespace(responses=SimpleNamespace(create=_create))
+    client = _FakeResponsesClient(_create)
+    adapter.client = client
 
     run = await adapter.native_web_search(
         query="OpenAI",
@@ -270,6 +334,7 @@ async def test_native_web_search_renders_prompt_contract_and_attempts_stream_fal
     assert run.status == STATUS_SUCCESS
     assert render_calls == [("hosted_web_search_candidate_instructions", "zh-CN")]
     assert len(calls) == 2
+    assert client.with_options_calls == [{"max_retries": 0}, {"max_retries": 0}]
     assert calls[0].get("stream") is not True
     assert calls[0]["instructions"] == "PROMPT"
     assert calls[1]["stream"] is True

@@ -44,16 +44,17 @@ def build_post_tool_retry_policy(
             families.append(family)
 
     for intent in unfinished_intents or []:
-        if resolve_page_workflow_goal(
-            intent_kind=str(intent or "").strip(),
+        normalized_intent = str(intent or "").strip()
+        if normalized_intent == "page_workflow" or resolve_page_workflow_goal(
+            intent_kind=normalized_intent,
             intent_metadata=None,
             user_text=None,
         ):
             family = "page_ops"
-        elif intent in {"weather", "rail_ticket_research"}:
+        elif normalized_intent in {"weather", "rail_ticket_research"}:
             if (
                 any(tool_semantic_family(tool, input_variables) == "weather" for tool in tools)
-                and intent == "weather"
+                and normalized_intent == "weather"
             ):
                 family = "weather"
             else:

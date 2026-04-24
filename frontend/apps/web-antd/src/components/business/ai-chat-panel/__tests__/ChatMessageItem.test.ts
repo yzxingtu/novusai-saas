@@ -2652,6 +2652,10 @@ describe('chatMessageItem', () => {
       kernelState: buildTurnFlowState(nextMessage),
     });
     await wrapper.vm.$nextTick();
+
+    vi.advanceTimersByTime(220);
+    await wrapper.vm.$nextTick();
+
     await expandKernelOverviewIfCollapsed(wrapper);
 
     expect(
@@ -3028,7 +3032,7 @@ describe('chatMessageItem', () => {
     ).toBe(true);
   });
 
-  it('renders transcript content before the kernel header for assistant messages', async () => {
+  it('renders the combined kernel header before transcript content for assistant messages', async () => {
     const wrapper = mount(ChatMessageItem, {
       props: {
         msg: {
@@ -3065,8 +3069,10 @@ describe('chatMessageItem', () => {
     await wrapper.vm.$nextTick();
 
     const html = wrapper.html();
-    expect(html.indexOf('data-testid="markdown-render-content"')).toBeLessThan(
+    expect(
       html.indexOf('data-testid="chat-message-kernel-header"'),
+    ).toBeLessThan(
+      html.indexOf('data-testid="markdown-render-content"'),
     );
   });
 
