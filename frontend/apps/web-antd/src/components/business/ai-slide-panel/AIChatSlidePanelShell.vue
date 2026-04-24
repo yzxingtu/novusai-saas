@@ -79,12 +79,9 @@ const {
         />
 
         <!-- Header -->
-        <AIChatPanelHeader v-bind="headerProps" v-on="headerListeners">
-          <AIChatPanelToolbarRow
-            v-bind="toolbarProps"
-            v-on="toolbarListeners"
-          />
-        </AIChatPanelHeader>
+        <AIChatPanelHeader v-bind="headerProps" v-on="headerListeners" />
+
+        <AIChatPanelToolbarRow v-bind="toolbarProps" v-on="toolbarListeners" />
 
         <!-- Streaming progress bar (T5) -->
         <div

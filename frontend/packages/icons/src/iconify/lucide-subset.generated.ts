@@ -13,12 +13,10 @@ export const LUCIDE_ICON_NAMES = [
   "archive",
   "archive-restore",
   "archive-x",
-  "arrow-down",
   "arrow-down-left",
   "arrow-down-to-line",
   "arrow-left",
   "arrow-right",
-  "arrow-up",
   "arrow-up-circle",
   "arrow-up-from-line",
   "arrow-up-right",
@@ -107,7 +105,6 @@ export const LUCIDE_ICON_NAMES = [
   "external-link",
   "eye",
   "file",
-  "file-check-2",
   "file-code",
   "file-code-2",
   "file-input",
@@ -123,6 +120,7 @@ export const LUCIDE_ICON_NAMES = [
   "file-warning",
   "files",
   "filter",
+  "fingerprint",
   "flame",
   "fold-vertical",
   "folder",
@@ -181,8 +179,10 @@ export const LUCIDE_ICON_NAMES = [
   "list",
   "list-checks",
   "list-ordered",
+  "list-todo",
   "list-tree",
   "loader-2",
+  "loader-circle",
   "locate",
   "locate-fixed",
   "lock",
@@ -249,6 +249,7 @@ export const LUCIDE_ICON_NAMES = [
   "radio-tower",
   "receipt-text",
   "redo-2",
+  "refresh-ccw",
   "refresh-cw",
   "repeat",
   "reply",
@@ -349,12 +350,10 @@ export const LUCIDE_ICON_IDS = [
   "lucide:archive",
   "lucide:archive-restore",
   "lucide:archive-x",
-  "lucide:arrow-down",
   "lucide:arrow-down-left",
   "lucide:arrow-down-to-line",
   "lucide:arrow-left",
   "lucide:arrow-right",
-  "lucide:arrow-up",
   "lucide:arrow-up-circle",
   "lucide:arrow-up-from-line",
   "lucide:arrow-up-right",
@@ -443,7 +442,6 @@ export const LUCIDE_ICON_IDS = [
   "lucide:external-link",
   "lucide:eye",
   "lucide:file",
-  "lucide:file-check-2",
   "lucide:file-code",
   "lucide:file-code-2",
   "lucide:file-input",
@@ -459,6 +457,7 @@ export const LUCIDE_ICON_IDS = [
   "lucide:file-warning",
   "lucide:files",
   "lucide:filter",
+  "lucide:fingerprint",
   "lucide:flame",
   "lucide:fold-vertical",
   "lucide:folder",
@@ -517,8 +516,10 @@ export const LUCIDE_ICON_IDS = [
   "lucide:list",
   "lucide:list-checks",
   "lucide:list-ordered",
+  "lucide:list-todo",
   "lucide:list-tree",
   "lucide:loader-2",
+  "lucide:loader-circle",
   "lucide:locate",
   "lucide:locate-fixed",
   "lucide:lock",
@@ -585,6 +586,7 @@ export const LUCIDE_ICON_IDS = [
   "lucide:radio-tower",
   "lucide:receipt-text",
   "lucide:redo-2",
+  "lucide:refresh-ccw",
   "lucide:refresh-cw",
   "lucide:repeat",
   "lucide:reply",
@@ -708,6 +710,9 @@ export const LUCIDE_ICON_SUBSET = {
     "file-question": {
       "parent": "file-question-mark"
     },
+    "fingerprint": {
+      "parent": "fingerprint-pattern"
+    },
     "git-commit": {
       "parent": "git-commit-horizontal"
     },
@@ -786,9 +791,6 @@ export const LUCIDE_ICON_SUBSET = {
     "archive-x": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><rect width=\"20\" height=\"5\" x=\"2\" y=\"3\" rx=\"1\"/><path d=\"M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8M9.5 17l5-5m-5 0l5 5\"/></g>"
     },
-    "arrow-down": {
-      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M12 5v14m7-7l-7 7l-7-7\"/>"
-    },
     "arrow-down-left": {
       "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M17 7L7 17m10 0H7V7\"/>"
     },
@@ -800,9 +802,6 @@ export const LUCIDE_ICON_SUBSET = {
     },
     "arrow-right": {
       "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M5 12h14m-7-7l7 7l-7 7\"/>"
-    },
-    "arrow-up": {
-      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"m5 12l7-7l7 7m-7 7V5\"/>"
     },
     "arrow-up-from-line": {
       "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"m18 9l-6-6l-6 6m6-6v14m-7 4h14\"/>"
@@ -1072,10 +1071,6 @@ export const LUCIDE_ICON_SUBSET = {
     "file": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z\"/><path d=\"M14 2v5a1 1 0 0 0 1 1h5\"/></g>"
     },
-    "file-check-2": {
-      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M4 22h14a2 2 0 0 0 2-2V7l-5-5H6a2 2 0 0 0-2 2v4\"/><path d=\"M14 2v4a2 2 0 0 0 2 2h4M3 15l2 2l4-4\"/></g>",
-      "hidden": true
-    },
     "file-code": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z\"/><path d=\"M14 2v5a1 1 0 0 0 1 1h5m-10 4.5L8 15l2 2.5m4-5l2 2.5l-2 2.5\"/></g>"
     },
@@ -1123,6 +1118,9 @@ export const LUCIDE_ICON_SUBSET = {
     "filter": {
       "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M22 3H2l8 9.46V19l4 2v-8.54z\"/>",
       "hidden": true
+    },
+    "fingerprint-pattern": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4M14 13.12c0 2.38 0 6.38-1 8.88m4.29-.98c.12-.6.43-2.3.5-3.02M2 12a10 10 0 0 1 18-6M2 16h.01m19.79 0c.2-2 .131-5.354 0-6\"/><path d=\"M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2m2.31 12c.21-.66.45-1.32.57-2M9 6.8a6 6 0 0 1 9 5.2v2\"/></g>"
     },
     "flame": {
       "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M12 3q1 4 4 6.5t3 5.5a1 1 0 0 1-14 0a5 5 0 0 1 1-3a1 1 0 0 0 5 0c0-2-1.5-3-1.5-5q0-2 2.5-4\"/>"
@@ -1292,6 +1290,9 @@ export const LUCIDE_ICON_SUBSET = {
     },
     "list-ordered": {
       "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M11 5h10m-10 7h10m-10 7h10M4 4h1v5M4 9h2m.5 11H3.4c0-1 2.6-1.925 2.6-3.5a1.5 1.5 0 0 0-2.6-1.02\"/>"
+    },
+    "list-todo": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M13 5h8m-8 7h8m-8 7h8M3 17l2 2l4-4\"/><rect width=\"6\" height=\"6\" x=\"3\" y=\"4\" rx=\"1\"/></g>"
     },
     "list-tree": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M8 5h13m-8 7h8m-8 7h8M3 10a2 2 0 0 0 2 2h3\"/><path d=\"M3 5v12a2 2 0 0 0 2 2h3\"/></g>"
@@ -1481,6 +1482,9 @@ export const LUCIDE_ICON_SUBSET = {
     },
     "redo-2": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"m15 14l5-5l-5-5\"/><path d=\"M20 9H9.5A5.5 5.5 0 0 0 4 14.5A5.5 5.5 0 0 0 9.5 20H13\"/></g>"
+    },
+    "refresh-ccw": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M21 12a9 9 0 0 0-9-9a9.75 9.75 0 0 0-6.74 2.74L3 8\"/><path d=\"M3 3v5h5m-5 4a9 9 0 0 0 9 9a9.75 9.75 0 0 0 6.74-2.74L21 16\"/><path d=\"M16 16h5v5\"/></g>"
     },
     "refresh-cw": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M3 12a9 9 0 0 1 9-9a9.75 9.75 0 0 1 6.74 2.74L21 8\"/><path d=\"M21 3v5h-5m5 4a9 9 0 0 1-9 9a9.75 9.75 0 0 1-6.74-2.74L3 16\"/><path d=\"M8 16H3v5\"/></g>"

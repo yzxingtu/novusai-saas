@@ -201,9 +201,14 @@ export function usePageAICapability(options: UsePageAICapabilityOptions) {
     const rawTitle = currentPageContext.value?.page_title?.trim();
     return rawTitle || $t('common.aiPanel.pageAiCurrentPage');
   });
-  const pageAIRailTooltip = computed(
-    () => `${resolvedPageAITitle.value} · ${pageAISummary.value}`,
-  );
+  const pageAIRailTooltip = computed(() => {
+    if (pageAIOperationCount.value > 0) {
+      return $t('common.aiPanel.pageAiOperationCount', {
+        count: pageAIOperationCount.value,
+      });
+    }
+    return $t('common.aiPanel.pageAiSupported');
+  });
 
   function togglePageAIDetails() {
     pageAIDetailsExpanded.value = !pageAIDetailsExpanded.value;

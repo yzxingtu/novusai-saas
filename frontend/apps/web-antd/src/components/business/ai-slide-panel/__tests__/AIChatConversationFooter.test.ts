@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 // Test type: behavioral
-// Verifies: the shared conversation footer keeps export actions available even before token usage is populated.
+// Verifies: the shared conversation footer stays focused on lightweight usage telemetry and no longer surfaces export chrome.
 import { mount } from '@vue/test-utils';
 import { defineComponent } from 'vue';
 
@@ -19,27 +19,8 @@ vi.mock('@vben/icons', () => ({
   }),
 }));
 
-vi.mock('ant-design-vue', () => ({
-  Dropdown: defineComponent({
-    name: 'DropdownStub',
-    template:
-      '<div data-testid="footer-dropdown"><slot /><slot name="overlay" /></div>',
-  }),
-  Menu: defineComponent({
-    name: 'MenuStub',
-    props: {
-      items: {
-        default: () => [],
-        type: Array,
-      },
-    },
-    template:
-      '<div data-testid="footer-menu">{{ items.map((item) => item?.label).join(",") }}</div>',
-  }),
-}));
-
 describe('aiChatConversationFooter', () => {
-  it('keeps export actions visible while streaming even when token usage is not available yet', () => {
+  it('stays hidden when only export actions exist without token usage', () => {
     const wrapper = mount(AIChatConversationFooter, {
       props: {
         exportMenuItems: [{ key: 'markdown', label: 'Markdown' }],
@@ -49,8 +30,22 @@ describe('aiChatConversationFooter', () => {
       },
     });
 
-    expect(wrapper.find('[data-testid="footer-dropdown"]').exists()).toBe(true);
-    expect(wrapper.text()).not.toContain('common.globalAiChat.tokens');
+    expect(wrapper.html()).toBe('<!--v-if-->');
+  });
+
+  it('shows only the token summary once usage is available', () => {
+    const wrapper = mount(AIChatConversationFooter, {
+      props: {
+        exportMenuItems: [{ key: 'markdown', label: 'Markdown' }],
+        messageCount: 3,
+        streaming: false,
+        totalTokensUsed: 1024,
+      },
+    });
+
+    expect(wrapper.text()).toContain('3 common.globalAiChat.messages');
+    expect(wrapper.text()).toContain('1,024 common.globalAiChat.tokens');
+    expect(wrapper.find('button').exists()).toBe(false);
   });
 
   it('stays hidden when there is no summary and no export action', () => {

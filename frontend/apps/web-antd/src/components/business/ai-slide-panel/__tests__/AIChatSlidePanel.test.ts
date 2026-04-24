@@ -414,7 +414,7 @@ describe('aIChatSlidePanel (component mount)', () => {
       document.body.querySelectorAll(
         '[data-testid="ai-panel-primary-actions"] button',
       ),
-    ).toHaveLength(3);
+    ).toHaveLength(4);
     expect(
       document.body.querySelector('[data-testid="ai-panel-toolbar-row"]'),
     ).toBeTruthy();
@@ -665,7 +665,7 @@ describe('aIChatSlidePanel (component mount)', () => {
     wrapper.unmount();
   });
 
-  it('does not reserve a blank header slot row when no status badge is shown', async () => {
+  it('keeps the toolbar row outside the restored header shell when no status badge is shown', async () => {
     const wrapper = mountPanel({
       props: {
         pageContextKey: 'tenant.demo.page',
@@ -684,8 +684,10 @@ describe('aIChatSlidePanel (component mount)', () => {
     const toolbarRow = document.body.querySelector(
       '[data-testid="ai-panel-toolbar-row"]',
     );
-    const headerBody = document.body.querySelector('.ai-panel-header-body');
-    expect(headerBody?.contains(toolbarRow ?? null)).toBe(true);
+    const headerShell = document.body.querySelector('.ai-panel-header');
+    expect(headerShell).toBeTruthy();
+    expect(toolbarRow).toBeTruthy();
+    expect(headerShell?.contains(toolbarRow ?? null)).toBe(false);
     expect(toolbarRow?.contains(headerActions)).toBe(true);
 
     wrapper.unmount();
@@ -711,9 +713,13 @@ describe('aIChatSlidePanel (component mount)', () => {
 
     await flushPromises();
 
-    expect(
-      document.body.querySelector('[data-testid="ai-panel-page-ai-card"]'),
-    ).toBeTruthy();
+    const pageAiCard = document.body.querySelector(
+      '[data-testid="ai-panel-page-ai-card"]',
+    ) as HTMLDivElement | null;
+    expect(pageAiCard).toBeTruthy();
+    expect(pageAiCard?.textContent).toContain('common.aiPanel.pageAiSupported');
+    expect(pageAiCard?.textContent).not.toContain('admin.system.codegen.name');
+    expect(pageAiCard?.textContent).not.toContain('common.aiPanel.pageAiSummary');
     expect(antMessageMocks.error).not.toHaveBeenCalled();
 
     wrapper.unmount();
