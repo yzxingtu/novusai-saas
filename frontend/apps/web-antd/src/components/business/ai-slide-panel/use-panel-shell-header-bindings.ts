@@ -14,18 +14,23 @@ interface UsePanelShellHeaderBindingsOptions {
   canForceReroute: ComputedRef<boolean>;
   forceRerouteNextTurn: Ref<boolean>;
   headerConversationSummary: Ref<string>;
+  headerMemoryHasAttention: Ref<boolean>;
   headerMoreHasAttention: Ref<boolean>;
   headerMoreMenuItems: Ref<ItemType[]>;
   hasHeaderVariableValues: Ref<boolean>;
+  memoryLoading: Ref<boolean>;
   onEditHeaderVars: () => void;
+  onToggleMemory: () => void | Promise<void>;
   onToggleForceReroute: () => void;
   panelTitle: ComputedRef<string>;
   pageAICapability: UsePageAICapabilityReturn;
   routeNotice: Ref<null | string>;
   routing: Ref<boolean>;
+  showHeaderMemoryButton: Ref<boolean>;
   showHeaderMoreMenu: Ref<boolean>;
   showHeaderVarsButton: Ref<boolean>;
   showHistory: Ref<boolean>;
+  showMemoryPanel: Ref<boolean>;
   showContextDrawer: Ref<boolean>;
   showTimelineDrawer: Ref<boolean>;
   timelineItems: Ref<ConversationTimelineItem[]>;
@@ -62,8 +67,10 @@ export function usePanelShellHeaderBindings(
       options.pageAICapability.hasExpandablePageAIDetails?.value ?? false,
     hasHeaderVariableValues: options.hasHeaderVariableValues.value,
     hasPageAI: options.pageAICapability.hasPageAI.value,
+    headerMemoryHasAttention: options.headerMemoryHasAttention.value,
     headerMoreHasAttention: options.headerMoreHasAttention.value,
     headerMoreMenuItems: options.headerMoreMenuItems.value,
+    memoryLoading: options.memoryLoading.value,
     pageAIDetailsExpanded: options.pageAICapability.pageAIDetailsExpanded.value,
     pageAIDiagnostics: options.pageAICapability.pageAIDiagnostics.value,
     pageAIFallbackOnly: options.pageAICapability.pageAIFallbackOnly.value,
@@ -76,9 +83,11 @@ export function usePanelShellHeaderBindings(
     pageAIVisibleOperations:
       options.pageAICapability.pageAIVisibleOperations.value,
     resolvedPageAITitle: options.pageAICapability.resolvedPageAITitle.value,
+    showHeaderMemoryButton: options.showHeaderMemoryButton.value,
     showHeaderMoreMenu: options.showHeaderMoreMenu.value,
     showHeaderVarsButton: options.showHeaderVarsButton.value,
     showHistory: options.showHistory.value,
+    showMemoryPanel: options.showMemoryPanel.value,
     showRerouteButton:
       !!options.activeConversationId.value && !options.isPinned.value,
   }));
@@ -95,6 +104,7 @@ export function usePanelShellHeaderBindings(
     expandAllOperations: options.expandAllPageAIOperations,
     newChat: options.onStartNewChat,
     toggleHistory: options.toggleHistory,
+    toggleMemory: options.onToggleMemory,
     togglePageDetails: options.togglePageAIDetails,
     toggleReroute: options.onToggleForceReroute,
   };

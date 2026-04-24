@@ -5,7 +5,12 @@ import { computed } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
-import { Dropdown as ADropdown, Menu as AMenu, Tooltip } from 'ant-design-vue';
+import {
+  Dropdown as ADropdown,
+  Menu as AMenu,
+  Spin,
+  Tooltip,
+} from 'ant-design-vue';
 
 import { $t } from '#/locales';
 
@@ -17,11 +22,15 @@ const props = withDefaults(
     compact?: boolean;
     forceRerouteNextTurn?: boolean;
     hasHeaderVariableValues?: boolean;
+    headerMemoryHasAttention?: boolean;
     headerMoreHasAttention?: boolean;
     headerMoreMenuItems?: ItemType[];
+    memoryLoading?: boolean;
+    showHeaderMemoryButton?: boolean;
     showHeaderMoreMenu?: boolean;
     showHeaderVarsButton?: boolean;
     showHistory?: boolean;
+    showMemoryPanel?: boolean;
     showRerouteButton?: boolean;
   }>(),
   {
@@ -29,11 +38,15 @@ const props = withDefaults(
     compact: false,
     forceRerouteNextTurn: false,
     hasHeaderVariableValues: false,
+    headerMemoryHasAttention: false,
     headerMoreHasAttention: false,
     headerMoreMenuItems: () => [],
+    memoryLoading: false,
+    showHeaderMemoryButton: false,
     showHeaderMoreMenu: false,
     showHeaderVarsButton: false,
     showHistory: false,
+    showMemoryPanel: false,
     showRerouteButton: false,
   },
 );
@@ -42,6 +55,7 @@ const emit = defineEmits<{
   editVars: [];
   newChat: [];
   toggleHistory: [];
+  toggleMemory: [];
   toggleReroute: [];
 }>();
 
@@ -122,6 +136,32 @@ const effectiveHeaderMoreMenuItems = computed(
           @click="emit('toggleHistory')"
         >
           <IconifyIcon icon="lucide:history" class="size-3.5" />
+        </button>
+      </Tooltip>
+      <Tooltip
+        v-if="showHeaderMemoryButton"
+        :title="$t('common.aiPanel.memory')"
+      >
+        <button
+          data-testid="ai-panel-memory-button"
+          class="relative flex size-7 items-center justify-center rounded-lg transition-colors hover:bg-muted disabled:opacity-40"
+          :class="
+            showMemoryPanel
+              ? 'bg-primary/10 text-primary'
+              : headerMemoryHasAttention
+                ? 'text-primary'
+                : 'text-muted-foreground hover:text-foreground'
+          "
+          :aria-label="$t('common.aiPanel.memory')"
+          type="button"
+          @click="emit('toggleMemory')"
+        >
+          <Spin v-if="memoryLoading" size="small" />
+          <IconifyIcon v-else icon="lucide:brain" class="size-3.5" />
+          <span
+            v-if="headerMemoryHasAttention && !showMemoryPanel"
+            class="absolute right-1.5 top-1.5 size-1.5 rounded-full bg-primary"
+          ></span>
         </button>
       </Tooltip>
       <ADropdown

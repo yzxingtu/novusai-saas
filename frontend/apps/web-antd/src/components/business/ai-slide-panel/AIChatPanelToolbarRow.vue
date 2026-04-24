@@ -19,8 +19,10 @@ withDefaults(
     hasExpandablePageAIDetails?: boolean;
     hasHeaderVariableValues?: boolean;
     hasPageAI?: boolean;
+    headerMemoryHasAttention?: boolean;
     headerMoreHasAttention?: boolean;
     headerMoreMenuItems?: ItemType[];
+    memoryLoading?: boolean;
     pageAIDetailsExpanded?: boolean;
     pageAIDiagnostics?: null | PageAIDiagnostics;
     pageAIFallbackOnly?: boolean;
@@ -31,9 +33,11 @@ withDefaults(
     pageAISummary?: string;
     pageAIVisibleOperations?: PageOperation[];
     resolvedPageAITitle?: string;
+    showHeaderMemoryButton?: boolean;
     showHeaderMoreMenu?: boolean;
     showHeaderVarsButton?: boolean;
     showHistory?: boolean;
+    showMemoryPanel?: boolean;
     showRerouteButton?: boolean;
   }>(),
   {
@@ -42,8 +46,10 @@ withDefaults(
     hasExpandablePageAIDetails: false,
     hasHeaderVariableValues: false,
     hasPageAI: false,
+    headerMemoryHasAttention: false,
     headerMoreHasAttention: false,
     headerMoreMenuItems: () => [],
+    memoryLoading: false,
     pageAIDetailsExpanded: false,
     pageAIDiagnostics: null,
     pageAIFallbackOnly: false,
@@ -54,9 +60,11 @@ withDefaults(
     pageAISummary: '',
     pageAIVisibleOperations: () => [],
     resolvedPageAITitle: '',
+    showHeaderMemoryButton: false,
     showHeaderMoreMenu: false,
     showHeaderVarsButton: false,
     showHistory: false,
+    showMemoryPanel: false,
     showRerouteButton: false,
   },
 );
@@ -66,6 +74,7 @@ const emit = defineEmits<{
   expandAllOperations: [];
   newChat: [];
   toggleHistory: [];
+  toggleMemory: [];
   togglePageDetails: [];
   toggleReroute: [];
 }>();
@@ -101,15 +110,20 @@ const emit = defineEmits<{
           compact
           :force-reroute-next-turn="forceRerouteNextTurn"
           :has-header-variable-values="hasHeaderVariableValues"
+          :header-memory-has-attention="headerMemoryHasAttention"
           :header-more-has-attention="headerMoreHasAttention"
           :header-more-menu-items="headerMoreMenuItems"
+          :memory-loading="memoryLoading"
+          :show-header-memory-button="showHeaderMemoryButton"
           :show-header-more-menu="showHeaderMoreMenu"
           :show-header-vars-button="showHeaderVarsButton"
           :show-history="showHistory"
+          :show-memory-panel="showMemoryPanel"
           :show-reroute-button="showRerouteButton"
           @edit-vars="emit('editVars')"
           @new-chat="emit('newChat')"
           @toggle-history="emit('toggleHistory')"
+          @toggle-memory="emit('toggleMemory')"
           @toggle-reroute="emit('toggleReroute')"
         />
       </template>
@@ -120,15 +134,20 @@ const emit = defineEmits<{
       :can-force-reroute="canForceReroute"
       :force-reroute-next-turn="forceRerouteNextTurn"
       :has-header-variable-values="hasHeaderVariableValues"
+      :header-memory-has-attention="headerMemoryHasAttention"
       :header-more-has-attention="headerMoreHasAttention"
       :header-more-menu-items="headerMoreMenuItems"
+      :memory-loading="memoryLoading"
+      :show-header-memory-button="showHeaderMemoryButton"
       :show-header-more-menu="showHeaderMoreMenu"
       :show-header-vars-button="showHeaderVarsButton"
       :show-history="showHistory"
+      :show-memory-panel="showMemoryPanel"
       :show-reroute-button="showRerouteButton"
       @edit-vars="emit('editVars')"
       @new-chat="emit('newChat')"
       @toggle-history="emit('toggleHistory')"
+      @toggle-memory="emit('toggleMemory')"
       @toggle-reroute="emit('toggleReroute')"
     />
   </div>

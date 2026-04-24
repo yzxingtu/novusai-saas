@@ -115,6 +115,7 @@ describe('usePanelHeader diagnostics gating', () => {
       buildOptions({ apiPrefix: '/admin/ai/chat' }),
     );
 
+    expect(itemKeys(header.headerMoreMenuItems.value)).not.toContain('memory');
     expect(itemKeys(header.headerMoreMenuItems.value)).not.toContain(
       'context-diagnostics',
     );
@@ -129,6 +130,7 @@ describe('usePanelHeader diagnostics gating', () => {
   it('hides context diagnostics from the default tenant menu', () => {
     const header = usePanelHeader(buildOptions());
 
+    expect(itemKeys(header.headerMoreMenuItems.value)).not.toContain('memory');
     expect(itemKeys(header.headerMoreMenuItems.value)).not.toContain(
       'context-diagnostics',
     );
@@ -143,6 +145,7 @@ describe('usePanelHeader diagnostics gating', () => {
   it('hides context diagnostics from the default user menu', () => {
     const header = usePanelHeader(buildOptions({ apiPrefix: '/api/user' }));
 
+    expect(itemKeys(header.headerMoreMenuItems.value)).not.toContain('memory');
     expect(itemKeys(header.headerMoreMenuItems.value)).not.toContain(
       'context-diagnostics',
     );
@@ -163,6 +166,7 @@ describe('usePanelHeader diagnostics gating', () => {
 
     const header = usePanelHeader(buildOptions());
 
+    expect(itemKeys(header.headerMoreMenuItems.value)).not.toContain('memory');
     expect(itemKeys(header.headerMoreMenuItems.value)).toContain(
       'context-diagnostics',
     );
@@ -186,6 +190,7 @@ describe('usePanelHeader diagnostics gating', () => {
       buildOptions({ apiPrefix: '/admin/ai/chat' }),
     );
 
+    expect(itemKeys(header.headerMoreMenuItems.value)).not.toContain('memory');
     expect(itemKeys(header.headerMoreMenuItems.value)).toContain(
       'context-diagnostics',
     );
@@ -203,5 +208,36 @@ describe('usePanelHeader diagnostics gating', () => {
     expect(header.headerConversationSummary.value).toBe(
       'common.globalAiChat.currentConversationAgent',
     );
+  });
+
+  it('exposes memory as a direct header action instead of a more-menu item', async () => {
+    const options = buildOptions();
+    const header = usePanelHeader(options);
+
+    expect(header.showHeaderMemoryButton.value).toBe(true);
+    expect(itemKeys(header.headerMoreMenuItems.value)).not.toContain('memory');
+
+    await header.onToggleMemory();
+
+    expect(options.fetchConversationMemory).toHaveBeenCalledTimes(1);
+    expect(options.showMemoryPanel.value).toBe(true);
+
+    await header.onToggleMemory();
+
+    expect(options.fetchConversationMemory).toHaveBeenCalledTimes(1);
+    expect(options.showMemoryPanel.value).toBe(false);
+  });
+
+  it('raises memory attention only while updates exist and the panel is closed', () => {
+    const options = buildOptions();
+    const header = usePanelHeader(options);
+
+    expect(header.headerMemoryHasAttention.value).toBe(false);
+
+    options.lastMemoryUpdated.value = true;
+    expect(header.headerMemoryHasAttention.value).toBe(true);
+
+    options.showMemoryPanel.value = true;
+    expect(header.headerMemoryHasAttention.value).toBe(false);
   });
 });

@@ -166,12 +166,38 @@ export function usePanelHeader(options: UsePanelHeaderOptions) {
     );
   });
 
-  const hasHeaderVariableValues = computed(() =>
-    options.agentsWithVarsInConversation.value.some(
-      (agent) =>
-        Object.keys(options.allAgentsVariables.value[agent.id] ?? {}).length >
-        0,
-    ),
+  function hasConfiguredVariables(agentId: number) {
+    return (
+      Object.keys(options.allAgentsVariables.value[agentId] ?? {}).length > 0
+    );
+  }
+
+  const hasHeaderVariableValues = computed(() => {
+    if (
+      options.agentsWithVarsInConversation.value.some((agent) =>
+        hasConfiguredVariables(agent.id),
+      )
+    ) {
+      return true;
+    }
+
+    const selectedAgentId = options.selectedAgent.value?.id;
+    if (!selectedAgentId) {
+      return false;
+    }
+
+    return hasConfiguredVariables(selectedAgentId);
+  });
+
+  const showHeaderMemoryButton = computed(
+    () => !!options.activeConversationId.value,
+  );
+
+  const headerMemoryHasAttention = computed(
+    () =>
+      !!options.activeConversationId.value &&
+      !options.showMemoryPanel.value &&
+      !!options.lastMemoryUpdated.value,
   );
 
   const headerConversationSummary = computed(() => {
@@ -231,14 +257,6 @@ export function usePanelHeader(options: UsePanelHeaderOptions) {
         );
       }
 
-      conversationItems.push({
-        key: 'memory',
-        label: $t('common.aiPanel.memory'),
-        onClick: () => {
-          void onToggleMemory();
-        },
-      });
-
       items.push(...conversationItems);
     }
 
@@ -266,28 +284,25 @@ export function usePanelHeader(options: UsePanelHeaderOptions) {
   );
 
   const headerMoreHasAttention = computed(
-    () =>
-      options.isPinned.value ||
-      options.forceRerouteNextTurn.value ||
-      !!(
-        options.activeConversationId.value &&
-        (options.showMemoryPanel.value || options.lastMemoryUpdated.value)
-      ),
+    () => options.isPinned.value || options.forceRerouteNextTurn.value,
   );
 
   return {
     compactingContext,
     headerConversationSummary,
+    headerMemoryHasAttention,
     headerMoreHasAttention,
     headerMoreMenuItems,
     hasHeaderVariableValues,
     onClearMemory,
     onEditHeaderVars,
+    onToggleMemory,
     openContextDrawer,
     openTimelineDrawer,
     refreshTimeline,
     rebuildContextSnapshot,
     showContextDrawer,
+    showHeaderMemoryButton,
     showHeaderMoreMenu,
     showHeaderVarsButton,
     showTimelineDrawer,

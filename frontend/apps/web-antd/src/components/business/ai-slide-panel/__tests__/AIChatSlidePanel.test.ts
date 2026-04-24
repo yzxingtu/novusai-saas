@@ -391,7 +391,7 @@ describe('aIChatSlidePanel (component mount)', () => {
     wrapper.unmount();
   });
 
-  it('renders the restored header action set and more-actions trigger without reserving an empty status rail', async () => {
+  it('renders the restored header action set and direct memory entry without reserving an empty status rail', async () => {
     activeConversationIdValue.value = 10;
     selectedAgentIdValue.value = 2;
 
@@ -418,10 +418,13 @@ describe('aIChatSlidePanel (component mount)', () => {
       document.body.querySelector('[data-testid="ai-panel-toolbar-row"]'),
     ).toBeTruthy();
     expect(
+      document.body.querySelector('[data-testid="ai-panel-memory-button"]'),
+    ).toBeTruthy();
+    expect(
       document.body.querySelector(
         'button[aria-label="common.aiPanel.moreActions"]',
       ),
-    ).toBeTruthy();
+    ).toBeFalsy();
 
     wrapper.unmount();
   });

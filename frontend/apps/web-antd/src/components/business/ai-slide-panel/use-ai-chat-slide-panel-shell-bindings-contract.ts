@@ -81,6 +81,7 @@ export interface UseAIChatSlidePanelShellBindingsOptions {
   handleToggleMode: () => void;
   hasHeaderVariableValues: ComputedRef<boolean>;
   headerConversationSummary: ComputedRef<string>;
+  headerMemoryHasAttention: ComputedRef<boolean>;
   headerMoreHasAttention: ComputedRef<boolean>;
   headerMoreMenuItems: ComputedRef<ItemType[]>;
   inputMessage: Ref<string>;
@@ -103,6 +104,7 @@ export interface UseAIChatSlidePanelShellBindingsOptions {
   onDeleteConversation: (conversationId: number) => void;
   onDocumentClick: (event: MouseEvent) => void;
   onEditHeaderVars: () => void;
+  onToggleMemory: () => void | Promise<void>;
   onRichTextApply: (
     index: number,
     target: RichTextAIApplyTarget,
@@ -137,6 +139,7 @@ export interface UseAIChatSlidePanelShellBindingsOptions {
   sending: Ref<boolean>;
   showAttachments: Readonly<Ref<boolean>>;
   showContextDrawer: Ref<boolean>;
+  showHeaderMemoryButton: ComputedRef<boolean>;
   showHeaderMoreMenu: Ref<boolean>;
   showHeaderVarsButton: ComputedRef<boolean>;
   showHistory: Ref<boolean>;
