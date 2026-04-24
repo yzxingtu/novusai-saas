@@ -45,9 +45,7 @@ export const supportsVisionValue = ref(false);
 export const activeConversationIdValue = ref<null | number>(null);
 export const inputMessageValue = ref('');
 export const pendingAttachmentsValue = ref<Array<{ type: string }>>([]);
-export const pageContextValue = ref<
-  null | PageContext
->(null);
+export const pageContextValue = ref<null | PageContext>(null);
 export const pageOperationsValue = ref<
   Array<{
     description?: string;
@@ -372,6 +370,7 @@ export function createIconifyMock() {
 
 export function createImageMock() {
   return {
+    toAvatarDisplayUrl: (url?: string) => url ?? '',
     toAbsoluteApiUrl: (url?: string) =>
       typeof url === 'string' && url.startsWith('/')
         ? `http://localhost:8000${url}`
@@ -750,7 +749,9 @@ export function createRuntimeBridgeMock() {
         typeof context?.ui_epoch === 'number' ||
         Boolean(String(context?.page_session_id || '').trim()) ||
         pageOperationsValue.value.some((operation) =>
-          uiToolPool.includes(String(operation.name || '').trim() as (typeof uiToolPool)[number]),
+          uiToolPool.includes(
+            String(operation.name || '').trim() as (typeof uiToolPool)[number],
+          ),
         );
       return {
         active_form_session_id: context?.active_form_session_id,

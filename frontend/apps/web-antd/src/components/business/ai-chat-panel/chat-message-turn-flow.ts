@@ -327,7 +327,6 @@ function coerceStage(
     if (!summary && firstDetailLine) {
       summary = stripMarkdownSummary(firstDetailLine);
     }
-    normalizedDetailLines = undefined;
   }
   const id = normalizeOptionalString(stage.id) ?? `turn-stage-${index}`;
   return {

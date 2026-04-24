@@ -7,13 +7,7 @@ import { useUserAIChatContext } from '../modules/ai-chat-context';
 export function useUserAIChatWorkspace(): UserAIChatWorkspaceContext {
   const page = useUserAIChatContext();
   const { chat, mobileSidebarOpen } = page;
-  const {
-    chatMessages,
-    inputMessage,
-    handleInputKeyDown,
-    sendMessage,
-    copyMessage,
-  } = chat;
+  const { inputMessage, handleInputKeyDown, sendMessage, copyMessage } = chat;
 
   const previewImageUrl = ref('');
   const previewImageVisible = ref(false);
@@ -50,20 +44,6 @@ export function useUserAIChatWorkspace(): UserAIChatWorkspaceContext {
     handleSendClick();
   }
 
-  function isAgentSwitch(index: number): boolean {
-    const message = chatMessages.value[index];
-    if (!message || message.role !== 'assistant' || !message.agent_id) {
-      return false;
-    }
-    for (let currentIndex = index - 1; currentIndex >= 0; currentIndex--) {
-      const previousMessage = chatMessages.value[currentIndex];
-      if (previousMessage?.role === 'assistant') {
-        return previousMessage.agent_id !== message.agent_id;
-      }
-    }
-    return false;
-  }
-
   return {
     page,
     previewImageUrl,
@@ -74,6 +54,5 @@ export function useUserAIChatWorkspace(): UserAIChatWorkspaceContext {
     handleSendClick,
     handleKeyDown,
     askSuggested,
-    isAgentSwitch,
   };
 }

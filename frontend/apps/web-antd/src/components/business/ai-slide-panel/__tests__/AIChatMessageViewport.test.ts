@@ -26,6 +26,38 @@ vi.mock('@vben/icons', () => ({
 }));
 
 describe('aiChatMessageViewport', () => {
+  it('renders the empty transcript-first welcome state and forwards suggested questions', async () => {
+    const wrapper = mount(AIChatMessageViewport, {
+      props: {
+        apiPrefix: '/tenant',
+        chatMessages: [],
+        effectiveSuggestedQuestions: ['帮我总结今天页面上的重点'],
+        effectiveWelcomeMessage: '欢迎开始新的对话',
+        getPendingOpsForMessage: () => [],
+        getRichTextDraftState: () => null,
+        routing: false,
+        sending: false,
+      },
+      global: {
+        stubs: {
+          ChatMessageItem: defineComponent({
+            name: 'ChatMessageItemStub',
+            template: '<div />',
+          }),
+        },
+      },
+    });
+
+    expect(wrapper.find('.ai-chat-empty-card').exists()).toBe(true);
+    expect(wrapper.text()).toContain('欢迎开始新的对话');
+
+    await wrapper.get('button').trigger('click');
+
+    expect(wrapper.emitted('askSuggested')?.[0]).toEqual([
+      '帮我总结今天页面上的重点',
+    ]);
+  });
+
   it('forwards assistant action button payload as messageIndex + value', async () => {
     const wrapper = mount(AIChatMessageViewport, {
       props: {
@@ -39,7 +71,6 @@ describe('aiChatMessageViewport', () => {
         ],
         getPendingOpsForMessage: () => [],
         getRichTextDraftState: () => null,
-        isAgentSwitch: () => false,
       },
       global: {
         stubs: {
@@ -58,7 +89,7 @@ describe('aiChatMessageViewport', () => {
     expect(wrapper.emitted('actionClick')?.[0]).toEqual([7, '查看明细']);
   });
 
-  it('passes shared message-item props including turn-flow payload', () => {
+  it('passes shared message-item props including normalized turn-flow payload', () => {
     const richTextState = {
       canAppendToEnd: true,
       canCopy: true,
@@ -94,7 +125,6 @@ describe('aiChatMessageViewport', () => {
         ],
         getPendingOpsForMessage: () => pendingOps as never[],
         getRichTextDraftState: () => richTextState as never,
-        isAgentSwitch: () => true,
       },
       global: {
         stubs: {
@@ -106,10 +136,9 @@ describe('aiChatMessageViewport', () => {
               msg: { type: Object, required: true },
               pendingOps: { type: Array, required: false },
               richTextState: { type: Object, required: false },
-              showAgentSwitch: { type: Boolean, required: false },
             },
             template:
-              '<div data-testid="message-item-props" :data-compact="String(compact)" :data-switch="String(showAgentSwitch)" :data-stage-id="msg?.turnFlow?.timeline?.[0]?.id" :data-index="String(index)" :data-pending-ops="String((pendingOps || []).length)" :data-has-rich-text-state="String(!!richTextState)" :data-streaming="String(!!msg?.streaming)" />',
+              '<div data-testid="message-item-props" :data-compact="String(compact)" :data-stage-id="msg?.turnFlow?.timeline?.[0]?.id" :data-index="String(index)" :data-pending-ops="String((pendingOps || []).length)" :data-has-rich-text-state="String(!!richTextState)" :data-streaming="String(!!msg?.streaming)" />',
           }),
         },
       },
@@ -117,12 +146,168 @@ describe('aiChatMessageViewport', () => {
 
     const propsSnapshot = wrapper.get('[data-testid="message-item-props"]');
     expect(propsSnapshot.attributes('data-compact')).toBe('true');
-    expect(propsSnapshot.attributes('data-switch')).toBe('true');
     expect(propsSnapshot.attributes('data-stage-id')).toBe('stage-thinking');
     expect(propsSnapshot.attributes('data-index')).toBe('0');
     expect(propsSnapshot.attributes('data-pending-ops')).toBe('1');
     expect(propsSnapshot.attributes('data-has-rich-text-state')).toBe('true');
     expect(propsSnapshot.attributes('data-streaming')).toBe('false');
+  });
+
+  it('requests missing knowledge-base bindings for visible assistant agents by message agent id', async () => {
+    const ensureAgentKnowledgeBases = vi.fn(async () => []);
+    mount(AIChatMessageViewport, {
+      props: {
+        apiPrefix: '/tenant',
+        chatMessages: [
+          {
+            clientKey: 'assistant-kb-bindings-load',
+            content: '需要知识库详情',
+            role: 'assistant',
+            agent_id: 7,
+          } satisfies ChatMessage,
+        ],
+        agentKnowledgeBaseMap: {},
+        agents: [],
+        ensureAgentKnowledgeBases,
+        getPendingOpsForMessage: () => [],
+        getRichTextDraftState: () => null,
+      },
+      global: {
+        stubs: {
+          ChatMessageItem: defineComponent({
+            name: 'ChatMessageItemStub',
+            template: '<div />',
+          }),
+        },
+      },
+    });
+
+    expect(ensureAgentKnowledgeBases).toHaveBeenCalledWith(7);
+  });
+
+  it('requests missing skill bindings for visible assistant agents by message agent id', async () => {
+    const ensureAgentSkills = vi.fn(async () => []);
+    mount(AIChatMessageViewport, {
+      props: {
+        apiPrefix: '/tenant',
+        chatMessages: [
+          {
+            clientKey: 'assistant-skill-bindings-load',
+            content: '需要技能详情',
+            role: 'assistant',
+            agent_id: 7,
+          } satisfies ChatMessage,
+        ],
+        agentSkillMap: {},
+        agents: [],
+        ensureAgentSkills,
+        getPendingOpsForMessage: () => [],
+        getRichTextDraftState: () => null,
+      },
+      global: {
+        stubs: {
+          ChatMessageItem: defineComponent({
+            name: 'ChatMessageItemStub',
+            template: '<div />',
+          }),
+        },
+      },
+    });
+
+    expect(ensureAgentSkills).toHaveBeenCalledWith(7);
+  });
+
+  it('ensures missing knowledge-base bindings for message-owned agents through the shared viewport chain', () => {
+    const ensureAgentKnowledgeBases = vi.fn();
+    const wrapper = mount(AIChatMessageViewport, {
+      props: {
+        apiPrefix: '/tenant',
+        agentKnowledgeBaseMap: {
+          1: [{ id: 11, kb_name: 'Selected Agent KB', knowledge_base_id: 11 }],
+        },
+        chatMessages: [
+          {
+            agent_id: 9,
+            clientKey: 'assistant-routed-agent-kb',
+            content: '历史 routed 消息',
+            role: 'assistant',
+          } satisfies ChatMessage,
+        ],
+        ensureAgentKnowledgeBases,
+        getPendingOpsForMessage: () => [],
+        getRichTextDraftState: () => null,
+      },
+      global: {
+        stubs: {
+          ChatMessageItem: defineComponent({
+            name: 'ChatMessageItemKbProbe',
+            props: {
+              agentKnowledgeBaseMap: { type: Object, required: false },
+              msg: { type: Object, required: true },
+            },
+            template:
+              '<div data-testid="kb-probe" :data-agent-id="String(msg?.agent_id || \'\')" :data-has-map-entry="String(!!agentKnowledgeBaseMap && Object.prototype.hasOwnProperty.call(agentKnowledgeBaseMap, 1))" />',
+          }),
+        },
+      },
+    });
+
+    expect(ensureAgentKnowledgeBases).toHaveBeenCalledWith(9);
+    expect(wrapper.get('[data-testid="kb-probe"]').attributes('data-agent-id')).toBe('9');
+    expect(
+      wrapper.get('[data-testid="kb-probe"]').attributes('data-has-map-entry'),
+    ).toBe('true');
+  });
+
+  it('forwards message-agent skill bindings through the shared viewport chain', () => {
+    const wrapper = mount(AIChatMessageViewport, {
+      props: {
+        apiPrefix: '/tenant',
+        agentSkillMap: {
+          9: [
+            {
+              enabled: true,
+              id: 91,
+              package_name: '历史技能包',
+              skill_id: 191,
+              skill_name: '历史技能',
+            },
+          ],
+        },
+        chatMessages: [
+          {
+            agent_id: 9,
+            clientKey: 'assistant-routed-agent-skill',
+            content: '历史 routed 技能消息',
+            role: 'assistant',
+          } satisfies ChatMessage,
+        ],
+        getPendingOpsForMessage: () => [],
+        getRichTextDraftState: () => null,
+      },
+      global: {
+        stubs: {
+          ChatMessageItem: defineComponent({
+            name: 'ChatMessageItemSkillProbe',
+            props: {
+              agentSkillMap: { type: Object, required: false },
+              msg: { type: Object, required: true },
+            },
+            template:
+              '<div data-testid="skill-probe" :data-agent-id="String(msg?.agent_id || \'\')" :data-has-skill-entry="String(!!agentSkillMap && Object.prototype.hasOwnProperty.call(agentSkillMap, 9))" />',
+          }),
+        },
+      },
+    });
+
+    expect(
+      wrapper.get('[data-testid="skill-probe"]').attributes('data-agent-id'),
+    ).toBe('9');
+    expect(
+      wrapper
+        .get('[data-testid="skill-probe"]')
+        .attributes('data-has-skill-entry'),
+    ).toBe('true');
   });
 
   it('renders expanded transcript items without compact message chrome', () => {
@@ -139,7 +324,6 @@ describe('aiChatMessageViewport', () => {
         compact: false,
         getPendingOpsForMessage: () => [],
         getRichTextDraftState: () => null,
-        isAgentSwitch: () => false,
       },
       global: {
         stubs: {
@@ -156,11 +340,11 @@ describe('aiChatMessageViewport', () => {
     });
 
     expect(
-      wrapper.get('[data-testid="expanded-message-item"]').attributes(
-        'data-compact',
-      ),
+      wrapper
+        .get('[data-testid="expanded-message-item"]')
+        .attributes('data-compact'),
     ).toBe('false');
-    expect(wrapper.html()).toContain('max-w-[42rem]');
+    expect(wrapper.html()).toContain('max-w-[48rem]');
   });
 
   it('keeps canonical turnFlow payload intact while stripping legacy display fields', () => {
@@ -170,9 +354,7 @@ describe('aiChatMessageViewport', () => {
         msg: { type: Object, required: true },
       },
       setup(props) {
-        const rawMessage = computed(
-          () => props.msg as Record<string, unknown>,
-        );
+        const rawMessage = computed(() => props.msg as Record<string, unknown>);
         const hasThinking = computed(() =>
           Boolean(rawMessage.value.thinkingContent),
         );
@@ -272,7 +454,6 @@ describe('aiChatMessageViewport', () => {
         ],
         getPendingOpsForMessage: () => [],
         getRichTextDraftState: () => null,
-        isAgentSwitch: () => false,
       },
       global: {
         stubs: {
@@ -329,7 +510,6 @@ describe('aiChatMessageViewport', () => {
         ],
         getPendingOpsForMessage: () => [],
         getRichTextDraftState: () => null,
-        isAgentSwitch: () => false,
       },
       global: {
         stubs: {
@@ -416,7 +596,6 @@ describe('aiChatMessageViewport', () => {
         chatMessages: initialMessages,
         getPendingOpsForMessage: () => [],
         getRichTextDraftState: () => null,
-        isAgentSwitch: () => false,
       },
       global: {
         stubs: {
@@ -478,7 +657,6 @@ describe('aiChatMessageViewport', () => {
         ],
         getPendingOpsForMessage: () => [],
         getRichTextDraftState: () => null,
-        isAgentSwitch: () => false,
         streaming: true,
       },
       global: {

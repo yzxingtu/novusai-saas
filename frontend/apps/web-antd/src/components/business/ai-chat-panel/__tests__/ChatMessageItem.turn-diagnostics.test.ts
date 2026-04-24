@@ -1,14 +1,25 @@
 // @vitest-environment happy-dom
 /* eslint-disable vue/one-component-per-file */
+// Test type: behavioral
+// Verifies: inline assistant diagnostics stay hidden by default across surfaces
+// and only render when explicitly forced or enabled by the shared diagnostics policy.
 import { mount } from '@vue/test-utils';
 import { defineComponent } from 'vue';
 
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import ChatMessageItem from '../ChatMessageItem.vue';
 
+const mockPublicConfigStore = {
+  platformConfig: null as null | { features?: Record<string, unknown> },
+  tenantConfig: null as null | { features?: Record<string, unknown> },
+};
+
 vi.mock('#/locales', () => ({
-  $t: (key: string) => key,
+  $t: (key: string, params?: Record<string, unknown>) =>
+    params && 'traceId' in params
+      ? `${key}:${String(params.traceId)}`
+      : key,
 }));
 
 vi.mock('@vben/icons', () => ({
@@ -45,6 +56,10 @@ vi.mock('ant-design-vue', () => {
       template: '<button @click="$emit(\'click\')"><slot /></button>',
     }),
     Modal,
+    Popover: defineComponent({
+      name: 'PopoverStub',
+      template: '<span><slot /></span>',
+    }),
     Tooltip: defineComponent({
       name: 'TooltipStub',
       template: '<span><slot /></span>',
@@ -59,10 +74,7 @@ vi.mock('#/store', () => ({
 }));
 
 vi.mock('#/store/shared/public-config', () => ({
-  usePublicConfigStore: () => ({
-    platformConfig: null,
-    tenantConfig: null,
-  }),
+  usePublicConfigStore: () => mockPublicConfigStore,
 }));
 
 vi.mock('#/utils/request/app-env', () => ({
@@ -70,6 +82,11 @@ vi.mock('#/utils/request/app-env', () => ({
 }));
 
 describe('chatMessageItem turn diagnostics', () => {
+  beforeEach(() => {
+    mockPublicConfigStore.platformConfig = null;
+    mockPublicConfigStore.tenantConfig = null;
+  });
+
   function mountMessage(
     msg: Partial<InstanceType<typeof ChatMessageItem>['$props']['msg']> = {},
     props: Partial<InstanceType<typeof ChatMessageItem>['$props']> = {},
@@ -169,15 +186,48 @@ describe('chatMessageItem turn diagnostics', () => {
     expect(rendered).not.toContain('web_search');
   });
 
-  it('renders diagnostics when explicitly forced on', () => {
+  it('renders inline diagnostics when admin diagnostics features are enabled', () => {
+    mockPublicConfigStore.platformConfig = {
+      features: {
+        show_diagnostics: true,
+      },
+    };
+
     const wrapper = mountMessage({
       requestFailedRetry: true,
+      selectedSkillNames: ['runtime.web'],
       selectedToolNames: ['web_search'],
       terminationReason: 'tool_error',
       turnOutcome: 'failed',
-    }, {
-      forceShowDiagnostics: true,
     });
+
+    const rendered = wrapper.text();
+    expect(rendered).toContain(
+      'common.globalAiChat.diagnosticTurnOutcomeLabel',
+    );
+    expect(rendered).toContain('failed');
+    expect(rendered).toContain(
+      'common.globalAiChat.diagnosticSelectedToolsLabel',
+    );
+    expect(rendered).toContain('web_search');
+    expect(rendered).toContain(
+      'common.globalAiChat.diagnosticSelectedSkillsLabel',
+    );
+    expect(rendered).toContain('runtime.web');
+  });
+
+  it('renders diagnostics when explicitly forced on', () => {
+    const wrapper = mountMessage(
+      {
+        requestFailedRetry: true,
+        selectedToolNames: ['web_search'],
+        terminationReason: 'tool_error',
+        turnOutcome: 'failed',
+      },
+      {
+        forceShowDiagnostics: true,
+      },
+    );
 
     const rendered = wrapper.text();
     expect(rendered).toContain(
@@ -195,25 +245,28 @@ describe('chatMessageItem turn diagnostics', () => {
   });
 
   it('only renders active context source chips when diagnostics are enabled', () => {
-    const wrapper = mountMessage({
-      contextSources: [
-        {
-          active: true,
-          kind: 'skill',
-          name: 'skill_resolver',
-        },
-        {
-          active: false,
-          kind: 'session_memory',
-          name: 'session_memory',
-        },
-      ],
-      requestFailedRetry: true,
-      terminationReason: 'tool_error',
-      turnOutcome: 'failed',
-    }, {
-      forceShowDiagnostics: true,
-    });
+    const wrapper = mountMessage(
+      {
+        contextSources: [
+          {
+            active: true,
+            kind: 'skill',
+            name: 'skill_resolver',
+          },
+          {
+            active: false,
+            kind: 'session_memory',
+            name: 'session_memory',
+          },
+        ],
+        requestFailedRetry: true,
+        terminationReason: 'tool_error',
+        turnOutcome: 'failed',
+      },
+      {
+        forceShowDiagnostics: true,
+      },
+    );
 
     const rendered = wrapper.text();
     expect(rendered).toContain(
@@ -250,6 +303,9 @@ describe('chatMessageItem turn diagnostics', () => {
 
     const rendered = wrapper.text();
     expect(rendered).toContain('服务器内部错误');
+    expect(wrapper.get('[data-testid="assistant-error-trace-id"]').text()).toContain(
+      'trace-chat-error',
+    );
     expect(rendered).not.toContain(
       'common.globalAiChat.diagnosticTurnOutcomeLabel',
     );
@@ -259,7 +315,7 @@ describe('chatMessageItem turn diagnostics', () => {
     expect(rendered).not.toContain('web_search');
   });
 
-  it('hides diagnostics outside the admin surface', () => {
+  it('hides diagnostics by default on the tenant surface', () => {
     const wrapper = mountMessage(
       {
         requestFailedRetry: true,
@@ -280,5 +336,35 @@ describe('chatMessageItem turn diagnostics', () => {
       'common.globalAiChat.diagnosticSelectedToolsLabel',
     );
     expect(rendered).not.toContain('web_search');
+  });
+
+  it('renders diagnostics on the user surface when tenant diagnostics are enabled', () => {
+    mockPublicConfigStore.tenantConfig = {
+      features: {
+        show_diagnostics: true,
+      },
+    };
+
+    const wrapper = mountMessage(
+      {
+        requestFailedRetry: true,
+        selectedToolNames: ['web_search'],
+        terminationReason: 'tool_error',
+        turnOutcome: 'failed',
+      },
+      {
+        apiPrefix: '/api/user',
+      },
+    );
+
+    const rendered = wrapper.text();
+    expect(rendered).toContain(
+      'common.globalAiChat.diagnosticTurnOutcomeLabel',
+    );
+    expect(rendered).toContain('failed');
+    expect(rendered).toContain(
+      'common.globalAiChat.diagnosticSelectedToolsLabel',
+    );
+    expect(rendered).toContain('web_search');
   });
 });

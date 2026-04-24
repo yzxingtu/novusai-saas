@@ -192,7 +192,7 @@ const setFileInputRef: VNodeRef = (element) => {
     </div>
 
     <div
-      class="overflow-hidden rounded-xl border border-border/40 bg-muted/20 transition-all focus-within:border-primary/40 focus-within:bg-background focus-within:shadow-sm focus-within:shadow-primary/5"
+      class="user-composer-shell overflow-hidden rounded-[18px] border transition-all"
     >
       <Transition name="mention-panel">
         <div
@@ -274,7 +274,7 @@ const setFileInputRef: VNodeRef = (element) => {
         </div>
       </Transition>
 
-      <div class="flex min-h-[2.75rem] items-end gap-2 px-3 py-2">
+      <div class="flex min-h-[2.75rem] items-end gap-2 px-3 py-2.5">
         <Tooltip :title="$t('common.globalAiChat.addAttachment')">
           <button
             class="flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-40"
@@ -296,6 +296,7 @@ const setFileInputRef: VNodeRef = (element) => {
 
         <Input.TextArea
           v-model:value="inputMessage"
+          data-testid="ai-chat-input"
           :placeholder="$t('user.aiChat.inputPlaceholder')"
           :auto-size="{ minRows: 2, maxRows: 6 }"
           :maxlength="32000"
@@ -306,11 +307,11 @@ const setFileInputRef: VNodeRef = (element) => {
         />
 
         <button
-          class="flex size-8 shrink-0 items-center justify-center rounded-full shadow-sm transition-all hover:scale-110 hover:shadow-md active:scale-95 disabled:opacity-40 disabled:hover:scale-100"
+          class="flex size-8 shrink-0 items-center justify-center rounded-xl transition-colors disabled:opacity-40"
           :class="
             streaming
               ? 'bg-destructive text-destructive-foreground'
-              : 'bg-primary text-primary-foreground'
+              : 'hover:bg-foreground/88 bg-foreground text-background'
           "
           :aria-label="
             streaming
@@ -380,6 +381,20 @@ const setFileInputRef: VNodeRef = (element) => {
 
 .att-pop-leave-active {
   animation: att-in 0.15s ease-in reverse;
+}
+
+.user-composer-shell {
+  border-color: hsl(var(--border) / 0.34);
+  background: hsl(var(--background) / 0.98);
+  box-shadow: 0 12px 24px -24px hsl(var(--foreground) / 0.1);
+}
+
+.user-composer-shell:focus-within {
+  border-color: hsl(var(--foreground) / 0.18);
+  background: hsl(var(--background));
+  box-shadow:
+    0 14px 28px -24px hsl(var(--foreground) / 0.12),
+    0 0 0 3px hsl(var(--foreground) / 0.04);
 }
 
 .ai-chat-textarea :deep(.ant-input) {

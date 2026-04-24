@@ -138,6 +138,9 @@ describe('turnTimeline', () => {
       wrapper.get('[data-testid="turn-process-body"]').attributes('style') ??
         '',
     ).toContain('grid-template-rows: 1fr');
+    expect(wrapper.get('[data-testid="turn-process-toggle"]').attributes()).toMatchObject({
+      'aria-expanded': 'true',
+    });
     expect(
       wrapper.findAll('[data-testid^="turn-stage-"]').length,
     ).toBeGreaterThan(0);
@@ -172,6 +175,9 @@ describe('turnTimeline', () => {
       wrapper.get('[data-testid="turn-process-body"]').attributes('style') ??
         '',
     ).toContain('grid-template-rows: 0fr');
+    expect(wrapper.get('[data-testid="turn-process-toggle"]').attributes()).toMatchObject({
+      'aria-expanded': 'false',
+    });
   });
 
   it('normalizes canonical metric aliases for stage summaries', () => {
@@ -205,6 +211,41 @@ describe('turnTimeline', () => {
       'common.globalAiChat.turnRetrievalSummary',
     );
     expect(wrapper.text()).not.toContain('common.globalAiChat.optimizingTools');
+  });
+
+  it('localizes numeric backend English stage summaries before rendering them', () => {
+    const wrapper = mountTimeline(
+      createAssistantMessage({
+        turnFlow: {
+          timeline: [
+            {
+              id: 'stage-tool-selection-english-summary',
+              metrics: {
+                selected: 3,
+                total: 13,
+              },
+              status: 'completed',
+              summary: 'Selected 3 of 13 tools',
+              type: 'tool_selection',
+            },
+            {
+              id: 'stage-tool-execution-english-summary',
+              metrics: {
+                total: 1,
+              },
+              status: 'completed',
+              summary: 'Executed 1 tool calls',
+              type: 'tool_execution',
+            },
+          ],
+        },
+      }),
+    );
+
+    expect(wrapper.text()).toContain('common.globalAiChat.optimizingTools');
+    expect(wrapper.text()).toContain('common.globalAiChat.toolGroupSummary');
+    expect(wrapper.text()).not.toContain('Selected 3 of 13 tools');
+    expect(wrapper.text()).not.toContain('Executed 1 tool calls');
   });
 
   it('provides safe non-empty running copy with provider hints for canonical stages', async () => {
@@ -260,6 +301,10 @@ describe('turnTimeline', () => {
       wrapper.get('[data-testid="turn-process-body"]').attributes('style') ??
         '',
     ).toContain('grid-template-rows: 1fr');
+    expect(
+      wrapper.get('[data-testid="turn-stage-body-0"]').attributes('style') ??
+        '',
+    ).toContain('grid-template-rows: 1fr');
   });
 
   it('normalizes generic backend English stage titles into localized stage copy', async () => {
@@ -289,6 +334,31 @@ describe('turnTimeline', () => {
     expect(wrapper.text()).not.toContain('Thinking');
   });
 
+  it('filters punctuation-only stage summaries and falls back to localized process copy', async () => {
+    const wrapper = mountTimeline(
+      createAssistantMessage({
+        streaming: true,
+        turnFlow: {
+          timeline: [
+            {
+              id: 'stage-thinking-punctuation-only',
+              status: 'running',
+              summary: '!',
+              type: 'thinking',
+            },
+          ],
+        },
+      }),
+    );
+
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.text()).toContain(
+      'common.globalAiChat.turnStageSummary.thinking',
+    );
+    expect(wrapper.text()).not.toContain('!');
+  });
+
   it('passes embedded mode to timeline thinking bodies so no nested process toggle is needed', async () => {
     const wrapper = mountTimeline(
       createAssistantMessage({
@@ -312,6 +382,38 @@ describe('turnTimeline', () => {
     expect(wrapper.get('[data-testid="stub-thinking-block"]').attributes()).toMatchObject({
       'data-embedded': 'true',
     });
+  });
+
+  it('uses the embedded thinking renderer only for the latest thinking stage body', async () => {
+    const wrapper = mountTimeline(
+      createAssistantMessage({
+        streaming: true,
+        turnFlow: {
+          timeline: [
+            {
+              detailLines: ['先梳理用户约束'],
+              id: 'stage-thinking-earlier',
+              status: 'completed',
+              summary: '第一步',
+              type: 'thinking',
+            },
+            {
+              detailLines: ['再整理答案结构'],
+              id: 'stage-thinking-latest',
+              status: 'running',
+              summary: '第二步',
+              type: 'thinking',
+            },
+          ],
+        },
+      }),
+    );
+
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.findAll('[data-testid="stub-thinking-block"]')).toHaveLength(
+      1,
+    );
   });
 
   it('shows tool call fallback content for canonical tool execution stages without detail lines', async () => {

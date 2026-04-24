@@ -58,10 +58,12 @@ vi.mock('#/utils/request/app-env', () => ({
   isDevErrorMode: () => false,
 }));
 
-function buildOptions(overrides: {
-  activeConversationId?: null | number;
-  apiPrefix?: Ref<string> | string;
-} = {}) {
+function buildOptions(
+  overrides: {
+    activeConversationId?: null | number;
+    apiPrefix?: Ref<string> | string;
+  } = {},
+) {
   return {
     activeConversationId: ref(overrides.activeConversationId ?? 100),
     agentsWithVarsInConversation: ref([]) as Ref<AgentItem[]>,
@@ -69,7 +71,9 @@ function buildOptions(overrides: {
     apiPrefix: overrides.apiPrefix ?? '/tenant/ai/chat',
     chatMessages: ref([]) as Ref<ChatMessage[]>,
     clearConversationMemory: vi.fn(async () => true),
-    currentConversationAgentName: computed(() => 'Agent') as ComputedRef<string>,
+    currentConversationAgentName: computed(
+      () => 'Agent',
+    ) as ComputedRef<string>,
     exportMenuItems: computed(() => [] as ItemType[]),
     fetchConversationMemory: vi.fn(async () => undefined),
     forceRerouteNextTurn: ref(false),
@@ -78,7 +82,8 @@ function buildOptions(overrides: {
     loadConversationMessages: vi.fn(async () => undefined),
     onOpenMultiVarsEditor: vi.fn(),
     onOpenVarsModal: vi.fn(
-      (_vars: InputVariable[], _agentId: number, _agentName: string) => undefined,
+      (_vars: InputVariable[], _agentId: number, _agentName: string) =>
+        undefined,
     ),
     routing: ref(false),
     selectedAgent: ref(null) as Ref<AgentItem | null>,
@@ -105,11 +110,33 @@ describe('usePanelHeader diagnostics gating', () => {
     publicConfigState.tenantConfig = null;
   });
 
+  it('hides context diagnostics from the default admin menu', () => {
+    const header = usePanelHeader(
+      buildOptions({ apiPrefix: '/admin/ai/chat' }),
+    );
+
+    expect(itemKeys(header.headerMoreMenuItems.value)).not.toContain(
+      'context-diagnostics',
+    );
+    expect(itemKeys(header.headerMoreMenuItems.value)).not.toContain(
+      'run-timeline',
+    );
+    expect(itemKeys(header.headerMoreMenuItems.value)).not.toContain(
+      'rebuild-context',
+    );
+  });
+
   it('hides context diagnostics from the default tenant menu', () => {
     const header = usePanelHeader(buildOptions());
 
     expect(itemKeys(header.headerMoreMenuItems.value)).not.toContain(
       'context-diagnostics',
+    );
+    expect(itemKeys(header.headerMoreMenuItems.value)).not.toContain(
+      'run-timeline',
+    );
+    expect(itemKeys(header.headerMoreMenuItems.value)).not.toContain(
+      'rebuild-context',
     );
   });
 
@@ -118,6 +145,12 @@ describe('usePanelHeader diagnostics gating', () => {
 
     expect(itemKeys(header.headerMoreMenuItems.value)).not.toContain(
       'context-diagnostics',
+    );
+    expect(itemKeys(header.headerMoreMenuItems.value)).not.toContain(
+      'run-timeline',
+    );
+    expect(itemKeys(header.headerMoreMenuItems.value)).not.toContain(
+      'rebuild-context',
     );
   });
 
@@ -132,6 +165,43 @@ describe('usePanelHeader diagnostics gating', () => {
 
     expect(itemKeys(header.headerMoreMenuItems.value)).toContain(
       'context-diagnostics',
+    );
+    expect(itemKeys(header.headerMoreMenuItems.value)).toContain(
+      'run-timeline',
+    );
+    expect(itemKeys(header.headerMoreMenuItems.value)).toContain(
+      'rebuild-context',
+    );
+  });
+
+  it('shows context diagnostics only when admin diagnostics are enabled explicitly', () => {
+    publicConfigState.platformConfig = {
+      brand: { siteName: 'Test' },
+      features: {
+        show_diagnostics: true,
+      },
+    };
+
+    const header = usePanelHeader(
+      buildOptions({ apiPrefix: '/admin/ai/chat' }),
+    );
+
+    expect(itemKeys(header.headerMoreMenuItems.value)).toContain(
+      'context-diagnostics',
+    );
+    expect(itemKeys(header.headerMoreMenuItems.value)).toContain(
+      'run-timeline',
+    );
+    expect(itemKeys(header.headerMoreMenuItems.value)).toContain(
+      'rebuild-context',
+    );
+  });
+
+  it('restores the header summary to the current conversation agent label', () => {
+    const header = usePanelHeader(buildOptions());
+
+    expect(header.headerConversationSummary.value).toBe(
+      'common.globalAiChat.currentConversationAgent',
     );
   });
 });

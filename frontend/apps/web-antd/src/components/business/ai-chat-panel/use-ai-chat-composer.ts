@@ -1,13 +1,20 @@
 import type { Ref } from 'vue';
 
+import type { AgentSkillBindingSummary } from './types';
 import type { MentionCandidate } from './types';
 import type { UseAIChatOptions } from './use-ai-chat-options';
 
-import type { ChatKBBindingInfo } from '#/api/shared/ai-chat';
+import type {
+  ChatKBBindingInfo,
+  ChatSkillBindingInfo,
+} from '#/api/shared/ai-chat';
 
 import { computed, ref, unref, watch } from 'vue';
 
-import { getChatAgentKBBindingsApi } from '#/api/shared/ai-chat';
+import {
+  getChatAgentKBBindingsApi,
+  getChatAgentSkillsApi,
+} from '#/api/shared/ai-chat';
 
 import {
   extractLeadingAgentMentionDraft,
@@ -27,6 +34,18 @@ export function useAIChatComposer(deps: UseAIChatComposerDeps) {
   const mentionActiveIndex = ref(0);
   const selectedKBIds = ref<number[]>([]);
   const agentKBBindings = ref<ChatKBBindingInfo[]>([]);
+  const agentKBBindingsByAgentId = ref<Record<number, ChatKBBindingInfo[]>>({});
+  const agentSkillBindingsByAgentId = ref<Record<number, AgentSkillBindingSummary[]>>(
+    {},
+  );
+  const pendingAgentKBBindingLoads = new Map<
+    number,
+    Promise<ChatKBBindingInfo[]>
+  >();
+  const pendingAgentSkillBindingLoads = new Map<
+    number,
+    Promise<AgentSkillBindingSummary[]>
+  >();
 
   /** @ 候选：仅当前智能体已绑定知识库 / Only KBs bound to the current agent */
   const mentionCandidates = computed<MentionCandidate[]>(() => {
@@ -91,14 +110,124 @@ export function useAIChatComposer(deps: UseAIChatComposerDeps) {
     mentionActiveIndex.value = 0;
   }
 
-  async function loadAgentKBBindings(agentId: number) {
-    try {
-      const prefix = unref(options.apiPrefix) as string;
-      const items = await getChatAgentKBBindingsApi(prefix, agentId);
-      agentKBBindings.value = items.filter((b) => b.enabled);
-    } catch {
-      agentKBBindings.value = [];
+  function updateAgentKBBindings(
+    agentId: number,
+    items: ChatKBBindingInfo[],
+  ): ChatKBBindingInfo[] {
+    agentKBBindingsByAgentId.value = {
+      ...agentKBBindingsByAgentId.value,
+      [agentId]: items,
+    };
+    if (selectedAgentId.value === agentId) {
+      agentKBBindings.value = items;
     }
+    return items;
+  }
+
+  function getAgentKBBindings(agentId: null | number | undefined) {
+    if (typeof agentId !== 'number' || !Number.isFinite(agentId)) {
+      return null;
+    }
+    return agentKBBindingsByAgentId.value[agentId] ?? null;
+  }
+
+function updateAgentSkillBindings(
+    agentId: number,
+    items: AgentSkillBindingSummary[],
+  ): AgentSkillBindingSummary[] {
+    agentSkillBindingsByAgentId.value = {
+      ...agentSkillBindingsByAgentId.value,
+      [agentId]: items,
+    };
+    return items;
+  }
+
+  function normalizeAgentSkillBinding(
+    binding: ChatSkillBindingInfo,
+  ): AgentSkillBindingSummary {
+    return {
+      enabled: binding.enabled,
+      id: binding.id ?? undefined,
+      name: binding.skill_name ?? undefined,
+      package_id: binding.package_id ?? undefined,
+      package_name: binding.package_name ?? undefined,
+      skill_id: binding.skill_id ?? undefined,
+      skill_key: binding.skill_key ?? undefined,
+      skill_name: binding.skill_name ?? undefined,
+      type: binding.skill_type ?? undefined,
+    };
+  }
+
+  function getAgentSkillBindings(agentId: null | number | undefined) {
+    if (typeof agentId !== 'number' || !Number.isFinite(agentId)) {
+      return null;
+    }
+    return agentSkillBindingsByAgentId.value[agentId] ?? null;
+  }
+
+  async function loadAgentKBBindings(agentId: number) {
+    const cached = getAgentKBBindings(agentId);
+    if (cached) {
+      if (selectedAgentId.value === agentId) {
+        agentKBBindings.value = cached;
+      }
+      return cached;
+    }
+
+    const pending = pendingAgentKBBindingLoads.get(agentId);
+    if (pending) {
+      return pending;
+    }
+
+    const request = (async () => {
+      try {
+        const prefix = unref(options.apiPrefix) as string;
+        const items = await getChatAgentKBBindingsApi(prefix, agentId);
+        return updateAgentKBBindings(
+          agentId,
+          items.filter((binding) => binding.enabled),
+        );
+      } catch {
+        return updateAgentKBBindings(agentId, []);
+      } finally {
+        pendingAgentKBBindingLoads.delete(agentId);
+      }
+    })();
+
+    pendingAgentKBBindingLoads.set(agentId, request);
+    return request;
+  }
+
+  async function loadAgentSkillBindings(agentId: number) {
+    const cached = getAgentSkillBindings(agentId);
+    if (cached) {
+      return cached;
+    }
+
+    const pending = pendingAgentSkillBindingLoads.get(agentId);
+    if (pending) {
+      return pending;
+    }
+
+    const request = (async () => {
+      try {
+        const prefix = unref(options.apiPrefix) as string;
+        const items = await getChatAgentSkillsApi(prefix, agentId);
+        return updateAgentSkillBindings(
+          agentId,
+          items
+            .filter((binding) => binding.enabled !== false)
+            .map((binding) => normalizeAgentSkillBinding(binding)),
+        );
+      } catch {
+        return updateAgentSkillBindings(agentId, []);
+      } finally {
+        pendingAgentSkillBindingLoads.delete(agentId);
+      }
+    })();
+
+    pendingAgentSkillBindingLoads.set(agentId, request);
+    return request;
   }
 
   /**
@@ -115,6 +244,7 @@ export function useAIChatComposer(deps: UseAIChatComposerDeps) {
         return;
       }
       await loadAgentKBBindings(id);
+      void loadAgentSkillBindings(id);
       const allowed = new Set(
         agentKBBindings.value.map((b) => b.knowledge_base_id),
       );
@@ -166,10 +296,15 @@ export function useAIChatComposer(deps: UseAIChatComposerDeps) {
 
   return {
     agentKBBindings,
+    agentKBBindingsByAgentId,
+    agentSkillBindingsByAgentId,
     clearMentionDraft,
+    getAgentKBBindings,
+    getAgentSkillBindings,
     handleInputKeyDown,
     inputMessage,
     loadAgentKBBindings,
+    loadAgentSkillBindings,
     mentionActiveIndex,
     mentionCandidates,
     mentionOpen,

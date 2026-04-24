@@ -267,12 +267,12 @@ function toggleExpand() {
   <div
     v-if="hasContentBody"
     class="assistant-content-block relative"
-    :class="compact ? 'text-[11.5px]' : 'text-[12px]'"
+    :class="compact ? 'text-[13.5px]' : 'text-[14px]'"
   >
     <div
       class="assistant-content-body transition-[max-height] duration-200"
       :class="[
-        compact ? 'leading-[1.72]' : 'leading-[1.76]',
+        compact ? 'leading-[1.82]' : 'leading-[1.86]',
         canCollapse && !expanded
           ? 'relative max-h-[300px] overflow-hidden'
           : '',
@@ -309,7 +309,7 @@ function toggleExpand() {
     <button
       v-if="canCollapse && !msg.streaming"
       type="button"
-      class="mt-2.5 inline-flex items-center gap-1.5 rounded-full border border-border/30 bg-background/80 px-2.5 py-1 text-[10px] font-medium text-muted-foreground transition-colors hover:border-primary/22 hover:bg-primary/[0.05] hover:text-primary"
+      class="hover:border-primary/22 mt-2.5 inline-flex items-center gap-1.5 rounded-full border border-border/30 bg-background/80 px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-primary/[0.05] hover:text-primary"
       @click="toggleExpand"
     >
       {{
@@ -321,14 +321,14 @@ function toggleExpand() {
     <p
       v-if="canCollapse && !expanded && !msg.streaming"
       data-testid="collapsed-message-hint"
-      class="text-muted-foreground/68 mt-1.5 text-[10px] leading-5"
+      class="text-muted-foreground/68 mt-1.5 text-[11px] leading-5"
     >
       {{ $t('common.globalAiChat.collapsedMessageHint') }}
     </p>
     <div
       v-if="isTruncatedByLength"
       data-testid="truncation-warning"
-      class="border-amber-500/18 mt-2 flex items-center gap-1.5 rounded-xl border bg-amber-500/[0.08] px-2.5 py-2 text-[11px] text-amber-700 dark:text-amber-300"
+      class="border-amber-500/18 mt-2 flex items-center gap-1.5 rounded-xl border bg-amber-500/[0.08] px-2.5 py-2 text-[12px] text-amber-700 dark:text-amber-300"
     >
       <IconifyIcon icon="lucide:triangle-alert" class="size-3.5 shrink-0" />
       <span>{{ $t('common.globalAiChat.responseTruncated') }}</span>

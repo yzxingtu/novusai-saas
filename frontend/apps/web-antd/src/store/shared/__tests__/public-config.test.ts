@@ -1,3 +1,7 @@
+// @vitest-environment happy-dom
+// Test type: behavioral
+// Verifies: public-config domain detection honors platform guards and the
+// dev-only e2e domain override without falling back to network probes.
 import type {
   PlatformPublicConfig,
   TenantPublicConfig,
@@ -101,7 +105,8 @@ describe('usePublicConfigStore tenant config guard', () => {
     ensureCaptchaPluginReady.mockResolvedValue(true);
     getPlatformPublicConfigApi.mockResolvedValue(createPlatformConfig());
     getTenantPublicConfigApi.mockResolvedValue(createTenantConfig());
-    localStorage.clear();
+    window.localStorage.clear();
+    window.sessionStorage.clear();
     document.head.innerHTML = '';
     document.body.innerHTML = '';
   });
@@ -126,6 +131,18 @@ describe('usePublicConfigStore tenant config guard', () => {
     expect(getTenantPublicConfigApi).toHaveBeenCalledTimes(1);
     expect(result?.tenantCode).toBe('acme');
     expect(store.tenantConfigLoaded).toBe(true);
+  });
+
+  it('honors the dev e2e domain override before any public-config network detection', async () => {
+    window.sessionStorage.setItem('__novusai_e2e_domain_type', 'tenant');
+    const store = usePublicConfigStore();
+
+    await store.detectDomainType();
+
+    expect(store.isDomainDetected).toBe(true);
+    expect(store.isDomainTenantDomain).toBe(true);
+    expect(getPlatformPublicConfigApi).not.toHaveBeenCalled();
+    expect(getTenantPublicConfigApi).not.toHaveBeenCalled();
   });
 
   it('merges tenant brand fields with platform brand before applying preferences', async () => {
@@ -187,7 +204,7 @@ describe('usePublicConfigStore tenant config guard', () => {
 
     expect(updatePreferences).toHaveBeenCalledWith(
       expect.objectContaining({
-        app: { name: 'NovusAI' },
+        app: { name: import.meta.env.VITE_APP_TITLE || 'NovusAI' },
         copyright: expect.objectContaining({
           companyName: 'NovusAI',
           companySiteLink: '',

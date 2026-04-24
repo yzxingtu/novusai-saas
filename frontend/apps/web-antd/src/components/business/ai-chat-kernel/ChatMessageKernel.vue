@@ -6,6 +6,8 @@ import type { ChatMessage } from '#/types/ai-chat';
 
 import { computed } from 'vue';
 
+import { prepareMessageContent } from '#/components/business/ai-chat-panel/chat-message-display-preparation';
+
 import ActionConsentGate from './ActionConsentGate.vue';
 import EvidenceCard from './EvidenceCard.vue';
 import { buildTurnFlowState } from './TurnFlowState';
@@ -13,7 +15,6 @@ import TurnTimeline from './TurnTimeline.vue';
 
 const props = withDefaults(
   defineProps<{
-    adminMode?: boolean;
     compact?: boolean;
     countdownNow?: number;
     msg: ChatMessage;
@@ -21,7 +22,6 @@ const props = withDefaults(
     state?: null | TurnFlowState;
   }>(),
   {
-    adminMode: false,
     compact: false,
     countdownNow: undefined,
     pendingOps: () => [],
@@ -40,12 +40,33 @@ const emit = defineEmits<{
 const resolvedState = computed(
   () => props.state ?? buildTurnFlowState(props.msg, props.pendingOps),
 );
-const hasDigestContent = computed(
+const preparedDigestBody = computed(() => {
+  if (resolvedState.value.timeline.length > 0) {
+    return '';
+  }
+  const prepared = prepareMessageContent(props.msg);
+  if (prepared.suppressed) {
+    return '';
+  }
+  return prepared.bodyMarkdown.trim();
+});
+const hasDigestCard = computed(
   () =>
-    resolvedState.value.timeline.length > 0 ||
     Boolean(resolvedState.value.answerCard?.summary) ||
     (resolvedState.value.answerCard?.sections?.length ?? 0) > 0 ||
-    resolvedState.value.selectedEvidence.length > 0,
+    resolvedState.value.selectedEvidence.length > 0 ||
+    Boolean(preparedDigestBody.value) ||
+    (props.msg.streaming === true &&
+      resolvedState.value.timeline.some(
+        (stage) =>
+          stage.type === 'answer_assembly' &&
+          stage.status !== 'error' &&
+          stage.status !== 'skipped',
+      )),
+);
+const hasTimeline = computed(() => resolvedState.value.timeline.length > 0);
+const hasDigestContent = computed(
+  () => hasTimeline.value || hasDigestCard.value,
 );
 
 function handleApprove() {
@@ -66,29 +87,36 @@ function handleReject() {
 </script>
 
 <template>
-  <div class="space-y-2.5">
+  <div class="space-y-2">
     <div
       v-if="hasDigestContent"
       data-testid="chat-message-kernel-header"
-      class="chat-message-kernel-card overflow-hidden rounded-[16px] border border-border/24"
+      class="chat-message-kernel-shell overflow-hidden rounded-[16px] border"
     >
       <div
-        class="chat-message-kernel-stack space-y-1.5"
+        class="space-y-1.5"
         :class="compact ? 'px-3 py-2.5' : 'px-3.5 py-3'"
       >
         <EvidenceCard
+          v-if="hasDigestCard"
           :compact="compact"
           :msg="msg"
           :state="resolvedState"
         />
-        <TurnTimeline
-          :compact="compact"
-          :countdown-now="countdownNow"
-          :msg="msg"
-          :pending-ops="pendingOps"
-          :state="resolvedState"
-          @copy="(content) => emit('copy', content)"
-        />
+
+        <div
+          v-if="hasTimeline"
+          :class="hasDigestCard ? 'border-t border-border/10 pt-2' : ''"
+        >
+          <TurnTimeline
+            :compact="compact"
+            :countdown-now="countdownNow"
+            :msg="msg"
+            :pending-ops="pendingOps"
+            :state="resolvedState"
+            @copy="(content) => emit('copy', content)"
+          />
+        </div>
       </div>
     </div>
 
@@ -98,17 +126,24 @@ function handleReject() {
       @approve="handleApprove"
       @reject="handleReject"
     />
-    <slot v-if="adminMode" name="diagnostics"></slot>
+    <slot name="diagnostics"></slot>
   </div>
 </template>
 
 <style scoped>
-.chat-message-kernel-card {
-  background: linear-gradient(
-    180deg,
-    hsl(var(--background) / 0.94) 0%,
-    hsl(var(--muted) / 0.08) 100%
-  );
-  box-shadow: 0 14px 32px -34px hsl(var(--foreground) / 0.18);
+.chat-message-kernel-shell {
+  border-color: hsl(var(--border) / 0.18);
+  background:
+    radial-gradient(
+      circle at top right,
+      hsl(var(--primary) / 0.08),
+      transparent 38%
+    ),
+    linear-gradient(
+      180deg,
+      hsl(var(--background) / 0.98) 0%,
+      hsl(var(--muted) / 0.08) 100%
+    );
+  box-shadow: 0 18px 30px -36px hsl(var(--foreground) / 0.18);
 }
 </style>

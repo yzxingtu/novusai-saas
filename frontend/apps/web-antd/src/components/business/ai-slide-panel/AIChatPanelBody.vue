@@ -4,6 +4,9 @@ import type { ItemType } from 'ant-design-vue/es/menu';
 import type { PendingOpDisplayItem } from './use-pending-page-ops';
 
 import type {
+  AgentKnowledgeBaseBindingsByAgentId,
+  AgentKnowledgeBaseBindingSummary,
+  AgentSkillBindingsByAgentId,
   AgentItem,
   ChatMessage,
   RichTextAIApplyMode,
@@ -53,6 +56,9 @@ type ComposerSendState = 'idle' | 'routing' | 'sending' | 'streaming';
 withDefaults(
   defineProps<{
     activeConversationId?: null | number;
+    agentKnowledgeBases?: AgentKnowledgeBaseBindingSummary[] | null;
+    agentKnowledgeBaseMap?: AgentKnowledgeBaseBindingsByAgentId | null;
+    agentSkillMap?: AgentSkillBindingsByAgentId | null;
     agents?: AgentItem[];
     apiPrefix: string;
     attachDisabled?: boolean;
@@ -77,9 +83,10 @@ withDefaults(
     getRichTextDraftState: (
       message: ChatMessage,
     ) => null | RichTextDraftRuntimeState;
+    ensureAgentKnowledgeBases?: (agentId: number) => Promise<unknown> | void;
+    ensureAgentSkills?: (agentId: number) => Promise<unknown> | void;
     groupedConversations?: HistoryConversationGroup[];
     inputMessage?: string;
-    isAgentSwitch: (index: number) => boolean;
     mentionCandidates?: ComposerMentionCandidateItem[];
     mentionEmptyHint?: string;
     mentionLoading?: boolean;
@@ -106,6 +113,9 @@ withDefaults(
   }>(),
   {
     activeConversationId: null,
+    agentKnowledgeBases: null,
+    agentKnowledgeBaseMap: null,
+    agentSkillMap: null,
     agents: () => [],
     attachDisabled: false,
     attachmentAccept: '',
@@ -125,6 +135,8 @@ withDefaults(
     effectiveWelcomeMessage: '',
     exportMenuItems: () => [],
     forceShowDiagnostics: false,
+    ensureAgentKnowledgeBases: undefined,
+    ensureAgentSkills: undefined,
     groupedConversations: () => [],
     inputMessage: '',
     mentionCandidates: () => [],
@@ -231,6 +243,9 @@ const emit = defineEmits<{
     >
       <AIChatMessageViewport
         :api-prefix="apiPrefix"
+        :agent-knowledge-bases="agentKnowledgeBases"
+        :agent-knowledge-base-map="agentKnowledgeBaseMap"
+        :agent-skill-map="agentSkillMap"
         :agents="agents"
         :chat-messages="chatMessages"
         :compact="compactMessages"
@@ -240,7 +255,8 @@ const emit = defineEmits<{
         :force-show-diagnostics="forceShowDiagnostics"
         :get-pending-ops-for-message="getPendingOpsForMessage"
         :get-rich-text-draft-state="getRichTextDraftState"
-        :is-agent-switch="isAgentSwitch"
+        :ensure-agent-knowledge-bases="ensureAgentKnowledgeBases"
+        :ensure-agent-skills="ensureAgentSkills"
         :register-container="(element) => emit('registerContainer', element)"
         :routing="routing"
         :selected-agent="selectedAgent"

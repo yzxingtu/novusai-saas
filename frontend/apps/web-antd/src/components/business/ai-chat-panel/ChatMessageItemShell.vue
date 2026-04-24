@@ -1,6 +1,9 @@
 <script lang="ts" setup>
 import type { PendingPageOpForDisplay } from './pending-page-op';
 import type {
+  AgentKnowledgeBaseBindingsByAgentId,
+  AgentKnowledgeBaseBindingSummary,
+  AgentSkillBindingsByAgentId,
   AgentItem,
   ChatMessage,
   RichTextAIApplyMode,
@@ -22,6 +25,9 @@ const props = withDefaults(
     /** Current timestamp for 60s countdown display (fallback: local now) / 用于 60s 倒计时的当前时间戳 */
     countdownNow?: number;
     forceShowDiagnostics?: boolean;
+    agentKnowledgeBases?: AgentKnowledgeBaseBindingSummary[] | null;
+    agentKnowledgeBaseMap?: AgentKnowledgeBaseBindingsByAgentId | null;
+    agentSkillMap?: AgentSkillBindingsByAgentId | null;
     index: number;
     kernelState?: null | TurnFlowState;
     msg: ChatMessage;
@@ -29,8 +35,6 @@ const props = withDefaults(
     pendingOps?: PendingPageOpForDisplay[];
     richTextState?: null | RichTextDraftRuntimeState;
     selectedAgent?: AgentItem | null;
-    /** Whether to show an agent-switch separator above this message / 是否在本条消息上方显示智能体切换分隔 */
-    showAgentSwitch?: boolean;
   }>(),
   {
     apiPrefix: '',
@@ -38,9 +42,11 @@ const props = withDefaults(
     compact: false,
     countdownNow: undefined,
     forceShowDiagnostics: false,
+    agentKnowledgeBases: null,
+    agentKnowledgeBaseMap: null,
+    agentSkillMap: null,
     kernelState: null,
     selectedAgent: null,
-    showAgentSwitch: false,
     pendingOps: () => [],
     richTextState: null,
   },

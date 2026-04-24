@@ -500,48 +500,10 @@ export async function interceptChatSSE(
                 __aiChatStreamRecords?: CapturedChatStream[];
               };
             const record = globalWindow.__aiChatStreamRecords?.[index];
-            const uiLooksSettled = () => {
-              const panel = document.querySelector('[data-ai-panel]');
-              if (!panel) {
-                return false;
-              }
-              const hasActionableGate = Array.from(
-                panel.querySelectorAll('button'),
-              ).some((button) => {
-                if (!(button instanceof HTMLButtonElement)) {
-                  return false;
-                }
-                if (
-                  button.disabled ||
-                  button.getAttribute('aria-disabled') === 'true'
-                ) {
-                  return false;
-                }
-                const rect = button.getBoundingClientRect();
-                if (rect.width <= 0 || rect.height <= 0) {
-                  return false;
-                }
-                const label = button.innerText.trim();
-                return (
-                  /允许执行|allow/i.test(label) ||
-                  /确认执行|confirm/i.test(label)
-                );
-              });
-              if (hasActionableGate) {
-                return false;
-              }
-              const composer = document.querySelector(
-                '[data-testid="ai-chat-input"], textarea[placeholder*="输入消息"], textarea[placeholder*="Enter"]',
-              ) as HTMLInputElement | HTMLTextAreaElement | null;
-              return !!composer && !composer.disabled;
-            };
             if (!record) {
               return null;
             }
             if (record.done || record.error) {
-              return record;
-            }
-            if (record.body && uiLooksSettled()) {
               return record;
             }
             return null;

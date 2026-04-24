@@ -24,11 +24,11 @@ const showDebugError = computed(
 </script>
 
 <template>
-  <!-- Structured error panel -->
   <div
     v-if="msg.error"
-    class="rounded-xl border border-destructive/40 bg-destructive/5"
-    :class="compact ? 'mb-1 px-2.5 py-2 text-xs' : 'mb-2 px-3 py-2.5 text-sm'"
+    data-testid="assistant-error-card"
+    class="chat-error-card rounded-[18px] border"
+    :class="compact ? 'mb-1 px-3 py-2.5 text-xs' : 'mb-2 px-3.5 py-3 text-sm'"
   >
     <div class="flex items-start gap-2">
       <IconifyIcon
@@ -36,23 +36,48 @@ const showDebugError = computed(
         class="mt-0.5 size-4 shrink-0 text-destructive"
       />
       <div class="min-w-0 flex-1">
-        <p class="break-words text-foreground">{{ msg.error.message }}</p>
-        <p
-          v-if="msg.error.traceId"
-          class="mt-1 font-mono text-[11px] text-muted-foreground"
-        >
-          {{
-            $t('common.globalAiChat.traceIdValue', {
-              traceId: msg.error.traceId,
-            })
-          }}
+        <p class="text-foreground/88 break-words font-medium">
+          {{ msg.error.message }}
         </p>
+        <div
+          v-if="msg.error.traceId"
+          data-testid="assistant-error-trace-id"
+          class="chat-error-trace mt-2 inline-flex max-w-full items-center gap-1 rounded-full px-2.5 py-1 font-mono text-[11px] text-muted-foreground"
+        >
+          <IconifyIcon icon="lucide:fingerprint" class="size-3 shrink-0" />
+          <span class="truncate">
+            {{
+              $t('common.globalAiChat.traceIdValue', {
+                traceId: msg.error.traceId,
+              })
+            }}
+          </span>
+        </div>
         <pre
           v-if="showDebugError"
-          class="mt-1 max-h-36 overflow-auto whitespace-pre-wrap break-all rounded bg-black/5 p-2 text-[11px] text-red-500"
+          class="mt-2 max-h-36 overflow-auto whitespace-pre-wrap break-all rounded-xl bg-black/5 p-2 text-[11px] text-red-500"
           >{{ msg.error?.debugMessage }}</pre
         >
       </div>
     </div>
   </div>
 </template>
+
+<style scoped>
+.chat-error-card {
+  border-color: hsl(var(--destructive) / 0.32);
+  background:
+    linear-gradient(
+      180deg,
+      hsl(var(--destructive) / 0.08) 0%,
+      hsl(var(--destructive) / 0.035) 100%
+    ),
+    hsl(var(--background));
+  box-shadow: 0 14px 24px -24px hsl(var(--destructive) / 0.28);
+}
+
+.chat-error-trace {
+  border: 1px solid hsl(var(--destructive) / 0.22);
+  background: hsl(var(--background) / 0.92);
+}
+</style>

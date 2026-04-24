@@ -3,6 +3,9 @@ import type { PendingOpDisplayItem } from './use-pending-page-ops';
 
 import type { TurnFlowState } from '#/components/business/ai-chat-kernel/TurnFlowState';
 import type {
+  AgentKnowledgeBaseBindingsByAgentId,
+  AgentKnowledgeBaseBindingSummary,
+  AgentSkillBindingsByAgentId,
   AgentItem,
   ChatMessage,
   RichTextAIApplyMode,
@@ -10,7 +13,7 @@ import type {
   RichTextDraftRuntimeState,
 } from '#/types/ai-chat';
 
-import { computed } from 'vue';
+import { computed, watch } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
@@ -22,6 +25,9 @@ import { $t } from '#/locales';
 const props = withDefaults(
   defineProps<{
     agents?: AgentItem[];
+    agentKnowledgeBases?: AgentKnowledgeBaseBindingSummary[] | null;
+    agentKnowledgeBaseMap?: AgentKnowledgeBaseBindingsByAgentId | null;
+    agentSkillMap?: AgentSkillBindingsByAgentId | null;
     apiPrefix: string;
     chatMessages?: ChatMessage[];
     compact?: boolean;
@@ -33,7 +39,8 @@ const props = withDefaults(
     getRichTextDraftState: (
       message: ChatMessage,
     ) => null | RichTextDraftRuntimeState;
-    isAgentSwitch: (index: number) => boolean;
+    ensureAgentKnowledgeBases?: (agentId: number) => Promise<unknown> | void;
+    ensureAgentSkills?: (agentId: number) => Promise<unknown> | void;
     registerContainer?: (element: HTMLDivElement | null) => void;
     routing?: boolean;
     selectedAgent?: AgentItem | null;
@@ -45,12 +52,17 @@ const props = withDefaults(
   }>(),
   {
     agents: () => [],
+    agentKnowledgeBases: null,
+    agentKnowledgeBaseMap: null,
+    agentSkillMap: null,
     chatMessages: () => [],
     compact: true,
     countdownNow: 0,
     effectiveSuggestedQuestions: () => [],
     effectiveWelcomeMessage: '',
     forceShowDiagnostics: false,
+    ensureAgentKnowledgeBases: undefined,
+    ensureAgentSkills: undefined,
     routing: false,
     registerContainer: undefined,
     selectedAgent: null,
@@ -160,17 +172,92 @@ const messageRenderEntries = computed(() =>
 const contentShellClass = computed(() =>
   props.compact
     ? 'w-full space-y-3'
-    : 'mx-auto min-h-full w-full max-w-[42rem] space-y-4',
+    : 'mx-auto min-h-full w-full max-w-[48rem] space-y-4.5',
 );
 
 const transcriptRailClass = computed(() =>
-  props.compact
-    ? 'w-full space-y-3'
-    : 'mx-auto w-full max-w-[42rem] space-y-3',
+  props.compact ? 'w-full space-y-3' : 'mx-auto w-full max-w-[48rem] space-y-3.5',
 );
 
 const messageListClass = computed(() =>
-  props.compact ? 'space-y-2.5' : 'space-y-3.5',
+  props.compact ? 'space-y-2.5' : 'space-y-4',
+);
+
+const visibleAssistantAgentIds = computed(() => {
+  const ids = new Set<number>();
+  for (const message of normalizedChatMessages.value) {
+    if (
+      message.role !== 'assistant' ||
+      typeof message.agent_id !== 'number' ||
+      !Number.isFinite(message.agent_id)
+    ) {
+      continue;
+    }
+    ids.add(message.agent_id);
+  }
+  return [...ids];
+});
+
+function hasKnowledgeBaseSource(agentId: number): boolean {
+  if (
+    props.agentKnowledgeBaseMap &&
+    Object.prototype.hasOwnProperty.call(props.agentKnowledgeBaseMap, agentId)
+  ) {
+    return true;
+  }
+  if (
+    props.selectedAgent?.id === agentId &&
+    Array.isArray(props.agentKnowledgeBases)
+  ) {
+    return true;
+  }
+  const agent = props.agents.find((item) => item.id === agentId);
+  return (
+    Array.isArray(agent?.knowledge_bases) ||
+    Array.isArray(agent?.knowledge_base_ids)
+  );
+}
+
+function hasSkillSource(agentId: number): boolean {
+  if (
+    props.agentSkillMap &&
+    Object.prototype.hasOwnProperty.call(props.agentSkillMap, agentId)
+  ) {
+    return true;
+  }
+  if (
+    props.selectedAgent?.id === agentId &&
+    Array.isArray(props.selectedAgent.skills)
+  ) {
+    return true;
+  }
+  const messageHasSkills = normalizedChatMessages.value.some(
+    (message) =>
+      message.role === 'assistant' &&
+      message.agent_id === agentId &&
+      Array.isArray(message.agent_skills),
+  );
+  if (messageHasSkills) {
+    return true;
+  }
+  const agent = props.agents.find((item) => item.id === agentId);
+  return Array.isArray(agent?.skills);
+}
+
+watch(
+  visibleAssistantAgentIds,
+  (agentIds) => {
+    for (const agentId of agentIds) {
+      if (!hasKnowledgeBaseSource(agentId)) {
+        void props.ensureAgentKnowledgeBases?.(agentId);
+      }
+      if (hasSkillSource(agentId)) {
+        continue;
+      }
+      void props.ensureAgentSkills?.(agentId);
+    }
+  },
+  { immediate: true },
 );
 </script>
 
@@ -178,7 +265,7 @@ const messageListClass = computed(() =>
   <div
     :ref="(element) => registerContainer?.(element as HTMLDivElement | null)"
     class="flex-1 overflow-y-auto"
-    :class="compact ? 'px-3 py-3' : 'px-5 py-5 sm:px-7 lg:px-8'"
+    :class="compact ? 'px-3 py-3' : 'px-4 py-4 sm:px-6 lg:px-8'"
     @scroll="emit('scroll')"
   >
     <div :class="contentShellClass">
@@ -186,16 +273,22 @@ const messageListClass = computed(() =>
         v-if="chatMessages.length === 0 && !sending && !routing"
         class="flex h-full items-center justify-center"
       >
-        <div class="ai-chat-empty-card w-full max-w-sm rounded-[22px] border border-border/28 px-5 py-5 text-center">
-          <div class="ai-chat-empty-orb mx-auto mb-3 flex size-10 items-center justify-center rounded-2xl text-primary ring-1 ring-primary/12">
-            <IconifyIcon icon="lucide:sparkles" class="size-5" />
+        <div
+          class="ai-chat-empty-card w-full max-w-sm rounded-[28px] border px-6 py-6 text-center"
+        >
+          <div
+            class="ai-chat-empty-orb mx-auto mb-3 flex size-11 items-center justify-center rounded-[20px] text-primary ring-1"
+          >
+            <IconifyIcon icon="lucide:message-square-text" class="size-5" />
           </div>
-          <div class="text-[13px] font-semibold text-foreground/84">
+          <div
+            class="text-foreground/84 text-[12px] font-semibold tracking-[0.01em]"
+          >
             {{
               effectiveWelcomeMessage || $t('common.globalAiChat.welcomeDesc')
             }}
           </div>
-          <div class="mt-1.5 text-[10px] leading-5 text-muted-foreground/58">
+          <div class="text-muted-foreground/58 mt-1.5 text-[9.75px] leading-5">
             {{ $t('common.globalAiChat.welcomeFirstTime') }}
           </div>
           <div
@@ -205,12 +298,12 @@ const messageListClass = computed(() =>
             <button
               v-for="(question, questionIndex) in effectiveSuggestedQuestions"
               :key="questionIndex"
-              class="group/sq flex items-center gap-2 rounded-2xl border border-border/22 bg-background/82 px-3 py-2.5 text-left text-[11px] text-foreground/82 transition-colors hover:border-primary/18 hover:bg-primary/[0.04]"
+              class="group/sq border-border/18 bg-background/84 text-foreground/82 hover:border-primary/18 flex items-center gap-2 rounded-[18px] border px-3 py-2.5 text-left text-[10.5px] transition-colors hover:bg-primary/[0.04]"
               @click="emit('askSuggested', question)"
             >
               <IconifyIcon
                 icon="lucide:message-circle"
-                class="size-3.5 shrink-0 text-primary/58 transition-colors group-hover/sq:text-primary"
+                class="text-primary/58 size-3.5 shrink-0 transition-colors group-hover/sq:text-primary"
               />
               <span class="truncate">{{ question }}</span>
               <IconifyIcon
@@ -231,8 +324,10 @@ const messageListClass = computed(() =>
             :index="idx"
             :api-prefix="apiPrefix"
             :agents="agents"
+            :agent-knowledge-bases="agentKnowledgeBases"
+            :agent-knowledge-base-map="agentKnowledgeBaseMap"
+            :agent-skill-map="agentSkillMap"
             :selected-agent="selectedAgent"
-            :show-agent-switch="isAgentSwitch(idx)"
             :pending-ops="entry.pendingOps"
             :kernel-state="entry.kernelState"
             :countdown-now="countdownNow"
@@ -382,7 +477,7 @@ const messageListClass = computed(() =>
         <Transition name="fade">
           <div
             v-if="routing"
-            class="routing-card relative overflow-hidden rounded-xl border border-border/24 px-3.5 py-2.5 backdrop-blur-sm"
+            class="routing-card border-border/24 relative overflow-hidden rounded-xl border px-3.5 py-2.5 backdrop-blur-sm"
           >
             <div class="relative z-[1] flex items-center gap-2.5">
               <div
@@ -425,7 +520,7 @@ const messageListClass = computed(() =>
       <Transition name="fade">
         <button
           v-if="showScrollToTop && !streaming"
-          class="inline-flex size-7 items-center justify-center rounded-full border border-border/38 bg-background/92 text-muted-foreground shadow-[0_10px_24px_-18px_hsl(var(--foreground)/0.24)] backdrop-blur-sm transition-all hover:border-primary/20 hover:bg-primary hover:text-white"
+          class="border-border/38 bg-background/96 inline-flex size-8 items-center justify-center rounded-full border text-muted-foreground shadow-[0_10px_24px_-18px_hsl(var(--foreground)/0.14)] backdrop-blur-sm transition-all hover:border-primary/20 hover:bg-muted/30 hover:text-foreground"
           :aria-label="$t('common.globalAiChat.scrollToTop')"
           @click="emit('scrollToTop')"
         >
@@ -435,7 +530,7 @@ const messageListClass = computed(() =>
       <Transition name="fade">
         <button
           v-if="showScrollToBottom && !streaming"
-          class="inline-flex size-7 items-center justify-center rounded-full border border-border/38 bg-background/92 text-muted-foreground shadow-[0_10px_24px_-18px_hsl(var(--foreground)/0.24)] backdrop-blur-sm transition-all hover:border-primary/20 hover:bg-primary hover:text-white"
+          class="border-border/38 bg-background/96 inline-flex size-8 items-center justify-center rounded-full border text-muted-foreground shadow-[0_10px_24px_-18px_hsl(var(--foreground)/0.14)] backdrop-blur-sm transition-all hover:border-primary/20 hover:bg-muted/30 hover:text-foreground"
           @click="emit('scrollToBottom')"
         >
           <IconifyIcon icon="lucide:arrow-down" class="size-3.5" />
@@ -449,25 +544,28 @@ const messageListClass = computed(() =>
 .ai-chat-empty-card {
   background: linear-gradient(
     180deg,
-    hsl(var(--card) / 0.96) 0%,
+    hsl(var(--card)) 0%,
     hsl(var(--background) / 0.98) 100%
   );
-  box-shadow: 0 18px 40px -34px hsl(var(--foreground) / 0.18);
+  border-color: hsl(var(--border) / 0.32);
+  box-shadow: 0 20px 34px -32px hsl(var(--foreground) / 0.14);
 }
 
 .ai-chat-empty-orb {
   background: linear-gradient(
     180deg,
-    hsl(var(--primary) / 0.12) 0%,
-    hsl(var(--primary) / 0.06) 100%
+    hsl(var(--background)) 0%,
+    hsl(var(--muted) / 0.42) 100%
   );
+  border-color: hsl(var(--border) / 0.32);
+  box-shadow: 0 14px 24px -24px hsl(var(--foreground) / 0.1);
 }
 
 .routing-card {
   background: linear-gradient(
     180deg,
-    hsl(var(--background) / 0.94) 0%,
-    hsl(var(--primary) / 0.045) 100%
+    hsl(var(--background) / 0.98) 0%,
+    hsl(var(--muted) / 0.2) 100%
   );
 }
 </style>

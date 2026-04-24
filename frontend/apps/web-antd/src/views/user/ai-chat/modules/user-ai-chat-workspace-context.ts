@@ -14,7 +14,6 @@ export interface UserAIChatWorkspaceContext {
   handleSendClick: () => void;
   handleKeyDown: (event: KeyboardEvent) => void;
   askSuggested: (question: string) => void;
-  isAgentSwitch: (index: number) => boolean;
 }
 
 const userAIChatWorkspaceContextKey: InjectionKey<UserAIChatWorkspaceContext> =

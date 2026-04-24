@@ -12,6 +12,7 @@ import { computed, ref, watch } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
+import { prepareMessageContent } from '#/components/business/ai-chat-panel/chat-message-display-preparation';
 import {
   normalizeMergedTextPart,
   normalizeOptionalString,
@@ -183,6 +184,7 @@ function buildProvisionalAnswerCard(
 
 const messageIdentity = computed(() => resolveMessageIdentity(props.msg));
 const stickyProvisionalAnswerCard = ref<TurnAnswerCard | undefined>(undefined);
+const digestExpanded = ref(false);
 const provisionalAnswerStage = computed(() => getAnswerAssemblyStage());
 const liveProvisionalAnswerCandidate = computed(() => {
   if (!props.msg.streaming) {
@@ -219,6 +221,33 @@ const normalizedMessageBody = computed(() =>
     normalizeMergedTextPart(props.msg.content) || props.msg.content,
   ),
 );
+const preparedTranscriptDigest = computed(() => {
+  if (props.state.timeline.length > 0) {
+    return '';
+  }
+  const prepared = prepareMessageContent(props.msg);
+  if (prepared.suppressed) {
+    return '';
+  }
+  return normalizeText(prepared.bodyMarkdown);
+});
+const fallbackAnswerSummary = computed(() => {
+  if (
+    props.msg.streaming ||
+    displayAnswerSummary.value ||
+    displayAnswerSections.value.length > 0 ||
+    hasEvidence.value
+  ) {
+    return '';
+  }
+  const safeBody = preparedTranscriptDigest.value;
+  if (!safeBody) {
+    return '';
+  }
+  return safeBody.length > 180
+    ? `${safeBody.slice(0, 179).trimEnd()}…`
+    : safeBody;
+});
 watch(
   [
     () => props.state.answerCard,
@@ -248,7 +277,9 @@ const isProvisionalAnswerCard = computed(
       liveProvisionalAnswerCandidate.value ?? stickyProvisionalAnswerCard.value,
     ),
 );
-const hasAnswerSummary = computed(() => Boolean(displayAnswerSummary.value));
+const hasAnswerSummary = computed(() =>
+  Boolean(displayAnswerSummary.value || fallbackAnswerSummary.value),
+);
 const hasAnswerSections = computed(
   () => displayAnswerSections.value.length > 0,
 );
@@ -259,6 +290,9 @@ const digestLabelKey = computed(() =>
     : 'common.globalAiChat.turnEvidenceTitle',
 );
 const isRedundantAnswerCard = computed(() => {
+  if (fallbackAnswerSummary.value) {
+    return false;
+  }
   if (props.msg.streaming || hasEvidence.value) {
     return false;
   }
@@ -288,11 +322,66 @@ const shouldShow = computed(
     !isRedundantAnswerCard.value &&
     (hasAnswerSummary.value || hasAnswerSections.value || hasEvidence.value),
 );
+const isLiveDigest = computed(
+  () => props.msg.streaming === true || isProvisionalAnswerCard.value,
+);
+const digestPreviewText = computed(() => {
+  const summary = displayAnswerSummary.value || fallbackAnswerSummary.value;
+  if (summary) {
+    return summary;
+  }
+
+  const firstSection = displayAnswerSections.value[0];
+  if (firstSection) {
+    const sectionPreview =
+      normalizeText(firstSection.title) ||
+      normalizeText(firstSection.body) ||
+      normalizeText(firstSection.content);
+    if (sectionPreview) {
+      return sectionPreview;
+    }
+  }
+
+  return preparedEvidence.value[0]?.label ?? '';
+});
+const canToggleDigest = computed(() => shouldShow.value && !isLiveDigest.value);
+const showDigestBody = computed(
+  () => !canToggleDigest.value || digestExpanded.value,
+);
 const provisionalStatusLabelKey = computed(() =>
   props.msg.streaming
     ? 'common.globalAiChat.turnStageStatus.running'
     : 'common.globalAiChat.turnStageStatus.completed',
 );
+
+function syncDigestExpanded(nextExpanded: boolean) {
+  if (digestExpanded.value === nextExpanded) {
+    return;
+  }
+  digestExpanded.value = nextExpanded;
+}
+
+function toggleDigestExpanded() {
+  if (!canToggleDigest.value) {
+    return;
+  }
+  syncDigestExpanded(!digestExpanded.value);
+}
+
+watch(
+  messageIdentity,
+  () => {
+    syncDigestExpanded(isLiveDigest.value);
+  },
+  { immediate: true },
+);
+
+watch(isLiveDigest, (liveDigest, previousLiveDigest) => {
+  if (liveDigest === previousLiveDigest) {
+    return;
+  }
+  syncDigestExpanded(liveDigest);
+});
 
 function getEvidenceIcon(kind: string) {
   if (kind === 'knowledge_base') {
@@ -317,82 +406,194 @@ function getEvidenceIcon(kind: string) {
     data-testid="chat-message-kernel-evidence"
     class="min-w-0"
   >
-    <div
-      class="flex min-w-0 flex-wrap items-center gap-1.5"
-      :class="compact ? 'text-[10px]' : 'text-[10px]'"
+    <button
+      v-if="canToggleDigest"
+      type="button"
+      data-testid="turn-digest-toggle"
+      class="turn-digest-toggle flex w-full min-w-0 items-center gap-2 rounded-xl px-0.5 py-0.5 text-left"
+      :aria-expanded="digestExpanded"
+      @click="toggleDigestExpanded"
     >
-      <span class="font-medium uppercase tracking-[0.1em] text-muted-foreground/60">
+      <span
+        class="digest-label inline-flex items-center rounded-full px-1.5 py-0.5 font-medium uppercase tracking-[0.12em]"
+        :class="compact ? 'text-[8.5px]' : 'text-[9px]'"
+      >
+        {{ $t(digestLabelKey) }}
+      </span>
+      <span
+        v-if="digestPreviewText"
+        class="text-foreground/72 min-w-0 flex-1 truncate"
+        :class="compact ? 'text-[9.5px]' : 'text-[10px]'"
+      >
+        {{ digestPreviewText }}
+      </span>
+      <span
+        v-if="hasEvidence"
+        class="digest-evidence-count inline-flex items-center rounded-full px-1.5 py-0.5 text-[8.5px]"
+      >
+        {{ preparedEvidence.length + state.hiddenEvidenceCount }}
+      </span>
+      <span
+        class="digest-chevron inline-flex shrink-0 items-center justify-center rounded-full p-1"
+      >
+        <IconifyIcon
+          icon="lucide:chevron-down"
+          class="size-3 transition-transform duration-200"
+          :style="{
+            transform: digestExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+          }"
+        />
+      </span>
+    </button>
+
+    <div
+      v-else
+      class="flex min-w-0 flex-wrap items-center gap-1.5"
+      :class="compact ? 'text-[8.5px]' : 'text-[9px]'"
+    >
+      <span
+        class="digest-label inline-flex items-center rounded-full px-1.5 py-0.5 font-medium uppercase tracking-[0.12em]"
+      >
         {{ $t(digestLabelKey) }}
       </span>
       <span
         v-if="isProvisionalAnswerCard"
         data-testid="chat-message-kernel-evidence-live-state"
-        class="inline-flex items-center rounded-full border border-primary/16 bg-primary/[0.08] px-1.5 py-0.5 text-[9px] font-medium text-primary"
+        class="digest-live-state inline-flex items-center rounded-full border px-1.5 py-0.5 text-[8px] font-medium text-primary"
         :class="msg.streaming ? 'tc-pill-pulse' : ''"
       >
         {{ $t(provisionalStatusLabelKey) }}
       </span>
     </div>
 
-    <p
-      v-if="displayAnswerSummary"
-      class="mt-1 line-clamp-2 text-foreground/84"
-      :class="compact ? 'text-[11px] leading-5' : 'text-[11px] leading-5'"
-    >
-      {{ displayAnswerSummary }}
-    </p>
-
     <div
-      v-else-if="displayAnswerSections.length > 0"
-      class="mt-1 space-y-1"
+      v-if="showDigestBody"
+      data-testid="turn-digest-body"
+      class="mt-1.5 min-w-0 space-y-1.5"
     >
-      <div
-        v-for="section in displayAnswerSections.slice(0, 2)"
-        :key="section.id || section.title || section.body || section.content"
+      <p
+        v-if="displayAnswerSummary || fallbackAnswerSummary"
+        class="digest-summary line-clamp-2"
+        :class="
+          compact ? 'text-[10px] leading-[1.15rem]' : 'text-[10.5px] leading-5'
+        "
       >
-        <p
-          v-if="section.title"
-          class="text-[10px] font-medium text-foreground/72"
-        >
-          {{ section.title }}
-        </p>
-        <p
-          class="line-clamp-2 text-muted-foreground/72"
-          :class="compact ? 'text-[10px] leading-5' : 'text-[10px] leading-5'"
-        >
-          {{ section.body || section.content }}
-        </p>
-      </div>
-    </div>
+        {{ displayAnswerSummary || fallbackAnswerSummary }}
+      </p>
 
-    <div v-if="hasEvidence" class="mt-1.5 flex flex-wrap gap-1">
-      <component
-        v-for="item in preparedEvidence"
-        :key="item.id"
-        :is="item.href ? 'a' : 'span'"
-        :href="item.href || undefined"
-        :target="item.href ? '_blank' : undefined"
-        :rel="item.href ? 'noopener noreferrer' : undefined"
-        :title="item.label"
-        class="inline-flex max-w-full items-center gap-1 rounded-full border border-border/18 bg-background/80 text-foreground/70 transition-colors"
-        :class="[
-          compact ? 'px-2 py-0.5 text-[9px]' : 'px-2 py-0.5 text-[10px]',
-          item.href ? 'hover:border-primary/22 hover:bg-primary/[0.06] hover:text-primary' : '',
-        ]"
-      >
-        <IconifyIcon
-          :icon="getEvidenceIcon(item.kind)"
-          class="shrink-0 text-primary/72"
-          :class="compact ? 'size-2.5' : 'size-2.5'"
-        />
-        <span class="min-w-0 truncate">{{ item.label }}</span>
-      </component>
-      <span
-        v-if="state.hiddenEvidenceCount > 0"
-        class="inline-flex items-center rounded-full border border-dashed border-border/28 bg-background/72 px-2 py-0.5 text-[9px] text-muted-foreground"
-      >
-        +{{ state.hiddenEvidenceCount }}
-      </span>
+      <div v-else-if="displayAnswerSections.length > 0" class="space-y-1">
+        <div
+          v-for="section in displayAnswerSections.slice(0, 2)"
+          :key="section.id || section.title || section.body || section.content"
+        >
+          <p
+            v-if="section.title"
+            class="text-[9px] font-medium text-foreground/60"
+          >
+            {{ section.title }}
+          </p>
+          <p
+            class="digest-section-copy line-clamp-2"
+            :class="
+              compact
+                ? 'text-[9.5px] leading-[1.15rem]'
+                : 'text-[10px] leading-5'
+            "
+          >
+            {{ section.body || section.content }}
+          </p>
+        </div>
+      </div>
+
+      <div v-if="hasEvidence" class="flex flex-wrap gap-1">
+        <component
+          v-for="item in preparedEvidence"
+          :key="item.id"
+          :is="item.href ? 'a' : 'span'"
+          :href="item.href || undefined"
+          :target="item.href ? '_blank' : undefined"
+          :rel="item.href ? 'noopener noreferrer' : undefined"
+          :title="item.label"
+          class="digest-evidence-chip inline-flex max-w-full items-center gap-1 rounded-full border transition-colors"
+          :class="[
+            compact ? 'px-2 py-0.5 text-[8.5px]' : 'px-2 py-0.5 text-[9px]',
+            item.href
+              ? 'hover:border-primary/20 hover:bg-primary/[0.05] hover:text-primary'
+              : '',
+          ]"
+        >
+          <IconifyIcon
+            :icon="getEvidenceIcon(item.kind)"
+            class="text-primary/66 size-2.5 shrink-0"
+          />
+          <span class="min-w-0 truncate">{{ item.label }}</span>
+        </component>
+        <span
+          v-if="state.hiddenEvidenceCount > 0"
+          class="digest-evidence-more inline-flex items-center rounded-full border border-dashed px-2 py-0.5 text-[8.5px]"
+        >
+          +{{ state.hiddenEvidenceCount }}
+        </span>
+      </div>
     </div>
   </div>
 </template>
+
+<style scoped>
+.turn-digest-toggle {
+  border: 1px solid transparent;
+  transition: background-color 160ms ease;
+}
+
+.turn-digest-toggle:hover {
+  background: hsl(var(--muted) / 0.14);
+}
+
+.digest-label {
+  color: hsl(var(--muted-foreground) / 0.62);
+  border: 1px solid hsl(var(--border) / 0.24);
+  background: hsl(var(--background) / 0.84);
+}
+
+.digest-live-state {
+  border-color: hsl(var(--primary) / 0.16);
+  background: hsl(var(--primary) / 0.08);
+}
+
+.digest-evidence-count {
+  color: hsl(var(--muted-foreground) / 0.6);
+  border: 1px solid hsl(var(--border) / 0.2);
+  background: hsl(var(--background) / 0.78);
+}
+
+.digest-chevron {
+  color: hsl(var(--muted-foreground) / 0.5);
+  border: 1px solid hsl(var(--border) / 0.2);
+  background: hsl(var(--background) / 0.78);
+}
+
+.turn-digest-toggle:hover .digest-chevron {
+  color: hsl(var(--primary) / 0.76);
+  border-color: hsl(var(--primary) / 0.16);
+}
+
+.digest-summary {
+  color: hsl(var(--foreground) / 0.82);
+}
+
+.digest-section-copy {
+  color: hsl(var(--muted-foreground) / 0.7);
+}
+
+.digest-evidence-chip {
+  border-color: hsl(var(--border) / 0.18);
+  color: hsl(var(--foreground) / 0.7);
+  background: hsl(var(--background) / 0.82);
+}
+
+.digest-evidence-more {
+  border-color: hsl(var(--border) / 0.24);
+  color: hsl(var(--muted-foreground) / 0.72);
+  background: hsl(var(--background) / 0.72);
+}
+</style>

@@ -4,7 +4,12 @@ import type { ComputedRef, Ref } from 'vue';
 
 import type { PendingOpDisplayItem } from './use-pending-page-ops';
 
+import type { ChatKBBindingInfo } from '#/api/shared/ai-chat';
 import type {
+  AgentKnowledgeBaseBindingsByAgentId,
+  AgentKnowledgeBaseBindingSummary,
+  AgentSkillBindingsByAgentId,
+  AgentSkillBindingSummary,
   AgentItem,
   ChatMessage,
   RichTextAIApplyMode,
@@ -51,6 +56,10 @@ interface ComposerMentionCandidateItem {
 interface UsePanelShellBodyBindingsOptions {
   actionClick: (index: number, value: string) => void;
   activeConversationId: Ref<null | number>;
+  agentKnowledgeBases?: ComputedRef<AgentKnowledgeBaseBindingSummary[] | null>;
+  agentKnowledgeBaseMap?: ComputedRef<AgentKnowledgeBaseBindingsByAgentId>;
+  agentSkillMap?: ComputedRef<AgentSkillBindingsByAgentId>;
+  agentKBBindings: Ref<ChatKBBindingInfo[]>;
   agents: Ref<AgentItem[]>;
   apiPrefix: Ref<string>;
   askSuggested: (question: string) => void;
@@ -91,8 +100,9 @@ interface UsePanelShellBodyBindingsOptions {
   handleMessagesScroll: () => void;
   handleOpenUrl: (url: string) => void;
   handleSendMessage: () => Promise<boolean>;
+  ensureAgentKnowledgeBases: (agentId: number) => Promise<ChatKBBindingInfo[]>;
+  ensureAgentSkills: (agentId: number) => Promise<AgentSkillBindingSummary[]>;
   inputMessage: Ref<string>;
-  isAgentSwitch: (index: number) => boolean;
   mentionEmptyHint: ComputedRef<string>;
   mentionLoading: Ref<boolean>;
   mentionMixedHint: string;
@@ -148,6 +158,10 @@ export function usePanelShellBodyBindings(
 ) {
   const panelBodyProps = computed(() => ({
     activeConversationId: options.activeConversationId.value,
+    agentKnowledgeBases:
+      options.agentKnowledgeBases?.value ?? options.agentKBBindings.value,
+    agentKnowledgeBaseMap: options.agentKnowledgeBaseMap?.value ?? {},
+    agentSkillMap: options.agentSkillMap?.value ?? {},
     agents: options.agents.value,
     apiPrefix: options.apiPrefix.value,
     attachDisabled: options.attachDisabled.value,
@@ -171,7 +185,8 @@ export function usePanelShellBodyBindings(
     getRichTextDraftState: options.getRichTextDraftState,
     groupedConversations: options.groupedConversations.value,
     inputMessage: options.inputMessage.value,
-    isAgentSwitch: options.isAgentSwitch,
+    ensureAgentKnowledgeBases: options.ensureAgentKnowledgeBases,
+    ensureAgentSkills: options.ensureAgentSkills,
     mentionCandidates: options.composerMentionCandidates.value,
     mentionEmptyHint: options.mentionEmptyHint.value,
     mentionLoading: options.mentionLoading.value,

@@ -391,7 +391,7 @@ describe('aIChatSlidePanel (component mount)', () => {
     wrapper.unmount();
   });
 
-  it('renders header actions and more-actions trigger without reserving an empty status rail', async () => {
+  it('renders the restored header action set and more-actions trigger without reserving an empty status rail', async () => {
     activeConversationIdValue.value = 10;
     selectedAgentIdValue.value = 2;
 
@@ -409,6 +409,11 @@ describe('aIChatSlidePanel (component mount)', () => {
     expect(
       document.body.querySelector('[data-testid="ai-panel-primary-actions"]'),
     ).toBeTruthy();
+    expect(
+      document.body.querySelectorAll(
+        '[data-testid="ai-panel-primary-actions"] button',
+      ),
+    ).toHaveLength(4);
     expect(
       document.body.querySelector('[data-testid="ai-panel-toolbar-row"]'),
     ).toBeTruthy();
@@ -445,13 +450,14 @@ describe('aIChatSlidePanel (component mount)', () => {
       document.body.querySelector('[data-ai-panel]') as HTMLDivElement | null,
       'Expected AI panel in full-mode transcript test',
     );
+    const transcriptProbe = requireElement(
+      document.body.querySelector(
+        '[data-testid="ai-panel-transcript-probe"]',
+      ) as HTMLElement | null,
+      'Expected transcript probe in full-mode transcript test',
+    );
     expect(panel.getAttribute('style')).toContain('width: 100vw');
-    expect(
-      requireElement(
-        document.body.querySelector('[data-testid="ai-panel-transcript-probe"]'),
-        'Expected transcript probe in full-mode transcript test',
-      ).getAttribute('data-compact'),
-    ).toBe('false');
+    expect(transcriptProbe.dataset.compact).toBe('false');
 
     wrapper.unmount();
   });
@@ -581,7 +587,9 @@ describe('aIChatSlidePanel (component mount)', () => {
       'common.aiPanel.pageAiDiagnostics',
     );
     expect(
-      document.body.querySelector('[data-testid="ai-panel-page-ai-diagnostics"]'),
+      document.body.querySelector(
+        '[data-testid="ai-panel-page-ai-diagnostics"]',
+      ),
     ).toBeFalsy();
     expect(
       document.body.querySelectorAll(
@@ -799,7 +807,7 @@ describe('aIChatSlidePanel (component mount)', () => {
       'ui_submit_form',
     ] as const;
     pageOperationsValue.value = Array.from({ length: 16 }, (_, index) => {
-      const toolName = uiToolPool[index % uiToolPool.length]!;
+      const toolName = uiToolPool.at(index % uiToolPool.length) ?? 'ui_click';
       return {
         description: `Operation ${index} `.repeat(14),
         label: `Op ${index}`,
@@ -968,9 +976,10 @@ describe('aIChatSlidePanel (component mount)', () => {
     ).dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await flushPromises();
 
-    const routedContext = routeMessageMock.mock.calls[0]?.[2] as
-      | null
-      | Record<string, unknown>;
+    const routedContext = routeMessageMock.mock.calls[0]?.[2] as null | Record<
+      string,
+      unknown
+    >;
     expect(routedContext).toBeTruthy();
     expect('suggested_tools' in (routedContext ?? {})).toBe(false);
 

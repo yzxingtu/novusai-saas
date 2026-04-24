@@ -3,6 +3,7 @@
 // Verifies: assistant chat messages render canonical turnFlow process UX,
 // inline thinking/tool content, and final-answer transitions without stale process artifacts.
 import type {
+  AgentItem,
   ChatMessage,
   RichTextAISelectionSnapshot,
   RichTextAITask,
@@ -21,8 +22,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { buildTurnFlowState } from '#/components/business/ai-chat-kernel/TurnFlowState';
 
-import ChatMessageItem from '../ChatMessageItem.vue';
 import ChatMessageFooter from '../ChatMessageFooter.vue';
+import ChatMessageItem from '../ChatMessageItem.vue';
 import ChatMessageThinkingBlock from '../ChatMessageThinkingBlock.vue';
 import ChatMessageToolCalls from '../ChatMessageToolCalls.vue';
 
@@ -63,6 +64,12 @@ vi.mock('@vben/icons', () => ({
 vi.mock('#/utils/request', () => ({
   isDevErrorMode: () => false,
 }));
+
+const PopoverContentStub = defineComponent({
+  name: 'PopoverContentStub',
+  template:
+    '<div><div data-testid="agent-profile-popover-content"><slot name="content" /></div><slot /></div>',
+});
 
 function createAssistantMsg(toolCalls: ToolCallEvent[] = []): ChatMessage {
   const completedCount = toolCalls.filter(
@@ -234,6 +241,21 @@ function createRichTextMessage(
     richTextAI: createRichTextTask(),
     ...rest,
   };
+}
+
+async function expandDigestIfCollapsed(wrapper: {
+  find: (selector: string) => {
+    exists: () => boolean;
+    trigger: (event: string) => Promise<unknown>;
+  };
+  vm: { $nextTick: () => Promise<unknown> };
+}) {
+  const toggle = wrapper.find('[data-testid="turn-digest-toggle"]');
+  if (!toggle.exists()) {
+    return;
+  }
+  await toggle.trigger('click');
+  await wrapper.vm.$nextTick();
 }
 
 describe('chatMessageItem', () => {
@@ -536,9 +558,6 @@ describe('chatMessageItem', () => {
     });
 
     await wrapper.vm.$nextTick();
-    expect(
-      wrapper.find('[data-testid="thinking-embedded-body"]').exists(),
-    ).toBe(true);
     expect(wrapper.find('[data-testid="thinking-toggle"]').exists()).toBe(
       false,
     );
@@ -714,7 +733,7 @@ describe('chatMessageItem', () => {
     ).toContain('先检查上下文，再决定下一步。');
   });
 
-  it('renders @ route badge for one-time mention messages', async () => {
+  it('keeps one-time mention messages transcript-first without a prominent agent badge', async () => {
     const wrapper = mount(ChatMessageItem, {
       props: {
         msg: {
@@ -738,10 +757,368 @@ describe('chatMessageItem', () => {
     });
 
     await wrapper.vm.$nextTick();
-    expect(wrapper.text()).toContain('@ 猫娘智能体');
+    expect(wrapper.find('.assistant-message-surface').exists()).toBe(true);
+    expect(wrapper.text()).not.toContain('@ 猫娘智能体');
   });
 
-  it('does not render a duplicated assistant agent title row inside the message header', async () => {
+  it('renders the assistant avatar rail with a profile trigger resolved from message agent fields', async () => {
+    const wrapper = mount(ChatMessageItem, {
+      props: {
+        msg: {
+          clientKey: 'assistant-avatar-profile',
+          role: 'assistant',
+          content: '已经整理好了答案。',
+          agent_id: 2,
+          agent_avatar: '/uploads/avatars/cat-agent.png',
+          agent_name: '猫娘智能体',
+          agent_description: '负责轻量问答与页面操作。',
+          model_name: 'gpt-5.4-mini',
+        },
+        index: 0,
+        compact: true,
+      },
+      global: {
+        stubs: {
+          MarkdownRender: true,
+          IconifyIcon: true,
+        },
+      },
+    });
+
+    await wrapper.vm.$nextTick();
+
+    const avatar = wrapper.get('[data-testid="assistant-agent-avatar"]');
+    expect(wrapper.find('.assistant-avatar-rail').exists()).toBe(true);
+    expect(avatar.find('img').exists()).toBe(true);
+    expect(avatar.attributes('aria-label')).toContain(
+      'common.globalAiChat.agentProfileAria',
+    );
+  });
+
+  it('renders bound skill packages, skill entries, and knowledge-base chips in the assistant avatar profile popover', async () => {
+    const agents: AgentItem[] = [
+      {
+        id: 2,
+        tenant_id: 1,
+        name: '猫娘智能体',
+        description: '负责轻量问答与页面操作。',
+        avatar: null,
+        status: 'published',
+        model_name: 'gpt-5.4-mini',
+        skills: [
+          {
+            id: 10,
+            name: '页面点击',
+            package_id: 100,
+            package_name: '页面工具包',
+          },
+          {
+            id: 11,
+            name: '表单填写',
+            package_id: 100,
+            package_name: '页面工具包',
+          },
+          {
+            id: 12,
+            name: '知识检索',
+            package_name: '检索工具包',
+          },
+        ],
+        knowledge_bases: [
+          {
+            id: 30,
+            knowledge_base_id: 30,
+            kb_name: '产品知识库',
+          },
+        ],
+      },
+    ];
+
+    const wrapper = mount(ChatMessageItem, {
+      props: {
+        agents,
+        msg: {
+          clientKey: 'assistant-avatar-profile-bindings',
+          role: 'assistant',
+          content: '已经整理好了答案。',
+          agent_id: 2,
+        },
+        index: 0,
+        compact: true,
+      },
+      global: {
+        stubs: {
+          IconifyIcon: true,
+          MarkdownRender: true,
+          APopover: PopoverContentStub,
+          Popover: PopoverContentStub,
+        },
+      },
+    });
+
+    await wrapper.vm.$nextTick();
+
+    expect(
+      wrapper
+        .findAll('[data-testid="agent-profile-skill-package-chip"]')
+        .map((chip) => chip.text()),
+    ).toEqual(['页面工具包', '检索工具包']);
+    expect(
+      wrapper
+        .findAll('[data-testid="agent-profile-skill-entry-chip"]')
+        .map((chip) => chip.text()),
+    ).toEqual(['页面点击', '表单填写', '知识检索']);
+    expect(
+      wrapper
+        .findAll('[data-testid="agent-profile-kb-chip"]')
+        .map((chip) => chip.text()),
+    ).toEqual(['产品知识库']);
+  });
+
+  it('renders i18n empty states when the assistant avatar profile has no bound skills or knowledge bases', async () => {
+    const wrapper = mount(ChatMessageItem, {
+      props: {
+        selectedAgent: {
+          id: 7,
+          tenant_id: 1,
+          name: '空配置智能体',
+          description: null,
+          avatar: null,
+          status: 'published',
+          skills: [],
+          knowledge_bases: [],
+          knowledge_base_ids: [],
+        },
+        msg: {
+          clientKey: 'assistant-avatar-profile-empty-bindings',
+          role: 'assistant',
+          content: '暂无绑定。',
+          agent_id: 7,
+        },
+        index: 0,
+        compact: true,
+      },
+      global: {
+        stubs: {
+          IconifyIcon: true,
+          MarkdownRender: true,
+          APopover: PopoverContentStub,
+          Popover: PopoverContentStub,
+        },
+      },
+    });
+
+    await wrapper.vm.$nextTick();
+
+    expect(
+      wrapper.get('[data-testid="agent-profile-skill-empty"]').text(),
+    ).toBe('common.globalAiChat.noSkillPackages');
+    expect(
+      wrapper.get('[data-testid="agent-profile-skill-entry-empty"]').text(),
+    ).toBe('common.globalAiChat.noSkillsInPackage');
+    expect(wrapper.get('[data-testid="agent-profile-kb-empty"]').text()).toBe(
+      'common.globalAiChat.noKnowledgeBases',
+    );
+  });
+
+  it('renders message-agent knowledge bindings from the shared knowledge-base map even when the selected agent is different', async () => {
+    const wrapper = mount(ChatMessageItem, {
+      props: {
+        selectedAgent: {
+          id: 8,
+          tenant_id: 1,
+          name: '当前选中智能体',
+          description: null,
+          avatar: null,
+          status: 'published',
+          skills: [
+            {
+              id: 10,
+              name: '当前技能',
+            },
+          ],
+        },
+        agentKnowledgeBases: [
+          {
+            id: 401,
+            knowledge_base_id: 401,
+            kb_name: '当前选中知识库',
+            enabled: true,
+          },
+        ],
+        agentKnowledgeBaseMap: {
+          7: [
+            {
+              id: 301,
+              knowledge_base_id: 301,
+              kb_name: '企业制度库',
+              enabled: true,
+            },
+          ],
+        },
+        msg: {
+          clientKey: 'assistant-avatar-profile-current-kb-bindings',
+          role: 'assistant',
+          content: '已读取知识库。',
+          agent_id: 7,
+          agent_name: '知识智能体',
+        },
+        index: 0,
+        compact: true,
+      },
+      global: {
+        stubs: {
+          IconifyIcon: true,
+          MarkdownRender: true,
+          APopover: PopoverContentStub,
+          Popover: PopoverContentStub,
+        },
+      },
+    });
+
+    await wrapper.vm.$nextTick();
+
+    expect(
+      wrapper
+        .findAll('[data-testid="agent-profile-kb-chip"]')
+        .map((chip) => chip.text()),
+    ).toEqual(['企业制度库']);
+  });
+
+  it('renders message-agent skill bindings from the shared skill map even when the selected agent is different', async () => {
+    const wrapper = mount(ChatMessageItem, {
+      props: {
+        selectedAgent: {
+          id: 8,
+          tenant_id: 1,
+          name: '当前选中智能体',
+          description: null,
+          avatar: null,
+          status: 'published',
+          skills: [
+            {
+              id: 10,
+              package_name: '当前技能包',
+              skill_id: 110,
+              skill_name: '当前技能',
+            },
+          ],
+        },
+        agentSkillMap: {
+          7: [
+            {
+              enabled: true,
+              id: 301,
+              package_name: '历史技能包',
+              skill_id: 1301,
+              skill_name: '历史技能',
+            },
+          ],
+        },
+        msg: {
+          clientKey: 'assistant-avatar-profile-current-skill-bindings',
+          role: 'assistant',
+          content: '已读取技能详情。',
+          agent_id: 7,
+          agent_name: '技能智能体',
+        },
+        index: 0,
+        compact: true,
+      },
+      global: {
+        stubs: {
+          IconifyIcon: true,
+          MarkdownRender: true,
+          APopover: PopoverContentStub,
+          Popover: PopoverContentStub,
+        },
+      },
+    });
+
+    await wrapper.vm.$nextTick();
+
+    expect(
+      wrapper
+        .findAll('[data-testid="agent-profile-skill-package-chip"]')
+        .map((chip) => chip.text()),
+    ).toEqual(['历史技能包']);
+    expect(
+      wrapper
+        .findAll('[data-testid="agent-profile-skill-entry-chip"]')
+        .map((chip) => chip.text()),
+    ).toEqual(['历史技能']);
+  });
+
+  it('resolves avatar knowledge bases from the message agent map instead of the current selected agent', async () => {
+    const wrapper = mount(ChatMessageItem, {
+      props: {
+        agents: [
+          {
+            id: 3,
+            tenant_id: 1,
+            name: '路由智能体',
+            description: '历史消息所属智能体',
+            avatar: null,
+            status: 'published',
+            skills: [],
+          },
+        ],
+        selectedAgent: {
+          id: 7,
+          tenant_id: 1,
+          name: '当前选中智能体',
+          description: null,
+          avatar: null,
+          status: 'published',
+          skills: [],
+        },
+        agentKnowledgeBases: [
+          {
+            id: 701,
+            knowledge_base_id: 701,
+            kb_name: '当前智能体知识库',
+            enabled: true,
+          },
+        ],
+        agentKnowledgeBaseMap: {
+          3: [
+            {
+              id: 301,
+              knowledge_base_id: 301,
+              kb_name: '历史消息知识库',
+              enabled: true,
+            },
+          ],
+        },
+        msg: {
+          clientKey: 'assistant-avatar-profile-routed-kb-bindings',
+          role: 'assistant',
+          content: '已按历史消息所属智能体读取知识库。',
+          agent_id: 3,
+        },
+        index: 0,
+        compact: true,
+      },
+      global: {
+        stubs: {
+          IconifyIcon: true,
+          MarkdownRender: true,
+          APopover: PopoverContentStub,
+          Popover: PopoverContentStub,
+        },
+      },
+    });
+
+    await wrapper.vm.$nextTick();
+
+    expect(
+      wrapper
+        .findAll('[data-testid="agent-profile-kb-chip"]')
+        .map((chip) => chip.text()),
+    ).toEqual(['历史消息知识库']);
+  });
+
+  it('keeps assistant identity details inside the avatar trigger instead of rendering a visible meta row', async () => {
     const wrapper = mount(ChatMessageItem, {
       props: {
         msg: {
@@ -776,7 +1153,9 @@ describe('chatMessageItem', () => {
     await wrapper.vm.$nextTick();
 
     expect(wrapper.text()).toContain('已完成思考');
+    expect(wrapper.find('.assistant-message-meta').exists()).toBe(false);
     expect(wrapper.text()).not.toContain('猫娘智能体');
+    expect(wrapper.text()).not.toContain('gpt-5.4-xhigh');
   });
 
   it('keeps the compact assistant footer minimal by hiding usage stats', async () => {
@@ -1419,6 +1798,8 @@ describe('chatMessageItem', () => {
     expect(wrapper.text()).toContain('已按可验证来源整理结论');
     expect(wrapper.text()).not.toContain('https://example.com/ref');
 
+    await expandDigestIfCollapsed(wrapper);
+
     const evidenceLink = wrapper.get(
       '[data-testid="chat-message-kernel-evidence"] a',
     );
@@ -1482,6 +1863,8 @@ describe('chatMessageItem', () => {
 
     await wrapper.vm.$nextTick();
 
+    await expandDigestIfCollapsed(wrapper);
+
     const evidenceLinks = wrapper
       .get('[data-testid="chat-message-kernel-evidence"]')
       .findAll('a');
@@ -1534,6 +1917,8 @@ describe('chatMessageItem', () => {
     });
 
     await wrapper.vm.$nextTick();
+
+    await expandDigestIfCollapsed(wrapper);
 
     const evidenceLink = wrapper.get(
       '[data-testid="chat-message-kernel-evidence"] a',
@@ -1590,6 +1975,8 @@ describe('chatMessageItem', () => {
     expect(wrapper.get('[data-testid="markdown-body"]').text()).not.toContain(
       'https://example.com/path/to/policy',
     );
+
+    await expandDigestIfCollapsed(wrapper);
 
     const evidenceLink = wrapper.get(
       '[data-testid="chat-message-kernel-evidence"] a',
@@ -1686,8 +2073,85 @@ describe('chatMessageItem', () => {
     expect(
       wrapper.find('[data-testid="chat-message-kernel-evidence"]').exists(),
     ).toBe(true);
+    expect(
+      wrapper.get('[data-testid="turn-digest-toggle"]').attributes(),
+    ).toMatchObject({
+      'aria-expanded': 'false',
+    });
+    expect(wrapper.find('[data-testid="turn-digest-body"]').exists()).toBe(
+      false,
+    );
+    expect(wrapper.text()).toContain('政策要点');
+    expect(wrapper.text()).not.toContain('后端返回的是 content 字段');
+
+    await expandDigestIfCollapsed(wrapper);
+
     expect(wrapper.text()).toContain('政策要点');
     expect(wrapper.text()).toContain('后端返回的是 content 字段');
+  });
+
+  it('keeps completed answer digests collapsed by default and expands on demand', async () => {
+    const wrapper = mount(ChatMessageItem, {
+      props: {
+        msg: {
+          clientKey: 'assistant-turn-flow-collapsed-answer-digest',
+          role: 'assistant',
+          content: '最终答案',
+          turnFlow: createTurnFlow({
+            timeline: [
+              {
+                id: 'stage-answer',
+                type: 'answer_assembly',
+                status: 'completed',
+                summary: '已完成答案整理',
+              },
+            ],
+            answerCard: {
+              sections: [
+                {
+                  title: '结果整理',
+                  body: '这是正式结构化整理内容',
+                },
+              ],
+            },
+          }),
+        },
+        index: 0,
+        compact: true,
+      },
+      global: {
+        stubs: {
+          AgentProfilePopover: true,
+          MarkdownRender: true,
+          IconifyIcon: true,
+        },
+      },
+    });
+
+    await wrapper.vm.$nextTick();
+
+    const digestToggle = wrapper.get('[data-testid="turn-digest-toggle"]');
+    expect(digestToggle.attributes()).toMatchObject({
+      'aria-expanded': 'false',
+    });
+    expect(wrapper.find('[data-testid="turn-digest-body"]').exists()).toBe(
+      false,
+    );
+    expect(wrapper.text()).toContain('结果整理');
+    expect(wrapper.text()).not.toContain('这是正式结构化整理内容');
+
+    await digestToggle.trigger('click');
+    await wrapper.vm.$nextTick();
+
+    expect(
+      wrapper.get('[data-testid="turn-digest-toggle"]').attributes(),
+    ).toMatchObject({
+      'aria-expanded': 'true',
+    });
+    expect(wrapper.find('[data-testid="turn-digest-body"]').exists()).toBe(
+      true,
+    );
+    expect(wrapper.text()).toContain('这是正式结构化整理内容');
   });
 
   it('shows a provisional answer evidence card while answer_assembly is still streaming', async () => {
@@ -2440,6 +2904,56 @@ describe('chatMessageItem', () => {
       renderedMarkdownBlocks.some((block) =>
         block.text().includes('prepared display content'),
       ),
+    ).toBe(true);
+  });
+
+  it('strips DSML tool-call protocol text from the assistant transcript body', async () => {
+    const assistantMessage = createAssistantMsg([
+      {
+        displayName: '读取表格',
+        id: 'tc_read_table',
+        name: 'ui_read_table',
+        output: '{"explanation":"读取了 1 个表格"}',
+        status: 'success',
+        summary: '读取了 1 个表格',
+      },
+    ]);
+
+    const wrapper = mount(ChatMessageItem, {
+      props: {
+        msg: {
+          ...assistantMessage,
+          content:
+            '我看到页面上有一个表格，但表格内容只显示了部分数据。为了获取更完整的表格数据，让我读取一下表格区域。<｜DSML｜tool_calls><｜DSML｜invoke name="ui_read_table"><｜DSML｜parameter name="locator">div.table</｜DSML｜parameter></｜DSML｜invoke></｜DSML｜tool_calls>现在把整理结果告诉你。',
+        },
+        index: 0,
+        compact: true,
+      },
+      global: {
+        stubs: {
+          AgentProfilePopover: true,
+          MarkdownRender: {
+            props: ['content'],
+            template:
+              '<div data-testid="markdown-render-content">{{ content }}</div>',
+          },
+          IconifyIcon: true,
+        },
+      },
+    });
+
+    await wrapper.vm.$nextTick();
+
+    const renderedMarkdownBlocks = wrapper.findAll(
+      '[data-testid="markdown-render-content"]',
+    );
+    expect(
+      renderedMarkdownBlocks.some((block) => block.text().includes('DSML')),
+    ).toBe(false);
+    expect(wrapper.text()).not.toContain('<｜DSML｜tool_calls>');
+    expect(wrapper.text()).toContain('现在把整理结果告诉你。');
+    expect(
+      wrapper.find('[data-testid="chat-message-kernel-header"]').exists(),
     ).toBe(true);
   });
 

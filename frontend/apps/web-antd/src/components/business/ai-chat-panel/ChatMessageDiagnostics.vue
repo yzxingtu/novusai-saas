@@ -1,10 +1,12 @@
 <script lang="ts" setup>
 import type { ChatMessage } from './types';
 
-import { computed, toRef } from 'vue';
+import { computed } from 'vue';
 
 import { useDiagnosticsPolicy } from '#/composables/use-diagnostics-policy';
 import { $t } from '#/locales';
+
+import { shouldRenderTurnDiagnostics } from './chat-message-diagnostics-visibility';
 
 const props = withDefaults(
   defineProps<{
@@ -20,23 +22,9 @@ const props = withDefaults(
   },
 );
 
-const { showDiagnostics } = useDiagnosticsPolicy({
-  apiPrefix: toRef(props, 'apiPrefix'),
-  forceShow: toRef(props, 'forceShow'),
-});
-
 function normalizeDiagnosticText(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
-
-const BENIGN_TURN_OUTCOMES = new Set(['partial', 'success']);
-const BENIGN_TERMINATION_REASONS = new Set([
-  'budget_exit',
-  'completed',
-  'consent_pause',
-  'interrupted',
-  'stop',
-]);
 
 interface ContextSourceDisplayItem {
   active: boolean;
@@ -131,37 +119,14 @@ const hasTurnDiagnostics = computed(() => {
     diagnosticContextSources.value.length > 0,
   );
 });
+const { showDiagnostics } = useDiagnosticsPolicy({
+  apiPrefix: computed(() => props.apiPrefix),
+  forceShow: computed(() => props.forceShow),
+});
 const shouldShowTurnDiagnostics = computed(() => {
-  if (!showDiagnostics.value) {
-    return false;
-  }
-  if (!hasTurnDiagnostics.value) {
-    return false;
-  }
-
-  if (props.msg.error) {
-    return false;
-  }
-
-  if (props.msg.requestFailedRetry) {
-    return true;
-  }
-
-  const normalizedOutcome = diagnosticTurnOutcome.value.toLowerCase();
-  if (normalizedOutcome && !BENIGN_TURN_OUTCOMES.has(normalizedOutcome)) {
-    return true;
-  }
-
-  const normalizedTerminationReason =
-    diagnosticTerminationReason.value.toLowerCase();
-  if (
-    normalizedTerminationReason &&
-    !BENIGN_TERMINATION_REASONS.has(normalizedTerminationReason)
-  ) {
-    return true;
-  }
-
-  return false;
+  return hasTurnDiagnostics.value
+    ? shouldRenderTurnDiagnostics(props.msg, showDiagnostics.value)
+    : false;
 });
 </script>
 

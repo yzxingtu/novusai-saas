@@ -203,38 +203,43 @@ export function usePanelHeader(options: UsePanelHeaderOptions) {
     }
 
     if (options.activeConversationId.value) {
+      const conversationItems: ItemType[] = [];
+
       if (showDiagnostics.value) {
-        items.push({
-          key: 'context-diagnostics',
-          label: $t('common.globalAiChat.contextDiagnostics'),
-          onClick: () => {
-            openContextDrawer();
+        conversationItems.push(
+          {
+            key: 'context-diagnostics',
+            label: $t('common.globalAiChat.contextDiagnostics'),
+            onClick: () => {
+              openContextDrawer();
+            },
           },
-        });
+          {
+            key: 'run-timeline',
+            label: $t('common.globalAiChat.runTimeline'),
+            onClick: () => {
+              void openTimelineDrawer();
+            },
+          },
+          {
+            key: 'rebuild-context',
+            label: $t('common.globalAiChat.rebuildContextCompact'),
+            onClick: () => {
+              void rebuildContextSnapshot();
+            },
+          },
+        );
       }
-      items.push(
-        {
-          key: 'run-timeline',
-          label: $t('common.globalAiChat.runTimeline'),
-          onClick: () => {
-            void openTimelineDrawer();
-          },
+
+      conversationItems.push({
+        key: 'memory',
+        label: $t('common.aiPanel.memory'),
+        onClick: () => {
+          void onToggleMemory();
         },
-        {
-          key: 'rebuild-context',
-          label: $t('common.globalAiChat.rebuildContextCompact'),
-          onClick: () => {
-            void rebuildContextSnapshot();
-          },
-        },
-        {
-          key: 'memory',
-          label: $t('common.aiPanel.memory'),
-          onClick: () => {
-            void onToggleMemory();
-          },
-        },
-      );
+      });
+
+      items.push(...conversationItems);
     }
 
     if (options.totalTokensUsed.value > 0) {

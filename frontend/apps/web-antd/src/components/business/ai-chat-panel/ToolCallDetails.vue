@@ -332,7 +332,7 @@ function getSearchResultDomain(url: string): string {
   <div
     :class="
       compact
-        ? 'space-y-1.5 px-2 py-1 text-[10px]'
+        ? 'space-y-1.5 px-2 py-1 text-[9.75px]'
         : 'space-y-2 px-2.5 py-1.5 text-[10px]'
     "
   >
@@ -341,7 +341,7 @@ function getSearchResultDomain(url: string): string {
       class="tool-detail-section px-2 py-1.5"
     >
       <div class="tool-detail-label">
-        {{ $t('common.globalAiChat.exportArgs') }}
+        {{ $t('common.globalAiChat.toolInputParameters') }}
       </div>
       <div class="mt-1.5 space-y-1">
         <div
@@ -368,7 +368,7 @@ function getSearchResultDomain(url: string): string {
                 <li
                   v-for="(line, lineIndex) in field.lines"
                   :key="`${field.key}-line-${lineIndex}`"
-                  class="rounded bg-accent/20 px-1.5 py-1 leading-4 text-foreground/80"
+                  class="rounded-[10px] bg-accent/18 px-1.5 py-1 leading-4 text-foreground/80"
                 >
                   {{ line }}
                 </li>
@@ -425,7 +425,7 @@ function getSearchResultDomain(url: string): string {
       </div>
       <div
         v-if="searchFallbackNotice"
-        class="mt-1.5 rounded-md border border-amber-500/18 bg-amber-500/8 px-1.5 py-1 leading-4 text-amber-700 dark:text-amber-200"
+        class="mt-1.5 rounded-[12px] border border-amber-500/18 bg-amber-500/8 px-1.5 py-1 leading-4 text-amber-700 dark:text-amber-200"
       >
         {{ searchFallbackNotice }}
       </div>
@@ -434,9 +434,7 @@ function getSearchResultDomain(url: string): string {
         class="tool-detail-card mt-1.5 px-1.5 py-1"
       >
         <details>
-          <summary
-            class="tool-detail-label cursor-pointer select-none"
-          >
+          <summary class="tool-detail-label cursor-pointer select-none">
             {{ $t('common.globalAiChat.toolSearchTechnicalDetails') }}
           </summary>
           <div class="mt-1.5 space-y-1 text-[10px] text-muted-foreground">
@@ -541,7 +539,7 @@ function getSearchResultDomain(url: string): string {
 
     <section
       v-if="toolItem.structuredOutput.sql"
-      class="rounded-md bg-slate-950/95 px-2 py-1.5 font-mono text-[10px] text-slate-100"
+      class="rounded-[14px] bg-slate-950/95 px-2 py-1.5 font-mono text-[10px] text-slate-100"
     >
       <div class="flex items-center gap-2">
         <span
@@ -550,7 +548,7 @@ function getSearchResultDomain(url: string): string {
         >
         <button
           type="button"
-          class="inline-flex items-center gap-1 rounded border border-slate-700/80 px-1.5 py-px text-[9px] text-slate-300 transition-colors hover:border-slate-500 hover:text-white"
+          class="inline-flex items-center gap-1 rounded-full border border-slate-700/80 px-1.5 py-px text-[9px] text-slate-300 transition-colors hover:border-slate-500 hover:text-white"
           @click.stop="emit('copy', toolItem.structuredOutput.sql || '')"
         >
           <IconifyIcon icon="lucide:copy" class="size-2.5" />
@@ -568,13 +566,13 @@ function getSearchResultDomain(url: string): string {
       class="tool-detail-section px-2 py-1.5 text-muted-foreground"
     >
       <div class="tool-detail-label">
-        {{ $t('common.globalAiChat.exportOutput') }}
+        {{ $t('common.globalAiChat.toolReturnValue') }}
       </div>
 
       <div
         v-if="outputPreview?.text"
         data-testid="tool-output-preview"
-        class="mt-1.5 text-foreground/82 break-words leading-4"
+        class="text-foreground/82 mt-1.5 break-words leading-4"
         :class="outputPreview.multiline ? 'whitespace-pre-wrap' : ''"
       >
         {{ outputPreview.text }}
@@ -619,7 +617,7 @@ function getSearchResultDomain(url: string): string {
                 <li
                   v-for="(line, lineIndex) in field.lines"
                   :key="`${field.key}-line-${lineIndex}`"
-                  class="rounded bg-accent/20 px-1.5 py-1 leading-4 text-foreground/80"
+                  class="rounded-[10px] bg-accent/18 px-1.5 py-1 leading-4 text-foreground/80"
                 >
                   {{ line }}
                 </li>
@@ -635,9 +633,7 @@ function getSearchResultDomain(url: string): string {
                       {{ entry.key }}
                     </code>
                   </dt>
-                  <dd
-                    class="text-foreground/78 min-w-0 break-words leading-4"
-                  >
+                  <dd class="text-foreground/78 min-w-0 break-words leading-4">
                     {{ entry.value }}
                   </dd>
                 </div>
@@ -655,7 +651,7 @@ function getSearchResultDomain(url: string): string {
 
       <div
         v-if="(outputPreview?.overflowCount ?? 0) > 0"
-        class="mt-1.5 text-muted-foreground/56 text-[9px]"
+        class="text-muted-foreground/56 mt-1.5 text-[9px]"
       >
         +{{ outputPreview?.overflowCount }}
       </div>
@@ -667,7 +663,7 @@ function getSearchResultDomain(url: string): string {
     >
       <button
         type="button"
-        class="flex w-full items-center gap-1 px-2 py-1.5 text-left transition-colors hover:bg-accent/16"
+        class="hover:bg-accent/16 flex w-full items-center gap-1 px-2 py-1.5 text-left transition-colors"
         :title="
           $t(
             rawExpanded
@@ -696,9 +692,9 @@ function getSearchResultDomain(url: string): string {
           opacity: rawExpanded ? 1 : 0,
         }"
       >
-        <div class="min-h-0 overflow-hidden border-t border-border/12">
+        <div class="border-border/12 min-h-0 overflow-hidden border-t">
           <pre
-            class="overflow-y-auto whitespace-pre-wrap break-all bg-background/70 px-2 py-1.5 font-mono leading-4 text-foreground/78"
+            class="text-foreground/78 overflow-y-auto whitespace-pre-wrap break-all bg-background/72 px-2 py-1.5 font-mono leading-4"
             :class="[compact ? 'max-h-32 text-[10px]' : 'max-h-40 text-[11px]']"
             >{{ toolItem.structuredOutput.raw }}</pre
           >
@@ -708,7 +704,7 @@ function getSearchResultDomain(url: string): string {
 
     <section
       v-if="toolItem.tc.error"
-      class="rounded-md border border-red-500/16 bg-red-50/75 px-2 py-1.5 text-red-600 dark:bg-red-950/24 dark:text-red-200"
+      class="rounded-[14px] border border-red-500/16 bg-red-50/75 px-2 py-1.5 text-red-600 dark:bg-red-950/24 dark:text-red-200"
     >
       <div class="whitespace-pre-wrap break-all leading-4">
         {{ toolItem.tc.error }}
@@ -726,7 +722,7 @@ function getSearchResultDomain(url: string): string {
       :href="toolItem.tc.resultLink"
       target="_blank"
       rel="noopener noreferrer"
-      class="inline-flex items-center gap-1 rounded-md border border-border/16 bg-background/56 px-2 py-1 text-[10px] text-primary transition-colors hover:border-primary/18 hover:bg-background/76 hover:underline"
+      class="inline-flex items-center gap-1 rounded-full border border-border/16 bg-background/64 px-2 py-1 text-[10px] text-primary transition-colors hover:border-primary/18 hover:bg-background/76 hover:underline"
     >
       <IconifyIcon icon="lucide:external-link" class="size-2.5" />
       {{ $t('common.globalAiChat.viewResult') }}
@@ -736,22 +732,28 @@ function getSearchResultDomain(url: string): string {
 
 <style scoped>
 .tool-detail-section {
-  background: hsl(var(--background) / 46%);
-  border: 1px solid hsl(var(--border) / 10%);
-  border-radius: 0.75rem;
+  background:
+    radial-gradient(
+      circle at top left,
+      hsl(var(--primary) / 0.03),
+      transparent 34%
+    ),
+    hsl(var(--background) / 0.62);
+  border: 1px solid hsl(var(--border) / 0.1);
+  border-radius: 0.95rem;
 }
 
 .tool-detail-card {
-  background: hsl(var(--muted) / 0.16);
-  border: 1px solid hsl(var(--border) / 10%);
-  border-radius: 0.625rem;
+  background: hsl(var(--muted) / 0.12);
+  border: 1px solid hsl(var(--border) / 0.1);
+  border-radius: 0.8rem;
 }
 
 .tool-detail-label {
-  color: hsl(var(--muted-foreground) / 0.56);
-  font-size: 10px;
-  font-weight: 500;
-  letter-spacing: 0.06em;
+  color: hsl(var(--muted-foreground) / 0.58);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 </style>

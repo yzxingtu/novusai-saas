@@ -12,10 +12,10 @@ useUserAIChatPage();
 </script>
 
 <template>
-  <div class="space-y-4">
+  <div class="space-y-5">
     <UserAIChatWorkspaceHero />
     <div
-      class="flex min-h-[72vh] overflow-hidden rounded-xl border border-border bg-card"
+      class="flex min-h-[72vh] overflow-hidden rounded-[28px] border border-border/40 bg-card shadow-[0_24px_48px_-42px_hsl(var(--foreground)/0.14)]"
     >
       <UserAIChatVarsModal />
       <UserAIChatSidebar />

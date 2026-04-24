@@ -3,7 +3,6 @@ import type { MaybeRefOrGetter } from 'vue';
 import { computed, toValue } from 'vue';
 
 import { usePublicConfigStore } from '#/store/shared/public-config';
-import { isDevErrorMode } from '#/utils/request/app-env';
 
 interface DiagnosticsPolicyOptions {
   apiPrefix?: MaybeRefOrGetter<string | undefined>;
@@ -43,12 +42,13 @@ export function useDiagnosticsPolicy(
   }
 
   function isAdminPrefix(apiPrefix: string): boolean {
-    return apiPrefix.startsWith('/admin');
+    return apiPrefix.startsWith('/admin') || apiPrefix.startsWith('/api/admin');
   }
 
   function isEndUserPrefix(apiPrefix: string): boolean {
     return (
       apiPrefix.startsWith('/tenant') ||
+      apiPrefix.startsWith('/api/tenant') ||
       apiPrefix.startsWith('/user') ||
       apiPrefix.startsWith('/api/user')
     );
@@ -76,10 +76,6 @@ export function useDiagnosticsPolicy(
     );
     if (platformFeature !== undefined && isAdminPrefix(apiPrefix)) {
       return platformFeature;
-    }
-
-    if (isAdminPrefix(apiPrefix) && isDevErrorMode()) {
-      return true;
     }
 
     return false;

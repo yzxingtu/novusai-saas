@@ -12,6 +12,9 @@ import type {
 } from '#/api/shared/ai-chat';
 import type { useAIPanelStore } from '#/store';
 import type {
+  AgentKnowledgeBaseBindingsByAgentId,
+  AgentSkillBindingsByAgentId,
+  AgentSkillBindingSummary,
   AgentItem,
   ChatAttachment,
   ChatMessage,
@@ -27,6 +30,8 @@ export interface UseAIChatSlidePanelShellBindingsOptions {
   actionClick: (index: number, value: string) => void;
   activeConversationId: Ref<null | number>;
   agentKBBindings: Ref<ChatKBBindingInfo[]>;
+  agentKBBindingsByAgentId?: Ref<AgentKnowledgeBaseBindingsByAgentId>;
+  agentSkillBindingsByAgentId?: Ref<AgentSkillBindingsByAgentId>;
   agents: Ref<AgentItem[]>;
   agentsLoading: Ref<boolean>;
   aiPanelStore: ReturnType<typeof useAIPanelStore>;
@@ -81,7 +86,6 @@ export interface UseAIChatSlidePanelShellBindingsOptions {
   inputMessage: Ref<string>;
   interactionMode: Ref<'confirm' | 'trusted_auto'>;
   interactionModeEffective: Ref<'confirm' | 'trusted_auto'>;
-  isAgentSwitch: (index: number) => boolean;
   isPinned: ComputedRef<boolean>;
   lastRunSummary: Ref<null | Record<string, unknown>>;
   manualNewConversationAgentId: Ref<null | number>;
@@ -91,6 +95,10 @@ export interface UseAIChatSlidePanelShellBindingsOptions {
   mentionCandidates: Readonly<Ref<MentionCandidate[]>>;
   mentionOpen: Ref<boolean>;
   messagesContainer: Ref<HTMLElement | null>;
+  loadAgentKBBindings: (agentId: number) => Promise<ChatKBBindingInfo[]>;
+  loadAgentSkillBindings: (
+    agentId: number,
+  ) => Promise<AgentSkillBindingSummary[]>;
   onClearMemory: () => void;
   onDeleteConversation: (conversationId: number) => void;
   onDocumentClick: (event: MouseEvent) => void;

@@ -16,7 +16,7 @@ import { usePanelWidth } from './use-panel-width';
 export function useAIChatSlidePanelShellBindings(
   options: UseAIChatSlidePanelShellBindingsOptions,
 ) {
-  const compactMessages = computed(() => options.aiPanelStore.mode !== 'full');
+  const compactMessages = computed(() => false);
 
   const headerBindings = usePanelShellHeaderBindings({
     activeConversationId: options.activeConversationId,
@@ -127,6 +127,11 @@ export function useAIChatSlidePanelShellBindings(
   const { panelBodyListeners, panelBodyProps } = usePanelShellBodyBindings({
     actionClick: options.actionClick,
     activeConversationId: options.activeConversationId,
+    agentKBBindings: options.agentKBBindings,
+    agentKnowledgeBaseMap: computed(
+      () => options.agentKBBindingsByAgentId?.value ?? {},
+    ),
+    agentSkillMap: computed(() => options.agentSkillBindingsByAgentId?.value ?? {}),
     agents: options.agents,
     apiPrefix: options.apiPrefix,
     askSuggested: options.askSuggested,
@@ -167,8 +172,9 @@ export function useAIChatSlidePanelShellBindings(
     handleMessagesScroll: options.handleMessagesScroll,
     handleOpenUrl: overlayBindings.handleOpenUrl,
     handleSendMessage: options.handleSendMessage,
+    ensureAgentKnowledgeBases: options.loadAgentKBBindings,
+    ensureAgentSkills: options.loadAgentSkillBindings,
     inputMessage: options.inputMessage,
-    isAgentSwitch: options.isAgentSwitch,
     mentionEmptyHint,
     mentionLoading: options.agentsLoading,
     mentionMixedHint: $t('common.globalAiChat.mentionMixedHint'),

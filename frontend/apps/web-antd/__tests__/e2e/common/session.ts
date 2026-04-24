@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 
 import { expect, request } from '@playwright/test';
 
-type AuthEndpoint = 'admin' | 'tenant';
+type AuthEndpoint = 'admin' | 'tenant' | 'user';
 
 interface LoginPayload {
   password: string;
@@ -43,9 +43,10 @@ function loadAppNamespace() {
 
 const APP_NAMESPACE = loadAppNamespace();
 
-const SECRET_VARIABLES: Record<AuthEndpoint, string> = {
+const SECRET_VARIABLES: Partial<Record<AuthEndpoint, string>> = {
   admin: 'DEV_ADMIN_BOOTSTRAP_SECRET',
   tenant: 'DEV_TENANT_BOOTSTRAP_SECRET',
+  user: 'DEV_TENANT_USER_BOOTSTRAP_SECRET',
 };
 
 const REPO_ROOT = resolve(CURRENT_DIR, '../../../../../..');
@@ -76,12 +77,15 @@ function loadBackendEnv() {
   return backendEnvVars;
 }
 
-function getBackendEnvValue(name: string) {
+export function getBackendEnvValue(name: string) {
   return loadBackendEnv()[name];
 }
 
 export function getDevBootstrapSecret(endpoint: AuthEndpoint) {
   const key = SECRET_VARIABLES[endpoint];
+  if (!key) {
+    return undefined;
+  }
   return process.env[key] || getBackendEnvValue(key);
 }
 
@@ -159,11 +163,15 @@ export async function seedAuthSession(
       const tokenKey =
         endpoint === 'tenant'
           ? `${namespace}_tenant_admin_token`
-          : `${namespace}_admin_token`;
+          : endpoint === 'user'
+            ? `${namespace}_tenant_user_token`
+            : `${namespace}_admin_token`;
       const refreshKey =
         endpoint === 'tenant'
           ? `${namespace}_tenant_admin_refresh_token`
-          : `${namespace}_admin_refresh_token`;
+          : endpoint === 'user'
+            ? `${namespace}_tenant_user_refresh_token`
+            : `${namespace}_admin_refresh_token`;
       localStorage.setItem(tokenKey, accessToken);
       if (refreshToken) {
         localStorage.setItem(refreshKey, refreshToken);

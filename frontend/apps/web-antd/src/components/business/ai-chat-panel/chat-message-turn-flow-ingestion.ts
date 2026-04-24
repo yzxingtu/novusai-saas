@@ -373,8 +373,17 @@ export function applyCanonicalDoneEvent(
   message: ChatMessage,
   event: Record<string, unknown>,
 ): void {
+  const turnRecord = normalizeObjectRecord(
+    event.turn_record ?? event.turnRecord,
+  );
+  const turnRecordMetadata = normalizeObjectRecord(turnRecord?.metadata);
   const incomingTurnFlow = normalizeTurnFlowViewModel(
-    event.turn_flow ?? event.turnFlow,
+    event.turn_flow ??
+      event.turnFlow ??
+      turnRecord?.turn_flow ??
+      turnRecord?.turnFlow ??
+      turnRecordMetadata?.turn_flow ??
+      turnRecordMetadata?.turnFlow,
   );
   const baseFlow = getOrCreateCanonicalTurnFlow(message);
   const flow = incomingTurnFlow

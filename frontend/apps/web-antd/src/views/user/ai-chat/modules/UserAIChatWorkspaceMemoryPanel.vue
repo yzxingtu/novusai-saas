@@ -48,7 +48,7 @@ const memorySections = computed(() =>
   <Transition name="fade">
     <div
       v-if="showMemoryPanel"
-      class="shrink-0 border-b border-border/30 bg-muted/5 px-4 py-3"
+      class="user-memory-panel shrink-0 border-b border-border/30 px-4 py-3"
     >
       <div class="mb-2.5 flex items-center justify-between">
         <div
@@ -85,7 +85,7 @@ const memorySections = computed(() =>
         <div
           v-for="section in memorySections"
           :key="section.key"
-          class="rounded-lg bg-background/60 px-2.5 py-2"
+          class="user-memory-section rounded-2xl px-3 py-2.5"
         >
           <div
             class="mb-1 flex items-center gap-1 text-[11px] font-medium text-muted-foreground"
@@ -123,5 +123,19 @@ const memorySections = computed(() =>
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
+}
+
+.user-memory-panel {
+  background: linear-gradient(
+    180deg,
+    hsl(var(--background) / 0.98) 0%,
+    hsl(var(--muted) / 0.18) 100%
+  );
+}
+
+.user-memory-section {
+  border: 1px solid hsl(var(--border) / 0.28);
+  background: hsl(var(--background) / 0.94);
+  box-shadow: 0 12px 22px -24px hsl(var(--foreground) / 0.08);
 }
 </style>

@@ -2,7 +2,7 @@ import type { StreamRequestDeps } from './use-ai-chat-streaming-request';
 import type { StreamRequestLifecycle } from './use-ai-chat-streaming-request-lifecycle';
 import type { RagSource } from './types';
 
-import { nextTick, unref } from 'vue';
+import { nextTick } from 'vue';
 
 import { message } from 'ant-design-vue';
 
@@ -53,7 +53,6 @@ export async function parseSSEEvents(
         const ev = JSON.parse(data) as { event?: string };
         needFlush =
           ev.event === 'message' ||
-          ev.event === 'thinking' ||
           ev.event === 'turn_answer_card' ||
           ev.event === 'turn_evidence' ||
           ev.event === 'turn_stage' ||
@@ -81,22 +80,7 @@ function isDraftClearContentEventAllowed(messageItem: {
   );
 }
 
-function isEndUserApiPrefix(apiPrefix: string): boolean {
-  return (
-    apiPrefix.startsWith('/tenant') ||
-    apiPrefix.startsWith('/user') ||
-    apiPrefix.startsWith('/api/user')
-  );
-}
-
-function shouldSuppressLegacyTurnFlowStreamEvent(
-  apiPrefix: string,
-  eventName?: string,
-): boolean {
-  if (!isEndUserApiPrefix(apiPrefix)) {
-    return false;
-  }
-
+function shouldSuppressLegacyTurnFlowStreamEvent(eventName?: string): boolean {
   return (
     eventName === 'optimizing_tools' ||
     eventName === 'thinking' ||
@@ -121,8 +105,7 @@ export function createStreamSseHandler(
       if (lifecycle.didTerminalizeMessage) {
         return;
       }
-      const apiPrefix = String(unref(deps.options.apiPrefix) ?? '').trim();
-      if (shouldSuppressLegacyTurnFlowStreamEvent(apiPrefix, event.event)) {
+      if (shouldSuppressLegacyTurnFlowStreamEvent(event.event)) {
         return;
       }
 

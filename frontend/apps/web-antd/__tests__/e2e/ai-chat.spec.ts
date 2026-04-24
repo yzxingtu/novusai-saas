@@ -81,6 +81,13 @@ const COMMAND_INPUT_SELECTOR =
 const CONSENT_ALLOW_LABEL = /允许执行|allow/i;
 const CONFIRM_EXECUTE_LABEL = /确认执行|confirm/i;
 const TRUSTED_AUTO_LABEL = /受信自动|trusted\s*auto/i;
+const DIAGNOSTIC_LABELS = [
+  '结束原因',
+  '协议路径',
+  '本轮工具',
+  '本轮技能',
+  '上下文来源',
+] as const;
 const WEATHER_RESPONSE_PATTERNS = [
   /天气/,
   /气温/,
@@ -436,6 +443,43 @@ function resolveCurrentCaseId() {
   const title = test.info().title;
   const matched = title.match(/\b([A-Z]\d+)\b/);
   return matched?.[1] ?? title;
+}
+
+function latestAssistantSurface(page: Page) {
+  return page.locator(`${CHAT_PANEL_SELECTOR} .assistant-message-surface`).last();
+}
+
+async function expectTranscriptFirst(surface: Locator) {
+  const kernelHeader = surface.locator('[data-testid="chat-message-kernel-header"]');
+  const transcript = surface.locator('.assistant-content-block').first();
+
+  await expect(kernelHeader).toBeVisible({ timeout: 10_000 });
+  await expect(transcript).toBeVisible({ timeout: 10_000 });
+
+  const [kernelBox, transcriptBox] = await Promise.all([
+    kernelHeader.boundingBox(),
+    transcript.boundingBox(),
+  ]);
+
+  expect(kernelBox, 'Expected visible kernel header bounding box').not.toBeNull();
+  expect(
+    transcriptBox,
+    'Expected visible transcript bounding box',
+  ).not.toBeNull();
+  expect(
+    kernelBox!.y,
+    'Expected process header to render above transcript content',
+  ).toBeLessThan(transcriptBox!.y);
+}
+
+async function expectDiagnosticsHiddenByDefault(surface: Locator) {
+  const surfaceText = (await surface.textContent()) ?? '';
+  for (const label of DIAGNOSTIC_LABELS) {
+    expect(
+      surfaceText.includes(label),
+      `Expected diagnostics label "${label}" to stay hidden by default.`,
+    ).toBe(false);
+  }
 }
 
 function buildTurnAttachment(turn: ChatTurnMetrics) {
@@ -834,12 +878,59 @@ test.describe('AI Chat E2E', () => {
 
     test('A4 — reasoning / thinking triggers', async ({ page }) => {
       test.setTimeout(DEFAULT_CHAT_TIMEOUT + TURN_TIMEOUT_BUFFER);
-      const metrics = await runChatTurn(
+      await ensureAIPanelOpen(page);
+      if (await isVisibleAndEnabled(page.locator(CHAT_INPUT_SELECTOR))) {
+        await enableTrustedAutoMode(page);
+      }
+
+      const waitForChat = await interceptChatSSE(page);
+      await sendChatMessage(
         page,
         '一个房间3盏灯门外3个开关，只能进一次，怎么确定对应关系？请一步步推理',
       );
 
-      expectGracefulResponse(metrics, 50);
+      const assistantSurface = latestAssistantSurface(page);
+      const processBody = assistantSurface.locator(
+        '[data-testid="turn-process-body"]',
+      );
+
+      await expect(assistantSurface).toBeVisible({ timeout: 20_000 });
+      await expect(
+        assistantSurface.locator('[data-testid="chat-message-kernel-timeline"]'),
+      ).toBeVisible({ timeout: 20_000 });
+      await expect(processBody).toHaveAttribute(
+        'style',
+        /grid-template-rows:\s*1fr/i,
+        { timeout: 20_000 },
+      );
+      await expect
+        .poll(
+          async () =>
+            (await assistantSurface
+              .locator('[data-testid="thinking-embedded-body"]')
+              .isVisible()
+              .catch(() => false)) ||
+            (await assistantSurface
+              .locator('[data-testid^="turn-stage-body-"]')
+              .first()
+              .isVisible()
+              .catch(() => false)),
+          {
+            message: 'Expected live reasoning/process details while streaming.',
+            timeout: 20_000,
+          },
+        )
+        .toBe(true);
+
+      const metrics = await waitForObservedTurn(page, waitForChat, {
+        timeout: DEFAULT_CHAT_TIMEOUT,
+      });
+
+      expectGracefulResponse(metrics, 20);
+      await expect(processBody).toHaveAttribute(
+        'style',
+        /grid-template-rows:\s*0fr/i,
+      );
     });
   });
 
@@ -864,6 +955,41 @@ test.describe('AI Chat E2E', () => {
         },
       },
     ]);
+
+    test('B3 — tool process stays transcript-first and hides diagnostics by default', async ({
+      page,
+    }) => {
+      test.setTimeout(DEFAULT_CHAT_TIMEOUT + TURN_TIMEOUT_BUFFER);
+      const metrics = await runChatTurn(page, '查一下今天北京的天气');
+      const assistantSurface = latestAssistantSurface(page);
+      const processBody = assistantSurface.locator(
+        '[data-testid="turn-process-body"]',
+      );
+
+      expectGracefulResponse(metrics, 8);
+      expectTool(
+        metrics,
+        isWeatherCapableTool,
+        'Expected weather-capable tool call',
+      );
+      await expectTranscriptFirst(assistantSurface);
+      await expectDiagnosticsHiddenByDefault(assistantSurface);
+      await expect(processBody).toHaveAttribute(
+        'style',
+        /grid-template-rows:\s*0fr/i,
+      );
+
+      await assistantSurface
+        .locator('[data-testid="turn-process-toggle"]')
+        .click();
+      await expect(processBody).toHaveAttribute(
+        'style',
+        /grid-template-rows:\s*1fr/i,
+      );
+      await expect(
+        assistantSurface.locator('[data-testid="tool-group-embedded"]'),
+      ).toBeVisible();
+    });
   });
 
   test.describe('C: Web search', () => {

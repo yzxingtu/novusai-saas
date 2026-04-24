@@ -160,17 +160,17 @@ function getEmbeddedToolHint(toolItem: ToolDisplayItem): string {
     <button
       v-if="!embedded"
       type="button"
-      class="hover:bg-accent/16 group flex w-full cursor-pointer select-none items-center rounded-lg border border-transparent text-left transition-colors hover:border-border/16"
+      class="tool-group-toggle group flex w-full cursor-pointer select-none items-center rounded-[18px] border text-left transition-colors"
       :class="
         compact
-          ? 'gap-1 px-2 py-1 text-[11px]'
-          : 'gap-1.5 px-2.5 py-1.5 text-xs'
+          ? 'gap-1.5 px-2.5 py-2 text-[10.5px]'
+          : 'gap-2 px-3 py-2.5 text-[11px]'
       "
       data-testid="tool-group-toggle"
       @click="toggleToolGroupExpand(index)"
     >
       <span
-        class="flex shrink-0 items-center justify-center rounded-full border border-border/20 bg-background/70"
+        class="tool-group-icon flex shrink-0 items-center justify-center rounded-2xl"
         :class="compact ? 'size-5' : 'size-5.5'"
       >
         <IconifyIcon
@@ -204,14 +204,14 @@ function getEmbeddedToolHint(toolItem: ToolDisplayItem): string {
       >
         <span
           v-if="toolGroupSummary.success"
-          class="flex items-center gap-0.5 rounded-full border border-border/20 bg-background/75 px-1.5 py-px text-green-600 dark:text-green-400"
+          class="tool-group-count flex items-center gap-0.5 rounded-full px-1.5 py-px text-green-600 dark:text-green-400"
         >
           <IconifyIcon icon="lucide:check" class="size-2.5" />
           {{ toolGroupSummary.success }}
         </span>
         <span
           v-if="toolGroupSummary.error"
-          class="flex items-center gap-0.5 rounded-full border border-border/20 bg-background/75 px-1.5 py-px text-red-500"
+          class="tool-group-count flex items-center gap-0.5 rounded-full px-1.5 py-px text-red-500"
         >
           <IconifyIcon icon="lucide:x" class="size-2.5" />
           {{ toolGroupSummary.error }}
@@ -309,13 +309,13 @@ function getEmbeddedToolHint(toolItem: ToolDisplayItem): string {
                 :class="
                   embedded
                     ? 'tool-call-inline'
-                    : 'group/tc overflow-hidden rounded-xl border border-border/10 bg-background/52 transition-colors hover:border-border/16 hover:bg-background/72'
+                    : 'tool-call-card group/tc overflow-hidden rounded-[18px] border transition-colors'
                 "
               >
                 <template v-if="embedded">
                   <button
                     type="button"
-                    class="flex w-full items-start gap-2 rounded-lg bg-transparent text-left transition-colors hover:bg-muted/[0.05]"
+                    class="flex w-full items-start gap-2 rounded-[14px] bg-transparent text-left transition-colors hover:bg-muted/[0.05]"
                     :class="compact ? 'px-2.5 py-2' : 'px-3 py-2.5'"
                     :data-testid="`tool-call-toggle-${toolItem.index}`"
                     :title="
@@ -337,7 +337,8 @@ function getEmbeddedToolHint(toolItem: ToolDisplayItem): string {
                       class="inline-flex shrink-0 items-center gap-0.5 rounded-full px-1.5 py-px font-mono text-[9px] font-medium leading-tight tracking-[0.08em]"
                       :class="
                         toolItem.tc.status === 'running'
-                          ? getToolDisplayState(toolItem.tc) === 'waiting_confirm'
+                          ? getToolDisplayState(toolItem.tc) ===
+                            'waiting_confirm'
                             ? 'tc-pill-pulse bg-warning/10 text-warning'
                             : 'tc-pill-pulse bg-primary/10 text-primary'
                           : toolItem.tc.status === 'success'
@@ -389,7 +390,7 @@ function getEmbeddedToolHint(toolItem: ToolDisplayItem): string {
                       </div>
                       <p
                         v-if="getToolCardSummary(toolItem)"
-                        class="text-muted-foreground/70 mt-1 whitespace-pre-wrap break-words text-[10px] leading-5"
+                        class="mt-1 whitespace-pre-wrap break-words text-[10px] leading-5 text-muted-foreground/70"
                       >
                         {{ getToolCardSummary(toolItem) }}
                       </p>
@@ -446,7 +447,7 @@ function getEmbeddedToolHint(toolItem: ToolDisplayItem): string {
 
                     <span
                       v-if="toolItem.hasDetails"
-                      class="ml-auto inline-flex shrink-0 items-center gap-1 pt-0.5 text-[10px] text-muted-foreground/48"
+                      class="text-muted-foreground/48 ml-auto inline-flex shrink-0 items-center gap-1 pt-0.5 text-[10px]"
                     >
                       <span>{{
                         $t(
@@ -477,7 +478,7 @@ function getEmbeddedToolHint(toolItem: ToolDisplayItem): string {
                     :data-testid="`tool-call-details-${toolItem.index}`"
                   >
                     <div class="min-h-0 overflow-hidden pl-2 pt-1">
-                      <div class="border-l border-border/18">
+                      <div class="border-border/18 border-l">
                         <ToolCallDetails
                           :compact="compact"
                           :raw-expanded="isToolRawExpanded(toolItem.index)"
@@ -496,8 +497,8 @@ function getEmbeddedToolHint(toolItem: ToolDisplayItem): string {
                     class="flex w-full select-none items-center text-left"
                     :class="[
                       compact
-                        ? 'gap-1 px-2 py-1 text-[11px]'
-                        : 'gap-1.5 px-2.5 py-1.5 text-[11px]',
+                        ? 'gap-1.5 px-2.5 py-2 text-[10.5px]'
+                        : 'gap-2 px-3 py-2.5 text-[11px]',
                       toolItem.hasDetails ? 'cursor-pointer' : 'cursor-default',
                     ]"
                     :data-testid="`tool-call-toggle-${toolItem.index}`"
@@ -629,7 +630,7 @@ function getEmbeddedToolHint(toolItem: ToolDisplayItem): string {
                     :data-testid="`tool-call-details-${toolItem.index}`"
                   >
                     <div class="min-h-0 overflow-hidden px-1 pb-1 pt-1">
-                      <div class="rounded-xl bg-background/76">
+                      <div class="rounded-[16px] bg-background/76">
                         <ToolCallDetails
                           :compact="compact"
                           :raw-expanded="isToolRawExpanded(toolItem.index)"
@@ -680,3 +681,50 @@ function getEmbeddedToolHint(toolItem: ToolDisplayItem): string {
     </div>
   </div>
 </template>
+
+<style scoped>
+.tool-group-toggle {
+  border-color: hsl(var(--border) / 0.12);
+  background:
+    radial-gradient(
+      circle at 100% 0%,
+      hsl(var(--primary) / 0.05),
+      transparent 38%
+    ),
+    linear-gradient(
+      180deg,
+      hsl(var(--background) / 0.84) 0%,
+      hsl(var(--background) / 0.72) 100%
+    );
+  backdrop-filter: blur(10px);
+  box-shadow:
+    0 12px 26px -30px hsl(var(--foreground) / 0.18),
+    0 1px 0 hsl(var(--background) / 0.72) inset;
+}
+
+.tool-group-toggle:hover {
+  border-color: hsl(var(--primary) / 0.18);
+}
+
+.tool-group-icon {
+  border: 1px solid hsl(var(--primary) / 0.12);
+  background: hsl(var(--primary) / 0.08);
+}
+
+.tool-group-count {
+  border: 1px solid hsl(var(--border) / 0.12);
+  background: hsl(var(--background) / 0.78);
+}
+
+.tool-call-card {
+  background:
+    radial-gradient(
+      circle at top left,
+      hsl(var(--primary) / 0.03),
+      transparent 32%
+    ),
+    hsl(var(--background) / 0.62);
+  border-color: hsl(var(--border) / 0.1);
+  box-shadow: 0 12px 28px -34px hsl(var(--foreground) / 0.14);
+}
+</style>

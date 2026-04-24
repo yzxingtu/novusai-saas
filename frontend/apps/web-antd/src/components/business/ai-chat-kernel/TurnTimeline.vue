@@ -9,11 +9,10 @@ import { computed, ref, watch } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
-import { MarkdownRender } from '#/components/business/markdown-render';
 import {
-  getThinkingContentForDisplay,
   getOptimizingToolsForDisplay,
   getRagSourcesForDisplay,
+  getThinkingContentForDisplay,
   getToolCallsForDisplay,
 } from '#/components/business/ai-chat-panel/chat-message-turn-flow';
 import ChatMessageThinkingBlock from '#/components/business/ai-chat-panel/ChatMessageThinkingBlock.vue';
@@ -22,6 +21,7 @@ import {
   normalizeMergedTextPart,
   normalizeOptionalString,
 } from '#/components/business/ai-chat-panel/use-ai-chat-message-normalizers';
+import { MarkdownRender } from '#/components/business/markdown-render';
 import { $t } from '#/locales';
 
 const props = withDefaults(
@@ -185,20 +185,157 @@ const GENERIC_STAGE_COPY_BY_TYPE: Record<
   ],
 };
 
-function normalizeAsciiStageCopy(value: unknown): string | undefined {
+const GENERIC_STAGE_COPY_PATTERNS: Record<
+  TurnFlowStageForDisplay['type'],
+  readonly RegExp[]
+> = {
+  answer_assembly: [/^assembling (the )?(final )?answer$/],
+  completed: [/^(process|turn|workflow) completed$/],
+  failed: [/^(process|turn|workflow) failed$/],
+  retrieval: [
+    /^(found|retrieved|retrieving) \d+ (sources?|results?|items?|documents?|evidence)( .*)?$/,
+  ],
+  thinking: [
+    /^(completed )?(analysis|reasoning|thinking)( and planning)?$/,
+    /^(analysis|reasoning|thinking) complete$/,
+  ],
+  tool_execution: [
+    /^(executed|executing) \d+ tool calls?$/,
+    /^tool calls? executed \d+$/,
+  ],
+  tool_selection: [
+    /^(selected|selecting) \d+ of \d+ tools?$/,
+    /^\d+ of \d+ tools? selected$/,
+  ],
+};
+
+const TRANSCRIPT_COPY_MEANINGFUL_CHAR_RE = /[\p{L}\p{N}]/u;
+const TRANSCRIPT_COPY_SYMBOL_ONLY_RE = /^[\p{P}\p{S}\s]+$/u;
+
+const GENERIC_STAGE_DETAIL_COPY_BY_TYPE: Record<
+  TurnFlowStageForDisplay['type'],
+  readonly string[]
+> = {
+  answer_assembly: [
+    'answer assembly',
+    'answer assembled',
+    '答案整理',
+    '整理答案',
+  ],
+  completed: [
+    'completed',
+    'complete',
+    'done',
+    '本轮完成',
+    '本轮结束',
+    '已完成',
+  ],
+  failed: ['failed', 'failure', 'error', '执行失败', '本轮失败', '处理失败'],
+  retrieval: [
+    'retrieval',
+    'information retrieval',
+    'source retrieval',
+    'evidence retrieval',
+    '查找来源',
+    '检索来源',
+    '来源检索',
+    '证据检索',
+  ],
+  thinking: [
+    'thinking',
+    'analysis',
+    'reasoning',
+    '思考',
+    '思考过程',
+    '思考与规划',
+    '已完成思考',
+    '已完成思考与规划',
+    '完成思考',
+    '完成思考与规划',
+  ],
+  tool_execution: [
+    'tool execution',
+    'tool calls',
+    'tool call execution',
+    'executing tools',
+    '工具执行',
+    '执行工具',
+  ],
+  tool_selection: [
+    'tool selection',
+    'selecting tools',
+    'select tools',
+    '工具选择',
+    '选择工具',
+    '工具筛选',
+  ],
+};
+
+const GENERIC_STAGE_DETAIL_COPY_PATTERNS: Record<
+  TurnFlowStageForDisplay['type'],
+  readonly RegExp[]
+> = {
+  answer_assembly: [/^已?完成答案整理$/u, /^正在(组织|整理)答案$/u],
+  completed: [/^本轮(完成|结束)$/u, /^completed$/iu],
+  failed: [/^(执行|处理)?失败$/u, /^failed$/iu],
+  retrieval: [
+    /^未?(检索|获取|找到)到(任何)?(证据|来源|结果)$/u,
+    /^查找来源$/u,
+    /^retrieval$/iu,
+  ],
+  thinking: [
+    /^思考(过程)?$/u,
+    /^已?完成思考(与规划)?$/u,
+    /^正在思考(与规划)?$/u,
+    /^(analysis|reasoning|thinking)( and planning)?$/iu,
+  ],
+  tool_execution: [
+    /^no tools executed$/iu,
+    /^executed \d+ tool calls?$/iu,
+    /^执行了?\d+个工具调用$/u,
+  ],
+  tool_selection: [
+    /^selected \d+ of \d+ tools?$/iu,
+    /^\d+ of \d+ tools? selected$/iu,
+    /^筛选了?\d+个工具$/u,
+  ],
+};
+
+function normalizeMeaningfulTranscriptCopy(value: unknown): string | undefined {
   const normalized = normalizeOptionalString(value);
   if (
     !normalized ||
-    /[^\u0000-\u007F]/.test(normalized) ||
-    !/[A-Za-z]/.test(normalized)
+    TRANSCRIPT_COPY_SYMBOL_ONLY_RE.test(normalized) ||
+    !TRANSCRIPT_COPY_MEANINGFUL_CHAR_RE.test(normalized)
   ) {
+    return undefined;
+  }
+  return normalized;
+}
+
+function normalizeComparableStageCopy(value: string): string {
+  return value
+    .normalize('NFKC')
+    .toLocaleLowerCase()
+    .replaceAll(/[_-]+/g, ' ')
+    .replaceAll(/[\p{P}\p{S}]+/gu, ' ')
+    .replaceAll(/\s+/gu, ' ')
+    .trim();
+}
+
+function normalizeAsciiStageCopy(value: unknown): string | undefined {
+  const normalized = normalizeOptionalString(value);
+  const containsNonAscii = [...(normalized ?? '')].some(
+    (character) => (character.codePointAt(0) ?? 0) > 127,
+  );
+  if (!normalized || containsNonAscii || !/[A-Z]/i.test(normalized)) {
     return undefined;
   }
   const collapsed = normalized
     .toLowerCase()
-    .replace(/[_-]+/g, ' ')
-    .replace(/[^a-z0-9 ]+/g, ' ')
-    .replace(/\s+/g, ' ')
+    .replaceAll(/[_-]+/g, ' ')
+    .replaceAll(/[^a-z0-9 ]+/g, ' ')
+    .replaceAll(/\s+/g, ' ')
     .trim();
   return collapsed.length > 0 ? collapsed : undefined;
 }
@@ -211,11 +348,14 @@ function isGenericBackendStageCopy(
   if (!normalized) {
     return false;
   }
-  const normalizedType = stage.type.replace(/_/g, ' ');
-  const normalizedStatus = stage.status.replace(/_/g, ' ');
+  const normalizedType = stage.type.replaceAll('_', ' ');
+  const normalizedStatus = stage.status.replaceAll('_', ' ');
   return (
     GENERIC_STAGE_STATUS_TOKENS.has(normalized) ||
     GENERIC_STAGE_COPY_BY_TYPE[stage.type].includes(normalized) ||
+    GENERIC_STAGE_COPY_PATTERNS[stage.type].some((pattern) =>
+      pattern.test(normalized),
+    ) ||
     normalized === normalizedType ||
     normalized === `${normalizedType} ${normalizedStatus}` ||
     normalized === `${normalizedStatus} ${normalizedType}`
@@ -223,7 +363,7 @@ function isGenericBackendStageCopy(
 }
 
 function getMeaningfulStageTitle(stage: TurnFlowStageForDisplay) {
-  const title = normalizeOptionalString(stage.title);
+  const title = normalizeMeaningfulTranscriptCopy(stage.title);
   if (!title || isGenericBackendStageCopy(stage, title)) {
     return undefined;
   }
@@ -231,7 +371,7 @@ function getMeaningfulStageTitle(stage: TurnFlowStageForDisplay) {
 }
 
 function getMeaningfulStageSummary(stage: TurnFlowStageForDisplay) {
-  const summary = normalizeOptionalString(stage.summary);
+  const summary = normalizeMeaningfulTranscriptCopy(stage.summary);
   if (!summary || isGenericBackendStageCopy(stage, summary)) {
     return undefined;
   }
@@ -404,6 +544,22 @@ function getStageSummary(stage: TurnFlowStageForDisplay) {
   return `${getStageTypeLabel(stage)} · ${getStageStatusLabel(stage)}`;
 }
 
+function getProcessHeadlineForStage(stage: TurnFlowStageForDisplay) {
+  const stageSummary = getMeaningfulStageSummary(stage);
+  if (stageSummary) {
+    return stageSummary;
+  }
+
+  const metricSummary = getMetricSummaryForStage(stage);
+  if (metricSummary) {
+    return metricSummary;
+  }
+
+  return stage.status === 'completed'
+    ? getStageTypeLabel(stage)
+    : getStageSummary(stage);
+}
+
 function getStageStatusClass(stage: TurnFlowStageForDisplay) {
   if (stage.status === 'running') {
     return 'border-primary/18 bg-primary/[0.08] text-primary';
@@ -439,23 +595,71 @@ function getProcessStatusClass() {
   return 'border-emerald-500/16 bg-emerald-500/[0.10] text-emerald-700 dark:text-emerald-300';
 }
 
+function getThinkingDetailText(stage: TurnFlowStageForDisplay) {
+  return getFilteredStageDetailLines(stage).join('\n\n');
+}
+
+function getFilteredStageDetailLines(stage: TurnFlowStageForDisplay) {
+  const seen = new Set<string>();
+  const titleKey = normalizeComparableStageCopy(
+    getMeaningfulStageTitle(stage) ?? '',
+  );
+  const summaryKey = normalizeComparableStageCopy(
+    getMeaningfulStageSummary(stage) ?? '',
+  );
+
+  return (stage.detailLines ?? [])
+    .flatMap((line) => {
+      const normalized = normalizeMeaningfulTranscriptCopy(line);
+      return normalized ? [normalized] : [];
+    })
+    .filter((line) => {
+      const comparable = normalizeComparableStageCopy(line);
+      if (!comparable) {
+        return false;
+      }
+      if (
+        (titleKey && comparable === titleKey) ||
+        (summaryKey && comparable === summaryKey)
+      ) {
+        return false;
+      }
+      if (
+        GENERIC_STAGE_DETAIL_COPY_BY_TYPE[stage.type].includes(comparable) ||
+        GENERIC_STAGE_DETAIL_COPY_PATTERNS[stage.type].some((pattern) =>
+          pattern.test(line),
+        )
+      ) {
+        return false;
+      }
+      if (seen.has(comparable)) {
+        return false;
+      }
+      seen.add(comparable);
+      return true;
+    });
+}
+
 function getThinkingBodyContent(stage: TurnFlowStageForDisplay) {
   if (stage.type !== 'thinking') {
     return undefined;
   }
-  if (displayThinkingContent.value) {
-    return displayThinkingContent.value;
-  }
-  const detailText = (stage.detailLines ?? [])
-    .map((line) => normalizeOptionalString(line))
-    .filter((line): line is string => Boolean(line))
-    .join('\n\n');
+  const detailText = getThinkingDetailText(stage);
   if (detailText) {
     return detailText;
+  }
+  if (
+    stage.id === lastThinkingStageId.value &&
+    normalizeOptionalString(displayThinkingContent.value)
+  ) {
+    return displayThinkingContent.value;
   }
   return getMeaningfulStageSummary(stage);
 }
 
+const lastThinkingStageId = computed(
+  () => timeline.value.findLast((stage) => stage.type === 'thinking')?.id,
+);
 const lastToolSelectionStageId = computed(
   () => timeline.value.findLast((stage) => stage.type === 'tool_selection')?.id,
 );
@@ -467,11 +671,30 @@ const lastRetrievalStageId = computed(
 );
 
 function hasThinkingBody(stage: TurnFlowStageForDisplay) {
-  return stage.type === 'thinking' && Boolean(getThinkingBodyContent(stage));
+  if (stage.type !== 'thinking') {
+    return false;
+  }
+  const bodyContent = normalizeOptionalString(getThinkingBodyContent(stage));
+  if (!bodyContent) {
+    return false;
+  }
+  const summary = getMeaningfulStageSummary(stage);
+  if (!summary || bodyContent !== summary) {
+    return true;
+  }
+  return (
+    stage.id === lastThinkingStageId.value &&
+    (isLiveMessage.value || stage.status === 'running')
+  );
 }
 
 function isEmbeddedThinkingStage(stage: TurnFlowStageForDisplay) {
-  return hasThinkingBody(stage) && Boolean(displayThinkingContent.value);
+  return (
+    stage.type === 'thinking' &&
+    stage.id === lastThinkingStageId.value &&
+    Boolean(normalizeOptionalString(displayThinkingContent.value)) &&
+    hasThinkingBody(stage)
+  );
 }
 
 function hasToolSelectionBody(stage: TurnFlowStageForDisplay) {
@@ -536,7 +759,7 @@ function shouldHideNoopToolExecution(stage: TurnFlowStageForDisplay) {
   return (
     total <= 0 &&
     stage.status !== 'running' &&
-    !(stage.detailLines?.length && stage.detailLines.length > 0)
+    getFilteredStageDetailLines(stage).length === 0
   );
 }
 
@@ -559,7 +782,7 @@ function shouldHideNoopRetrieval(stage: TurnFlowStageForDisplay) {
   return (
     total <= 0 &&
     stage.status !== 'running' &&
-    !(stage.detailLines?.length && stage.detailLines.length > 0)
+    getFilteredStageDetailLines(stage).length === 0
   );
 }
 
@@ -582,8 +805,8 @@ function shouldRenderStage(stage: TurnFlowStageForDisplay) {
   if (stage.type === 'thinking') {
     return Boolean(
       normalizeOptionalString(stage.summary) ||
-        normalizeOptionalString(stage.title) ||
-        hasThinkingBody(stage),
+      normalizeOptionalString(stage.title) ||
+      hasThinkingBody(stage),
     );
   }
   return true;
@@ -598,7 +821,7 @@ const processHeadline = computed(() => {
     (stage) => stage.status === 'running',
   );
   const stage = liveStage ?? visibleTimeline.value.at(-1);
-  return stage ? getStageSummary(stage) : undefined;
+  return stage ? getProcessHeadlineForStage(stage) : undefined;
 });
 
 function syncProcessExpanded(nextExpanded: boolean) {
@@ -647,11 +870,11 @@ watch(
           ? $t('common.globalAiChat.turnTimelineCollapse')
           : $t('common.globalAiChat.turnTimelineExpand')
       "
-      class="turn-process-toggle group flex w-full items-start gap-2 rounded-xl px-0.5 py-0.5 text-left"
+      class="turn-process-toggle group flex w-full items-start gap-2.5 rounded-[14px] px-2.5 py-2 text-left"
       @click="toggleProcessExpanded"
     >
       <span
-        class="mt-0.5 inline-flex shrink-0 items-center rounded-full border border-border/26 bg-background/72 px-1.5 py-0.5 text-[8.5px] font-medium uppercase tracking-[0.14em] text-muted-foreground/58"
+        class="turn-process-pill mt-0.5 inline-flex shrink-0 items-center rounded-full px-1.5 py-0.5 text-[8.5px] font-medium uppercase tracking-[0.14em]"
       >
         {{ $t('common.globalAiChat.turnTimeline') }}
       </span>
@@ -659,8 +882,10 @@ watch(
       <div class="min-w-0 flex-1">
         <div class="flex min-w-0 flex-wrap items-center gap-1.5">
           <p
-            class="min-w-0 flex-1 truncate font-medium text-foreground/76"
-            :class="compact ? 'text-[10px] leading-5' : 'text-[10.5px] leading-5'"
+            class="text-foreground/74 min-w-0 flex-1 truncate font-medium"
+            :class="
+              compact ? 'text-[9.5px] leading-5' : 'text-[10px] leading-5'
+            "
           >
             {{
               processHeadline ||
@@ -669,13 +894,13 @@ watch(
           </p>
           <span
             v-if="processStatusLabel"
-            class="inline-flex items-center rounded-full border px-1.5 py-0.5 text-[9px] font-medium"
+            class="inline-flex items-center rounded-full border px-1.5 py-0.5 text-[8.5px] font-medium"
             :class="getProcessStatusClass()"
           >
             {{ processStatusLabel }}
           </span>
           <span
-            class="inline-flex items-center rounded-full border border-border/14 bg-background/70 px-1.5 py-0.5 text-[9px] text-muted-foreground/62"
+            class="turn-process-count inline-flex items-center rounded-full px-1.5 py-0.5 text-[8.5px]"
           >
             {{
               $t('common.globalAiChat.turnStageCount', {
@@ -685,8 +910,9 @@ watch(
           </span>
         </div>
       </div>
+
       <span
-        class="mt-0.5 inline-flex shrink-0 items-center justify-center rounded-full border border-border/14 bg-background/70 p-1 text-muted-foreground/48 transition-colors group-hover:border-primary/18 group-hover:text-primary/72"
+        class="turn-process-chevron mt-0.5 inline-flex shrink-0 items-center justify-center rounded-full p-1 transition-colors"
       >
         <IconifyIcon
           icon="lucide:chevron-down"
@@ -708,8 +934,8 @@ watch(
     >
       <div class="min-h-0 overflow-hidden">
         <div
-          class="relative mt-2 border-l border-border/22"
-          :class="compact ? 'space-y-2 pl-3' : 'space-y-2.5 pl-3.5'"
+          class="turn-process-track relative mt-2 border-l"
+          :class="compact ? 'space-y-1.5 pl-3' : 'space-y-2 pl-3.5'"
         >
           <div
             v-for="(stage, stageIndex) in visibleTimeline"
@@ -719,8 +945,8 @@ watch(
             :data-testid="`turn-stage-${stageIndex}`"
           >
             <div
-              class="absolute top-[7px] flex size-3 items-center justify-center rounded-full bg-background"
-              :class="compact ? 'left-[-12px]' : 'left-[-14px]'"
+              class="absolute top-[8px] flex size-3 items-center justify-center rounded-full bg-background shadow-[0_0_0_3px_hsl(var(--background)/0.94)]"
+              :class="compact ? 'left-[-14px]' : 'left-[-16px]'"
             >
               <span
                 class="block rounded-full"
@@ -743,22 +969,26 @@ watch(
             <div class="min-w-0">
               <div class="flex min-w-0 flex-wrap items-center gap-1.5">
                 <span
-                  class="truncate font-medium text-foreground/74"
-                  :class="compact ? 'text-[10px]' : 'text-[10px]'"
+                  class="text-foreground/72 truncate font-medium"
+                  :class="compact ? 'text-[9.5px]' : 'text-[10px]'"
                 >
                   {{ getStageTypeLabel(stage) }}
                 </span>
                 <span
                   v-if="shouldShowStageStatus(stage)"
-                  class="inline-flex shrink-0 items-center rounded-full border px-1.5 py-0.5 text-[9px] font-medium"
+                  class="inline-flex shrink-0 items-center rounded-full border px-1.5 py-0.5 text-[8.5px] font-medium"
                   :class="getStageStatusClass(stage)"
                 >
                   {{ getStageStatusLabel(stage) }}
                 </span>
               </div>
               <p
-                class="mt-0.5 text-muted-foreground/58"
-                :class="compact ? 'text-[10px] leading-5' : 'text-[10px] leading-5'"
+                class="text-muted-foreground/58 mt-0.5"
+                :class="
+                  compact
+                    ? 'text-[9px] leading-[1.15rem]'
+                    : 'text-[9.5px] leading-[1.2rem]'
+                "
               >
                 {{ getStageSummary(stage) }}
               </p>
@@ -777,88 +1007,93 @@ watch(
                     class="mt-1.5 min-w-0"
                     :class="compact ? 'pl-0.5' : 'pl-1'"
                   >
-                    <ChatMessageThinkingBlock
-                      v-if="isEmbeddedThinkingStage(stage)"
-                      :compact="compact"
-                      embedded
-                      :index="0"
-                      :msg="msg"
-                    />
-
                     <div
-                      v-else-if="hasThinkingBody(stage)"
-                      class="turn-stage-inline-markdown min-w-0"
+                      class="turn-stage-detail-surface min-w-0 rounded-[14px] border"
+                      :class="compact ? 'px-2.5 py-2' : 'px-3 py-2.5'"
                     >
-                      <MarkdownRender
-                        :content="getThinkingBodyContent(stage) ?? ''"
-                        :streaming="false"
+                      <ChatMessageThinkingBlock
+                        v-if="isEmbeddedThinkingStage(stage)"
+                        :compact="compact"
+                        embedded
+                        :index="0"
+                        :msg="msg"
                       />
-                    </div>
 
-                    <div
-                      v-else-if="hasToolSelectionBody(stage)"
-                      class="inline-flex max-w-full items-center gap-1.5 rounded-lg bg-muted/[0.05] px-2.5 py-2 text-muted-foreground/70"
-                      :class="compact ? 'text-[10px]' : 'text-[11px]'"
-                    >
-                      <IconifyIcon
-                        icon="lucide:sparkles"
-                        class="size-3 text-primary"
-                      />
-                      <span>{{
-                        $t('common.globalAiChat.optimizingTools', {
-                          total: displayOptimizingTools?.total ?? 0,
-                          selected: displayOptimizingTools?.selected ?? 0,
-                        })
-                      }}</span>
-                    </div>
-
-                    <ChatMessageToolCalls
-                      v-else-if="hasToolExecutionBody(stage)"
-                      :compact="compact"
-                      :countdown-now="countdownNow"
-                      embedded
-                      :index="0"
-                      :msg="msg"
-                      :pending-ops="pendingOps"
-                      @copy="(content) => emit('copy', content)"
-                    />
-
-                    <div
-                      v-else-if="hasRetrievalBody(stage)"
-                      class="space-y-1.5"
-                    >
                       <div
-                        v-for="(source, sourceIndex) in displayRagSources"
-                        :key="`${stage.id}-source-${source.doc_id}-${sourceIndex}`"
-                        class="min-w-0 rounded-lg bg-muted/[0.04] px-2.5 py-2"
+                        v-else-if="hasThinkingBody(stage)"
+                        class="turn-stage-inline-markdown min-w-0"
                       >
-                        <div class="flex min-w-0 items-start gap-2">
-                          <IconifyIcon
-                            icon="lucide:book-open"
-                            class="mt-0.5 size-3 shrink-0 text-primary/68"
-                          />
-                          <div class="min-w-0 flex-1">
-                            <div
-                              class="flex min-w-0 flex-wrap items-center gap-1.5"
-                            >
-                              <span
-                                class="truncate text-[10px] font-medium text-foreground/74"
+                        <MarkdownRender
+                          :content="getThinkingBodyContent(stage) ?? ''"
+                          :streaming="false"
+                        />
+                      </div>
+
+                      <div
+                        v-else-if="hasToolSelectionBody(stage)"
+                        class="inline-flex max-w-full items-center gap-1.5 rounded-lg bg-muted/[0.05] px-2.5 py-2 text-muted-foreground/70"
+                        :class="compact ? 'text-[9.5px]' : 'text-[10px]'"
+                      >
+                        <IconifyIcon
+                          icon="lucide:sparkles"
+                          class="size-3 text-primary"
+                        />
+                        <span>{{
+                          $t('common.globalAiChat.optimizingTools', {
+                            total: displayOptimizingTools?.total ?? 0,
+                            selected: displayOptimizingTools?.selected ?? 0,
+                          })
+                        }}</span>
+                      </div>
+
+                      <ChatMessageToolCalls
+                        v-else-if="hasToolExecutionBody(stage)"
+                        :compact="compact"
+                        :countdown-now="countdownNow"
+                        embedded
+                        :index="0"
+                        :msg="msg"
+                        :pending-ops="pendingOps"
+                        @copy="(content) => emit('copy', content)"
+                      />
+
+                      <div
+                        v-else-if="hasRetrievalBody(stage)"
+                        class="space-y-1.5"
+                      >
+                        <div
+                          v-for="(source, sourceIndex) in displayRagSources"
+                          :key="`${stage.id}-source-${source.doc_id}-${sourceIndex}`"
+                          class="min-w-0 rounded-lg bg-muted/[0.04] px-2.5 py-2"
+                        >
+                          <div class="flex min-w-0 items-start gap-2">
+                            <IconifyIcon
+                              icon="lucide:book-open"
+                              class="text-primary/68 mt-0.5 size-3 shrink-0"
+                            />
+                            <div class="min-w-0 flex-1">
+                              <div
+                                class="flex min-w-0 flex-wrap items-center gap-1.5"
                               >
-                                {{ source.doc_name }}
-                              </span>
-                              <span
-                                v-if="source.knowledge_base_name"
-                                class="text-[9px] text-muted-foreground/58"
+                                <span
+                                  class="text-foreground/74 truncate text-[10px] font-medium"
+                                >
+                                  {{ source.doc_name }}
+                                </span>
+                                <span
+                                  v-if="source.knowledge_base_name"
+                                  class="text-muted-foreground/58 text-[9px]"
+                                >
+                                  {{ source.knowledge_base_name }}
+                                </span>
+                              </div>
+                              <p
+                                v-if="source.snippet"
+                                class="mt-0.5 line-clamp-2 text-[10px] leading-5 text-muted-foreground/60"
                               >
-                                {{ source.knowledge_base_name }}
-                              </span>
+                                {{ source.snippet }}
+                              </p>
                             </div>
-                            <p
-                              v-if="source.snippet"
-                              class="mt-0.5 line-clamp-2 text-[10px] leading-5 text-muted-foreground/60"
-                            >
-                              {{ source.snippet }}
-                            </p>
                           </div>
                         </div>
                       </div>
@@ -875,11 +1110,74 @@ watch(
 </template>
 
 <style scoped>
+.turn-process-toggle {
+  border: 1px solid hsl(var(--border) / 0.16);
+  background:
+    radial-gradient(
+      circle at top right,
+      hsl(var(--primary) / 0.05),
+      transparent 36%
+    ),
+    linear-gradient(
+      180deg,
+      hsl(var(--background) / 0.82) 0%,
+      hsl(var(--muted) / 0.06) 100%
+    );
+  box-shadow: 0 14px 24px -30px hsl(var(--foreground) / 0.16);
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.turn-process-toggle:hover {
+  border-color: hsl(var(--primary) / 0.18);
+  box-shadow: 0 16px 26px -30px hsl(var(--foreground) / 0.18);
+}
+
+.turn-process-pill {
+  color: hsl(var(--muted-foreground) / 0.58);
+  border: 1px solid hsl(var(--border) / 0.24);
+  background: hsl(var(--background) / 0.84);
+}
+
+.turn-process-count {
+  color: hsl(var(--muted-foreground) / 0.6);
+  border: 1px solid hsl(var(--border) / 0.18);
+  background: hsl(var(--background) / 0.76);
+}
+
+.turn-process-track {
+  border-color: hsl(var(--border) / 0.18);
+}
+
+.turn-process-chevron {
+  color: hsl(var(--muted-foreground) / 0.5);
+  border: 1px solid hsl(var(--border) / 0.18);
+  background: hsl(var(--background) / 0.82);
+}
+
+.turn-process-toggle:hover .turn-process-chevron {
+  color: hsl(var(--primary) / 0.76);
+  border-color: hsl(var(--primary) / 0.16);
+}
+
+.turn-stage-detail-surface {
+  border-color: hsl(var(--border) / 0.16);
+  background:
+    linear-gradient(
+      180deg,
+      hsl(var(--background) / 0.84) 0%,
+      hsl(var(--muted) / 0.08) 100%
+    );
+  box-shadow: 0 12px 22px -30px hsl(var(--foreground) / 0.15);
+}
+
 .turn-stage-inline-markdown {
   min-width: 0;
   color: hsl(var(--foreground) / 0.7);
-  font-size: 0.75rem;
-  line-height: 1.35rem;
+  font-size: 0.72rem;
+  line-height: 1.25rem;
 }
 
 .turn-stage-inline-markdown :deep(p:first-child) {

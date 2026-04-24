@@ -40,12 +40,15 @@ function onUserAttachmentImageError(event: Event, att: ChatAttachment) {
 
 <template>
   <div class="flex justify-end" :class="compact ? 'gap-2' : 'gap-3'">
-    <div class="group" :class="compact ? 'max-w-[82%]' : 'max-w-[70%]'">
+    <div
+      class="group/user-message"
+      :class="compact ? 'max-w-[84%]' : 'max-w-[42rem]'"
+    >
       <!-- Attachments -->
       <div
         v-if="msg.attachments?.length"
         class="flex flex-wrap justify-end"
-        :class="compact ? 'mb-1 gap-1' : 'mb-1.5 gap-1.5'"
+        :class="compact ? 'mb-1.5 gap-1.5' : 'mb-2 gap-2'"
       >
         <template
           v-for="(att, ati) in msg.attachments"
@@ -55,12 +58,8 @@ function onUserAttachmentImageError(event: Event, att: ChatAttachment) {
             v-if="att.type === 'image'"
             :src="att.preview || att.url"
             :alt="att.name || ''"
-            class="cursor-pointer rounded-lg object-contain"
-            :class="
-              compact
-                ? 'max-h-32 max-w-40'
-                : 'max-h-48 max-w-60 border border-white/20'
-            "
+            class="user-attachment cursor-pointer rounded-2xl object-contain"
+            :class="compact ? 'max-h-32 max-w-40' : 'max-h-44 max-w-56'"
             @error="onUserAttachmentImageError($event, att)"
             @click="emit('openUrl', att.url)"
           />
@@ -68,30 +67,26 @@ function onUserAttachmentImageError(event: Event, att: ChatAttachment) {
             v-else-if="att.type === 'audio'"
             controls
             :src="att.url"
-            class="max-w-full rounded-lg"
+            class="user-attachment max-w-full rounded-2xl"
             :class="compact ? 'max-w-48' : 'max-w-64'"
           ></audio>
           <video
             v-else-if="att.type === 'video'"
             controls
             :src="att.url"
-            class="max-w-full rounded-lg object-contain"
-            :class="
-              compact
-                ? 'max-h-32 max-w-40'
-                : 'max-h-48 max-w-60 border border-white/20'
-            "
+            class="user-attachment max-w-full rounded-2xl object-contain"
+            :class="compact ? 'max-h-32 max-w-40' : 'max-h-44 max-w-56'"
           ></video>
           <a
             v-else
             :href="att.url"
             target="_blank"
             rel="noopener noreferrer"
-            class="flex items-center rounded-lg bg-primary-foreground/10 text-primary-foreground hover:bg-primary-foreground/20"
+            class="user-file-chip flex items-center rounded-full"
             :class="
               compact
-                ? 'gap-1 px-1.5 py-0.5 text-[11px]'
-                : 'gap-1.5 px-2 py-1 text-xs'
+                ? 'gap-1 px-2 py-1 text-[10px]'
+                : 'gap-1.5 px-2.5 py-1 text-[10.5px]'
             "
           >
             <IconifyIcon
@@ -109,24 +104,33 @@ function onUserAttachmentImageError(event: Event, att: ChatAttachment) {
       </div>
       <div
         v-if="msg.content"
-        class="user-message-bubble whitespace-pre-wrap rounded-[18px] rounded-br-[10px] border border-primary/14 px-3 py-2 text-[12px] leading-6 text-primary-foreground"
+        class="user-message-bubble whitespace-pre-wrap rounded-[20px] rounded-br-[12px] border px-3.5 py-2.5 text-primary-foreground"
+        :class="
+          compact
+            ? 'text-[13px] leading-[1.72]'
+            : 'text-[13.5px] leading-[1.74]'
+        "
       >
         {{ msg.content }}
       </div>
       <!-- User message toolbar (timestamp + copy + edit) -->
       <div
-        class="mt-0.5 flex items-center justify-end gap-0.5 transition-opacity duration-200"
-        :class="compact ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'"
+        class="mt-1 flex items-center justify-end gap-1 transition-opacity duration-200"
+        :class="
+          compact
+            ? 'opacity-100'
+            : 'opacity-0 group-hover/user-message:opacity-100'
+        "
       >
         <span
           v-if="msg.created_at"
-          class="mr-0.5 text-[9px] tabular-nums text-muted-foreground/38"
+          class="mr-1 text-[9px] tabular-nums text-muted-foreground/40"
         >
           {{ formatTimeOnly(msg.created_at) }}
         </span>
         <Tooltip :title="$t('common.globalAiChat.copy')">
           <button
-            class="flex size-[18px] items-center justify-center rounded-md text-muted-foreground/56 transition-colors hover:bg-muted hover:text-foreground"
+            class="user-action-button flex size-[18px] items-center justify-center rounded-md"
             @click="emit('copy', msg.content)"
           >
             <IconifyIcon icon="lucide:copy" class="size-2.5" />
@@ -134,7 +138,7 @@ function onUserAttachmentImageError(event: Event, att: ChatAttachment) {
         </Tooltip>
         <Tooltip :title="$t('common.globalAiChat.editResend')">
           <button
-            class="flex size-[18px] items-center justify-center rounded-md text-muted-foreground/56 transition-colors hover:bg-muted hover:text-foreground"
+            class="user-action-button flex size-[18px] items-center justify-center rounded-md"
             @click="emit('edit', props.index)"
           >
             <IconifyIcon icon="lucide:pencil" class="size-2.5" />
@@ -149,10 +153,41 @@ function onUserAttachmentImageError(event: Event, att: ChatAttachment) {
 .user-message-bubble {
   background: linear-gradient(
     135deg,
-    hsl(var(--primary)) 0%,
-    hsl(var(--primary) / 0.94) 62%,
-    hsl(var(--primary) / 0.86) 100%
+    hsl(var(--primary) / 0.96) 0%,
+    hsl(var(--primary) / 0.9) 62%,
+    hsl(var(--primary) / 0.84) 100%
   );
-  box-shadow: 0 16px 34px -28px hsl(var(--primary) / 0.52);
+  border-color: hsl(var(--primary) / 0.14);
+  box-shadow: 0 12px 24px -22px hsl(var(--primary) / 0.28);
+}
+
+.user-attachment {
+  border: 1px solid hsl(var(--border) / 0.28);
+  background: hsl(var(--background));
+  box-shadow: 0 12px 20px -24px hsl(var(--foreground) / 0.1);
+}
+
+.user-file-chip {
+  color: hsl(var(--foreground) / 0.82);
+  background: hsl(var(--background) / 0.94);
+  border: 1px solid hsl(var(--border) / 0.26);
+  box-shadow: 0 8px 16px -22px hsl(var(--foreground) / 0.1);
+}
+
+.user-action-button {
+  color: hsl(var(--muted-foreground) / 0.62);
+  background: transparent;
+  border: 1px solid transparent;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+.user-action-button:hover {
+  color: hsl(var(--foreground) / 0.84);
+  background: hsl(var(--muted) / 0.5);
+  border-color: hsl(var(--border) / 0.2);
 }
 </style>

@@ -72,11 +72,11 @@ const isEmpty = computed(
   <Transition name="fade">
     <div
       v-if="open"
-      class="shrink-0 border-b border-border/30 bg-muted/5 px-4 py-3"
+      class="ai-memory-panel shrink-0 border-b border-border/30 px-4 py-3"
     >
       <div class="mb-2.5 flex items-center justify-between">
         <div
-          class="flex items-center gap-1.5 text-xs font-medium text-foreground"
+          class="text-foreground/84 flex items-center gap-1.5 text-xs font-medium"
         >
           <IconifyIcon icon="lucide:brain" class="size-3.5 text-primary" />
           {{ $t('common.globalAiChat.memoryUpdated') }}
@@ -107,7 +107,7 @@ const isEmpty = computed(
         <div
           v-for="section in sections"
           :key="section.key"
-          class="rounded-lg bg-background/60 px-2.5 py-2"
+          class="ai-memory-section rounded-2xl px-3 py-2.5"
         >
           <div
             class="mb-1 flex items-center gap-1 text-[11px] font-medium text-muted-foreground"
@@ -131,3 +131,19 @@ const isEmpty = computed(
     </div>
   </Transition>
 </template>
+
+<style scoped>
+.ai-memory-panel {
+  background: linear-gradient(
+    180deg,
+    hsl(var(--background) / 0.98) 0%,
+    hsl(var(--muted) / 0.18) 100%
+  );
+}
+
+.ai-memory-section {
+  border: 1px solid hsl(var(--border) / 0.28);
+  background: hsl(var(--background) / 0.94);
+  box-shadow: 0 12px 22px -24px hsl(var(--foreground) / 0.08);
+}
+</style>

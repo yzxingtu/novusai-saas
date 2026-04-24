@@ -57,12 +57,7 @@ export function useAIChatSlidePanelShell(
     disabledOperations: props.disabledOperations,
   }));
   const panelTitle = computed(() => {
-    const siteName =
-      publicConfigStore.platformConfig?.brand?.siteName ||
-      publicConfigStore.tenantConfig?.brand?.siteName ||
-      import.meta.env.VITE_APP_TITLE ||
-      'NovusAI';
-    return `${siteName} AI`;
+    return $t('common.aiPanel.title');
   });
   const isPinned = computed(
     () => !!aiPanelStore.pinnedAgentId && !!aiPanelStore.pinnedAgentName,
@@ -162,10 +157,14 @@ export function useAIChatSlidePanelShell(
     totalTokensUsed,
     supportsVision,
     agentKBBindings,
+    agentKBBindingsByAgentId,
+    agentSkillBindingsByAgentId,
     allAgentsVariables,
     ensureAgentVarsLoaded,
     agentsWithVarsInConversation,
     applyVariables,
+    loadAgentKBBindings,
+    loadAgentSkillBindings,
   } = chat;
 
   const { countdownNow, getPendingOpsForMessage, unassociatedPendingOps } =
@@ -272,20 +271,6 @@ export function useAIChatSlidePanelShell(
   } = panelShellContext;
   openVarsModalRef = openVarsModal;
 
-  function isAgentSwitch(idx: number): boolean {
-    const message = chatMessages.value[idx];
-    if (!message || message.role !== 'assistant' || !message.agent_id) {
-      return false;
-    }
-    for (let index = idx - 1; index >= 0; index -= 1) {
-      const previous = chatMessages.value[index];
-      if (previous?.role === 'assistant') {
-        return previous.agent_id !== message.agent_id;
-      }
-    }
-    return false;
-  }
-
   const pageContextLimitBytes = computed(
     () =>
       publicConfigStore.platformConfig?.runtimeLimits?.pageContextMaxBytes ||
@@ -359,6 +344,8 @@ export function useAIChatSlidePanelShell(
     actionClick: clickActionButton,
     activeConversationId,
     agentKBBindings,
+    agentKBBindingsByAgentId,
+    agentSkillBindingsByAgentId,
     agents,
     agentsLoading,
     aiPanelStore,
@@ -409,7 +396,6 @@ export function useAIChatSlidePanelShell(
     inputMessage,
     interactionMode,
     interactionModeEffective,
-    isAgentSwitch,
     isPinned,
     lastRunSummary,
     manualNewConversationAgentId,
@@ -419,6 +405,8 @@ export function useAIChatSlidePanelShell(
     mentionCandidates,
     mentionOpen,
     messagesContainer,
+    loadAgentKBBindings,
+    loadAgentSkillBindings,
     onClearMemory,
     onDeleteConversation: history.onDeleteConversation,
     onDocumentClick: shellActions.onDocumentClick,

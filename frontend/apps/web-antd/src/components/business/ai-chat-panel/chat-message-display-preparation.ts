@@ -41,6 +41,11 @@ const SOURCE_HEADER_LABELS = new Set([
   '资料来源',
   '链接',
 ]);
+const MODEL_FUNCTION_CALL_BLOCK_MARKERS = [
+  ['<｜DSML｜function_calls>', '</｜DSML｜function_calls>'],
+  ['<｜DSML｜tool_calls>', '</｜DSML｜tool_calls>'],
+] as const;
+const MODEL_FUNCTION_CALL_TAG_PREFIXES = ['<｜', '</｜'] as const;
 
 function normalizeOptionalString(value: unknown) {
   if (typeof value !== 'string') {
@@ -66,6 +71,54 @@ function stripTrailingColon(value: string): string {
     normalized = normalized.slice(0, -1).trimEnd();
   }
   return normalized;
+}
+
+function stripModelFunctionCallMarkup(content: string): string {
+  if (!content.includes('｜')) {
+    return content;
+  }
+
+  let cleaned = content;
+  for (const [blockStart, blockEnd] of MODEL_FUNCTION_CALL_BLOCK_MARKERS) {
+    while (true) {
+      const start = cleaned.indexOf(blockStart);
+      if (start < 0) {
+        break;
+      }
+
+      const end = cleaned.indexOf(blockEnd, start + blockStart.length);
+      if (end < 0) {
+        cleaned = cleaned.slice(0, start);
+        break;
+      }
+
+      cleaned = cleaned.slice(0, start) + cleaned.slice(end + blockEnd.length);
+    }
+  }
+
+  const result: string[] = [];
+  let index = 0;
+  while (index < cleaned.length) {
+    if (
+      cleaned.startsWith(MODEL_FUNCTION_CALL_TAG_PREFIXES[0], index) ||
+      cleaned.startsWith(MODEL_FUNCTION_CALL_TAG_PREFIXES[1], index)
+    ) {
+      const closeIndex = cleaned.indexOf('>', index);
+      if (closeIndex < 0) {
+        break;
+      }
+      index = closeIndex + 1;
+      continue;
+    }
+
+    const currentChar = cleaned[index];
+    if (currentChar !== undefined) {
+      result.push(currentChar);
+    }
+    index += 1;
+  }
+
+  return result.join('');
 }
 
 function findUrlStart(text: string): number {
@@ -435,7 +488,9 @@ export function prepareMessageContent(
   msg: ChatMessage,
 ): PreparedMessageContent {
   const flow = getTurnFlowForDisplay(msg);
-  const preparedBody = resolvePreparedBodyMarkdown(msg);
+  const preparedBody = stripModelFunctionCallMarkup(
+    resolvePreparedBodyMarkdown(msg),
+  );
   if (
     shouldSuppressUntrustedFailureBody(flow) ||
     shouldSuppressProviderFailureBody(flow, preparedBody)

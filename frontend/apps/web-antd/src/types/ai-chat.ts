@@ -25,6 +25,36 @@ export interface InputVariable {
   default?: string;
 }
 
+export interface AgentSkillBindingSummary {
+  enabled?: boolean;
+  id?: number;
+  name?: null | string;
+  package_id?: null | number;
+  package_name?: null | string;
+  skill_id?: number;
+  skill_key?: null | string;
+  skill_name?: null | string;
+  type?: null | string;
+}
+
+export interface AgentKnowledgeBaseBindingSummary {
+  enabled?: boolean;
+  id?: number;
+  kb_name?: null | string;
+  knowledge_base_id?: number;
+  name?: null | string;
+}
+
+export type AgentKnowledgeBaseBindingsByAgentId = Record<
+  number,
+  AgentKnowledgeBaseBindingSummary[]
+>;
+
+export type AgentSkillBindingsByAgentId = Record<
+  number,
+  AgentSkillBindingSummary[]
+>;
+
 /** KB row for @ mention panel (aligns with ChatKBBindingInfo) / @ 面板知识库行 */
 export interface MentionKnowledgeBaseBinding {
   knowledge_base_id: number;
@@ -49,6 +79,9 @@ export interface AgentItem {
   welcome_message?: null | string;
   suggested_questions?: null | string[];
   input_variables?: InputVariable[] | null;
+  skills?: AgentSkillBindingSummary[] | null;
+  knowledge_base_ids?: null | number[];
+  knowledge_bases?: AgentKnowledgeBaseBindingSummary[] | null;
 }
 
 export function getAgentInputVariables(
@@ -410,6 +443,12 @@ export interface ChatMessage {
   agent_avatar?: null | string;
   /** Agent description (resolved from agents list) / 智能体描述 */
   agent_description?: null | string;
+  /** Agent-bound skill summaries when included by message payload / 消息携带的智能体技能绑定摘要 */
+  agent_skills?: AgentSkillBindingSummary[] | null;
+  /** Agent-bound KB ids when included by message payload / 消息携带的智能体知识库 ID */
+  agent_knowledge_base_ids?: null | number[];
+  /** Agent-bound KB summaries when included by message payload / 消息携带的智能体知识库摘要 */
+  agent_knowledge_bases?: AgentKnowledgeBaseBindingSummary[] | null;
   /** LLM model name used by the agent / 智能体使用的模型名 */
   model_name?: null | string;
   /** Route source marker for UI badges (e.g. one-time @ mention) / 路由来源标记 */

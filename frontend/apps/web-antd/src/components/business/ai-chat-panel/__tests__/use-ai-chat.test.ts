@@ -19,6 +19,7 @@ import {
   getToolCallsForDisplay,
   getTurnFlowForDisplay,
 } from '../chat-message-turn-flow';
+import { createStreamSseHandler } from '../use-ai-chat-streaming-request-sse';
 import { shouldDisplayConversationInHistory, useAIChat } from '../use-ai-chat';
 import {
   applyStreamingToolResultToTurnFlow,
@@ -1013,6 +1014,57 @@ describe('useAIChat interrupted stream recovery', () => {
     expect(rawMessage.ragSources).toBeUndefined();
   });
 
+  it('ignores admin legacy semantic SSE events at the handler boundary for persisted assistant messages', () => {
+    const assistantMessage = buildAssistantMessage('', {
+      streaming: false,
+    }) as ChatMessage;
+    const scrollToBottom = vi.fn();
+    const lifecycle = {
+      didTerminalizeMessage: false,
+      getAssistantMessage: () => assistantMessage,
+      hasReceivedStreamPayload: false,
+    };
+
+    const handleSsePayload = createStreamSseHandler(
+      {
+        options: { apiPrefix: '/admin' },
+        scrollToBottom,
+      } as unknown as Parameters<typeof createStreamSseHandler>[0],
+      lifecycle as unknown as Parameters<typeof createStreamSseHandler>[1],
+    );
+
+    handleSsePayload(
+      JSON.stringify({
+        event: 'optimizing_tools',
+        selected: 1,
+        total: 9,
+      }),
+    );
+    handleSsePayload(
+      JSON.stringify({
+        delta: 'admin legacy thinking',
+        event: 'thinking',
+      }),
+    );
+    handleSsePayload(
+      JSON.stringify({
+        event: 'rag_sources',
+        sources: [
+          {
+            doc_id: 8,
+            doc_name: 'Admin Legacy KB',
+            score: 0.91,
+            snippet: 'admin legacy snippet',
+          },
+        ],
+      }),
+    );
+
+    expect(lifecycle.hasReceivedStreamPayload).toBe(true);
+    expect(assistantMessage.turnFlow).toBeUndefined();
+    expect(scrollToBottom).not.toHaveBeenCalled();
+  });
+
   it('suppresses legacy semantic duplicates when canonical turn stages exist', async () => {
     apiMocks.sendChatStreamApi.mockImplementation(
       async (
@@ -1442,6 +1494,117 @@ describe('useAIChat interrupted stream recovery', () => {
       name: 'native_web_search',
       status: 'success',
     });
+  });
+
+  it('hydrates canonical tool evidence from done turn_record.turn_flow when no tool_call stream event arrived', async () => {
+    apiMocks.getChatConversationMessagesApi.mockResolvedValue(
+      buildConversationDetail([]),
+    );
+    apiMocks.sendChatStreamApi.mockImplementation(
+      async (
+        _prefix: string,
+        _agentId: number,
+        _body: Record<string, unknown>,
+        options: {
+          onMessage: (chunk: string) => Promise<void>;
+        },
+      ) => {
+        await options.onMessage(
+          sseEvent({ event: 'conversation', conversation_id: 42 }),
+        );
+        await options.onMessage(
+          sseEvent({ event: 'message', delta: '北京今天晴，气温 26C。' }),
+        );
+        await options.onMessage(
+          sseEvent({
+            completion_reason: 'completed',
+            conversation_id: 42,
+            event: 'done',
+            selected_tool_names: ['get_weather'],
+            total_tokens: 24,
+            turn_record: {
+              turn_flow: {
+                completion_reason: 'completed',
+                evidence: [
+                  {
+                    display_name: '天气查询',
+                    id: 'ev_tool_tc_weather_1',
+                    kind: 'tool',
+                    output: '北京今天晴，气温 26C。',
+                    snippet: '已查询北京天气',
+                    status: 'success',
+                    tool_call_id: 'tc_weather_1',
+                    tool_name: 'get_weather',
+                  },
+                ],
+                final_stage_status: 'completed',
+                timeline: [
+                  {
+                    id: 'tool-execution',
+                    metrics: {
+                      completed_tool_calls: 1,
+                      total: 1,
+                    },
+                    status: 'completed',
+                    summary: '执行了 1 个工具调用',
+                    tool_call_ids: ['tc_weather_1'],
+                    type: 'tool_execution',
+                  },
+                  {
+                    id: 'answer-assembly',
+                    status: 'completed',
+                    summary: '已生成最终答复',
+                    type: 'answer_assembly',
+                  },
+                  {
+                    id: 'terminal',
+                    status: 'completed',
+                    summary: 'completed',
+                    type: 'completed',
+                  },
+                ],
+              },
+            },
+          }),
+        );
+      },
+    );
+
+    const chat = createChat();
+
+    await chat.loadAgents();
+    chat.inputMessage.value = '查一下今天北京的天气';
+
+    const sendPromise = chat.sendMessage({
+      routeSource: 'done-turn-record-turn-flow-test',
+    });
+    await vi.advanceTimersByTimeAsync(3200);
+    await sendPromise;
+    await flushPromises();
+
+    const assistantMessage = chat.chatMessages.value.find(
+      (msg) => msg.role === 'assistant',
+    );
+    expect(assistantMessage).toBeDefined();
+    if (!assistantMessage) {
+      throw new Error('assistant message missing');
+    }
+
+    expect(getToolCallsForDisplay(assistantMessage)).toEqual([
+      expect.objectContaining({
+        displayName: '天气查询',
+        id: 'tc_weather_1',
+        name: 'get_weather',
+        output: '北京今天晴，气温 26C。',
+        status: 'success',
+        summary: '已查询北京天气',
+      }),
+    ]);
+    expect(
+      getTurnFlowForDisplay(assistantMessage).timeline.some(
+        (stage) => stage.type === 'tool_execution',
+      ),
+    ).toBe(true);
   });
 
   it('restores persisted rich tool contract and interaction state from conversation history', async () => {

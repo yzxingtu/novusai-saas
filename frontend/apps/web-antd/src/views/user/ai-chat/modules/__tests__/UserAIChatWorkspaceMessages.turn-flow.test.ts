@@ -1,4 +1,8 @@
 // @vitest-environment happy-dom
+/* eslint-disable vue/one-component-per-file */
+// Test type: behavioral
+// Verifies: the dedicated user workspace preserves the shared transcript-first
+// turnFlow rendering contract instead of falling back to legacy thinking/tool fields.
 import { mount } from '@vue/test-utils';
 import { computed, defineComponent, nextTick, ref } from 'vue';
 
@@ -8,7 +12,6 @@ import UserAIChatWorkspaceMessages from '../UserAIChatWorkspaceMessages.vue';
 
 const workspaceContext = {
   askSuggested: vi.fn(),
-  isAgentSwitch: vi.fn(() => false),
   onCopyMessage: vi.fn(),
   openImagePreview: vi.fn(),
   page: {
@@ -141,6 +144,7 @@ vi.mock('#/components/business/ai-chat-panel/ChatMessageItem.vue', () => ({
   default: defineComponent({
     name: 'ChatMessageItemStub',
     props: {
+      compact: { type: Boolean, required: false },
       msg: { type: Object, required: true },
     },
     setup(props) {
@@ -152,12 +156,13 @@ vi.mock('#/components/business/ai-chat-panel/ChatMessageItem.vue', () => ({
         return Array.isArray(toolCalls) && toolCalls.length > 0;
       });
       return {
+        compactValue: computed(() => props.compact),
         hasThinking,
         hasToolCalls,
       };
     },
     template:
-      '<div data-testid="chat-message-item-stub" :data-has-thinking="String(hasThinking)" :data-has-tool-calls="String(hasToolCalls)" :data-stage-id="msg?.turnFlow?.timeline?.[0]?.id || \'\'" :data-stage-order="Array.isArray(msg?.turnFlow?.timeline) ? msg.turnFlow.timeline.map((stage) => stage?.type).join(\',\') : \'\'" :data-terminal-status="Array.isArray(msg?.turnFlow?.timeline) && msg.turnFlow.timeline.length > 0 ? msg.turnFlow.timeline[msg.turnFlow.timeline.length - 1]?.status : \'\'" :data-streaming="String(!!msg?.streaming)" />',
+      '<div data-testid="chat-message-item-stub" :data-compact="String(compactValue)" :data-has-thinking="String(hasThinking)" :data-has-tool-calls="String(hasToolCalls)" :data-stage-id="msg?.turnFlow?.timeline?.[0]?.id || \'\'" :data-stage-order="Array.isArray(msg?.turnFlow?.timeline) ? msg.turnFlow.timeline.map((stage) => stage?.type).join(\',\') : \'\'" :data-terminal-status="Array.isArray(msg?.turnFlow?.timeline) && msg.turnFlow.timeline.length > 0 ? msg.turnFlow.timeline[msg.turnFlow.timeline.length - 1]?.status : \'\'" :data-streaming="String(!!msg?.streaming)" />',
   }),
 }));
 
@@ -176,6 +181,7 @@ describe('userAIChatWorkspaceMessages turn-flow rendering', () => {
     });
 
     const messageItem = wrapper.get('[data-testid="chat-message-item-stub"]');
+    expect(messageItem.attributes('data-compact')).toBe('false');
     expect(messageItem.attributes('data-has-thinking')).toBe('false');
     expect(messageItem.attributes('data-has-tool-calls')).toBe('false');
     expect(messageItem.attributes('data-stage-id')).toBe('stage-thinking');

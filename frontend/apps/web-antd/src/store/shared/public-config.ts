@@ -199,6 +199,25 @@ interface LoadPlatformConfigOptions {
 let _platformConfigPromise: null | Promise<null | PlatformPublicConfig> = null;
 let _tenantConfigPromise: null | Promise<null | TenantPublicConfig> = null;
 let _detectDomainPromise: null | Promise<void> = null;
+const E2E_DOMAIN_TYPE_OVERRIDE_KEY = '__novusai_e2e_domain_type';
+
+function readE2EDomainTypeOverride(): 'platform' | 'tenant' | null {
+  if (!import.meta.env.DEV || typeof window === 'undefined') {
+    return null;
+  }
+  try {
+    const raw = window.sessionStorage
+      .getItem(E2E_DOMAIN_TYPE_OVERRIDE_KEY)
+      ?.trim()
+      .toLowerCase();
+    if (raw === 'platform' || raw === 'tenant') {
+      return raw;
+    }
+  } catch {
+    // Ignore storage access failures in non-browser/test contexts.
+  }
+  return null;
+}
 
 export const usePublicConfigStore = defineStore('publicConfig', {
   state: (): PublicConfigState => ({
@@ -489,6 +508,13 @@ export const usePublicConfigStore = defineStore('publicConfig', {
       if (this.isDomainDetected) return;
 
       const hostname = globalThis.location?.hostname ?? '';
+      const e2eDomainTypeOverride = readE2EDomainTypeOverride();
+
+      if (e2eDomainTypeOverride) {
+        this.isDomainTenantDomain = e2eDomainTypeOverride === 'tenant';
+        this.isDomainDetected = true;
+        return;
+      }
 
       // ── Layer 1: Env var fast match / 环境变量快速匹配 ──────────────
       const envDomains = (import.meta.env.VITE_PLATFORM_DOMAINS ?? '')

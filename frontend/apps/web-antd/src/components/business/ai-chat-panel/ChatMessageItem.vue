@@ -1,6 +1,9 @@
 <script lang="ts" setup>
 import type { PendingPageOpForDisplay } from './pending-page-op';
 import type {
+  AgentKnowledgeBaseBindingsByAgentId,
+  AgentKnowledgeBaseBindingSummary,
+  AgentSkillBindingsByAgentId,
   AgentItem,
   ChatMessage,
   RichTextAIApplyMode,
@@ -21,13 +24,15 @@ const props = withDefaults(
     compact?: boolean;
     countdownNow?: number;
     forceShowDiagnostics?: boolean;
+    agentKnowledgeBases?: AgentKnowledgeBaseBindingSummary[] | null;
+    agentKnowledgeBaseMap?: AgentKnowledgeBaseBindingsByAgentId | null;
+    agentSkillMap?: AgentSkillBindingsByAgentId | null;
     index: number;
     kernelState?: null | TurnFlowState;
     msg: ChatMessage;
     pendingOps?: PendingPageOpForDisplay[];
     richTextState?: null | RichTextDraftRuntimeState;
     selectedAgent?: AgentItem | null;
-    showAgentSwitch?: boolean;
   }>(),
   {
     apiPrefix: '',
@@ -35,9 +40,11 @@ const props = withDefaults(
     compact: false,
     countdownNow: undefined,
     forceShowDiagnostics: false,
+    agentKnowledgeBases: null,
+    agentKnowledgeBaseMap: null,
+    agentSkillMap: null,
     kernelState: null,
     selectedAgent: null,
-    showAgentSwitch: false,
     pendingOps: () => [],
     richTextState: null,
   },
