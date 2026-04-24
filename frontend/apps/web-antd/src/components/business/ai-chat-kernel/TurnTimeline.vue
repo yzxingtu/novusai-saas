@@ -60,20 +60,6 @@ const emit = defineEmits<{
 const timeline = computed(() => props.state.timeline);
 const isLiveMessage = computed(() => props.msg.streaming === true);
 const isProcessExpanded = ref(false);
-const liveProcessStatusLabel = computed(() =>
-  $t('common.globalAiChat.turnStageStatus.running'),
-);
-const processTerminalStage = computed(() => visibleTimeline.value.at(-1));
-const processStatusLabel = computed(() => {
-  if (isLiveMessage.value) {
-    return liveProcessStatusLabel.value;
-  }
-  const stage = processTerminalStage.value;
-  if (!stage) {
-    return undefined;
-  }
-  return getStageStatusLabel(stage);
-});
 const displayOptimizingTools = computed(() =>
   getOptimizingToolsForDisplay(props.msg),
 );
@@ -244,20 +230,6 @@ function shouldShowStageStatus(stage: TurnFlowStageForDisplay) {
     stage.status === 'error' ||
     stage.status === 'interrupted'
   );
-}
-
-function getProcessStatusClass() {
-  const stage = processTerminalStage.value;
-  if (isLiveMessage.value) {
-    return 'border-primary/16 bg-primary/[0.08] text-primary';
-  }
-  if (stage?.status === 'error') {
-    return 'border-red-500/16 bg-red-500/[0.10] text-red-500';
-  }
-  if (stage?.status === 'interrupted') {
-    return 'border-amber-500/16 bg-amber-500/[0.10] text-amber-700 dark:text-amber-300';
-  }
-  return 'border-emerald-500/16 bg-emerald-500/[0.10] text-emerald-700 dark:text-emerald-300';
 }
 
 function getThinkingDetailText(stage: TurnFlowStageForDisplay) {
@@ -545,23 +517,24 @@ watch(
           ? $t('common.globalAiChat.turnTimelineCollapse')
           : $t('common.globalAiChat.turnTimelineExpand')
       "
-      class="turn-process-toggle group flex w-full items-center gap-2 rounded-[12px] px-2.5 py-1.5 text-left"
+      class="turn-process-toggle group flex w-full items-center gap-2 rounded-[14px] px-1.5 py-1.5 text-left"
       @click="toggleProcessExpanded"
     >
       <span
-        class="turn-process-pill inline-flex shrink-0 items-center rounded-full px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-[0.1em]"
+        class="turn-process-pill inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-[0.1em]"
       >
+        <IconifyIcon icon="lucide:orbit" class="size-2.5" />
         {{ $t('common.globalAiChat.turnTimeline') }}
       </span>
 
       <div class="min-w-0 flex-1">
         <div class="flex min-w-0 flex-wrap items-center gap-1.5">
           <p
-            class="text-foreground/74 min-w-0 flex-1 truncate font-medium"
+            class="turn-process-copy text-foreground/74 min-w-0 flex-1 truncate font-medium"
             :class="
               compact
-                ? 'text-[10px] leading-[1.02rem]'
-                : 'text-[10.5px] leading-[1.08rem]'
+                ? 'text-[9.75px] leading-[1rem]'
+                : 'text-[10px] leading-[1.04rem]'
             "
           >
             {{
@@ -569,13 +542,6 @@ watch(
               $t('common.globalAiChat.turnStageSummary.answer_assembly')
             }}
           </p>
-          <span
-            v-if="processStatusLabel"
-            class="inline-flex items-center rounded-full border px-1.5 py-0.5 text-[9.5px] font-medium"
-            :class="getProcessStatusClass()"
-          >
-            {{ processStatusLabel }}
-          </span>
           <span
             class="turn-process-count inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px]"
           >
@@ -603,7 +569,7 @@ watch(
 
     <div
       data-testid="turn-process-body"
-      class="grid overflow-hidden transition-[grid-template-rows,opacity] duration-180 ease-out"
+      class="duration-180 grid overflow-hidden transition-[grid-template-rows,opacity] ease-out"
       :style="{
         gridTemplateRows: isProcessExpanded ? '1fr' : '0fr',
         opacity: isProcessExpanded ? 1 : 0,
@@ -643,7 +609,7 @@ watch(
               ></span>
             </div>
 
-            <div class="turn-stage-card min-w-0">
+            <div class="turn-stage-card min-w-0 rounded-[14px] border">
               <div class="flex min-w-0 flex-wrap items-center gap-1.5">
                 <span
                   class="text-foreground/72 truncate font-medium"
@@ -766,7 +732,7 @@ watch(
                               </div>
                               <p
                                 v-if="source.snippet"
-                                  class="mt-0.5 line-clamp-2 text-[9.75px] leading-5 text-muted-foreground/60"
+                                class="mt-0.5 line-clamp-2 text-[9.75px] leading-5 text-muted-foreground/60"
                               >
                                 {{ source.snippet }}
                               </p>
@@ -788,8 +754,8 @@ watch(
 
 <style scoped>
 .turn-process-toggle {
-  border: 1px solid hsl(var(--border) / 0.1);
-  background: hsl(var(--background) / 0.62);
+  border: 1px solid transparent;
+  background: transparent;
   transition:
     background-color 160ms ease,
     border-color 160ms ease,
@@ -797,21 +763,25 @@ watch(
 }
 
 .turn-process-toggle:hover {
-  border-color: hsl(var(--primary) / 0.1);
-  background: hsl(var(--primary) / 0.025);
-  box-shadow: 0 8px 16px -28px hsl(var(--foreground) / 0.09);
+  border-color: hsl(var(--border) / 0.08);
+  background: hsl(var(--muted) / 0.14);
+  box-shadow: 0 12px 24px -34px hsl(var(--foreground) / 0.08);
 }
 
 .turn-process-pill {
   color: hsl(var(--primary) / 0.76);
-  border: 1px solid hsl(var(--primary) / 0.1);
-  background: hsl(var(--primary) / 0.04);
+  border: 1px solid hsl(var(--primary) / 0.12);
+  background: hsl(var(--primary) / 0.06);
+}
+
+.turn-process-copy {
+  letter-spacing: -0.01em;
 }
 
 .turn-process-count {
   color: hsl(var(--muted-foreground) / 0.56);
-  border: 1px solid hsl(var(--border) / 0.12);
-  background: hsl(var(--muted) / 0.22);
+  border: 1px solid hsl(var(--border) / 0.08);
+  background: hsl(var(--muted) / 0.18);
 }
 
 .turn-process-track {
@@ -820,8 +790,8 @@ watch(
 
 .turn-process-chevron {
   color: hsl(var(--muted-foreground) / 0.46);
-  border: 1px solid hsl(var(--border) / 0.12);
-  background: hsl(var(--background) / 0.74);
+  border: 1px solid hsl(var(--border) / 0.1);
+  background: hsl(var(--background) / 0.88);
 }
 
 .turn-process-toggle:hover .turn-process-chevron {
@@ -831,12 +801,19 @@ watch(
 
 .turn-stage-detail-surface {
   border-color: hsl(var(--border) / 0.12);
-  background: hsl(var(--background) / 0.78);
-  box-shadow: 0 8px 14px -24px hsl(var(--foreground) / 0.1);
+  background: hsl(var(--background) / 0.92);
+  box-shadow: 0 6px 14px -28px hsl(var(--foreground) / 0.06);
 }
 
 .turn-stage-card {
-  padding: 0.2rem 0.1rem 0.05rem;
+  padding: 0.48rem 0.62rem 0.42rem;
+  border-color: hsl(var(--border) / 0.08);
+  background:
+    linear-gradient(
+      180deg,
+      hsl(var(--background) / 0.78) 0%,
+      hsl(var(--background) / 0.64) 100%
+    );
 }
 
 .turn-stage-inline-markdown {

@@ -59,28 +59,35 @@ describe('chatMessageContentBlock', () => {
       },
     });
 
-    expect(wrapper.get('[data-testid="collapsed-message-hint"]').text()).toBe(
-      'common.globalAiChat.collapsedMessageHint',
-    );
+    expect(
+      wrapper.get('[data-testid="assistant-content-collapse-toggle"]').text(),
+    ).toBe('common.globalAiChat.expandMore');
+    expect(
+      wrapper.get('[data-testid="assistant-content-body"]').classes(),
+    ).toContain('max-h-[176px]');
 
-    await wrapper.get('button').trigger('click');
+    await wrapper
+      .get('[data-testid="assistant-content-collapse-toggle"]')
+      .trigger('click');
 
     expect(
-      wrapper.find('[data-testid="collapsed-message-hint"]').exists(),
-    ).toBe(false);
-    expect(wrapper.get('button').text()).toBe(
-      'common.globalAiChat.collapseMessage',
-    );
+      wrapper.get('[data-testid="assistant-content-collapse-toggle"]').text(),
+    ).toBe('common.globalAiChat.collapseMessage');
+    expect(
+      wrapper.get('[data-testid="assistant-content-body"]').classes(),
+    ).not.toContain('max-h-[176px]');
 
     await wrapper.setProps({
       index: 0,
       msg: createLongMessage('history-msg-2'),
     });
 
-    expect(wrapper.get('[data-testid="collapsed-message-hint"]').text()).toBe(
-      'common.globalAiChat.collapsedMessageHint',
-    );
-    expect(wrapper.get('button').text()).toBe('common.globalAiChat.expandMore');
+    expect(
+      wrapper.get('[data-testid="assistant-content-collapse-toggle"]').text(),
+    ).toBe('common.globalAiChat.expandMore');
+    expect(
+      wrapper.get('[data-testid="assistant-content-body"]').classes(),
+    ).toContain('max-h-[176px]');
   });
 
   it('keeps expanded state during updates for the same message identity', async () => {
@@ -93,10 +100,9 @@ describe('chatMessageContentBlock', () => {
       },
     });
 
-    await wrapper.get('button').trigger('click');
-    expect(
-      wrapper.find('[data-testid="collapsed-message-hint"]').exists(),
-    ).toBe(false);
+    await wrapper
+      .get('[data-testid="assistant-content-collapse-toggle"]')
+      .trigger('click');
 
     await wrapper.setProps({
       msg: {
@@ -106,11 +112,11 @@ describe('chatMessageContentBlock', () => {
     });
 
     expect(
-      wrapper.find('[data-testid="collapsed-message-hint"]').exists(),
-    ).toBe(false);
-    expect(wrapper.get('button').text()).toBe(
-      'common.globalAiChat.collapseMessage',
-    );
+      wrapper.get('[data-testid="assistant-content-collapse-toggle"]').text(),
+    ).toBe('common.globalAiChat.collapseMessage');
+    expect(
+      wrapper.get('[data-testid="assistant-content-body"]').classes(),
+    ).not.toContain('max-h-[176px]');
   });
 
   it('resets expanded state when persisted message identity changes even if clientKey stays the same', async () => {
@@ -125,10 +131,9 @@ describe('chatMessageContentBlock', () => {
       },
     });
 
-    await wrapper.get('button').trigger('click');
-    expect(
-      wrapper.find('[data-testid="collapsed-message-hint"]').exists(),
-    ).toBe(false);
+    await wrapper
+      .get('[data-testid="assistant-content-collapse-toggle"]')
+      .trigger('click');
 
     await wrapper.setProps({
       msg: {
@@ -137,9 +142,11 @@ describe('chatMessageContentBlock', () => {
       } as ChatMessage & { message_id: string },
     });
 
-    expect(wrapper.get('[data-testid="collapsed-message-hint"]').text()).toBe(
-      'common.globalAiChat.collapsedMessageHint',
-    );
-    expect(wrapper.get('button').text()).toBe('common.globalAiChat.expandMore');
+    expect(
+      wrapper.get('[data-testid="assistant-content-collapse-toggle"]').text(),
+    ).toBe('common.globalAiChat.expandMore');
+    expect(
+      wrapper.get('[data-testid="assistant-content-body"]').classes(),
+    ).toContain('max-h-[176px]');
   });
 });

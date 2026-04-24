@@ -6,13 +6,15 @@ import { computed, onUnmounted, ref, watch } from 'vue';
 
 import { getToolCallsForDisplay } from './chat-message-turn-flow';
 import {
-  getSearchSummary,
-  getStructuredToolOutput,
-  getToolHeadlineSummary,
-  getToolTargetBadges,
   hasToolCardDetails,
-  isRuntimePageToolName,
 } from './tool-call-utils';
+import {
+  buildToolDisplayItems,
+  getToolDisplayState as resolveToolDisplayState,
+  getToolGroupSummary,
+  hasPendingOpArgs,
+  shouldToolExpandByDefault,
+} from './chat-message-tool-call-display-helpers';
 
 interface UseChatMessageToolCallsProps {
   index: number;
@@ -33,7 +35,7 @@ export function useChatMessageToolCalls(props: UseChatMessageToolCallsProps) {
     if (existing !== undefined) {
       return existing;
     }
-    return tc.status === 'error';
+    return shouldToolExpandByDefault(tc);
   }
 
   function toggleToolExpand(
@@ -61,10 +63,6 @@ export function useChatMessageToolCalls(props: UseChatMessageToolCallsProps) {
     };
   }
 
-  function hasPendingOpArgs(params?: Record<string, unknown>) {
-    return Boolean(params && Object.keys(params).length > 0);
-  }
-
   function isPendingOpExpanded(invokeId: string) {
     return Boolean(pendingOpExpandedMap.value[invokeId]);
   }
@@ -81,48 +79,17 @@ export function useChatMessageToolCalls(props: UseChatMessageToolCallsProps) {
   );
 
   const toolDisplayItems = computed<ToolDisplayItem[]>(() =>
-    toolCallsForDisplay.value.map((tc, idx) => {
-      const hasDetails = hasToolCardDetails(tc);
-      const structuredOutput = getStructuredToolOutput(tc);
-      const searchSummary = getSearchSummary(tc);
-      return {
-        index: idx,
-        tc,
-        hasDetails,
-        expanded: hasDetails ? isToolExpanded(tc, idx) : false,
-        headlineSummary: getToolHeadlineSummary(tc),
-        searchSummary,
-        structuredOutput,
-        targetBadges: getToolTargetBadges(tc),
-      };
+    buildToolDisplayItems(toolCallsForDisplay.value, {
+      resolveExpanded: (tc, idx) =>
+        hasToolCardDetails(tc) ? isToolExpanded(tc, idx) : false,
     }),
   );
 
-  /** Whether this tool call has a pending confirmation (inline) */
-  function hasPendingForToolCall(tc: {
-    id?: string;
-    name: string;
-    status: string;
-  }): boolean {
-    if (tc.status !== 'running') return false;
-    if (!isRuntimePageToolName(tc.name)) return false;
-    if (!props.pendingOps?.length) return false;
-    const matched = props.pendingOps.some(
-      (op) => op.toolCallId && op.toolCallId === tc.id && !op.resolved,
-    );
-    if (matched) return true;
-    return props.pendingOps.some((op) => !op.toolCallId && !op.resolved);
-  }
-
   /** Display sub-state for running tools: waiting_confirm vs executing */
-  function getToolDisplayState(tc: {
-    id?: string;
-    name: string;
-    status: string;
-  }): 'executing' | 'waiting_confirm' {
-    if (tc.status !== 'running') return 'executing';
-    if (hasPendingForToolCall(tc)) return 'waiting_confirm';
-    return 'executing';
+  function getToolDisplayState(
+    tc: Pick<ToolCallEvent, 'id' | 'name' | 'status'>,
+  ): 'executing' | 'waiting_confirm' {
+    return resolveToolDisplayState(tc, props.pendingOps);
   }
 
   /** Ticking now for "still running" countdown (8s+) */
@@ -155,15 +122,9 @@ export function useChatMessageToolCalls(props: UseChatMessageToolCallsProps) {
 
   const toolGroupExpandedMap = ref<Record<number, boolean>>({});
 
-  const toolGroupSummary = computed(() => {
-    const tools = toolCallsForDisplay.value;
-    if (!tools?.length) return null;
-    const total = tools.length;
-    const success = tools.filter((tc) => tc.status === 'success').length;
-    const error = tools.filter((tc) => tc.status === 'error').length;
-    const running = tools.filter((tc) => tc.status === 'running').length;
-    return { total, success, error, running };
-  });
+  const toolGroupSummary = computed(() =>
+    getToolGroupSummary(toolCallsForDisplay.value),
+  );
 
   function isToolGroupExpanded(idx: number): boolean {
     const explicit = toolGroupExpandedMap.value[idx];

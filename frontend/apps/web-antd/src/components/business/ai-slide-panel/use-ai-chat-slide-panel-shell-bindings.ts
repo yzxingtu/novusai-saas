@@ -1,6 +1,6 @@
 import type { UseAIChatSlidePanelShellBindingsOptions } from './use-ai-chat-slide-panel-shell-bindings-contract';
 
-import { computed } from 'vue';
+import { computed, watch } from 'vue';
 
 import { $t } from '#/locales';
 
@@ -16,7 +16,15 @@ import { usePanelWidth } from './use-panel-width';
 export function useAIChatSlidePanelShellBindings(
   options: UseAIChatSlidePanelShellBindingsOptions,
 ) {
-  const compactMessages = computed(() => options.aiPanelStore.mode !== 'full');
+  const compactMessages = computed(() => true);
+
+  watch(
+    () => options.streaming.value,
+    (streaming) => {
+      options.pageAICapability.pageAIDetailsExpanded.value = streaming;
+    },
+    { immediate: true },
+  );
 
   const headerBindings = usePanelShellHeaderBindings({
     activeConversationId: options.activeConversationId,

@@ -270,11 +270,14 @@ function toggleExpand() {
     :class="compact ? 'text-[13.75px]' : 'text-[14.75px]'"
   >
     <div
+      data-testid="assistant-content-body"
       class="assistant-content-body transition-[max-height] duration-200"
       :class="[
         compact ? 'leading-[1.76]' : 'leading-[1.84]',
         canCollapse && !expanded
-          ? 'relative max-h-[300px] overflow-hidden'
+          ? compact
+            ? 'relative max-h-[176px] overflow-hidden'
+            : 'relative max-h-[216px] overflow-hidden'
           : '',
       ]"
     >
@@ -309,7 +312,8 @@ function toggleExpand() {
     <button
       v-if="canCollapse && !msg.streaming"
       type="button"
-      class="hover:border-primary/18 mt-2.5 inline-flex items-center gap-1.5 rounded-full border border-border/20 bg-background/72 px-2.5 py-1 text-[10.5px] font-medium text-muted-foreground transition-colors hover:bg-primary/[0.04] hover:text-primary"
+      data-testid="assistant-content-collapse-toggle"
+      class="hover:border-primary/18 bg-background/72 mt-2 inline-flex items-center gap-1.5 rounded-full border border-border/20 px-2.5 py-1 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-primary/[0.04] hover:text-primary"
       @click="toggleExpand"
     >
       {{
@@ -318,13 +322,6 @@ function toggleExpand() {
           : $t('common.globalAiChat.expandMore')
       }}
     </button>
-    <p
-      v-if="canCollapse && !expanded && !msg.streaming"
-      data-testid="collapsed-message-hint"
-      class="text-muted-foreground/64 mt-1.5 text-[10.5px] leading-5"
-    >
-      {{ $t('common.globalAiChat.collapsedMessageHint') }}
-    </p>
     <div
       v-if="isTruncatedByLength"
       data-testid="truncation-warning"

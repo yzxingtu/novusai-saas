@@ -25,10 +25,10 @@ export function usePanelWidth(store: PanelWidthStoreLike): {
   const panelWidth = ref(DEFAULT_WIDTH);
   const dragging = ref(false);
 
-  const isFullMode = computed(() => store.mode === 'full');
+  const isFullMode = computed(() => false);
 
   const effectivePanelStyle = computed(() => ({
-    width: isFullMode.value ? '100vw' : `${panelWidth.value}px`,
+    width: `${panelWidth.value}px`,
   }));
 
   function loadSavedWidth() {

@@ -410,7 +410,7 @@ function getEvidenceIcon(kind: string) {
       v-if="canToggleDigest"
       type="button"
       data-testid="turn-digest-toggle"
-      class="turn-digest-toggle flex w-full min-w-0 items-center gap-2 rounded-[12px] px-2 py-1.5 text-left"
+      class="turn-digest-toggle flex w-full min-w-0 items-center gap-2 rounded-[14px] px-1.5 py-1.5 text-left"
       :aria-expanded="digestExpanded"
       @click="toggleDigestExpanded"
     >
@@ -470,7 +470,7 @@ function getEvidenceIcon(kind: string) {
       <div
         v-if="showDigestBody"
         data-testid="turn-digest-body"
-        class="turn-digest-body min-w-0 space-y-1"
+        class="turn-digest-body min-w-0 space-y-1.5"
       >
         <p
           v-if="displayAnswerSummary || fallbackAnswerSummary"
@@ -487,11 +487,13 @@ function getEvidenceIcon(kind: string) {
         <div v-else-if="displayAnswerSections.length > 0" class="space-y-1">
           <div
             v-for="section in displayAnswerSections.slice(0, 2)"
-            :key="section.id || section.title || section.body || section.content"
+            :key="
+              section.id || section.title || section.body || section.content
+            "
           >
             <p
               v-if="section.title"
-              class="text-[9.5px] font-medium text-foreground/56"
+              class="text-foreground/56 text-[9.5px] font-medium"
             >
               {{ section.title }}
             </p>
@@ -545,8 +547,8 @@ function getEvidenceIcon(kind: string) {
 
 <style scoped>
 .turn-digest-toggle {
-  border: 1px solid hsl(var(--border) / 0.08);
-  background: hsl(var(--background) / 0.58);
+  border: 1px solid transparent;
+  background: transparent;
   transition:
     background-color 160ms ease,
     border-color 160ms ease,
@@ -554,14 +556,14 @@ function getEvidenceIcon(kind: string) {
 }
 
 .turn-digest-toggle:hover {
-  border-color: hsl(var(--primary) / 0.08);
-  background: hsl(var(--muted) / 0.06);
+  border-color: hsl(var(--border) / 0.08);
+  background: hsl(var(--muted) / 0.14);
 }
 
 .digest-label {
   color: hsl(var(--muted-foreground) / 0.58);
-  border: 1px solid hsl(var(--border) / 0.12);
-  background: hsl(var(--muted) / 0.08);
+  border: 1px solid hsl(var(--primary) / 0.12);
+  background: hsl(var(--primary) / 0.05);
 }
 
 .digest-live-state {
@@ -571,14 +573,14 @@ function getEvidenceIcon(kind: string) {
 
 .digest-evidence-count {
   color: hsl(var(--muted-foreground) / 0.54);
-  border: 1px solid hsl(var(--border) / 0.12);
-  background: hsl(var(--background) / 0.68);
+  border: 1px solid hsl(var(--border) / 0.08);
+  background: hsl(var(--muted) / 0.18);
 }
 
 .digest-chevron {
   color: hsl(var(--muted-foreground) / 0.46);
-  border: 1px solid hsl(var(--border) / 0.12);
-  background: hsl(var(--background) / 0.68);
+  border: 1px solid hsl(var(--border) / 0.1);
+  background: hsl(var(--background) / 0.88);
 }
 
 .turn-digest-toggle:hover .digest-chevron {
@@ -588,6 +590,7 @@ function getEvidenceIcon(kind: string) {
 
 .turn-digest-body {
   margin-top: 0.3rem;
+  padding-left: 0.15rem;
 }
 
 .turn-digest-body-enter-active,
@@ -617,22 +620,22 @@ function getEvidenceIcon(kind: string) {
 }
 
 .digest-summary {
-  color: hsl(var(--foreground) / 0.84);
+  color: hsl(var(--foreground) / 0.82);
 }
 
 .digest-section-copy {
-  color: hsl(var(--muted-foreground) / 0.66);
+  color: hsl(var(--muted-foreground) / 0.64);
 }
 
 .digest-evidence-chip {
-  border-color: hsl(var(--border) / 0.14);
+  border-color: hsl(var(--border) / 0.12);
   color: hsl(var(--foreground) / 0.68);
-  background: hsl(var(--background) / 0.72);
+  background: hsl(var(--background) / 0.86);
 }
 
 .digest-evidence-more {
-  border-color: hsl(var(--border) / 0.24);
+  border-color: hsl(var(--border) / 0.16);
   color: hsl(var(--muted-foreground) / 0.72);
-  background: hsl(var(--background) / 0.72);
+  background: hsl(var(--background) / 0.9);
 }
 </style>

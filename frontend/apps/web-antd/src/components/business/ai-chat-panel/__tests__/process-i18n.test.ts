@@ -58,7 +58,7 @@ describe('process i18n helpers', () => {
     );
 
     expect(state.selectedEvidence[0]?.label).toBe(
-      'common.globalAiChat.turnEvidenceFallback:index=1',
+      'common.globalAiChat.referenceLinkFallback',
     );
   });
 

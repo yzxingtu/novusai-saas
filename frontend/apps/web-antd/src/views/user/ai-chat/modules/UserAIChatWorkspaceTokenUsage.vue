@@ -16,9 +16,9 @@ const { totalTokensUsed, streaming, chatMessages } = chat;
 <template>
   <div
     v-if="totalTokensUsed > 0 && !streaming"
-    class="flex items-center justify-center gap-1.5 border-t border-border/50 px-4 py-1 text-[11px] text-muted-foreground"
+    class="flex items-center justify-center gap-1.5 border-t border-border/16 px-3 py-0.5 text-[10px] text-muted-foreground/66"
   >
-    <IconifyIcon icon="lucide:activity" class="size-3" />
+    <IconifyIcon icon="lucide:activity" class="size-2.5 text-primary/60" />
     <span>
       {{ chatMessages.length }}
       {{ $t('common.globalAiChat.messages') }} ·
@@ -27,8 +27,11 @@ const { totalTokensUsed, streaming, chatMessages } = chat;
     </span>
     <span class="text-border">|</span>
     <Dropdown :trigger="['click']" placement="bottomRight">
-      <button class="hover:text-foreground" type="button">
-        <IconifyIcon icon="lucide:download" class="size-3" />
+      <button
+        class="inline-flex size-5 items-center justify-center rounded-full transition-colors hover:bg-muted hover:text-foreground"
+        type="button"
+      >
+        <IconifyIcon icon="lucide:download" class="size-2.5" />
       </button>
       <template #overlay>
         <Menu :items="exportMenuItems" />

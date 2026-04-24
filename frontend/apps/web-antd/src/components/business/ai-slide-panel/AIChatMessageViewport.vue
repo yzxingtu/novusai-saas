@@ -171,18 +171,18 @@ const messageRenderEntries = computed(() =>
 
 const contentShellClass = computed(() =>
   props.compact
-    ? 'mx-auto min-h-full w-full max-w-[48rem] space-y-3'
-    : 'mx-auto min-h-full w-full max-w-[46rem] space-y-4',
+    ? 'mx-auto flex min-h-full w-full max-w-[46rem] flex-col gap-3'
+    : 'mx-auto flex min-h-full w-full max-w-[46rem] flex-col gap-4',
 );
 
 const transcriptRailClass = computed(() =>
   props.compact
-    ? 'mx-auto w-full max-w-[48rem] space-y-3'
-    : 'mx-auto w-full max-w-[46rem] space-y-4',
+    ? 'mx-auto w-full max-w-[46rem] space-y-2.5'
+    : 'mx-auto w-full max-w-[46rem] space-y-3.5',
 );
 
 const messageListClass = computed(() =>
-  props.compact ? 'space-y-3' : 'space-y-4',
+  props.compact ? 'space-y-2.5' : 'space-y-3.5',
 );
 
 const visibleAssistantAgentIds = computed(() => {
@@ -267,7 +267,11 @@ watch(
   <div
     :ref="(element) => registerContainer?.(element as HTMLDivElement | null)"
     class="transcript-scroll flex-1 overflow-y-auto"
-    :class="compact ? 'px-3 py-3.5' : 'px-5 py-4 sm:px-6 lg:px-8'"
+    :class="
+      compact
+        ? 'px-2.5 py-2.5 sm:px-3 sm:py-3'
+        : 'px-4 py-3.5 sm:px-5 sm:py-4 lg:px-6 lg:py-5'
+    "
     @scroll="emit('scroll')"
   >
     <div :class="contentShellClass">
@@ -276,7 +280,7 @@ watch(
         class="flex h-full items-center justify-center"
       >
         <div
-          class="ai-chat-empty-card w-full max-w-[25rem] rounded-[24px] border px-5 py-5 text-center"
+          class="ai-chat-empty-card w-full max-w-[24rem] rounded-[24px] border px-4 py-4 text-center"
         >
           <div
             class="ai-chat-empty-orb mx-auto mb-2.5 flex size-10 items-center justify-center rounded-[16px] text-primary ring-1"
@@ -482,7 +486,7 @@ watch(
         <Transition name="fade">
           <div
             v-if="routing"
-            class="routing-card border-border/22 relative overflow-hidden rounded-[16px] border px-3 py-2 backdrop-blur-sm"
+            class="routing-card border-border/20 relative overflow-hidden rounded-[16px] border px-3 py-2 backdrop-blur-sm"
           >
             <div class="relative z-[1] flex items-center gap-2">
               <div class="flex size-5.5 items-center justify-center rounded-[14px] bg-primary/10">

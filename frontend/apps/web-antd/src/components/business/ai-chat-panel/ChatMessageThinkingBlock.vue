@@ -217,7 +217,7 @@ onUnmounted(clearAllThinkingAutoCollapseTimers);
       :aria-expanded="isThinkingExpanded(index)"
       data-testid="thinking-toggle"
       type="button"
-      class="thinking-chip group flex max-w-full cursor-pointer items-start gap-2.5 rounded-[14px] border text-left transition-all duration-200"
+      class="thinking-chip group flex max-w-full cursor-pointer items-start gap-2.5 rounded-[16px] border text-left transition-all duration-200"
       :class="
         compact
           ? 'px-2.5 py-1.5 hover:bg-background/78'
@@ -319,25 +319,30 @@ onUnmounted(clearAllThinkingAutoCollapseTimers);
 <style scoped>
 .thinking-chip {
   border-color: hsl(var(--border) / 0.12);
-  background: hsl(var(--background) / 0.7);
+  background:
+    linear-gradient(
+      180deg,
+      hsl(var(--background) / 0.82) 0%,
+      hsl(var(--muted) / 0.12) 100%
+    );
   box-shadow:
-    0 10px 18px -28px hsl(var(--foreground) / 0.14),
+    0 14px 26px -34px hsl(var(--foreground) / 0.14),
     0 1px 0 hsl(var(--background) / 0.7) inset;
 }
 
 .thinking-sheet-card {
   background: linear-gradient(
     180deg,
-    hsl(var(--background) / 0.84),
-    hsl(var(--muted) / 0.04)
+    hsl(var(--background) / 0.92),
+    hsl(var(--muted) / 0.08)
   );
-  box-shadow: 0 10px 20px -32px hsl(var(--foreground) / 0.12);
+  box-shadow: 0 14px 28px -36px hsl(var(--foreground) / 0.12);
 }
 
 .thinking-inline-body {
   min-width: 0;
   position: relative;
-  box-shadow: 0 10px 18px -30px hsl(var(--foreground) / 0.1);
+  box-shadow: 0 12px 22px -34px hsl(var(--foreground) / 0.1);
 }
 
 .thinking-inline-body::before {

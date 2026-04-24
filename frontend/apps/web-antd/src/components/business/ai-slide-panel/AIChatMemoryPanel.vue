@@ -107,7 +107,7 @@ const isEmpty = computed(
         <div
           v-for="section in sections"
           :key="section.key"
-          class="ai-memory-section rounded-2xl px-3 py-2.5"
+          class="ai-memory-section rounded-[16px] px-3 py-2.5"
         >
           <div
             class="mb-1 flex items-center gap-1 text-[11px] font-medium text-muted-foreground"
@@ -134,16 +134,11 @@ const isEmpty = computed(
 
 <style scoped>
 .ai-memory-panel {
-  background: linear-gradient(
-    180deg,
-    hsl(var(--background) / 0.98) 0%,
-    hsl(var(--muted) / 0.18) 100%
-  );
+  background: hsl(var(--background));
 }
 
 .ai-memory-section {
-  border: 1px solid hsl(var(--border) / 0.28);
-  background: hsl(var(--background) / 0.94);
-  box-shadow: 0 12px 22px -24px hsl(var(--foreground) / 0.08);
+  border: 1px solid hsl(var(--border) / 0.18);
+  background: hsl(var(--muted) / 0.08);
 }
 </style>

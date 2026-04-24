@@ -239,16 +239,14 @@ watch(
 <template>
   <div
     ref="panelBodyRoot"
-    class="relative flex min-h-0 flex-1 flex-col overflow-hidden"
+    class="ai-chat-panel-body relative flex min-h-0 flex-1 flex-col overflow-hidden"
   >
     <div
       data-testid="transcript-shell"
-      class="flex min-h-0 flex-1 flex-col"
+      class="relative z-0 flex min-h-0 flex-1 flex-col"
       :class="[
         compactMessages ? '' : 'mx-auto w-full max-w-5xl',
-        showHistory
-          ? 'saturate-75 pointer-events-none select-none opacity-45 blur-[1px]'
-          : '',
+        showHistory ? 'pointer-events-none select-none opacity-0' : '',
       ]"
       :aria-hidden="showHistory ? 'true' : 'false'"
       :inert="showHistory || undefined"
@@ -352,14 +350,11 @@ watch(
       <div
         v-if="showHistory"
         data-testid="history-overlay"
-        class="pointer-events-none absolute inset-0 z-10 px-3 py-3"
+        class="pointer-events-none absolute inset-0 z-10 bg-background px-2.5 py-2.5 sm:px-3 sm:py-3"
       >
         <div
-          class="absolute inset-0 bg-background/78"
-        ></div>
-        <div
           data-testid="history-overlay-pane"
-          class="ai-chat-history-overlay-pane pointer-events-auto relative flex h-full min-h-0 flex-col overflow-hidden rounded-[1.5rem] border"
+          class="ai-chat-history-overlay-pane pointer-events-auto relative flex h-full min-h-0 flex-col overflow-hidden rounded-[1.35rem] border"
           :class="compactMessages ? '' : 'mx-auto w-full max-w-5xl'"
         >
           <AIChatHistoryPane
@@ -388,11 +383,21 @@ watch(
 </template>
 
 <style scoped>
+.ai-chat-panel-body {
+  background:
+    radial-gradient(circle at top, hsl(var(--primary) / 0.03), transparent 24%),
+    linear-gradient(
+      180deg,
+      hsl(var(--background) / 0.985) 0%,
+      hsl(var(--background)) 100%
+    );
+}
+
 .ai-chat-history-overlay-pane {
-  border-color: hsl(var(--border) / 0.5);
-  background: hsl(var(--background));
+  border-color: hsl(var(--border) / 0.48);
+  background: hsl(var(--background) / 0.995);
   box-shadow:
-    0 24px 40px -28px hsl(var(--foreground) / 0.16),
+    0 20px 40px -36px hsl(var(--foreground) / 0.18),
     0 0 0 1px hsl(var(--foreground) / 0.04);
 }
 

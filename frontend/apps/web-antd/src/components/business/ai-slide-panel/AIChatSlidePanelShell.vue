@@ -61,8 +61,8 @@ const {
         v-if="aiPanelStore.visible"
         :ref="setPanelRef"
         data-ai-panel
-        class="fixed right-0 top-0 z-[2001] flex h-full flex-col bg-card shadow-2xl transition-[width] duration-200"
-        :class="isFullMode ? '' : 'border-l border-border/50'"
+        class="ai-chat-slide-panel-shell fixed right-0 top-0 z-[2001] flex h-full flex-col overflow-hidden transition-[width] duration-200"
+        :class="isFullMode ? 'full-mode-shell' : 'panel-mode-shell'"
         :style="effectivePanelStyle"
       >
         <!-- Drag handle (left edge, hidden in fullscreen) -->
@@ -79,9 +79,12 @@ const {
         />
 
         <!-- Header -->
-        <AIChatPanelHeader v-bind="headerProps" v-on="headerListeners" />
-
-        <AIChatPanelToolbarRow v-bind="toolbarProps" v-on="toolbarListeners" />
+        <AIChatPanelHeader v-bind="headerProps" v-on="headerListeners">
+          <AIChatPanelToolbarRow
+            v-bind="toolbarProps"
+            v-on="toolbarListeners"
+          />
+        </AIChatPanelHeader>
 
         <!-- Streaming progress bar (T5) -->
         <div

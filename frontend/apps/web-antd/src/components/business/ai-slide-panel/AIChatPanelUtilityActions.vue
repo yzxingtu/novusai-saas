@@ -73,7 +73,7 @@ const effectiveHeaderMoreMenuItems = computed(
     <span
       v-if="forceRerouteNextTurn && !compact"
       data-testid="ai-panel-header-status"
-      class="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-1 text-[10px] font-medium text-amber-700"
+      class="inline-flex items-center gap-1 rounded-full border border-amber-500/14 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-700"
     >
       <IconifyIcon icon="lucide:compass" class="size-2.5" />
       {{ $t('common.globalAiChat.rerouteArmed') }}
@@ -82,11 +82,7 @@ const effectiveHeaderMoreMenuItems = computed(
     <div
       data-testid="ai-panel-header-actions"
       class="flex shrink-0 items-center"
-      :class="
-        compact
-          ? 'gap-1'
-          : 'flex-wrap gap-1.5'
-      "
+      :class="compact ? 'gap-1' : 'flex-wrap gap-1.5'"
     >
       <Tooltip
         v-if="showHeaderVarsButton"
@@ -97,8 +93,8 @@ const effectiveHeaderMoreMenuItems = computed(
           class="hover:bg-primary/8 relative flex items-center gap-1.5 font-medium text-primary transition-colors"
           :class="
             compact
-              ? 'h-7 rounded-lg px-1.5 text-xs'
-              : 'ai-panel-utility-chip h-8 rounded-full border px-3 text-[11px]'
+              ? 'h-[26px] rounded-[12px] px-1.5 text-[11px]'
+              : 'ai-panel-utility-chip h-8 rounded-full border px-2.5 text-[10.5px]'
           "
           :aria-label="$t('user.aiChat.varsModal.editVars')"
           @click="emit('editVars')"
@@ -123,11 +119,11 @@ const effectiveHeaderMoreMenuItems = computed(
           :class="
             compact
               ? forceRerouteNextTurn
-                ? 'size-7 rounded-lg bg-amber-500/12 text-amber-700'
-                : 'size-7 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground'
+                ? 'size-[26px] rounded-[12px] bg-amber-500/12 text-amber-700'
+                : 'size-[26px] rounded-[12px] text-muted-foreground hover:bg-muted hover:text-foreground'
               : forceRerouteNextTurn
-                ? 'ai-panel-utility-chip h-8 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 text-[11px] text-amber-700'
-                : 'ai-panel-utility-chip h-8 rounded-full border px-3 text-[11px] text-muted-foreground'
+                ? 'ai-panel-utility-chip h-8 rounded-full border border-amber-500/24 bg-amber-500/10 px-2.5 text-[10.5px] text-amber-700'
+                : 'ai-panel-utility-chip h-8 rounded-full border px-2.5 text-[10.5px] text-muted-foreground'
           "
           :aria-label="$t('common.globalAiChat.rerouteThisTurn')"
           :disabled="!canForceReroute"
@@ -145,8 +141,8 @@ const effectiveHeaderMoreMenuItems = computed(
           class="flex items-center justify-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           :class="
             compact
-              ? 'size-7 rounded-lg'
-              : 'ai-panel-utility-chip h-8 rounded-full border px-3 text-[11px] font-medium'
+              ? 'size-[26px] rounded-[12px]'
+              : 'ai-panel-utility-chip h-8 rounded-full border px-2.5 text-[10.5px] font-medium'
           "
           :aria-label="$t('common.aiPanel.newChat')"
           @click="emit('newChat')"
@@ -164,11 +160,11 @@ const effectiveHeaderMoreMenuItems = computed(
           :class="
             compact
               ? showHistory
-                ? 'size-7 rounded-lg bg-primary/10 text-primary'
-                : 'size-7 rounded-lg text-muted-foreground hover:text-foreground'
+                ? 'size-[26px] rounded-[12px] bg-primary/10 text-primary'
+                : 'size-[26px] rounded-[12px] text-muted-foreground hover:text-foreground'
               : showHistory
-                ? 'ai-panel-utility-chip h-8 rounded-full border border-primary/20 bg-primary/10 px-3 text-[11px] font-medium text-primary'
-                : 'ai-panel-utility-chip h-8 rounded-full border px-3 text-[11px] font-medium text-muted-foreground'
+                ? 'ai-panel-utility-chip h-8 rounded-full border border-primary/20 bg-primary/10 px-2.5 text-[10.5px] font-medium text-primary'
+                : 'ai-panel-utility-chip h-8 rounded-full border px-2.5 text-[10.5px] font-medium text-muted-foreground'
           "
           :aria-label="$t('common.aiPanel.history')"
           @click="emit('toggleHistory')"
@@ -190,15 +186,15 @@ const effectiveHeaderMoreMenuItems = computed(
           :class="
             compact
               ? showMemoryPanel
-                ? 'size-7 rounded-lg bg-primary/10 text-primary'
+                ? 'size-[26px] rounded-[12px] bg-primary/10 text-primary'
                 : headerMemoryHasAttention
-                  ? 'size-7 rounded-lg text-primary'
-                  : 'size-7 rounded-lg text-muted-foreground hover:text-foreground'
+                  ? 'size-[26px] rounded-[12px] text-primary'
+                  : 'size-[26px] rounded-[12px] text-muted-foreground hover:text-foreground'
               : showMemoryPanel
-                ? 'ai-panel-utility-chip h-8 rounded-full border border-primary/20 bg-primary/10 px-3 text-[11px] font-medium text-primary'
+                ? 'ai-panel-utility-chip h-8 rounded-full border border-primary/20 bg-primary/10 px-2.5 text-[10.5px] font-medium text-primary'
                 : headerMemoryHasAttention
-                  ? 'ai-panel-utility-chip h-8 rounded-full border border-primary/20 bg-primary/[0.06] px-3 text-[11px] font-medium text-primary'
-                  : 'ai-panel-utility-chip h-8 rounded-full border px-3 text-[11px] font-medium text-muted-foreground'
+                  ? 'ai-panel-utility-chip h-8 rounded-full border border-primary/20 bg-primary/[0.06] px-2.5 text-[10.5px] font-medium text-primary'
+                  : 'ai-panel-utility-chip h-8 rounded-full border px-2.5 text-[10.5px] font-medium text-muted-foreground'
           "
           :aria-label="$t('common.aiPanel.memory')"
           @click="emit('toggleMemory')"
@@ -225,8 +221,8 @@ const effectiveHeaderMoreMenuItems = computed(
             class="relative flex items-center justify-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             :class="
               compact
-                ? 'size-7 rounded-lg'
-                : 'ai-panel-utility-chip h-8 rounded-full border px-3 text-[11px] font-medium'
+                ? 'size-[26px] rounded-[12px]'
+                : 'ai-panel-utility-chip h-8 rounded-full border px-2.5 text-[10.5px] font-medium'
             "
             :aria-label="$t('common.aiPanel.moreActions')"
           >
@@ -250,8 +246,12 @@ const effectiveHeaderMoreMenuItems = computed(
 
 <style scoped>
 .ai-panel-utility-chip {
-  border-color: hsl(var(--border) / 0.2);
-  background: hsl(var(--background) / 0.9);
-  box-shadow: 0 8px 16px -28px hsl(var(--foreground) / 0.1);
+  border-color: hsl(var(--border) / 0.18);
+  background: linear-gradient(
+    180deg,
+    hsl(var(--background) / 0.94) 0%,
+    hsl(var(--background) / 0.86) 100%
+  );
+  box-shadow: 0 12px 22px -30px hsl(var(--foreground) / 0.14);
 }
 </style>

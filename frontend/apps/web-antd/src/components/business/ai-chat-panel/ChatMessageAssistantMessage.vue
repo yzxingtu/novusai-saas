@@ -114,7 +114,7 @@ const hasActionButtons = computed(
 const showFooter = computed(
   () => Boolean(props.msg.content) && props.msg.streaming !== true,
 );
-const showTopSection = computed(
+const showKernelSection = computed(
   () => hasKernelSections.value || showTurnDiagnostics.value,
 );
 const hasRichTextDraftCard = computed(
@@ -127,6 +127,7 @@ const hasRichTextDraftCard = computed(
 const hasPostContentSections = computed(
   () =>
     props.msg.requestFailedRetry === true ||
+    showKernelSection.value ||
     hasGeneratedImages.value ||
     hasRichTextDraftCard.value ||
     hasActionButtons.value ||
@@ -282,35 +283,6 @@ function getRichTextDraftCopyContent(mode: RichTextAIApplyMode) {
       <div class="assistant-message-column min-w-0 flex-1">
         <div class="assistant-message-surface">
           <div
-            v-if="showTopSection"
-            class="assistant-message-top border-b border-border/20"
-            :class="compact ? 'px-2.5 py-[7px]' : 'px-3 py-[8px]'"
-          >
-            <ChatMessageKernel
-              v-if="hasKernelSections || showTurnDiagnostics"
-              :compact="compact"
-              :countdown-now="countdownNow"
-              :msg="msg"
-              :pending-ops="pendingOps"
-              :state="resolvedKernelState"
-              @copy="(content) => emit('copy', content)"
-              @confirm="emit('confirm', props.index)"
-              @reject="emit('reject', props.index)"
-              @consent-confirm="emit('consentConfirm', props.index)"
-              @consent-reject="emit('consentReject', props.index)"
-            >
-              <template v-if="showTurnDiagnostics" #diagnostics>
-                <ChatMessageDiagnostics
-                  :api-prefix="apiPrefix"
-                  :compact="compact"
-                  :force-show="forceShowDiagnostics"
-                  :msg="msg"
-                />
-              </template>
-            </ChatMessageKernel>
-          </div>
-
-          <div
             class="assistant-message-body"
             :class="compact ? 'px-3 py-3' : 'px-4 py-[15px]'"
           >
@@ -325,23 +297,25 @@ function getRichTextDraftCopyContent(mode: RichTextAIApplyMode) {
 
             <div
               v-if="hasPostContentSections"
-              class="assistant-message-support space-y-1.5 border-t border-border/24"
+              class="assistant-message-support border-border/24 space-y-1.5 border-t"
               :class="compact ? 'mt-2.5 pt-2.5' : 'mt-2.5 pt-2.5'"
             >
               <div
                 v-if="msg.requestFailedRetry"
-                class="assistant-inline-panel flex items-center justify-between gap-2 rounded-[16px] border px-2.5 py-2"
-                :class="compact ? 'text-[9.5px]' : 'text-[10px]'"
+                class="assistant-inline-panel flex items-center gap-2 rounded-[16px] border px-2.5 py-2"
+                :class="msg.error ? 'justify-end' : 'justify-between'"
               >
                 <span
+                  v-if="!msg.error"
                   class="text-muted-foreground/78 inline-flex min-w-0 items-center gap-1.5"
+                  :class="compact ? 'text-[9.5px]' : 'text-[10px]'"
                 >
                   <IconifyIcon
                     icon="lucide:refresh-ccw"
                     class="text-primary/72 size-3 shrink-0"
                   />
                   <span class="truncate">{{
-                    msg.error?.message || $t('shared.common.connectionLost')
+                    $t('shared.common.connectionLost')
                   }}</span>
                 </span>
                 <Button
@@ -353,6 +327,29 @@ function getRichTextDraftCopyContent(mode: RichTextAIApplyMode) {
                   {{ $t('common.globalAiChat.retry') }}
                 </Button>
               </div>
+
+              <ChatMessageKernel
+                v-if="showKernelSection"
+                :compact="compact"
+                :countdown-now="countdownNow"
+                :msg="msg"
+                :pending-ops="pendingOps"
+                :state="resolvedKernelState"
+                @copy="(content) => emit('copy', content)"
+                @confirm="emit('confirm', props.index)"
+                @reject="emit('reject', props.index)"
+                @consent-confirm="emit('consentConfirm', props.index)"
+                @consent-reject="emit('consentReject', props.index)"
+              >
+                <template v-if="showTurnDiagnostics" #diagnostics>
+                  <ChatMessageDiagnostics
+                    :api-prefix="apiPrefix"
+                    :compact="compact"
+                    :force-show="forceShowDiagnostics"
+                    :msg="msg"
+                  />
+                </template>
+              </ChatMessageKernel>
 
               <div
                 v-if="hasGeneratedImages"
@@ -438,8 +435,8 @@ function getRichTextDraftCopyContent(mode: RichTextAIApplyMode) {
                     btn.style === 'primary'
                       ? 'primary'
                       : btn.style === 'danger'
-                      ? 'default'
-                      : 'default'
+                        ? 'default'
+                        : 'default'
                   "
                   :danger="btn.style === 'danger'"
                   :disabled="!!msg.actionButtonsUsed"
@@ -491,12 +488,33 @@ function getRichTextDraftCopyContent(mode: RichTextAIApplyMode) {
   overflow: hidden;
   border: 1px solid hsl(var(--border) / 0.12);
   border-radius: 18px;
-  background: hsl(var(--card) / 0.985);
-  box-shadow: 0 18px 30px -36px hsl(var(--foreground) / 0.11);
+  background:
+    radial-gradient(
+      circle at top left,
+      hsl(var(--primary) / 0.08),
+      transparent 26%
+    ),
+    linear-gradient(
+      180deg,
+      hsl(var(--background) / 0.995) 0%,
+      hsl(var(--background) / 0.982) 100%
+    );
+  box-shadow: 0 24px 40px -44px hsl(var(--foreground) / 0.16);
 }
 
-.assistant-message-top {
-  background: hsl(var(--muted) / 0.12);
+.assistant-message-surface::before {
+  position: absolute;
+  top: 0;
+  left: 1rem;
+  right: 1rem;
+  height: 1px;
+  content: '';
+  background: linear-gradient(
+    90deg,
+    transparent,
+    hsl(var(--primary) / 0.58),
+    transparent
+  );
 }
 
 .assistant-message-body {
@@ -510,8 +528,8 @@ function getRichTextDraftCopyContent(mode: RichTextAIApplyMode) {
 .assistant-inline-panel,
 .assistant-inline-media {
   border-color: hsl(var(--border) / 0.16);
-  background: hsl(var(--background) / 0.94);
-  box-shadow: 0 10px 16px -28px hsl(var(--foreground) / 0.06);
+  background: hsl(var(--background) / 0.96);
+  box-shadow: 0 12px 20px -32px hsl(var(--foreground) / 0.08);
 }
 
 .assistant-message-surface :deep(.chat-message-kernel-shell) {

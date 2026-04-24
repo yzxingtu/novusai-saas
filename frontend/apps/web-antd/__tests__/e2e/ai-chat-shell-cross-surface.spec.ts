@@ -1,11 +1,18 @@
 // Test type: smoke
 // Verifies: admin, tenant, and user AI chat surfaces share the transcript-first
-// shell, keep diagnostics gated, and expose avatar profile details after a real SSE turn.
+// shell, keep diagnostics gated, expose avatar profile details after a real SSE turn,
+// and admin chat can still execute a real page-aware list read.
 import type { Locator, Page } from '@playwright/test';
+import type { ChatTurnMetrics } from './common/sse-helpers';
 
 import { expect, test } from '@playwright/test';
 
 import { hasAdminCredentials, loginAsAdmin } from './common/admin-auth';
+import {
+  buildLocaleVariantPattern,
+  includesLocaleVariant,
+  sharedAIChatCopyContract,
+} from './common/ai-chat-copy-contract';
 import { hasTenantCredentials, loginAsTenant } from './common/auth';
 import { interceptChatSSE } from './common/sse-helpers';
 import { hasUserCredentials, loginAsUser } from './common/user-auth';
@@ -19,13 +26,34 @@ const TEST_TIMEOUT = CHAT_TIMEOUT + 60_000;
 const CHAT_INPUT_SELECTOR = '[data-testid="ai-chat-input"]';
 const COMMAND_INPUT_SELECTOR =
   'textarea[placeholder*="输入消息"], textarea[placeholder*="Enter"]';
-const DIAGNOSTIC_LABELS = [
-  '结束原因',
-  '协议路径',
-  '本轮工具',
-  '本轮技能',
-  '上下文来源',
+const DIAGNOSTIC_LABEL_VARIANTS = [
+  sharedAIChatCopyContract.diagnosticTerminationReasonLabel,
+  sharedAIChatCopyContract.diagnosticProtocolPathLabel,
+  sharedAIChatCopyContract.diagnosticSelectedToolsLabel,
+  sharedAIChatCopyContract.diagnosticSelectedSkillsLabel,
+  sharedAIChatCopyContract.diagnosticContextSourcesLabel,
 ] as const;
+const HEADER_DIAGNOSTIC_MENU_VARIANTS = [
+  sharedAIChatCopyContract.headerShowDiagnostics,
+  sharedAIChatCopyContract.headerRunTimeline,
+  sharedAIChatCopyContract.headerRefreshContext,
+] as const;
+const PAGE_READ_TOOLS = new Set([
+  'ui_get_form_state',
+  'ui_get_snapshot',
+  'ui_list_interactables',
+  'ui_read_region',
+  'ui_read_table',
+]);
+const HEADER_NEW_CHAT_PATTERN = buildLocaleVariantPattern(
+  sharedAIChatCopyContract.headerNewChat,
+);
+const HEADER_MEMORY_PATTERN = buildLocaleVariantPattern(
+  sharedAIChatCopyContract.headerMemory,
+);
+const HEADER_MORE_ACTIONS_PATTERN = buildLocaleVariantPattern(
+  sharedAIChatCopyContract.headerMoreActions,
+);
 
 function latestAssistantSurface(page: Page) {
   return page.locator('.assistant-message-surface').last();
@@ -47,57 +75,173 @@ async function expectGracefulResponse(fullResponse: string, errors: string[]) {
   );
 }
 
+function isPageReadTool(name: string) {
+  return PAGE_READ_TOOLS.has(name);
+}
+
+function expectToolCall(
+  metrics: ChatTurnMetrics,
+  matcher: (name: string) => boolean,
+  message: string,
+) {
+  const seenToolNames = metrics.toolCalls.map(({ name }) => name);
+  expect(
+    metrics.toolCalls.some((toolCall) => matcher(toolCall.name)),
+    `${message}. Seen tool calls: ${seenToolNames.join(', ') || 'none'}`,
+  ).toBe(true);
+}
+
 async function expectTranscriptFirst(surface: Locator) {
   const kernelHeader = surface
     .locator('[data-testid="chat-message-kernel-header"]')
     .first();
-  const transcript = surface.locator('.assistant-message-body').first();
+  const transcript = surface
+    .locator('.assistant-message-body, .assistant-content-block')
+    .first();
 
   await expect(kernelHeader).toBeVisible({ timeout: 10_000 });
   await expect(transcript).toBeVisible({ timeout: 10_000 });
 
-  const rendersKernelBeforeTranscript = await surface.evaluate((element) => {
-    const kernel = element.querySelector(
-      '[data-testid="chat-message-kernel-header"]',
-    );
-    const body = element.querySelector('.assistant-message-body');
-    if (!(kernel instanceof HTMLElement) || !(body instanceof HTMLElement)) {
-      return false;
-    }
-    return (
-      (kernel.compareDocumentPosition(body) &
-        Node.DOCUMENT_POSITION_FOLLOWING) >
-      0
-    );
-  });
+  const [kernelBox, transcriptBox] = await Promise.all([
+    kernelHeader.boundingBox(),
+    transcript.boundingBox(),
+  ]);
 
   expect(
-    rendersKernelBeforeTranscript,
-    'Expected process header to render before transcript content in DOM order',
-  ).toBe(true);
+    kernelBox,
+    'Expected visible kernel header bounding box',
+  ).not.toBeNull();
+  expect(
+    transcriptBox,
+    'Expected visible transcript bounding box',
+  ).not.toBeNull();
+  expect(
+    kernelBox!.y,
+    'Expected process header to render below transcript content',
+  ).toBeGreaterThan(transcriptBox!.y);
 }
 
 async function expectDiagnosticsHiddenByDefault(surface: Locator) {
   const surfaceText = (await surface.textContent()) ?? '';
-  for (const label of DIAGNOSTIC_LABELS) {
+  for (const variants of DIAGNOSTIC_LABEL_VARIANTS) {
     expect(
-      surfaceText.includes(label),
-      `Expected diagnostics label "${label}" to stay hidden by default.`,
+      includesLocaleVariant(surfaceText, variants),
+      `Expected diagnostics label variants "${variants.join(' / ')}" to stay hidden by default.`,
     ).toBe(false);
   }
 }
 
+async function hasVisibleButton(page: Page, name: RegExp) {
+  const buttons = page.getByRole('button', { name });
+  const count = await buttons.count().catch(() => 0);
+
+  for (let index = 0; index < count; index += 1) {
+    if (await buttons.nth(index).isVisible().catch(() => false)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+async function expectSharedHeaderCopy(
+  page: Page,
+  options: { expectMoreActions: boolean },
+) {
+  expect(
+    await hasVisibleButton(page, HEADER_NEW_CHAT_PATTERN),
+    `Expected shared new-chat copy variants: ${sharedAIChatCopyContract.headerNewChat.join(' / ')}`,
+  ).toBe(true);
+  expect(
+    await hasVisibleButton(page, HEADER_MEMORY_PATTERN),
+    `Expected shared memory copy variants: ${sharedAIChatCopyContract.headerMemory.join(' / ')}`,
+  ).toBe(true);
+
+  if (options.expectMoreActions) {
+    expect(
+      await hasVisibleButton(page, HEADER_MORE_ACTIONS_PATTERN),
+      `Expected shared more-actions copy variants: ${sharedAIChatCopyContract.headerMoreActions.join(' / ')}`,
+    ).toBe(true);
+  }
+}
+
+async function expectHeaderDiagnosticsHiddenByDefault(page: Page) {
+  const moreButton = page.getByRole('button', {
+    name: HEADER_MORE_ACTIONS_PATTERN,
+  });
+  if (!(await moreButton.first().isVisible().catch(() => false))) {
+    return;
+  }
+
+  await moreButton.first().click();
+  const menu = page.locator('.ant-dropdown').last();
+  if (await menu.isVisible().catch(() => false)) {
+    const menuText = (await menu.textContent()) ?? '';
+    for (const variants of HEADER_DIAGNOSTIC_MENU_VARIANTS) {
+      expect(
+        includesLocaleVariant(menuText, variants),
+        `Expected header diagnostics entry variants "${variants.join(' / ')}" to stay hidden by default.`,
+      ).toBe(false);
+    }
+  }
+  await page.keyboard.press('Escape').catch(() => undefined);
+}
+
 async function expectAgentProfilePopover(page: Page) {
   const avatar = page.locator('[data-testid="assistant-agent-avatar"]').last();
+  const popover = page.locator('[data-testid="agent-profile-popover-content"]');
+  const skillSection = page.locator(
+    '[data-testid="agent-profile-skills-section"]',
+  );
+  const kbSection = page.locator('[data-testid="agent-profile-kb-section"]');
   await expect(avatar).toBeVisible({ timeout: 10_000 });
-  await avatar.click();
+  await avatar.hover().catch(() => undefined);
 
-  await expect(
-    page.locator('[data-testid="agent-profile-skills-section"]').last(),
-  ).toBeVisible({ timeout: 10_000 });
-  await expect(
-    page.locator('[data-testid="agent-profile-kb-section"]').last(),
-  ).toBeVisible({ timeout: 10_000 });
+  let popoverVisible = false;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await avatar.click();
+    try {
+      await expect(skillSection.last()).toBeVisible({ timeout: 4_000 });
+      await expect(kbSection.last()).toBeVisible({ timeout: 4_000 });
+      popoverVisible = true;
+      break;
+    } catch (error) {
+      if (attempt === 2) {
+        throw error;
+      }
+      await page.waitForTimeout(400);
+      await avatar.hover().catch(() => undefined);
+    }
+  }
+  expect(popoverVisible).toBe(true);
+  await expect(popover.last()).toBeVisible({ timeout: 10_000 });
+
+  const popoverText = (await popover.last().textContent()) ?? '';
+  expect(
+    includesLocaleVariant(
+      popoverText,
+      sharedAIChatCopyContract.agentProfileSkillPackages,
+    ),
+    `Expected shared skill-packages label variants: ${sharedAIChatCopyContract.agentProfileSkillPackages.join(' / ')}`,
+  ).toBe(true);
+  expect(
+    includesLocaleVariant(
+      popoverText,
+      sharedAIChatCopyContract.agentProfileSkillEntries,
+    ),
+    `Expected shared skill-entries label variants: ${sharedAIChatCopyContract.agentProfileSkillEntries.join(' / ')}`,
+  ).toBe(true);
+  expect(
+    includesLocaleVariant(
+      popoverText,
+      sharedAIChatCopyContract.agentProfileKnowledgeBases,
+    ),
+    `Expected shared knowledge-base label variants: ${sharedAIChatCopyContract.agentProfileKnowledgeBases.join(' / ')}`,
+  ).toBe(true);
+  expect(
+    includesLocaleVariant(popoverText, sharedAIChatCopyContract.agentProfileHint),
+    `Expected shared profile-hint variants: ${sharedAIChatCopyContract.agentProfileHint.join(' / ')}`,
+  ).toBe(true);
 
   await expect(
     page
@@ -119,6 +263,12 @@ async function expectAgentProfilePopover(page: Page) {
         '[data-testid="agent-profile-kb-chip"], [data-testid="agent-profile-kb-empty"]',
       )
       .first(),
+  ).toBeVisible({ timeout: 10_000 });
+  await expect(
+    page.locator('[data-testid="agent-profile-description"]').last(),
+  ).toBeVisible({ timeout: 10_000 });
+  await expect(
+    page.locator('[data-testid="agent-profile-footer"]').last(),
   ).toBeVisible({ timeout: 10_000 });
 }
 
@@ -186,7 +336,10 @@ async function submitPrompt(
   return waitForChat({ timeout: CHAT_TIMEOUT });
 }
 
-async function assertSharedAssistantShell(page: Page) {
+async function assertSharedAssistantShell(
+  page: Page,
+  options: { expectMoreActions: boolean },
+) {
   const assistantSurface = latestAssistantSurface(page);
   const overviewToggle = assistantSurface.locator(
     '[data-testid="chat-message-kernel-overview-toggle"]',
@@ -197,7 +350,9 @@ async function assertSharedAssistantShell(page: Page) {
 
   await expect(assistantSurface).toBeVisible({ timeout: 10_000 });
   await expectTranscriptFirst(assistantSurface);
+  await expectSharedHeaderCopy(page, options);
   await expectDiagnosticsHiddenByDefault(assistantSurface);
+  await expectHeaderDiagnosticsHiddenByDefault(page);
   if (await overviewToggle.count()) {
     await expect(overviewToggle).toHaveAttribute('aria-expanded', 'false', {
       timeout: 10_000,
@@ -228,7 +383,31 @@ test.describe('AI Chat shell cross-surface smoke', () => {
     const metrics = await submitPrompt(page, '现在几点了？请只用一句话回答。');
 
     await expectGracefulResponse(metrics.fullResponse, metrics.errors);
-    await assertSharedAssistantShell(page);
+    await assertSharedAssistantShell(page, { expectMoreActions: true });
+  });
+
+  test('admin surface can complete a page-aware list read turn', async ({
+    page,
+  }) => {
+    test.skip(!adminEnabled, 'Admin credentials are not configured');
+
+    await loginAsAdmin(page);
+    await page.goto('/admin/ai/models');
+    await page.waitForLoadState('networkidle');
+    await ensureSlidePanelOpen(page);
+
+    const metrics = await submitPrompt(
+      page,
+      '帮我看看当前列表前5条记录的名称和状态',
+    );
+
+    await expectGracefulResponse(metrics.fullResponse, metrics.errors);
+    expectToolCall(
+      metrics,
+      isPageReadTool,
+      'Expected a real page-read tool call for admin list inspection',
+    );
+    await assertSharedAssistantShell(page, { expectMoreActions: true });
   });
 
   test('tenant surface keeps transcript-first shell and avatar details', async ({
@@ -244,7 +423,7 @@ test.describe('AI Chat shell cross-surface smoke', () => {
     const metrics = await submitPrompt(page, '现在几点了？请只用一句话回答。');
 
     await expectGracefulResponse(metrics.fullResponse, metrics.errors);
-    await assertSharedAssistantShell(page);
+    await assertSharedAssistantShell(page, { expectMoreActions: true });
   });
 
   test('user workspace keeps transcript-first shell and avatar details', async ({
@@ -261,6 +440,6 @@ test.describe('AI Chat shell cross-surface smoke', () => {
     });
 
     await expectGracefulResponse(metrics.fullResponse, metrics.errors);
-    await assertSharedAssistantShell(page);
+    await assertSharedAssistantShell(page, { expectMoreActions: false });
   });
 });

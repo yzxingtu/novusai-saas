@@ -134,7 +134,6 @@ const aiPanelRightOffset = computed(() => {
   if (
     !aiEnabled.value ||
     !aiPanelStore.visible ||
-    aiPanelStore.mode === 'full' ||
     !aiPanelStore.docked
   ) {
     return 0;
@@ -531,25 +530,35 @@ watch(
     <template #header-right-51>
       <div
         v-if="aiEnabled"
-        class="group relative mr-1 flex h-8 cursor-pointer items-center gap-2 rounded-2xl px-3 py-0.5 transition-colors sm:mr-4"
+        class="group relative mr-1 flex h-8 cursor-pointer items-center gap-2 rounded-full border px-3 py-0.5 shadow-sm transition-colors sm:mr-4"
         :class="
           aiPanelStore.hasUnread
-            ? 'bg-primary/[0.06] ring-1 ring-primary/12 hover:bg-primary/[0.08]'
-            : 'bg-accent/50 hover:bg-accent'
+            ? 'border-primary/18 bg-primary/[0.07] shadow-[0_14px_28px_-30px_hsl(var(--primary)/0.45)] hover:bg-primary/[0.09]'
+            : 'border-border/16 bg-background/88 hover:border-border/28 hover:bg-accent/72'
         "
         @click="commandBarRef?.show()"
       >
         <IconifyIcon
           icon="lucide:sparkles"
-          class="size-4 text-muted-foreground transition-colors group-hover:text-foreground"
+          class="size-4 transition-colors"
+          :class="
+            aiPanelStore.hasUnread
+              ? 'text-primary'
+              : 'text-muted-foreground group-hover:text-foreground'
+          "
         />
         <span
-          class="hidden text-xs text-muted-foreground transition-colors group-hover:text-foreground md:block"
+          class="hidden text-[11px] font-medium transition-colors md:block"
+          :class="
+            aiPanelStore.hasUnread
+              ? 'text-foreground'
+              : 'text-muted-foreground group-hover:text-foreground'
+          "
         >
           {{ $t('common.aiPanel.title') }}
         </span>
         <kbd
-          class="hidden rounded-sm border border-foreground/15 bg-background px-1.5 py-0.5 text-[10px] leading-none text-muted-foreground md:block"
+          class="hidden rounded-full border border-foreground/12 bg-background/92 px-1.5 py-0.5 text-[10px] leading-none text-muted-foreground md:block"
         >
           Ctrl K
         </kbd>

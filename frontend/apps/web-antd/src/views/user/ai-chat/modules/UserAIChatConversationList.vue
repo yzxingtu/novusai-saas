@@ -120,7 +120,8 @@ const { activeConversationId, conversationsLoading } = chat;
             </div>
             <button
               v-if="editingConversationId !== conv.id"
-              class="absolute right-2 flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-all hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
+              class="absolute right-2 flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-all hover:bg-destructive/10 hover:text-destructive group-focus-within:opacity-100 group-hover:opacity-100"
+              :aria-label="$t('common.globalAiChat.deleteConversation')"
               @click.stop="onDeleteConversation(conv.id)"
             >
               <IconifyIcon icon="lucide:trash-2" class="size-3" />
@@ -151,7 +152,8 @@ const { activeConversationId, conversationsLoading } = chat;
             </span>
             <button
               v-if="editingConversationId !== conv.id"
-              class="flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 hover:text-destructive group-hover:opacity-100"
+              class="ml-auto flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-100 transition-colors hover:bg-destructive/10 hover:text-destructive"
+              :aria-label="$t('common.globalAiChat.deleteConversation')"
               @click.stop="onDeleteConversation(conv.id)"
             >
               <IconifyIcon icon="lucide:trash-2" class="size-3" />

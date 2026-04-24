@@ -139,7 +139,7 @@ describe('ai chat panel body', () => {
     expect(viewport.attributes('data-has-skill-ensure')).toBe('true');
   });
 
-  it('keeps the transcript mounted and inert while history is overlaid', () => {
+  it('keeps the transcript mounted and inert while history is shown as a solid overlay', () => {
     const wrapper = mount(AIChatPanelBody, {
       props: {
         apiPrefix: '/admin',
@@ -191,9 +191,9 @@ describe('ai chat panel body', () => {
     expect(wrapper.find('[data-testid="history-pane-stub"]').exists()).toBe(
       true,
     );
-    expect(
-      wrapper.find('[data-testid="history-overlay-pane"]').exists(),
-    ).toBe(true);
+    expect(wrapper.find('[data-testid="history-overlay-pane"]').exists()).toBe(
+      true,
+    );
     expect(
       wrapper.get('[data-testid="history-overlay-pane"]').classes(),
     ).not.toContain('bg-card/92');
@@ -206,5 +206,11 @@ describe('ai chat panel body', () => {
     expect(wrapper.get('[data-testid="transcript-shell"]').classes()).toContain(
       'pointer-events-none',
     );
+    expect(wrapper.get('[data-testid="transcript-shell"]').classes()).toContain(
+      'opacity-0',
+    );
+    expect(
+      wrapper.get('[data-testid="transcript-shell"]').classes(),
+    ).not.toContain('blur-[1px]');
   });
 });

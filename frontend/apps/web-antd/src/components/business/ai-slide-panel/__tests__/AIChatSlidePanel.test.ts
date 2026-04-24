@@ -36,6 +36,7 @@ import {
   sendMessageMock,
   startNewConversationMock,
   supportsVisionValue,
+  useAIChatState,
 } from './ai-chat-slide-panel-test-helpers';
 
 let aiPanelStore: ReturnType<typeof createAIPanelStore>;
@@ -413,7 +414,7 @@ describe('aIChatSlidePanel (component mount)', () => {
       document.body.querySelectorAll(
         '[data-testid="ai-panel-primary-actions"] button',
       ),
-    ).toHaveLength(4);
+    ).toHaveLength(3);
     expect(
       document.body.querySelector('[data-testid="ai-panel-toolbar-row"]'),
     ).toBeTruthy();
@@ -429,7 +430,7 @@ describe('aIChatSlidePanel (component mount)', () => {
     wrapper.unmount();
   });
 
-  it('switches full-mode shells into transcript-first viewport rendering', async () => {
+  it('keeps the shell compact and transcript-first even when legacy full mode state is restored', async () => {
     aiPanelStore.mode = 'full';
 
     const wrapper = mountPanel({
@@ -457,10 +458,11 @@ describe('aIChatSlidePanel (component mount)', () => {
       document.body.querySelector(
         '[data-testid="ai-panel-transcript-probe"]',
       ) as HTMLElement | null,
-      'Expected transcript probe in full-mode transcript test',
+      'Expected transcript probe in compact transcript test',
     );
-    expect(panel.getAttribute('style')).toContain('width: 100vw');
-    expect(transcriptProbe.dataset.compact).toBe('false');
+    expect(panel.getAttribute('style')).toContain('width: 460px');
+    expect(panel.className).toContain('panel-mode-shell');
+    expect(transcriptProbe.dataset.compact).toBe('true');
 
     wrapper.unmount();
   });
@@ -622,6 +624,47 @@ describe('aIChatSlidePanel (component mount)', () => {
     wrapper.unmount();
   });
 
+  it('auto-expands page AI details while streaming and collapses them after completion', async () => {
+    pageContextValue.value = {
+      page_key: 'tenant.demo.streaming',
+      page_title: 'Streaming Demo',
+      surface_stack: [
+        {
+          kind: 'page',
+          surface_id: 'surface-root',
+          title: 'Streaming Demo',
+        },
+      ],
+      ui_epoch: 3,
+    };
+    pageOperationsValue.value = [
+      { name: 'ui_get_snapshot', label: 'Snapshot', readonly: true },
+      { name: 'ui_click', label: 'Click CTA', readonly: false },
+    ];
+    useAIChatState.streaming.value = true;
+
+    const wrapper = mountPanel({
+      props: {
+        pageContextKey: 'tenant.demo.streaming',
+      },
+    });
+
+    await flushPanel();
+
+    expect(
+      document.body.querySelector('[data-testid="ai-panel-page-ai-details"]'),
+    ).toBeTruthy();
+
+    useAIChatState.streaming.value = false;
+    await flushPanel();
+
+    expect(
+      document.body.querySelector('[data-testid="ai-panel-page-ai-details"]'),
+    ).toBeFalsy();
+
+    wrapper.unmount();
+  });
+
   it('does not reserve a blank header slot row when no status badge is shown', async () => {
     const wrapper = mountPanel({
       props: {
@@ -641,6 +684,8 @@ describe('aIChatSlidePanel (component mount)', () => {
     const toolbarRow = document.body.querySelector(
       '[data-testid="ai-panel-toolbar-row"]',
     );
+    const headerBody = document.body.querySelector('.ai-panel-header-body');
+    expect(headerBody?.contains(toolbarRow ?? null)).toBe(true);
     expect(toolbarRow?.contains(headerActions)).toBe(true);
 
     wrapper.unmount();

@@ -886,6 +886,15 @@ describe('chatMessageItem', () => {
     await wrapper.vm.$nextTick();
 
     expect(
+      wrapper.get('[data-testid="agent-profile-model-chip"]').text(),
+    ).toContain('gpt-5.4-mini');
+    expect(
+      wrapper.get('[data-testid="agent-profile-popover-content"]').text(),
+    ).toContain('猫娘智能体');
+    expect(
+      wrapper.get('[data-testid="agent-profile-description"]').text(),
+    ).toContain('负责轻量问答与页面操作。');
+    expect(
       wrapper
         .findAll('[data-testid="agent-profile-skill-package-chip"]')
         .map((chip) => chip.text()),
@@ -900,6 +909,9 @@ describe('chatMessageItem', () => {
         .findAll('[data-testid="agent-profile-kb-chip"]')
         .map((chip) => chip.text()),
     ).toEqual(['产品知识库']);
+    expect(wrapper.get('.assistant-message-surface').text()).not.toContain(
+      '猫娘智能体',
+    );
   });
 
   it('renders i18n empty states when the assistant avatar profile has no bound skills or knowledge bases', async () => {
@@ -1352,15 +1364,17 @@ describe('chatMessageItem', () => {
 
     await wrapper.vm.$nextTick();
 
-    expect(wrapper.text()).toContain('common.globalAiChat.toolTouched');
-    expect(wrapper.text()).toContain('统计今天调用情况');
-    expect(wrapper.text()).toContain('ai_call_logs, tenants');
-    expect(wrapper.text()).toContain('common.globalAiChat.toolTargetMetrics');
-    expect(wrapper.text()).toContain('COUNT(acl.id)');
-    expect(wrapper.text()).toContain('common.globalAiChat.toolTargetGrouping');
-    expect(wrapper.text()).toContain('t.name');
-    expect(wrapper.text()).toContain('common.globalAiChat.toolTargetFilter');
-    expect(wrapper.text()).toContain('common.globalAiChat.toolFilterToday');
+    const toggleText = wrapper.get('[data-testid="tool-call-toggle-0"]').text();
+    expect(toggleText).toContain('common.globalAiChat.toolTouched');
+    expect(toggleText).toContain('统计今天调用情况');
+    expect(toggleText).toContain('ai_call_logs, tenants');
+    expect(toggleText).toContain('common.globalAiChat.toolTargetQuery');
+    expect(toggleText).toContain('common.globalAiChat.toolTargetTables');
+    expect(toggleText).toContain('+3');
+    expect(toggleText).not.toContain('common.globalAiChat.toolTargetMetrics');
+    expect(toggleText).not.toContain('COUNT(acl.id)');
+    expect(toggleText).not.toContain('common.globalAiChat.toolTargetGrouping');
+    expect(toggleText).not.toContain('common.globalAiChat.toolTargetFilter');
 
     const details = wrapper.get('[data-testid="tool-call-details-0"]');
     expect(details.attributes('style') ?? '').toContain(
@@ -1376,6 +1390,8 @@ describe('chatMessageItem', () => {
     expect(wrapper.text()).toContain('common.globalAiChat.toolExplanation');
     expect(wrapper.text()).toContain('按今天范围统计 AI 调用，并按租户分组。');
     expect(wrapper.text()).toContain('common.globalAiChat.toolSql');
+    expect(wrapper.text()).toContain('COUNT(acl.id)');
+    expect(wrapper.text()).toContain('t.name');
 
     const sqlCopyButton = wrapper
       .findAll('button')
@@ -1820,7 +1836,9 @@ describe('chatMessageItem', () => {
       wrapper.find('[data-testid="chat-message-kernel-timeline"]').exists(),
     ).toBe(false);
     expect(
-      wrapper.get('[data-testid="chat-message-kernel-overview-toggle"]').attributes(),
+      wrapper
+        .get('[data-testid="chat-message-kernel-overview-toggle"]')
+        .attributes(),
     ).toMatchObject({
       'aria-expanded': 'false',
     });
@@ -2103,16 +2121,18 @@ describe('chatMessageItem', () => {
     await wrapper.vm.$nextTick();
 
     expect(
-      wrapper.get('[data-testid="chat-message-kernel-overview-toggle"]').attributes(),
+      wrapper
+        .get('[data-testid="chat-message-kernel-overview-toggle"]')
+        .attributes(),
     ).toMatchObject({
       'aria-expanded': 'false',
     });
     expect(
       wrapper.find('[data-testid="chat-message-kernel-evidence"]').exists(),
     ).toBe(false);
-    expect(
-      wrapper.find('[data-testid="turn-digest-toggle"]').exists(),
-    ).toBe(false);
+    expect(wrapper.find('[data-testid="turn-digest-toggle"]').exists()).toBe(
+      false,
+    );
     expect(wrapper.find('[data-testid="turn-digest-body"]').exists()).toBe(
       false,
     );
@@ -2166,7 +2186,9 @@ describe('chatMessageItem', () => {
     await wrapper.vm.$nextTick();
 
     expect(
-      wrapper.get('[data-testid="chat-message-kernel-overview-toggle"]').attributes(),
+      wrapper
+        .get('[data-testid="chat-message-kernel-overview-toggle"]')
+        .attributes(),
     ).toMatchObject({
       'aria-expanded': 'false',
     });
@@ -2822,13 +2844,15 @@ describe('chatMessageItem', () => {
     await wrapper.vm.$nextTick();
 
     expect(
-      wrapper.get('[data-testid="chat-message-kernel-overview-toggle"]').attributes(),
+      wrapper
+        .get('[data-testid="chat-message-kernel-overview-toggle"]')
+        .attributes(),
     ).toMatchObject({
       'aria-expanded': 'false',
     });
-    expect(
-      wrapper.find('[data-testid="turn-process-body"]').exists(),
-    ).toBe(false);
+    expect(wrapper.find('[data-testid="turn-process-body"]').exists()).toBe(
+      false,
+    );
   });
 
   it('keeps skipped-only tool-selection stages compact when loading completed history', async () => {
@@ -3004,7 +3028,7 @@ describe('chatMessageItem', () => {
     ).toBe(true);
   });
 
-  it('renders the merged digest header before transcript content for assistant messages', async () => {
+  it('renders transcript content before the kernel header for assistant messages', async () => {
     const wrapper = mount(ChatMessageItem, {
       props: {
         msg: {
@@ -3041,9 +3065,9 @@ describe('chatMessageItem', () => {
     await wrapper.vm.$nextTick();
 
     const html = wrapper.html();
-    expect(
+    expect(html.indexOf('data-testid="markdown-render-content"')).toBeLessThan(
       html.indexOf('data-testid="chat-message-kernel-header"'),
-    ).toBeLessThan(html.indexOf('data-testid="markdown-render-content"'));
+    );
   });
 
   it('hides persisted body text when the turn failed with untrusted final output', async () => {
@@ -3177,7 +3201,7 @@ describe('chatMessageItem', () => {
     expect(wrapper.text()).not.toContain('Cloudflare Ray ID');
   });
 
-  it('shows a folded-message hint for very long replies', async () => {
+  it('uses a compact collapsed body for very long replies', async () => {
     const wrapper = mount(ChatMessageItem, {
       props: {
         msg: {
@@ -3200,8 +3224,13 @@ describe('chatMessageItem', () => {
 
     await wrapper.vm.$nextTick();
 
-    expect(wrapper.get('[data-testid="collapsed-message-hint"]').text()).toBe(
-      'common.globalAiChat.collapsedMessageHint',
-    );
+    const contentBody = wrapper.get('[data-testid="assistant-content-body"]');
+    expect(contentBody.classes()).toContain('max-h-[176px]');
+    expect(
+      wrapper.get('[data-testid="assistant-content-collapse-toggle"]').text(),
+    ).toBe('common.globalAiChat.expandMore');
+    expect(
+      wrapper.find('[data-testid="collapsed-message-hint"]').exists(),
+    ).toBe(false);
   });
 });

@@ -31,7 +31,7 @@ const emit = defineEmits<{
   <div
     v-if="msg.content && !msg.streaming"
     data-testid="assistant-message-footer"
-    class="assistant-message-footer text-muted-foreground/48 flex flex-wrap items-center gap-1.5"
+    class="assistant-message-footer text-muted-foreground/56 flex flex-wrap items-center gap-2"
     :class="[compact ? 'text-[9px]' : 'text-[9.5px]']"
   >
     <div class="flex min-w-0 flex-1 flex-wrap items-center gap-x-1 gap-y-1">
@@ -43,14 +43,14 @@ const emit = defineEmits<{
       </span>
       <span
         v-if="!compact && (msg.tokenUsage || msg.durationMs)"
-        class="assistant-footer-chip rounded-full px-1.5 py-0.5 text-[9px] text-foreground/44 tabular-nums"
+        class="assistant-footer-chip text-foreground/44 rounded-full px-1.5 py-0.5 text-[9px] tabular-nums"
       >
         <template v-if="msg.tokenUsage">
           {{ msg.tokenUsage }} {{ $t('common.globalAiChat.tokens') }}
         </template>
         <span
           v-if="msg.tokenUsage && msg.durationMs"
-          class="px-0.5 text-foreground/38"
+          class="text-foreground/38 px-0.5"
         >
           ·
         </span>
@@ -70,7 +70,9 @@ const emit = defineEmits<{
         </span>
       </Tooltip>
     </div>
-    <div class="assistant-footer-actions ml-auto flex shrink-0 items-center gap-1">
+    <div
+      class="assistant-footer-actions ml-auto flex shrink-0 items-center gap-1"
+    >
       <Tooltip :title="$t('common.globalAiChat.copy')">
         <button
           type="button"
@@ -95,23 +97,19 @@ const emit = defineEmits<{
 
 <style scoped>
 .assistant-footer-chip {
-  border: 1px solid hsl(var(--border) / 0.18);
-  background: hsl(var(--background) / 0.72);
+  color: hsl(var(--muted-foreground) / 0.62);
 }
 
 .assistant-footer-memory {
-  border: 1px solid hsl(var(--primary) / 0.16);
-  background: hsl(var(--primary) / 0.07);
+  color: hsl(var(--primary) / 0.78);
 }
 
 .assistant-footer-actions {
-  opacity: 0.9;
+  opacity: 0.84;
 }
 
 .assistant-footer-action {
   color: hsl(var(--muted-foreground) / 0.5);
-  border: 1px solid hsl(var(--border) / 0.08);
-  background: hsl(var(--background) / 0.7);
   transition:
     color 140ms ease,
     background-color 140ms ease,
@@ -120,7 +118,6 @@ const emit = defineEmits<{
 
 .assistant-footer-action:hover {
   color: hsl(var(--foreground) / 0.82);
-  border-color: hsl(var(--primary) / 0.16);
-  background: hsl(var(--primary) / 0.06);
+  background: hsl(var(--muted) / 0.4);
 }
 </style>

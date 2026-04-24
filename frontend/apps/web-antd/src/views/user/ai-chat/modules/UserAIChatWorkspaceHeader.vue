@@ -34,15 +34,15 @@ const {
 <template>
   <div>
     <div
-      class="flex shrink-0 items-start justify-between gap-3 border-b border-border/20 px-4 py-3"
+      class="flex shrink-0 items-start justify-between gap-3 border-b border-border/16 px-3.5 py-2.5"
     >
       <div class="flex min-w-0 items-start gap-3">
         <button
           data-testid="user-ai-chat-mobile-sidebar-button"
-          class="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:hidden"
+          class="flex size-7.5 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:hidden"
           @click="workspace.openMobileSidebar"
         >
-          <IconifyIcon icon="lucide:panel-left" class="size-4" />
+          <IconifyIcon icon="lucide:panel-left" class="size-3.5" />
         </button>
 
         <div class="flex min-w-0 items-center gap-3">
@@ -65,14 +65,14 @@ const {
           <div class="min-w-0">
             <div
               data-testid="user-ai-chat-workspace-title"
-              class="text-sm font-semibold text-foreground/88"
+              class="text-[13px] font-semibold text-foreground/86"
             >
               {{ $t('user.aiChat.title') }}
             </div>
             <div
               v-if="chatHeaderSubtitle"
               data-testid="user-ai-chat-workspace-subtitle"
-              class="mt-0.5 truncate text-[11px] text-muted-foreground/72"
+              class="mt-0.5 truncate text-[10px] text-muted-foreground/68"
             >
               {{ chatHeaderSubtitle }}
             </div>
@@ -87,10 +87,10 @@ const {
         >
           <button
             data-testid="user-ai-chat-vars-button"
-            class="hover:bg-primary/8 flex h-8 items-center gap-1 rounded-lg px-2 text-[11px] font-medium text-primary transition-colors"
+            class="hover:bg-primary/8 flex h-7 items-center gap-1 rounded-[12px] px-2 text-[10px] font-medium text-primary transition-colors"
             @click="openHeaderVarsModal"
           >
-            <IconifyIcon icon="lucide:sliders-horizontal" class="size-3.5" />
+            <IconifyIcon icon="lucide:sliders-horizontal" class="size-3" />
             <span class="hidden sm:inline">{{
               $t('user.aiChat.varsModal.editVars')
             }}</span>
@@ -104,10 +104,10 @@ const {
         <Tooltip :title="$t('common.aiPanel.newChat')">
           <button
             data-testid="user-ai-chat-new-chat-button"
-            class="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            class="flex size-7 items-center justify-center rounded-[12px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             @click="onStartNewChat"
           >
-            <IconifyIcon icon="lucide:plus" class="size-4" />
+            <IconifyIcon icon="lucide:plus" class="size-3.25" />
           </button>
         </Tooltip>
 
@@ -117,7 +117,7 @@ const {
         >
           <button
             data-testid="user-ai-chat-memory-button"
-            class="flex h-8 items-center gap-1 rounded-lg px-2 text-[11px] transition-colors hover:bg-muted disabled:opacity-40"
+            class="flex h-7 items-center gap-1 rounded-[12px] px-2 text-[10px] transition-colors hover:bg-muted disabled:opacity-40"
             :class="
               showMemoryPanel
                 ? 'bg-primary/10 text-primary'
@@ -129,7 +129,7 @@ const {
             @click="onToggleMemory"
           >
             <Spin v-if="memoryLoading" size="small" />
-            <IconifyIcon v-else icon="lucide:brain" class="size-4" />
+            <IconifyIcon v-else icon="lucide:brain" class="size-3.25" />
             <span class="hidden sm:inline">{{ $t('common.aiPanel.memory') }}</span>
             <span
               v-if="lastMemoryUpdated && !showMemoryPanel"
@@ -140,7 +140,7 @@ const {
       </div>
     </div>
 
-    <div v-if="streaming" class="h-0.5 w-full overflow-hidden bg-primary/10">
+    <div v-if="streaming" class="h-px w-full overflow-hidden bg-primary/10">
       <div class="streaming-bar h-full bg-primary/60"></div>
     </div>
   </div>

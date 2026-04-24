@@ -5,51 +5,11 @@ import { computed } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
-import { getPageOpErrorHintKey } from '#/components/business/ai-chat-panel/pageOpErrorHints';
 import { $t } from '#/locales';
 
 import {
-  getSearchFallbackNotice,
-  getSearchProviderLabel,
-  getSearchStatusLabel,
-} from './tool-call-utils';
-
-interface DetailFieldLine {
-  key: string;
-  value: string;
-}
-
-interface DetailField {
-  key: string;
-  lines: string[];
-  metaLines: DetailFieldLine[];
-  multiline: boolean;
-  overflowCount: number;
-  text?: string;
-}
-
-interface DetailPreview {
-  lines: string[];
-  multiline: boolean;
-  overflowCount: number;
-  text?: string;
-}
-
-const DETAIL_FIELD_LIMIT = 4;
-const DETAIL_ITEM_LIMIT = 4;
-const INLINE_VALUE_LIMIT = 160;
-const BLOCK_VALUE_LIMIT = 600;
-const OBJECT_TITLE_KEYS = [
-  'title',
-  'name',
-  'label',
-  'id',
-  'status',
-  'message',
-  'summary',
-  'url',
-  'href',
-] as const;
+  buildToolCallDetailsViewModel,
+} from './chat-message-tool-call-details-helpers';
 
 const props = defineProps<{
   compact: boolean;
@@ -62,270 +22,7 @@ const emit = defineEmits<{
   toggleRaw: [];
 }>();
 
-const searchFallbackNotice = computed(() =>
-  props.toolItem.searchSummary
-    ? getSearchFallbackNotice(props.toolItem.searchSummary)
-    : null,
-);
-
-const errorHintKey = computed(() =>
-  getPageOpErrorHintKey(props.toolItem.tc.errorType),
-);
-
-const hasSearchTechnicalDetails = computed(() => {
-  const summary = props.toolItem.searchSummary;
-  if (!summary) return false;
-  return Boolean(
-    summary.provider ||
-    summary.selectedBackend ||
-    summary.fallbackReason ||
-    summary.nativeFailureKind ||
-    summary.providerChain?.length,
-  );
-});
-
-const argumentFields = computed(() =>
-  buildDetailFields(props.toolItem.tc.arguments),
-);
-
-const parsedRawOutput = computed<unknown>(() => {
-  const raw = props.toolItem.structuredOutput.raw;
-  if (!raw?.trim()) {
-    return undefined;
-  }
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return raw;
-  }
-});
-
-const outputFields = computed(() =>
-  isRecord(parsedRawOutput.value)
-    ? buildDetailFields(parsedRawOutput.value)
-    : [],
-);
-
-const outputPreview = computed<DetailPreview | null>(() => {
-  const value = parsedRawOutput.value;
-  if (!hasMeaningfulValue(value) || isRecord(value)) {
-    return null;
-  }
-  return buildDetailPreview(value);
-});
-
-const hasStructuredOutputPreview = computed(
-  () => outputFields.value.length > 0 || outputPreview.value !== null,
-);
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
-}
-
-function hasMeaningfulValue(value: unknown): boolean {
-  if (value === null || value === undefined) return false;
-  if (typeof value === 'string') return value.trim().length > 0;
-  if (Array.isArray(value))
-    return value.some((item) => hasMeaningfulValue(item));
-  if (isRecord(value))
-    return Object.values(value).some((item) => hasMeaningfulValue(item));
-  return true;
-}
-
-function normalizeInlineWhitespace(text: string): string {
-  return text.replaceAll(/\s+/g, ' ').trim();
-}
-
-function truncateText(text: string, limit: number): string {
-  return text.length > limit ? `${text.slice(0, limit - 1)}...` : text;
-}
-
-function safeJsonStringify(value: unknown): string {
-  try {
-    return JSON.stringify(value, null, 2) ?? '';
-  } catch {
-    return String(value);
-  }
-}
-
-function formatBlockValue(value: unknown): string {
-  if (typeof value === 'string') {
-    const trimmed = value.trim();
-    return truncateText(trimmed, BLOCK_VALUE_LIMIT);
-  }
-  return truncateText(String(value), BLOCK_VALUE_LIMIT);
-}
-
-function formatInlineValue(value: unknown, depth = 0): string {
-  if (value === null || value === undefined) return '';
-
-  if (typeof value === 'string') {
-    const trimmed = normalizeInlineWhitespace(value);
-    return trimmed ? truncateText(trimmed, INLINE_VALUE_LIMIT) : '';
-  }
-
-  if (
-    typeof value === 'boolean' ||
-    typeof value === 'bigint' ||
-    typeof value === 'number'
-  ) {
-    return String(value);
-  }
-
-  if (Array.isArray(value)) {
-    const items = value.filter((item) => hasMeaningfulValue(item));
-    const visibleItems = items
-      .slice(0, Math.max(2, DETAIL_ITEM_LIMIT - 1))
-      .map((item) => formatInlineValue(item, depth + 1))
-      .filter(Boolean);
-    const joined = visibleItems.join(' | ');
-    if (items.length > visibleItems.length) {
-      return joined
-        ? `${joined} +${items.length - visibleItems.length}`
-        : `+${items.length - visibleItems.length}`;
-    }
-    return joined;
-  }
-
-  if (isRecord(value)) {
-    if (depth >= 2) {
-      return truncateText(safeJsonStringify(value), INLINE_VALUE_LIMIT);
-    }
-
-    const entries = Object.entries(value).filter(([, entryValue]) =>
-      hasMeaningfulValue(entryValue),
-    );
-    const titleKey = OBJECT_TITLE_KEYS.find((candidate) =>
-      hasMeaningfulValue(value[candidate]),
-    );
-
-    const parts: string[] = [];
-    if (titleKey) {
-      const title = formatInlineValue(value[titleKey], depth + 1);
-      if (title) {
-        parts.push(title);
-      }
-    }
-
-    for (const [entryKey, entryValue] of entries) {
-      if (titleKey && entryKey === titleKey) {
-        continue;
-      }
-      const formatted = formatInlineValue(entryValue, depth + 1);
-      if (!formatted) {
-        continue;
-      }
-      parts.push(`${entryKey}: ${formatted}`);
-      if (parts.length >= (titleKey ? 3 : 2)) {
-        break;
-      }
-    }
-
-    return truncateText(
-      parts.join(' | ') || safeJsonStringify(value),
-      INLINE_VALUE_LIMIT,
-    );
-  }
-
-  return truncateText(String(value), INLINE_VALUE_LIMIT);
-}
-
-function buildDetailField(key: string, value: unknown): DetailField {
-  if (Array.isArray(value)) {
-    const items = value.filter((item) => hasMeaningfulValue(item));
-    return {
-      key,
-      lines: items
-        .slice(0, DETAIL_ITEM_LIMIT)
-        .map((item) => formatInlineValue(item))
-        .filter(Boolean),
-      metaLines: [],
-      multiline: false,
-      overflowCount: Math.max(items.length - DETAIL_ITEM_LIMIT, 0),
-    };
-  }
-
-  if (isRecord(value)) {
-    const entries = Object.entries(value).filter(([, entryValue]) =>
-      hasMeaningfulValue(entryValue),
-    );
-    return {
-      key,
-      lines: [],
-      metaLines: entries
-        .slice(0, DETAIL_FIELD_LIMIT)
-        .map(([entryKey, entryValue]) => ({
-          key: entryKey,
-          value:
-            formatInlineValue(entryValue) ||
-            truncateText(safeJsonStringify(entryValue), INLINE_VALUE_LIMIT),
-        })),
-      multiline: false,
-      overflowCount: Math.max(entries.length - DETAIL_FIELD_LIMIT, 0),
-    };
-  }
-
-  return {
-    key,
-    lines: [],
-    metaLines: [],
-    multiline:
-      typeof value === 'string' &&
-      (value.includes('\n') || value.trim().length > 80),
-    overflowCount: 0,
-    text: formatBlockValue(value),
-  };
-}
-
-function buildDetailFields(value?: Record<string, unknown>): DetailField[] {
-  if (!value) {
-    return [];
-  }
-  return Object.entries(value)
-    .filter(([, fieldValue]) => hasMeaningfulValue(fieldValue))
-    .map(([key, fieldValue]) => buildDetailField(key, fieldValue));
-}
-
-function buildDetailPreview(value: unknown): DetailPreview | null {
-  if (!hasMeaningfulValue(value)) {
-    return null;
-  }
-  if (Array.isArray(value)) {
-    const items = value.filter((item) => hasMeaningfulValue(item));
-    return {
-      lines: items
-        .slice(0, DETAIL_ITEM_LIMIT)
-        .map((item) => formatInlineValue(item))
-        .filter(Boolean),
-      multiline: false,
-      overflowCount: Math.max(items.length - DETAIL_ITEM_LIMIT, 0),
-    };
-  }
-
-  return {
-    lines: [],
-    multiline:
-      typeof value === 'string' &&
-      (value.includes('\n') || value.trim().length > 80),
-    overflowCount: 0,
-    text: formatBlockValue(value),
-  };
-}
-
-function getSearchResultDomain(url: string): string {
-  const normalized = url.trim();
-  if (!normalized) return '';
-  try {
-    const hostname = new URL(normalized).hostname.replace(/^www\./iu, '');
-    return hostname || normalized;
-  } catch {
-    const fallbackDomain = normalized
-      .replace(/^https?:\/\//iu, '')
-      .split(/[/?#]/u)[0]
-      ?.trim();
-    return fallbackDomain || normalized;
-  }
-}
+const detailView = computed(() => buildToolCallDetailsViewModel(props.toolItem));
 </script>
 
 <template>
@@ -337,7 +34,7 @@ function getSearchResultDomain(url: string): string {
     "
   >
     <section
-      v-if="argumentFields.length > 0"
+      v-if="detailView.argumentFields.length > 0"
       class="tool-detail-section px-2 py-1.5"
     >
       <div class="tool-detail-label">
@@ -345,7 +42,7 @@ function getSearchResultDomain(url: string): string {
       </div>
       <div class="mt-1.5 space-y-1">
         <div
-          v-for="(field, fieldIndex) in argumentFields"
+          v-for="(field, fieldIndex) in detailView.argumentFields"
           :key="`arg-${field.key}-${fieldIndex}`"
           :data-testid="`tool-arg-field-${fieldIndex}`"
           class="tool-detail-card px-2 py-1.5"
@@ -402,7 +99,7 @@ function getSearchResultDomain(url: string): string {
     </section>
 
     <section
-      v-if="toolItem.searchSummary"
+      v-if="detailView.toolSearchSummaryExists"
       class="tool-detail-section px-2 py-1.5 text-foreground/80"
     >
       <div class="tool-detail-label flex flex-wrap items-center gap-2">
@@ -410,89 +107,57 @@ function getSearchResultDomain(url: string): string {
           $t('common.globalAiChat.toolSearchResults')
         }}</span>
         <span
-          v-if="toolItem.searchSummary.status"
+          v-if="detailView.searchStatusLabel"
           class="normal-case tracking-normal"
         >
-          {{ getSearchStatusLabel(toolItem.searchSummary.status) }}
+          {{ detailView.searchStatusLabel }}
         </span>
         <span
-          v-if="toolItem.searchSummary.resultCount !== undefined"
+          v-if="detailView.searchResultCount !== undefined"
           data-testid="tool-search-result-count"
           class="rounded bg-accent/30 px-1.5 py-px font-mono text-[9px] normal-case tracking-normal text-foreground/80"
         >
-          {{ toolItem.searchSummary.resultCount }}
+          {{ detailView.searchResultCount }}
         </span>
       </div>
       <div
-        v-if="searchFallbackNotice"
+        v-if="detailView.searchFallbackNotice"
         class="mt-1.5 rounded-[12px] border border-amber-500/18 bg-amber-500/8 px-1.5 py-1 leading-4 text-amber-700 dark:text-amber-200"
       >
-        {{ searchFallbackNotice }}
+        {{ detailView.searchFallbackNotice }}
       </div>
       <div
-        v-if="hasSearchTechnicalDetails"
+        v-if="detailView.hasSearchTechnicalDetails"
         class="tool-detail-card mt-1.5 px-1.5 py-1"
       >
         <details>
           <summary class="tool-detail-label cursor-pointer select-none">
             {{ $t('common.globalAiChat.toolSearchTechnicalDetails') }}
           </summary>
-          <div class="mt-1.5 space-y-1 text-[10px] text-muted-foreground">
-            <div v-if="toolItem.searchSummary.provider">
-              <span class="font-medium">{{
-                $t('common.globalAiChat.toolSearchProvider')
-              }}</span>
-              <code class="ml-1 break-all">{{
-                getSearchProviderLabel(toolItem.searchSummary.provider)
-              }}</code>
+          <dl class="mt-1.5 space-y-1 text-[10px] text-muted-foreground">
+            <div
+              v-for="detail in detailView.searchTechnicalDetails"
+              :key="detail.key"
+              class="grid grid-cols-[auto,1fr] gap-x-2 gap-y-0.5"
+            >
+              <dt class="font-medium">{{ detail.label }}</dt>
+              <dd><code class="break-all">{{ detail.value }}</code></dd>
             </div>
-            <div v-if="toolItem.searchSummary.selectedBackend">
-              <span class="font-medium">{{
-                $t('common.globalAiChat.toolSearchBackend')
-              }}</span>
-              <code class="ml-1 break-all">{{
-                toolItem.searchSummary.selectedBackend
-              }}</code>
-            </div>
-            <div v-if="toolItem.searchSummary.providerChain?.length">
-              <span class="font-medium">{{
-                $t('common.globalAiChat.toolSearchProviderChain')
-              }}</span>
-              <code class="ml-1 break-all">{{
-                toolItem.searchSummary.providerChain.join(' -> ')
-              }}</code>
-            </div>
-            <div v-if="toolItem.searchSummary.nativeFailureKind">
-              <span class="font-medium">{{
-                $t('common.globalAiChat.toolSearchNativeFailure')
-              }}</span>
-              <code class="ml-1 break-all">{{
-                toolItem.searchSummary.nativeFailureKind
-              }}</code>
-            </div>
-            <div v-if="toolItem.searchSummary.fallbackReason">
-              <span class="font-medium">{{
-                $t('common.globalAiChat.toolSearchFallbackReason')
-              }}</span>
-              <code class="ml-1 break-all">{{
-                toolItem.searchSummary.fallbackReason
-              }}</code>
-            </div>
-          </div>
+          </dl>
         </details>
       </div>
       <div
-        v-if="toolItem.searchSummary.failureReason"
+        v-if="detailView.searchFailureReason"
         class="mt-1.5 whitespace-pre-wrap break-words leading-4 text-muted-foreground"
       >
-        {{ toolItem.searchSummary.failureReason }}
+        {{ detailView.searchFailureReason }}
       </div>
       <ul
-        v-else-if="toolItem.searchSummary.items.length > 0"
+        v-else-if="detailView.searchResults.length > 0"
         class="mt-1.5 space-y-1"
       >
         <li
-          v-for="(searchItem, searchIndex) in toolItem.searchSummary.items"
+          v-for="(searchItem, searchIndex) in detailView.searchResults"
           :key="`${toolItem.index}-${searchIndex}-${searchItem.url}`"
           class="tool-detail-card px-1.5 py-1.5"
         >
@@ -510,9 +175,7 @@ function getSearchResultDomain(url: string): string {
               class="mt-0.5 flex items-center gap-1 text-[9px] text-muted-foreground"
             >
               <IconifyIcon icon="lucide:globe" class="size-2.5 shrink-0" />
-              <span class="truncate">{{
-                getSearchResultDomain(searchItem.url)
-              }}</span>
+              <span class="truncate">{{ searchItem.domain }}</span>
             </div>
           </a>
           <div
@@ -562,7 +225,7 @@ function getSearchResultDomain(url: string): string {
     </section>
 
     <section
-      v-if="hasStructuredOutputPreview"
+      v-if="detailView.hasStructuredOutputPreview"
       class="tool-detail-section px-2 py-1.5 text-muted-foreground"
     >
       <div class="tool-detail-label">
@@ -570,21 +233,21 @@ function getSearchResultDomain(url: string): string {
       </div>
 
       <div
-        v-if="outputPreview?.text"
+        v-if="detailView.outputPreview?.text"
         data-testid="tool-output-preview"
         class="text-foreground/82 mt-1.5 break-words leading-4"
-        :class="outputPreview.multiline ? 'whitespace-pre-wrap' : ''"
+        :class="detailView.outputPreview.multiline ? 'whitespace-pre-wrap' : ''"
       >
-        {{ outputPreview.text }}
+        {{ detailView.outputPreview.text }}
       </div>
 
       <ul
-        v-if="outputPreview?.lines.length"
+        v-if="detailView.outputPreview?.lines.length"
         data-testid="tool-output-preview"
         class="mt-1.5 space-y-1"
       >
         <li
-          v-for="(line, lineIndex) in outputPreview.lines"
+          v-for="(line, lineIndex) in detailView.outputPreview.lines"
           :key="`output-preview-line-${lineIndex}`"
           class="tool-detail-card px-1.5 py-1 leading-4 text-foreground/80"
         >
@@ -592,9 +255,9 @@ function getSearchResultDomain(url: string): string {
         </li>
       </ul>
 
-      <div v-if="outputFields.length > 0" class="mt-1.5 space-y-1">
+      <div v-if="detailView.outputFields.length > 0" class="mt-1.5 space-y-1">
         <div
-          v-for="(field, fieldIndex) in outputFields"
+          v-for="(field, fieldIndex) in detailView.outputFields"
           :key="`output-${field.key}-${fieldIndex}`"
           :data-testid="`tool-output-field-${fieldIndex}`"
           class="tool-detail-card px-2 py-1.5"
@@ -650,15 +313,15 @@ function getSearchResultDomain(url: string): string {
       </div>
 
       <div
-        v-if="(outputPreview?.overflowCount ?? 0) > 0"
+        v-if="(detailView.outputPreview?.overflowCount ?? 0) > 0"
         class="text-muted-foreground/56 mt-1.5 text-[9px]"
       >
-        +{{ outputPreview?.overflowCount }}
+        +{{ detailView.outputPreview?.overflowCount }}
       </div>
     </section>
 
     <section
-      v-if="toolItem.structuredOutput.raw"
+      v-if="detailView.rawOutput"
       class="tool-detail-section overflow-hidden px-0 py-0 text-muted-foreground"
     >
       <button
@@ -666,7 +329,7 @@ function getSearchResultDomain(url: string): string {
         class="hover:bg-accent/16 flex w-full items-center gap-1 px-2 py-1.5 text-left transition-colors"
         :title="
           $t(
-            rawExpanded
+            props.rawExpanded
               ? 'common.globalAiChat.rawResultCollapse'
               : 'common.globalAiChat.rawResultExpand',
           )
@@ -681,22 +344,22 @@ function getSearchResultDomain(url: string): string {
           icon="lucide:chevron-down"
           class="size-2.5 transition-transform duration-200"
           :style="{
-            transform: rawExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+            transform: props.rawExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
           }"
         />
       </button>
       <div
         class="grid transition-[grid-template-rows,opacity] duration-200 ease-out"
         :style="{
-          gridTemplateRows: rawExpanded ? '1fr' : '0fr',
-          opacity: rawExpanded ? 1 : 0,
+          gridTemplateRows: props.rawExpanded ? '1fr' : '0fr',
+          opacity: props.rawExpanded ? 1 : 0,
         }"
       >
         <div class="border-border/12 min-h-0 overflow-hidden border-t">
           <pre
             class="text-foreground/78 overflow-y-auto whitespace-pre-wrap break-all bg-background/72 px-2 py-1.5 font-mono leading-4"
             :class="[compact ? 'max-h-32 text-[10px]' : 'max-h-40 text-[11px]']"
-            >{{ toolItem.structuredOutput.raw }}</pre
+            >{{ detailView.rawOutput }}</pre
           >
         </div>
       </div>
@@ -710,10 +373,10 @@ function getSearchResultDomain(url: string): string {
         {{ toolItem.tc.error }}
       </div>
       <p
-        v-if="toolItem.tc.status === 'error' && errorHintKey"
+        v-if="toolItem.tc.status === 'error' && detailView.errorHintKey"
         class="mt-1 text-[10px] leading-4 text-red-500/90 dark:text-red-200/90"
       >
-        {{ $t(errorHintKey) }}
+        {{ $t(detailView.errorHintKey) }}
       </p>
     </section>
 

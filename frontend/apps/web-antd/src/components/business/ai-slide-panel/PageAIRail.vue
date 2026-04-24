@@ -56,16 +56,16 @@ function onToggleDetails() {
 </script>
 
 <template>
-  <div v-if="hasPageAI" class="flex w-full min-w-0 flex-col gap-2">
+  <div v-if="hasPageAI" class="flex w-full min-w-0 flex-col gap-1.5">
     <div
       data-testid="ai-panel-page-ai-card"
-      class="border-border/20 relative flex min-h-[42px] w-full min-w-0 items-center overflow-hidden rounded-[18px] border bg-background/96 px-2.5 py-1.5"
+      class="page-ai-card border-border/18 relative flex min-h-[46px] w-full min-w-0 items-center overflow-hidden rounded-[20px] border px-2.5 py-1.5"
     >
       <div class="flex min-w-0 flex-1 items-center justify-between gap-1.5">
         <Tooltip :title="pageAIRailTooltip">
           <div
             data-testid="ai-panel-page-ai-trigger"
-            class="flex min-w-0 flex-1 items-center gap-2 rounded-xl pr-1 transition-colors"
+            class="flex min-w-0 flex-1 items-center gap-2 rounded-[16px] pr-1 transition-colors"
             :class="
               hasExpandableDetails
                 ? 'cursor-pointer hover:bg-primary/[0.05]'
@@ -80,38 +80,40 @@ function onToggleDetails() {
             @keydown.space.prevent="onToggleDetails"
           >
             <div
-              class="flex size-6 shrink-0 items-center justify-center rounded-[14px] bg-muted/60 text-primary"
+              class="flex size-[26px] shrink-0 items-center justify-center rounded-[14px] bg-primary/[0.07] text-primary ring-1 ring-primary/10"
             >
-              <IconifyIcon icon="lucide:cpu" class="size-3 shrink-0" />
+              <IconifyIcon icon="lucide:cpu" class="size-[11px] shrink-0" />
             </div>
             <div class="min-w-0 flex-1">
-              <div class="flex min-w-0 flex-wrap items-center gap-1.5">
+              <div class="flex min-w-0 flex-wrap items-center gap-1">
                 <span
-                  class="inline-flex shrink-0 items-center text-[9px] font-medium uppercase tracking-[0.08em] text-muted-foreground/64"
+                  class="text-muted-foreground/64 inline-flex shrink-0 items-center text-[8.5px] font-medium uppercase tracking-[0.1em]"
                 >
                   {{ $t('common.aiPanel.pageAiSupported') }}
                 </span>
                 <span
                   v-if="fallbackOnly"
-                  class="inline-flex shrink-0 items-center rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[8.5px] font-semibold text-amber-700"
+                  class="inline-flex shrink-0 items-center rounded-full bg-amber-500/10 px-1.5 py-[2px] text-[8px] font-semibold text-amber-700"
                 >
                   {{ $t('common.aiPanel.pageAiFallbackBadge') }}
                 </span>
                 <span
                   v-if="operationCount > 0"
-                  class="inline-flex shrink-0 items-center rounded-full bg-muted/70 px-1.5 py-0.5 text-[8.5px] font-medium text-muted-foreground/74"
+                  class="text-muted-foreground/74 inline-flex shrink-0 items-center rounded-full bg-muted/60 px-1.5 py-[2px] text-[8px] font-medium"
                 >
                   {{ operationCount }}
                 </span>
               </div>
               <div
-                class="text-foreground/82 mt-0.5 truncate text-[11px] font-medium"
+                class="text-foreground/84 mt-0.5 truncate text-[10.75px] font-medium"
               >
-                {{ resolvedPageAITitle || $t('common.aiPanel.pageAiSupported') }}
+                {{
+                  resolvedPageAITitle || $t('common.aiPanel.pageAiSupported')
+                }}
               </div>
               <div
                 v-if="pageAISummary"
-                class="mt-0.5 truncate text-[9.75px] text-muted-foreground/62"
+                class="text-muted-foreground/62 mt-0.5 truncate text-[9.5px]"
               >
                 {{ pageAISummary }}
               </div>
@@ -135,7 +137,7 @@ function onToggleDetails() {
           >
             <button
               data-testid="ai-panel-page-ai-toggle"
-              class="text-foreground/68 inline-flex size-6.5 shrink-0 items-center justify-center rounded-[14px] border border-border/24 bg-background transition-colors hover:border-border/40 hover:bg-muted/70"
+              class="text-foreground/68 border-border/24 bg-background/88 hover:border-border/42 inline-flex size-[26px] shrink-0 items-center justify-center rounded-[14px] border transition-colors hover:bg-muted/70"
               :aria-expanded="detailsExpanded"
               :aria-label="
                 detailsExpanded
@@ -160,26 +162,23 @@ function onToggleDetails() {
       <div
         v-if="detailsExpanded && hasExpandableDetails"
         data-testid="ai-panel-page-ai-details"
-        class="border-border/24 w-full rounded-[18px] border bg-background/96 px-2.5 py-2.5"
+        class="border-border/22 bg-background/96 w-full rounded-[20px] border px-2.5 py-2.5"
       >
         <div class="flex flex-col gap-2">
           <Tooltip v-if="pageAISummary" :title="pageAISummary">
             <div
-              class="truncate text-[10px] leading-5 text-muted-foreground/66"
+              class="text-muted-foreground/66 whitespace-pre-wrap break-words text-[9.75px] leading-5"
               :title="pageAISummary"
             >
               {{ pageAISummary }}
             </div>
           </Tooltip>
 
-          <div
-            v-if="pageAIStatBadges.length > 0"
-            class="flex flex-wrap gap-1.5"
-          >
+          <div v-if="pageAIStatBadges.length > 0" class="flex flex-wrap gap-1">
             <span
               v-for="badge in pageAIStatBadges"
               :key="badge.key"
-              class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium"
+              class="inline-flex items-center rounded-full px-2 py-[2px] text-[9.5px] font-medium"
               :class="badge.className"
             >
               {{ badge.label }}
@@ -189,15 +188,13 @@ function onToggleDetails() {
           <div
             v-if="diagnostics"
             data-testid="ai-panel-page-ai-diagnostics"
-            class="rounded-[16px] border border-dashed border-border/34 bg-muted/[0.06] px-2.5 py-2"
+            class="rounded-[16px] border border-dashed border-border/30 bg-muted/[0.06] px-2.5 py-2"
           >
-            <div
-              class="text-[10px] font-medium text-muted-foreground"
-            >
+            <div class="text-[9.75px] font-medium text-muted-foreground">
               {{ $t('common.aiPanel.pageAiDiagnostics') }}
             </div>
             <div
-              class="mt-1 space-y-1 text-[9.75px] leading-5 text-muted-foreground"
+              class="mt-1 space-y-1 text-[9.5px] leading-5 text-muted-foreground"
             >
               <div>
                 {{
@@ -210,9 +207,6 @@ function onToggleDetails() {
                 {{
                   $t('common.aiPanel.pageAiDiagBudget', {
                     final: diagnostics.finalBytes,
-                    hard: diagnostics.finalBytes,
-                    raw: diagnostics.finalBytes,
-                    soft: diagnostics.finalBytes,
                   })
                 }}
               </div>
@@ -220,7 +214,6 @@ function onToggleDetails() {
                 {{
                   $t('common.aiPanel.pageAiDiagOps', {
                     current: diagnostics.interactablesCount,
-                    raw: diagnostics.interactablesCount,
                   })
                 }}
               </div>
@@ -236,13 +229,13 @@ function onToggleDetails() {
                 v-for="operation in pageAIVisibleOperations"
                 :key="operation.name"
                 data-testid="ai-panel-page-ai-preview-item"
-                class="rounded-[16px] border border-border/24 bg-background px-2.5 py-2"
+                class="border-border/22 rounded-[16px] border bg-background px-2.5 py-2"
               >
                 <div class="flex items-start justify-between gap-2">
                   <div class="min-w-0 flex-1">
                     <Tooltip :title="operation.label">
                       <div
-                        class="truncate text-[10.5px] font-medium text-foreground"
+                        class="truncate text-[10px] font-medium text-foreground"
                         :title="operation.label"
                       >
                         {{ operation.label }}
@@ -250,7 +243,7 @@ function onToggleDetails() {
                     </Tooltip>
                     <Tooltip :title="operation.description || operation.name">
                       <div
-                        class="mt-0.5 truncate text-[9.75px] leading-5 text-muted-foreground/66"
+                        class="text-muted-foreground/66 mt-0.5 truncate text-[9.5px] leading-5"
                         :title="operation.description || operation.name"
                       >
                         {{ operation.description || operation.name }}
@@ -258,7 +251,7 @@ function onToggleDetails() {
                     </Tooltip>
                   </div>
                   <span
-                    class="shrink-0 rounded-full px-2 py-0.5 text-[8.5px] font-semibold uppercase tracking-[0.12em]"
+                    class="shrink-0 rounded-full px-2 py-[2px] text-[8px] font-semibold uppercase tracking-[0.12em]"
                     :class="
                       operation.readonly
                         ? 'bg-blue-500/10 text-blue-700'
@@ -276,18 +269,18 @@ function onToggleDetails() {
               <button
                 v-if="pageAIRemainingOperationCount > 0"
                 data-testid="ai-panel-page-ai-more"
-                class="flex min-h-[58px] items-center justify-center rounded-[16px] border border-dashed border-border/42 bg-muted/[0.08] px-3 py-2 text-center transition-colors hover:border-border hover:bg-muted/[0.16]"
+                class="border-border/36 flex min-h-[58px] items-center justify-center rounded-[16px] border border-dashed bg-muted/[0.08] px-3 py-2 text-center transition-colors hover:border-border hover:bg-muted/[0.16]"
                 type="button"
                 @click.stop="emit('expandAllOperations')"
               >
                 <div>
                   <div
-                    class="text-foreground/72 text-[13px] font-semibold leading-none"
+                    class="text-foreground/72 text-[12px] font-semibold leading-none"
                   >
                     +{{ pageAIRemainingOperationCount }}
                   </div>
                   <div
-                    class="mt-1 text-[9.75px] font-medium text-muted-foreground/68"
+                    class="text-muted-foreground/68 mt-1 text-[9.5px] font-medium"
                   >
                     {{ $t('common.aiPanel.pageAiPreviewMore') }}
                   </div>
@@ -302,6 +295,11 @@ function onToggleDetails() {
 </template>
 
 <style scoped>
+.page-ai-card {
+  background: hsl(var(--background) / 0.985);
+  box-shadow: 0 14px 28px -32px hsl(var(--foreground) / 0.12);
+}
+
 .page-ai-details-enter-active,
 .page-ai-details-leave-active {
   overflow: hidden;

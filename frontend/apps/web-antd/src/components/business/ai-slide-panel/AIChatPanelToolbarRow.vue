@@ -83,8 +83,8 @@ const emit = defineEmits<{
 <template>
   <div
     data-testid="ai-panel-toolbar-row"
-    class="w-full shrink-0 px-3 pb-1 pt-1"
-    :class="hasPageAI ? '' : 'flex justify-end'"
+    class="ai-panel-toolbar-row w-full shrink-0 px-1 pb-0.5 pt-0.5 sm:px-1.5"
+    :class="hasPageAI ? '' : 'flex items-center justify-end'"
   >
     <PageAIRail
       v-if="hasPageAI"
@@ -152,3 +152,9 @@ const emit = defineEmits<{
     />
   </div>
 </template>
+
+<style scoped>
+.ai-panel-toolbar-row {
+  background: transparent;
+}
+</style>

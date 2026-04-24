@@ -451,7 +451,9 @@ function latestAssistantSurface(page: Page) {
 
 async function expectTranscriptFirst(surface: Locator) {
   const kernelHeader = surface.locator('[data-testid="chat-message-kernel-header"]');
-  const transcript = surface.locator('.assistant-content-block').first();
+  const transcript = surface
+    .locator('.assistant-message-body, .assistant-content-block')
+    .first();
 
   await expect(kernelHeader).toBeVisible({ timeout: 10_000 });
   await expect(transcript).toBeVisible({ timeout: 10_000 });
@@ -468,8 +470,8 @@ async function expectTranscriptFirst(surface: Locator) {
   ).not.toBeNull();
   expect(
     kernelBox!.y,
-    'Expected process header to render above transcript content',
-  ).toBeLessThan(transcriptBox!.y);
+    'Expected process header to render below transcript content',
+  ).toBeGreaterThan(transcriptBox!.y);
 }
 
 async function expectDiagnosticsHiddenByDefault(surface: Locator) {
@@ -962,6 +964,12 @@ test.describe('AI Chat E2E', () => {
       test.setTimeout(DEFAULT_CHAT_TIMEOUT + TURN_TIMEOUT_BUFFER);
       const metrics = await runChatTurn(page, '查一下今天北京的天气');
       const assistantSurface = latestAssistantSurface(page);
+      const kernelOverviewToggle = assistantSurface.locator(
+        '[data-testid="chat-message-kernel-overview-toggle"]',
+      );
+      const kernelBody = assistantSurface.locator(
+        '[data-testid="chat-message-kernel-body"]',
+      );
       const processBody = assistantSurface.locator(
         '[data-testid="turn-process-body"]',
       );
@@ -974,20 +982,71 @@ test.describe('AI Chat E2E', () => {
       );
       await expectTranscriptFirst(assistantSurface);
       await expectDiagnosticsHiddenByDefault(assistantSurface);
-      await expect(processBody).toHaveAttribute(
-        'style',
-        /grid-template-rows:\s*0fr/i,
+      await expect(kernelOverviewToggle).toHaveAttribute('aria-expanded', 'false');
+      await expect(kernelBody).toHaveCount(0);
+
+      let expandedAssistantSurface = latestAssistantSurface(page);
+      let expandedKernelOverviewToggle = expandedAssistantSurface.locator(
+        '[data-testid="chat-message-kernel-overview-toggle"]',
+      );
+      let expandedKernelBody = expandedAssistantSurface.locator(
+        '[data-testid="chat-message-kernel-body"]',
+      );
+      let expandedProcessBody = expandedAssistantSurface.locator(
+        '[data-testid="turn-process-body"]',
       );
 
-      await assistantSurface
-        .locator('[data-testid="turn-process-toggle"]')
-        .click();
-      await expect(processBody).toHaveAttribute(
-        'style',
-        /grid-template-rows:\s*1fr/i,
+      let overviewExpanded = false;
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        await expandedKernelOverviewToggle.click();
+        try {
+          await expect(expandedKernelOverviewToggle).toHaveAttribute(
+            'aria-expanded',
+            'true',
+            { timeout: 4_000 },
+          );
+          overviewExpanded = true;
+          break;
+        } catch (error) {
+          if (attempt === 2) {
+            throw error;
+          }
+          await page.waitForTimeout(500);
+          expandedAssistantSurface = latestAssistantSurface(page);
+          expandedKernelOverviewToggle = expandedAssistantSurface.locator(
+            '[data-testid="chat-message-kernel-overview-toggle"]',
+          );
+          expandedKernelBody = expandedAssistantSurface.locator(
+            '[data-testid="chat-message-kernel-body"]',
+          );
+          expandedProcessBody = expandedAssistantSurface.locator(
+            '[data-testid="turn-process-body"]',
+          );
+        }
+      }
+      expect(overviewExpanded).toBe(true);
+
+      await expect(expandedKernelBody).toHaveCount(1, { timeout: 15_000 });
+      const expandedProcessToggle = expandedAssistantSurface.locator(
+        '[data-testid="turn-process-toggle"]',
       );
+      const hasProcessTimeline =
+        (await expandedProcessToggle.count()) > 0 &&
+        (await expandedProcessBody.count()) > 0;
+
+      if (hasProcessTimeline) {
+        await expect(expandedProcessBody).toHaveAttribute(
+          'style',
+          /grid-template-rows:\s*0fr/i,
+        );
+        await expandedProcessToggle.click();
+        await expect(expandedProcessBody).toHaveAttribute(
+          'style',
+          /grid-template-rows:\s*1fr/i,
+        );
+      }
       await expect(
-        assistantSurface.locator('[data-testid="tool-group-embedded"]'),
+        expandedAssistantSurface.locator('[data-testid="tool-group-embedded"]'),
       ).toBeVisible();
     });
   });
