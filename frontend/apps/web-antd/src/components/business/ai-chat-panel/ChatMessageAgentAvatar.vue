@@ -240,52 +240,58 @@ const summaryStats = computed(() => {
     <template #content>
       <div
         data-testid="agent-profile-popover-content"
-        class="agent-profile-popover w-[320px] max-w-[calc(100vw-32px)]"
+        class="agent-profile-popover w-[336px] max-w-[calc(100vw-28px)]"
       >
-        <div class="flex min-w-0 items-start gap-3">
-          <div
-            class="agent-profile-avatar flex size-12 shrink-0 items-center justify-center rounded-[20px] text-sm font-semibold text-primary"
-          >
-            <img
-              v-if="resolvedAvatarUrl"
-              :src="resolvedAvatarUrl"
-              :alt="resolvedName"
-              class="size-full rounded-[20px] object-cover"
-            />
-            <span v-else-if="avatarInitial">{{ avatarInitial }}</span>
-            <IconifyIcon v-else icon="lucide:bot" class="size-4" />
-          </div>
-          <div class="min-w-0 flex-1">
+        <div class="agent-profile-hero rounded-[22px] px-3 py-3">
+          <div class="flex min-w-0 items-start gap-3">
             <div
-              class="truncate text-[14px] font-semibold tracking-[0.01em] text-foreground/90"
+              class="agent-profile-avatar flex size-12 shrink-0 items-center justify-center rounded-[18px] text-sm font-semibold text-primary"
             >
-              {{ resolvedName }}
+              <img
+                v-if="resolvedAvatarUrl"
+                :src="resolvedAvatarUrl"
+                :alt="resolvedName"
+                class="size-full rounded-[18px] object-cover"
+              />
+              <span v-else-if="avatarInitial">{{ avatarInitial }}</span>
+              <IconifyIcon v-else icon="lucide:bot" class="size-4" />
             </div>
-            <div class="mt-1 flex flex-wrap gap-1.5">
-              <span
-                v-for="stat in summaryStats"
-                :key="stat.key"
-                class="agent-profile-stat"
-              >
-                <IconifyIcon :icon="stat.icon" class="size-3 shrink-0" />
-                <span class="truncate">{{ stat.label }}</span>
-                <strong class="text-foreground/86 font-semibold">{{
-                  stat.value
-                }}</strong>
-              </span>
-            </div>
-            <div
-              v-if="modelName"
-              class="agent-model-chip mt-2 inline-flex min-w-0 items-center gap-1 rounded-full px-2 py-1 text-[10px]"
-            >
-              <IconifyIcon icon="lucide:cpu" class="size-3 shrink-0" />
-              <span class="truncate">{{ modelName }}</span>
+            <div class="min-w-0 flex-1">
+              <div class="flex min-w-0 items-center gap-1.5">
+                <div
+                  class="truncate text-[13px] font-semibold tracking-[0.01em] text-foreground/90"
+                >
+                  {{ resolvedName }}
+                </div>
+                <div
+                  v-if="modelName"
+                  class="agent-model-chip inline-flex min-w-0 items-center gap-1 rounded-full px-2 py-0.5 text-[9px]"
+                >
+                  <IconifyIcon icon="lucide:cpu" class="size-2.5 shrink-0" />
+                  <span class="truncate">{{ modelName }}</span>
+                </div>
+              </div>
+              <div class="mt-2 grid grid-cols-3 gap-1.5">
+                <div
+                  v-for="stat in summaryStats"
+                  :key="stat.key"
+                  class="agent-profile-stat-card"
+                >
+                  <div class="flex items-center gap-1 text-primary/70">
+                    <IconifyIcon :icon="stat.icon" class="size-3 shrink-0" />
+                    <span class="agent-profile-stat-label truncate">{{
+                      stat.label
+                    }}</span>
+                  </div>
+                  <strong class="agent-profile-stat-value">{{ stat.value }}</strong>
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
         <p
-          class="agent-profile-description mt-3 rounded-[18px] border px-3 py-2.5 text-[11.5px] leading-6"
+          class="agent-profile-description mt-3 rounded-[18px] border px-3 py-2.5 text-[10.5px] leading-5"
           :class="agentDescription ? '' : 'italic'"
         >
           {{ agentDescription || $t('common.globalAiChat.noDescription') }}
@@ -297,10 +303,15 @@ const summaryStats = computed(() => {
             data-testid="agent-profile-skills-section"
           >
             <div
-              class="agent-profile-section-title mb-2 flex items-center gap-1.5"
+              class="agent-profile-section-title mb-2 flex items-center justify-between gap-2"
             >
-              <IconifyIcon icon="lucide:package" class="size-3" />
-              <span>{{ $t('common.globalAiChat.skillPackages') }}</span>
+              <span class="inline-flex items-center gap-1.5">
+                <IconifyIcon icon="lucide:package" class="size-3" />
+                <span>{{ $t('common.globalAiChat.skillPackages') }}</span>
+              </span>
+              <span class="agent-profile-count-badge">
+                {{ skillPackageChips.length + skillEntryChips.length }}
+              </span>
             </div>
             <div class="space-y-2">
               <div
@@ -368,10 +379,15 @@ const summaryStats = computed(() => {
             data-testid="agent-profile-kb-section"
           >
             <div
-              class="agent-profile-section-title mb-2 flex items-center gap-1.5"
+              class="agent-profile-section-title mb-2 flex items-center justify-between gap-2"
             >
-              <IconifyIcon icon="lucide:book-open" class="size-3" />
-              <span>{{ $t('common.globalAiChat.mentionSectionKbs') }}</span>
+              <span class="inline-flex items-center gap-1.5">
+                <IconifyIcon icon="lucide:book-open" class="size-3" />
+                <span>{{ $t('common.globalAiChat.mentionSectionKbs') }}</span>
+              </span>
+              <span class="agent-profile-count-badge">
+                {{ knowledgeBaseChips.length }}
+              </span>
             </div>
             <div
               v-if="knowledgeBaseChips.length > 0"
@@ -397,7 +413,7 @@ const summaryStats = computed(() => {
         </div>
 
         <div
-          class="agent-profile-footer mt-3 flex items-center justify-between rounded-[16px] px-2.5 py-2 text-[10px]"
+          class="agent-profile-footer mt-3 flex items-center justify-between rounded-[16px] px-2.5 py-2 text-[9.5px]"
         >
           <span>{{ $t('common.globalAiChat.agentProfileHint') }}</span>
           <span v-if="agentId" class="font-mono">#{{ agentId }}</span>
@@ -447,7 +463,7 @@ const summaryStats = computed(() => {
 .assistant-agent-avatar:hover {
   transform: translateY(-1px);
   box-shadow:
-    0 20px 30px -26px hsl(var(--foreground) / 0.16),
+    0 22px 32px -26px hsl(var(--foreground) / 0.16),
     0 1px 0 hsl(var(--background) / 0.84) inset;
   border-color: hsl(var(--primary) / 0.24);
 }
@@ -456,28 +472,52 @@ const summaryStats = computed(() => {
   color: hsl(var(--foreground) / 0.86);
 }
 
-.agent-profile-stat {
-  display: inline-flex;
+.agent-profile-hero {
+  border: 1px solid hsl(var(--primary) / 0.12);
+  background:
+    radial-gradient(
+      circle at top left,
+      hsl(var(--primary) / 0.1),
+      transparent 42%
+    ),
+    linear-gradient(
+      180deg,
+      hsl(var(--background) / 0.98) 0%,
+      hsl(var(--muted) / 0.12) 100%
+    );
+  box-shadow: 0 18px 32px -30px hsl(var(--foreground) / 0.12);
+}
+
+.agent-profile-stat-card {
   min-width: 0;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.2rem 0.55rem;
-  color: hsl(var(--muted-foreground) / 0.74);
-  background: hsl(var(--muted) / 0.4);
-  border: 1px solid hsl(var(--border) / 0.36);
-  border-radius: 999px;
-  font-size: 10px;
-  line-height: 1.05rem;
+  padding: 0.55rem 0.6rem;
+  border: 1px solid hsl(var(--border) / 0.28);
+  border-radius: 16px;
+  background: hsl(var(--background) / 0.82);
+}
+
+.agent-profile-stat-label {
+  color: hsl(var(--muted-foreground) / 0.68);
+  font-size: 9px;
+  line-height: 0.9rem;
+}
+
+.agent-profile-stat-value {
+  display: block;
+  margin-top: 0.35rem;
+  color: hsl(var(--foreground) / 0.9);
+  font-size: 13px;
+  line-height: 1rem;
 }
 
 .agent-model-chip {
-  color: hsl(var(--foreground) / 0.72);
-  border: 1px solid hsl(var(--border) / 0.42);
-  background: hsl(var(--background) / 0.92);
+  color: hsl(var(--foreground) / 0.7);
+  border: 1px solid hsl(var(--primary) / 0.12);
+  background: hsl(var(--primary) / 0.05);
 }
 
 .agent-profile-description {
-  color: hsl(var(--muted-foreground) / 0.8);
+  color: hsl(var(--muted-foreground) / 0.76);
   border-color: hsl(var(--border) / 0.36);
   background: hsl(var(--background) / 0.9);
 }
@@ -490,10 +530,23 @@ const summaryStats = computed(() => {
 
 .agent-profile-section-title {
   color: hsl(var(--muted-foreground) / 0.74);
-  font-size: 10.5px;
+  font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.agent-profile-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  color: hsl(var(--primary) / 0.78);
+  background: hsl(var(--primary) / 0.08);
+  font-size: 9px;
+  font-weight: 700;
 }
 
 .agent-profile-chip {

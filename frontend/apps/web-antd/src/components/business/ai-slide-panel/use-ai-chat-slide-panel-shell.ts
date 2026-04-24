@@ -271,6 +271,7 @@ export function useAIChatSlidePanelShell(
     timelineItems,
     timelineLoading,
     timelineRefreshing,
+    refreshTimeline,
   } = panelShellContext;
   openVarsModalRef = openVarsModal;
 
@@ -426,6 +427,7 @@ export function useAIChatSlidePanelShell(
     panelRef: shellActions.panelRef,
     panelTitle,
     pendingAttachments,
+    refreshTimeline,
     regenerateMessage,
     rejectAction,
     rejectConsent,

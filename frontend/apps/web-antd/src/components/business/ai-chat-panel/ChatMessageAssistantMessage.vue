@@ -262,7 +262,7 @@ function getRichTextDraftCopyContent(mode: RichTextAIApplyMode) {
     <div
       class="group/assistant flex min-w-0 items-start"
       :class="
-        compact ? 'w-full max-w-full gap-2.5' : 'w-full max-w-[42rem] gap-3'
+        compact ? 'w-full max-w-full gap-2.5' : 'w-full max-w-[46rem] gap-3'
       "
     >
       <div class="assistant-avatar-rail shrink-0 pt-0.5">
@@ -284,7 +284,7 @@ function getRichTextDraftCopyContent(mode: RichTextAIApplyMode) {
           <div
             v-if="showTopSection"
             class="assistant-message-top border-b border-border/30"
-            :class="compact ? 'px-2.5 py-2' : 'px-3 py-2.5'"
+            :class="compact ? 'px-2.5 py-1.5' : 'px-3 py-2.5'"
           >
             <ChatMessageKernel
               v-if="hasKernelSections || showTurnDiagnostics"
@@ -312,9 +312,9 @@ function getRichTextDraftCopyContent(mode: RichTextAIApplyMode) {
 
           <div
             class="assistant-message-body"
-            :class="compact ? 'px-3 py-3.5' : 'px-4 py-4'"
+            :class="compact ? 'px-3 py-3' : 'px-3.5 py-3.5'"
           >
-            <div class="space-y-3">
+            <div class="space-y-2.5">
               <ChatMessageContentBlock
                 :msg="msg"
                 :index="index"
@@ -323,15 +323,15 @@ function getRichTextDraftCopyContent(mode: RichTextAIApplyMode) {
               <ChatMessageErrorCard :msg="msg" :compact="compact" />
             </div>
 
-            <div
-              v-if="hasPostContentSections"
-              class="assistant-message-support space-y-2.5 border-t border-border/40"
-              :class="compact ? 'mt-3 pt-3' : 'mt-3 pt-3'"
-            >
+              <div
+                v-if="hasPostContentSections"
+                class="assistant-message-support space-y-2.5 border-t border-border/40"
+                :class="compact ? 'mt-2.5 pt-2.5' : 'mt-2.5 pt-2.5'"
+              >
               <div
                 v-if="msg.requestFailedRetry"
                 class="assistant-inline-panel flex items-center justify-between gap-2 rounded-2xl border px-2.5 py-2"
-                :class="compact ? 'text-[11px]' : 'text-xs'"
+                :class="compact ? 'text-[10px]' : 'text-[10.5px]'"
               >
                 <span
                   class="text-muted-foreground/78 inline-flex min-w-0 items-center gap-1.5"
@@ -477,7 +477,7 @@ function getRichTextDraftCopyContent(mode: RichTextAIApplyMode) {
 
 .assistant-avatar-rail {
   position: sticky;
-  top: 0.3rem;
+  top: 0.45rem;
 }
 
 .assistant-message-surface {
@@ -485,42 +485,64 @@ function getRichTextDraftCopyContent(mode: RichTextAIApplyMode) {
   min-width: 0;
   width: 100%;
   overflow: hidden;
-  border: 1px solid hsl(var(--border) / 0.24);
-  border-radius: 18px;
-  background: linear-gradient(
-    180deg,
-    hsl(var(--card) / 0.99) 0%,
-    hsl(var(--background) / 0.985) 100%
-  );
+  border: 1px solid hsl(var(--border) / 0.18);
+  border-radius: 22px;
+  background:
+    linear-gradient(
+      180deg,
+      hsl(var(--card) / 0.995) 0%,
+      hsl(var(--background) / 0.992) 54%,
+      hsl(var(--background) / 0.985) 100%
+    );
   box-shadow:
-    0 16px 32px -34px hsl(var(--foreground) / 0.16),
-    0 1px 2px hsl(var(--foreground) / 0.035);
+    0 22px 36px -34px hsl(var(--foreground) / 0.14),
+    0 1px 0 hsl(var(--background) / 0.72) inset;
+}
+
+.assistant-message-surface::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 2px;
+  content: '';
+  background:
+    linear-gradient(
+      180deg,
+      hsl(var(--primary) / 0.26) 0%,
+      hsl(var(--primary) / 0.04) 72%,
+      transparent 100%
+    );
 }
 
 .assistant-message-top {
   background: linear-gradient(
     180deg,
-    hsl(var(--muted) / 0.08) 0%,
+    hsl(var(--primary) / 0.05) 0%,
+    hsl(var(--muted) / 0.04) 42%,
     hsl(var(--background) / 0.98) 100%
   );
 }
 
 .assistant-message-body {
-  background: hsl(var(--background) / 0.99);
+  background:
+    linear-gradient(
+      180deg,
+      hsl(var(--background) / 0.992) 0%,
+      hsl(var(--background) / 0.982) 100%
+    );
 }
 
 .assistant-message-support {
   background: linear-gradient(
     180deg,
     transparent 0%,
-    hsl(var(--muted) / 0.06) 100%
+    hsl(var(--primary) / 0.02) 100%
   );
 }
 
 .assistant-inline-panel,
 .assistant-inline-media {
-  border-color: hsl(var(--border) / 0.28);
+  border-color: hsl(var(--border) / 0.2);
   background: hsl(var(--background) / 0.92);
-  box-shadow: 0 10px 20px -24px hsl(var(--foreground) / 0.1);
+  box-shadow: 0 12px 20px -26px hsl(var(--foreground) / 0.1);
 }
 </style>

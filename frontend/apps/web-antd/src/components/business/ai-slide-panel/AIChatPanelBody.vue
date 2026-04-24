@@ -4,15 +4,17 @@ import type { ItemType } from 'ant-design-vue/es/menu';
 import type { PendingOpDisplayItem } from './use-pending-page-ops';
 
 import type {
+  AgentItem,
   AgentKnowledgeBaseBindingsByAgentId,
   AgentKnowledgeBaseBindingSummary,
   AgentSkillBindingsByAgentId,
-  AgentItem,
   ChatMessage,
   RichTextAIApplyMode,
   RichTextAIApplyTarget,
   RichTextDraftRuntimeState,
 } from '#/types/ai-chat';
+
+import { ref, watch } from 'vue';
 
 import AIChatComposer from './AIChatComposer.vue';
 import AIChatConversationFooter from './AIChatConversationFooter.vue';
@@ -53,13 +55,13 @@ interface ComposerMentionCandidateItem {
 
 type ComposerSendState = 'idle' | 'routing' | 'sending' | 'streaming';
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     activeConversationId?: null | number;
-    agentKnowledgeBases?: AgentKnowledgeBaseBindingSummary[] | null;
     agentKnowledgeBaseMap?: AgentKnowledgeBaseBindingsByAgentId | null;
-    agentSkillMap?: AgentSkillBindingsByAgentId | null;
+    agentKnowledgeBases?: AgentKnowledgeBaseBindingSummary[] | null;
     agents?: AgentItem[];
+    agentSkillMap?: AgentSkillBindingsByAgentId | null;
     apiPrefix: string;
     attachDisabled?: boolean;
     attachmentAccept?: string;
@@ -77,14 +79,14 @@ withDefaults(
     editingTitle?: string;
     effectiveSuggestedQuestions?: string[];
     effectiveWelcomeMessage?: string;
+    ensureAgentKnowledgeBases?: (agentId: number) => Promise<unknown> | void;
+    ensureAgentSkills?: (agentId: number) => Promise<unknown> | void;
     exportMenuItems?: ItemType[];
     forceShowDiagnostics?: boolean;
     getPendingOpsForMessage: (msg: ChatMessage) => PendingOpDisplayItem[];
     getRichTextDraftState: (
       message: ChatMessage,
     ) => null | RichTextDraftRuntimeState;
-    ensureAgentKnowledgeBases?: (agentId: number) => Promise<unknown> | void;
-    ensureAgentSkills?: (agentId: number) => Promise<unknown> | void;
     groupedConversations?: HistoryConversationGroup[];
     inputMessage?: string;
     mentionCandidates?: ComposerMentionCandidateItem[];
@@ -214,32 +216,42 @@ const emit = defineEmits<{
   (e: 'removeSelectedKnowledgeBase', id: number): void;
   (e: 'captureScreenshot'): void;
 }>();
+
+const panelBodyRoot = ref<HTMLDivElement | null>(null);
+
+watch(
+  () => props.showHistory,
+  (showHistory) => {
+    if (!showHistory || typeof document === 'undefined') {
+      return;
+    }
+    const activeElement = document.activeElement;
+    if (
+      activeElement instanceof HTMLElement &&
+      panelBodyRoot.value?.contains(activeElement)
+    ) {
+      activeElement.blur();
+    }
+  },
+);
 </script>
 
 <template>
-  <AIChatHistoryPane
-    v-if="showHistory"
-    :active-conversation-id="activeConversationId"
-    :conversation-search="conversationSearch"
-    :conversations-count="conversationsCount"
-    :conversations-loading="conversationsLoading"
-    :editing-conversation-id="editingConversationId"
-    :editing-title="editingTitle"
-    :grouped-conversations="groupedConversations"
-    @start-new-chat="emit('newChat')"
-    @update:conversation-search="emit('update:conversationSearch', $event)"
-    @select-conversation="emit('selectConversation', $event)"
-    @delete-conversation="emit('deleteConversation', $event)"
-    @start-edit-title="emit('startEditTitle', $event)"
-    @update:editing-title="emit('update:editingTitle', $event)"
-    @commit-edit-title="emit('commitEditTitle')"
-    @cancel-edit-title="emit('cancelEditTitle')"
-  />
-
-  <template v-else>
+  <div
+    ref="panelBodyRoot"
+    class="relative flex min-h-0 flex-1 flex-col overflow-hidden"
+  >
     <div
+      data-testid="transcript-shell"
       class="flex min-h-0 flex-1 flex-col"
-      :class="compactMessages ? '' : 'mx-auto w-full max-w-5xl'"
+      :class="[
+        compactMessages ? '' : 'mx-auto w-full max-w-5xl',
+        showHistory
+          ? 'saturate-75 pointer-events-none select-none opacity-45 blur-[1px]'
+          : '',
+      ]"
+      :aria-hidden="showHistory ? 'true' : 'false'"
+      :inert="showHistory || undefined"
     >
       <AIChatMessageViewport
         :api-prefix="apiPrefix"
@@ -335,5 +347,66 @@ const emit = defineEmits<{
         @stop="emit('stop')"
       />
     </div>
-  </template>
+
+    <Transition name="ai-chat-history-overlay">
+      <div
+        v-if="showHistory"
+        data-testid="history-overlay"
+        class="pointer-events-none absolute inset-0 z-10 px-3 py-3"
+      >
+        <div
+          class="absolute inset-0 bg-gradient-to-b from-background/20 via-background/10 to-background/25 backdrop-blur-[1px]"
+        ></div>
+        <div
+          class="ai-chat-history-overlay-pane bg-card/92 pointer-events-auto relative flex h-full min-h-0 flex-col overflow-hidden rounded-[1.5rem] border border-border/60 shadow-2xl shadow-black/10 ring-1 ring-black/5"
+          :class="compactMessages ? '' : 'mx-auto w-full max-w-5xl'"
+        >
+          <AIChatHistoryPane
+            :active-conversation-id="activeConversationId"
+            :conversation-search="conversationSearch"
+            :conversations-count="conversationsCount"
+            :conversations-loading="conversationsLoading"
+            :editing-conversation-id="editingConversationId"
+            :editing-title="editingTitle"
+            :grouped-conversations="groupedConversations"
+            @start-new-chat="emit('newChat')"
+            @update:conversation-search="
+              emit('update:conversationSearch', $event)
+            "
+            @select-conversation="emit('selectConversation', $event)"
+            @delete-conversation="emit('deleteConversation', $event)"
+            @start-edit-title="emit('startEditTitle', $event)"
+            @update:editing-title="emit('update:editingTitle', $event)"
+            @commit-edit-title="emit('commitEditTitle')"
+            @cancel-edit-title="emit('cancelEditTitle')"
+          />
+        </div>
+      </div>
+    </Transition>
+  </div>
 </template>
+
+<style scoped>
+.ai-chat-history-overlay-enter-active,
+.ai-chat-history-overlay-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.ai-chat-history-overlay-enter-active .ai-chat-history-overlay-pane,
+.ai-chat-history-overlay-leave-active .ai-chat-history-overlay-pane {
+  transition:
+    transform 0.2s ease,
+    opacity 0.2s ease;
+}
+
+.ai-chat-history-overlay-enter-from,
+.ai-chat-history-overlay-leave-to {
+  opacity: 0;
+}
+
+.ai-chat-history-overlay-enter-from .ai-chat-history-overlay-pane,
+.ai-chat-history-overlay-leave-to .ai-chat-history-overlay-pane {
+  opacity: 0;
+  transform: translateY(8px) scale(0.985);
+}
+</style>

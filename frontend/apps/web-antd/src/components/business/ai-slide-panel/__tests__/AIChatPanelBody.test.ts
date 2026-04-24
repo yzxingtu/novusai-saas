@@ -3,7 +3,8 @@
 /**
  * Test type: behavioral
  * Verifies: the shared admin/tenant panel body forwards message-agent knowledge-base / skill bindings
- * and the loader callbacks into the shared message viewport without falling back to selected-agent-only data.
+ * and the loader callbacks into the shared message viewport without falling back to selected-agent-only data,
+ * while keeping the transcript shell mounted when history opens as an overlay.
  * Mock strategy: child layout blocks are stubbed, while AIChatPanelBody prop wiring runs real.
  */
 import { mount } from '@vue/test-utils';
@@ -13,7 +14,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import AIChatPanelBody from '../AIChatPanelBody.vue';
 
-describe('AIChatPanelBody', () => {
+describe('ai chat panel body', () => {
   it('forwards message-agent knowledge-base bindings into the shared viewport chain', () => {
     const ensureAgentKnowledgeBases = vi.fn(async () => []);
     const ensureAgentSkills = vi.fn(async () => []);
@@ -97,16 +98,30 @@ describe('AIChatPanelBody', () => {
           AIChatMessageViewport: defineComponent({
             name: 'AIChatMessageViewportProbe',
             props: {
-              agentKnowledgeBaseMap: { type: Object, required: false },
-              agentSkillMap: { type: Object, required: false },
-              chatMessages: { type: Array, required: false },
+              agentKnowledgeBaseMap: {
+                type: Object,
+                required: false,
+                default: () => ({}),
+              },
+              agentSkillMap: {
+                type: Object,
+                required: false,
+                default: () => ({}),
+              },
+              chatMessages: {
+                type: Array,
+                required: false,
+                default: () => [],
+              },
               ensureAgentKnowledgeBases: {
                 type: Function,
                 required: false,
+                default: undefined,
               },
               ensureAgentSkills: {
                 type: Function,
                 required: false,
+                default: undefined,
               },
             },
             template:
@@ -122,5 +137,68 @@ describe('AIChatPanelBody', () => {
     expect(viewport.attributes('data-skill-name')).toBe('历史技能');
     expect(viewport.attributes('data-has-kb-ensure')).toBe('true');
     expect(viewport.attributes('data-has-skill-ensure')).toBe('true');
+  });
+
+  it('keeps the transcript mounted and inert while history is overlaid', () => {
+    const wrapper = mount(AIChatPanelBody, {
+      props: {
+        apiPrefix: '/admin',
+        chatMessages: [
+          {
+            clientKey: 'assistant-history-overlay',
+            content: '当前会话内容',
+            role: 'assistant',
+          },
+        ],
+        getPendingOpsForMessage: () => [],
+        getRichTextDraftState: () => null,
+        groupedConversations: [
+          {
+            label: '今天',
+            items: [{ id: 11, title: '会话 11' }],
+          },
+        ],
+        showHistory: true,
+      },
+      global: {
+        stubs: {
+          AIChatComposer: defineComponent({
+            name: 'AIChatComposerStub',
+            template: '<div data-testid="composer-stub" />',
+          }),
+          AIChatConversationFooter: defineComponent({
+            name: 'AIChatConversationFooterStub',
+            template: '<div data-testid="conversation-footer-stub" />',
+          }),
+          AIChatHistoryPane: defineComponent({
+            name: 'AIChatHistoryPaneStub',
+            template: '<div data-testid="history-pane-stub" />',
+          }),
+          AIChatMessageViewport: defineComponent({
+            name: 'AIChatMessageViewportStub',
+            template: '<div data-testid="viewport-probe" />',
+          }),
+        },
+      },
+    });
+
+    expect(wrapper.find('[data-testid="viewport-probe"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="composer-stub"]').exists()).toBe(true);
+    expect(
+      wrapper.find('[data-testid="conversation-footer-stub"]').exists(),
+    ).toBe(true);
+    expect(wrapper.find('[data-testid="history-overlay"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="history-pane-stub"]').exists()).toBe(
+      true,
+    );
+    expect(
+      wrapper.get('[data-testid="transcript-shell"]').attributes('aria-hidden'),
+    ).toBe('true');
+    expect(
+      wrapper.get('[data-testid="transcript-shell"]').attributes('inert'),
+    ).toBe('');
+    expect(wrapper.get('[data-testid="transcript-shell"]').classes()).toContain(
+      'pointer-events-none',
+    );
   });
 });

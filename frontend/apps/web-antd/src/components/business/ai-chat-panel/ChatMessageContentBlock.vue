@@ -267,12 +267,12 @@ function toggleExpand() {
   <div
     v-if="hasContentBody"
     class="assistant-content-block relative"
-    :class="compact ? 'text-[14px]' : 'text-[15px]'"
+    :class="compact ? 'text-[14.5px]' : 'text-[15.5px]'"
   >
     <div
       class="assistant-content-body transition-[max-height] duration-200"
       :class="[
-        compact ? 'leading-[1.82]' : 'leading-[1.86]',
+        compact ? 'leading-[1.8]' : 'leading-[1.84]',
         canCollapse && !expanded
           ? 'relative max-h-[300px] overflow-hidden'
           : '',
@@ -309,7 +309,7 @@ function toggleExpand() {
     <button
       v-if="canCollapse && !msg.streaming"
       type="button"
-      class="hover:border-primary/22 mt-2.5 inline-flex items-center gap-1.5 rounded-full border border-border/30 bg-background/80 px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-primary/[0.05] hover:text-primary"
+      class="hover:border-primary/18 mt-2.5 inline-flex items-center gap-1.5 rounded-full border border-border/22 bg-background/72 px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-primary/[0.04] hover:text-primary"
       @click="toggleExpand"
     >
       {{
@@ -338,7 +338,7 @@ function toggleExpand() {
 
 <style scoped>
 .assistant-content-body {
-  color: hsl(var(--foreground) / 0.88);
+  color: hsl(var(--foreground) / 0.9);
 }
 
 .assistant-content-block :deep(.markdown-render) {

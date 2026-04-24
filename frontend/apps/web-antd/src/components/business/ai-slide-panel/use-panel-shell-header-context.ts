@@ -165,6 +165,7 @@ export function usePanelShellHeaderContext(
     onOpenVarsModal: contextBridge.openVarsModal,
     routing: options.routing,
     selectedAgent: options.selectedAgent,
+    showHistory,
     showMemoryPanel,
     totalTokensUsed: options.totalTokensUsed,
     unpinAgent: options.unpinAgent,

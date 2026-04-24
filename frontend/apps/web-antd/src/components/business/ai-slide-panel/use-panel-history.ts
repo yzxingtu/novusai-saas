@@ -83,6 +83,9 @@ export function usePanelHistory(options: UsePanelHistoryOptions) {
 
   function toggleHistory() {
     options.showHistory.value = !options.showHistory.value;
+    if (options.showHistory.value) {
+      options.showMemoryPanel.value = false;
+    }
     if (!options.showHistory.value) {
       conversationSearch.value = '';
     }

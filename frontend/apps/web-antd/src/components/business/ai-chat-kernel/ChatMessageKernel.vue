@@ -290,7 +290,7 @@ function handleReject() {
 </script>
 
 <template>
-  <div class="space-y-2">
+  <div class="space-y-1.5">
     <div
       v-if="hasDigestContent"
       data-testid="chat-message-kernel-header"
@@ -301,11 +301,11 @@ function handleReject() {
         type="button"
         data-testid="chat-message-kernel-overview-toggle"
         class="chat-message-kernel-overview flex w-full min-w-0 items-center gap-2 text-left"
-        :class="compact ? 'px-3 py-2' : 'px-3.5 py-2'"
+        :class="compact ? 'px-2.5 py-2' : 'px-3 py-2.5'"
         :aria-expanded="isKernelExpanded"
         @click="toggleKernelExpanded"
       >
-        <div class="min-w-0 flex flex-1 items-center gap-2">
+        <div class="min-w-0 flex flex-1 items-stretch gap-2">
           <div
             v-if="hasDigestCard"
             class="kernel-overview-group min-w-0 flex flex-1 items-center gap-1.5"
@@ -368,7 +368,7 @@ function handleReject() {
           data-testid="chat-message-kernel-body"
           class="space-y-1"
           :class="[
-            compact ? 'px-2.5 py-2' : 'px-3 py-2.5',
+            compact ? 'px-2.5 py-1.5' : 'px-3 py-2',
             canCollapseKernel ? 'border-t border-border/10' : '',
           ]"
         >
@@ -408,71 +408,74 @@ function handleReject() {
 
 <style scoped>
 .chat-message-kernel-shell {
-  border-color: hsl(var(--border) / 0.16);
+  border-color: hsl(var(--border) / 0.15);
   background:
     linear-gradient(
       180deg,
-      hsl(var(--background) / 0.985) 0%,
-      hsl(var(--muted) / 0.045) 100%
+      hsl(var(--primary) / 0.02) 0%,
+      hsl(var(--background) / 0.988) 42%,
+      hsl(var(--muted) / 0.03) 100%
     );
-  box-shadow: 0 14px 24px -32px hsl(var(--foreground) / 0.12);
+  box-shadow: 0 16px 26px -32px hsl(var(--foreground) / 0.12);
 }
 
 .chat-message-kernel-overview {
   transition:
     background-color 160ms ease,
-    border-color 160ms ease,
-    box-shadow 160ms ease;
+    border-color 160ms ease;
 }
 
 .chat-message-kernel-overview:hover {
-  background: hsl(var(--muted) / 0.08);
-  box-shadow: inset 0 1px 0 hsl(var(--primary) / 0.06);
+  background: hsl(var(--primary) / 0.03);
 }
 
 .kernel-overview-group {
   min-width: 0;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid hsl(var(--border) / 0.16);
+  border-radius: 16px;
+  background: hsl(var(--background) / 0.82);
 }
 
 .kernel-overview-pill {
   display: inline-flex;
   align-items: center;
   border-radius: 9999px;
-  padding: 0.18rem 0.6rem;
-  color: hsl(var(--muted-foreground) / 0.56);
-  border: 1px solid hsl(var(--border) / 0.18);
-  background: hsl(var(--background) / 0.88);
-  font-size: 0.62rem;
+  padding: 0.16rem 0.55rem;
+  color: hsl(var(--primary) / 0.76);
+  border: 1px solid hsl(var(--primary) / 0.12);
+  background: hsl(var(--primary) / 0.05);
+  font-size: 0.58rem;
   font-weight: 600;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
 }
 
 .kernel-overview-copy {
-  color: hsl(var(--foreground) / 0.74);
-  font-size: 0.74rem;
-  line-height: 1.1rem;
+  color: hsl(var(--foreground) / 0.72);
+  font-size: 0.7rem;
+  line-height: 1rem;
 }
 
 .kernel-overview-count {
-  color: hsl(var(--muted-foreground) / 0.6);
-  border: 1px solid hsl(var(--border) / 0.16);
-  background: hsl(var(--background) / 0.82);
+  color: hsl(var(--muted-foreground) / 0.56);
+  border: 1px solid hsl(var(--border) / 0.14);
+  background: hsl(var(--muted) / 0.32);
   border-radius: 9999px;
-  padding: 0.16rem 0.5rem;
-  font-size: 0.66rem;
-  line-height: 0.95rem;
+  padding: 0.16rem 0.45rem;
+  font-size: 0.62rem;
+  line-height: 0.9rem;
 }
 
 .kernel-overview-divider {
   width: 1px;
   align-self: stretch;
-  background: hsl(var(--border) / 0.16);
+  background: hsl(var(--border) / 0.1);
 }
 
 .kernel-overview-chevron {
-  color: hsl(var(--muted-foreground) / 0.48);
-  border: 1px solid hsl(var(--border) / 0.16);
+  color: hsl(var(--muted-foreground) / 0.44);
+  border: 1px solid hsl(var(--border) / 0.14);
   background: hsl(var(--background) / 0.84);
 }
 

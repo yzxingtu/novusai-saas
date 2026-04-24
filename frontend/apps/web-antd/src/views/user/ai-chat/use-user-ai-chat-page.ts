@@ -165,6 +165,7 @@ export function useUserAIChatPage() {
   const editingTitle = ref('');
 
   function onSelectConversation(conversationId: number) {
+    showMemoryPanel.value = false;
     void loadConversationMessages(conversationId);
     const conversation = conversations.value.find(
       (item) => item.id === conversationId,
@@ -208,6 +209,7 @@ export function useUserAIChatPage() {
   }
 
   function onStartNewChat() {
+    showMemoryPanel.value = false;
     startNewConversation();
     void router.replace({
       path: '/ai-chat',
@@ -219,6 +221,7 @@ export function useUserAIChatPage() {
   }
 
   function onSelectAgent(agentId: number) {
+    showMemoryPanel.value = false;
     selectAgent(agentId);
     void router.replace({
       path: '/ai-chat',

@@ -560,8 +560,8 @@ watch(
             class="text-foreground/74 min-w-0 flex-1 truncate font-medium"
             :class="
               compact
-                ? 'text-[11px] leading-[1.14rem]'
-                : 'text-[11.5px] leading-[1.18rem]'
+                ? 'text-[10.5px] leading-[1.08rem]'
+                : 'text-[11px] leading-[1.14rem]'
             "
           >
             {{
@@ -577,7 +577,7 @@ watch(
             {{ processStatusLabel }}
           </span>
           <span
-            class="turn-process-count inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px]"
+            class="turn-process-count inline-flex items-center rounded-full px-1.5 py-0.5 text-[9.5px]"
           >
             {{
               $t('common.globalAiChat.turnStageCount', {
@@ -643,11 +643,11 @@ watch(
               ></span>
             </div>
 
-            <div class="min-w-0">
+            <div class="turn-stage-card min-w-0">
               <div class="flex min-w-0 flex-wrap items-center gap-1.5">
                 <span
                   class="text-foreground/72 truncate font-medium"
-                  :class="compact ? 'text-[10.5px]' : 'text-[11px]'"
+                  :class="compact ? 'text-[10px]' : 'text-[10.5px]'"
                 >
                   {{ getStageTypeLabel(stage) }}
                 </span>
@@ -660,13 +660,13 @@ watch(
                 </span>
               </div>
               <p
-                class="text-muted-foreground/56 mt-0.5"
-                :class="
-                  compact
-                    ? 'text-[10px] leading-[1.1rem]'
-                    : 'text-[10.5px] leading-[1.16rem]'
-                "
-              >
+                  class="text-muted-foreground/56 mt-0.5"
+                  :class="
+                    compact
+                      ? 'text-[9.5px] leading-[1.02rem]'
+                      : 'text-[10px] leading-[1.08rem]'
+                  "
+                >
                 {{ getVisibleStageSummary(stage) }}
               </p>
 
@@ -685,7 +685,7 @@ watch(
                     :class="compact ? 'pl-0.5' : 'pl-1'"
                   >
                     <div
-                      class="turn-stage-detail-surface min-w-0 rounded-xl border"
+                      class="turn-stage-detail-surface min-w-0 rounded-[16px] border"
                       :class="compact ? 'px-2.5 py-1.5' : 'px-2.5 py-2'"
                     >
                       <ChatMessageThinkingBlock
@@ -708,8 +708,8 @@ watch(
 
                       <div
                         v-else-if="hasToolSelectionBody(stage)"
-                        class="inline-flex max-w-full items-center gap-1.5 rounded-lg bg-muted/[0.05] px-2.5 py-2 text-muted-foreground/70"
-                        :class="compact ? 'text-[10.5px]' : 'text-[11px]'"
+                        class="inline-flex max-w-full items-center gap-1.5 rounded-[14px] bg-muted/[0.05] px-2.5 py-2 text-muted-foreground/70"
+                        :class="compact ? 'text-[10px]' : 'text-[10.5px]'"
                       >
                         <IconifyIcon
                           icon="lucide:sparkles"
@@ -741,7 +741,7 @@ watch(
                         <div
                           v-for="(source, sourceIndex) in displayRagSources"
                           :key="`${stage.id}-source-${source.doc_id}-${sourceIndex}`"
-                          class="min-w-0 rounded-lg bg-muted/[0.04] px-2.5 py-2"
+                          class="min-w-0 rounded-[14px] bg-muted/[0.04] px-2.5 py-2"
                         >
                           <div class="flex min-w-0 items-start gap-2">
                             <IconifyIcon
@@ -753,20 +753,20 @@ watch(
                                 class="flex min-w-0 flex-wrap items-center gap-1.5"
                               >
                                 <span
-                                  class="text-foreground/74 truncate text-[11px] font-medium"
+                                  class="text-foreground/74 truncate text-[10.5px] font-medium"
                                 >
                                   {{ source.doc_name }}
                                 </span>
                                 <span
                                   v-if="source.knowledge_base_name"
-                                  class="text-muted-foreground/58 text-[10px]"
+                                  class="text-muted-foreground/58 text-[9.5px]"
                                 >
                                   {{ source.knowledge_base_name }}
                                 </span>
                               </div>
                               <p
                                 v-if="source.snippet"
-                                class="mt-0.5 line-clamp-2 text-[10.5px] leading-5 text-muted-foreground/60"
+                                  class="mt-0.5 line-clamp-2 text-[9.75px] leading-5 text-muted-foreground/60"
                               >
                                 {{ source.snippet }}
                               </p>
@@ -788,14 +788,13 @@ watch(
 
 <style scoped>
 .turn-process-toggle {
-  border: 1px solid hsl(var(--border) / 0.14);
+  border: 1px solid hsl(var(--border) / 0.12);
   background:
     linear-gradient(
       180deg,
-      hsl(var(--background) / 0.82) 0%,
-      hsl(var(--muted) / 0.04) 100%
+      hsl(var(--primary) / 0.025) 0%,
+      hsl(var(--background) / 0.82) 100%
     );
-  box-shadow: 0 10px 18px -28px hsl(var(--foreground) / 0.12);
   transition:
     background-color 160ms ease,
     border-color 160ms ease,
@@ -803,21 +802,21 @@ watch(
 }
 
 .turn-process-toggle:hover {
-  border-color: hsl(var(--primary) / 0.14);
-  background: hsl(var(--muted) / 0.08);
-  box-shadow: 0 12px 20px -28px hsl(var(--foreground) / 0.14);
+  border-color: hsl(var(--primary) / 0.12);
+  background: hsl(var(--primary) / 0.035);
+  box-shadow: 0 12px 24px -28px hsl(var(--foreground) / 0.14);
 }
 
 .turn-process-pill {
-  color: hsl(var(--muted-foreground) / 0.56);
-  border: 1px solid hsl(var(--border) / 0.24);
-  background: hsl(var(--background) / 0.86);
+  color: hsl(var(--primary) / 0.76);
+  border: 1px solid hsl(var(--primary) / 0.12);
+  background: hsl(var(--primary) / 0.05);
 }
 
 .turn-process-count {
-  color: hsl(var(--muted-foreground) / 0.58);
-  border: 1px solid hsl(var(--border) / 0.18);
-  background: hsl(var(--background) / 0.8);
+  color: hsl(var(--muted-foreground) / 0.56);
+  border: 1px solid hsl(var(--border) / 0.14);
+  background: hsl(var(--muted) / 0.28);
 }
 
 .turn-process-track {
@@ -825,8 +824,8 @@ watch(
 }
 
 .turn-process-chevron {
-  color: hsl(var(--muted-foreground) / 0.5);
-  border: 1px solid hsl(var(--border) / 0.18);
+  color: hsl(var(--muted-foreground) / 0.46);
+  border: 1px solid hsl(var(--border) / 0.14);
   background: hsl(var(--background) / 0.82);
 }
 
@@ -836,21 +835,20 @@ watch(
 }
 
 .turn-stage-detail-surface {
-  border-color: hsl(var(--border) / 0.16);
-  background:
-    linear-gradient(
-      180deg,
-      hsl(var(--background) / 0.86) 0%,
-      hsl(var(--muted) / 0.03) 100%
-    );
-  box-shadow: 0 10px 18px -30px hsl(var(--foreground) / 0.12);
+  border-color: hsl(var(--border) / 0.14);
+  background: hsl(var(--background) / 0.8);
+  box-shadow: 0 10px 16px -24px hsl(var(--foreground) / 0.16);
+}
+
+.turn-stage-card {
+  padding: 0.25rem 0.15rem 0.1rem;
 }
 
 .turn-stage-inline-markdown {
   min-width: 0;
-  color: hsl(var(--foreground) / 0.7);
-  font-size: 0.82rem;
-  line-height: 1.35rem;
+  color: hsl(var(--foreground) / 0.68);
+  font-size: 0.8rem;
+  line-height: 1.3rem;
 }
 
 .turn-stage-inline-markdown :deep(p:first-child) {

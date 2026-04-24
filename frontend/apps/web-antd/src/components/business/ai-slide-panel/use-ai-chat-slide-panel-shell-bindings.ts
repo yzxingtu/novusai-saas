@@ -16,7 +16,7 @@ import { usePanelWidth } from './use-panel-width';
 export function useAIChatSlidePanelShellBindings(
   options: UseAIChatSlidePanelShellBindingsOptions,
 ) {
-  const compactMessages = computed(() => false);
+  const compactMessages = computed(() => options.aiPanelStore.mode !== 'full');
 
   const headerBindings = usePanelShellHeaderBindings({
     activeConversationId: options.activeConversationId,
@@ -46,7 +46,7 @@ export function useAIChatSlidePanelShellBindings(
     timelineItems: options.timelineItems,
     timelineLoading: options.timelineLoading,
     timelineRefreshing: options.timelineRefreshing,
-    refreshTimeline: () => {},
+    refreshTimeline: options.refreshTimeline,
     isPinned: options.isPinned,
     toggleHistory: () => {
       options.showHistory.value = !options.showHistory.value;

@@ -3,6 +3,7 @@ import { IconifyIcon } from '@vben/icons';
 
 import { Spin, Tooltip } from 'ant-design-vue';
 
+import { AgentProfilePopover } from '#/components/business/agent-profile-popover';
 import { $t } from '#/locales';
 
 import { useUserAIChatWorkspaceContext } from './user-ai-chat-workspace-context';
@@ -10,8 +11,8 @@ import { useUserAIChatWorkspaceContext } from './user-ai-chat-workspace-context'
 const workspace = useUserAIChatWorkspaceContext();
 const {
   page: {
+    apiPrefix,
     chat,
-    showWorkspaceHero,
     chatHeaderSubtitle,
     selectedAgentHasVariables,
     selectedAgentVarsConfigured,
@@ -38,49 +39,43 @@ const {
     >
       <div class="flex min-w-0 items-start gap-3">
         <button
+          data-testid="user-ai-chat-mobile-sidebar-button"
           class="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:hidden"
           @click="workspace.openMobileSidebar"
         >
           <IconifyIcon icon="lucide:panel-left" class="size-4" />
         </button>
 
-        <div
-          v-if="!showWorkspaceHero && selectedAgent"
-          class="flex min-w-0 items-center gap-3"
-        >
+        <div class="flex min-w-0 items-center gap-3">
           <div
-            class="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-xs font-medium text-primary"
+            v-if="selectedAgent"
+            data-testid="user-ai-chat-agent-profile-trigger"
+            class="shrink-0"
           >
-            <img
-              v-if="selectedAgent.avatar"
-              :src="selectedAgent.avatar"
-              :alt="selectedAgent.name"
-              class="size-9 rounded-xl object-cover"
+            <AgentProfilePopover
+              :agent-avatar="selectedAgent.avatar"
+              :agent-description="selectedAgent.description"
+              :agent-id="selectedAgent.id"
+              :agent-name="selectedAgent.name"
+              :api-prefix="apiPrefix"
+              :model-name="selectedAgent.model_name"
+              size="md"
             />
-            <span v-else>{{ selectedAgent.name.charAt(0).toUpperCase() }}</span>
           </div>
           <div class="min-w-0">
-            <div class="truncate text-sm font-semibold text-foreground">
-              {{ selectedAgent.name }}
+            <div
+              data-testid="user-ai-chat-workspace-title"
+              class="text-sm font-semibold text-foreground"
+            >
+              {{ $t('user.aiChat.title') }}
             </div>
             <div
               v-if="chatHeaderSubtitle"
+              data-testid="user-ai-chat-workspace-subtitle"
               class="truncate text-[11px] text-muted-foreground"
             >
               {{ chatHeaderSubtitle }}
             </div>
-          </div>
-        </div>
-
-        <div v-else class="min-w-0">
-          <div class="text-sm font-semibold text-foreground">
-            {{ $t('user.aiChat.title') }}
-          </div>
-          <div
-            v-if="chatHeaderSubtitle"
-            class="truncate text-[11px] text-muted-foreground"
-          >
-            {{ chatHeaderSubtitle }}
           </div>
         </div>
       </div>
@@ -91,6 +86,7 @@ const {
           :title="$t('user.aiChat.varsModal.editVars')"
         >
           <button
+            data-testid="user-ai-chat-vars-button"
             class="hover:bg-primary/8 flex h-8 items-center gap-1 rounded-lg px-2 text-xs font-medium text-primary transition-colors"
             @click="openSelectedAgentVarsModal"
           >
@@ -107,6 +103,7 @@ const {
 
         <Tooltip :title="$t('common.aiPanel.newChat')">
           <button
+            data-testid="user-ai-chat-new-chat-button"
             class="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             @click="onStartNewChat"
           >
@@ -119,6 +116,7 @@ const {
           :title="$t('common.aiPanel.memory')"
         >
           <button
+            data-testid="user-ai-chat-memory-button"
             class="flex h-8 items-center gap-1 rounded-lg px-2 transition-colors hover:bg-muted disabled:opacity-40"
             :class="
               showMemoryPanel

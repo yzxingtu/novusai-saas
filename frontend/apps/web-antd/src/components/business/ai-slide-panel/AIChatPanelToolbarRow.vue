@@ -83,7 +83,7 @@ const emit = defineEmits<{
 <template>
   <div
     data-testid="ai-panel-toolbar-row"
-    class="w-full shrink-0 px-3 pb-2 pt-1"
+    class="w-full shrink-0 px-2.5 pb-1 pt-0.5"
     :class="hasPageAI ? '' : 'flex justify-end'"
   >
     <PageAIRail

@@ -410,7 +410,7 @@ function getEvidenceIcon(kind: string) {
       v-if="canToggleDigest"
       type="button"
       data-testid="turn-digest-toggle"
-      class="turn-digest-toggle flex w-full min-w-0 items-center gap-2 rounded-xl px-1.5 py-1.5 text-left"
+      class="turn-digest-toggle flex w-full min-w-0 items-center gap-2 rounded-[14px] px-2 py-1.5 text-left"
       :aria-expanded="digestExpanded"
       @click="toggleDigestExpanded"
     >
@@ -545,8 +545,8 @@ function getEvidenceIcon(kind: string) {
 
 <style scoped>
 .turn-digest-toggle {
-  border: 1px solid hsl(var(--border) / 0.14);
-  background: hsl(var(--background) / 0.72);
+  border: 1px solid hsl(var(--border) / 0.1);
+  background: hsl(var(--background) / 0.62);
   transition:
     background-color 160ms ease,
     border-color 160ms ease,
@@ -554,14 +554,14 @@ function getEvidenceIcon(kind: string) {
 }
 
 .turn-digest-toggle:hover {
-  border-color: hsl(var(--primary) / 0.12);
-  background: hsl(var(--muted) / 0.12);
+  border-color: hsl(var(--primary) / 0.1);
+  background: hsl(var(--muted) / 0.08);
 }
 
 .digest-label {
-  color: hsl(var(--muted-foreground) / 0.62);
-  border: 1px solid hsl(var(--border) / 0.18);
-  background: hsl(var(--background) / 0.88);
+  color: hsl(var(--muted-foreground) / 0.6);
+  border: 1px solid hsl(var(--border) / 0.14);
+  background: hsl(var(--muted) / 0.1);
 }
 
 .digest-live-state {
@@ -570,15 +570,15 @@ function getEvidenceIcon(kind: string) {
 }
 
 .digest-evidence-count {
-  color: hsl(var(--muted-foreground) / 0.6);
-  border: 1px solid hsl(var(--border) / 0.2);
-  background: hsl(var(--background) / 0.78);
+  color: hsl(var(--muted-foreground) / 0.54);
+  border: 1px solid hsl(var(--border) / 0.14);
+  background: hsl(var(--background) / 0.72);
 }
 
 .digest-chevron {
-  color: hsl(var(--muted-foreground) / 0.5);
-  border: 1px solid hsl(var(--border) / 0.2);
-  background: hsl(var(--background) / 0.78);
+  color: hsl(var(--muted-foreground) / 0.46);
+  border: 1px solid hsl(var(--border) / 0.14);
+  background: hsl(var(--background) / 0.72);
 }
 
 .turn-digest-toggle:hover .digest-chevron {
@@ -617,17 +617,17 @@ function getEvidenceIcon(kind: string) {
 }
 
 .digest-summary {
-  color: hsl(var(--foreground) / 0.82);
+  color: hsl(var(--foreground) / 0.84);
 }
 
 .digest-section-copy {
-  color: hsl(var(--muted-foreground) / 0.7);
+  color: hsl(var(--muted-foreground) / 0.66);
 }
 
 .digest-evidence-chip {
-  border-color: hsl(var(--border) / 0.18);
-  color: hsl(var(--foreground) / 0.7);
-  background: hsl(var(--background) / 0.82);
+  border-color: hsl(var(--border) / 0.14);
+  color: hsl(var(--foreground) / 0.68);
+  background: hsl(var(--background) / 0.72);
 }
 
 .digest-evidence-more {

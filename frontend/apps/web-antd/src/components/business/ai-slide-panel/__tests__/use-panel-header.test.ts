@@ -87,6 +87,7 @@ function buildOptions(
     ),
     routing: ref(false),
     selectedAgent: ref(null) as Ref<AgentItem | null>,
+    showHistory: ref(false),
     showMemoryPanel: ref(false),
     totalTokensUsed: ref(0),
     unpinAgent: vi.fn(),
@@ -202,7 +203,7 @@ describe('usePanelHeader diagnostics gating', () => {
     );
   });
 
-  it('keeps the panel header free of per-conversation agent names while surfacing anonymous conversation context', () => {
+  it('keeps the panel header free of per-conversation summaries so transcript content stays primary', () => {
     const options = buildOptions();
     options.chatMessages.value = [
       { content: 'one', role: 'assistant' },
@@ -222,16 +223,7 @@ describe('usePanelHeader diagnostics gating', () => {
 
     const header = usePanelHeader(options);
 
-    expect(header.headerConversationSummary.value).toContain(
-      '2 common.globalAiChat.messages',
-    );
-    expect(header.headerConversationSummary.value).toContain(
-      '128 common.globalAiChat.tokens',
-    );
-    expect(header.headerConversationSummary.value).toContain(
-      'user.aiChat.varsModal.editVars',
-    );
-    expect(header.headerConversationSummary.value).not.toContain('Agent');
+    expect(header.headerConversationSummary.value).toBe('');
   });
 
   it('exposes memory as a direct header action instead of a more-menu item', async () => {
@@ -250,6 +242,18 @@ describe('usePanelHeader diagnostics gating', () => {
 
     expect(options.fetchConversationMemory).toHaveBeenCalledTimes(1);
     expect(options.showMemoryPanel.value).toBe(false);
+  });
+
+  it('closes history before opening memory so the visible inspector stays coherent', async () => {
+    const options = buildOptions();
+    options.showHistory.value = true;
+    const header = usePanelHeader(options);
+
+    await header.onToggleMemory();
+
+    expect(options.showHistory.value).toBe(false);
+    expect(options.fetchConversationMemory).toHaveBeenCalledTimes(1);
+    expect(options.showMemoryPanel.value).toBe(true);
   });
 
   it('raises memory attention only while updates exist and the panel is closed', () => {

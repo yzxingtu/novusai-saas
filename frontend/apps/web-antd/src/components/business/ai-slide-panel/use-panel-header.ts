@@ -42,6 +42,7 @@ interface UsePanelHeaderOptions {
   ) => void;
   routing: Ref<boolean>;
   selectedAgent: Ref<AgentItem | null>;
+  showHistory: Ref<boolean>;
   showMemoryPanel: Ref<boolean>;
   totalTokensUsed: Ref<number>;
   unpinAgent: () => void;
@@ -62,6 +63,9 @@ export function usePanelHeader(options: UsePanelHeaderOptions) {
     if (options.showMemoryPanel.value) {
       options.showMemoryPanel.value = false;
       return;
+    }
+    if (options.showHistory.value) {
+      options.showHistory.value = false;
     }
     await options.fetchConversationMemory();
     options.showMemoryPanel.value = true;
@@ -268,35 +272,7 @@ export function usePanelHeader(options: UsePanelHeaderOptions) {
       !!options.lastMemoryUpdated.value,
   );
 
-  const headerConversationSummary = computed(() => {
-    if (!options.activeConversationId.value) {
-      return '';
-    }
-
-    const summaryParts: string[] = [];
-
-    if (options.chatMessages.value.length > 0) {
-      summaryParts.push(
-        `${options.chatMessages.value.length} ${$t('common.globalAiChat.messages')}`,
-      );
-    }
-
-    if (options.totalTokensUsed.value > 0) {
-      summaryParts.push(
-        `${options.totalTokensUsed.value.toLocaleString()} ${$t('common.globalAiChat.tokens')}`,
-      );
-    }
-
-    if (hasHeaderVariableValues.value) {
-      summaryParts.push($t('user.aiChat.varsModal.editVars'));
-    }
-
-    if (options.lastMemoryUpdated.value) {
-      summaryParts.push($t('common.globalAiChat.memoryUpdated'));
-    }
-
-    return summaryParts.slice(0, 3).join(' · ');
-  });
+  const headerConversationSummary = computed(() => '');
 
   const headerMoreHasAttention = computed(
     () => options.isPinned.value || options.forceRerouteNextTurn.value,

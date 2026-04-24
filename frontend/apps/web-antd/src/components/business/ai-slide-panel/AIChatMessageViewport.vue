@@ -171,16 +171,18 @@ const messageRenderEntries = computed(() =>
 
 const contentShellClass = computed(() =>
   props.compact
-    ? 'w-full space-y-3'
-    : 'mx-auto min-h-full w-full max-w-[48rem] space-y-4.5',
+    ? 'w-full space-y-2.5'
+    : 'mx-auto min-h-full w-full max-w-[46rem] space-y-3.5',
 );
 
 const transcriptRailClass = computed(() =>
-  props.compact ? 'w-full space-y-3' : 'mx-auto w-full max-w-[48rem] space-y-3.5',
+  props.compact
+    ? 'w-full space-y-2.5'
+    : 'mx-auto w-full max-w-[46rem] space-y-3',
 );
 
 const messageListClass = computed(() =>
-  props.compact ? 'space-y-2.5' : 'space-y-4',
+  props.compact ? 'space-y-2.5' : 'space-y-3.5',
 );
 
 const visibleAssistantAgentIds = computed(() => {
@@ -265,7 +267,7 @@ watch(
   <div
     :ref="(element) => registerContainer?.(element as HTMLDivElement | null)"
     class="flex-1 overflow-y-auto"
-    :class="compact ? 'px-3 py-3' : 'px-4 py-4 sm:px-6 lg:px-8'"
+    :class="compact ? 'px-2.5 py-2.5' : 'px-4 py-3.5 sm:px-5 lg:px-6'"
     @scroll="emit('scroll')"
   >
     <div :class="contentShellClass">
@@ -274,31 +276,36 @@ watch(
         class="flex h-full items-center justify-center"
       >
         <div
-          class="ai-chat-empty-card w-full max-w-sm rounded-[28px] border px-6 py-6 text-center"
+          class="ai-chat-empty-card w-full max-w-[25rem] rounded-[26px] border px-5 py-5 text-center"
         >
           <div
-            class="ai-chat-empty-orb mx-auto mb-3 flex size-11 items-center justify-center rounded-[20px] text-primary ring-1"
+            class="ai-chat-empty-orb mx-auto mb-2.5 flex size-10 items-center justify-center rounded-[18px] text-primary ring-1"
           >
-            <IconifyIcon icon="lucide:message-square-text" class="size-5" />
+            <IconifyIcon icon="lucide:message-square-text" class="size-4.5" />
           </div>
           <div
-            class="text-foreground/84 text-[12px] font-semibold tracking-[0.01em]"
+            class="mb-2 inline-flex items-center rounded-full border border-primary/14 bg-primary/[0.06] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-primary/84"
+          >
+            {{ $t('common.globalAiChat.assistant') }}
+          </div>
+          <div
+            class="text-foreground/84 text-[11.5px] font-semibold leading-6 tracking-[0.01em]"
           >
             {{
               effectiveWelcomeMessage || $t('common.globalAiChat.welcomeDesc')
             }}
           </div>
-          <div class="text-muted-foreground/58 mt-1.5 text-[9.75px] leading-5">
+          <div class="text-muted-foreground/54 mt-1 text-[9.5px] leading-5">
             {{ $t('common.globalAiChat.welcomeFirstTime') }}
           </div>
           <div
             v-if="effectiveSuggestedQuestions.length > 0"
-            class="mt-4 flex flex-col gap-1.5"
+            class="mt-3.5 flex flex-col gap-1.5"
           >
             <button
               v-for="(question, questionIndex) in effectiveSuggestedQuestions"
               :key="questionIndex"
-              class="group/sq border-border/18 bg-background/84 text-foreground/82 hover:border-primary/18 flex items-center gap-2 rounded-[18px] border px-3 py-2.5 text-left text-[10.5px] transition-colors hover:bg-primary/[0.04]"
+              class="group/sq border-border/16 bg-background/86 text-foreground/80 hover:border-primary/20 flex items-center gap-2 rounded-[16px] border px-2.5 py-2 text-left text-[10px] transition-colors hover:bg-primary/[0.04]"
               @click="emit('askSuggested', question)"
             >
               <IconifyIcon
@@ -477,22 +484,22 @@ watch(
         <Transition name="fade">
           <div
             v-if="routing"
-            class="routing-card border-border/24 relative overflow-hidden rounded-xl border px-3.5 py-2.5 backdrop-blur-sm"
+            class="routing-card border-border/22 relative overflow-hidden rounded-[18px] border px-3 py-2 backdrop-blur-sm"
           >
-            <div class="relative z-[1] flex items-center gap-2.5">
+            <div class="relative z-[1] flex items-center gap-2">
               <div
-                class="relative flex size-6 items-center justify-center rounded-lg bg-primary/10"
+                class="relative flex size-5.5 items-center justify-center rounded-[14px] bg-primary/10"
               >
                 <IconifyIcon
                   icon="lucide:route"
-                  class="size-3.5 text-primary"
+                  class="size-3 text-primary"
                 />
                 <span
                   class="routing-dot absolute -right-0.5 -top-0.5 size-2 rounded-full bg-primary"
                 ></span>
               </div>
               <div class="flex flex-col gap-0.5">
-                <span class="text-xs font-medium text-foreground/80">
+                <span class="text-[10px] font-medium text-foreground/80">
                   {{ $t('common.globalAiChat.routingAgent') }}
                 </span>
                 <div class="flex items-center gap-1">
@@ -523,14 +530,14 @@ watch(
         <button
           v-if="showScrollToTop && !streaming"
           type="button"
-          class="pointer-events-auto inline-flex size-9 items-center justify-center rounded-2xl border border-border/34 bg-background/96 text-muted-foreground shadow-[0_14px_28px_-22px_hsl(var(--foreground)/0.16)] backdrop-blur-sm transition-all hover:-translate-y-0.5 hover:border-primary/22 hover:bg-background hover:text-foreground"
+          class="pointer-events-auto inline-flex size-8 items-center justify-center rounded-[18px] border border-border/34 bg-background/96 text-muted-foreground shadow-[0_14px_28px_-22px_hsl(var(--foreground)/0.16)] backdrop-blur-sm transition-all hover:-translate-y-0.5 hover:border-primary/22 hover:bg-background hover:text-foreground"
           :aria-label="$t('common.globalAiChat.scrollToTop')"
           @click="emit('scrollToTop')"
         >
           <svg
             viewBox="0 0 16 16"
             aria-hidden="true"
-            class="size-4"
+            class="size-3.5"
             fill="none"
             stroke="currentColor"
             stroke-linecap="round"
@@ -546,14 +553,14 @@ watch(
         <button
           v-if="showScrollToBottom && !streaming"
           type="button"
-          class="pointer-events-auto inline-flex size-9 items-center justify-center rounded-2xl border border-border/34 bg-background/96 text-muted-foreground shadow-[0_14px_28px_-22px_hsl(var(--foreground)/0.16)] backdrop-blur-sm transition-all hover:-translate-y-0.5 hover:border-primary/22 hover:bg-background hover:text-foreground"
+          class="pointer-events-auto inline-flex size-8 items-center justify-center rounded-[18px] border border-border/34 bg-background/96 text-muted-foreground shadow-[0_14px_28px_-22px_hsl(var(--foreground)/0.16)] backdrop-blur-sm transition-all hover:-translate-y-0.5 hover:border-primary/22 hover:bg-background hover:text-foreground"
           :aria-label="$t('common.globalAiChat.scrollToBottom')"
           @click="emit('scrollToBottom')"
         >
           <svg
             viewBox="0 0 16 16"
             aria-hidden="true"
-            class="size-4"
+            class="size-3.5"
             fill="none"
             stroke="currentColor"
             stroke-linecap="round"
@@ -577,7 +584,9 @@ watch(
     hsl(var(--background) / 0.98) 100%
   );
   border-color: hsl(var(--border) / 0.32);
-  box-shadow: 0 20px 34px -32px hsl(var(--foreground) / 0.14);
+  box-shadow:
+    0 24px 38px -34px hsl(var(--foreground) / 0.14),
+    0 1px 0 hsl(var(--primary) / 0.05) inset;
 }
 
 .ai-chat-empty-orb {
@@ -594,7 +603,7 @@ watch(
   background: linear-gradient(
     180deg,
     hsl(var(--background) / 0.98) 0%,
-    hsl(var(--muted) / 0.2) 100%
+    hsl(var(--primary) / 0.035) 100%
   );
 }
 </style>

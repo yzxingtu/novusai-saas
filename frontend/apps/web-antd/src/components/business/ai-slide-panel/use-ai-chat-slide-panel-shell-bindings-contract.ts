@@ -119,6 +119,7 @@ export interface UseAIChatSlidePanelShellBindingsOptions {
   panelRef: Ref<HTMLElement | null>;
   panelTitle: ComputedRef<string>;
   pendingAttachments: Ref<ChatAttachment[]>;
+  refreshTimeline: () => void;
   regenerateMessage: (index: number) => void;
   rejectAction: (index: number) => void;
   rejectConsent: (index: number) => void;

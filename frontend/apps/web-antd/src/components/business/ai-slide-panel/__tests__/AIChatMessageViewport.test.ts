@@ -347,7 +347,7 @@ describe('aiChatMessageViewport', () => {
         .get('[data-testid="expanded-message-item"]')
         .attributes('data-compact'),
     ).toBe('false');
-    expect(wrapper.html()).toContain('max-w-[48rem]');
+    expect(wrapper.html()).toContain('max-w-[46rem]');
   });
 
   it('renders manual scroll controls and emits scroll navigation events when streaming is idle', async () => {

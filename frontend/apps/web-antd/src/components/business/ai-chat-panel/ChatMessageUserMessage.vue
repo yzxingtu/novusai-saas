@@ -42,7 +42,7 @@ function onUserAttachmentImageError(event: Event, att: ChatAttachment) {
   <div class="flex justify-end" :class="compact ? 'gap-2' : 'gap-3'">
     <div
       class="group/user-message"
-      :class="compact ? 'max-w-[84%]' : 'max-w-[42rem]'"
+      :class="compact ? 'max-w-[86%]' : 'max-w-[44rem]'"
     >
       <!-- Attachments -->
       <div
@@ -107,8 +107,8 @@ function onUserAttachmentImageError(event: Event, att: ChatAttachment) {
         class="user-message-bubble whitespace-pre-wrap rounded-[20px] rounded-br-[12px] border px-3.5 py-2.5 text-primary-foreground"
         :class="
           compact
-            ? 'text-[13px] leading-[1.72]'
-            : 'text-[13.5px] leading-[1.74]'
+            ? 'text-[14px] leading-[1.76]'
+            : 'text-[14.5px] leading-[1.8]'
         "
       >
         {{ msg.content }}
@@ -153,12 +153,12 @@ function onUserAttachmentImageError(event: Event, att: ChatAttachment) {
 .user-message-bubble {
   background: linear-gradient(
     135deg,
-    hsl(var(--primary) / 0.96) 0%,
-    hsl(var(--primary) / 0.9) 62%,
-    hsl(var(--primary) / 0.84) 100%
+    hsl(var(--primary) / 0.94) 0%,
+    hsl(var(--primary) / 0.9) 58%,
+    hsl(var(--primary) / 0.86) 100%
   );
-  border-color: hsl(var(--primary) / 0.14);
-  box-shadow: 0 12px 24px -22px hsl(var(--primary) / 0.28);
+  border-color: hsl(var(--primary) / 0.12);
+  box-shadow: 0 14px 24px -24px hsl(var(--primary) / 0.24);
 }
 
 .user-attachment {
