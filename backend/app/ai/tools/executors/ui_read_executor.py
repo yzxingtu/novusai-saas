@@ -18,7 +18,13 @@ from app.ai.tools.executors.page_runtime_support import (
     normalize_public_message as _normalize_public_message,
 )
 from app.ai.tools.executors.page_runtime_support import (
-    resolve_page_session_id as _resolve_page_session_id,
+    read_executor_cache_value as _read_executor_cache_value,
+)
+from app.ai.tools.executors.page_runtime_support import (
+    resolve_explicit_page_session_id as _resolve_explicit_page_session_id,
+)
+from app.ai.tools.executors.page_runtime_support import (
+    store_executor_cache_value as _store_executor_cache_value,
 )
 from app.ai.tools.executors.page_runtime_support import text as _text
 from app.ai.tools.types import ToolDefinition, ToolResult
@@ -223,7 +229,7 @@ class UIReadExecutor(BaseToolExecutor):
         context: ExecutionContext | None = None,
     ) -> ToolResult:
         start = time.perf_counter()
-        page_session_id = _resolve_page_session_id(context)
+        page_session_id = _resolve_explicit_page_session_id(context)
         if not page_session_id:
             return ToolResult(
                 tool_call_id=tool_call_id,
@@ -300,21 +306,30 @@ class UIReadExecutor(BaseToolExecutor):
         except Exception as exc:
             logger.warning("ui read bridge failed: {}", str(exc))
 
-        if response_payload is None and context and isinstance(context.variables, dict):
+        if response_payload is None:
             if tool_name == "ui_read_region":
-                cached_regions = context.variables.get("ui_regions")
+                cached_regions = _read_executor_cache_value(context, "ui_regions")
                 if isinstance(cached_regions, dict) and locator in cached_regions:
                     response_payload = {
                         "success": True,
                         "data": cached_regions[locator],
                     }
             elif tool_name == "ui_read_table":
-                cached_tables = context.variables.get("ui_tables")
+                cached_tables = _read_executor_cache_value(context, "ui_tables")
                 if isinstance(cached_tables, dict) and locator in cached_tables:
                     response_payload = {"success": True, "data": cached_tables[locator]}
             elif tool_name == "ui_list_interactables":
-                cached_interactables = context.variables.get("ui_interactables")
-                if isinstance(cached_interactables, list):
+                cached_interactables = _read_executor_cache_value(
+                    context, "ui_interactables"
+                )
+                if isinstance(cached_interactables, dict):
+                    cache_key = surface_id or "__default__"
+                    cached_payload = cached_interactables.get(cache_key) or cached_interactables.get(
+                        "__default__"
+                    )
+                    if isinstance(cached_payload, dict):
+                        response_payload = {"success": True, "data": cached_payload}
+                elif isinstance(cached_interactables, list):
                     response_payload = {"success": True, "items": cached_interactables}
 
         if not response_payload:
@@ -351,6 +366,32 @@ class UIReadExecutor(BaseToolExecutor):
             normalized = _normalize_interactables_payload(
                 response_payload,
                 surface_id=surface_id,
+            )
+        if tool_name == "ui_read_region":
+            cached_regions = _read_executor_cache_value(context, "ui_regions")
+            if not isinstance(cached_regions, dict):
+                cached_regions = {}
+            if locator:
+                cached_regions[locator] = normalized
+                _store_executor_cache_value(context, "ui_regions", cached_regions)
+        elif tool_name == "ui_read_table":
+            cached_tables = _read_executor_cache_value(context, "ui_tables")
+            if not isinstance(cached_tables, dict):
+                cached_tables = {}
+            if locator:
+                cached_tables[locator] = normalized
+                _store_executor_cache_value(context, "ui_tables", cached_tables)
+        else:
+            cached_interactables = _read_executor_cache_value(
+                context, "ui_interactables"
+            )
+            if not isinstance(cached_interactables, dict):
+                cached_interactables = {}
+            cached_interactables[surface_id or "__default__"] = normalized
+            _store_executor_cache_value(
+                context,
+                "ui_interactables",
+                cached_interactables,
             )
 
         return ToolResult(

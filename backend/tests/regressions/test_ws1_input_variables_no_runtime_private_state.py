@@ -14,6 +14,7 @@ self-fulfilling success stubs.
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import pytest
@@ -88,6 +89,49 @@ async def test_ui_snapshot_executor_rejects_variable_bag_page_transport(
 
 
 @pytest.mark.asyncio
+async def test_ui_snapshot_executor_uses_explicit_page_context_and_private_cache(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _missing_snapshot(**_: object) -> None:
+        return None
+
+    monkeypatch.setattr(
+        "app.ai.tools.executors.ui_snapshot_executor._request_ui_snapshot",
+        _missing_snapshot,
+    )
+
+    executor = UISnapshotExecutor()
+    definition = ToolDefinition(name="ui_get_snapshot", description="snapshot")
+    context = ExecutionContext(
+        tenant_id=1,
+        agent_id=1,
+    )
+    context.page_context = {
+        "page_key": "admin.ai.agents",
+        "page_session_id": "private-page-context-session",
+    }
+    context.executor_cache = {
+        "ui_snapshot": _snapshot_cache_payload(),
+    }
+
+    result = await executor.execute(
+        definition=definition,
+        tool_call_id="tc-ui-snapshot-private-carriers",
+        arguments={"mode": "compact"},
+        context=context,
+    )
+
+    assert result.success is True
+    payload = json.loads(result.output)
+    assert payload["active_surface_id"] == "surface:page:1"
+    assert payload["surface_stack"] == [
+        {"surface_id": "surface:page:1", "kind": "page", "title": None}
+    ]
+    assert payload["nodes"][0]["node_id"] == "save"
+    assert payload["nodes"][0]["interactable"] is True
+
+
+@pytest.mark.asyncio
 async def test_ui_read_executor_rejects_variable_bag_read_cache(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -121,3 +165,42 @@ async def test_ui_read_executor_rejects_variable_bag_read_cache(
 
     assert result.success is False
     assert result.error_type == "read_unavailable"
+
+
+@pytest.mark.asyncio
+async def test_ui_read_executor_uses_private_executor_cache(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _missing_read(**_: object) -> None:
+        return None
+
+    monkeypatch.setattr(
+        "app.ai.tools.executors.ui_read_executor._request_ui_read",
+        _missing_read,
+    )
+
+    executor = UIReadExecutor()
+    definition = ToolDefinition(name="ui_read_region", description="read region")
+    context = ExecutionContext(
+        tenant_id=1,
+        agent_id=1,
+        page_session_id="private-session",
+    )
+    context.executor_cache = {
+        "ui_regions": {
+            "details-panel": _region_cache_payload(),
+        }
+    }
+
+    result = await executor.execute(
+        definition=definition,
+        tool_call_id="tc-ui-read-region-private-cache",
+        arguments={"region_locator": "details-panel"},
+        context=context,
+    )
+
+    assert result.success is True
+    payload = json.loads(result.output)
+    assert payload["region_locator"] == "details-panel"
+    assert payload["title"] == "Details"
+    assert payload["items"] == [{"label": "Name", "value": "Agent A"}]

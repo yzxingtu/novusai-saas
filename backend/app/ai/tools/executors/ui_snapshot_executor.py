@@ -16,7 +16,13 @@ from app.ai.tools.executors.page_runtime_support import (
     normalize_public_message as _normalize_public_message,
 )
 from app.ai.tools.executors.page_runtime_support import (
-    resolve_page_session_id as _resolve_page_session_id,
+    read_executor_cache_value as _read_executor_cache_value,
+)
+from app.ai.tools.executors.page_runtime_support import (
+    resolve_explicit_page_session_id as _resolve_explicit_page_session_id,
+)
+from app.ai.tools.executors.page_runtime_support import (
+    store_executor_cache_value as _store_executor_cache_value,
 )
 from app.ai.tools.executors.page_runtime_support import text as _text
 from app.ai.tools.types import ToolDefinition, ToolResult
@@ -283,7 +289,7 @@ class UISnapshotExecutor(BaseToolExecutor):
         start = time.perf_counter()
         mode = _resolve_mode(arguments)
         surface_id = _text(arguments.get("surface_id"), max_length=128)
-        page_session_id = _resolve_page_session_id(context)
+        page_session_id = _resolve_explicit_page_session_id(context)
 
         if not page_session_id:
             return ToolResult(
@@ -312,8 +318,8 @@ class UISnapshotExecutor(BaseToolExecutor):
         except Exception as exc:
             logger.warning("ui snapshot bridge failed: {}", str(exc))
 
-        if source_payload is None and context and isinstance(context.variables, dict):
-            cached_snapshot = context.variables.get("ui_snapshot")
+        if source_payload is None:
+            cached_snapshot = _read_executor_cache_value(context, "ui_snapshot")
             if isinstance(cached_snapshot, dict):
                 source_payload = {"success": True, "snapshot": cached_snapshot}
 
@@ -341,6 +347,7 @@ class UISnapshotExecutor(BaseToolExecutor):
         normalized_snapshot = _normalize_snapshot_payload(
             mode=mode, source=source_payload
         )
+        _store_executor_cache_value(context, "ui_snapshot", normalized_snapshot)
         return ToolResult(
             tool_call_id=tool_call_id,
             name=definition.name,
