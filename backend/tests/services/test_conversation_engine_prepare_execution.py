@@ -2280,13 +2280,27 @@ async def test_prepare_execution_keeps_runtime_capability_summary_when_dynamic_a
 
     assert "[CAPABILITIES]" not in prep.messages[0].content
     assert "[TOOL RUNTIME SUMMARY]" in prep.messages[0].content
-    assert "runtime.selected_skills=Research Skill" in prep.messages[0].content
+    assert "[TURN CAPABILITIES]" not in prep.messages[0].content
+    assert "runtime.selected_skills=" not in prep.messages[0].content
+    assert prep.diagnostics["runtime_capability_summary"]["selected_skill_names"] == []
     assert (
         prep.diagnostics["runtime_capability_summary"]["selection_semantics"]
         == "capability_reporting_inventory"
     )
     assert prep.diagnostics["runtime_capability_summary"]["selection_live"] is False
     assert prep.diagnostics["runtime_capability_summary"]["live_turn_bound"] is False
+    assert prep.diagnostics["turn_skill_activation"] == {
+        "applied": True,
+        "reason": "capability_reporting_query",
+        "tool_count": 1,
+        "selected_tool_names": ["web_search"],
+        "skill_count": 1,
+        "selected_skill_names": ["Research Skill"],
+        "inventory_tool_count": 1,
+        "inventory_selected_tool_names": ["web_search"],
+        "inventory_skill_count": 1,
+        "inventory_selected_skill_names": ["Research Skill"],
+    }
     assert "knowledge_base_hint" not in prep.diagnostics["runtime_capability_summary"]
     assert "page_context_hint" not in prep.diagnostics["runtime_capability_summary"]
     assert "memory_hint" not in prep.diagnostics["runtime_capability_summary"]

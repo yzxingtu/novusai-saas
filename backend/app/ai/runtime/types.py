@@ -42,6 +42,15 @@ def is_skill_descriptor_kind(kind: str | None) -> bool:
     return normalized == "capability_pack"
 
 
+def _stable_unique_names(values: list[Any] | None) -> list[str]:
+    normalized: list[str] = []
+    for value in values or []:
+        text = str(value or "").strip()
+        if text and text not in normalized:
+            normalized.append(text)
+    return normalized
+
+
 @dataclass
 class ProviderEvent:
     """Provider/runtime side event for diagnostics / 供应商运行态诊断事件。"""
@@ -82,6 +91,28 @@ class CapabilityBundle:
     inventory_selected_tool_names_override: list[str] | None = None
     inventory_selected_skill_names_override: list[str] | None = None
 
+    def _selected_skill_names_from_context_sources(self) -> list[str] | None:
+        for source in self.context_sources:
+            if str(getattr(source, "kind", "") or "").strip() != "skill":
+                continue
+            metadata = getattr(source, "metadata", {}) or {}
+            if not isinstance(metadata, dict):
+                continue
+
+            reason = str(metadata.get("turn_skill_activation_reason") or "").strip()
+            if reason == "capability_reporting_query":
+                return []
+            if (
+                metadata.get("turn_skill_activation_applied") is False
+                or reason == "no_turn_skill_activation"
+            ):
+                return []
+            if "selected_skill_names" in metadata:
+                return _stable_unique_names(
+                    list(metadata.get("selected_skill_names") or [])
+                )
+        return None
+
     @property
     def selected_tool_names(self) -> list[str]:
         if self.selected_tool_names_override is not None:
@@ -90,6 +121,9 @@ class CapabilityBundle:
 
     @property
     def selected_skill_names(self) -> list[str]:
+        selected_skill_names = self._selected_skill_names_from_context_sources()
+        if selected_skill_names is not None:
+            return selected_skill_names
         if self.selected_skill_names_override is not None:
             return list(self.selected_skill_names_override)
         return collect_selected_skill_names(

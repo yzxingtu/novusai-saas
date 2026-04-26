@@ -10,6 +10,9 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+from app.ai.engine.system_prompt_capability_hints import (
+    resolve_live_turn_selected_skill_names,
+)
 from app.ai.runtime.context_assembler import ContextAssemblerState
 from app.ai.runtime.manifest import AIRuntimeInventoryService
 from app.ai.runtime.types import (
@@ -184,6 +187,18 @@ def test_build_manifest_projects_live_subset_from_projected_bundle() -> None:
         inventory_bundle,
         [inventory_bundle.tools[0]],
     )
+    assert live_bundle.selected_tool_names == ["ui_get_snapshot"]
+    assert live_bundle.selected_skill_names == ["Page Skill"]
+    assert live_bundle.inventory_selected_tool_names == [
+        "ui_get_snapshot",
+        "ui_click",
+        "web_search",
+        "fetch_url",
+    ]
+    assert live_bundle.inventory_selected_skill_names == [
+        "Page Skill",
+        "Research Skill",
+    ]
 
     manifest = AIRuntimeInventoryService.build_manifest(
         agent=_agent(),
@@ -203,12 +218,26 @@ def test_build_manifest_projects_live_subset_from_projected_bundle() -> None:
     assert summary["selection_semantics"] == "turn_selected_subset"
     assert summary["selection_live"] is True
     assert summary["live_turn_bound"] is True
+    assert resolve_live_turn_selected_skill_names(
+        runtime_capability_summary=summary
+    ) == ["Page Skill"]
 
 
 def test_build_manifest_marks_capability_reporting_inventory_as_non_live() -> None:
     inventory_bundle = _inventory_bundle(
         activation_reason="capability_reporting_query"
     )
+    assert inventory_bundle.selected_skill_names == []
+    assert inventory_bundle.inventory_selected_tool_names == [
+        "ui_get_snapshot",
+        "ui_click",
+        "web_search",
+        "fetch_url",
+    ]
+    assert inventory_bundle.inventory_selected_skill_names == [
+        "Page Skill",
+        "Research Skill",
+    ]
 
     manifest = AIRuntimeInventoryService.build_manifest(
         agent=_agent(),
@@ -235,6 +264,9 @@ def test_build_manifest_marks_capability_reporting_inventory_as_non_live() -> No
     assert summary["selection_semantics"] == "capability_reporting_inventory"
     assert summary["selection_live"] is False
     assert summary["live_turn_bound"] is False
+    assert resolve_live_turn_selected_skill_names(
+        runtime_capability_summary=summary
+    ) == []
 
 
 def test_shape_manifest_payload_rewrites_live_manifest_as_inventory_snapshot() -> None:
@@ -273,3 +305,6 @@ def test_shape_manifest_payload_rewrites_live_manifest_as_inventory_snapshot() -
     assert payload["boundaries"]["selection_live"] is False
     assert payload["boundaries"]["live_turn_bound"] is False
     assert [item["name"] for item in payload["skills"]] == ["Page Skill"]
+    assert resolve_live_turn_selected_skill_names(
+        runtime_capability_summary=payload["summary"]
+    ) == []
