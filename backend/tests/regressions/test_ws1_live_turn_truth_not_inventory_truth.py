@@ -36,6 +36,9 @@ def _run_projection_probe() -> dict[str, object]:
         from app.services.ai.conversation_diagnostics_projector import (
             ConversationDiagnosticsProjector,
         )
+        from app.services.ai.monitoring_read_model_projector import (
+            MonitoringReadModelProjector,
+        )
 
         metadata = {
             "turn_record": {
@@ -74,6 +77,10 @@ def _run_projection_probe() -> dict[str, object]:
                 "selected_skill_names": ["Page Skill", "Research Skill"],
             },
         }
+        request_metadata = {
+            "turn_diagnostics": metadata,
+            "request": {"turn_record": metadata["turn_record"]},
+        }
 
         result = ExecutionResult(
             success=False,
@@ -101,6 +108,11 @@ def _run_projection_probe() -> dict[str, object]:
                 result,
                 interaction_mode_effective="trusted_auto",
                 downgrade_reason=None,
+            ),
+            "monitoring_payload": (
+                MonitoringReadModelProjector.extract_call_trace_diagnostics(
+                    request_metadata
+                )
             ),
         }
         print(json.dumps(payload, ensure_ascii=True, sort_keys=True))
@@ -163,3 +175,11 @@ def test_retained_projection_does_not_leak_inventory_when_live_selection_is_empt
         "inventory_skill_count": 2,
         "inventory_selected_skill_names": ["Page Skill", "Research Skill"],
     }
+    assert payload["monitoring_payload"]["selected_tool_names"] == []
+    assert payload["monitoring_payload"]["selected_skill_names"] == []
+    assert payload["monitoring_payload"]["turn_record"]["metadata"][
+        "turn_diagnostics"
+    ]["selected_tool_names"] == ["ui_get_snapshot", "web_search"]
+    assert payload["monitoring_payload"]["turn_record"]["metadata"][
+        "turn_diagnostics"
+    ]["selected_skill_names"] == ["Page Skill", "Research Skill"]

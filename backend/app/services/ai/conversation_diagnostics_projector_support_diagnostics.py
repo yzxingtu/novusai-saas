@@ -49,6 +49,133 @@ def _normalize_context_sources(value: Any) -> list[dict[str, Any]]:
     return normalized
 
 
+def _normalize_optional_float(value: Any) -> float | None:
+    if value in (None, ""):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _map_legacy_rag_kind(raw_kind: Any) -> str:
+    kind = str(raw_kind or "").strip().lower()
+    if kind in {"web", "web_search"}:
+        return "web"
+    if kind in {"page", "page_read", "page_write", "page_runtime"}:
+        return "page"
+    if kind in {"memory", "long_term_memory", "session_memory"}:
+        return "memory"
+    if kind in {"tool", "tool_call"}:
+        return "tool"
+    return "knowledge_base"
+
+
+def _build_legacy_rag_evidence(
+    source: dict[str, Any],
+    index: int,
+) -> dict[str, Any]:
+    source_ref = _to_non_empty_str(source.get("source_ref") or source.get("chunk_id"))
+    return {
+        "id": source_ref or f"ev_rag_{index + 1}",
+        "kind": _map_legacy_rag_kind(
+            source.get("kind") or source.get("source_kind")
+        ),
+        "title": _to_non_empty_str(
+            source.get("title")
+            or source.get("source")
+            or source.get("name")
+            or source.get("chunk_id")
+        )
+        or f"Source {index + 1}",
+        "url": _to_non_empty_str(source.get("url") or source.get("source_url")),
+        "snippet": _to_non_empty_str(source.get("snippet") or source.get("content")),
+        "badge": _to_non_empty_str(source.get("badge")),
+        "score": _normalize_optional_float(source.get("score")),
+        "tool_call_id": None,
+        "source_ref": source_ref,
+    }
+
+
+def _ensure_legacy_message_turn_flow(metadata: dict[str, Any]) -> None:
+    if not isinstance(metadata, dict):
+        return
+    if isinstance(metadata.get("turn_flow"), dict):
+        return
+    if any(
+        isinstance(metadata.get(key), dict)
+        for key in (
+            "turn_record",
+            "turn_diagnostics",
+        )
+    ):
+        return
+
+    thinking_content = _to_non_empty_str(metadata.get("thinking_content"))
+    rag_items = [
+        dict(item)
+        for item in (metadata.get("rag_sources") or [])
+        if isinstance(item, dict)
+    ]
+    if not thinking_content and not rag_items:
+        return
+
+    evidence = [
+        _build_legacy_rag_evidence(source, index)
+        for index, source in enumerate(rag_items)
+    ]
+    timeline: list[dict[str, Any]] = []
+    if thinking_content:
+        timeline.append(
+            {
+                "id": "thinking",
+                "type": "thinking",
+                "status": "completed",
+                "title": "已思考",
+                "summary": "已完成思考与规划",
+                "detail_lines": [],
+                "started_at_ms": None,
+                "ended_at_ms": None,
+                "duration_ms": None,
+                "metrics": {},
+                "tool_call_ids": [],
+                "source_refs": [],
+            }
+        )
+    if evidence:
+        source_refs = [item["id"] for item in evidence]
+        retrieval_summary = f"整理了 {len(evidence)} 条证据"
+        timeline.append(
+            {
+                "id": "retrieval",
+                "type": "retrieval",
+                "status": "completed",
+                "title": "检索与取证",
+                "summary": retrieval_summary,
+                "detail_lines": [retrieval_summary],
+                "started_at_ms": None,
+                "ended_at_ms": None,
+                "duration_ms": None,
+                "metrics": {"evidence_count": len(evidence)},
+                "tool_call_ids": [],
+                "source_refs": source_refs,
+            }
+        )
+
+    metadata["turn_flow"] = {
+        "timeline": timeline,
+        "evidence": evidence,
+        "answer_card": {
+            "summary": None,
+            "sections": [],
+            "source_chip_ids": [item["id"] for item in evidence],
+        },
+        "completion_reason": _to_non_empty_str(metadata.get("completion_reason")),
+        "interrupted": bool(metadata.get("interrupted")),
+        "error_surface": None,
+    }
+
+
 def _normalize_json_dict(value: Any) -> dict[str, Any] | None:
     if not isinstance(value, dict):
         return None
@@ -243,6 +370,7 @@ def resolve_live_selected_name_list(
 def extract_turn_diagnostics_from_metadata(
     metadata: dict[str, Any],
 ) -> dict[str, Any]:
+    _ensure_legacy_message_turn_flow(metadata)
     turn_record = _normalize_turn_record_payload(metadata.get("turn_record"))
     turn_record_metadata = (
         dict((turn_record or {}).get("metadata") or {})
