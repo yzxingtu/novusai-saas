@@ -116,4 +116,26 @@ async def test_user_ai_chat_stream_request_promotes_page_context_session_id_to_r
             "ui_epoch": 4,
         }
     }
+    assert request.input_variables == variables
     assert request.page_session_id == "user-page-session-1"
+
+
+@pytest.mark.asyncio
+async def test_user_ai_chat_stream_request_trims_page_context_session_id_before_promotion() -> (
+    None
+):
+    variables, request = await _build_user_stream_request(
+        page_context_session_id="  user-page-session-typed  ",
+        top_level_page_session_id=None,
+    )
+
+    assert variables == {
+        "page_context": {
+            "page_key": "user.ai.chat",
+            "page_session_id": "user-page-session-typed",
+            "surface_stack": [],
+            "ui_epoch": 4,
+        }
+    }
+    assert request.input_variables == variables
+    assert request.page_session_id == "user-page-session-typed"

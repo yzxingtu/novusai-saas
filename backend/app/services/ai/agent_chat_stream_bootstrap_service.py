@@ -22,6 +22,7 @@ from app.ai.engine.execution_preflight_support import (
     trigger_before_execute_preflight,
 )
 from app.ai.engine.types import ExecutionRequest
+from app.ai.runtime.contracts import PAGE_CONTEXT_KEY
 from app.ai.types import ChatMessage
 from app.ai.utils.token_estimator import estimate_tokens
 from app.core.i18n import _
@@ -74,6 +75,46 @@ class AgentChatStreamBootstrapService:
         self.tenant_id = tenant_id
         self.conversation_engine_factory = conversation_engine_factory
 
+    @staticmethod
+    def _normalize_page_session_id(value: Any) -> str | None:
+        if not isinstance(value, str):
+            return None
+        normalized = value.strip()
+        if not normalized:
+            return None
+        return normalized[:64]
+
+    @classmethod
+    def _resolve_page_session_id(
+        cls,
+        *,
+        variables: dict[str, Any] | None,
+        explicit_page_session_id: str | None,
+    ) -> str | None:
+        normalized_page_session_id = cls._normalize_page_session_id(
+            explicit_page_session_id
+        )
+        if normalized_page_session_id:
+            return normalized_page_session_id
+
+        if not variables:
+            return None
+
+        variables_getter = getattr(variables, "get", None)
+        if not callable(variables_getter):
+            return None
+
+        normalized_page_session_id = cls._normalize_page_session_id(
+            variables_getter("page_session_id")
+        )
+        if normalized_page_session_id:
+            return normalized_page_session_id
+
+        page_context = variables_getter(PAGE_CONTEXT_KEY)
+        if isinstance(page_context, dict):
+            return cls._normalize_page_session_id(page_context.get("page_session_id"))
+        return None
+
     async def build_conversation_stream_request(
         self,
         *,
@@ -100,6 +141,10 @@ class AgentChatStreamBootstrapService:
         long_term_memory_enabled: bool,
         session_memory_text: str,
     ) -> StreamRequestBundle:
+        effective_page_session_id = self._resolve_page_session_id(
+            variables=variables,
+            explicit_page_session_id=page_session_id,
+        )
         request = ExecutionRequest(
             agent_id=agent_id,
             tenant_id=self.tenant_id,
@@ -122,7 +167,7 @@ class AgentChatStreamBootstrapService:
             long_term_memory_enabled=long_term_memory_enabled,
             trust_policy_ref=trust_policy_ref,
             interaction_mode=interaction_mode,
-            page_session_id=page_session_id,
+            page_session_id=effective_page_session_id,
             interaction_updates=interaction_updates,
             knowledge_base_feedback=(
                 {
