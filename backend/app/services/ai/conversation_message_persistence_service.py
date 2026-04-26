@@ -14,6 +14,10 @@ from app.services.ai.conversation_message_persistence_support import (
     build_turn_persistence_context,
     resolve_new_message_start,
 )
+from app.services.ai.conversation_diagnostics_projector_support import (
+    normalize_turn_skill_activation_payload,
+    resolve_live_selected_name_list,
+)
 from app.services.ai.conversation_turn_flow_projector import (
     ConversationTurnFlowProjector,
 )
@@ -294,8 +298,66 @@ class ConversationMessagePersistenceService:
         turn_selected_skills = turn_context.turn_selected_skills
         turn_context_sources = turn_context.turn_context_sources
         memory_runtime_policy = turn_context.memory_runtime_policy
-        effective_context_diagnostics = turn_context.effective_context_diagnostics
-        effective_last_run_summary = turn_context.effective_last_run_summary
+        effective_context_diagnostics = dict(turn_context.effective_context_diagnostics)
+        effective_last_run_summary = dict(turn_context.effective_last_run_summary)
+        turn_record_metadata = (
+            dict((turn_record_payload or {}).get("metadata") or {})
+            if isinstance((turn_record_payload or {}).get("metadata"), dict)
+            else {}
+        )
+        turn_record_diagnostics = (
+            dict(turn_record_metadata.get("turn_diagnostics") or {})
+            if isinstance(turn_record_metadata.get("turn_diagnostics"), dict)
+            else {}
+        )
+        turn_skill_activation = normalize_turn_skill_activation_payload(
+            (turn_record_payload or {}).get("turn_skill_activation")
+            or turn_record_diagnostics.get("turn_skill_activation")
+            or effective_context_diagnostics.get("turn_skill_activation")
+            or effective_last_run_summary.get("turn_skill_activation")
+        )
+        live_selected_tools, live_selected_tools_explicit = (
+            resolve_live_selected_name_list(
+                "selected_tool_names",
+                turn_record_payload,
+                turn_record_diagnostics,
+                effective_context_diagnostics,
+                effective_last_run_summary,
+                turn_skill_activation=turn_skill_activation,
+            )
+        )
+        live_selected_skills, live_selected_skills_explicit = (
+            resolve_live_selected_name_list(
+                "selected_skill_names",
+                turn_record_payload,
+                turn_record_diagnostics,
+                effective_context_diagnostics,
+                effective_last_run_summary,
+                turn_skill_activation=turn_skill_activation,
+            )
+        )
+        if live_selected_tools_explicit:
+            if live_selected_tools:
+                effective_context_diagnostics["selected_tool_names"] = (
+                    service._normalize_json_safe(live_selected_tools)
+                )
+                effective_last_run_summary["selected_tool_names"] = (
+                    service._normalize_json_safe(live_selected_tools)
+                )
+            else:
+                effective_context_diagnostics.pop("selected_tool_names", None)
+                effective_last_run_summary.pop("selected_tool_names", None)
+        if live_selected_skills_explicit:
+            if live_selected_skills:
+                effective_context_diagnostics["selected_skill_names"] = (
+                    service._normalize_json_safe(live_selected_skills)
+                )
+                effective_last_run_summary["selected_skill_names"] = (
+                    service._normalize_json_safe(live_selected_skills)
+                )
+            else:
+                effective_context_diagnostics.pop("selected_skill_names", None)
+                effective_last_run_summary.pop("selected_skill_names", None)
 
         last_assistant_idx: int | None = None
         last_plain_assistant_idx: int | None = None
@@ -473,6 +535,10 @@ class ConversationMessagePersistenceService:
 
             if role == "assistant" and i == turn_target_assistant_idx:
                 metadata = metadata or {}
+                if live_selected_tools_explicit and not live_selected_tools:
+                    metadata.pop("selected_tool_names", None)
+                if live_selected_skills_explicit and not live_selected_skills:
+                    metadata.pop("selected_skill_names", None)
                 if effective_context_diagnostics:
                     metadata["context_diagnostics"] = service._normalize_json_safe(
                         effective_context_diagnostics

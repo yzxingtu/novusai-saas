@@ -123,7 +123,43 @@ def test_retained_projection_does_not_leak_inventory_when_live_selection_is_empt
 
     assert payload["turn_meta"]["selected_tool_names"] == []
     assert payload["turn_meta"]["selected_skill_names"] == []
+    assert payload["turn_meta"]["turn_skill_activation"] == {
+        "applied": True,
+        "reason": "runtime_policy",
+        "tool_count": 0,
+        "selected_tool_names": [],
+        "skill_count": 0,
+        "selected_skill_names": [],
+        "inventory_tool_count": 2,
+        "inventory_selected_tool_names": ["ui_get_snapshot", "web_search"],
+        "inventory_skill_count": 2,
+        "inventory_selected_skill_names": ["Page Skill", "Research Skill"],
+    }
     assert "selected_tool_names" not in payload["context_payload"]
     assert "selected_skill_names" not in payload["context_payload"]
+    assert payload["context_payload"]["turn_skill_activation"] == {
+        "applied": True,
+        "reason": "runtime_policy",
+        "tool_count": 0,
+        "selected_tool_names": [],
+        "skill_count": 0,
+        "selected_skill_names": [],
+        "inventory_tool_count": 2,
+        "inventory_selected_tool_names": ["ui_get_snapshot", "web_search"],
+        "inventory_skill_count": 2,
+        "inventory_selected_skill_names": ["Page Skill", "Research Skill"],
+    }
     assert "selected_tool_names" not in payload["summary_payload"]
     assert "selected_skill_names" not in payload["summary_payload"]
+    assert payload["summary_payload"]["turn_skill_activation"] == {
+        "applied": True,
+        "reason": "runtime_policy",
+        "tool_count": 0,
+        "selected_tool_names": [],
+        "skill_count": 0,
+        "selected_skill_names": [],
+        "inventory_tool_count": 2,
+        "inventory_selected_tool_names": ["ui_get_snapshot", "web_search"],
+        "inventory_skill_count": 2,
+        "inventory_selected_skill_names": ["Page Skill", "Research Skill"],
+    }

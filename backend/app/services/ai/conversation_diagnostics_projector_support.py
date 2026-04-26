@@ -12,6 +12,8 @@ from app.ai.tools.types import ToolResult
 from app.ai.types import ChatMessage
 from app.services.ai.conversation_diagnostics_projector_support_diagnostics import (
     extract_turn_diagnostics_from_metadata,
+    normalize_turn_skill_activation_payload,
+    resolve_live_selected_name_list,
 )
 
 
@@ -293,8 +295,10 @@ __all__ = [
     "normalize_json_safe_dict",
     "normalize_provider_events",
     "normalize_retry_events",
+    "normalize_turn_skill_activation_payload",
     "normalize_string_list",
     "normalize_turn_record_payload",
+    "resolve_live_selected_name_list",
     "sanitize_tool_messages",
     "to_non_empty_str",
 ]

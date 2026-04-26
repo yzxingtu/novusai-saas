@@ -3175,6 +3175,67 @@ async def test_prepare_execution_page_search_with_weather_keyword_stays_page_onl
 
 
 @pytest.mark.asyncio
+async def test_prepare_execution_no_tool_turn_keeps_inventory_truth_out_of_live_selection() -> (
+    None
+):
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
+    request = ExecutionRequest(
+        agent_id=1,
+        tenant_id=1,
+        user_id=1,
+        messages=[ChatMessage(role="user", content="你好，简单介绍一下你自己。")],
+        input_variables={},
+    )
+
+    with (
+        patch(
+            "app.ai.rag_injector.load_agent_kb_bindings",
+            new=AsyncMock(return_value=([], {})),
+        ),
+        patch("app.ai.routing.router.ModelRouter", new=_FakeRouter),
+    ):
+        prep = await engine._prepare_execution(
+            _build_agent(),
+            request,
+            skill_result=_build_plugin_page_web_skill_result(),
+        )
+
+    assert prep.tools == []
+    assert prep.diagnostics["selected_tool_names"] == []
+    assert prep.diagnostics["selected_skill_names"] == []
+    assert prep.diagnostics["turn_skill_activation"] == {
+        "applied": False,
+        "reason": "no_turn_skill_activation",
+        "tool_count": 0,
+        "selected_tool_names": [],
+        "skill_count": 0,
+        "selected_skill_names": [],
+        "inventory_tool_count": 4,
+        "inventory_selected_tool_names": [
+            "web_search",
+            "fetch_url",
+            "ui_get_snapshot",
+            "ui_click",
+        ],
+        "inventory_skill_count": 2,
+        "inventory_selected_skill_names": [
+            "Plugin Research Skill",
+            "Plugin Page Skill",
+        ],
+    }
+    assert prep.diagnostics["runtime_capability_summary"]["selected_skill_names"] == []
+    assert (
+        prep.diagnostics["runtime_capability_summary"]["selection_semantics"]
+        == "turn_selected_subset"
+    )
+    assert prep.diagnostics["runtime_capability_summary"]["selection_live"] is True
+    assert prep.diagnostics["runtime_capability_summary"]["live_turn_bound"] is True
+    assert prep.diagnostics["runtime_capability_manifest"]["skills"] == []
+
+
+@pytest.mark.asyncio
 async def test_prepare_execution_projects_selected_skill_names_to_live_tools() -> None:
     engine = ConversationEngine(
         db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()

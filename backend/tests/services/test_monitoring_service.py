@@ -134,6 +134,51 @@ class TestCallTraceDiagnostics:
         )
         assert diagnostics["assistant_claimed_tool_call_without_tool_event"] is True
 
+    def test_extract_call_trace_diagnostics_keeps_explicit_empty_live_selection(self):
+        from app.services.ai.monitoring_service import MonitoringService
+
+        diagnostics = MonitoringService._extract_call_trace_diagnostics(
+            {
+                "turn_diagnostics": {
+                    "selected_tool_names": ["ui_get_snapshot", "web_search"],
+                    "selected_skill_names": ["Page Skill", "Research Skill"],
+                    "turn_record": {
+                        "selected_tool_names": [],
+                        "selected_skill_names": [],
+                        "metadata": {
+                            "turn_diagnostics": {
+                                "selected_tool_names": [
+                                    "ui_get_snapshot",
+                                    "web_search",
+                                ],
+                                "selected_skill_names": [
+                                    "Page Skill",
+                                    "Research Skill",
+                                ],
+                                "turn_skill_activation": {
+                                    "applied": True,
+                                    "reason": "runtime_policy",
+                                    "selected_tool_names": [],
+                                    "selected_skill_names": [],
+                                    "inventory_selected_tool_names": [
+                                        "ui_get_snapshot",
+                                        "web_search",
+                                    ],
+                                    "inventory_selected_skill_names": [
+                                        "Page Skill",
+                                        "Research Skill",
+                                    ],
+                                },
+                            }
+                        },
+                    },
+                }
+            }
+        )
+
+        assert diagnostics["selected_tool_names"] == []
+        assert diagnostics["selected_skill_names"] == []
+
 
 class TestMonitoringScope:
     def test_scope_builders_return_expected_flags(self):

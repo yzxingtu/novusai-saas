@@ -3254,6 +3254,98 @@ async def test_persist_chat_messages_records_extended_runtime_diagnostics_fields
 
 
 @pytest.mark.asyncio
+async def test_persist_chat_messages_strips_inventory_selected_names_when_live_truth_is_empty(
+    mock_db,
+) -> None:
+    from app.services.ai.conversation_service import ConversationService
+
+    conversation = _make_conversation(id=991, message_count=0)
+    result = SimpleNamespace(
+        messages=[
+            {
+                "role": "assistant",
+                "content": "上游失败",
+                "tool_calls": None,
+                "tool_call_id": None,
+                "attachments": None,
+                "reasoning_content": None,
+                "metadata": {
+                    "selected_tool_names": ["ui_get_snapshot", "web_search"],
+                    "selected_skill_names": ["Page Skill", "Research Skill"],
+                },
+            },
+        ],
+        tool_results=[],
+        partial=False,
+        interrupted=False,
+        completion_reason="tool_round_failed",
+        runtime_model_id=None,
+        runtime_model_name=None,
+        runtime_provider_id=None,
+        runtime_provider_name=None,
+        turn_record={
+            "selected_tool_names": [],
+            "selected_skill_names": [],
+            "turn_outcome": "failed",
+            "termination_reason": "tool_round_failed",
+            "metadata": {
+                "turn_diagnostics": {
+                    "selected_tool_names": ["ui_get_snapshot", "web_search"],
+                    "selected_skill_names": ["Page Skill", "Research Skill"],
+                    "turn_skill_activation": {
+                        "applied": True,
+                        "reason": "runtime_policy",
+                        "selected_tool_names": [],
+                        "selected_skill_names": [],
+                        "inventory_selected_tool_names": [
+                            "ui_get_snapshot",
+                            "web_search",
+                        ],
+                        "inventory_selected_skill_names": [
+                            "Page Skill",
+                            "Research Skill",
+                        ],
+                    },
+                }
+            },
+        },
+    )
+
+    service = ConversationService.__new__(ConversationService)
+    service.db = mock_db
+    service.tenant_id = 1
+    service.repo = AsyncMock()
+    service._message_repo = MagicMock()
+    service._message_repo.get_next_sequence = AsyncMock(return_value=1)
+    service._message_repo.create = AsyncMock()
+
+    await service.persist_chat_messages(
+        conversation=conversation,
+        result=result,
+        history_count=0,
+        agent_id=7,
+        context_diagnostics={
+            "selected_tool_names": ["ui_get_snapshot", "web_search"],
+            "selected_skill_names": ["Page Skill", "Research Skill"],
+        },
+        last_run_summary={
+            "selected_tool_names": ["ui_get_snapshot", "web_search"],
+            "selected_skill_names": ["Page Skill", "Research Skill"],
+        },
+    )
+
+    assistant_payload = service._message_repo.create.await_args.args[0]
+    metadata = assistant_payload["metadata_"]
+
+    assert "selected_tool_names" not in metadata
+    assert "selected_skill_names" not in metadata
+    assert "selected_tool_names" not in metadata["context_diagnostics"]
+    assert "selected_skill_names" not in metadata["context_diagnostics"]
+    assert "selected_tool_names" not in metadata["last_run_summary"]
+    assert "selected_skill_names" not in metadata["last_run_summary"]
+
+
+@pytest.mark.asyncio
 async def test_conversation_detail_surfaces_extended_runtime_diagnostics(
     mock_db,
 ) -> None:

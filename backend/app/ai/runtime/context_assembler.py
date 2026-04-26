@@ -24,7 +24,6 @@ from app.ai.runtime.types import (
     CapabilityBundle,
     CapabilityDescriptor,
     ContextSource,
-    collect_selected_skill_names,
 )
 from app.ai.skills.activation import (
     execution_capability_descriptors_for_turn,
@@ -109,14 +108,10 @@ class ContextAssembler:
                 capability_context,
                 provider_names,
             )
-        activation = getattr(skill_result, "turn_activation", None)
-        if activation is not None and activation.applied:
-            bundle.selected_tool_names_override = list(
-                execution_selected_tool_names_for_turn(skill_result)
-            )
-            bundle.selected_skill_names_override = list(
-                getattr(skill_result, "selected_skill_names", []) or []
-            )
+        self._apply_skill_result_selection_contract(
+            bundle=bundle,
+            skill_result=skill_result,
+        )
         return bundle
 
     @classmethod
@@ -198,6 +193,36 @@ class ContextAssembler:
         return normalized
 
     @classmethod
+    def _apply_skill_result_selection_contract(
+        cls,
+        *,
+        bundle: CapabilityBundle,
+        skill_result: Any | None,
+    ) -> None:
+        if skill_result is None:
+            return
+
+        bundle.inventory_selected_tool_names_override = cls._stable_unique_names(
+            list(getattr(skill_result, "inventory_selected_tool_names", []) or [])
+        )
+        bundle.inventory_selected_skill_names_override = cls._stable_unique_names(
+            list(getattr(skill_result, "inventory_selected_skill_names", []) or [])
+        )
+
+        activation = getattr(skill_result, "turn_activation", None)
+        if activation is not None and activation.applied:
+            bundle.selected_tool_names_override = cls._stable_unique_names(
+                list(execution_selected_tool_names_for_turn(skill_result))
+            )
+            bundle.selected_skill_names_override = cls._stable_unique_names(
+                list(getattr(skill_result, "selected_skill_names", []) or [])
+            )
+            return
+
+        bundle.selected_tool_names_override = []
+        bundle.selected_skill_names_override = []
+
+    @classmethod
     def _turn_skill_activation_from_metadata(
         cls,
         metadata: dict[str, Any] | None,
@@ -263,43 +288,27 @@ class ContextAssembler:
             descriptors = ContextAssembler._build_skill_descriptors_from_tools(tools)
 
         inventory_selected_tool_names = ContextAssembler._stable_unique_names(
-            [
-                getattr(tool, "name", None)
-                for tool in list(getattr(skill_result, "tools", []) or [])
-            ]
+            list(getattr(skill_result, "inventory_selected_tool_names", []) or [])
         )
         inventory_selected_skill_names = ContextAssembler._stable_unique_names(
             list(getattr(skill_result, "inventory_selected_skill_names", []) or [])
         )
-        selected_tool_names = ContextAssembler._stable_unique_names(
-            list(getattr(skill_result, "selected_tool_names", []) or [])
-        )
-        selected_skill_names = ContextAssembler._stable_unique_names(
-            list(getattr(skill_result, "selected_skill_names", []) or [])
-        )
-        if activation is None or not activation.applied:
-            if not selected_tool_names:
-                selected_tool_names = ContextAssembler._stable_unique_names(
-                    [getattr(tool, "name", "") for tool in tools]
-                )
-            if not selected_skill_names:
-                selected_skill_names = ContextAssembler._stable_unique_names(
-                    collect_selected_skill_names(
-                        descriptors=descriptors,
-                        tools=tools,
-                    )
-                )
+        selected_tool_names: list[str] = []
+        selected_skill_names: list[str] = []
+        if activation is not None and activation.applied:
+            selected_tool_names = ContextAssembler._stable_unique_names(
+                list(getattr(skill_result, "selected_tool_names", []) or [])
+            )
+            selected_skill_names = ContextAssembler._stable_unique_names(
+                list(getattr(skill_result, "selected_skill_names", []) or [])
+            )
         context_sources: list[ContextSource] = []
         should_emit_skill_source = bool(
-            (
-                activation is not None
-                and activation.applied
-                and (selected_tool_names or selected_skill_names)
-            )
-            or (
-                (activation is None or not activation.applied)
-                and (tools or selected_skill_names)
-            )
+            selected_tool_names
+            or selected_skill_names
+            or inventory_selected_tool_names
+            or inventory_selected_skill_names
+            or (activation is not None and activation.applied)
         )
         if should_emit_skill_source:
             context_sources.append(
@@ -637,6 +646,14 @@ class ContextCapabilityBundleProjection:
     ) -> None:
         if skill_result is None:
             return
+        if hasattr(skill_result, "inventory_selected_tool_names_override"):
+            skill_result.inventory_selected_tool_names_override = list(
+                bundle.inventory_selected_tool_names or []
+            )
+        if hasattr(skill_result, "inventory_selected_skill_names_override"):
+            skill_result.inventory_selected_skill_names_override = list(
+                bundle.inventory_selected_skill_names or []
+            )
         skill_result.tools = list(bundle.tools)
         skill_result.tool_consent_modes = dict(bundle.tool_consent_modes)
         if hasattr(skill_result, "capability_descriptors"):

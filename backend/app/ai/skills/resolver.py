@@ -75,9 +75,23 @@ class SkillResolveResult:
     capability_descriptors: list[CapabilityDescriptor] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     turn_activation: TurnSkillActivation | None = None
+    inventory_selected_tool_names_override: list[str] | None = None
+    inventory_selected_skill_names_override: list[str] | None = None
+
+    @property
+    def inventory_selected_tool_names(self) -> list[str]:
+        if self.inventory_selected_tool_names_override is not None:
+            return list(self.inventory_selected_tool_names_override)
+        return [
+            str(getattr(tool, "name", "") or "").strip()
+            for tool in self.tools
+            if str(getattr(tool, "name", "") or "").strip()
+        ]
 
     @property
     def inventory_selected_skill_names(self) -> list[str]:
+        if self.inventory_selected_skill_names_override is not None:
+            return list(self.inventory_selected_skill_names_override)
         return collect_selected_skill_names(
             descriptors=self.capability_descriptors,
             tools=self.tools,
@@ -95,11 +109,7 @@ class SkillResolveResult:
         activation = self.turn_activation
         if activation is not None and activation.applied:
             return list(activation.activated_tool_names or [])
-        return [
-            str(getattr(tool, "name", "") or "").strip()
-            for tool in self.tools
-            if str(getattr(tool, "name", "") or "").strip()
-        ]
+        return self.inventory_selected_tool_names
 
 
 @dataclass(frozen=True)

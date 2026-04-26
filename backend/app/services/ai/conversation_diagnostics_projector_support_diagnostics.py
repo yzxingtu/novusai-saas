@@ -176,6 +176,10 @@ def _normalize_turn_skill_activation(value: Any) -> dict[str, Any] | None:
     }
 
 
+def normalize_turn_skill_activation_payload(value: Any) -> dict[str, Any] | None:
+    return _normalize_turn_skill_activation(value)
+
+
 def _normalize_dict_list(value: Any) -> list[dict[str, Any]]:
     if not isinstance(value, list):
         return []
@@ -220,6 +224,20 @@ def _pick_string(*values: Any) -> str | None:
 
 def _pick_string_list(*values: Any) -> list[str]:
     return _normalize_string_list(_pick_truthy(*values))
+
+
+def resolve_live_selected_name_list(
+    key: str,
+    *sources: Any,
+    turn_skill_activation: dict[str, Any] | None = None,
+) -> tuple[list[str], bool]:
+    if isinstance(turn_skill_activation, dict) and key in turn_skill_activation:
+        return _normalize_string_list(turn_skill_activation.get(key)), True
+    for source in sources:
+        if not isinstance(source, dict) or key not in source:
+            continue
+        return _normalize_string_list(source.get(key)), True
+    return [], False
 
 
 def extract_turn_diagnostics_from_metadata(
@@ -298,20 +316,6 @@ def extract_turn_diagnostics_from_metadata(
         context_diagnostics.get("protocol_path"),
         last_run_summary.get("protocol_path"),
     )
-    selected_tool_names = _pick_string_list(
-        (turn_record or {}).get("selected_tool_names"),
-        metadata.get("selected_tool_names"),
-        turn_record_diagnostics.get("selected_tool_names"),
-        context_diagnostics.get("selected_tool_names"),
-        last_run_summary.get("selected_tool_names"),
-    )
-    selected_skill_names = _pick_string_list(
-        (turn_record or {}).get("selected_skill_names"),
-        metadata.get("selected_skill_names"),
-        turn_record_diagnostics.get("selected_skill_names"),
-        context_diagnostics.get("selected_skill_names"),
-        last_run_summary.get("selected_skill_names"),
-    )
     turn_skill_activation = _normalize_turn_skill_activation(
         _pick_truthy(
             (turn_record or {}).get("turn_skill_activation"),
@@ -320,6 +324,24 @@ def extract_turn_diagnostics_from_metadata(
             context_diagnostics.get("turn_skill_activation"),
             last_run_summary.get("turn_skill_activation"),
         )
+    )
+    selected_tool_names, _selected_tools_explicit = resolve_live_selected_name_list(
+        "selected_tool_names",
+        turn_record,
+        metadata,
+        turn_record_diagnostics,
+        context_diagnostics,
+        last_run_summary,
+        turn_skill_activation=turn_skill_activation,
+    )
+    selected_skill_names, _selected_skills_explicit = resolve_live_selected_name_list(
+        "selected_skill_names",
+        turn_record,
+        metadata,
+        turn_record_diagnostics,
+        context_diagnostics,
+        last_run_summary,
+        turn_skill_activation=turn_skill_activation,
     )
     context_sources = _normalize_context_sources(
         _pick_truthy(
@@ -685,4 +707,8 @@ def extract_turn_diagnostics_from_metadata(
     }
 
 
-__all__ = ["extract_turn_diagnostics_from_metadata"]
+__all__ = [
+    "extract_turn_diagnostics_from_metadata",
+    "normalize_turn_skill_activation_payload",
+    "resolve_live_selected_name_list",
+]

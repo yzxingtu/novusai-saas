@@ -11,7 +11,10 @@ from app.ai.prompt_contracts import render_prompt_contract
 from app.ai.tools.types import ToolDefinition
 from app.ai.types import ChatMessage
 
-from .system_prompt_capability_hints import build_runtime_capability_hint
+from .system_prompt_capability_hints import (
+    build_runtime_capability_hint,
+    resolve_live_turn_selected_skill_names,
+)
 from .types import IntentPlan, ResearchContinuationContext
 
 
@@ -44,6 +47,9 @@ def inject_runtime_summary(
         intent_summary=intent_summary,
         allowed_tools=", ".join(allowed_tool_names) or "none",
     )
+    live_turn_selected_skill_names = resolve_live_turn_selected_skill_names(
+        runtime_capability_summary=runtime_capability_summary,
+    )
 
     capability_summary_injected = False
     if not skip_capability_summary:
@@ -61,10 +67,7 @@ def inject_runtime_summary(
                 "tools": allowed_tool_names,
                 "intent_summary": intent_summary,
                 "execution_path": execution_path or "fast",
-                "selected_skill_names": list(
-                    dict(runtime_capability_summary or {}).get("selected_skill_names")
-                    or []
-                ),
+                "selected_skill_names": live_turn_selected_skill_names,
                 "skip_capability_summary": bool(skip_capability_summary),
             },
             ensure_ascii=False,

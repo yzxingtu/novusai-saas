@@ -162,3 +162,53 @@ def test_extract_turn_diagnostics_derives_elapsed_budget_exit_from_usage() -> No
     assert payload["budget_exit_reason"] == "elapsed_budget_exceeded"
     assert payload["budget"]["usage"]["elapsed_over_limit"] is True
     assert payload["budget"]["usage"]["elapsed_over_limit_ms"] == 75500
+
+
+def test_extract_turn_diagnostics_keeps_explicit_empty_live_selection_over_inventory() -> (
+    None
+):
+    payload = extract_turn_diagnostics_from_metadata(
+        {
+            "turn_record": {
+                "selected_tool_names": [],
+                "selected_skill_names": [],
+                "turn_outcome": "failed",
+                "termination_reason": "tool_round_failed",
+                "metadata": {
+                    "turn_diagnostics": {
+                        "selected_tool_names": ["ui_get_snapshot", "web_search"],
+                        "selected_skill_names": ["Page Skill", "Research Skill"],
+                        "turn_skill_activation": {
+                            "applied": True,
+                            "reason": "runtime_policy",
+                            "selected_tool_names": [],
+                            "selected_skill_names": [],
+                            "inventory_selected_tool_names": [
+                                "ui_get_snapshot",
+                                "web_search",
+                            ],
+                            "inventory_selected_skill_names": [
+                                "Page Skill",
+                                "Research Skill",
+                            ],
+                        },
+                    }
+                },
+            },
+            "context_diagnostics": {
+                "selected_tool_names": ["ui_get_snapshot", "web_search"],
+                "selected_skill_names": ["Page Skill", "Research Skill"],
+            },
+            "last_run_summary": {
+                "selected_tool_names": ["ui_get_snapshot", "web_search"],
+                "selected_skill_names": ["Page Skill", "Research Skill"],
+            },
+        }
+    )
+
+    assert payload["selected_tool_names"] == []
+    assert payload["selected_skill_names"] == []
+    assert payload["turn_skill_activation"]["inventory_selected_tool_names"] == [
+        "ui_get_snapshot",
+        "web_search",
+    ]

@@ -14,6 +14,7 @@ import pytest
 from app.ai.runtime.capabilities import CapabilityRegistry
 from app.ai.runtime.types import CapabilityBundle, CapabilityDescriptor
 from app.ai.skills.activation import (
+    TurnSkillActivation,
     apply_turn_skill_activation,
     execution_tools_for_turn,
     resolve_startup_intent_flags,
@@ -215,6 +216,48 @@ def test_selected_skill_names_skips_auto_injected_runtime_builtins() -> None:
         ],
     )
 
+    assert result.selected_skill_names == ["Plugin Page Skill"]
+
+
+def test_skill_resolve_result_keeps_inventory_truth_separate_from_live_activation() -> (
+    None
+):
+    result = SkillResolveResult(
+        tools=[
+            SimpleNamespace(
+                name="web_search",
+                source_skill_name="Plugin Research Skill",
+            ),
+            SimpleNamespace(
+                name="ui_get_snapshot",
+                source_skill_name="Plugin Page Skill",
+            ),
+        ],
+        inventory_selected_tool_names_override=[
+            "web_search",
+            "ui_get_snapshot",
+        ],
+        inventory_selected_skill_names_override=[
+            "Plugin Research Skill",
+            "Plugin Page Skill",
+        ],
+        turn_activation=TurnSkillActivation(
+            applied=True,
+            activated_tool_names=["ui_get_snapshot"],
+            activated_skill_names=["Plugin Page Skill"],
+            reason="runtime_policy",
+        ),
+    )
+
+    assert result.inventory_selected_tool_names == [
+        "web_search",
+        "ui_get_snapshot",
+    ]
+    assert result.inventory_selected_skill_names == [
+        "Plugin Research Skill",
+        "Plugin Page Skill",
+    ]
+    assert result.selected_tool_names == ["ui_get_snapshot"]
     assert result.selected_skill_names == ["Plugin Page Skill"]
 
 

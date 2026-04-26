@@ -79,6 +79,8 @@ class CapabilityBundle:
     context_sources: list[ContextSource] = field(default_factory=list)
     selected_tool_names_override: list[str] | None = None
     selected_skill_names_override: list[str] | None = None
+    inventory_selected_tool_names_override: list[str] | None = None
+    inventory_selected_skill_names_override: list[str] | None = None
 
     @property
     def selected_tool_names(self) -> list[str]:
@@ -90,6 +92,21 @@ class CapabilityBundle:
     def selected_skill_names(self) -> list[str]:
         if self.selected_skill_names_override is not None:
             return list(self.selected_skill_names_override)
+        return collect_selected_skill_names(
+            descriptors=self.capability_descriptors,
+            tools=self.tools,
+        )
+
+    @property
+    def inventory_selected_tool_names(self) -> list[str]:
+        if self.inventory_selected_tool_names_override is not None:
+            return list(self.inventory_selected_tool_names_override)
+        return [tool.name for tool in self.tools]
+
+    @property
+    def inventory_selected_skill_names(self) -> list[str]:
+        if self.inventory_selected_skill_names_override is not None:
+            return list(self.inventory_selected_skill_names_override)
         return collect_selected_skill_names(
             descriptors=self.capability_descriptors,
             tools=self.tools,
@@ -139,15 +156,26 @@ def project_capability_bundle_to_tools(
     tools: list[Any] | None,
 ) -> CapabilityBundle:
     projected_tools = list(tools or [])
-    if bundle is None:
-        return CapabilityBundle(tools=projected_tools)
-
     projected_tool_names = [
         str(getattr(tool, "name", "") or "").strip()
         for tool in projected_tools
         if str(getattr(tool, "name", "") or "").strip()
     ]
+    projected_skill_names: list[str] = []
+    if bundle is None:
+        return CapabilityBundle(
+            tools=projected_tools,
+            selected_tool_names_override=list(projected_tool_names),
+            selected_skill_names_override=[],
+            inventory_selected_tool_names_override=list(projected_tool_names),
+            inventory_selected_skill_names_override=[],
+        )
+
     projected_tool_name_set = set(projected_tool_names)
+    inventory_selected_tool_names = list(bundle.inventory_selected_tool_names or [])
+    inventory_selected_skill_names = list(
+        bundle.inventory_selected_skill_names or []
+    )
     skill_tool_names = [
         tool_name
         for tool_name, tool in zip(
@@ -189,16 +217,44 @@ def project_capability_bundle_to_tools(
             projected_context_sources.append(replace(source))
             continue
 
-        if not projected_skill_names and not skill_tool_names:
-            continue
-
         metadata = dict(getattr(source, "metadata", {}) or {})
+        inventory_tool_names_for_source = [
+            str(name or "").strip()
+            for name in list(
+                metadata.get("inventory_selected_tool_names")
+                or inventory_selected_tool_names
+                or []
+            )
+            if str(name or "").strip()
+        ]
+        inventory_skill_names_for_source = [
+            str(name or "").strip()
+            for name in list(
+                metadata.get("inventory_selected_skill_names")
+                or inventory_selected_skill_names
+                or []
+            )
+            if str(name or "").strip()
+        ]
+        if not (
+            projected_skill_names
+            or skill_tool_names
+            or inventory_tool_names_for_source
+            or inventory_skill_names_for_source
+            or metadata.get("turn_skill_activation_applied")
+            or metadata.get("turn_skill_activation_reason")
+        ):
+            continue
         metadata.update(
             {
                 "tool_count": len(skill_tool_names),
                 "selected_tool_names": list(skill_tool_names),
                 "skill_count": len(projected_skill_names),
                 "selected_skill_names": list(projected_skill_names),
+                "inventory_tool_count": len(inventory_tool_names_for_source),
+                "inventory_selected_tool_names": inventory_tool_names_for_source,
+                "inventory_skill_count": len(inventory_skill_names_for_source),
+                "inventory_selected_skill_names": inventory_skill_names_for_source,
             }
         )
         projected_context_sources.append(replace(source, metadata=metadata))
@@ -216,6 +272,8 @@ def project_capability_bundle_to_tools(
         context_sources=projected_context_sources,
         selected_tool_names_override=list(projected_tool_names),
         selected_skill_names_override=list(projected_skill_names),
+        inventory_selected_tool_names_override=list(inventory_selected_tool_names),
+        inventory_selected_skill_names_override=list(inventory_selected_skill_names),
     )
 
 

@@ -28,7 +28,6 @@ from app.ai.runtime.contracts import (
 )
 from app.ai.runtime.manifest import AIRuntimeInventoryService
 from app.ai.runtime.types import CapabilityBundle
-from app.ai.skills.activation import execution_selected_tool_names_for_turn
 from app.core.logging import LogManager
 from app.services.ai.capability_awareness_config import (
     get_tenant_capability_awareness_settings,
@@ -116,14 +115,10 @@ class DefaultContextCapabilityBridge(ContextCapabilityBridge):
                 if fragment is None:
                     continue
                 CapabilityRegistry._merge_fragment(bundle, fragment)
-            activation = getattr(skill_result, "turn_activation", None)
-            if activation is not None and activation.applied:
-                bundle.selected_tool_names_override = list(
-                    execution_selected_tool_names_for_turn(skill_result)
-                )
-                bundle.selected_skill_names_override = list(
-                    getattr(skill_result, "selected_skill_names", []) or []
-                )
+            ContextAssembler._apply_skill_result_selection_contract(
+                bundle=bundle,
+                skill_result=skill_result,
+            )
             return bundle
         except Exception as exc:
             logger.warning(
@@ -255,18 +250,6 @@ class DefaultContextCapabilityBridge(ContextCapabilityBridge):
             diagnostics.update(
                 self.bundle_projection.to_diagnostics(capability_bundle),
             )
-            if not diagnostics.get("selected_skill_names"):
-                fallback_skill_names = list(
-                    getattr(skill_result, "selected_skill_names", []) or []
-                )
-                if fallback_skill_names:
-                    diagnostics["selected_skill_names"] = list(
-                        dict.fromkeys(
-                            str(name).strip()
-                            for name in fallback_skill_names
-                            if str(name).strip()
-                        )
-                    )
             if capability_inputs.runtime_model_capabilities:
                 diagnostics["runtime_model_capabilities"] = dict(
                     capability_inputs.runtime_model_capabilities

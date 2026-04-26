@@ -10,6 +10,10 @@ from app.core.base_model import utc_now
 from app.core.response import serialize_datetime_for_api
 from app.enums.ai import CallStatusEnum
 from app.services.ai.call_log_support import CallLogSupport
+from app.services.ai.conversation_diagnostics_projector_support import (
+    normalize_turn_skill_activation_payload,
+    resolve_live_selected_name_list,
+)
 from app.services.ai.turn_failure_normalizer import resolve_failure_projection
 
 
@@ -37,16 +41,47 @@ class CallLogProjectionMixin(CallLogSupport):
         if incoming_turn_record:
             normalized_turn_record.update(incoming_turn_record)
 
-        normalized_tools = cls._normalize_string_list(
-            selected_tool_names
-            if selected_tool_names is not None
-            else normalized_turn_record.get("selected_tool_names")
+        turn_record_metadata = (
+            dict(normalized_turn_record.get("metadata") or {})
+            if isinstance(normalized_turn_record.get("metadata"), dict)
+            else {}
         )
-        normalized_skills = cls._normalize_string_list(
-            selected_skill_names
-            if selected_skill_names is not None
-            else normalized_turn_record.get("selected_skill_names")
+        turn_record_diagnostics = (
+            dict(turn_record_metadata.get("turn_diagnostics") or {})
+            if isinstance(turn_record_metadata.get("turn_diagnostics"), dict)
+            else {}
         )
+        turn_skill_activation = normalize_turn_skill_activation_payload(
+            normalized_turn_record.get("turn_skill_activation")
+            or turn_record_diagnostics.get("turn_skill_activation")
+            or payload.get("turn_skill_activation")
+        )
+        if selected_tool_names is not None:
+            normalized_tools = cls._normalize_string_list(selected_tool_names)
+            normalized_tools_explicit = True
+        else:
+            normalized_tools, normalized_tools_explicit = (
+                resolve_live_selected_name_list(
+                    "selected_tool_names",
+                    normalized_turn_record,
+                    turn_record_diagnostics,
+                    payload,
+                    turn_skill_activation=turn_skill_activation,
+                )
+            )
+        if selected_skill_names is not None:
+            normalized_skills = cls._normalize_string_list(selected_skill_names)
+            normalized_skills_explicit = True
+        else:
+            normalized_skills, normalized_skills_explicit = (
+                resolve_live_selected_name_list(
+                    "selected_skill_names",
+                    normalized_turn_record,
+                    turn_record_diagnostics,
+                    payload,
+                    turn_skill_activation=turn_skill_activation,
+                )
+            )
         normalized_protocol = cls._to_non_empty_str(
             protocol_path
             if protocol_path is not None
@@ -88,10 +123,10 @@ class CallLogProjectionMixin(CallLogSupport):
             ]
         )
 
-        if normalized_tools:
+        if normalized_tools_explicit:
             payload["selected_tool_names"] = normalized_tools
             normalized_turn_record["selected_tool_names"] = normalized_tools
-        if normalized_skills:
+        if normalized_skills_explicit:
             payload["selected_skill_names"] = normalized_skills
             normalized_turn_record["selected_skill_names"] = normalized_skills
         if normalized_protocol:
@@ -177,15 +212,25 @@ class CallLogProjectionMixin(CallLogSupport):
             if isinstance(raw_tool_planner, dict)
             else None
         )
-        selected_tool_names = cls._normalize_string_list(
-            (turn_record or {}).get("selected_tool_names")
-            or incoming.get("selected_tool_names")
-            or req.get("selected_tool_names")
+        turn_skill_activation = normalize_turn_skill_activation_payload(
+            (turn_record or {}).get("turn_skill_activation")
+            or incoming.get("turn_skill_activation")
+            or req.get("turn_skill_activation")
+            or turn_record_metadata.get("turn_diagnostics", {}).get("turn_skill_activation")
         )
-        selected_skill_names = cls._normalize_string_list(
-            (turn_record or {}).get("selected_skill_names")
-            or incoming.get("selected_skill_names")
-            or req.get("selected_skill_names")
+        selected_tool_names, _selected_tools_explicit = resolve_live_selected_name_list(
+            "selected_tool_names",
+            turn_record,
+            incoming,
+            req,
+            turn_skill_activation=turn_skill_activation,
+        )
+        selected_skill_names, _selected_skills_explicit = resolve_live_selected_name_list(
+            "selected_skill_names",
+            turn_record,
+            incoming,
+            req,
+            turn_skill_activation=turn_skill_activation,
         )
         context_sources = (
             cls._normalize_context_sources((turn_record or {}).get("context_sources"))

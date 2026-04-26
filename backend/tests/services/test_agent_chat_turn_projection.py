@@ -78,3 +78,59 @@ def test_turn_projection_uses_default_diagnostics_projector() -> None:
     assert summary_payload["turn_skill_activation"]["selected_tool_names"] == [
         "save_memory"
     ]
+
+
+def test_turn_projection_omits_selected_names_when_live_selection_is_explicitly_empty() -> (
+    None
+):
+    result = ExecutionResult(
+        success=False,
+        output="upstream failure",
+        messages=[],
+        tool_results=[],
+        total_tokens=17,
+        duration_ms=31,
+        error="tool_round_failed",
+        completion_reason="tool_round_failed",
+        turn_record={
+            "selected_tool_names": [],
+            "selected_skill_names": [],
+            "turn_outcome": "failed",
+            "termination_reason": "tool_round_failed",
+            "metadata": {
+                "turn_diagnostics": {
+                    "selected_tool_names": ["ui_get_snapshot", "web_search"],
+                    "selected_skill_names": ["Page Skill", "Research Skill"],
+                    "turn_skill_activation": {
+                        "applied": True,
+                        "reason": "runtime_policy",
+                        "selected_tool_names": [],
+                        "selected_skill_names": [],
+                        "inventory_selected_tool_names": [
+                            "ui_get_snapshot",
+                            "web_search",
+                        ],
+                        "inventory_selected_skill_names": [
+                            "Page Skill",
+                            "Research Skill",
+                        ],
+                    },
+                }
+            },
+        },
+    )
+
+    context_payload = build_context_diagnostics(
+        result,
+        interaction_mode_effective="trusted_auto",
+    )
+    summary_payload = build_last_run_summary(
+        result,
+        interaction_mode_effective="trusted_auto",
+        downgrade_reason=None,
+    )
+
+    assert "selected_tool_names" not in context_payload
+    assert "selected_skill_names" not in context_payload
+    assert "selected_tool_names" not in summary_payload
+    assert "selected_skill_names" not in summary_payload

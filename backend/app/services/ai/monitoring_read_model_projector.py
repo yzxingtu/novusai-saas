@@ -12,6 +12,10 @@ from app.configs.service import PLATFORM_TENANT_ID
 from app.core.identity import resolve_identity_display_role_name
 from app.core.identity_snapshot import snapshot_has_key, snapshot_value
 from app.schemas.ai.monitoring import MonitoringActorInfo
+from app.services.ai.conversation_diagnostics_projector_support import (
+    normalize_turn_skill_activation_payload,
+    resolve_live_selected_name_list,
+)
 from app.services.ai.conversation_diagnostics_projector import (
     ConversationDiagnosticsProjector,
 )
@@ -375,6 +379,25 @@ class MonitoringReadModelProjector:
         conversation_outcome = ConversationDiagnosticsProjector.to_non_empty_str(
             conversation_outcome or turn_outcome
         )
+        turn_skill_activation = normalize_turn_skill_activation_payload(
+            turn_record.get("turn_skill_activation")
+            or diagnostics.get("turn_skill_activation")
+            or turn_record_diagnostics.get("turn_skill_activation")
+        )
+        selected_tool_names, _selected_tools_explicit = resolve_live_selected_name_list(
+            "selected_tool_names",
+            turn_record,
+            diagnostics,
+            turn_record_diagnostics,
+            turn_skill_activation=turn_skill_activation,
+        )
+        selected_skill_names, _selected_skills_explicit = resolve_live_selected_name_list(
+            "selected_skill_names",
+            turn_record,
+            diagnostics,
+            turn_record_diagnostics,
+            turn_skill_activation=turn_skill_activation,
+        )
 
         return {
             "turn_outcome": turn_outcome,
@@ -384,14 +407,8 @@ class MonitoringReadModelProjector:
                 turn_record.get("protocol_path") or diagnostics.get("protocol_path")
             ),
             "tool_planner": tool_planner or None,
-            "selected_tool_names": ConversationDiagnosticsProjector.normalize_string_list(
-                turn_record.get("selected_tool_names")
-                or diagnostics.get("selected_tool_names")
-            ),
-            "selected_skill_names": ConversationDiagnosticsProjector.normalize_string_list(
-                turn_record.get("selected_skill_names")
-                or diagnostics.get("selected_skill_names")
-            ),
+            "selected_tool_names": selected_tool_names,
+            "selected_skill_names": selected_skill_names,
             "execution_path": ConversationDiagnosticsProjector.to_non_empty_str(
                 turn_record.get("execution_path")
                 or diagnostics.get("execution_path")

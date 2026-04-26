@@ -1,3 +1,9 @@
+"""
+Test type: behavioral
+Scope: system prompt helper rendering and live-turn runtime summary projection.
+Mocked dependencies: none.
+"""
+
 from __future__ import annotations
 
 from app.ai.engine.base import BaseEngine
@@ -12,6 +18,9 @@ from app.ai.engine.system_prompt_helpers import (
     inject_runtime_summary,
     is_capability_reporting_query,
     resolve_capability_injection_decision,
+)
+from app.ai.engine.system_prompt_capability_hints import (
+    build_runtime_capability_hint,
 )
 from app.ai.engine.types import IntentPlan
 from app.ai.runtime.types import TurnRecord
@@ -121,6 +130,9 @@ def test_inject_runtime_summary_omits_retired_runtime_narration() -> None:
         tools=tools,
         runtime_capability_summary={
             "selected_skill_names": ["browser", "researcher"],
+            "selection_semantics": "turn_selected_subset",
+            "selection_live": True,
+            "live_turn_bound": True,
         },
         intent_plan=intents,
         execution_path="normal",
@@ -145,6 +157,40 @@ def test_inject_runtime_summary_omits_retired_runtime_narration() -> None:
     )
     assert "runtime.selected_skills=browser, researcher" in content
     assert estimate_tokens(content) - before_tokens <= 120
+
+
+def test_build_runtime_capability_hint_ignores_inventory_shaped_summary() -> None:
+    hint = build_runtime_capability_hint(
+        runtime_capability_summary={
+            "selected_skill_names": ["browser", "researcher"],
+            "selection_semantics": "capability_reporting_inventory",
+            "selection_live": False,
+            "live_turn_bound": False,
+        }
+    )
+
+    assert hint == ""
+
+
+def test_inject_runtime_summary_ignores_inventory_shaped_selected_skills() -> None:
+    messages = [ChatMessage(role="system", content="SYS")]
+    tools = [ToolDefinition(name="web_search")]
+
+    injected = inject_runtime_summary(
+        messages=messages,
+        tools=tools,
+        runtime_capability_summary={
+            "selected_skill_names": ["browser", "researcher"],
+            "selection_semantics": "capability_reporting_inventory",
+            "selection_live": False,
+            "live_turn_bound": False,
+        },
+        execution_path="normal",
+    )
+
+    assert injected is False
+    assert "runtime.path=normal" in messages[0].content
+    assert "runtime.selected_skills=" not in messages[0].content
 
 
 def test_contract_diagnostics_helpers_populate_turn_record_metadata() -> None:
