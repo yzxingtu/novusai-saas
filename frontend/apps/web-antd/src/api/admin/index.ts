@@ -4,6 +4,7 @@
  */
 export * from './ai';
 export * from './ai-runtime';
+export * from './announcement';
 export * from './attachment';
 export * from './auth';
 

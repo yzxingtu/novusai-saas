@@ -5,6 +5,12 @@
 Exports tenant-level repository classes.
 """
 
+from app.repositories.tenant.announcement_repository import (
+    AdminAnnouncementRepository,
+    AnnouncementDeliveryRepository,
+    AnnouncementRepository,
+    AnnouncementResponseRepository,
+)
 from app.repositories.tenant.attachment_repository import AttachmentRepository
 from app.repositories.tenant.tenant_admin_repository import TenantAdminRepository
 from app.repositories.tenant.tenant_domain_tenant_repository import (
@@ -21,6 +27,10 @@ from app.repositories.tenant.tenant_user_role_repository import (
 )
 
 __all__ = [
+    "AdminAnnouncementRepository",
+    "AnnouncementDeliveryRepository",
+    "AnnouncementRepository",
+    "AnnouncementResponseRepository",
     "AttachmentRepository",
     "TenantAdminRepository",
     "TenantOrgNodeRepository",

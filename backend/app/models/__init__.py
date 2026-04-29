@@ -99,6 +99,9 @@ from app.models.system.email_log import EmailLog
 
 # 企业级模型 / Tenant models
 from app.models.tenant import (
+    Announcement,
+    AnnouncementDelivery,
+    AnnouncementResponse,
     Attachment,
     DomainSslCertificate,
     Tenant,
@@ -128,6 +131,9 @@ __all__ = [
     "TenantPlan",
     "tenant_plan_permissions",
     "Attachment",
+    "Announcement",
+    "AnnouncementDelivery",
+    "AnnouncementResponse",
     # RBAC / 基于角色的访问控制
     "Permission",
     "AdminRole",

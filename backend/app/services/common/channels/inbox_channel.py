@@ -51,7 +51,6 @@ class InboxChannel(NotificationChannel):
         tenant_id: int | None = None,
         **kwargs: Any,
     ) -> bool:
-        _ = kwargs
         try:
             from app.models.common.notification import Notification
 
@@ -70,6 +69,9 @@ class InboxChannel(NotificationChannel):
                 priority=priority,
             )
             db.add(notification)
+            created_notifications = kwargs.get("created_notifications")
+            if isinstance(created_notifications, list):
+                created_notifications.append(notification)
             return True
         except Exception as e:
             logger.warning("InboxChannel deliver failed: {}", str(e))

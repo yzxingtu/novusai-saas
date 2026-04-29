@@ -23,6 +23,7 @@ import { message, Popover, Tooltip } from 'ant-design-vue';
 
 import { ensureGlobalUIRuntime } from '#/components/business/ai-runtime/runtime-bridge';
 import { AIChatSlidePanel } from '#/components/business/ai-slide-panel';
+import AnnouncementGlobalModal from '#/components/business/announcement/AnnouncementGlobalModal.vue';
 import CacheClearModal from '#/components/business/cache-clear-modal/CacheClearModal.vue';
 import { CommandBar } from '#/components/business/command-bar';
 import NotificationPanel from '#/components/business/notification-panel/NotificationPanel.vue';
@@ -43,6 +44,7 @@ import { generateAccess } from '#/router/access';
 import { accessRoutes } from '#/router/routes';
 import {
   useAIPanelStore,
+  useAnnouncementStore,
   useMultiAuthStore,
   useNotificationStore,
   usePresenceStore,
@@ -58,6 +60,7 @@ const router = useRouter();
 const userStore = useUserStore();
 const multiAuthStore = useMultiAuthStore();
 const aiPanelStore = useAIPanelStore();
+const announcementStore = useAnnouncementStore();
 const socketIOStore = useSocketIOStore();
 const notificationStore = useNotificationStore();
 const presenceStore = usePresenceStore();
@@ -131,11 +134,7 @@ const uploadUrl = computed(() => `${apiPrefix.value}/attachments/upload`);
 
 /** AI Panel 固定时的右侧偏移量（页面禁用 AI 时归零） / AI Panel right offset */
 const aiPanelRightOffset = computed(() => {
-  if (
-    !aiEnabled.value ||
-    !aiPanelStore.visible ||
-    !aiPanelStore.docked
-  ) {
+  if (!aiEnabled.value || !aiPanelStore.visible || !aiPanelStore.docked) {
     return 0;
   }
   return aiPanelStore.panelWidth;
@@ -237,6 +236,9 @@ onMounted(async () => {
   notificationStore.setEndpoint(ep);
   notificationStore.loadUnreadCount();
   notificationStore.initSocketHandlers();
+  announcementStore.setEndpoint(ep);
+  announcementStore.loadPending();
+  announcementStore.initSocketHandlers();
   presenceStore.initSocketHandlers();
 
   // 加载用户偏好并同步到框架 / Load preferences and sync to Vben
@@ -558,7 +560,7 @@ watch(
           {{ $t('common.aiPanel.title') }}
         </span>
         <kbd
-          class="hidden rounded-full border border-foreground/12 bg-background/92 px-1.5 py-0.5 text-[10px] leading-none text-muted-foreground md:block"
+          class="border-foreground/12 bg-background/92 hidden rounded-full border px-1.5 py-0.5 text-[10px] leading-none text-muted-foreground md:block"
         >
           Ctrl K
         </kbd>
@@ -594,6 +596,7 @@ watch(
         @conversation-restored="onConversationRestored"
       />
       <CacheClearModal ref="cacheClearModalRef" />
+      <AnnouncementGlobalModal />
       <NotificationToast />
       <!-- 插件 floatingPanels 动态注入（支持 icon/position/弹出控制） -->
       <PluginFloatingPanels />

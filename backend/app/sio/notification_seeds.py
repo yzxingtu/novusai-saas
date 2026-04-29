@@ -112,6 +112,15 @@ SEED_TEMPLATES: list[dict] = [
         "channels": ["ws", "inbox"],
         "priority": "high",
     },
+    # ===== announcement (1) / 公告类 1 条 =====
+    {
+        "code": "announcement.published",
+        "category": "announcement",
+        "title_template": "{title}",
+        "body_template": "{content}",
+        "channels": ["ws", "inbox"],
+        "priority": "normal",
+    },
     # ===== biz (7) / 业务类 7 条 =====
     {
         "code": "biz.plugin_installed",

@@ -51,7 +51,8 @@
       "recycle_bin": "Recycle Bin",
       "notification_template": "Notification Templates",
       "cache_management": "Cache Management",
-      "codegen": "Code Generator"
+      "codegen": "Code Generator",
+      "announcement": "Announcement Management"
     },
     "tags": {
       "admin_agent_mgmt": "Agent Management (Platform)",
@@ -129,7 +130,8 @@
       "skill": "Skill Management",
       "plugin": "Plugin Management",
       "agent_assignment": "Agent Assignments",
-      "knowledge_base": "Knowledge Base"
+      "knowledge_base": "Knowledge Base",
+      "announcement": "Announcement Management"
     }
   }
 }

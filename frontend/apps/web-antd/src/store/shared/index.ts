@@ -4,6 +4,7 @@
  */
 
 export * from './ai-panel';
+export * from './announcement';
 export * from './multi-auth';
 export * from './notification';
 export * from './presence';

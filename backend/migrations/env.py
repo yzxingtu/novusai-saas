@@ -98,6 +98,9 @@ from app.models import (
     PluginVersion,
     PluginLicense,
     ResourceTenantAssignment,
+    Announcement,
+    AnnouncementDelivery,
+    AnnouncementResponse,
 )
 
 # 以下模型从子模块直接导入（部分已在 models/__init__.py 导出，此处保留显式导入以确保 autogenerate 覆盖）

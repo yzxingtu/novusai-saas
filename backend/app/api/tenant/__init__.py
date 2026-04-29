@@ -30,6 +30,8 @@ from app.api.tenant.ai_usage import TenantAIUsageController
 from app.api.tenant.ai_usage import router as ai_usage_router
 from app.api.tenant.ai_writing import router as ai_writing_router
 from app.api.tenant.analytics import router as analytics_router
+from app.api.tenant.announcement import TenantAnnouncementController
+from app.api.tenant.announcement import router as announcement_router
 from app.api.tenant.attachments import TenantAttachmentController
 from app.api.tenant.attachments import router as attachments_router
 from app.api.tenant.auth import router as auth_router
@@ -112,6 +114,8 @@ tenant_router.include_router(analytics_router)
 tenant_router.include_router(execution_decisions_router)
 # AI 写作 / AI Writing
 tenant_router.include_router(ai_writing_router)
+# 公告管理 / Announcement management
+tenant_router.include_router(announcement_router)
 
 __all__ = [
     "tenant_router",
@@ -141,4 +145,6 @@ __all__ = [
     "TenantAIActionLogController",
     # 知识库 / Knowledge bases
     "TenantKnowledgeBaseController",
+    # 公告管理 / Announcement management
+    "TenantAnnouncementController",
 ]

@@ -174,7 +174,38 @@
         "owner_not_found": "Tenant owner not found",
         "owner_password_reset": "Tenant owner password reset successfully",
         "no_plan": "No plan assigned to this tenant. All features are disabled. Please contact the platform administrator.",
-        "legal": {"not_found": "Not configured or empty content"}
+        "legal": {"not_found": "Not configured or empty content"},
+        "announcement": {
+            "not_found": "Announcement Management not found",
+            "created": "Announcement Management created successfully",
+            "updated": "Announcement Management updated successfully",
+            "published": "Announcement published successfully",
+            "submitted": "Announcement feedback submitted successfully",
+            "read": "Announcement marked as read",
+            "field": {
+                "scope": "Announcement scope",
+                "title": "Announcement title",
+                "content": "Announcement content",
+                "status": "Announcement status",
+                "priority": "Announcement priority",
+                "require_response": "Require feedback",
+                "form_schema": "Form schema",
+                "published_at": "Published at",
+                "recipient_count": "Recipient count",
+                "response_count": "Response count",
+                "sort_order": "Sort order"
+            },
+            "error": {
+                "published_locked": "Published announcements cannot change body, feedback requirement, or form schema",
+                "draft_only": "Only draft announcements can perform this operation",
+                "invalid_form_schema": "Announcement feedback form schema is invalid",
+                "invalid_answers": "Announcement feedback answers are invalid",
+                "already_submitted": "This announcement feedback has already been submitted",
+                "response_required": "This announcement must be answered before it can be closed",
+                "delivery_not_found": "Announcement delivery for the current user was not found",
+                "unsupported_recipient_type": "Unsupported announcement recipient type"
+            }
+        }
     },
     "domain": {
         "instructions_header": "Please add the following records at your DNS provider",
@@ -1577,6 +1608,20 @@
             "update": "Update Skill",
             "delete": "Delete Skill",
             "update_status": "Update Skill Status"
+        },
+        "announcement": {
+            "list": "View Announcement Management",
+            "create": "Create Announcement Management",
+            "update": "Update Announcement Management",
+            "delete": "Delete Announcement Management",
+            "select": "Select Announcement",
+            "detail": "View Announcement Detail",
+            "publish": "Publish Announcement",
+            "responses": "View Announcement Receipts",
+            "pending": "View Pending Announcements",
+            "mine": "View My Announcement Detail",
+            "response": "Submit Announcement Feedback",
+            "read": "Mark Announcement Read"
         }
     },
     "role": {

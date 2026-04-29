@@ -16,7 +16,7 @@ import { Badge, Button, Empty, Spin, Tabs } from 'ant-design-vue';
 
 import PluginNotificationUI from '#/components/business/plugin-slots/PluginNotificationUI.vue';
 import { $t } from '#/locales';
-import { useNotificationStore } from '#/store';
+import { useAnnouncementStore, useNotificationStore } from '#/store';
 import { formatRelativeTime } from '#/utils/common';
 
 import NotificationSettings from './NotificationSettings.vue';
@@ -26,12 +26,14 @@ defineOptions({ name: 'NotificationPanel' });
 const settingsRef = ref<InstanceType<typeof NotificationSettings>>();
 
 const notifStore = useNotificationStore();
+const announcementStore = useAnnouncementStore();
 
 const activeTab = ref('all');
 
 const CATEGORY_TABS = [
   { key: 'all', icon: 'lucide:bell' },
   { key: 'system', icon: 'lucide:monitor' },
+  { key: 'announcement', icon: 'lucide:megaphone' },
   { key: 'ai', icon: 'lucide:sparkles' },
   { key: 'task', icon: 'lucide:list-checks' },
   { key: 'biz', icon: 'lucide:briefcase' },
@@ -50,6 +52,7 @@ const filteredNotifications = computed(() => {
 function getCategoryIcon(category: string): string {
   const map: Record<string, string> = {
     system: 'lucide:monitor',
+    announcement: 'lucide:megaphone',
     ai: 'lucide:sparkles',
     task: 'lucide:list-checks',
     biz: 'lucide:briefcase',
@@ -62,6 +65,7 @@ function getCategoryIcon(category: string): string {
 function getCategoryColor(category: string): string {
   const map: Record<string, string> = {
     system: 'text-blue-500',
+    announcement: 'text-cyan-600',
     ai: 'text-purple-500',
     task: 'text-green-500',
     biz: 'text-orange-500',
@@ -70,9 +74,40 @@ function getCategoryColor(category: string): string {
   return map[category] || 'text-muted-foreground';
 }
 
-function handleMarkRead(item: NotificationItem) {
+function getAnnouncementId(item: NotificationItem): null | number {
+  const rawId = item.data?.announcement_id;
+  if (typeof rawId === 'number' && Number.isFinite(rawId)) {
+    return rawId;
+  }
+  if (typeof rawId === 'string' && rawId.trim()) {
+    const parsed = Number(rawId);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  if (item.link) {
+    try {
+      const url = new URL(item.link, window.location.origin);
+      const parsed = Number(url.searchParams.get('announcement_id'));
+      return Number.isFinite(parsed) ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+function handleNotificationClick(item: NotificationItem) {
+  if (item.category === 'announcement') {
+    const announcementId = getAnnouncementId(item);
+    if (announcementId) {
+      void announcementStore.openAnnouncement(announcementId);
+    } else {
+      void announcementStore.loadPending();
+    }
+    return;
+  }
+
   if (!item.is_read) {
-    notifStore.markRead(item.id);
+    void notifStore.markRead(item.id);
   }
 }
 
@@ -120,9 +155,10 @@ onMounted(() => {
           <div
             v-for="item in filteredNotifications"
             :key="item.id"
-            class="flex cursor-pointer gap-3 px-4 py-3 transition-colors hover:bg-accent/30"
+            class="group flex cursor-pointer gap-3 px-4 py-3 transition-colors hover:bg-accent/30"
+            data-testid="notification-row"
             :class="{ 'bg-primary/5': !item.is_read }"
-            @click="handleMarkRead(item)"
+            @click="handleNotificationClick(item)"
           >
             <!-- Category icon / 分类图标 -->
             <div class="flex-shrink-0 pt-0.5">

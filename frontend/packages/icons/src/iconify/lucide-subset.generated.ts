@@ -13,10 +13,12 @@ export const LUCIDE_ICON_NAMES = [
   "archive",
   "archive-restore",
   "archive-x",
+  "arrow-down",
   "arrow-down-left",
   "arrow-down-to-line",
   "arrow-left",
   "arrow-right",
+  "arrow-up",
   "arrow-up-circle",
   "arrow-up-from-line",
   "arrow-up-right",
@@ -179,7 +181,6 @@ export const LUCIDE_ICON_NAMES = [
   "list",
   "list-checks",
   "list-ordered",
-  "list-todo",
   "list-tree",
   "loader-2",
   "loader-circle",
@@ -194,6 +195,7 @@ export const LUCIDE_ICON_NAMES = [
   "map",
   "map-pin",
   "maximize-2",
+  "megaphone",
   "menu",
   "message-circle",
   "message-circle-more",
@@ -350,10 +352,12 @@ export const LUCIDE_ICON_IDS = [
   "lucide:archive",
   "lucide:archive-restore",
   "lucide:archive-x",
+  "lucide:arrow-down",
   "lucide:arrow-down-left",
   "lucide:arrow-down-to-line",
   "lucide:arrow-left",
   "lucide:arrow-right",
+  "lucide:arrow-up",
   "lucide:arrow-up-circle",
   "lucide:arrow-up-from-line",
   "lucide:arrow-up-right",
@@ -516,7 +520,6 @@ export const LUCIDE_ICON_IDS = [
   "lucide:list",
   "lucide:list-checks",
   "lucide:list-ordered",
-  "lucide:list-todo",
   "lucide:list-tree",
   "lucide:loader-2",
   "lucide:loader-circle",
@@ -531,6 +534,7 @@ export const LUCIDE_ICON_IDS = [
   "lucide:map",
   "lucide:map-pin",
   "lucide:maximize-2",
+  "lucide:megaphone",
   "lucide:menu",
   "lucide:message-circle",
   "lucide:message-circle-more",
@@ -791,6 +795,9 @@ export const LUCIDE_ICON_SUBSET = {
     "archive-x": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><rect width=\"20\" height=\"5\" x=\"2\" y=\"3\" rx=\"1\"/><path d=\"M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8M9.5 17l5-5m-5 0l5 5\"/></g>"
     },
+    "arrow-down": {
+      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M12 5v14m7-7l-7 7l-7-7\"/>"
+    },
     "arrow-down-left": {
       "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M17 7L7 17m10 0H7V7\"/>"
     },
@@ -802,6 +809,9 @@ export const LUCIDE_ICON_SUBSET = {
     },
     "arrow-right": {
       "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M5 12h14m-7-7l7 7l-7 7\"/>"
+    },
+    "arrow-up": {
+      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"m5 12l7-7l7 7m-7 7V5\"/>"
     },
     "arrow-up-from-line": {
       "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"m18 9l-6-6l-6 6m6-6v14m-7 4h14\"/>"
@@ -1291,9 +1301,6 @@ export const LUCIDE_ICON_SUBSET = {
     "list-ordered": {
       "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M11 5h10m-10 7h10m-10 7h10M4 4h1v5M4 9h2m.5 11H3.4c0-1 2.6-1.925 2.6-3.5a1.5 1.5 0 0 0-2.6-1.02\"/>"
     },
-    "list-todo": {
-      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M13 5h8m-8 7h8m-8 7h8M3 17l2 2l4-4\"/><rect width=\"6\" height=\"6\" x=\"3\" y=\"4\" rx=\"1\"/></g>"
-    },
     "list-tree": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M8 5h13m-8 7h8m-8 7h8M3 10a2 2 0 0 0 2 2h3\"/><path d=\"M3 5v12a2 2 0 0 0 2 2h3\"/></g>"
     },
@@ -1332,6 +1339,9 @@ export const LUCIDE_ICON_SUBSET = {
     },
     "maximize-2": {
       "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M15 3h6v6m0-6l-7 7M3 21l7-7m-1 7H3v-6\"/>"
+    },
+    "megaphone": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M11 6a13 13 0 0 0 8.4-2.8A1 1 0 0 1 21 4v12a1 1 0 0 1-1.6.8A13 13 0 0 0 11 14H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z\"/><path d=\"M6 14a12 12 0 0 0 2.4 7.2a2 2 0 0 0 3.2-2.4A8 8 0 0 1 10 14M8 6v8\"/></g>"
     },
     "menu": {
       "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M4 5h16M4 12h16M4 19h16\"/>"

@@ -9,6 +9,10 @@ from app.services.system.tenant_domain_service import (
     TenantDomainService,
     TenantDomainTenantService,
 )
+from app.services.tenant.announcement_service import (
+    AdminAnnouncementService,
+    AnnouncementService,
+)
 from app.services.tenant.attachment_service import AttachmentService
 from app.services.tenant.quota_service import QuotaCheckResult, QuotaService
 from app.services.tenant.tenant_admin_service import TenantAdminService
@@ -21,6 +25,8 @@ from app.services.tenant.tenant_plan_service import TenantPlanService
 from app.services.tenant.tenant_user_service import TenantUserService
 
 __all__ = [
+    "AdminAnnouncementService",
+    "AnnouncementService",
     "AttachmentService",
     "TenantAdminService",
     "TenantOrgAuthorityService",

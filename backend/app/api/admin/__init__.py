@@ -40,6 +40,8 @@ from app.api.admin.ai_usage import AdminAIUsageController
 from app.api.admin.ai_usage import router as ai_usage_router
 from app.api.admin.ai_writing import router as ai_writing_router
 from app.api.admin.analytics import router as analytics_router
+from app.api.admin.announcement import AdminAnnouncementController
+from app.api.admin.announcement import router as announcement_router
 from app.api.admin.attachments import AdminAttachmentController
 from app.api.admin.attachments import router as attachments_router
 from app.api.admin.auth import router as auth_router
@@ -181,6 +183,8 @@ admin_router.include_router(ai_writing_router)
 admin_router.include_router(cache_router)
 # 代码生成器 / Codegen (DEBUG only)
 admin_router.include_router(codegen_router)
+# 公告管理 / Announcement management
+admin_router.include_router(announcement_router)
 
 __all__ = [
     "admin_router",
@@ -236,4 +240,6 @@ __all__ = [
     "AdminCacheController",
     # 代码生成器 / Codegen
     "AdminCodegenController",
+    # 公告管理 / Announcement management
+    "AdminAnnouncementController",
 ]

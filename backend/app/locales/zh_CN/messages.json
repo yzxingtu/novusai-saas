@@ -174,7 +174,38 @@
         "owner_not_found": "企业所有者不存在",
         "owner_password_reset": "企业超级管理员密码重置成功",
         "no_plan": "当前企业未分配套餐，无法使用任何功能。请联系平台管理员分配套餐。",
-        "legal": {"not_found": "未配置或内容为空"}
+        "legal": {"not_found": "未配置或内容为空"},
+        "announcement": {
+            "not_found": "公告管理不存在",
+            "created": "公告管理创建成功",
+            "updated": "公告管理更新成功",
+            "published": "公告发布成功",
+            "submitted": "公告反馈提交成功",
+            "read": "公告已标记为已读",
+            "field": {
+                "scope": "公告端别",
+                "title": "公告标题",
+                "content": "公告内容",
+                "status": "公告状态",
+                "priority": "公告优先级",
+                "require_response": "是否需要反馈",
+                "form_schema": "表单配置",
+                "published_at": "发布时间",
+                "recipient_count": "接收人数",
+                "response_count": "回执人数",
+                "sort_order": "排序"
+            },
+            "error": {
+                "published_locked": "公告发布后不可修改正文、反馈要求或表单配置",
+                "draft_only": "只有草稿公告可以执行该操作",
+                "invalid_form_schema": "公告反馈表单配置无效",
+                "invalid_answers": "公告反馈答案无效",
+                "already_submitted": "该公告反馈已提交",
+                "response_required": "该公告需要提交反馈后才能关闭",
+                "delivery_not_found": "未找到当前用户的公告投递记录",
+                "unsupported_recipient_type": "不支持的公告接收人类型"
+            }
+        }
     },
     "domain": {
         "instructions_header": "请在您的 DNS 服务商处添加以下记录",
@@ -1565,6 +1596,20 @@
             "update": "编辑技能",
             "delete": "删除技能",
             "update_status": "修改技能状态"
+        },
+        "announcement": {
+            "list": "查看公告管理",
+            "create": "创建公告管理",
+            "update": "更新公告管理",
+            "delete": "删除公告管理",
+            "select": "选择公告",
+            "detail": "查看公告详情",
+            "publish": "发布公告",
+            "responses": "查看公告回执",
+            "pending": "查看待处理公告",
+            "mine": "查看我的公告详情",
+            "response": "提交公告反馈",
+            "read": "标记公告已读"
         }
     },
     "role": {

@@ -111,20 +111,22 @@ export const useNotificationStore = defineStore('notification', () => {
 
     _saveLocalNotifications(notifications.value);
 
-    // Trigger toast popup / 触发 Toast 弹窗
-    try {
-      const { pushToast } = useNotificationToast();
-      pushToast({
-        template_code: data.type,
-        category: data.category,
-        title: data.title,
-        body: data.body,
-        data: data.data,
-        link: data.link,
-        priority: data.priority,
-      });
-    } catch {
-      // Silent if toast not initialized / toast 未初始化时静默
+    if (data.category !== 'announcement') {
+      // Trigger toast popup / 触发 Toast 弹窗
+      try {
+        const { pushToast } = useNotificationToast();
+        pushToast({
+          template_code: data.type,
+          category: data.category,
+          title: data.title,
+          body: data.body,
+          data: data.data,
+          link: data.link,
+          priority: data.priority,
+        });
+      } catch {
+        // Silent if toast not initialized / toast 未初始化时静默
+      }
     }
   };
 
@@ -231,20 +233,22 @@ export const useNotificationStore = defineStore('notification', () => {
     unreadCount.value++;
     _saveLocalNotifications(notifications.value);
 
-    // Trigger toast popup / 触发 Toast 弹窗
-    try {
-      const { pushToast } = useNotificationToast();
-      pushToast({
-        template_code: item.template_code,
-        category: item.category,
-        title: item.title,
-        body: item.body,
-        data: item.data,
-        link: item.link,
-        priority: item.priority,
-      });
-    } catch {
-      // Silent / 静默
+    if (item.category !== 'announcement') {
+      // Trigger toast popup / 触发 Toast 弹窗
+      try {
+        const { pushToast } = useNotificationToast();
+        pushToast({
+          template_code: item.template_code,
+          category: item.category,
+          title: item.title,
+          body: item.body,
+          data: item.data,
+          link: item.link,
+          priority: item.priority,
+        });
+      } catch {
+        // Silent / 静默
+      }
     }
   }
 

@@ -14,6 +14,19 @@ from app.schemas.tenant.admin import (
     TenantAdminUpdateRequest,
 )
 from app.schemas.tenant.attachment import AttachmentAccessUrlResponse
+from app.schemas.tenant.announcement import (
+    AdminAnnouncementResponse,
+    AnnouncementAnswerSubmit,
+    AnnouncementCreate,
+    AnnouncementDeliveryResponse,
+    AnnouncementFormField,
+    AnnouncementFormOption,
+    AnnouncementSubmitResult,
+    AnnouncementUpdate,
+    CurrentAnnouncementResponse,
+    PendingAnnouncementResponse,
+    TenantAnnouncementResponse,
+)
 from app.schemas.tenant.domain import (
     DevHostDomainStatus,
     DevHostMutationResponse,
@@ -97,6 +110,18 @@ __all__ = [
     "TenantAdminUpdateRequest",
     "TenantAdminChangePasswordRequest",
     "TenantAdminUpdateProfileRequest",
+    # Announcement / 公告
+    "AdminAnnouncementResponse",
+    "AnnouncementAnswerSubmit",
+    "AnnouncementCreate",
+    "AnnouncementDeliveryResponse",
+    "AnnouncementFormField",
+    "AnnouncementFormOption",
+    "AnnouncementSubmitResult",
+    "AnnouncementUpdate",
+    "CurrentAnnouncementResponse",
+    "PendingAnnouncementResponse",
+    "TenantAnnouncementResponse",
     # TenantUser / 企业用户
     "TenantUserLoginRequest",
     "TenantUserDevBootstrapRequest",

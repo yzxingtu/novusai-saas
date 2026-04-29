@@ -5,6 +5,9 @@
 Tenant-level model definitions.
 """
 
+from app.models.tenant.announcement import Announcement
+from app.models.tenant.announcement_delivery import AnnouncementDelivery
+from app.models.tenant.announcement_response import AnnouncementResponse
 from app.models.tenant.attachment import Attachment
 from app.models.tenant.domain_ssl_certificate import DomainSslCertificate
 from app.models.tenant.tenant import Tenant
@@ -22,4 +25,7 @@ __all__ = [
     "TenantPlan",
     "tenant_plan_permissions",
     "Attachment",
+    "Announcement",
+    "AnnouncementDelivery",
+    "AnnouncementResponse",
 ]

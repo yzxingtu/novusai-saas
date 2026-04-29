@@ -1,5 +1,6 @@
 export * from './admins';
 export * from './ai';
+export * from './announcement';
 export * from './attachment';
 export * from './auth';
 export * from './configs';
