@@ -19,9 +19,11 @@ from app.services.ai.knowledge_base_support import (
     DEFAULT_MAX_DOCUMENTS_PER_KB,
     DEFAULT_MAX_KNOWLEDGE_BASES,
     KB_SCOPES_NEEDING_ASSIGNMENT,
+    allowed_scopes_for_kb_owner,
     cascade_promote_to_global,
     cascade_restore_documents,
     cascade_soft_delete_documents,
+    is_valid_kb_scope_owner,
 )
 
 logger = LogManager.get_logger("ai.knowledge_base_service")
@@ -40,12 +42,72 @@ def _reject_unsupported_multimodal_model_config(data: dict[str, Any]) -> None:
         )
 
 
+def _service_tenant_id(service) -> int | None:
+    repo_tenant_id = getattr(getattr(service, "repo", None), "tenant_id", None)
+    if isinstance(repo_tenant_id, int):
+        return repo_tenant_id
+    service_tenant_id = getattr(service, "tenant_id", None)
+    if isinstance(service_tenant_id, int) or service_tenant_id is None:
+        return service_tenant_id
+    return repo_tenant_id
+
+
+def _scope_owner_error(scope: str, owner_tenant_id: int | None) -> BusinessException:
+    allowed = ", ".join(allowed_scopes_for_kb_owner(owner_tenant_id))
+    return BusinessException(
+        message=_("knowledge_base.error.invalid_scope_owner").format(
+            scope=scope,
+            owner_tenant_id=owner_tenant_id,
+            allowed=allowed,
+        )
+    )
+
+
+def _validate_kb_scope_owner(scope: str, owner_tenant_id: int | None) -> None:
+    if not is_valid_kb_scope_owner(scope=scope, owner_tenant_id=owner_tenant_id):
+        raise _scope_owner_error(scope, owner_tenant_id)
+
+
+def _normalize_admin_owner_tenant_alias(data: dict[str, Any]) -> None:
+    if "tenant_id" not in data:
+        return
+    tenant_id = data.pop("tenant_id")
+    if "owner_tenant_id" not in data:
+        data["owner_tenant_id"] = tenant_id
+
+
+def _validate_tenant_scope_owner_payload(
+    service,
+    data: dict[str, Any],
+    *,
+    existing: KnowledgeBase | None = None,
+) -> None:
+    tenant_id = _service_tenant_id(service)
+    owner_from_payload = data.get("owner_tenant_id", tenant_id)
+    tenant_from_payload = data.get("tenant_id", tenant_id)
+    if owner_from_payload != tenant_id or tenant_from_payload != tenant_id:
+        raise _scope_owner_error(
+            data.get(
+                "scope",
+                existing.scope if existing else ResourceScopeEnum.ALL_TENANTS.value,
+            ),
+            owner_from_payload,
+        )
+
+    scope = data.get(
+        "scope",
+        existing.scope if existing else ResourceScopeEnum.ALL_TENANTS.value,
+    )
+    _validate_kb_scope_owner(scope, tenant_id)
+
+
 class KnowledgeBaseCommandService:
     """Command operations extracted from KnowledgeBaseService."""
 
     @staticmethod
     async def before_create(service, data: dict[str, Any]) -> None:
         _reject_unsupported_multimodal_model_config(data)
+        _validate_tenant_scope_owner_payload(service, data)
         await KnowledgeBaseCommandService.check_kb_quota(service)
 
         name = data.get("name")
@@ -61,8 +123,11 @@ class KnowledgeBaseCommandService:
         if not kb:
             raise NotFoundException(message=_("knowledge_base.error.not_found"))
 
-        if kb.owner_tenant_id != service.repo.tenant_id:
+        tenant_id = _service_tenant_id(service)
+        if kb.owner_tenant_id != tenant_id:
             raise BusinessException(message=_("knowledge_base.error.readonly"))
+
+        _validate_tenant_scope_owner_payload(service, data, existing=kb)
 
         name = data.get("name")
         if name:
@@ -76,7 +141,8 @@ class KnowledgeBaseCommandService:
         if not kb:
             raise NotFoundException(message=_("knowledge_base.error.not_found"))
 
-        if kb.owner_tenant_id != service.repo.tenant_id:
+        tenant_id = _service_tenant_id(service)
+        if kb.owner_tenant_id != tenant_id:
             raise BusinessException(message=_("knowledge_base.error.readonly"))
 
         now = utc_now()
@@ -144,7 +210,7 @@ class KnowledgeBaseCommandService:
         stmt = select(KnowledgeDocument).where(
             and_(
                 KnowledgeDocument.knowledge_base_id == kb_id,
-                KnowledgeDocument.tenant_id == service.repo.tenant_id,
+                KnowledgeDocument.tenant_id == _service_tenant_id(service),
                 KnowledgeDocument.is_deleted.is_(False),
             )
         )
@@ -170,7 +236,7 @@ class KnowledgeBaseCommandService:
 
         for doc in docs:
             process_document.delay(
-                tenant_id=service.repo.tenant_id,
+                tenant_id=_service_tenant_id(service),
                 document_id=doc.id,
             )
 
@@ -206,13 +272,23 @@ class AdminKnowledgeBaseCommandService:
             normalized_tenant_ids = [int(tid) for tid in tenant_ids]
 
         incoming_tenant_id = payload.pop("tenant_id", None)
-        if incoming_tenant_id is not None and payload.get("owner_tenant_id") is None:
+        if incoming_tenant_id is not None and "owner_tenant_id" not in payload:
             payload["owner_tenant_id"] = incoming_tenant_id
 
+        owner_tenant_id = payload.get(
+            "owner_tenant_id",
+            existing.owner_tenant_id if existing else None,
+        )
         scope = payload.get("scope", existing.scope if existing else None)
         if scope is None:
-            scope = ResourceScopeEnum.GLOBAL_SHARED.value
+            scope = (
+                ResourceScopeEnum.ALL_TENANTS.value
+                if owner_tenant_id is not None
+                else ResourceScopeEnum.GLOBAL_SHARED.value
+            )
             payload["scope"] = scope
+
+        _validate_kb_scope_owner(scope, owner_tenant_id)
 
         if scope in KB_SCOPES_NEEDING_ASSIGNMENT:
             if normalized_tenant_ids is not None and len(normalized_tenant_ids) == 0:
@@ -261,8 +337,18 @@ class AdminKnowledgeBaseCommandService:
     @staticmethod
     async def before_create(service, data: dict[str, Any]) -> None:
         _reject_unsupported_multimodal_model_config(data)
-        scope = data.get("scope", ResourceScopeEnum.GLOBAL_SHARED.value)
+        _normalize_admin_owner_tenant_alias(data)
         owner_tid = data.get("owner_tenant_id")
+        scope = data.get(
+            "scope",
+            (
+                ResourceScopeEnum.ALL_TENANTS.value
+                if owner_tid is not None
+                else ResourceScopeEnum.GLOBAL_SHARED.value
+            ),
+        )
+        data.setdefault("scope", scope)
+        _validate_kb_scope_owner(scope, owner_tid)
         name = data.get("name")
         if name:
             existing = await AdminKnowledgeBaseCommandService.check_name_unique(
@@ -277,12 +363,14 @@ class AdminKnowledgeBaseCommandService:
     @staticmethod
     async def before_update(service, id: int, data: dict[str, Any]) -> None:
         _reject_unsupported_multimodal_model_config(data)
+        _normalize_admin_owner_tenant_alias(data)
         kb = await service.repo.get_by_id(id)
         if not kb:
             raise NotFoundException(message=_("knowledge_base.error.not_found"))
 
         scope = data.get("scope", kb.scope)
         owner_tid = data.get("owner_tenant_id", kb.owner_tenant_id)
+        _validate_kb_scope_owner(scope, owner_tid)
         name = data.get("name")
         if name:
             existing = await AdminKnowledgeBaseCommandService.check_name_unique(

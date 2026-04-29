@@ -956,6 +956,7 @@
             "chunk_limit_exceeded": "Chunk limit reached",
             "disabled": "Knowledge base is disabled",
             "tenant_id_required": "tenant_id is required when scope is tenant",
+            "invalid_scope_owner": "Invalid knowledge base scope/owner combination: scope={scope}, owner_tenant_id={owner_tenant_id}, allowed scopes={allowed}",
             "multimodal_model_config_unavailable": "Audio and video knowledge-base model overrides are not available in the current runtime yet.",
             "unsupported_file_type": "Unsupported file type",
             "document_not_found": "Document not found",

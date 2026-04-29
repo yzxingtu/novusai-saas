@@ -24,12 +24,14 @@ def build_search_cache_key(
     top_k: int,
     score_threshold: float,
     *,
+    tenant_id: int | None,
     rewrite_strategy: str = "none",
     reranker_enabled: bool = False,
 ) -> str:
     signatures = sorted(context.cache_signature() for context in kb_contexts)
+    tenant_signature = "platform" if tenant_id is None else str(int(tenant_id))
     raw = (
-        f"{signatures}:{query}:{mode}:{top_k}:{score_threshold}:"
+        f"tenant:{tenant_signature}:{signatures}:{query}:{mode}:{top_k}:{score_threshold}:"
         f"{rewrite_strategy}:{reranker_enabled}"
     )
     digest = hashlib.md5(raw.encode()).hexdigest()

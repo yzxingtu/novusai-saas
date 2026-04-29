@@ -7,7 +7,16 @@ Defines knowledge base basic info, embedding config, chunking config, retrieval 
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, Float, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
 
 from app.core.base_model import BaseModel
@@ -211,7 +220,16 @@ class KnowledgeBase(BaseModel):
         comment=_("knowledge_base.model.status"),
     )
 
-    __table_args__ = (Index("ix_kb_owner_status", "owner_tenant_id", "status"),)
+    __table_args__ = (
+        CheckConstraint(
+            "((owner_tenant_id IS NULL AND scope IN "
+            "('global_shared', 'admin_only', 'all_tenants', "
+            "'admin_and_selected_tenants', 'selected_tenants')) OR "
+            "(owner_tenant_id IS NOT NULL AND scope = 'all_tenants'))",
+            name="ck_knowledge_bases_scope_owner_tenant",
+        ),
+        Index("ix_kb_owner_status", "owner_tenant_id", "status"),
+    )
 
     embedding_model = relationship(
         "AIModel",

@@ -953,6 +953,7 @@
             "chunk_limit_exceeded": "分块总数已达上限",
             "disabled": "知识库已禁用",
             "tenant_id_required": "scope 为 tenant 时必须指定 tenant_id",
+            "invalid_scope_owner": "知识库 scope 与归属企业组合非法：scope={scope}，owner_tenant_id={owner_tenant_id}，允许 scope={allowed}",
             "multimodal_model_config_unavailable": "当前运行时尚未开放知识库音频/视频模型配置。",
             "unsupported_file_type": "不支持的文件类型",
             "document_not_found": "文档不存在",

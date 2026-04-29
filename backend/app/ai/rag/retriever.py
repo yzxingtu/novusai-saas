@@ -113,6 +113,7 @@ class HybridRetriever:
             return []
 
         cache_key, cached = await load_search_cache(
+            tenant_id=self.tenant_id,
             kb_contexts=kb_contexts,
             query=effective_query,
             mode=mode,

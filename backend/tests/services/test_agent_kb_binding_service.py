@@ -119,6 +119,73 @@ async def test_unbind_kb_raises_when_hard_delete_fails() -> None:
 
 
 @pytest.mark.asyncio
+async def test_bind_kb_rejects_cross_tenant_inaccessible_kb() -> None:
+    from app.exceptions import NotFoundException
+    from app.services.ai.agent_kb_binding_service import AgentKBBindingService
+
+    service = AgentKBBindingService.__new__(AgentKBBindingService)
+    service.db = AsyncMock()
+    service.tenant_id = 7
+    service.agent_repo = AsyncMock()
+    service.agent_repo.get_by_id = AsyncMock(
+        return_value=SimpleNamespace(id=59, owner_tenant_id=7),
+    )
+    service.binding_repo = AsyncMock()
+    service.binding_repo.create = AsyncMock()
+    service._get_kb_repo = AsyncMock(
+        return_value=SimpleNamespace(get_by_id=AsyncMock(return_value=None)),
+    )
+
+    with pytest.raises(NotFoundException):
+        await service.bind_kb(agent_id=59, knowledge_base_id=202)
+
+    service.binding_repo.create.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_bind_kb_allows_platform_shared_kb_visible_to_tenant() -> None:
+    from app.enums.common import ResourceScopeEnum
+    from app.services.ai.agent_kb_binding_service import AgentKBBindingService
+
+    binding = SimpleNamespace(id=3, agent_id=59, knowledge_base_id=101)
+    service = AgentKBBindingService.__new__(AgentKBBindingService)
+    service.db = AsyncMock()
+    service.tenant_id = 7
+    service.agent_repo = AsyncMock()
+    service.agent_repo.get_by_id = AsyncMock(
+        return_value=SimpleNamespace(id=59, owner_tenant_id=7),
+    )
+    service.binding_repo = AsyncMock()
+    service.binding_repo.get_binding_any = AsyncMock(return_value=None)
+    service.binding_repo.create = AsyncMock(return_value=binding)
+    service._get_kb_repo = AsyncMock(
+        return_value=SimpleNamespace(
+            get_by_id=AsyncMock(
+                return_value=SimpleNamespace(
+                    id=101,
+                    owner_tenant_id=None,
+                    scope=ResourceScopeEnum.GLOBAL_SHARED.value,
+                )
+            )
+        ),
+    )
+
+    result = await service.bind_kb(agent_id=59, knowledge_base_id=101)
+
+    assert result is binding
+    service.binding_repo.create.assert_awaited_once_with(
+        {
+            "agent_id": 59,
+            "knowledge_base_id": 101,
+            "tenant_id": 7,
+            "weight": 1.0,
+            "sort_order": 0,
+            "enabled": True,
+        }
+    )
+
+
+@pytest.mark.asyncio
 async def test_get_agent_kb_bindings_filters_kbs_hidden_by_scope_change() -> None:
     from app.services.ai.agent_kb_binding_service import AgentKBBindingService
 
@@ -224,7 +291,9 @@ async def test_get_agent_kb_bindings_includes_owner_tenant_metadata() -> None:
     service = AgentKBBindingService.__new__(AgentKBBindingService)
     service.db = SimpleNamespace(execute=AsyncMock(return_value=owner_rows))
     service.tenant_id = None
-    service.binding_repo = SimpleNamespace(get_by_agent_id=AsyncMock(return_value=[binding]))
+    service.binding_repo = SimpleNamespace(
+        get_by_agent_id=AsyncMock(return_value=[binding])
+    )
 
     result = await service.get_agent_kb_bindings(59)
 

@@ -1,6 +1,15 @@
 from unittest.mock import MagicMock
 
 from app.ai.rag.retriever import ChunkSearchResult, HybridRetriever, KeywordSearcher
+from app.ai.rag.retriever_cache import build_search_cache_key
+
+
+class _CacheContext:
+    def __init__(self, kb_id: int):
+        self.kb_id = kb_id
+
+    def cache_signature(self) -> str:
+        return f"{self.kb_id}:1.0:8:1536"
 
 
 def test_keyword_searcher_extracts_technical_terms() -> None:
@@ -31,7 +40,9 @@ def test_keyword_searcher_technical_term_boost_prefers_exact_identifier() -> Non
 def test_hybrid_retriever_vector_results_get_technical_term_boost() -> None:
     hr = HybridRetriever(db=MagicMock(), tenant_id=1)
     results = [
-        ChunkSearchResult(chunk_id=1, content="generic text", score=0.55, document_name="a.md"),
+        ChunkSearchResult(
+            chunk_id=1, content="generic text", score=0.55, document_name="a.md"
+        ),
         ChunkSearchResult(
             chunk_id=2,
             content="See auth.user-login for details.",
@@ -68,9 +79,7 @@ def test_hybrid_retriever_normalizes_instruction_wrapped_kb_query() -> None:
 
 
 def test_hybrid_retriever_keeps_plain_query_when_no_wrapper_present() -> None:
-    normalized = HybridRetriever._normalize_retrieval_query(
-        "NovusAI 的核心功能有哪些"
-    )
+    normalized = HybridRetriever._normalize_retrieval_query("NovusAI 的核心功能有哪些")
 
     assert normalized == "NovusAI 的核心功能有哪些"
 
@@ -89,3 +98,41 @@ def test_hybrid_retriever_does_not_strip_core_question_with_kb_wording() -> None
     )
 
     assert normalized == "内部知识库绑定失败的根因是什么"
+
+
+def test_search_cache_key_is_tenant_scoped_for_hook_mutated_results() -> None:
+    contexts = [_CacheContext(101)]
+
+    tenant_a_key = build_search_cache_key(
+        contexts,
+        "same query",
+        "hybrid",
+        5,
+        0.5,
+        tenant_id=7,
+        rewrite_strategy="none",
+        reranker_enabled=False,
+    )
+    tenant_b_key = build_search_cache_key(
+        contexts,
+        "same query",
+        "hybrid",
+        5,
+        0.5,
+        tenant_id=8,
+        rewrite_strategy="none",
+        reranker_enabled=False,
+    )
+    tenant_a_key_again = build_search_cache_key(
+        contexts,
+        "same query",
+        "hybrid",
+        5,
+        0.5,
+        tenant_id=7,
+        rewrite_strategy="none",
+        reranker_enabled=False,
+    )
+
+    assert tenant_a_key != tenant_b_key
+    assert tenant_a_key == tenant_a_key_again

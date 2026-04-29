@@ -18,8 +18,10 @@ def _make_kb(**overrides):
     defaults = {
         "id": 1,
         "tenant_id": 1,
+        "owner_tenant_id": 1,
         "name": "Test KB",
         "description": "A test knowledge base",
+        "scope": "all_tenants",
         "status": "active",
         "is_active": True,
         "document_count": 0,
@@ -85,6 +87,29 @@ class TestKBCreate:
                     "audio_model_id": 7,
                 }
             )
+
+    @pytest.mark.asyncio
+    async def test_tenant_create_rejects_global_shared_scope(self, mock_db):
+        from app.enums.common import ResourceScopeEnum
+        from app.exceptions import BusinessException
+        from app.services.ai.knowledge_base_service import KnowledgeBaseService
+
+        service = KnowledgeBaseService.__new__(KnowledgeBaseService)
+        service.db = mock_db
+        service.tenant_id = 7
+        service.repo = AsyncMock()
+        service.repo.tenant_id = 7
+        service.repo.count_by_tenant = AsyncMock(return_value=0)
+
+        with pytest.raises(BusinessException, match="scope"):
+            await service._before_create(
+                {
+                    "name": "Escalated KB",
+                    "scope": ResourceScopeEnum.GLOBAL_SHARED.value,
+                }
+            )
+
+        service.repo.count_by_tenant.assert_not_awaited()
 
 
 class TestKBDelete:
@@ -234,6 +259,57 @@ class TestKBUpdate:
         with pytest.raises(BusinessException):
             await service._before_update(1, {"name": "Taken"})
 
+    @pytest.mark.asyncio
+    async def test_tenant_update_rejects_scope_escalation_to_global_shared(
+        self, mock_db
+    ):
+        from app.enums.common import ResourceScopeEnum
+        from app.exceptions import BusinessException
+        from app.services.ai.knowledge_base_service import KnowledgeBaseService
+
+        service = KnowledgeBaseService.__new__(KnowledgeBaseService)
+        service.db = mock_db
+        service.tenant_id = 7
+        service.repo = AsyncMock()
+        service.repo.tenant_id = 7
+        service.repo.get_by_id = AsyncMock(
+            return_value=_make_kb(
+                id=1,
+                tenant_id=7,
+                owner_tenant_id=7,
+                scope=ResourceScopeEnum.ALL_TENANTS.value,
+            )
+        )
+
+        with pytest.raises(BusinessException, match="scope"):
+            await service._before_update(
+                1,
+                {"scope": ResourceScopeEnum.GLOBAL_SHARED.value},
+            )
+
+    @pytest.mark.asyncio
+    async def test_tenant_update_rejects_platform_shared_kb_mutation(self, mock_db):
+        from app.enums.common import ResourceScopeEnum
+        from app.exceptions import BusinessException
+        from app.services.ai.knowledge_base_service import KnowledgeBaseService
+
+        service = KnowledgeBaseService.__new__(KnowledgeBaseService)
+        service.db = mock_db
+        service.tenant_id = 7
+        service.repo = AsyncMock()
+        service.repo.tenant_id = 7
+        service.repo.get_by_id = AsyncMock(
+            return_value=_make_kb(
+                id=9,
+                tenant_id=None,
+                owner_tenant_id=None,
+                scope=ResourceScopeEnum.GLOBAL_SHARED.value,
+            )
+        )
+
+        with pytest.raises(BusinessException):
+            await service._before_update(9, {"name": "Tenant cannot edit platform KB"})
+
 
 class TestKBQuota:
     @pytest.mark.asyncio
@@ -316,6 +392,30 @@ class TestAdminKBRepository:
 
 
 class TestTenantKBVisibility:
+    @pytest.mark.asyncio
+    async def test_repository_get_by_id_returns_none_when_visibility_check_fails(
+        self, mock_db
+    ):
+        from app.repositories.ai.knowledge_base_repository import (
+            KnowledgeBaseRepository,
+        )
+
+        tenant_b_kb = _make_kb(
+            id=202,
+            tenant_id=8,
+            owner_tenant_id=8,
+            scope="all_tenants",
+        )
+        mock_db.execute = AsyncMock(
+            side_effect=[
+                make_scalar_result(tenant_b_kb),
+                make_scalar_result(None),
+            ]
+        )
+        repo = KnowledgeBaseRepository(mock_db, tenant_id=7)
+
+        assert await repo.get_by_id(202) is None
+
     def test_visible_condition_requires_assignment_for_partial_scopes(self):
         from app.models.ai.knowledge_base import KnowledgeBase
         from app.repositories.ai.knowledge_base_repository import _kb_visible_condition
@@ -330,7 +430,50 @@ class TestTenantKBVisibility:
         assert "'selected_tenants'" in sql
         assert "'admin_and_selected_tenants'" in sql
         assert "resource_tenant_assignments.resource_type = 'knowledge_base'" in sql
+        assert "knowledge_bases.owner_tenant_id IS NULL" in sql
+        assert "OR knowledge_bases.scope = 'global_shared'" not in sql
         assert "knowledge_bases.scope != 'admin_only'" not in sql
+
+    def test_model_declares_scope_owner_check_constraint(self):
+        from sqlalchemy import CheckConstraint
+
+        from app.models.ai.knowledge_base import KnowledgeBase
+
+        constraints = [
+            constraint
+            for constraint in KnowledgeBase.__table__.constraints
+            if isinstance(constraint, CheckConstraint)
+        ]
+
+        assert any(
+            constraint.name == "ck_knowledge_bases_scope_owner_tenant"
+            for constraint in constraints
+        )
+
+    def test_scope_owner_rule_matrix_is_explicit(self):
+        from app.enums.common import ResourceScopeEnum
+        from app.services.ai.knowledge_base_support import (
+            KB_PLATFORM_OWNER_SCOPES,
+            KB_TENANT_OWNER_SCOPES,
+            is_valid_kb_scope_owner,
+        )
+
+        assert set(KB_PLATFORM_OWNER_SCOPES) == {
+            ResourceScopeEnum.GLOBAL_SHARED.value,
+            ResourceScopeEnum.ADMIN_ONLY.value,
+            ResourceScopeEnum.ALL_TENANTS.value,
+            ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
+            ResourceScopeEnum.SELECTED_TENANTS.value,
+        }
+        assert (ResourceScopeEnum.ALL_TENANTS.value,) == KB_TENANT_OWNER_SCOPES
+        assert is_valid_kb_scope_owner(
+            scope=ResourceScopeEnum.GLOBAL_SHARED.value,
+            owner_tenant_id=None,
+        )
+        assert not is_valid_kb_scope_owner(
+            scope=ResourceScopeEnum.GLOBAL_SHARED.value,
+            owner_tenant_id=7,
+        )
 
 
 class TestAdminKBPayloadNormalization:
@@ -346,14 +489,50 @@ class TestAdminKBPayloadNormalization:
                 "name": "Scoped KB",
                 "scope": ResourceScopeEnum.SELECTED_TENANTS.value,
                 "assigned_tenant_ids": [3, 9],
-                "owner_tenant_id": 12,
             }
         )
 
         assert tenant_ids == [3, 9]
         assert payload["scope"] == ResourceScopeEnum.SELECTED_TENANTS.value
-        assert payload["owner_tenant_id"] == 12
+        assert payload.get("owner_tenant_id") is None
         assert "assigned_tenant_ids" not in payload
+
+    def test_prepare_admin_payload_defaults_tenant_owned_rows_to_all_tenants(
+        self, mock_db
+    ):
+        from app.enums.common import ResourceScopeEnum
+        from app.services.ai.knowledge_base_service import AdminKnowledgeBaseService
+
+        service = AdminKnowledgeBaseService.__new__(AdminKnowledgeBaseService)
+        service.db = mock_db
+
+        payload, tenant_ids = service._prepare_admin_payload(
+            {
+                "name": "Tenant-owned KB",
+                "tenant_id": 12,
+            }
+        )
+
+        assert tenant_ids is None
+        assert payload["owner_tenant_id"] == 12
+        assert payload["scope"] == ResourceScopeEnum.ALL_TENANTS.value
+
+    def test_prepare_admin_payload_rejects_tenant_owned_assignment_scope(self, mock_db):
+        from app.enums.common import ResourceScopeEnum
+        from app.exceptions import BusinessException
+        from app.services.ai.knowledge_base_service import AdminKnowledgeBaseService
+
+        service = AdminKnowledgeBaseService.__new__(AdminKnowledgeBaseService)
+        service.db = mock_db
+
+        with pytest.raises(BusinessException, match="scope"):
+            service._prepare_admin_payload(
+                {
+                    "scope": ResourceScopeEnum.SELECTED_TENANTS.value,
+                    "owner_tenant_id": 12,
+                    "tenant_ids": [12],
+                }
+            )
 
     def test_prepare_admin_payload_requires_binding_when_entering_assignment_scope(
         self, mock_db
@@ -399,10 +578,11 @@ class TestAdminKBPayloadNormalization:
         assert tenant_ids is None
 
     @pytest.mark.asyncio
-    async def test_update_admin_knowledge_base_preserves_existing_owner_for_assignment_scope(
+    async def test_update_admin_knowledge_base_rejects_tenant_owned_assignment_scope(
         self, mock_db
     ):
         from app.enums.common import ResourceScopeEnum
+        from app.exceptions import BusinessException
         from app.services.ai.knowledge_base_service import AdminKnowledgeBaseService
 
         service = AdminKnowledgeBaseService.__new__(AdminKnowledgeBaseService)
@@ -414,29 +594,18 @@ class TestAdminKBPayloadNormalization:
                 owner_tenant_id=12,
             )
         )
-        service.update = AsyncMock(
-            return_value=make_mock_model(
-                id=1,
-                scope=ResourceScopeEnum.SELECTED_TENANTS.value,
-                owner_tenant_id=12,
+        service.update = AsyncMock()
+
+        with pytest.raises(BusinessException, match="scope"):
+            await service.update_admin_knowledge_base(
+                1,
+                {
+                    "scope": ResourceScopeEnum.SELECTED_TENANTS.value,
+                    "tenant_ids": [3],
+                },
             )
-        )
 
-        _, tenant_ids = await service.update_admin_knowledge_base(
-            1,
-            {
-                "scope": ResourceScopeEnum.SELECTED_TENANTS.value,
-                "tenant_ids": [3],
-            },
-        )
-
-        assert tenant_ids == [3]
-        service.update.assert_awaited_once_with(
-            1,
-            {
-                "scope": ResourceScopeEnum.SELECTED_TENANTS.value,
-            },
-        )
+        service.update.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_admin_before_create_rejects_audio_video_model_config(self, mock_db):

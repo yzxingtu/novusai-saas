@@ -17,6 +17,7 @@ logger = LogManager.get_logger("ai.rag.retriever")
 
 async def load_search_cache(
     *,
+    tenant_id: int | None,
     kb_contexts: list[SearchKBContext],
     query: str,
     mode: str,
@@ -31,6 +32,7 @@ async def load_search_cache(
         mode,
         top_k,
         score_threshold,
+        tenant_id=tenant_id,
         rewrite_strategy=rewrite_strategy,
         reranker_enabled=reranker_enabled,
     )

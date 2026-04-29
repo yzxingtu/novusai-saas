@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.ai.rag_injector import load_agent_kb_bindings
+from app.ai.rag_injector import inject_rag_context, load_agent_kb_bindings
 
 
 @pytest.mark.asyncio
@@ -112,3 +112,50 @@ async def test_load_agent_kb_bindings_allows_none_tenant_for_admin_scope():
 
     assert kb_ids == [101]
     assert kb_weights == {101: 1.0}
+
+
+@pytest.mark.asyncio
+async def test_inject_rag_context_skips_cross_tenant_kb_before_retrieval():
+    from app.ai.types import ChatMessage
+
+    messages = [
+        ChatMessage(role="system", content="System prompt"),
+        ChatMessage(role="user", content="Use tenant B knowledge base"),
+    ]
+
+    class DummyRepo:
+        def __init__(self, db, tenant_id):
+            self.db = db
+            self.tenant_id = tenant_id
+
+        async def get_by_id(self, kb_id):
+            assert kb_id == 202
+            return None
+
+    class ForbiddenRetriever:
+        def __init__(self, *_args, **_kwargs):
+            raise AssertionError("retriever must not run for inaccessible KB")
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(
+            "app.repositories.ai.knowledge_base_repository.KnowledgeBaseRepository",
+            DummyRepo,
+        )
+        mp.setattr(
+            "app.ai.rag.retriever.HybridRetriever",
+            ForbiddenRetriever,
+        )
+        out_messages, sources = await inject_rag_context(
+            AsyncMock(),
+            agent=SimpleNamespace(
+                id=59,
+                max_tokens=512,
+                model=SimpleNamespace(context_window=8000),
+            ),
+            messages=list(messages),
+            tenant_id=7,
+            kb_ids=[202],
+        )
+
+    assert out_messages == messages
+    assert sources is None

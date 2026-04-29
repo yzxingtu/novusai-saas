@@ -12,9 +12,16 @@ from app.enums.common import RecycleStageEnum, ResourceScopeEnum
 from app.models.ai.document_chunk import DocumentChunk
 from app.models.ai.knowledge_document import KnowledgeDocument
 
-
 DEFAULT_MAX_KNOWLEDGE_BASES = 20
 DEFAULT_MAX_DOCUMENTS_PER_KB = 500
+KB_PLATFORM_OWNER_SCOPES = (
+    ResourceScopeEnum.GLOBAL_SHARED.value,
+    ResourceScopeEnum.ADMIN_ONLY.value,
+    ResourceScopeEnum.ALL_TENANTS.value,
+    ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
+    ResourceScopeEnum.SELECTED_TENANTS.value,
+)
+KB_TENANT_OWNER_SCOPES = (ResourceScopeEnum.ALL_TENANTS.value,)
 KB_SCOPES_NEEDING_ASSIGNMENT = (
     ResourceScopeEnum.SELECTED_TENANTS.value,
     ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
@@ -142,11 +149,30 @@ async def cascade_restore_documents(
     )
 
 
+def allowed_scopes_for_kb_owner(owner_tenant_id: int | None) -> tuple[str, ...]:
+    """Return valid KB scopes for platform-owned vs tenant-owned rows."""
+    if owner_tenant_id is None:
+        return KB_PLATFORM_OWNER_SCOPES
+    return KB_TENANT_OWNER_SCOPES
+
+
+def is_valid_kb_scope_owner(
+    *,
+    scope: str,
+    owner_tenant_id: int | None,
+) -> bool:
+    return scope in allowed_scopes_for_kb_owner(owner_tenant_id)
+
+
 __all__ = [
     "DEFAULT_MAX_KNOWLEDGE_BASES",
     "DEFAULT_MAX_DOCUMENTS_PER_KB",
+    "KB_PLATFORM_OWNER_SCOPES",
     "KB_SCOPES_NEEDING_ASSIGNMENT",
+    "KB_TENANT_OWNER_SCOPES",
+    "allowed_scopes_for_kb_owner",
     "cascade_soft_delete_documents",
     "cascade_promote_to_global",
     "cascade_restore_documents",
+    "is_valid_kb_scope_owner",
 ]

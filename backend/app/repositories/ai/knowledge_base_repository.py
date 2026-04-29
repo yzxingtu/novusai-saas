@@ -40,14 +40,13 @@ def _kb_visible_condition(tenant_id: int):
         ),
     )
     assigned_visible = and_(
+        KnowledgeBase.owner_tenant_id.is_(None),
         KnowledgeBase.scope.in_(_ASSIGNED_SCOPES),
         KnowledgeBase.id.in_(assigned_subq),
     )
-    global_shared_visible = KnowledgeBase.scope == ResourceScopeEnum.GLOBAL_SHARED.value
     return or_(
         tenant_owned_visible,
         platform_visible,
-        global_shared_visible,
         assigned_visible,
     )
 
