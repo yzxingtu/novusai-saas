@@ -52,7 +52,7 @@ class RAGContributor:
             messages=injected_messages,
             rag_sources=rag_sources,
             rag_source_kinds=kinds,
-            kb_injected=True,
+            kb_injected=bool(rag_sources),
         )
 
 

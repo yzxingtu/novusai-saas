@@ -10,6 +10,7 @@ from app.ai.types import ChatMessage, ChatResponse
 
 from .execution_state_machine import ExecutionStateMachine
 from .page_flow_recovery_helpers import (
+    build_page_deterministic_recovery_step_default,
     build_page_no_progress_recovery_default,
 )
 from .recovery_manager import RecoveryManager
@@ -30,6 +31,8 @@ from .types import ToolUsePolicy
 if TYPE_CHECKING:
     from .turn_executor import TurnIOAdapter
 
+_MAX_SYNTHETIC_PAGE_STEPS = 3
+
 
 def _assistant_tool_round_count(messages: list[ChatMessage]) -> int:
     return sum(
@@ -48,6 +51,157 @@ def _register_tool_round_delta(
     delta = max(0, _assistant_tool_round_count(messages) - before_count)
     for _round_idx in range(delta):
         state.register_tool_round()
+
+
+def _tool_calls_from_response(response: ChatResponse | None) -> list[dict[str, Any]]:
+    if response is None:
+        return []
+    tool_calls = list(getattr(response, "tool_calls", None) or [])
+    if not tool_calls and getattr(response, "message", None) is not None:
+        tool_calls = list(getattr(response.message, "tool_calls", None) or [])
+    return [tool_call for tool_call in tool_calls if isinstance(tool_call, dict)]
+
+
+def _tool_call_name(tool_call: dict[str, Any]) -> str:
+    function_block = tool_call.get("function")
+    if isinstance(function_block, dict):
+        return str(function_block.get("name") or "").strip()
+    return str(tool_call.get("name") or "").strip()
+
+
+def _tool_call_arguments_text(tool_call: dict[str, Any]) -> str:
+    function_block = tool_call.get("function")
+    if not isinstance(function_block, dict):
+        return ""
+    return str(function_block.get("arguments") or "").strip()
+
+
+def _synthetic_tool_call_key(tool_call: dict[str, Any]) -> str:
+    name = _tool_call_name(tool_call)
+    if not name:
+        return ""
+    return f"{name}:{_tool_call_arguments_text(tool_call)}"
+
+
+def _issued_synthetic_page_step_keys(state: ExecutionStateMachine) -> list[str]:
+    raw_keys = state.preparation_diagnostics.get(
+        "issued_deterministic_page_step_keys"
+    )
+    if isinstance(raw_keys, list):
+        return raw_keys
+    keys: list[str] = []
+    state.preparation_diagnostics["issued_deterministic_page_step_keys"] = keys
+    return keys
+
+
+def _dedupe_synthetic_tool_calls(
+    state: ExecutionStateMachine,
+    tool_calls: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    issued_keys = _issued_synthetic_page_step_keys(state)
+    issued = {str(key or "").strip() for key in issued_keys if str(key or "").strip()}
+    deduped: list[dict[str, Any]] = []
+    for tool_call in tool_calls:
+        key = _synthetic_tool_call_key(tool_call)
+        if not key or key in issued:
+            continue
+        issued.add(key)
+        issued_keys.append(key)
+        deduped.append(tool_call)
+    return deduped
+
+
+def _build_synthetic_page_response(
+    *,
+    base_response: ChatResponse,
+    tool_calls: list[dict[str, Any]],
+    diagnostics: dict[str, Any],
+    total_tokens: int,
+    completion_tokens_used: int,
+) -> ChatResponse:
+    tool_names = [name for call in tool_calls if (name := _tool_call_name(call))]
+    metadata = dict(getattr(base_response, "metadata", {}) or {})
+    metadata.update(
+        {
+            "synthetic_page_workflow_recovery": True,
+            "synthetic_tool_names": tool_names,
+            "page_recovery_diagnostics": diagnostics,
+        }
+    )
+    return ChatResponse(
+        message=ChatMessage(
+            role="assistant",
+            content="",
+            tool_calls=tool_calls,
+            metadata=metadata,
+        ),
+        total_tokens=int(total_tokens or getattr(base_response, "total_tokens", 0) or 0),
+        output_tokens=int(
+            completion_tokens_used or getattr(base_response, "output_tokens", 0) or 0
+        ),
+        finish_reason="tool_calls",
+        tool_calls=tool_calls,
+        metadata=metadata,
+    )
+
+
+def _restrict_tools_to_names(
+    io: TurnIOAdapter,
+    tools: list[Any],
+    tool_names: list[str],
+) -> list[Any]:
+    if not tool_names:
+        return list(tools)
+    restrict = getattr(io, "restrict_tools_to_names", None)
+    if callable(restrict):
+        return list(restrict(tools, tool_names))
+    allowed = set(tool_names)
+    return [
+        tool
+        for tool in tools
+        if str(getattr(tool, "name", "") or "").strip() in allowed
+    ]
+
+
+def _build_deterministic_page_tool_calls(
+    *,
+    state: ExecutionStateMachine,
+    messages: list[ChatMessage],
+    tool_calls: list[dict[str, Any]],
+    tool_results: list[ToolResult],
+    tools: list[Any],
+    input_variables: dict[str, Any] | None,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    synthetic_tool_calls, recovery_diagnostics = (
+        build_page_deterministic_recovery_step_default(
+            messages=messages,
+            tool_calls=tool_calls,
+            tool_results=tool_results,
+            tools=tools,
+            input_variables=input_variables,
+        )
+    )
+    if not synthetic_tool_calls:
+        return [], {}
+    deduped_calls = _dedupe_synthetic_tool_calls(state, synthetic_tool_calls)
+    if not deduped_calls:
+        return [], {}
+    synthetic_tool_names = [
+        name for tool_call in deduped_calls if (name := _tool_call_name(tool_call))
+    ]
+    state.preparation_diagnostics["deterministic_page_recovery"] = dict(
+        recovery_diagnostics
+    )
+    state.preparation_diagnostics["deterministic_page_recovery_tool_names"] = list(
+        synthetic_tool_names
+    )
+    project_page_recovery_into_runtime_intent_plan(
+        intent_plan=state.intent_plan,
+        input_variables=input_variables,
+        recovery_diagnostics=recovery_diagnostics,
+        recovery_tool_names=synthetic_tool_names,
+    )
+    return deduped_calls, recovery_diagnostics
 
 
 def _apply_page_no_progress_recovery(
@@ -83,12 +237,120 @@ def _apply_page_no_progress_recovery(
     )
 
 
+async def _execute_deterministic_page_steps(
+    *,
+    state: ExecutionStateMachine,
+    io: TurnIOAdapter,
+    base_response: ChatResponse,
+    all_tools: list[Any],
+    messages: list[ChatMessage],
+    turn_messages: list[ChatMessage] | None,
+    tool_use_policy: ToolUsePolicy | None,
+    input_variables: dict[str, Any] | None,
+    previous_tool_calls: list[dict[str, Any]],
+    previous_tool_results: list[ToolResult],
+    next_response: ChatResponse | None,
+    total_tokens: int,
+    completion_tokens_used: int,
+) -> tuple[ChatResponse | None, list[ToolResult], int, int, bool]:
+    collected_results: list[ToolResult] = []
+    current_tool_calls = list(previous_tool_calls)
+    current_tool_results = list(previous_tool_results)
+    current_response = next_response
+    current_total_tokens = int(total_tokens or 0)
+    current_completion_tokens = int(completion_tokens_used or 0)
+    executed_any_step = False
+
+    for _step_idx in range(_MAX_SYNTHETIC_PAGE_STEPS):
+        synthetic_tool_calls, diagnostics = _build_deterministic_page_tool_calls(
+            state=state,
+            messages=messages,
+            tool_calls=current_tool_calls,
+            tool_results=current_tool_results,
+            tools=all_tools,
+            input_variables=input_variables,
+        )
+        if not synthetic_tool_calls:
+            break
+
+        synthetic_tool_names = [
+            name for call in synthetic_tool_calls if (name := _tool_call_name(call))
+        ]
+        synthetic_tools = _restrict_tools_to_names(
+            io,
+            all_tools,
+            synthetic_tool_names,
+        )
+        if not synthetic_tools:
+            break
+
+        synthetic_response = _build_synthetic_page_response(
+            base_response=base_response,
+            tool_calls=synthetic_tool_calls,
+            diagnostics=diagnostics,
+            total_tokens=current_total_tokens,
+            completion_tokens_used=current_completion_tokens,
+        )
+        tool_rounds_before = _assistant_tool_round_count(messages)
+        synthetic_batch = await io.handle_tool_calls(
+            response=synthetic_response,
+            tools=synthetic_tools,
+            messages=messages,
+            tool_use_policy=tool_use_policy,
+            starting_total_tokens=current_total_tokens,
+            starting_completion_tokens=current_completion_tokens,
+        )
+        synthetic_results = list(synthetic_batch.tool_results)
+        if not synthetic_results:
+            synthetic_results = synthesize_tool_results_from_calls(
+                synthetic_tool_calls,
+                skip_unresolved_interactions=True,
+            )
+        _register_tool_round_delta(
+            state,
+            before_count=tool_rounds_before,
+            messages=messages,
+        )
+        state.register_tool_results(
+            messages=messages,
+            turn_messages=turn_messages,
+            tool_results=synthetic_results,
+        )
+        register_tool_failures(state, synthetic_results)
+        collected_results.extend(synthetic_results)
+        executed_any_step = True
+        current_total_tokens = int(
+            synthetic_batch.total_tokens or current_total_tokens or 0
+        )
+        current_completion_tokens = int(
+            synthetic_batch.completion_tokens_used
+            or current_completion_tokens
+            or 0
+        )
+        state.register_completion_tokens(current_completion_tokens)
+        if synthetic_batch.response is not None:
+            current_response = synthetic_batch.response
+        if not synthetic_results:
+            break
+        current_tool_calls = synthetic_tool_calls
+        current_tool_results = synthetic_results
+
+    return (
+        current_response,
+        collected_results,
+        current_total_tokens,
+        current_completion_tokens,
+        executed_any_step,
+    )
+
+
 async def execute_tool_batch(
     *,
     state: ExecutionStateMachine,
     io: TurnIOAdapter,
     response: ChatResponse,
     tools: list[Any],
+    all_tools: list[Any] | None = None,
     messages: list[ChatMessage],
     turn_messages: list[ChatMessage] | None,
     tool_use_policy: ToolUsePolicy | None,
@@ -127,14 +389,39 @@ async def execute_tool_batch(
     )
     state.register_completion_tokens(next_completion_tokens)
     register_tool_failures(state, tool_results)
-    _apply_page_no_progress_recovery(
+    resolved_all_tools = list(all_tools or tools)
+    (
+        next_response,
+        synthetic_results,
+        next_total_tokens,
+        next_completion_tokens,
+        executed_synthetic_page_step,
+    ) = await _execute_deterministic_page_steps(
         state=state,
-        response=tool_call_response,
+        io=io,
+        base_response=tool_call_response,
+        all_tools=resolved_all_tools,
         messages=messages,
-        tool_results=tool_results,
-        tools=tools,
+        turn_messages=turn_messages,
+        tool_use_policy=tool_use_policy,
         input_variables=input_variables,
+        previous_tool_calls=_tool_calls_from_response(tool_call_response),
+        previous_tool_results=tool_results,
+        next_response=next_response,
+        total_tokens=next_total_tokens,
+        completion_tokens_used=next_completion_tokens,
     )
+    if synthetic_results:
+        tool_results.extend(synthetic_results)
+    if not executed_synthetic_page_step:
+        _apply_page_no_progress_recovery(
+            state=state,
+            response=tool_call_response,
+            messages=messages,
+            tool_results=tool_results,
+            tools=resolved_all_tools,
+            input_variables=input_variables,
+        )
     return next_response, tool_results, next_total_tokens, next_completion_tokens
 
 
@@ -146,6 +433,154 @@ def build_shortcircuit_fallback_response(
     total_tokens: int,
     completion_tokens_used: int,
 ) -> ChatResponse | None:
+    if _is_editor_read_intent(intent):
+        editor_tool = next(
+            (
+                tool
+                for tool in tools
+                if str(getattr(tool, "name", "") or "").strip() == "editor_ops"
+            ),
+            None,
+        )
+        if editor_tool is None:
+            return None
+        synthetic_call = [
+            {
+                "id": (
+                    f"synthetic_{getattr(intent, 'intent_id', 'intent')}"
+                    "_editor_ops_read_body"
+                ),
+                "type": "function",
+                "function": {
+                    "name": "editor_ops",
+                    "arguments": '{"operation_name":"read_body"}',
+                },
+                "metadata": {
+                    "synthetic_page_workflow_tool_call": True,
+                    "reason": "editor_read_required_tool_fallback",
+                },
+            }
+        ]
+        metadata = dict(getattr(response, "metadata", {}) or {})
+        metadata["synthetic_editor_read_tool_call"] = True
+        metadata["synthetic_shortcircuit_intent_id"] = getattr(
+            intent, "intent_id", None
+        )
+        metadata["synthetic_shortcircuit_tool_name"] = "editor_ops"
+        return ChatResponse(
+            message=ChatMessage(
+                role="assistant",
+                content="",
+                tool_calls=synthetic_call,
+            ),
+            total_tokens=int(total_tokens or getattr(response, "total_tokens", 0) or 0),
+            output_tokens=int(
+                completion_tokens_used or getattr(response, "output_tokens", 0) or 0
+            ),
+            finish_reason="tool_calls",
+            tool_calls=synthetic_call,
+            metadata=metadata,
+        )
+    if _is_page_summary_intent(intent):
+        read_region_tool = next(
+            (
+                tool
+                for tool in tools
+                if str(getattr(tool, "name", "") or "").strip()
+                == "ui_read_region"
+            ),
+            None,
+        )
+        if read_region_tool is not None:
+            synthetic_call = [
+                {
+                    "id": (
+                        f"synthetic_{getattr(intent, 'intent_id', 'intent')}"
+                        "_ui_read_region_main"
+                    ),
+                    "type": "function",
+                    "function": {
+                        "name": "ui_read_region",
+                        "arguments": '{"locator":"main"}',
+                    },
+                    "metadata": {
+                        "synthetic_page_workflow_tool_call": True,
+                        "reason": "page_summary_builtin_main_region",
+                    },
+                }
+            ]
+            metadata = dict(getattr(response, "metadata", {}) or {})
+            metadata["synthetic_page_summary_main_region_tool_call"] = True
+            metadata["synthetic_shortcircuit_intent_id"] = getattr(
+                intent, "intent_id", None
+            )
+            metadata["synthetic_shortcircuit_tool_name"] = "ui_read_region"
+            return ChatResponse(
+                message=ChatMessage(
+                    role="assistant",
+                    content="",
+                    tool_calls=synthetic_call,
+                ),
+                total_tokens=int(
+                    total_tokens or getattr(response, "total_tokens", 0) or 0
+                ),
+                output_tokens=int(
+                    completion_tokens_used
+                    or getattr(response, "output_tokens", 0)
+                    or 0
+                ),
+                finish_reason="tool_calls",
+                tool_calls=synthetic_call,
+                metadata=metadata,
+            )
+        snapshot_tool = next(
+            (
+                tool
+                for tool in tools
+                if str(getattr(tool, "name", "") or "").strip()
+                == "ui_get_snapshot"
+            ),
+            None,
+        )
+        if snapshot_tool is None:
+            return None
+        synthetic_call = [
+            {
+                "id": (
+                    f"synthetic_{getattr(intent, 'intent_id', 'intent')}"
+                    "_ui_get_snapshot"
+                ),
+                "type": "function",
+                "function": {
+                    "name": "ui_get_snapshot",
+                    "arguments": '{"mode":"full"}',
+                },
+                "metadata": {
+                    "synthetic_page_workflow_tool_call": True,
+                    "reason": "page_summary_builtin_snapshot",
+                },
+            }
+        ]
+        metadata = dict(getattr(response, "metadata", {}) or {})
+        metadata["synthetic_page_summary_snapshot_tool_call"] = True
+        metadata["synthetic_shortcircuit_intent_id"] = getattr(
+            intent, "intent_id", None
+        )
+        metadata["synthetic_shortcircuit_tool_name"] = "ui_get_snapshot"
+        return ChatResponse(
+            message=ChatMessage(
+                role="assistant",
+                content="",
+                tool_calls=synthetic_call,
+            ),
+            total_tokens=int(total_tokens or getattr(response, "total_tokens", 0) or 0),
+            output_tokens=int(
+                completion_tokens_used or getattr(response, "output_tokens", 0) or 0
+            ),
+            finish_reason="tool_calls",
+            tool_calls=synthetic_call,
+            metadata=metadata,
+        )
     if intent is None or not bool(getattr(intent, "shortcircuit", False)):
         return None
     if str(getattr(intent, "kind", "") or "").strip() != "time_query":
@@ -194,6 +629,26 @@ def build_shortcircuit_fallback_response(
     )
 
 
+def _is_editor_read_intent(intent: Any | None) -> bool:
+    if intent is None:
+        return False
+    if str(getattr(intent, "family", "") or "").strip() != "page_ops":
+        return False
+    metadata = dict(getattr(intent, "metadata", {}) or {})
+    return str(metadata.get("page_workflow_goal") or "").strip() == "editor_read"
+
+
+def _is_page_summary_intent(intent: Any | None) -> bool:
+    if intent is None:
+        return False
+    if str(getattr(intent, "family", "") or "").strip() != "page_ops":
+        return False
+    if not bool(getattr(intent, "shortcircuit", False)):
+        return False
+    metadata = dict(getattr(intent, "metadata", {}) or {})
+    return str(metadata.get("page_workflow_goal") or "").strip() == "page_summary"
+
+
 async def run_tool_batch_or_update_intents(
     *,
     state: ExecutionStateMachine,
@@ -201,6 +656,7 @@ async def run_tool_batch_or_update_intents(
     intent: Any | None,
     response: ChatResponse | None,
     tools: list[Any],
+    all_tools: list[Any] | None = None,
     messages: list[ChatMessage],
     turn_messages: list[ChatMessage],
     tool_use_policy: ToolUsePolicy | None,
@@ -214,6 +670,7 @@ async def run_tool_batch_or_update_intents(
             io=io,
             response=response,
             tools=tools,
+            all_tools=all_tools or tools,
             messages=messages,
             turn_messages=turn_messages,
             tool_use_policy=tool_use_policy,
@@ -236,6 +693,7 @@ async def run_tool_batch_or_update_intents(
                 io=io,
                 response=fallback_response,
                 tools=tools,
+                all_tools=all_tools or tools,
                 messages=messages,
                 turn_messages=turn_messages,
                 tool_use_policy=tool_use_policy,
@@ -403,6 +861,7 @@ async def run_contract_retry_round(
                 io=io,
                 response=response,
                 tools=retry_tools,
+                all_tools=retry_tool_pool,
                 messages=messages,
                 turn_messages=turn_messages,
                 tool_use_policy=retry_policy,

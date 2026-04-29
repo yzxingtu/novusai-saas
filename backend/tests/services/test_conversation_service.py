@@ -1,6 +1,8 @@
-"""ConversationService 单元测试 / Test.
-
-覆盖：对话详情、归档、搜索、导出、聊天历史加载。"""
+"""
+Test type: behavioral
+Scope: ConversationService retained/detail/export/search read-model behavior.
+覆盖：对话详情、归档、搜索、导出、聊天历史加载。
+"""
 
 from __future__ import annotations
 
@@ -13,6 +15,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.tools.types import ToolResult
 from app.ai.types import ChatMessage
@@ -1022,6 +1025,54 @@ class TestConversationAccessHelpers:
         memory_svc.get_state.assert_awaited_once_with(10)
 
     @pytest.mark.asyncio
+    async def test_get_conversation_memory_state_attaches_long_term_preview(
+        self,
+    ):
+        from app.services.ai.conversation_service import ConversationService
+
+        conversation = _make_conversation(id=10, agent_id=15, user_id=1)
+        service = ConversationService.__new__(ConversationService)
+        service.db = MagicMock(spec=AsyncSession)
+        service.tenant_id = 1
+        service.repo = AsyncMock()
+        service.get_accessible_conversation = AsyncMock(return_value=conversation)
+
+        memory_svc = MagicMock()
+        memory_svc.get_state = AsyncMock(
+            return_value={
+                "constraints": [],
+                "preferences": [],
+                "task_states": [],
+                "updated_at": 0,
+                "verified_facts": [],
+                "version": 0,
+            }
+        )
+        service._memory_state_service = memory_svc
+
+        with patch(
+            "app.repositories.ai.memory_record_repository.MemoryRecordRepository",
+        ) as repo_cls:
+            repo = repo_cls.return_value
+            repo.list_for_scope = AsyncMock(
+                return_value=[
+                    SimpleNamespace(
+                        content="我的项目代号是 Phoenix",
+                        summary="我的项目代号是 Phoenix",
+                    )
+                ]
+            )
+            result = await service.get_conversation_memory_state(10, user_id=1)
+
+        assert result["long_term_memories"] == ["我的项目代号是 Phoenix"]
+        assert result["long_term_memory_count"] == 1
+        repo.list_for_scope.assert_awaited_once_with(
+            scope_type="user_agent",
+            scope_key="user:1:agent:15",
+            limit=12,
+        )
+
+    @pytest.mark.asyncio
     async def test_clear_conversation_memory_state_checks_access_first(self, mock_db):
         from app.services.ai.conversation_service import ConversationService
 
@@ -1423,6 +1474,50 @@ class TestUpdateStats:
             )
 
         mock_parse.assert_called_once_with(result.output, current_agent.output_schema)
+        service.repo.update.assert_awaited_once_with(
+            conversation.id,
+            {
+                "token_count": 15,
+                "total_tokens": 25,
+                "metadata_": {"output_variables": {"value": 1}},
+            },
+        )
+
+    @pytest.mark.asyncio
+    async def test_uses_output_schema_snapshot_without_lazy_loading_current_agent(
+        self,
+        mock_db,
+    ):
+        from app.services.ai.conversation_service import ConversationService
+
+        class _ExpiredAgent:
+            @property
+            def output_schema(self):
+                raise RuntimeError("expired ORM agent should not lazy-load")
+
+        conversation = _make_conversation(token_count=10, total_tokens=20)
+        conversation.metadata_ = {}
+        conversation.agent = None
+        result = make_mock_model(total_tokens=5, output='{"value": 1}')
+        output_schema = {"schema": "snapshot"}
+
+        service = ConversationService.__new__(ConversationService)
+        service.db = mock_db
+        service.tenant_id = 1
+        service.repo = AsyncMock()
+
+        with patch(
+            "app.services.ai.conversation_facade_mixins.parse_output",
+            return_value={"value": 1},
+        ) as mock_parse:
+            await service.update_stats(
+                conversation,
+                result,
+                current_agent=_ExpiredAgent(),
+                output_schema=output_schema,
+            )
+
+        mock_parse.assert_called_once_with(result.output, output_schema)
         service.repo.update.assert_awaited_once_with(
             conversation.id,
             {

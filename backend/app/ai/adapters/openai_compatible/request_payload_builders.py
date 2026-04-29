@@ -179,27 +179,19 @@ def build_responses_reasoning_config(
 def should_use_hosted_web_search_tool(
     adapter: RequestPayloadBuilderAdapterProtocol,
 ) -> bool:
-    provider_config = getattr(adapter, "provider_config", None)
-    if not isinstance(provider_config, dict):
-        raw_provider_config = (
-            adapter.config.get("provider_config")
-            if isinstance(getattr(adapter, "config", None), dict)
-            else None
-        )
-        provider_config = (
-            raw_provider_config if isinstance(raw_provider_config, dict) else {}
-        )
-
-    raw_web_search = provider_config.get("web_search")
-    if not isinstance(raw_web_search, dict):
-        return False
-    return bool(raw_web_search.get("prefer_hosted_tool"))
+    # The chat runtime's `web_search` function is the canonical platform search
+    # tool: it records ledger evidence and can fall back to Baidu. Ordinary
+    # chat turns must not let provider/admin config rewrite it into a hosted
+    # Responses tool. Native hosted search is owned by the web-search runtime
+    # service and its dedicated request builder, not this generic transport path.
+    _ = adapter
+    return False
 
 
 def convert_tools_for_responses(
     tools: list[dict],
     *,
-    rewrite_web_search: bool = True,
+    rewrite_web_search: bool = False,
 ) -> list[dict]:
     converted: list[dict] = []
     has_web_search_function = False

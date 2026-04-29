@@ -157,274 +157,296 @@ function getProbeText(passed: boolean | null | undefined): string {
 
 <template>
   <Page auto-content-height content-class="flex flex-col gap-4 !p-4">
-    <AIGatewayQuickStartHero :current-title="$t('admin.ai.health.title')" />
-
-    <section
-      class="rounded-[20px] border border-border/70 bg-card px-4 py-3 shadow-sm"
+    <div
+      data-ai-main="true"
+      data-ai-region="main"
+      data-ai-page="admin-ai-health"
+      class="flex flex-col gap-4"
     >
-      <div
-        class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"
-      >
-        <div class="flex flex-wrap items-center gap-2">
-          <span
-            class="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs text-emerald-700 dark:text-emerald-200"
-          >
-            <Badge status="success" />
-            {{ healthyCount }} {{ $t('admin.ai.health.status.healthy') }}
-          </span>
-          <span
-            class="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-2.5 py-1 text-xs text-amber-700 dark:text-amber-200"
-          >
-            <Badge status="warning" />
-            {{ degradedCount }} {{ $t('admin.ai.health.status.degraded') }}
-          </span>
-          <span
-            class="inline-flex items-center gap-1.5 rounded-full bg-rose-500/10 px-2.5 py-1 text-xs text-rose-700 dark:text-rose-200"
-          >
-            <Badge status="error" />
-            {{ unavailableCount }}
-            {{ $t('admin.ai.health.status.unavailable') }}
-          </span>
-          <span
-            class="rounded-xl border border-border/60 bg-background/80 px-3 py-2 text-xs text-muted-foreground"
-          >
-            <span class="mr-1 font-semibold text-foreground">
-              {{ statuses.length }}
-            </span>
-            {{ $t('admin.ai.health.providers') }}
-          </span>
-        </div>
-        <div class="flex flex-wrap items-center justify-end gap-2">
-          <InputNumber
-            v-model:value="runtimeAgentId"
-            size="small"
-            class="w-[140px]"
-            :min="1"
-            :placeholder="$t('admin.ai.health.agentIdPlaceholder')"
-          />
-          <Button
-            v-access:code="['ai_runtime:list']"
-            size="small"
-            :loading="runtimeLoading"
-            @click="runRuntimeDoctor"
-          >
-            <template #icon>
-              <IconifyIcon icon="lucide:stethoscope" class="size-3.5" />
-            </template>
-            {{ $t('admin.ai.health.runtimeDoctor') }}
-          </Button>
-          <Button
-            v-access:code="['ai_runtime:create']"
-            size="small"
-            :loading="runtimeLoading"
-            @click="runRuntimeSmoke"
-          >
-            <template #icon>
-              <IconifyIcon icon="lucide:flame" class="size-3.5" />
-            </template>
-            {{ $t('admin.ai.health.runtimeSmoke') }}
-          </Button>
-          <Button
-            v-access:code="['ai_runtime:list']"
-            size="small"
-            :loading="runtimeLoading"
-            @click="runRuntimeCapabilities"
-          >
-            <template #icon>
-              <IconifyIcon icon="lucide:scan-search" class="size-3.5" />
-            </template>
-            {{ $t('admin.ai.health.runtimeCapabilities') }}
-          </Button>
-          <Button size="small" @click="loadHealth">
-            <template #icon>
-              <IconifyIcon icon="lucide:refresh-cw" class="size-3.5" />
-            </template>
-            {{ $t('admin.ai.health.refresh') }}
-          </Button>
-        </div>
-      </div>
-    </section>
+      <AIGatewayQuickStartHero :current-title="$t('admin.ai.health.title')" />
 
-    <!-- 健康状态卡片网格 -->
-    <Spin :spinning="loading">
-      <div
-        v-if="statuses.length > 0"
-        class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3"
+      <section
+        data-ai-section="health-runtime-actions"
+        class="rounded-[20px] border border-border/70 bg-card px-4 py-3 shadow-sm"
       >
-        <Card
-          v-for="status in statuses"
-          :key="status.provider_id"
-          class="transition-shadow duration-200 hover:shadow-md"
-          :body-style="{ padding: '20px' }"
+        <div
+          class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"
         >
-          <!-- 头部：供应商 + 状态 -->
-          <div class="mb-4 flex items-center justify-between">
-            <div class="flex items-center gap-2">
-              <div
-                class="flex size-10 items-center justify-center overflow-hidden rounded-lg"
-                :class="
-                  status.is_available ? 'bg-success/10' : 'bg-destructive/10'
-                "
-              >
-                <img
-                  v-if="
-                    toAttachmentImageUrl(status.provider_icon, {
-                      preset: 'small',
-                    })
-                  "
-                  :src="
-                    toAttachmentImageUrl(status.provider_icon, {
-                      preset: 'small',
-                    })
-                  "
-                  class="size-full object-contain"
-                  alt=""
-                />
-                <IconifyIcon
-                  v-else
-                  icon="lucide:cpu"
-                  class="size-5"
+          <div class="flex flex-wrap items-center gap-2">
+            <span
+              class="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs text-emerald-700 dark:text-emerald-200"
+            >
+              <Badge status="success" />
+              {{ healthyCount }} {{ $t('admin.ai.health.status.healthy') }}
+            </span>
+            <span
+              class="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-2.5 py-1 text-xs text-amber-700 dark:text-amber-200"
+            >
+              <Badge status="warning" />
+              {{ degradedCount }} {{ $t('admin.ai.health.status.degraded') }}
+            </span>
+            <span
+              class="inline-flex items-center gap-1.5 rounded-full bg-rose-500/10 px-2.5 py-1 text-xs text-rose-700 dark:text-rose-200"
+            >
+              <Badge status="error" />
+              {{ unavailableCount }}
+              {{ $t('admin.ai.health.status.unavailable') }}
+            </span>
+            <span
+              class="rounded-xl border border-border/60 bg-background/80 px-3 py-2 text-xs text-muted-foreground"
+            >
+              <span class="mr-1 font-semibold text-foreground">
+                {{ statuses.length }}
+              </span>
+              {{ $t('admin.ai.health.providers') }}
+            </span>
+          </div>
+          <div class="flex flex-wrap items-center justify-end gap-2">
+            <InputNumber
+              v-model:value="runtimeAgentId"
+              data-ai-field-id="runtime-agent-id"
+              size="small"
+              class="w-[140px]"
+              :min="1"
+              :placeholder="$t('admin.ai.health.agentIdPlaceholder')"
+            />
+            <Button
+              v-access:code="['ai_runtime:list']"
+              data-ai-action-id="runtime-doctor"
+              size="small"
+              :loading="runtimeLoading"
+              @click="runRuntimeDoctor"
+            >
+              <template #icon>
+                <IconifyIcon icon="lucide:stethoscope" class="size-3.5" />
+              </template>
+              {{ $t('admin.ai.health.runtimeDoctor') }}
+            </Button>
+            <Button
+              v-access:code="['ai_runtime:create']"
+              data-ai-action-id="runtime-smoke"
+              size="small"
+              :loading="runtimeLoading"
+              @click="runRuntimeSmoke"
+            >
+              <template #icon>
+                <IconifyIcon icon="lucide:flame" class="size-3.5" />
+              </template>
+              {{ $t('admin.ai.health.runtimeSmoke') }}
+            </Button>
+            <Button
+              v-access:code="['ai_runtime:list']"
+              data-ai-action-id="runtime-capabilities"
+              size="small"
+              :loading="runtimeLoading"
+              @click="runRuntimeCapabilities"
+            >
+              <template #icon>
+                <IconifyIcon icon="lucide:scan-search" class="size-3.5" />
+              </template>
+              {{ $t('admin.ai.health.runtimeCapabilities') }}
+            </Button>
+            <Button
+              data-ai-action-id="health-refresh"
+              size="small"
+              @click="loadHealth"
+            >
+              <template #icon>
+                <IconifyIcon icon="lucide:refresh-cw" class="size-3.5" />
+              </template>
+              {{ $t('admin.ai.health.refresh') }}
+            </Button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 健康状态卡片网格 -->
+      <Spin :spinning="loading">
+        <div
+          v-if="statuses.length > 0"
+          data-ai-section="health-provider-cards"
+          class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3"
+        >
+          <Card
+            v-for="status in statuses"
+            :key="status.provider_id"
+            class="transition-shadow duration-200 hover:shadow-md"
+            :body-style="{ padding: '20px' }"
+          >
+            <!-- 头部：供应商 + 状态 -->
+            <div class="mb-4 flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <div
+                  class="flex size-10 items-center justify-center overflow-hidden rounded-lg"
                   :class="
-                    status.is_available ? 'text-success' : 'text-destructive'
+                    status.is_available ? 'bg-success/10' : 'bg-destructive/10'
                   "
-                />
+                >
+                  <img
+                    v-if="
+                      toAttachmentImageUrl(status.provider_icon, {
+                        preset: 'small',
+                      })
+                    "
+                    :src="
+                      toAttachmentImageUrl(status.provider_icon, {
+                        preset: 'small',
+                      })
+                    "
+                    class="size-full object-contain"
+                    alt=""
+                  />
+                  <IconifyIcon
+                    v-else
+                    icon="lucide:cpu"
+                    class="size-5"
+                    :class="
+                      status.is_available ? 'text-success' : 'text-destructive'
+                    "
+                  />
+                </div>
+                <div>
+                  <div class="font-medium text-foreground">
+                    {{ status.provider_name }}
+                  </div>
+                  <code class="text-xs text-muted-foreground">{{
+                    status.provider_code
+                  }}</code>
+                </div>
+              </div>
+              <Badge
+                :status="getBadgeStatus(status)"
+                :text="getStatusText(status)"
+              />
+            </div>
+
+            <!-- 指标 -->
+            <div class="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <span class="text-muted-foreground">{{
+                  $t('admin.ai.health.responseTime')
+                }}</span>
+                <div class="mt-0.5 font-medium text-foreground">
+                  <span
+                    :class="
+                      status.response_time_ms > 5000
+                        ? 'text-destructive'
+                        : status.response_time_ms > 3000
+                          ? 'text-warning'
+                          : ''
+                    "
+                  >
+                    {{ status.response_time_ms }}ms
+                  </span>
+                </div>
               </div>
               <div>
-                <div class="font-medium text-foreground">
-                  {{ status.provider_name }}
+                <span class="text-muted-foreground">{{
+                  $t('admin.ai.health.failures')
+                }}</span>
+                <div class="mt-0.5 font-medium">
+                  <Tag v-if="status.consecutive_failures === 0" color="success">
+                    0
+                  </Tag>
+                  <Tag
+                    v-else
+                    :color="
+                      status.consecutive_failures >= 3 ? 'error' : 'warning'
+                    "
+                  >
+                    {{ status.consecutive_failures }}
+                  </Tag>
                 </div>
-                <code class="text-xs text-muted-foreground">{{
-                  status.provider_code
-                }}</code>
               </div>
             </div>
-            <Badge
-              :status="getBadgeStatus(status)"
-              :text="getStatusText(status)"
-            />
-          </div>
 
-          <!-- 指标 -->
-          <div class="grid grid-cols-2 gap-3 text-sm">
-            <div>
-              <span class="text-muted-foreground">{{
-                $t('admin.ai.health.responseTime')
-              }}</span>
-              <div class="mt-0.5 font-medium text-foreground">
-                <span
-                  :class="
-                    status.response_time_ms > 5000
-                      ? 'text-destructive'
-                      : status.response_time_ms > 3000
-                        ? 'text-warning'
-                        : ''
-                  "
-                >
-                  {{ status.response_time_ms }}ms
-                </span>
+            <div class="mt-4 space-y-2 border-t border-border/60 pt-3 text-xs">
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-muted-foreground">{{
+                  $t('admin.ai.health.wireApi')
+                }}</span>
+                <Tag color="blue">{{ status.wire_api || '-' }}</Tag>
               </div>
-            </div>
-            <div>
-              <span class="text-muted-foreground">{{
-                $t('admin.ai.health.failures')
-              }}</span>
-              <div class="mt-0.5 font-medium">
-                <Tag v-if="status.consecutive_failures === 0" color="success">
-                  0
-                </Tag>
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-muted-foreground">{{
+                  $t('admin.ai.health.baseConnectivity')
+                }}</span>
                 <Tag
-                  v-else
-                  :color="
-                    status.consecutive_failures >= 3 ? 'error' : 'warning'
-                  "
+                  :color="getProbeBadgeStatus(status.base_connectivity_healthy)"
                 >
-                  {{ status.consecutive_failures }}
+                  {{ getProbeText(status.base_connectivity_healthy) }}
                 </Tag>
               </div>
-            </div>
-          </div>
-
-          <div class="mt-4 space-y-2 border-t border-border/60 pt-3 text-xs">
-            <div class="flex items-center justify-between gap-2">
-              <span class="text-muted-foreground">{{
-                $t('admin.ai.health.wireApi')
-              }}</span>
-              <Tag color="blue">{{ status.wire_api || '-' }}</Tag>
-            </div>
-            <div class="flex items-center justify-between gap-2">
-              <span class="text-muted-foreground">{{
-                $t('admin.ai.health.baseConnectivity')
-              }}</span>
-              <Tag
-                :color="getProbeBadgeStatus(status.base_connectivity_healthy)"
-              >
-                {{ getProbeText(status.base_connectivity_healthy) }}
-              </Tag>
-            </div>
-            <div class="flex items-center justify-between gap-2">
-              <span class="text-muted-foreground">{{
-                $t('admin.ai.health.toolProbe')
-              }}</span>
-              <Tag :color="getProbeBadgeStatus(status.tool_calling_healthy)">
-                {{ getProbeText(status.tool_calling_healthy) }}
-              </Tag>
-            </div>
-            <div
-              v-if="
-                status.tool_probe_model || status.tool_probe_reasoning_effort
-              "
-              class="flex flex-col gap-1"
-            >
-              <span class="text-muted-foreground">{{
-                $t('admin.ai.health.toolProbeModel')
-              }}</span>
-              <code class="break-all text-foreground">
-                {{ status.tool_probe_model || '-' }}
-                <template v-if="status.tool_probe_reasoning_effort">
-                  ({{ status.tool_probe_reasoning_effort }})
-                </template>
-              </code>
-            </div>
-          </div>
-
-          <!-- 错误信息 -->
-          <div v-if="status.error_message" class="mt-3">
-            <Tooltip :title="status.error_message">
-              <div
-                class="line-clamp-1 rounded bg-destructive/5 px-2 py-1 text-xs text-destructive"
-              >
-                {{ status.error_message }}
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-muted-foreground">{{
+                  $t('admin.ai.health.toolProbe')
+                }}</span>
+                <Tag :color="getProbeBadgeStatus(status.tool_calling_healthy)">
+                  {{ getProbeText(status.tool_calling_healthy) }}
+                </Tag>
               </div>
-            </Tooltip>
-          </div>
-
-          <!-- 最后检查时间 -->
-          <div class="mt-3 text-xs text-muted-foreground">
-            {{ $t('admin.ai.health.lastCheck') }}:
-            <Tooltip :title="formatDate(status.checked_at)">
-              <span
-                class="ml-1 inline-flex cursor-default rounded-md px-1 py-0.5 tabular-nums transition-colors hover:bg-muted/80"
+              <div
+                v-if="
+                  status.tool_probe_model || status.tool_probe_reasoning_effort
+                "
+                class="flex flex-col gap-1"
               >
-                {{ formatRelativeTime(status.checked_at) }}
-              </span>
-            </Tooltip>
-          </div>
-        </Card>
-      </div>
-      <Empty v-else class="py-16" :description="$t('admin.ai.health.noData')" />
-    </Spin>
+                <span class="text-muted-foreground">{{
+                  $t('admin.ai.health.toolProbeModel')
+                }}</span>
+                <code class="break-all text-foreground">
+                  {{ status.tool_probe_model || '-' }}
+                  <template v-if="status.tool_probe_reasoning_effort">
+                    ({{ status.tool_probe_reasoning_effort }})
+                  </template>
+                </code>
+              </div>
+            </div>
 
-    <Modal
-      v-model:open="runtimeResultOpen"
-      :title="runtimeResultTitle"
-      :footer="null"
-      width="920px"
-      destroy-on-close
-    >
-      <pre
-        class="max-h-[560px] overflow-auto rounded-lg border border-border/60 bg-accent/20 p-3 font-mono text-xs leading-5"
-        >{{ prettyRuntimeResult(runtimeResultPayload) }}</pre
+            <!-- 错误信息 -->
+            <div v-if="status.error_message" class="mt-3">
+              <Tooltip :title="status.error_message">
+                <div
+                  class="line-clamp-1 rounded bg-destructive/5 px-2 py-1 text-xs text-destructive"
+                >
+                  {{ status.error_message }}
+                </div>
+              </Tooltip>
+            </div>
+
+            <!-- 最后检查时间 -->
+            <div class="mt-3 text-xs text-muted-foreground">
+              {{ $t('admin.ai.health.lastCheck') }}:
+              <Tooltip :title="formatDate(status.checked_at)">
+                <span
+                  class="ml-1 inline-flex cursor-default rounded-md px-1 py-0.5 tabular-nums transition-colors hover:bg-muted/80"
+                >
+                  {{ formatRelativeTime(status.checked_at) }}
+                </span>
+              </Tooltip>
+            </div>
+          </Card>
+        </div>
+        <Empty
+          v-else
+          data-ai-section="health-empty-state"
+          class="py-16"
+          :description="$t('admin.ai.health.noData')"
+        />
+      </Spin>
+
+      <Modal
+        v-model:open="runtimeResultOpen"
+        :title="runtimeResultTitle"
+        :footer="null"
+        width="920px"
+        destroy-on-close
       >
-    </Modal>
+        <pre
+          class="max-h-[560px] overflow-auto rounded-lg border border-border/60 bg-accent/20 p-3 font-mono text-xs leading-5"
+          >{{ prettyRuntimeResult(runtimeResultPayload) }}</pre
+        >
+      </Modal>
+    </div>
   </Page>
 </template>

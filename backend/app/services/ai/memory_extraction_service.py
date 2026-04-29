@@ -46,8 +46,13 @@ _MEMORY_SAVE_REQUEST_TERMS = (
     "记到记忆",
     "记到长期记忆",
     "请记住",
+    "记住",
     "帮我记住",
+    "帮我记一下",
+    "记一下",
     "记下来",
+    "记得",
+    "以后记得",
     "remember this",
     "save to memory",
 )
@@ -61,7 +66,8 @@ _EXPLICIT_MEMORY_FACT_PATTERNS = (
         re.IGNORECASE,
     ),
     re.compile(
-        r"(?:请记住|帮我记住|记下来)\s*(?P<fact>.+)",
+        r"(?:请记住|帮我记住|帮我记一下|记住|记一下|记下来|以后记得|记得)"
+        r"\s*[：:]?\s*(?P<fact>.+)",
         re.IGNORECASE,
     ),
 )
@@ -131,7 +137,7 @@ class MemoryExtractionService:
                     agent_id=agent_id,
                 )
                 if not provider_code or not model_code:
-                    return self._empty_delta()
+                    return self._fallback_extract_turn_memory(text)
 
                 llm_response = await InternalAIService(llm_db).chat(
                     provider_code=provider_code,
@@ -180,7 +186,7 @@ class MemoryExtractionService:
                 agent_id,
                 str(exc),
             )
-            return self.EMPTY_DELTA.copy()
+            return self._fallback_extract_turn_memory(text)
 
     async def _resolve_model(
         self,

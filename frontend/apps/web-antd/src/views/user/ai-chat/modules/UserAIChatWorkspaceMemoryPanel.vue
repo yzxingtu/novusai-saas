@@ -40,6 +40,12 @@ const memorySections = computed(() =>
       label: $t('common.globalAiChat.memoryVerifiedFacts'),
       items: memoryState.value?.verified_facts ?? [],
     },
+    {
+      key: 'long_term_memories',
+      icon: 'lucide:database',
+      label: $t('common.globalAiChat.longTermMemories'),
+      items: memoryState.value?.long_term_memories ?? [],
+    },
   ].filter((section) => section.items.length > 0),
 );
 </script>

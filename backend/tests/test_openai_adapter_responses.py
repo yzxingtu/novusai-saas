@@ -1,7 +1,15 @@
+"""
+Test type: behavioral
+Scope: OpenAI-compatible adapter responses/chat protocol handling and error mapping.
+Mocked dependencies: OpenAI clients and HTTP responses are local fakes; adapter
+mapping/recovery logic executes real code.
+"""
+
 from __future__ import annotations
 
 import asyncio
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import httpx
@@ -1054,7 +1062,51 @@ async def test_stream_chat_responses_defaults_timeout_without_timeout_seconds_pa
     assert "".join(chunk.delta for chunk in chunks) == "OK"
     assert chunks[-1].finish_reason == "stop"
     assert responses_create.await_args is not None
-    assert responses_create.await_args.kwargs["timeout"] == 20.0
+    assert responses_create.await_args.kwargs["timeout"] == 120.0
+    assert "timeout_seconds" not in responses_create.await_args.kwargs
+    assert stream.aclose_called is True
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_responses_low_reasoning_override_uses_fast_path_timeout_floor() -> (
+    None
+):
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={"wire_api": "responses"},
+    )
+    completed_response = SimpleNamespace(
+        usage=SimpleNamespace(input_tokens=11, output_tokens=4, total_tokens=15),
+        output_text="OK",
+        output=[],
+    )
+    stream = _FakeResponsesStream(
+        [
+            SimpleNamespace(type="response.output_text.delta", delta="O"),
+            SimpleNamespace(type="response.output_text.delta", delta="K"),
+            SimpleNamespace(type="response.completed", response=completed_response),
+        ]
+    )
+    responses_create = AsyncMock(return_value=stream)
+    adapter.client = SimpleNamespace(
+        responses=SimpleNamespace(create=responses_create),
+        chat=SimpleNamespace(completions=SimpleNamespace(create=AsyncMock())),
+    )
+
+    chunks: list[ChatChunk] = []
+    async for chunk in adapter.stream_chat(
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-5.4-xhigh",
+        _runtime_reasoning_effort_override="low",
+    ):
+        chunks.append(chunk)
+
+    assert "".join(chunk.delta for chunk in chunks) == "OK"
+    assert chunks[-1].finish_reason == "stop"
+    assert responses_create.await_args is not None
+    assert responses_create.await_args.kwargs["reasoning"]["effort"] == "low"
+    assert responses_create.await_args.kwargs["timeout"] == 60.0
     assert "timeout_seconds" not in responses_create.await_args.kwargs
     assert stream.aclose_called is True
 
@@ -2383,6 +2435,120 @@ async def test_stream_chat_uses_responses_protocol_when_configured() -> None:
 
 
 @pytest.mark.asyncio
+async def test_stream_chat_responses_timeout_before_first_chunk_rescues_via_sync_responses() -> (
+    None
+):
+    class _HangingResponsesStream:
+        def __init__(self):
+            self.aclose_called = False
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            await asyncio.sleep(3600)
+            raise StopAsyncIteration
+
+        async def aclose(self) -> None:
+            self.aclose_called = True
+
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={"wire_api": "responses"},
+    )
+    hanging_stream = _HangingResponsesStream()
+    create_calls: list[dict[str, Any]] = []
+
+    async def _create(**kwargs):
+        create_calls.append(dict(kwargs))
+        if kwargs.get("stream"):
+            return hanging_stream
+        return SimpleNamespace(
+            id="resp_sync_1",
+            status="completed",
+            usage=SimpleNamespace(input_tokens=9, output_tokens=4, total_tokens=13),
+            output_text="rescued",
+            output=[_make_responses_message("rescued")],
+        )
+
+    adapter.client = SimpleNamespace(
+        responses=SimpleNamespace(create=_create),
+        chat=SimpleNamespace(completions=_FakeChatCompletions(None)),
+    )
+
+    chunks = []
+    async for chunk in adapter.stream_chat(
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-5.4-xhigh",
+        timeout_seconds=0.05,
+    ):
+        chunks.append(chunk)
+
+    assert "".join(chunk.delta for chunk in chunks) == "rescued"
+    assert chunks[-1].finish_reason == "stop"
+    assert chunks[-1].total_tokens == 13
+    assert chunks[-1].metadata["responses_response_id"] == "resp_sync_1"
+    assert (
+        chunks[-1].metadata["responses_stream_rescue"]
+        == "sync_after_timeout_before_first_meaningful_chunk"
+    )
+    assert len(create_calls) == 2
+    assert create_calls[0]["stream"] is True
+    assert "stream" not in create_calls[1]
+    assert adapter.client.chat.completions.last_kwargs is None
+    assert hanging_stream.aclose_called is True
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_responses_stream_create_timeout_rescues_via_sync() -> None:
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={"wire_api": "responses"},
+    )
+    create_calls: list[dict[str, Any]] = []
+
+    async def _create(**kwargs):
+        create_calls.append(dict(kwargs))
+        if kwargs.get("stream"):
+            raise RuntimeError("Request timed out.")
+        return SimpleNamespace(
+            id="resp_sync_1",
+            status="completed",
+            usage=SimpleNamespace(input_tokens=9, output_tokens=4, total_tokens=13),
+            output_text="rescued",
+            output=[_make_responses_message("rescued")],
+        )
+
+    adapter.client = SimpleNamespace(
+        responses=SimpleNamespace(create=_create),
+        chat=SimpleNamespace(completions=_FakeChatCompletions(None)),
+    )
+
+    chunks = []
+    async for chunk in adapter.stream_chat(
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-5.4-xhigh",
+        timeout_seconds=0.05,
+    ):
+        chunks.append(chunk)
+
+    assert "".join(chunk.delta for chunk in chunks) == "rescued"
+    assert chunks[-1].finish_reason == "stop"
+    assert chunks[-1].total_tokens == 13
+    assert chunks[-1].metadata["responses_response_id"] == "resp_sync_1"
+    assert (
+        chunks[-1].metadata["responses_stream_rescue"]
+        == "sync_after_timeout_before_first_meaningful_chunk"
+    )
+    assert len(create_calls) == 2
+    assert create_calls[0]["stream"] is True
+    assert "stream" not in create_calls[1]
+    assert adapter.client.chat.completions.last_kwargs is None
+
+
+@pytest.mark.asyncio
 async def test_stream_chat_responses_hanging_stream_times_out_with_timeout_seconds() -> (
     None
 ):
@@ -2406,13 +2572,24 @@ async def test_stream_chat_responses_hanging_stream_times_out_with_timeout_secon
         provider_config={"wire_api": "responses"},
     )
     hanging_stream = _HangingResponsesStream()
-    responses_create = AsyncMock(return_value=hanging_stream)
+    create_calls: list[dict[str, Any]] = []
+
+    async def _create(**kwargs):
+        create_calls.append(dict(kwargs))
+        if kwargs.get("stream"):
+            return hanging_stream
+        raise ProviderTimeoutError(
+            "provider timed out",
+            provider_code="openai_compatible",
+            model_code="gpt-5.4",
+        )
+
     adapter.client = SimpleNamespace(
-        responses=SimpleNamespace(create=responses_create),
+        responses=SimpleNamespace(create=_create),
         chat=SimpleNamespace(completions=_FakeChatCompletions(None)),
     )
 
-    with pytest.raises(ProviderTimeoutError):
+    with pytest.raises(ProviderTimeoutError, match="provider timed out"):
         async for _ in adapter.stream_chat(
             messages=[ChatMessage(role="user", content="hello")],
             model="gpt-5.4-xhigh",
@@ -2420,9 +2597,12 @@ async def test_stream_chat_responses_hanging_stream_times_out_with_timeout_secon
         ):
             pass
 
-    assert responses_create.await_count == 1
+    assert len(create_calls) == 2
     assert adapter.client.chat.completions.last_kwargs is None
-    assert responses_create.await_args.kwargs.get("timeout") == pytest.approx(0.05)
+    assert create_calls[0].get("timeout") == pytest.approx(0.05)
+    assert create_calls[0]["stream"] is True
+    assert create_calls[1].get("timeout") == pytest.approx(0.05)
+    assert "stream" not in create_calls[1]
     assert hanging_stream.aclose_called is True
 
 
@@ -2450,13 +2630,24 @@ async def test_stream_chat_public_responses_timeout_does_not_hit_chat_completion
         provider_config=_responses_cross_protocol_provider_config(),
     )
     hanging_stream = _HangingResponsesStream()
-    responses_create = AsyncMock(return_value=hanging_stream)
+    create_calls: list[dict[str, Any]] = []
+
+    async def _create(**kwargs):
+        create_calls.append(dict(kwargs))
+        if kwargs.get("stream"):
+            return hanging_stream
+        raise ProviderTimeoutError(
+            "provider timed out",
+            provider_code="openai_compatible",
+            model_code="gpt-5.4",
+        )
+
     adapter.client = SimpleNamespace(
-        responses=SimpleNamespace(create=responses_create),
+        responses=SimpleNamespace(create=_create),
         chat=SimpleNamespace(completions=_FakeChatCompletions(None)),
     )
 
-    with pytest.raises(ProviderTimeoutError):
+    with pytest.raises(ProviderTimeoutError, match="provider timed out"):
         async for _ in adapter.stream_chat(
             messages=[ChatMessage(role="user", content="hello")],
             model="gpt-5.4-xhigh",
@@ -2471,9 +2662,12 @@ async def test_stream_chat_public_responses_timeout_does_not_hit_chat_completion
         ):
             pass
 
-    assert responses_create.await_count == 1
+    assert len(create_calls) == 2
     assert adapter.client.chat.completions.last_kwargs is None
-    assert responses_create.await_args.kwargs.get("timeout") == pytest.approx(0.05)
+    assert create_calls[0].get("timeout") == pytest.approx(0.05)
+    assert create_calls[0]["stream"] is True
+    assert create_calls[1].get("timeout") == pytest.approx(0.05)
+    assert "stream" not in create_calls[1]
     assert hanging_stream.aclose_called is True
 
 
@@ -2677,7 +2871,6 @@ async def test_convert_messages_to_responses_input_preserves_tool_roundtrip() ->
         {
             "type": "function_call",
             "call_id": "call_1",
-            "id": "call_1",
             "name": "lookup_weather",
             "arguments": '{"city":"Shanghai"}',
             "status": "completed",
@@ -2688,6 +2881,167 @@ async def test_convert_messages_to_responses_input_preserves_tool_roundtrip() ->
             "output": "sunny",
         },
     ]
+
+
+@pytest.mark.asyncio
+async def test_convert_messages_to_responses_input_keeps_item_id_separate_from_call_id() -> None:
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={"wire_api": "responses"},
+    )
+
+    converted = await adapter._convert_messages_to_responses_input(
+        [
+            ChatMessage(
+                role="assistant",
+                content="",
+                tool_calls=[
+                    {
+                        "id": "fc_123",
+                        "call_id": "call_123",
+                        "type": "function",
+                        "function": {
+                            "name": "ui_fill_form",
+                            "arguments": '{"fields":{"name":"E2E-Test"}}',
+                        },
+                    }
+                ],
+            ),
+            ChatMessage(role="tool", content='{"ok":true}', tool_call_id="call_123"),
+        ]
+    )
+
+    assert converted == [
+        {
+            "type": "function_call",
+            "call_id": "call_123",
+            "id": "fc_123",
+            "name": "ui_fill_form",
+            "arguments": '{"fields":{"name":"E2E-Test"}}',
+            "status": "completed",
+        },
+        {
+            "type": "function_call_output",
+            "call_id": "call_123",
+            "output": '{"ok":true}',
+        },
+    ]
+
+
+@pytest.mark.asyncio
+async def test_convert_messages_to_responses_input_synthesizes_missing_call_id_roundtrip() -> (
+    None
+):
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={"wire_api": "responses"},
+    )
+
+    converted = await adapter._convert_messages_to_responses_input(
+        [
+            ChatMessage(
+                role="assistant",
+                content="",
+                tool_calls=[
+                    {
+                        "id": "fc_page_recovery_ui_get_form_state",
+                        "type": "function",
+                        "function": {
+                            "name": "ui_get_form_state",
+                            "arguments": "{}",
+                        },
+                    }
+                ],
+            ),
+            ChatMessage(role="tool", content='{"has_active_form":true}'),
+        ]
+    )
+
+    assert converted == [
+        {
+            "type": "function_call",
+            "call_id": "call_1_1_ui_get_form_state",
+            "id": "fc_page_recovery_ui_get_form_state",
+            "name": "ui_get_form_state",
+            "arguments": "{}",
+            "status": "completed",
+        },
+        {
+            "type": "function_call_output",
+            "call_id": "call_1_1_ui_get_form_state",
+            "output": '{"has_active_form":true}',
+        },
+    ]
+
+
+@pytest.mark.asyncio
+async def test_convert_messages_to_responses_input_pairs_mismatched_internal_tool_id_with_pending_call() -> (
+    None
+):
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={"wire_api": "responses"},
+    )
+
+    converted = await adapter._convert_messages_to_responses_input(
+        [
+            ChatMessage(
+                role="assistant",
+                content="",
+                tool_calls=[
+                    {
+                        "id": "fc_page_recovery_ui_read_region",
+                        "type": "function",
+                        "function": {
+                            "name": "ui_read_region",
+                            "arguments": '{"locator":"main"}',
+                        },
+                    }
+                ],
+            ),
+            ChatMessage(
+                role="tool",
+                content='{"text":"模型管理"}',
+                tool_call_id="fc_page_recovery_ui_read_region",
+            ),
+        ]
+    )
+
+    assert converted == [
+        {
+            "type": "function_call",
+            "call_id": "call_1_1_ui_read_region",
+            "id": "fc_page_recovery_ui_read_region",
+            "name": "ui_read_region",
+            "arguments": '{"locator":"main"}',
+            "status": "completed",
+        },
+        {
+            "type": "function_call_output",
+            "call_id": "call_1_1_ui_read_region",
+            "output": '{"text":"模型管理"}',
+        },
+    ]
+
+
+@pytest.mark.asyncio
+async def test_convert_messages_to_responses_input_drops_orphan_tool_without_call_id() -> (
+    None
+):
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={"wire_api": "responses"},
+    )
+
+    converted = await adapter._convert_messages_to_responses_input(
+        [ChatMessage(role="tool", content="orphan tool output")]
+    )
+
+    assert converted == []
 
 
 @pytest.mark.asyncio
@@ -2731,7 +3085,6 @@ async def test_convert_messages_to_responses_input_ignores_legacy_text_mode_and_
         {
             "type": "function_call",
             "call_id": "call_1",
-            "id": "call_1",
             "name": "ui_get_snapshot",
             "arguments": "{}",
             "status": "completed",
@@ -2817,7 +3170,7 @@ async def test_build_responses_request_forwards_required_tool_choice() -> None:
 
 
 @pytest.mark.asyncio
-async def test_build_responses_request_uses_hosted_web_search_only_when_provider_opts_in() -> (
+async def test_build_responses_request_keeps_runtime_web_search_when_provider_search_enabled() -> (
     None
 ):
     adapter = OpenAIAdapter(
@@ -2825,7 +3178,7 @@ async def test_build_responses_request_uses_hosted_web_search_only_when_provider
         base_url="https://api.example.com",
         provider_config={
             "wire_api": "responses",
-            "web_search": {"prefer_hosted_tool": True},
+            "web_search": {"enabled": True},
         },
     )
 
@@ -2839,7 +3192,51 @@ async def test_build_responses_request_uses_hosted_web_search_only_when_provider
     )
 
     assert request["tool_choice"] == "required"
-    assert request["tools"] == [{"type": "web_search", "search_context_size": "medium"}]
+    assert request["tools"] == [
+        {
+            "type": "function",
+            "name": "web_search",
+            "description": None,
+            "parameters": {},
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_build_responses_request_ignores_legacy_hosted_search_rewrite_config() -> (
+    None
+):
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={
+            "wire_api": "responses",
+            "web_search": {
+                "enabled": True,
+                "hosted_tool_rewrite_enabled": True,
+                "prefer_hosted_tool": True,
+            },
+        },
+    )
+
+    request = await adapter._build_responses_request(
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-5.4-xhigh",
+        tools=[
+            {"type": "function", "function": {"name": "web_search", "parameters": {}}},
+        ],
+        tool_choice="required",
+    )
+
+    assert request["tool_choice"] == "required"
+    assert request["tools"] == [
+        {
+            "type": "function",
+            "name": "web_search",
+            "description": None,
+            "parameters": {},
+        }
+    ]
 
 
 @pytest.mark.asyncio

@@ -275,12 +275,72 @@ class ConversationService(
         user_id: int | None = None,
         owner_type: str | None = None,
     ) -> dict[str, Any]:
-        await self.get_accessible_conversation(
+        conversation = await self.get_accessible_conversation(
             conversation_id,
             user_id=user_id,
             owner_type=owner_type,
         )
-        return await self.memory_state_service.get_state(conversation_id)
+        state = await self.memory_state_service.get_state(conversation_id)
+        return await self._attach_long_term_memory_preview(state, conversation)
+
+    async def _attach_long_term_memory_preview(
+        self,
+        state: dict[str, Any],
+        conversation: AgentConversation,
+    ) -> dict[str, Any]:
+        agent_id = int(getattr(conversation, "agent_id", 0) or 0)
+        conversation_user_id = int(getattr(conversation, "user_id", 0) or 0)
+        if not agent_id or not conversation_user_id:
+            return state
+        if not isinstance(getattr(self, "db", None), AsyncSession):
+            return state
+
+        try:
+            from app.enums.memory import MemoryScopeTypeEnum
+            from app.repositories.ai.memory_record_repository import (
+                MemoryRecordRepository,
+            )
+            from app.services.ai.long_term_memory_service import (
+                LongTermMemoryService,
+            )
+
+            scope_type = MemoryScopeTypeEnum.USER_AGENT.value
+            scope_key = LongTermMemoryService.build_scope_key(
+                scope_type,
+                agent_id=agent_id,
+                user_id=conversation_user_id,
+            )
+            records = await MemoryRecordRepository(
+                self.db,
+                self._get_memory_tenant_id(),
+            ).list_for_scope(
+                scope_type=scope_type,
+                scope_key=scope_key,
+                limit=12,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "Long-term memory preview degraded: conversation={} err={}",
+                getattr(conversation, "id", None),
+                str(exc),
+            )
+            return state
+
+        summaries: list[str] = []
+        for record in records:
+            text = str(
+                getattr(record, "summary", None)
+                or getattr(record, "content", None)
+                or ""
+            ).strip()
+            if text and text not in summaries:
+                summaries.append(text)
+
+        if summaries:
+            state = dict(state)
+            state["long_term_memories"] = summaries
+            state["long_term_memory_count"] = len(records)
+        return state
 
     async def clear_conversation_memory_state(
         self,

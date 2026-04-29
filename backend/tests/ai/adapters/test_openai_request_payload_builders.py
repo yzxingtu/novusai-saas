@@ -62,17 +62,23 @@ class _BuilderAdapterStub:
             if message.role == "assistant" and message.tool_calls:
                 for tool_call in message.tool_calls:
                     function = tool_call.get("function") or {}
-                    tc_id = tool_call.get("call_id") or tool_call.get("id") or ""
-                    converted.append(
-                        {
-                            "type": "function_call",
-                            "call_id": tc_id,
-                            "id": tool_call.get("id") or tc_id,
-                            "name": function.get("name", ""),
-                            "arguments": function.get("arguments", "{}") or "{}",
-                            "status": "completed",
-                        }
+                    tc_id = (
+                        tool_call.get("call_id")
+                        or tool_call.get("tool_call_id")
+                        or tool_call.get("id")
+                        or ""
                     )
+                    payload = {
+                        "type": "function_call",
+                        "call_id": tc_id,
+                        "name": function.get("name", ""),
+                        "arguments": function.get("arguments", "{}") or "{}",
+                        "status": "completed",
+                    }
+                    item_id = str(tool_call.get("id") or "").strip()
+                    if item_id.startswith("fc_"):
+                        payload["id"] = item_id
+                    converted.append(payload)
                 if not (message.content or "").strip():
                     continue
             converted.append(
@@ -90,7 +96,8 @@ def test_convert_tools_for_responses_injects_native_web_search() -> None:
         [
             {"type": "function", "function": {"name": "web_search", "parameters": {}}},
             {"type": "function", "function": {"name": "fetch_url", "parameters": {}}},
-        ]
+        ],
+        rewrite_web_search=True,
     )
 
     assert converted[0] == {"type": "web_search", "search_context_size": "medium"}
@@ -190,9 +197,9 @@ async def test_build_responses_request_hoists_system_messages_into_instructions(
 
 
 @pytest.mark.asyncio
-async def test_build_responses_request_rewrites_web_search_only_when_provider_opts_in() -> None:
+async def test_build_responses_request_keeps_runtime_web_search_when_provider_search_enabled() -> None:
     adapter = _BuilderAdapterStub(
-        provider_config={"web_search": {"prefer_hosted_tool": True}}
+        provider_config={"web_search": {"enabled": True}}
     )
 
     request = await build_responses_request(
@@ -207,7 +214,45 @@ async def test_build_responses_request_rewrites_web_search_only_when_provider_op
 
     assert request["tool_choice"] == "required"
     assert request["tools"] == [
-        {"type": "web_search", "search_context_size": "medium"}
+        {
+            "type": "function",
+            "name": "web_search",
+            "description": None,
+            "parameters": {},
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_build_responses_request_ignores_legacy_hosted_search_rewrite_config() -> None:
+    adapter = _BuilderAdapterStub(
+        provider_config={
+            "web_search": {
+                "enabled": True,
+                "hosted_tool_rewrite_enabled": True,
+                "prefer_hosted_tool": True,
+            }
+        }
+    )
+
+    request = await build_responses_request(
+        adapter=adapter,
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-5.4-xhigh",
+        tools=[{"type": "function", "function": {"name": "web_search", "parameters": {}}}],
+        tool_choice="required",
+        kwargs={},
+        reasoning_summary_model_prefixes=("gpt-5",),
+    )
+
+    assert request["tool_choice"] == "required"
+    assert request["tools"] == [
+        {
+            "type": "function",
+            "name": "web_search",
+            "description": None,
+            "parameters": {},
+        }
     ]
 
 
@@ -325,7 +370,6 @@ async def test_build_responses_stream_request_omits_previous_response_id_for_too
         {
             "type": "function_call",
             "call_id": "call_weather_1",
-            "id": "call_weather_1",
             "name": "get_current_weather",
             "arguments": '{"city":"北京"}',
             "status": "completed",
@@ -336,6 +380,131 @@ async def test_build_responses_stream_request_omits_previous_response_id_for_too
             "output": '{"temperature":"12°C","condition":"晴"}',
         },
     ]
+
+
+@pytest.mark.asyncio
+async def test_build_responses_stream_follow_up_round_without_tools_keeps_structured_history() -> (
+    None
+):
+    adapter = _BuilderAdapterStub()
+
+    request = await build_responses_request(
+        adapter=adapter,
+        messages=[
+            ChatMessage(role="system", content="You are helpful."),
+            ChatMessage(role="user", content="读取当前页面"),
+            ChatMessage(
+                role="assistant",
+                content="",
+                tool_calls=[
+                    {
+                        "id": "call_snapshot_1",
+                        "type": "function",
+                        "function": {
+                            "name": "ui_get_snapshot",
+                            "arguments": '{"mode":"compact"}',
+                        },
+                    }
+                ],
+                metadata={
+                    "protocol_path": "responses",
+                    "responses_response_id": "resp_tool_round_1",
+                },
+            ),
+            ChatMessage(
+                role="tool",
+                content='{"ui_epoch":9,"active_surface_id":"surface:page:admin.dashboard"}',
+                tool_call_id="call_snapshot_1",
+            ),
+        ],
+        model="gpt-5.4-xhigh",
+        tools=None,
+        tool_choice=None,
+        stream=True,
+        kwargs={},
+        reasoning_summary_model_prefixes=("gpt-5",),
+    )
+
+    assert request["stream"] is True
+    assert "previous_response_id" not in request
+    assert "tools" not in request
+    assert "tool_choice" not in request
+    assert request["instructions"] == "You are helpful."
+    assert [message.role for message in adapter.converted_messages] == [
+        "user",
+        "assistant",
+        "tool",
+    ]
+    assert request["input"] == [
+        {
+            "type": "message",
+            "role": "user",
+            "content": "读取当前页面",
+        },
+        {
+            "type": "function_call",
+            "call_id": "call_snapshot_1",
+            "name": "ui_get_snapshot",
+            "arguments": '{"mode":"compact"}',
+            "status": "completed",
+        },
+        {
+            "type": "function_call_output",
+            "call_id": "call_snapshot_1",
+            "output": (
+                '{"ui_epoch":9,"active_surface_id":"surface:page:admin.dashboard"}'
+            ),
+        },
+    ]
+
+
+@pytest.mark.asyncio
+async def test_build_responses_stream_follow_up_preserves_fc_item_id_when_available() -> None:
+    adapter = _BuilderAdapterStub()
+
+    request = await build_responses_request(
+        adapter=adapter,
+        messages=[
+            ChatMessage(role="system", content="You are helpful."),
+            ChatMessage(role="user", content="填写当前页面表单"),
+            ChatMessage(
+                role="assistant",
+                content="",
+                tool_calls=[
+                    {
+                        "id": "fc_form_1",
+                        "call_id": "call_form_1",
+                        "type": "function",
+                        "function": {
+                            "name": "ui_fill_form",
+                            "arguments": '{"fields":{"name":"E2E-Test-001"}}',
+                        },
+                    }
+                ],
+            ),
+            ChatMessage(role="tool", content='{"ok":true}', tool_call_id="call_form_1"),
+        ],
+        model="gpt-5.4-xhigh",
+        tools=[{"type": "function", "function": {"name": "ui_fill_form", "parameters": {}}}],
+        tool_choice="required",
+        stream=True,
+        kwargs={},
+        reasoning_summary_model_prefixes=("gpt-5",),
+    )
+
+    assert request["input"][1] == {
+        "type": "function_call",
+        "call_id": "call_form_1",
+        "id": "fc_form_1",
+        "name": "ui_fill_form",
+        "arguments": '{"fields":{"name":"E2E-Test-001"}}',
+        "status": "completed",
+    }
+    assert request["input"][2] == {
+        "type": "function_call_output",
+        "call_id": "call_form_1",
+        "output": '{"ok":true}',
+    }
 
 
 @pytest.mark.asyncio

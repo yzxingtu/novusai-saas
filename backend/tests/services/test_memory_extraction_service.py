@@ -235,3 +235,131 @@ async def test_extract_turn_memory_falls_back_to_explicit_memory_fact_on_empty_c
         "task_states": [],
         "verified_facts": ["跨对话暗号是 蓝莓雨伞 418J"],
     }
+
+
+@pytest.mark.asyncio
+async def test_extract_turn_memory_falls_back_to_explicit_fact_when_model_missing(
+    mock_db,
+):
+    """Test type: behavioral
+    Verifies explicit memory-save requests still persist a concrete delta when
+    the internal extraction model is unavailable.
+    """
+    from app.services.ai.memory_extraction_service import MemoryExtractionService
+
+    with patch(
+        "app.services.ai.memory_extraction_service.async_session_factory",
+        return_value=_SessionManager(mock_db),
+    ), patch(
+        "app.services.ai.memory_extraction_service.ConfigService",
+    ) as mock_config_service, patch(
+        "app.services.ai.memory_extraction_service.AgentRepository.get_by_id",
+        new_callable=AsyncMock,
+        return_value=None,
+    ), patch(
+        "app.services.ai.memory_extraction_service.InternalAIService.chat",
+        new_callable=AsyncMock,
+    ) as mock_chat:
+        mock_config_service.return_value.get_platform_config = AsyncMock(
+            side_effect=["", ""],
+        )
+
+        result = await MemoryExtractionService(tenant_id=9).extract_turn_memory(
+            agent_id=9,
+            message="请记住：我的项目代号是 Phoenix",
+            response="好的，我会记住。",
+        )
+
+    assert result == {
+        "preferences": [],
+        "constraints": [],
+        "task_states": [],
+        "verified_facts": ["我的项目代号是 Phoenix"],
+    }
+    mock_chat.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_extract_turn_memory_falls_back_to_explicit_fact_on_internal_error(
+    mock_db,
+):
+    """Test type: behavioral
+    Verifies the user-visible memory contract does not silently drop explicit
+    remember requests when the internal extraction call fails.
+    """
+    from app.services.ai.memory_extraction_service import MemoryExtractionService
+
+    with patch(
+        "app.services.ai.memory_extraction_service.async_session_factory",
+        return_value=_SessionManager(mock_db),
+    ), patch(
+        "app.services.ai.memory_extraction_service.ConfigService",
+    ) as mock_config_service, patch(
+        "app.services.ai.memory_extraction_service.InternalAIService.chat",
+        new_callable=AsyncMock,
+        side_effect=RuntimeError("provider unavailable"),
+    ):
+        mock_config_service.return_value.get_platform_config = AsyncMock(
+            side_effect=["openai_compatible", "gpt-4o-mini"],
+        )
+
+        result = await MemoryExtractionService(tenant_id=1).extract_turn_memory(
+            agent_id=7,
+            message="帮我记住：跨对话暗号是 蓝莓雨伞 418J",
+            response="好的，我会记住。",
+        )
+
+    assert result == {
+        "preferences": [],
+        "constraints": [],
+        "task_states": [],
+        "verified_facts": ["跨对话暗号是 蓝莓雨伞 418J"],
+    }
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("message", "expected_fact"),
+    [
+        ("记住：我的项目代号是 Phoenix", "我的项目代号是 Phoenix"),
+        ("帮我记一下：跨对话暗号是 蓝莓雨伞 418J", "跨对话暗号是 蓝莓雨伞 418J"),
+        ("以后记得我的默认语言是中文", "我的默认语言是中文"),
+    ],
+)
+async def test_extract_turn_memory_fallback_accepts_plain_remember_phrasing(
+    mock_db,
+    message,
+    expected_fact,
+):
+    """Test type: behavioral
+    Verifies common explicit remember phrasings still persist when extraction
+    model resolution fails.
+    """
+    from app.services.ai.memory_extraction_service import MemoryExtractionService
+
+    with patch(
+        "app.services.ai.memory_extraction_service.async_session_factory",
+        return_value=_SessionManager(mock_db),
+    ), patch(
+        "app.services.ai.memory_extraction_service.ConfigService",
+    ) as mock_config_service, patch(
+        "app.services.ai.memory_extraction_service.AgentRepository.get_by_id",
+        new_callable=AsyncMock,
+        return_value=None,
+    ):
+        mock_config_service.return_value.get_platform_config = AsyncMock(
+            side_effect=["", ""],
+        )
+
+        result = await MemoryExtractionService(tenant_id=9).extract_turn_memory(
+            agent_id=9,
+            message=message,
+            response="好的，我会记住。",
+        )
+
+    assert result == {
+        "preferences": [],
+        "constraints": [],
+        "task_states": [],
+        "verified_facts": [expected_fact],
+    }

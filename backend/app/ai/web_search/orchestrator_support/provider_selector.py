@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from urllib.parse import urlparse
 
-from app.ai.web_search.types import STRATEGY_NATIVE_FIRST_FALLBACK_PUBLIC
+from app.ai.web_search.types import DEFAULT_FALLBACK_PROVIDER
 from app.core.config import settings
 from app.schemas.ai.provider import (
     AIProviderWebSearchConfig,
@@ -28,60 +28,46 @@ def is_trusted_openai_compatible_host(
     return hostname in trusted_hosts or hostname.endswith(".openai.azure.com")
 
 
-def is_verified_native_runtime_candidate(
+def is_native_runtime_readiness_candidate(
     provider: object | None,
     *,
-    allow_unverified_runtime_target: bool,
     trusted_hosts: frozenset[str],
 ) -> tuple[bool, str]:
     if provider is None:
         return False, "runtime_provider_missing"
-    if allow_unverified_runtime_target:
-        return True, "allow_unverified_runtime_target_override"
     provider_type = str(getattr(provider, "type", "") or "").strip().lower()
     if provider_type != "openai_compatible":
-        return True, "provider_type_verified_by_default"
+        return False, f"provider_type_native_denied:{provider_type or 'unknown'}"
     host = normalized_hostname(getattr(provider, "base_url", None))
     if is_trusted_openai_compatible_host(host, trusted_hosts=trusted_hosts):
         return True, f"trusted_openai_compatible_host:{host}"
     if not host:
-        return (
-            False,
-            "untrusted_openai_compatible_runtime_target:missing_base_url_host",
-        )
-    return False, f"untrusted_openai_compatible_runtime_target:{host}"
+        reason = "untrusted_openai_compatible_runtime_candidate:missing_base_url_host"
+    else:
+        reason = f"untrusted_openai_compatible_runtime_candidate:{host}"
+    return False, reason
 
 
-def default_web_search_config(default_public_providers: list[str]) -> AIProviderWebSearchConfig:
+def default_web_search_config() -> AIProviderWebSearchConfig:
     return AIProviderWebSearchConfig(
         enabled=bool(settings.WEB_SEARCH_DEFAULT_ENABLED),
-        strategy=str(settings.WEB_SEARCH_DEFAULT_STRATEGY).strip()
-        or STRATEGY_NATIVE_FIRST_FALLBACK_PUBLIC,
         max_results_cap=int(settings.WEB_SEARCH_DEFAULT_MAX_RESULTS_CAP),
         native_timeout_seconds=int(settings.WEB_SEARCH_DEFAULT_NATIVE_TIMEOUT_SECONDS),
-        public_timeout_seconds=int(settings.WEB_SEARCH_DEFAULT_PUBLIC_TIMEOUT_SECONDS),
-        public_providers=[
-            provider
-            for provider in settings.WEB_SEARCH_DEFAULT_PUBLIC_PROVIDERS
-            if str(provider or "").strip()
-        ]
-        or list(default_public_providers),
+        fallback_provider=DEFAULT_FALLBACK_PROVIDER,
+        fallback_timeout_seconds=int(settings.WEB_SEARCH_DEFAULT_PUBLIC_TIMEOUT_SECONDS),
     )
 
 
 def normalize_provider_web_search_settings(
     provider_config: dict | None,
-    *,
-    default_public_providers: list[str],
 ) -> AIProviderWebSearchConfig:
     raw_web_search = (
         provider_config.get("web_search")
         if isinstance(provider_config, dict)
         else None
     )
-    defaults = default_web_search_config(default_public_providers)
+    defaults = default_web_search_config()
     return normalize_provider_web_search_config(
         raw_web_search,
         defaults=defaults,
     )
-

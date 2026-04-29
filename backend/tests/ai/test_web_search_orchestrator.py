@@ -1,3 +1,9 @@
+"""
+Test type: behavioral
+Scope: web-search orchestration across native, fallback, cache, and readiness decisions.
+Mock strategy: orchestrator logic runs real while provider/network boundaries are faked.
+"""
+
 from __future__ import annotations
 
 import asyncio
@@ -9,12 +15,16 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from app.ai.skills.resolver import SkillResolveResult, SkillResolver
+from app.ai.skills.resolver import SkillResolver, SkillResolveResult
 from app.ai.web_search import orchestrator as ws_orchestrator
 from app.ai.web_search import public_html as public_html
 from app.ai.web_search.orchestrator import (
     NativeModelSearchProvider,
     WebSearchOrchestrator,
+)
+from app.ai.web_search.orchestrator_support.native_target import (
+    check_native_runtime_readiness,
+    resolve_native_readiness_target,
 )
 from app.ai.web_search.public_html import PublicHtmlSearchProvider
 from app.ai.web_search.types import (
@@ -25,9 +35,11 @@ from app.ai.web_search.types import (
     STATUS_TIMEOUT,
     STATUS_UNSUPPORTED,
     STATUS_UPSTREAM_ERROR,
+    WEB_SEARCH_POLICY_NATIVE_FIRST_BAIDU_FALLBACK,
     SearchProviderRun,
     SearchResultItem,
 )
+from app.schemas.ai.provider import AIProviderWebSearchConfig
 
 
 @pytest.fixture(autouse=True)
@@ -109,6 +121,56 @@ def test_skill_resolver_injects_baseline_web_research_tools() -> None:
 
 
 @pytest.mark.asyncio
+async def test_skill_resolver_does_not_resolve_runtime_builtins_from_db_skills() -> None:
+    package = SimpleNamespace(
+        id=100,
+        name="legacy.runtime",
+        source_plugin=None,
+        valves_config=None,
+        is_active=True,
+        is_deleted=False,
+    )
+    result = await SkillResolver().resolve(
+        [
+            SimpleNamespace(
+                id=1,
+                name="editor_ops",
+                type="builtin",
+                config={},
+                package_id=package.id,
+                package=package,
+                is_active=True,
+                is_deleted=False,
+                input_schema=None,
+                description="Legacy rich text skill",
+                timeout=30,
+            ),
+            SimpleNamespace(
+                id=2,
+                name="legacy_bundle",
+                type="builtin",
+                config={
+                    "tools": [
+                        {"name": "web_search"},
+                        {"name": "ui_get_snapshot"},
+                        {"name": "custom_builtin_tool"},
+                    ]
+                },
+                package_id=package.id,
+                package=package,
+                is_active=True,
+                is_deleted=False,
+                input_schema=None,
+                description="Legacy bundle",
+                timeout=30,
+            ),
+        ]
+    )
+
+    assert [tool.name for tool in result.tools] == ["custom_builtin_tool"]
+
+
+@pytest.mark.asyncio
 async def test_native_model_search_provider_routes_through_gateway() -> None:
     provider = SimpleNamespace(
         id=7,
@@ -159,7 +221,7 @@ async def test_native_model_search_provider_routes_through_gateway() -> None:
             locale="zh_CN",
             timeout_seconds=20,
             context=context,
-            strategy="native_first_fallback_public",
+            strategy=WEB_SEARCH_POLICY_NATIVE_FIRST_BAIDU_FALLBACK,
         )
 
     assert run.status == STATUS_SUCCESS
@@ -363,9 +425,9 @@ async def test_orchestrator_surfaces_public_failure_when_all_backends_fail() -> 
         status=STATUS_UPSTREAM_ERROR,
         provider=None,
         provider_mode=PROVIDER_MODE_PUBLIC,
-        backend_key="public:so360",
-        failure_reason="public:baidu returned unreadable page; public:so360 returned HTTP 500",
-        attempted_backends=["public:baidu", "public:so360"],
+        backend_key="public:baidu",
+        failure_reason="public:baidu returned unreadable page",
+        attempted_backends=["public:baidu"],
     )
 
     with patch.object(
@@ -390,7 +452,6 @@ async def test_orchestrator_surfaces_public_failure_when_all_backends_fail() -> 
     assert execution.meta.attempted_backends == [
         "native:openai:gpt-5.4",
         "public:baidu",
-        "public:so360",
     ]
     assert "Search source unavailable" in execution.output
 
@@ -403,7 +464,7 @@ async def test_orchestrator_falls_back_to_public_when_native_not_attempted() -> 
         provider="openai",
         provider_mode=PROVIDER_MODE_NATIVE,
         backend_key="native:openai:gpt-5.4",
-        failure_reason="verified target unavailable",
+        failure_reason="native readiness target unavailable",
         attempted_backends=[],
         native_attempted=False,
     )
@@ -438,13 +499,16 @@ async def test_orchestrator_falls_back_to_public_when_native_not_attempted() -> 
 
     assert execution.meta.status == STATUS_SUCCESS
     assert execution.meta.used_fallback is True
-    assert execution.meta.fallback_reason == "native_not_attempted:verified target unavailable"
+    assert (
+        execution.meta.fallback_reason
+        == "native_not_attempted:native readiness target unavailable"
+    )
     assert execution.meta.native_failure_kind == STATUS_UNSUPPORTED
     public_search.assert_awaited_once()
 
 
 @pytest.mark.asyncio
-async def test_orchestrator_uses_explicit_verified_native_target_from_provider_config() -> None:
+async def test_orchestrator_ignores_legacy_explicit_verified_native_target_config() -> None:
     orchestrator = WebSearchOrchestrator()
     runtime_provider = SimpleNamespace(
         id=11,
@@ -457,14 +521,14 @@ async def test_orchestrator_uses_explicit_verified_native_target_from_provider_c
                 "enabled": True,
                 "strategy": "native_first_fallback_public",
                 "verified_native_target": {
-                    "provider_code": "openai",
-                    "model_code": "gpt-5.4",
+                    "provider_code": "ignored-provider",
+                    "model_code": "ignored-model",
                 },
             }
         },
     )
     runtime_model = SimpleNamespace(id=111, provider_id=11, code="gpt-5.4")
-    verified_provider = SimpleNamespace(
+    ready_provider = SimpleNamespace(
         id=12,
         is_active=True,
         code="openai",
@@ -472,7 +536,7 @@ async def test_orchestrator_uses_explicit_verified_native_target_from_provider_c
         base_url="https://api.openai.com/v1",
         config={},
     )
-    verified_model = SimpleNamespace(id=222, provider_id=12, code="gpt-5.4")
+    ready_model = SimpleNamespace(id=222, provider_id=12, code="gpt-5.4")
     context = SimpleNamespace(
         db=object(),
         runtime_provider_id=11,
@@ -484,10 +548,10 @@ async def test_orchestrator_uses_explicit_verified_native_target_from_provider_c
     )
     provider_repo = AsyncMock()
     provider_repo.get_by_id.return_value = runtime_provider
-    provider_repo.get_by_code.return_value = verified_provider
+    provider_repo.get_active_providers.return_value = [runtime_provider, ready_provider]
     model_repo = AsyncMock()
     model_repo.get_active_with_provider.return_value = runtime_model
-    model_repo.get_active_by_code_and_provider.side_effect = [verified_model]
+    model_repo.get_active_by_code_and_provider.return_value = ready_model
     native_run = _make_run(
         status=STATUS_SUCCESS,
         provider="openai",
@@ -518,6 +582,7 @@ async def test_orchestrator_uses_explicit_verified_native_target_from_provider_c
 
     assert execution.meta.status == STATUS_SUCCESS
     assert execution.meta.selected_backend == "native:openai:gpt-5.4"
+    provider_repo.get_by_code.assert_not_awaited()
     kwargs = native_search.await_args.kwargs
     assert kwargs["provider_id_override"] == 12
     assert kwargs["model_id_override"] == 222
@@ -525,7 +590,7 @@ async def test_orchestrator_uses_explicit_verified_native_target_from_provider_c
 
 
 @pytest.mark.asyncio
-async def test_orchestrator_uses_default_verified_target_when_runtime_provider_is_untrusted() -> None:
+async def test_orchestrator_uses_default_native_readiness_target_when_runtime_provider_is_untrusted() -> None:
     orchestrator = WebSearchOrchestrator()
     runtime_provider = SimpleNamespace(
         id=11,
@@ -536,12 +601,11 @@ async def test_orchestrator_uses_default_verified_target_when_runtime_provider_i
         config={
             "web_search": {
                 "enabled": True,
-                "strategy": "native_first_fallback_public",
             }
         },
     )
     runtime_model = SimpleNamespace(id=111, provider_id=11, code="gpt-5.4")
-    verified_provider = SimpleNamespace(
+    ready_provider = SimpleNamespace(
         id=12,
         is_active=True,
         code="openai",
@@ -549,7 +613,7 @@ async def test_orchestrator_uses_default_verified_target_when_runtime_provider_i
         base_url="https://api.openai.com/v1",
         config={},
     )
-    verified_model = SimpleNamespace(id=222, provider_id=12, code="gpt-5.4")
+    ready_model = SimpleNamespace(id=222, provider_id=12, code="gpt-5.4")
     context = SimpleNamespace(
         db=object(),
         runtime_provider_id=11,
@@ -561,13 +625,13 @@ async def test_orchestrator_uses_default_verified_target_when_runtime_provider_i
     )
     provider_repo = AsyncMock()
     provider_repo.get_by_id.return_value = runtime_provider
-    provider_repo.get_active_providers.return_value = [runtime_provider, verified_provider]
+    provider_repo.get_active_providers.return_value = [runtime_provider, ready_provider]
     model_repo = AsyncMock()
     model_repo.get_active_with_provider.return_value = runtime_model
 
     async def get_active_by_code_and_provider(code: str, provider_id: int):
-        if code == "gpt-5.4" and provider_id == verified_provider.id:
-            return verified_model
+        if code == "gpt-5.4" and provider_id == ready_provider.id:
+            return ready_model
         return None
 
     model_repo.get_active_by_code_and_provider.side_effect = get_active_by_code_and_provider
@@ -607,7 +671,7 @@ async def test_orchestrator_uses_default_verified_target_when_runtime_provider_i
 
 
 @pytest.mark.asyncio
-async def test_orchestrator_falls_back_public_when_only_untrusted_runtime_target_exists() -> None:
+async def test_orchestrator_falls_back_public_when_only_untrusted_runtime_candidate_exists() -> None:
     orchestrator = WebSearchOrchestrator()
     runtime_provider = SimpleNamespace(
         id=11,
@@ -618,7 +682,6 @@ async def test_orchestrator_falls_back_public_when_only_untrusted_runtime_target
         config={
             "web_search": {
                 "enabled": True,
-                "strategy": "native_first_fallback_public",
             }
         },
     )
@@ -678,10 +741,10 @@ async def test_orchestrator_falls_back_public_when_only_untrusted_runtime_target
     assert execution.meta.status == STATUS_SUCCESS
     assert execution.meta.used_fallback is True
     assert execution.meta.native_failure_kind == STATUS_UNSUPPORTED
-    assert "native_not_attempted:default_verified_target_unavailable" in (
+    assert "native_not_attempted:default_native_readiness_target_unavailable" in (
         execution.meta.fallback_reason or ""
     )
-    assert "untrusted_openai_compatible_runtime_target" in (
+    assert "untrusted_openai_compatible_runtime_candidate" in (
         execution.meta.fallback_reason or ""
     )
     native_search.assert_not_called()
@@ -689,7 +752,60 @@ async def test_orchestrator_falls_back_public_when_only_untrusted_runtime_target
 
 
 @pytest.mark.asyncio
-async def test_orchestrator_uses_health_verified_untrusted_runtime_target() -> None:
+async def test_resolve_native_readiness_target_rejects_untrusted_runtime_without_override() -> None:
+    runtime_provider = SimpleNamespace(
+        id=11,
+        is_active=True,
+        code="provider_1",
+        type="openai_compatible",
+        base_url="https://api.asxs.top/v1",
+        config={},
+    )
+    runtime_model = SimpleNamespace(id=111, provider_id=11, code="gpt-5.4")
+    provider_repo = AsyncMock()
+    provider_repo.get_active_providers.return_value = [runtime_provider]
+    model_repo = AsyncMock()
+
+    provider, model, source, reason = await resolve_native_readiness_target(
+        normalized_config=AIProviderWebSearchConfig(
+            enabled=True,
+            fallback_provider="baidu",
+        ),
+        runtime_provider=runtime_provider,
+        runtime_model=runtime_model,
+        runtime_model_code="gpt-5.4",
+        provider_repo=provider_repo,
+        model_repo=model_repo,
+    )
+
+    assert provider is None
+    assert model is None
+    assert source is None
+    assert "untrusted_openai_compatible_runtime_candidate:api.asxs.top" in reason
+
+
+@pytest.mark.asyncio
+async def test_native_readiness_rejects_non_openai_compatible_provider() -> None:
+    provider = SimpleNamespace(
+        id=21,
+        is_active=True,
+        code="anthropic",
+        type="anthropic",
+        base_url="https://api.anthropic.com",
+        config={"wire_api": "responses"},
+    )
+
+    is_ready, reason = await check_native_runtime_readiness(
+        provider,
+        model_code="claude-3-5-sonnet",
+    )
+
+    assert is_ready is False
+    assert reason == "provider_type_native_denied:anthropic"
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_uses_health_ready_untrusted_runtime_candidate() -> None:
     orchestrator = WebSearchOrchestrator()
     runtime_provider = SimpleNamespace(
         id=11,
@@ -701,7 +817,6 @@ async def test_orchestrator_uses_health_verified_untrusted_runtime_target() -> N
             "wire_api": "responses",
             "web_search": {
                 "enabled": True,
-                "strategy": "native_first_fallback_public",
             },
         },
     )
@@ -890,7 +1005,7 @@ async def test_public_html_cache_key_isolated_by_locale_runtime_and_strategy() -
     current_locale: str | None = None
 
     with patch.object(public_html, "_search_with_baidu_public", side_effect=fake_baidu):
-        current_strategy = "native_first_fallback_public"
+        current_strategy = WEB_SEARCH_POLICY_NATIVE_FIRST_BAIDU_FALLBACK
         current_provider = "openai"
         current_model = "gpt-5.4"
         current_locale = "zh_CN"
@@ -904,7 +1019,7 @@ async def test_public_html_cache_key_isolated_by_locale_runtime_and_strategy() -
             runtime_provider_label=current_provider,
             runtime_model_code=current_model,
         )
-        current_strategy = "native_first_fallback_public"
+        current_strategy = WEB_SEARCH_POLICY_NATIVE_FIRST_BAIDU_FALLBACK
         current_provider = "openai"
         current_model = "gpt-5.4"
         current_locale = "zh_CN"
@@ -918,7 +1033,7 @@ async def test_public_html_cache_key_isolated_by_locale_runtime_and_strategy() -
             runtime_provider_label=current_provider,
             runtime_model_code=current_model,
         )
-        current_strategy = "native_first_fallback_public"
+        current_strategy = WEB_SEARCH_POLICY_NATIVE_FIRST_BAIDU_FALLBACK
         current_provider = "openai"
         current_model = "gpt-5.4"
         current_locale = "en"
@@ -932,7 +1047,7 @@ async def test_public_html_cache_key_isolated_by_locale_runtime_and_strategy() -
             runtime_provider_label=current_provider,
             runtime_model_code=current_model,
         )
-        current_strategy = "native_first_fallback_public"
+        current_strategy = WEB_SEARCH_POLICY_NATIVE_FIRST_BAIDU_FALLBACK
         current_provider = "openai"
         current_model = "gpt-4o"
         current_locale = "zh_CN"
@@ -946,7 +1061,7 @@ async def test_public_html_cache_key_isolated_by_locale_runtime_and_strategy() -
             runtime_provider_label=current_provider,
             runtime_model_code=current_model,
         )
-        current_strategy = "native_first_fallback_public"
+        current_strategy = WEB_SEARCH_POLICY_NATIVE_FIRST_BAIDU_FALLBACK
         current_provider = "azure_openai"
         current_model = "gpt-4o"
         current_locale = "zh_CN"
@@ -987,7 +1102,6 @@ async def test_public_html_cache_key_isolated_by_locale_runtime_and_strategy() -
 @pytest.mark.asyncio
 async def test_public_html_cooldown_does_not_block_other_backends() -> None:
     baidu_calls = 0
-    so360_calls = 0
 
     async def fake_baidu(query: str, max_results: int, *, timeout_seconds: int):  # noqa: ARG001
         nonlocal baidu_calls
@@ -999,43 +1113,10 @@ async def test_public_html_cooldown_does_not_block_other_backends() -> None:
             error="boom",
         )
 
-    async def fake_so360(query: str, max_results: int, *, timeout_seconds: int):  # noqa: ARG001
-        nonlocal so360_calls
-        so360_calls += 1
-        return public_html._HtmlSearchAttempt(
-            backend_key="public:so360",
-            status=STATUS_SUCCESS,
-            items=[
-                _make_item(
-                    provider="so360_public",
-                    provider_mode=PROVIDER_MODE_PUBLIC,
-                    source="public:so360",
-                )
-            ],
-        )
-
-    provider = PublicHtmlSearchProvider(providers=["baidu", "so360"])
+    provider = PublicHtmlSearchProvider(providers=["legacy_public"])
     context = SimpleNamespace(conversation_id=88)
 
-    with patch.object(public_html, "_search_with_baidu_public", side_effect=fake_baidu), patch.object(
-        public_html,
-        "_search_with_so360_public",
-        side_effect=fake_so360,
-    ):
-        await provider.search(
-            query="OpenAI 1",
-            max_results=5,
-            locale="zh_CN",
-            timeout_seconds=15,
-            context=context,
-        )
-        await provider.search(
-            query="OpenAI 2",
-            max_results=5,
-            locale="zh_CN",
-            timeout_seconds=15,
-            context=context,
-        )
+    with patch.object(public_html, "_search_with_baidu_public", side_effect=fake_baidu):
         third = await provider.search(
             query="OpenAI 3",
             max_results=5,
@@ -1044,14 +1125,14 @@ async def test_public_html_cooldown_does_not_block_other_backends() -> None:
             context=context,
         )
 
-    assert baidu_calls == 2
-    assert so360_calls == 3
-    assert third.status == STATUS_SUCCESS
-    assert third.attempted_backends == ["public:so360"]
+    assert provider.providers == ["baidu"]
+    assert baidu_calls == 1
+    assert third.status == STATUS_UPSTREAM_ERROR
+    assert third.attempted_backends == ["public:baidu"]
 
 
 @pytest.mark.asyncio
-async def test_public_html_search_shares_timeout_budget_across_backends() -> None:
+async def test_public_html_search_applies_timeout_budget_to_baidu_only_backend() -> None:
     observed_timeouts: list[tuple[str, float]] = []
 
     async def fake_baidu(
@@ -1069,42 +1150,24 @@ async def test_public_html_search_shares_timeout_budget_across_backends() -> Non
             error="timeout",
         )
 
-    async def fake_so360(
-        query: str,
-        max_results: int,
-        *,
-        timeout_seconds: int,
-    ):  # noqa: ARG001
-        observed_timeouts.append(("so360", float(timeout_seconds)))
-        return public_html._HtmlSearchAttempt(
-            backend_key="public:so360",
-            status=STATUS_UPSTREAM_ERROR,
-            items=[],
-            error="timeout",
-        )
-
-    provider = PublicHtmlSearchProvider(providers=["baidu", "so360"])
+    provider = PublicHtmlSearchProvider(providers=["baidu", "legacy_public"])
     result = None
 
-    with patch.object(public_html, "_search_with_baidu_public", side_effect=fake_baidu), patch.object(
-        public_html,
-        "_search_with_so360_public",
-        side_effect=fake_so360,
-    ):
+    with patch.object(public_html, "_search_with_baidu_public", side_effect=fake_baidu):
         result = await provider.search(
             query="OpenAI",
             max_results=5,
             locale="zh_CN",
             timeout_seconds=0.25,
             context=SimpleNamespace(conversation_id=90),
-            strategy="native_first_fallback_public",
+            strategy=WEB_SEARCH_POLICY_NATIVE_FIRST_BAIDU_FALLBACK,
             runtime_provider_label="openai",
             runtime_model_code="gpt-5.4",
         )
 
+    assert provider.providers == ["baidu"]
     assert result.status == STATUS_UPSTREAM_ERROR
-    assert len(observed_timeouts) == 2
+    assert result.attempted_backends == ["public:baidu"]
+    assert len(observed_timeouts) == 1
     assert observed_timeouts[0][0] == "baidu"
-    assert observed_timeouts[1][0] == "so360"
-    assert observed_timeouts[0][1] >= observed_timeouts[1][1]
-    assert observed_timeouts[0][1] <= 0.25
+    assert 0 < observed_timeouts[0][1] <= 0.25

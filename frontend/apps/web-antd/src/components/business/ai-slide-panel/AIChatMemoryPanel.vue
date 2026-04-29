@@ -60,6 +60,12 @@ const sections = computed(() => {
       label: $t('common.globalAiChat.memoryVerifiedFacts'),
       items: state.verified_facts,
     },
+    {
+      key: 'long_term_memories',
+      icon: 'lucide:database',
+      label: $t('common.globalAiChat.longTermMemories'),
+      items: state.long_term_memories ?? [],
+    },
   ].filter((section) => section.items.length > 0);
 });
 

@@ -229,6 +229,8 @@ export interface MemoryState {
   constraints: string[];
   task_states: string[];
   verified_facts: string[];
+  long_term_memories?: string[];
+  long_term_memory_count?: number;
   version: number;
   updated_at: number;
 }

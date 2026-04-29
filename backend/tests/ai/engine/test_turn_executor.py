@@ -8,6 +8,7 @@ the turn loop contract, not real-dialogue behavior.
 
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -17,7 +18,12 @@ from app.ai.engine.budget_guard import BudgetGuard
 from app.ai.engine.execution_state_machine import ExecutionStateMachine
 from app.ai.engine.final_output_policy import build_untrusted_final_output_fallback
 from app.ai.engine.recovery_manager import RecoveryDecision, RecoveryManager
-from app.ai.engine.turn_executor import ModelRoundResult, ToolBatchResult, TurnExecutor
+from app.ai.engine.turn_executor import (
+    ModelRoundResult,
+    ToolBatchResult,
+    TurnExecutor,
+    finalize_turn_execution,
+)
 from app.ai.engine.types import IntentPlan, ToolUsePolicy
 from app.ai.tools.types import ToolDefinition, ToolResult
 from app.ai.types import ChatMessage, ChatResponse
@@ -46,6 +52,7 @@ class _FakeIOAdapter:
         self.retry_logs: list[str] = []
         self.finalize_calls: list[dict[str, object]] = []
         self.finalize_completed_calls: list[dict[str, object]] = []
+        self.tool_call_history: list[dict[str, object]] = []
 
     async def call_llm(self, **kwargs):
         self.call_history.append(dict(kwargs))
@@ -53,7 +60,8 @@ class _FakeIOAdapter:
             raise AssertionError("No model rounds left")
         return self.model_rounds.pop(0)
 
-    async def handle_tool_calls(self, **_kwargs):
+    async def handle_tool_calls(self, **kwargs):
+        self.tool_call_history.append(dict(kwargs))
         if self.tool_batches:
             return self.tool_batches.pop(0)
         return self.tool_batch
@@ -175,6 +183,106 @@ def _assistant_response(
         total_tokens=total_tokens,
         completion_tokens_used=total_tokens,
     )
+
+
+@pytest.mark.asyncio
+async def test_turn_executor_returns_cached_shortcircuit_without_provider_call() -> (
+    None
+):
+    intent = IntentPlan(
+        intent_id="intent-1",
+        kind="unsupported_image_generation",
+        family="none",
+        order=1,
+        user_visible_label="image_generation",
+        source_text="帮我画一张猫咪的图片",
+        requires_tools=False,
+        shortcircuit=True,
+        cached_result="当前对话暂不支持直接生成图片。",
+    )
+    prep = _build_prep(
+        tools=[],
+        intents=[intent],
+        tool_use_policy=ToolUsePolicy(
+            family="none",
+            mode="none",
+            allowed_tool_names=[],
+            retry_on_contract_breach=False,
+            reason="cached_shortcircuit",
+        ),
+    )
+    state = ExecutionStateMachine.from_prepared_execution(prep)
+    io = _FakeIOAdapter(model_rounds=[])
+
+    result = await TurnExecutor.run(
+        state=state,
+        io=io,
+        prep=prep,
+        request=SimpleNamespace(
+            input_variables={},
+            conversation_id=1,
+        ),
+        agent=SimpleNamespace(id=1),
+    )
+
+    assert result.output == "当前对话暂不支持直接生成图片。"
+    assert result.partial is False
+    assert result.final_output_source == "assistant"
+    assert io.call_history == []
+    assert state.intent_plan[0].status == "completed"
+    assert state.intent_plan[0].metadata["cached_shortcircuit_completed"] is True
+    assert (
+        state.preparation_diagnostics["cached_shortcircuit_intent_kind"]
+        == "unsupported_image_generation"
+    )
+
+
+@pytest.mark.asyncio
+async def test_turn_executor_returns_precompleted_cached_shortcircuit_without_provider_call() -> (
+    None
+):
+    intent = IntentPlan(
+        intent_id="intent-1",
+        kind="unsupported_image_generation",
+        family="none",
+        order=1,
+        user_visible_label="image_generation",
+        source_text="帮我画一张猫咪的图片",
+        requires_tools=False,
+        shortcircuit=True,
+        cached_result="当前对话暂不支持直接生成图片。",
+        status="completed",
+    )
+    prep = _build_prep(
+        tools=[],
+        intents=[intent],
+        tool_use_policy=ToolUsePolicy(
+            family="none",
+            mode="none",
+            allowed_tool_names=[],
+            retry_on_contract_breach=False,
+            reason="cached_shortcircuit",
+        ),
+    )
+    state = ExecutionStateMachine.from_prepared_execution(prep)
+    io = _FakeIOAdapter(model_rounds=[])
+
+    result = await TurnExecutor.run(
+        state=state,
+        io=io,
+        prep=prep,
+        request=SimpleNamespace(
+            input_variables={},
+            conversation_id=1,
+        ),
+        agent=SimpleNamespace(id=1),
+    )
+
+    assert result.output == "当前对话暂不支持直接生成图片。"
+    assert result.partial is False
+    assert result.final_output_source == "assistant"
+    assert io.call_history == []
+    assert state.intent_plan[0].metadata["cached_shortcircuit_completed"] is True
 
 
 @pytest.mark.asyncio
@@ -580,6 +688,9 @@ async def test_turn_executor_page_search_retry_uses_narrowed_subset_after_discov
 ):
     narrowed_retry_tools = [
         "ui_click",
+        "ui_fill_form",
+        "ui_set_field",
+        "ui_submit_form",
         "ui_read_table",
         "ui_read_region",
     ]
@@ -1474,11 +1585,626 @@ async def test_turn_executor_finalizes_partial_without_budget_finalization_round
 
     assert result.partial is True
     assert io.finalize_calls
+    assert state.recovery_history
+    assert state.recovery_events
+    assert state.recovery_history[0].metadata["source_recovery_event_seq"] == 1
+    assert state.recovery_events[0]["kind"] == "partial_output"
+    assert state.recovery_events[0]["action"] == "return_partial"
+    assert state.recovery_events[0]["target_intent_id"] == "intent-web"
     assert not any(
         event.kind == "turn.round_started"
         and event.data.get("round_kind") == "budget_finalization"
         for event in state.turn_events
     )
+
+
+@pytest.mark.asyncio
+async def test_turn_executor_skips_post_tool_follow_up_for_single_shortcircuit_page_summary() -> (
+    None
+):
+    page_summary = "当前焦点：概览；页面要点：概览；AI 对话；约 2 个可交互元素。"
+    tools = [ToolDefinition(name="ui_read_region", description="Read region")]
+    intents = [
+        IntentPlan(
+            intent_id="intent-page-summary",
+            kind="page_workflow",
+            family="page_ops",
+            order=1,
+            user_visible_label="page_summary",
+            source_text="读取当前页面内容",
+            shortcircuit=True,
+            allowed_tool_names=["ui_read_region"],
+            preferred_tool_names=["ui_read_region"],
+            completion_signals=["ui_read_region"],
+            metadata={"page_workflow_goal": "page_summary"},
+        )
+    ]
+    prep = _build_prep(
+        tools=tools,
+        intents=intents,
+        tool_use_policy=ToolUsePolicy(
+            family="page_ops",
+            mode="required",
+            allowed_tool_names=["ui_read_region"],
+            retry_on_contract_breach=False,
+            reason="page_summary",
+        ),
+    )
+    state = ExecutionStateMachine.from_prepared_execution(prep)
+    io = _FakeIOAdapter(
+        model_rounds=[
+            _assistant_response(
+                "",
+                tool_calls=[
+                    {
+                        "id": "call_page_summary",
+                        "type": "function",
+                        "function": {
+                            "name": "ui_read_region",
+                            "arguments": '{"region":"main"}',
+                        },
+                    }
+                ],
+            )
+        ],
+        tool_batch=ToolBatchResult(
+            response=None,
+            tool_results=[
+                ToolResult(
+                    tool_call_id="call_page_summary",
+                    name="ui_read_region",
+                    success=True,
+                    summary=page_summary,
+                    output=page_summary,
+                )
+            ],
+            total_tokens=7,
+            completion_tokens_used=7,
+        ),
+    )
+
+    result = await TurnExecutor.run(
+        state=state,
+        io=io,
+        prep=prep,
+        request=SimpleNamespace(
+            input_variables={},
+            conversation_id=2054,
+        ),
+        agent=SimpleNamespace(id=15),
+    )
+
+    assert result.output == page_summary
+    assert io.call_history == []
+    assert not any(
+        call.get("breach_retry_result") == "normal_follow_up_round"
+        for call in io.call_history
+    )
+    assert not any(
+        event.kind == "turn.round_started"
+        and event.data.get("round_kind") == "normal_follow_up_round"
+        for event in state.turn_events
+    )
+    assert state.intent_plan[0].status == "completed"
+    assert state.intent_plan[0].cached_result == page_summary
+
+
+@pytest.mark.asyncio
+async def test_turn_executor_reads_main_region_first_for_page_summary() -> (
+    None
+):
+    core_summary = (
+        "页面主体：健康状态；操作：运行时巡检、运行时冒烟、运行时能力、刷新；"
+        "输入：Agent ID（可选）。"
+    )
+    tools = [
+        ToolDefinition(name="ui_get_snapshot", description="Read page"),
+        ToolDefinition(name="ui_read_region", description="Read region"),
+        ToolDefinition(name="ui_read_table", description="Read table"),
+    ]
+    intents = [
+        IntentPlan(
+            intent_id="intent-page-summary",
+            kind="page_workflow",
+            family="page_ops",
+            order=1,
+            user_visible_label="page_summary",
+            source_text="这个页面的内容给我说一下",
+            shortcircuit=True,
+            allowed_tool_names=[
+                "ui_get_snapshot",
+                "ui_read_region",
+                "ui_read_table",
+            ],
+            preferred_tool_names=[
+                "ui_get_snapshot",
+                "ui_read_region",
+                "ui_read_table",
+            ],
+            completion_signals=["ui_read_region", "ui_read_table"],
+            metadata={"page_workflow_goal": "page_summary"},
+        )
+    ]
+    prep = _build_prep(
+        tools=tools,
+        intents=intents,
+        tool_use_policy=ToolUsePolicy(
+            family="page_ops",
+            mode="required",
+            allowed_tool_names=[tool.name for tool in tools],
+            retry_on_contract_breach=False,
+            reason="page_summary",
+        ),
+    )
+    prep.messages = [
+        ChatMessage(role="user", content="这个页面的内容给我说一下"),
+    ]
+    state = ExecutionStateMachine.from_prepared_execution(prep)
+    io = _FakeIOAdapter(
+        model_rounds=[],
+        tool_batches=[
+            ToolBatchResult(
+                response=None,
+                tool_results=[
+                    ToolResult(
+                        tool_call_id="call_main_region",
+                        name="ui_read_region",
+                        success=True,
+                        summary=core_summary,
+                        output=core_summary,
+                    )
+                ],
+                total_tokens=7,
+                completion_tokens_used=7,
+            ),
+        ],
+    )
+
+    result = await TurnExecutor.run(
+        state=state,
+        io=io,
+        prep=prep,
+        request=SimpleNamespace(
+            input_variables={
+                "page_context": {
+                    "page_key": "admin.ai.monitor.health",
+                    "page_session_id": "page-session-1",
+                    "ui_epoch": 17,
+                },
+            },
+            conversation_id=2130,
+        ),
+        agent=SimpleNamespace(id=15),
+    )
+
+    assert result.output == core_summary
+    assert io.call_history == []
+    assert len(io.tool_call_history) == 1
+    synthetic_response = io.tool_call_history[0]["response"]
+    synthetic_tool_calls = list(getattr(synthetic_response, "tool_calls", []) or [])
+    assert synthetic_tool_calls[0]["function"]["name"] == "ui_read_region"
+    synthetic_args = json.loads(synthetic_tool_calls[0]["function"]["arguments"])
+    assert synthetic_args == {"locator": "main"}
+    assert state.intent_plan[0].status == "completed"
+    assert state.intent_plan[0].cached_result == core_summary
+
+
+@pytest.mark.asyncio
+async def test_turn_executor_completes_page_summary_from_builtin_snapshot_without_provider_call() -> (
+    None
+):
+    tools = [ToolDefinition(name="ui_get_snapshot", description="Read page")]
+    intents = [
+        IntentPlan(
+            intent_id="intent-page-summary",
+            kind="page_workflow",
+            family="page_ops",
+            order=1,
+            user_visible_label="page_summary",
+            source_text="这个健康状态页面主内容在展示什么？",
+            shortcircuit=True,
+            allowed_tool_names=["ui_get_snapshot", "ui_read_region", "ui_read_table"],
+            preferred_tool_names=["ui_get_snapshot", "ui_read_region", "ui_read_table"],
+            completion_signals=["ui_read_region", "ui_read_table"],
+            metadata={"page_workflow_goal": "page_summary"},
+        )
+    ]
+    prep = _build_prep(
+        tools=tools,
+        intents=intents,
+        tool_use_policy=ToolUsePolicy(
+            family="page_ops",
+            mode="required",
+            allowed_tool_names=["ui_get_snapshot"],
+            retry_on_contract_breach=False,
+            reason="page_summary",
+        ),
+    )
+    state = ExecutionStateMachine.from_prepared_execution(prep)
+    io = _FakeIOAdapter(
+        model_rounds=[],
+        tool_batch=ToolBatchResult(
+            response=None,
+            tool_results=[
+                ToolResult(
+                    tool_call_id="call_snapshot",
+                    name="ui_get_snapshot",
+                    success=True,
+                    output=json.dumps(
+                        {
+                            "ui_epoch": 17,
+                            "nodes": [
+                                {
+                                    "id": "#__vben_main_content",
+                                    "summary": (
+                                        "页面主体：健康状态；操作：运行时巡检、"
+                                        "运行时冒烟、运行时能力、刷新；"
+                                        "输入：Agent ID（可选）。"
+                                    ),
+                                }
+                            ],
+                        },
+                        ensure_ascii=False,
+                    ),
+                )
+            ],
+            total_tokens=7,
+            completion_tokens_used=7,
+        ),
+    )
+
+    result = await TurnExecutor.run(
+        state=state,
+        io=io,
+        prep=prep,
+        request=SimpleNamespace(
+            input_variables={},
+            conversation_id=2181,
+        ),
+        agent=SimpleNamespace(id=15),
+    )
+
+    assert io.call_history == []
+    assert len(io.tool_call_history) == 1
+    synthetic_response = io.tool_call_history[0]["response"]
+    synthetic_tool_calls = list(getattr(synthetic_response, "tool_calls", []) or [])
+    assert synthetic_tool_calls[0]["function"]["name"] == "ui_get_snapshot"
+    assert result.partial is False
+    assert "运行时巡检" in result.output
+    assert "Agent ID" in result.output
+    assert state.intent_plan[0].status == "completed"
+    assert state.intent_plan[0].completed_by_tool_names == ["ui_get_snapshot"]
+    assert state.intent_plan[0].metadata["page_summary_snapshot_completed"] is True
+
+
+@pytest.mark.asyncio
+async def test_finalize_promotes_budgeted_page_summary_when_snapshot_has_main_content() -> (
+    None
+):
+    tools = [ToolDefinition(name="ui_get_snapshot", description="Read page")]
+    intent = IntentPlan(
+        intent_id="intent-page-summary",
+        kind="page_workflow",
+        family="page_ops",
+        order=1,
+        user_visible_label="page_summary",
+        source_text="这个健康状态页面主内容在展示什么？",
+        shortcircuit=True,
+        allowed_tool_names=["ui_get_snapshot", "ui_read_region", "ui_read_table"],
+        preferred_tool_names=["ui_get_snapshot", "ui_read_region", "ui_read_table"],
+        completion_signals=["ui_read_region", "ui_read_table"],
+        metadata={"page_workflow_goal": "page_summary"},
+    )
+    prep = _build_prep(
+        tools=tools,
+        intents=[intent],
+        tool_use_policy=ToolUsePolicy(
+            family="page_ops",
+            mode="required",
+            allowed_tool_names=["ui_get_snapshot"],
+            retry_on_contract_breach=False,
+            reason="page_summary",
+        ),
+    )
+    state = ExecutionStateMachine.from_prepared_execution(prep)
+    io = _FakeIOAdapter(model_rounds=[])
+    snapshot_output = json.dumps(
+        {
+            "ui_epoch": 17,
+            "nodes": [
+                {
+                    "id": "#__vben_main_content",
+                    "summary": (
+                        "页面主体：健康状态；操作：运行时巡检、运行时冒烟、"
+                        "运行时能力、刷新；输入：Agent ID（可选）。"
+                    ),
+                }
+            ],
+            "interactables_count": 4,
+        },
+        ensure_ascii=False,
+    )
+
+    (
+        output,
+        partial,
+        paused_for_consent,
+        completion_reason,
+        final_output_source,
+        _total_tokens,
+        _completion_tokens_used,
+        response,
+    ) = await finalize_turn_execution(
+        state=state,
+        io=io,
+        messages=[ChatMessage(role="user", content=intent.source_text)],
+        response=ChatResponse(message=ChatMessage(role="assistant", content="")),
+        decision=RecoveryDecision(
+            action="return_partial",
+            target_intent_id="intent-page-summary",
+            unfinished_intent_ids=["intent-page-summary"],
+            reason="tool_result_budget_exceeded",
+            provider_failure_kind="budget_exit",
+        ),
+        tool_results=[
+            ToolResult(
+                tool_call_id="call_snapshot",
+                name="ui_get_snapshot",
+                success=True,
+                output=snapshot_output,
+            )
+        ],
+        total_tokens=7,
+        completion_tokens_used=7,
+        ran_post_tool_follow_up=False,
+        emit_round_started_cb=lambda *_args, **_kwargs: None,
+    )
+
+    assert partial is False
+    assert paused_for_consent is False
+    assert completion_reason == "completed"
+    assert final_output_source == "assistant"
+    assert "运行时巡检" in output
+    assert "Agent ID" in output
+    assert response.message.content == output
+    assert state.intent_plan[0].status == "completed"
+    assert state.intent_plan[0].completed_by_tool_names == ["ui_get_snapshot"]
+    assert (
+        state.intent_plan[0].metadata["budgeted_page_summary_snapshot_completed"]
+        is True
+    )
+
+
+@pytest.mark.asyncio
+async def test_turn_executor_synthesizes_editor_read_when_required_tool_is_missing() -> (
+    None
+):
+    editor_text = "Q2 smoke rich text content: NovusAI page runtime editor_ops proof."
+    tools = [ToolDefinition(name="editor_ops", description="Editor operations")]
+    intents = [
+        IntentPlan(
+            intent_id="intent-editor-read",
+            kind="page_workflow",
+            family="page_ops",
+            order=1,
+            user_visible_label="page_workflow",
+            source_text="这个编辑器里现在写了什么？",
+            shortcircuit=False,
+            allowed_tool_names=["editor_ops"],
+            preferred_tool_names=["editor_ops"],
+            completion_signals=["editor_ops"],
+            metadata={"page_workflow_goal": "editor_read"},
+        )
+    ]
+    prep = _build_prep(
+        tools=tools,
+        intents=intents,
+        tool_use_policy=ToolUsePolicy(
+            family="page_ops",
+            mode="required",
+            allowed_tool_names=["editor_ops"],
+            retry_on_contract_breach=False,
+            reason="editor_read",
+        ),
+    )
+    prep.messages = [ChatMessage(role="user", content="这个编辑器里现在写了什么？")]
+    state = ExecutionStateMachine.from_prepared_execution(prep)
+    io = _FakeIOAdapter(
+        model_rounds=[_assistant_response("我需要读取编辑器。")],
+        tool_batches=[
+            ToolBatchResult(
+                response=None,
+                tool_results=[
+                    ToolResult(
+                        tool_call_id="call_editor_read",
+                        name="editor_ops",
+                        success=True,
+                        summary="HTML 内容已获取（73 个字符）",
+                        summary_payload={
+                            "html": f"<p>{editor_text}</p>",
+                            "text": editor_text,
+                            "revision": 0,
+                            "word_count": 10,
+                        },
+                        output=json.dumps(
+                            {
+                                "html": f"<p>{editor_text}</p>",
+                                "text": editor_text,
+                                "revision": 0,
+                                "word_count": 10,
+                            },
+                            ensure_ascii=False,
+                        ),
+                    )
+                ],
+                total_tokens=9,
+                completion_tokens_used=9,
+            )
+        ],
+    )
+
+    result = await TurnExecutor.run(
+        state=state,
+        io=io,
+        prep=prep,
+        request=SimpleNamespace(
+            input_variables={
+                "page_context": {
+                    "page_session_id": "page-session-editor",
+                    "active_surface_id": "rich-text-editor",
+                    "surface_stack": [
+                        {"id": "rich-text-editor", "kind": "rich-text-editor"}
+                    ],
+                }
+            },
+            conversation_id=2166,
+        ),
+        agent=SimpleNamespace(id=55),
+    )
+
+    assert result.output == editor_text
+    assert len(io.call_history) == 1
+    assert len(io.tool_call_history) == 1
+    synthetic_response = io.tool_call_history[0]["response"]
+    synthetic_tool_calls = list(getattr(synthetic_response, "tool_calls", []) or [])
+    assert synthetic_tool_calls[0]["function"]["name"] == "editor_ops"
+    assert json.loads(synthetic_tool_calls[0]["function"]["arguments"]) == {
+        "operation_name": "read_body"
+    }
+    assert state.intent_plan[0].status == "completed"
+    assert state.intent_plan[0].completed_by_tool_names == ["editor_ops"]
+    assert state.intent_plan[0].cached_result == editor_text
+
+
+@pytest.mark.asyncio
+async def test_turn_executor_skips_post_tool_follow_up_for_completed_editor_write() -> (
+    None
+):
+    editor_result = "已在编辑器光标处插入续写内容。"
+    tools = [ToolDefinition(name="editor_ops", description="Editor operations")]
+    intents = [
+        IntentPlan(
+            intent_id="intent-editor-write",
+            kind="page_workflow",
+            family="page_ops",
+            order=1,
+            user_visible_label="page_workflow",
+            source_text="帮我把编辑器里的内容继续往下写",
+            shortcircuit=False,
+            allowed_tool_names=["editor_ops"],
+            preferred_tool_names=["editor_ops"],
+            completion_signals=["editor_ops"],
+            metadata={
+                "page_workflow_goal": "editor_write",
+                "page_workflow_stage": "edit_active_editor",
+                "page_workflow_phase": "write",
+                "page_workflow_completion": {
+                    "mode": "verify_only",
+                    "completion_signals": ["editor_ops"],
+                    "action_signals": [],
+                    "verify_signals": ["editor_ops"],
+                },
+            },
+        )
+    ]
+    prep = _build_prep(
+        tools=tools,
+        intents=intents,
+        tool_use_policy=ToolUsePolicy(
+            family="page_ops",
+            mode="required",
+            allowed_tool_names=["editor_ops"],
+            retry_on_contract_breach=False,
+            reason="editor_write",
+        ),
+    )
+    prep.messages = [
+        ChatMessage(role="user", content="帮我把编辑器里的内容继续往下写"),
+    ]
+    state = ExecutionStateMachine.from_prepared_execution(prep)
+    io = _FakeIOAdapter(
+        model_rounds=[
+            _assistant_response(
+                "",
+                tool_calls=[
+                    {
+                        "id": "call_editor_insert",
+                        "type": "function",
+                        "function": {
+                            "name": "editor_ops",
+                            "arguments": json.dumps(
+                                {
+                                    "operation_name": "insert_at_cursor",
+                                    "text": "续写内容：运行时已经连接到内置编辑器。",
+                                },
+                                ensure_ascii=False,
+                            ),
+                        },
+                    }
+                ],
+            )
+        ],
+        tool_batches=[
+            ToolBatchResult(
+                response=None,
+                tool_results=[
+                    ToolResult(
+                        tool_call_id="call_editor_insert",
+                        name="editor_ops",
+                        success=True,
+                        summary=editor_result,
+                        summary_payload={
+                            "operation_name": "insert_at_cursor",
+                            "message": editor_result,
+                            "revision": 2,
+                        },
+                        output=json.dumps(
+                            {
+                                "operation_name": "insert_at_cursor",
+                                "message": editor_result,
+                                "revision": 2,
+                            },
+                            ensure_ascii=False,
+                        ),
+                    )
+                ],
+                total_tokens=11,
+                completion_tokens_used=11,
+            )
+        ],
+    )
+
+    result = await TurnExecutor.run(
+        state=state,
+        io=io,
+        prep=prep,
+        request=SimpleNamespace(
+            input_variables={
+                "page_context": {
+                    "page_session_id": "page-session-editor",
+                    "active_surface_id": "rich-text-editor",
+                }
+            },
+            conversation_id=2169,
+        ),
+        agent=SimpleNamespace(id=55),
+    )
+
+    assert result.output == editor_result
+    assert len(io.call_history) == 1
+    assert len(io.tool_call_history) == 1
+    assert not any(
+        call.get("breach_retry_result") == "normal_follow_up_round"
+        for call in io.call_history
+    )
+    assert not any(
+        event.kind == "turn.round_started"
+        and event.data.get("round_kind") == "normal_follow_up_round"
+        for event in state.turn_events
+    )
+    assert state.intent_plan[0].status == "completed"
+    assert state.intent_plan[0].completed_by_tool_names == ["editor_ops"]
+    assert state.intent_plan[0].cached_result == editor_result
 
 
 @pytest.mark.asyncio
