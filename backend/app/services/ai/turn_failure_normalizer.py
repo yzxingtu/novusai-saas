@@ -750,9 +750,16 @@ def resolve_failure_projection(
     turn_flow_payload = _as_dict(turn_flow)
     turn_flow_error_surface = _as_dict(turn_flow_payload.get("error_surface"))
 
-    turn_outcome = normalize_turn_outcome(
-        payload.get("conversation_outcome") or payload.get("turn_outcome")
+    explicit_turn_outcome = normalize_turn_outcome(payload.get("turn_outcome"))
+    conversation_outcome = normalize_turn_outcome(payload.get("conversation_outcome"))
+    preserve_partial_after_failed_conversation = (
+        explicit_turn_outcome == "partial" and conversation_outcome == "failed"
     )
+    turn_outcome = conversation_outcome or explicit_turn_outcome
+    if preserve_partial_after_failed_conversation:
+        # Keep turn-level truth distinct from conversation-level closure: a
+        # failed conversation may still end with a partial assistant turn.
+        turn_outcome = "partial"
     termination_reason = _as_text(
         payload.get("termination_reason") or payload.get("completion_reason")
     )
@@ -771,7 +778,8 @@ def resolve_failure_projection(
     turn_flow_terminal_stage_type = _as_text(terminal_stage.get("type"))
     turn_flow_terminal_stage_status = _as_text(terminal_stage.get("status"))
     if turn_flow_terminal_stage_status == "error":
-        turn_outcome = "failed"
+        if not preserve_partial_after_failed_conversation:
+            turn_outcome = "failed"
         failure_kind = failure_kind or infer_failure_kind_from_diagnostics(
             turn_flow_error_surface
         )
