@@ -451,6 +451,7 @@ class UserAgentChatController(BaseController):
                 user_id=current_user.id,
                 owner_type=ConversationOwnerTypeEnum.TENANT_USER.value,
             )
+            await db.commit()
             return success(
                 data={"deleted_count": deleted_count},
                 message=_("agent_chat.memory_cleared"),

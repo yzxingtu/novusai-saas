@@ -455,6 +455,7 @@ class TenantAgentChatController(TenantController):
                 user_id=tenant_admin.id,
                 owner_type=ConversationOwnerTypeEnum.TENANT_ADMIN.value,
             )
+            await db.commit()
             return success(
                 data={"deleted_count": deleted_count},
                 message=_("agent_chat.memory_cleared"),

@@ -1099,6 +1099,48 @@ class TestConversationAccessHelpers:
         memory_svc.clear_state.assert_awaited_once_with(10)
 
     @pytest.mark.asyncio
+    async def test_clear_conversation_memory_state_removes_long_term_preview_source(
+        self,
+    ):
+        from app.services.ai.conversation_service import ConversationService
+        from app.services.ai.long_term_memory_service import LongTermMemoryService
+
+        conversation = _make_conversation(id=10, agent_id=15, user_id=1)
+        service = ConversationService.__new__(ConversationService)
+        service.db = MagicMock(spec=AsyncSession)
+        service.tenant_id = 1
+        service.repo = AsyncMock()
+        service.get_accessible_conversation = AsyncMock(return_value=conversation)
+
+        memory_svc = MagicMock()
+        memory_svc.clear_state = AsyncMock(return_value=2)
+        service._memory_state_service = memory_svc
+
+        with patch(
+            "app.services.ai.long_term_memory_service.LongTermMemoryService",
+        ) as long_term_service_cls:
+            long_term_service_cls.build_scope_key.side_effect = (
+                LongTermMemoryService.build_scope_key
+            )
+            long_term_service = long_term_service_cls.return_value
+            long_term_service.repo.delete_for_scope = AsyncMock(return_value=3)
+            long_term_service.refresh_profile_snapshot = AsyncMock(return_value=None)
+
+            result = await service.clear_conversation_memory_state(10, user_id=1)
+
+        assert result == 5
+        long_term_service_cls.assert_called_once_with(service.db, 1)
+        long_term_service.repo.delete_for_scope.assert_awaited_once_with(
+            scope_type="user_agent",
+            scope_key="user:1:agent:15",
+        )
+        long_term_service.refresh_profile_snapshot.assert_awaited_once_with(
+            agent_id=15,
+            user_id=1,
+            scope_type="user_agent",
+        )
+
+    @pytest.mark.asyncio
     async def test_global_conversation_memory_uses_zero_tenant_namespace(self, mock_db):
         from app.services.ai.conversation_service import ConversationService
 

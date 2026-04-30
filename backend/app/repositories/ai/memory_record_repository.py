@@ -4,8 +4,9 @@ Long-term memory repository / 长期记忆仓储
 
 from __future__ import annotations
 
-from sqlalchemy import and_, case, func, or_, select
+from sqlalchemy import and_, case, func, or_, select, update
 
+from app.core.base_model import utc_now
 from app.core.base_repository import TenantRepository
 from app.enums.memory import MemoryStatusEnum
 from app.models.ai.memory_record import MemoryRecord
@@ -149,6 +150,29 @@ class MemoryRecordRepository(TenantRepository[MemoryRecord]):
             )
         )
         return int(result.scalar() or 0)
+
+    async def delete_for_scope(
+        self,
+        *,
+        scope_type: str,
+        scope_key: str,
+    ) -> int:
+        now = utc_now()
+        result = await self.db.execute(
+            update(self.model)
+            .where(
+                self.model.tenant_id == self.tenant_id,
+                self.model.scope_type == scope_type,
+                self.model.scope_key == scope_key,
+                self.model.is_deleted.is_(False),
+            )
+            .values(
+                is_deleted=True,
+                deleted_at=now,
+                updated_at=now,
+            )
+        )
+        return int(result.rowcount or 0)
 
 
 __all__ = ["MemoryRecordRepository"]

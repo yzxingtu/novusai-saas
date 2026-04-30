@@ -348,12 +348,49 @@ class ConversationService(
         user_id: int | None = None,
         owner_type: str | None = None,
     ) -> int:
-        await self.get_accessible_conversation(
+        conversation = await self.get_accessible_conversation(
             conversation_id,
             user_id=user_id,
             owner_type=owner_type,
         )
-        return await self.memory_state_service.clear_state(conversation_id)
+        session_deleted = await self.memory_state_service.clear_state(conversation_id)
+        long_term_deleted = await self._clear_long_term_memory_scope(conversation)
+        return session_deleted + long_term_deleted
+
+    async def _clear_long_term_memory_scope(
+        self,
+        conversation: AgentConversation,
+    ) -> int:
+        agent_id = int(getattr(conversation, "agent_id", 0) or 0)
+        conversation_user_id = int(getattr(conversation, "user_id", 0) or 0)
+        if not agent_id or not conversation_user_id:
+            return 0
+        if not isinstance(getattr(self, "db", None), AsyncSession):
+            return 0
+
+        from app.enums.memory import MemoryScopeTypeEnum
+        from app.services.ai.long_term_memory_service import LongTermMemoryService
+
+        scope_type = MemoryScopeTypeEnum.USER_AGENT.value
+        scope_key = LongTermMemoryService.build_scope_key(
+            scope_type,
+            agent_id=agent_id,
+            user_id=conversation_user_id,
+        )
+        service = LongTermMemoryService(
+            self.db,
+            self._get_memory_tenant_id(),
+        )
+        deleted_count = await service.repo.delete_for_scope(
+            scope_type=scope_type,
+            scope_key=scope_key,
+        )
+        await service.refresh_profile_snapshot(
+            agent_id=agent_id,
+            user_id=conversation_user_id,
+            scope_type=scope_type,
+        )
+        return deleted_count
 
     # ========================================
     # 搜索 / Search

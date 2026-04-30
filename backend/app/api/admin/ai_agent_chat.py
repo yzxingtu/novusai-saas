@@ -418,6 +418,7 @@ class AdminAgentChatController(GlobalController):
                 user_id=admin.id,
                 owner_type=ConversationOwnerTypeEnum.PLATFORM_ADMIN.value,
             )
+            await db.commit()
             return success(data={"deleted_count": deleted_count})
 
         @router.post(
