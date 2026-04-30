@@ -41,11 +41,11 @@ class StorageMigrationPlugin(PluginBase):
             if result.rowcount > 0:
                 await db.commit()
                 logger.info(
-                    "Recovered %d interrupted migration task(s)",
+                    "Recovered {} interrupted migration task(s)",
                     result.rowcount,
                 )
         except Exception as exc:
-            logger.warning("Failed to recover migration tasks: %s", exc)
+            logger.warning("Failed to recover migration tasks: {}", exc)
 
     async def on_disable(self, ctx) -> None:
         ctx.get_logger().info("Storage migration plugin disabled")

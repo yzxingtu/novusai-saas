@@ -37,6 +37,7 @@ else:
 
 class OssStorageDriver(StorageDriver):
     """Alibaba Cloud OSS storage driver (V2 SDK edition) / 说明"""
+
     name = "aliyun-oss"
     display_name = "storage.driver.aliyun_oss"
     config_schema = {
@@ -158,18 +159,20 @@ class OssStorageDriver(StorageDriver):
 
                 acl = "public-read" if visibility == StorageVisibility.PUBLIC else None
 
-                self.client.put_object(oss.PutObjectRequest(
-                    bucket=self.bucket_name,
-                    key=key,
-                    body=tmp,
-                    content_type=final_mime_type,
-                    acl=acl,
-                    metadata=meta_dict,
-                ))
+                self.client.put_object(
+                    oss.PutObjectRequest(
+                        bucket=self.bucket_name,
+                        key=key,
+                        body=tmp,
+                        content_type=final_mime_type,
+                        acl=acl,
+                        metadata=meta_dict,
+                    )
+                )
             return size, hasher.hexdigest()
 
         size, file_hash = await anyio.to_thread.run_sync(_upload)
-        self.logger.debug("put %s (%d bytes)", path, size)
+        self.logger.debug("put {} ({} bytes)", path, size)
         return UploadResult(
             path=path,
             url=await self.get_url(path, visibility=visibility),
@@ -184,10 +187,12 @@ class OssStorageDriver(StorageDriver):
 
         def _get() -> BinaryIO:
             try:
-                result = self.client.get_object(oss.GetObjectRequest(
-                    bucket=self.bucket_name,
-                    key=key,
-                ))
+                result = self.client.get_object(
+                    oss.GetObjectRequest(
+                        bucket=self.bucket_name,
+                        key=key,
+                    )
+                )
                 data = result.body.content
                 return io.BytesIO(data)
             except oss.exceptions.OperationError as exc:
@@ -203,16 +208,18 @@ class OssStorageDriver(StorageDriver):
 
         def _delete() -> bool:
             try:
-                self.client.delete_object(oss.DeleteObjectRequest(
-                    bucket=self.bucket_name,
-                    key=key,
-                ))
+                self.client.delete_object(
+                    oss.DeleteObjectRequest(
+                        bucket=self.bucket_name,
+                        key=key,
+                    )
+                )
             except oss.exceptions.OperationError as exc:
                 raise StorageError(message=str(exc)) from exc
             return True
 
         result = await anyio.to_thread.run_sync(_delete)
-        self.logger.debug("delete %s", path)
+        self.logger.debug("delete {}", path)
         return result
 
     async def exists(self, path: str) -> bool:
@@ -259,10 +266,12 @@ class OssStorageDriver(StorageDriver):
 
         def _head() -> FileInfo | None:
             try:
-                result = self.client.head_object(oss.HeadObjectRequest(
-                    bucket=self.bucket_name,
-                    key=key,
-                ))
+                result = self.client.head_object(
+                    oss.HeadObjectRequest(
+                        bucket=self.bucket_name,
+                        key=key,
+                    )
+                )
             except oss.exceptions.OperationError:
                 return None
 
@@ -288,25 +297,29 @@ class OssStorageDriver(StorageDriver):
         src_key = self._key(source)
         dst_key = self._key(destination)
         source_info = await self.get_info(source)
-        acl = "public-read" if (
-            source_info and source_info.visibility == StorageVisibility.PUBLIC
-        ) else None
+        acl = (
+            "public-read"
+            if (source_info and source_info.visibility == StorageVisibility.PUBLIC)
+            else None
+        )
 
         def _copy() -> bool:
             try:
-                self.client.copy_object(oss.CopyObjectRequest(
-                    bucket=self.bucket_name,
-                    key=dst_key,
-                    source_bucket=self.bucket_name,
-                    source_key=src_key,
-                    acl=acl,
-                ))
+                self.client.copy_object(
+                    oss.CopyObjectRequest(
+                        bucket=self.bucket_name,
+                        key=dst_key,
+                        source_bucket=self.bucket_name,
+                        source_key=src_key,
+                        acl=acl,
+                    )
+                )
             except oss.exceptions.OperationError as exc:
                 raise StorageError(message=str(exc)) from exc
             return True
 
         result = await anyio.to_thread.run_sync(_copy)
-        self.logger.debug("copy %s -> %s", source, destination)
+        self.logger.debug("copy {} -> {}", source, destination)
         return result
 
     async def move(self, source: str, destination: str) -> bool:
@@ -387,6 +400,7 @@ class OssStorageDriver(StorageDriver):
         if params.is_empty():
             return None
         from app.utils.image import ImageProcessor
+
         source = await self.get(path)
         return await ImageProcessor.process(source, params)
 

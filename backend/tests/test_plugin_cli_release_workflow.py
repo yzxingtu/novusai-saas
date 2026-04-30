@@ -18,7 +18,7 @@ _SCRIPTS_DIR = Path(__file__).resolve().parents[1] / "scripts"
 if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
-import plugin_cli as pc
+import plugin_cli as pc  # noqa: E402
 
 
 def _write_plugin(
@@ -269,8 +269,14 @@ def test_cmd_validate_rejects_unsupported_manifest_contract_overlay_fields(
     assert exc.value.code == 1
     out = capsys.readouterr().out
     assert "extensions.capabilities is not part of the current manifest schema" in out
-    assert "extensions.skills[0].capabilities is not part of the current manifest schema" in out
-    assert "extensions.skills[0].skill_md_path is not part of the current manifest schema" in out
+    assert (
+        "extensions.skills[0].capabilities is not part of the current manifest schema"
+        in out
+    )
+    assert (
+        "extensions.skills[0].skill_md_path is not part of the current manifest schema"
+        in out
+    )
 
 
 def test_cmd_validate_warns_when_frontend_titles_are_missing_required_locales(
@@ -425,7 +431,10 @@ export const DemoPage = {};
 
     assert exc.value.code == 1
     out = capsys.readouterr().out
-    assert "frontend registerLocale() should use canonical prefix 'plugin.demo-plugin'" in out
+    assert (
+        "frontend registerLocale() should use canonical prefix 'plugin.demo-plugin'"
+        in out
+    )
     assert "plugin.demoPlugin" in out
 
 
@@ -725,14 +734,16 @@ def test_cmd_build_rejects_release_manifest_path_traversal(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     plugin_dir = _write_plugin(tmp_path, with_release=False)
-    manifest_data = yaml.safe_load((plugin_dir / "plugin.yaml").read_text(encoding="utf-8"))
+    manifest_data = yaml.safe_load(
+        (plugin_dir / "plugin.yaml").read_text(encoding="utf-8")
+    )
     manifest_data["extensions"]["frontend"]["release"]["manifest"] = "../escape.json"
     (plugin_dir / "plugin.yaml").write_text(
         yaml.safe_dump(manifest_data, allow_unicode=True, sort_keys=False),
         encoding="utf-8",
     )
 
-    monkeypatch.setattr(pc.subprocess, "run", lambda *args, **kwargs: None)
+    monkeypatch.setattr(pc.subprocess, "run", lambda *_args, **_kwargs: None)
 
     with pytest.raises(SystemExit) as exc:
         pc.cmd_build(SimpleNamespace(dir=str(plugin_dir)))
@@ -867,7 +878,9 @@ def test_cmd_create_minimal_generates_manifest_valid_plugin_yaml(
     assert manifest.dependencies.plugins == []
 
 
-def test_cmd_pack_release_requires_release_assets(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_cmd_pack_release_requires_release_assets(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     plugin_dir = _write_plugin(tmp_path, with_release=True)
     css_path = plugin_dir / "frontend" / "dist" / "assets" / "style.css"
     css_path.unlink()
@@ -888,7 +901,9 @@ def test_cmd_pack_release_requires_release_assets(tmp_path: Path, capsys: pytest
     assert "Frontend release css missing" in out
 
 
-def test_cmd_pack_rejects_invalid_plugin_name(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_cmd_pack_rejects_invalid_plugin_name(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     plugin_dir = _write_plugin(tmp_path, with_release=True)
     manifest_path = plugin_dir / "plugin.yaml"
     manifest_data = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
@@ -913,7 +928,9 @@ def test_cmd_pack_rejects_invalid_plugin_name(tmp_path: Path, capsys: pytest.Cap
     assert "Plugin name must be lowercase kebab-case" in out
 
 
-def test_generate_release_manifest_rejects_escaping_manifest_name(tmp_path: Path) -> None:
+def test_generate_release_manifest_rejects_escaping_manifest_name(
+    tmp_path: Path,
+) -> None:
     plugin_dir = _write_plugin(tmp_path, with_release=True)
 
     with pytest.raises(RuntimeError) as exc:

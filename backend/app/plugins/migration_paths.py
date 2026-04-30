@@ -5,7 +5,6 @@ Plugin-aware Alembic migration path helpers.
 
 from __future__ import annotations
 
-import logging
 import os
 import re
 from collections.abc import Iterable
@@ -13,7 +12,9 @@ from pathlib import Path
 
 from sqlalchemy import create_engine, text
 
-logger = logging.getLogger(__name__)
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
 _REVISION_PATTERN = re.compile(r"""^\s*revision\s*=\s*["']([^"']+)["']\s*$""")
 
 
@@ -69,7 +70,7 @@ def get_db_registered_plugin_names(*, db_url: str | None = None) -> list[str]:
         }
         return sorted(names)
     except Exception as exc:
-        logger.debug("Cannot resolve DB-registered plugins for migrations: %s", exc)
+        logger.debug("Cannot resolve DB-registered plugins for migrations: {}", exc)
         return []
     finally:
         engine.dispose()
@@ -94,7 +95,7 @@ def get_alembic_version_nums(*, db_url: str | None = None) -> set[str]:
             str(row[0]).strip() for row in rows if row and str(row[0] or "").strip()
         }
     except Exception as exc:
-        logger.debug("Cannot resolve stamped alembic revisions for migrations: %s", exc)
+        logger.debug("Cannot resolve stamped alembic revisions for migrations: {}", exc)
         return set()
     finally:
         engine.dispose()
@@ -137,7 +138,7 @@ def resolve_plugin_revision_ids(
                 encoding="utf-8", errors="ignore"
             ).splitlines()
         except Exception as exc:
-            logger.debug("Cannot read migration script %s: %s", script_path, exc)
+            logger.debug("Cannot read migration script {}: {}", script_path, exc)
             continue
         for line in lines[:80]:
             match = _REVISION_PATTERN.match(line)
@@ -269,7 +270,7 @@ def purge_migration_bytecode(
                 continue
             except Exception as exc:
                 logger.debug(
-                    "Cannot remove migration bytecode %s: %s",
+                    "Cannot remove migration bytecode {}: {}",
                     cached_file,
                     exc,
                 )

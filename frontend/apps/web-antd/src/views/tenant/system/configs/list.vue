@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { ConfigFormExpose } from '#/components/business/config-form/types';
 import type { ConfigGroupListItemMeta, ConfigItemMeta } from '#/types/config';
 
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
@@ -29,7 +30,7 @@ const configs = ref<ConfigItemMeta[]>([]);
 const loading = ref(false);
 const groupLoading = ref(false);
 const saving = ref(false);
-const formRef = ref<any>();
+const formRef = ref<ConfigFormExpose>();
 
 // Currently selected group data / 当前选中的分组数据
 const activeGroupData = computed(() =>
@@ -144,6 +145,7 @@ async function onSave() {
     return;
   }
   const payload = formRef.value?.prepareSubmitData();
+  if (!payload) return;
   saving.value = true;
   try {
     await updateTenantConfigGroupApi(activeGroup.value, payload, {

@@ -4,27 +4,28 @@ from __future__ import annotations
 
 import html
 import json
-import logging
 import re
 from io import BytesIO
 from urllib.parse import quote
 
 from starlette.responses import Response
 
+from app.core.logging import get_logger
+
 from .documents import _resolve_tenant_id
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Emoji/symbol ranges that xhtml2pdf/reportlab often cannot render / 表情与符号区间（PDF 难渲染）
 _EMOJI_PATTERN = (
     "["
-    "\U0001F1E0-\U0001F1FF"  # flags / 旗帜区
-    "\U0001F300-\U0001F5FF"  # symbols & pictographs / 符号与象形
-    "\U0001F600-\U0001F64F"  # emoticons / 表情
-    "\U0001F680-\U0001F6FF"  # transport & map symbols / 交通与地图符号
-    "\U0001F700-\U0001F77F"  # alchemical symbols / 炼金符号
-    "\U0001F900-\U0001F9FF"  # supplemental symbols / 补充符号
-    "\U00002702-\U000027B0"  # dingbats / 装饰符号
+    "\U0001f1e0-\U0001f1ff"  # flags / 旗帜区
+    "\U0001f300-\U0001f5ff"  # symbols & pictographs / 符号与象形
+    "\U0001f600-\U0001f64f"  # emoticons / 表情
+    "\U0001f680-\U0001f6ff"  # transport & map symbols / 交通与地图符号
+    "\U0001f700-\U0001f77f"  # alchemical symbols / 炼金符号
+    "\U0001f900-\U0001f9ff"  # supplemental symbols / 补充符号
+    "\U00002702-\U000027b0"  # dingbats / 装饰符号
     "]+"
 )
 
@@ -81,7 +82,7 @@ def _html_to_pdf(html_content: str, title: str) -> bytes:
     pisa_status = pisa.CreatePDF(wrapped, dest=out, encoding="utf-8")
     if pisa_status.err:
         err_detail = getattr(pisa_status, "log", None) or str(pisa_status)
-        logger.warning("xhtml2pdf CreatePDF err=True: %s", err_detail)
+        logger.warning("xhtml2pdf CreatePDF err=True: {}", err_detail)
         raise RuntimeError("PDF generation failed")  # noqa: TRY003
     return out.getvalue()
 
@@ -93,6 +94,7 @@ async def export_doc(request, db, ctx):
     fmt = request.query_params.get("format", "html")
 
     from ..services.document_service import get_document
+
     doc = await get_document(db, tenant_id, doc_id)
     if not doc:
         return {"error": "Document not found", "status_code": 404}
@@ -106,32 +108,50 @@ async def export_doc(request, db, ctx):
         return Response(
             content=text,
             media_type="text/markdown; charset=utf-8",
-            headers={"Content-Disposition": _content_disposition_attachment(f"{safe_title}.md")},
+            headers={
+                "Content-Disposition": _content_disposition_attachment(
+                    f"{safe_title}.md"
+                )
+            },
         )
 
     if fmt == "pdf":
-        html_raw = doc.get("content_html") or f"<h1>{title}</h1><p>{doc.get('content_text', '')}</p>"
+        html_raw = (
+            doc.get("content_html")
+            or f"<h1>{title}</h1><p>{doc.get('content_text', '')}</p>"
+        )
         try:
             pdf_bytes = _html_to_pdf(html_raw, title)
         except Exception as exc:
-            logger.exception("PDF export failed for doc %s: %s", doc_id, exc)
+            logger.exception("PDF export failed for doc {}: {}", doc_id, exc)
             return Response(
-                content=json.dumps({
-                    "error": "PDF export failed. Try HTML or Markdown format.",
-                    "detail": str(exc)[:200],
-                }),
+                content=json.dumps(
+                    {
+                        "error": "PDF export failed. Try HTML or Markdown format.",
+                        "detail": str(exc)[:200],
+                    }
+                ),
                 media_type="application/json",
                 status_code=500,
             )
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",
-            headers={"Content-Disposition": _content_disposition_attachment(f"{safe_title}.pdf")},
+            headers={
+                "Content-Disposition": _content_disposition_attachment(
+                    f"{safe_title}.pdf"
+                )
+            },
         )
 
-    html_content = doc.get("content_html") or f"<h1>{title}</h1><p>{doc.get('content_text', '')}</p>"
+    html_content = (
+        doc.get("content_html")
+        or f"<h1>{title}</h1><p>{doc.get('content_text', '')}</p>"
+    )
     return Response(
         content=html_content,
         media_type="text/html; charset=utf-8",
-        headers={"Content-Disposition": _content_disposition_attachment(f"{safe_title}.html")},
+        headers={
+            "Content-Disposition": _content_disposition_attachment(f"{safe_title}.html")
+        },
     )

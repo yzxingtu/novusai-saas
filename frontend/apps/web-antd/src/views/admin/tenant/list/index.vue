@@ -158,7 +158,7 @@ async function onImpersonate(row: TenantInfo) {
       key: 'impersonate_tenant',
     });
     const targetUrl = `${getTenantOrigin(row.primaryDomain.domain)}/tenant/impersonate?token=${encodeURIComponent(result.impersonateToken)}`;
-    window.open(targetUrl, '_blank');
+    window.open(targetUrl, '_blank', 'noopener,noreferrer');
   } catch {
     hideLoading();
     message.error({

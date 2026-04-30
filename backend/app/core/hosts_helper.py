@@ -163,14 +163,6 @@ def _extract_managed_domains(line: str) -> list[str]:
     return domains
 
 
-def _has_entry(lines: list[str], domain: str) -> bool:
-    """检查域名是否已存在于任意 hosts 条目中（大小写不敏感） / Check whether the domain exists in any hosts entry, case-insensitively"""
-    return _inspect_entry(lines, domain)["status"] in {
-        "managed_present",
-        "manual_present",
-    }
-
-
 def _inspect_entry(lines: list[str], domain: str) -> HostEntryStatus:
     """在已读取的 hosts 行中检查域名状态 / Inspect the domain state from already loaded hosts lines"""
     normalized_domain = _normalize_domain(domain)

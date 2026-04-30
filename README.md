@@ -30,14 +30,14 @@ Multi-tenant, AI-native SaaS platform with **platform admin**, **tenant**, and *
 
 ## Overview
 
-NovusAI SaaS is a **monorepo**: [`backend`](backend) (FastAPI), [`frontend`](frontend) (Vben Admin monorepo), [`docs`](docs), and [`.cursor`](.cursor) (editor rules and skills for contributors and automation). Three UI surfaces share patterns but **must not cross-import** business modules between admin, tenant, and user.
+NovusAI SaaS is a **monorepo**: [`backend`](backend) (FastAPI), [`frontend`](frontend) (Vben Admin monorepo), [`docs`](docs), [`.trellis`](.trellis) (canonical workflow/spec entry), and [`.cursor`](.cursor) (editor compatibility rules and skills). Three UI surfaces share patterns but **must not cross-import** business modules between admin, tenant, and user.
 
 | Area | Notes |
 |------|--------|
 | **Surfaces** | `admin` / `tenant` / `user` — separate routes and API namespaces. |
-| **AI** | Business AI uses **Agent → Skill → AIGateway**; RAG, session memory, page tools, and routing are documented under `.cursor`. |
+| **AI** | Business AI uses **Agent → Skill → AIGateway**; current runtime contracts live under `.trellis/spec/ai-runtime/`. |
 | **Data** | JSON:API-style `filter` / `sort` / `page`; tenant isolation and data permissions in services and RBAC. |
-| **Realtime** | Celery for async work; Socket.IO for notifications, typing, and page-operation channels. |
+| **Realtime** | Celery for async work; Socket.IO for notifications and tenant/user/admin realtime channels. |
 | **Extensibility** | Plugins under `backend/plugins/`; CRUD codegen and rollback via root [`codegen_manifest.json`](codegen_manifest.json). |
 
 ## Architecture
@@ -87,12 +87,11 @@ novusai-saas-yudi/
 ├── frontend/                # pnpm + Turbo monorepo
 │   ├── apps/web-antd/       # Main NovusAI app (admin / tenant / user)
 │   └── packages/
-├── deploy/                  # Deployment-related assets (when present)
 ├── docs/                    # Guides, audits, design notes
-├── scripts/
 ├── shared/
+├── .trellis/                # Canonical workflow, specs, and task records
 ├── .cursor/
-│   ├── rules/               # Architecture, AI, plugins, RBAC, migrations, …
+│   ├── rules/               # Editor compatibility rules
 │   └── skills/              # Topic skills for agents and developers
 ├── codegen_manifest.json    # Codegen rollback manifest (may be empty)
 ├── docker-compose.dev.yml   # Dev PostgreSQL + Redis
@@ -106,7 +105,7 @@ novusai-saas-yudi/
 ## Prerequisites
 
 - **Python** 3.10+ ([`backend/pyproject.toml`](backend/pyproject.toml))
-- **Node.js** 18+ and **pnpm**
+- **Node.js** 20.19+ and **pnpm** 10+ (workspace lock: `pnpm@10.28.2`)
 - **PostgreSQL** and **Redis** (local or Docker)
 
 ## Quick start
@@ -159,7 +158,7 @@ cd frontend
 pnpm install
 ```
 
-Set the API base URL in [`frontend/apps/web-antd/.env.development`](frontend/apps/web-antd/.env.development) (`VITE_GLOB_API_URL`, default `http://127.0.0.1:8000`). You may add `frontend/apps/web-antd/.env.local` for local overrides (Vite).
+Set the API base URL in [`frontend/apps/web-antd/.env.development`](frontend/apps/web-antd/.env.development) (`VITE_GLOB_API_URL`, default `http://localhost:8000`). You may add `frontend/apps/web-antd/.env.local` for local overrides (Vite).
 
 ```bash
 pnpm dev:antd
@@ -229,17 +228,18 @@ In typical **production** settings, these URLs are disabled (`None` when `DEBUG`
 
 | Location | Purpose |
 |----------|---------|
-| [`.cursor/rules/novusai-saas.md`](.cursor/rules/novusai-saas.md) | Rule index: layering, high cohesion/low coupling, i18n, AI, plugins, RBAC, migrations, trace/monitoring, … |
-| [`.cursor/skills/novusai-saas/SKILL.md`](.cursor/skills/novusai-saas/SKILL.md) | Umbrella skill: stack, constraints, CRUD/AI/plugin entry points |
-| [`.cursor/skills/`](.cursor/skills) | Topic skills (RAG, WebSocket, codegen, attachments, …) |
-| [`docs/guides/backend-development.md`](docs/guides/backend-development.md) | Backend guide |
-| [`docs/comment-compliance-remaining.md`](docs/comment-compliance-remaining.md) | Bilingual comment checklist |
+| [`.trellis/workflow.md`](.trellis/workflow.md) | Current workflow shell and path selector |
+| [`.trellis/spec/guides/trellis-paths.md`](.trellis/spec/guides/trellis-paths.md) | Canonical `fast` / `normal` / `deep` selection rules |
+| [`.trellis/spec/backend/index.md`](.trellis/spec/backend/index.md) | Backend conventions and guide index |
+| [`.trellis/spec/frontend/index.md`](.trellis/spec/frontend/index.md) | Frontend conventions and guide index |
+| [`.trellis/spec/ai-runtime/index.md`](.trellis/spec/ai-runtime/index.md) | AI runtime governance and testing discipline |
+| [`.cursor/skills/`](.cursor/skills) | Editor/agent topic skills; use Trellis specs as the source of truth |
 
 **Codegen:** after generating CRUD from the monorepo root, `codegen_manifest.json` records artifacts for rollback; the admin UI may warn if the manifest is missing or out of sync.
 
 ## Deployment
 
-Production and environment-specific assets may live under [`deploy/`](deploy/). Consult that directory and your operations runbooks; this README stays focused on local development.
+Production and environment-specific assets are owned by the active operations runbooks and task records. This README stays focused on local development and canonical code/spec entry points.
 
 ## Contributing
 

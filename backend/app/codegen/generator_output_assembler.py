@@ -89,7 +89,7 @@ def assemble_generation_output(
             )
         except Exception as e:
             err_msg = f"model: {e!s}"
-            logger.warning("codegen template render failed: %s", e)
+            logger.warning("codegen template render failed: {}", e)
             errors.append(err_msg)
         for st in ctx.get("sub_tables") or []:
             sub_res = st.get("resource", "")
@@ -144,7 +144,7 @@ def assemble_generation_output(
                     )
             except Exception as e:
                 err_msg = f"sub_model:{sub_res}: {e!s}"
-                logger.warning("codegen sub model template render failed: %s", e)
+                logger.warning("codegen sub model template render failed: {}", e)
                 errors.append(err_msg)
         files.append(
             GeneratedFile(
@@ -165,7 +165,7 @@ def assemble_generation_output(
             )
         except Exception as e:
             err_msg = f"schema: {e!s}"
-            logger.warning("codegen template render failed: %s", e)
+            logger.warning("codegen template render failed: {}", e)
             errors.append(err_msg)
         files.append(
             GeneratedFile(
@@ -186,7 +186,7 @@ def assemble_generation_output(
             )
         except Exception as e:
             err_msg = f"repository: {e!s}"
-            logger.warning("codegen template render failed: %s", e)
+            logger.warning("codegen template render failed: {}", e)
             errors.append(err_msg)
         files.append(
             GeneratedFile(
@@ -207,7 +207,7 @@ def assemble_generation_output(
             )
         except Exception as e:
             err_msg = f"service: {e!s}"
-            logger.warning("codegen template render failed: %s", e)
+            logger.warning("codegen template render failed: {}", e)
             errors.append(err_msg)
         display_name = parsed_config.display_name or resource.replace("_", " ").title()
         display_name_en = (
@@ -293,7 +293,7 @@ def assemble_generation_output(
                 )
             except Exception as e:
                 err_msg = f"controller_admin: {e!s}"
-                logger.warning("codegen template render failed: %s", e)
+                logger.warning("codegen template render failed: {}", e)
                 errors.append(err_msg)
         tenant_eps = [
             e
@@ -321,7 +321,7 @@ def assemble_generation_output(
                 )
             except Exception as e:
                 err_msg = f"controller_tenant: {e!s}"
-                logger.warning("codegen template render failed: %s", e)
+                logger.warning("codegen template render failed: {}", e)
                 errors.append(err_msg)
 
     if step in (None, "test"):
@@ -337,7 +337,7 @@ def assemble_generation_output(
             )
         except Exception as e:
             err_msg = f"test_service: {e!s}"
-            logger.warning("codegen template render failed: %s", e)
+            logger.warning("codegen template render failed: {}", e)
             errors.append(err_msg)
 
     if step in (None, "frontend"):
@@ -375,7 +375,7 @@ def assemble_generation_output(
                 )
             except Exception as e:
                 err_msg = f"api_admin: {e!s}"
-                logger.warning("codegen template render failed: %s", e)
+                logger.warning("codegen template render failed: {}", e)
                 errors.append(err_msg)
             try:
                 tpl = env.get_template(
@@ -393,7 +393,7 @@ def assemble_generation_output(
                 )
             except Exception as e:
                 err_msg = f"data_admin: {e!s}"
-                logger.warning("codegen template render failed: %s", e)
+                logger.warning("codegen template render failed: {}", e)
                 errors.append(err_msg)
             try:
                 tpl = env.get_template(
@@ -411,7 +411,7 @@ def assemble_generation_output(
                 )
             except Exception as e:
                 err_msg = f"index_admin: {e!s}"
-                logger.warning("codegen template render failed: %s", e)
+                logger.warning("codegen template render failed: {}", e)
                 errors.append(err_msg)
             try:
                 tpl = env.get_template("frontend/form.vue.j2")
@@ -425,7 +425,7 @@ def assemble_generation_output(
                 )
             except Exception as e:
                 err_msg = f"form_admin: {e!s}"
-                logger.warning("codegen template render failed: %s", e)
+                logger.warning("codegen template render failed: {}", e)
                 errors.append(err_msg)
             if (ctx.get("detail") or {}).get("enabled"):
                 detail_cfg = ctx.get("detail") or {}
@@ -483,7 +483,7 @@ def assemble_generation_output(
                         )
                 except Exception as e:
                     err_msg = f"detail_admin: {e!s}"
-                    logger.warning("codegen detail template render failed: %s", e)
+                    logger.warning("codegen detail template render failed: {}", e)
                     errors.append(err_msg)
             try:
                 tpl = env.get_template("frontend/i18n_zh.json.j2")
@@ -497,7 +497,7 @@ def assemble_generation_output(
                 )
             except Exception as e:
                 err_msg = f"i18n_zh_admin: {e!s}"
-                logger.warning("codegen template render failed: %s", e)
+                logger.warning("codegen template render failed: {}", e)
                 errors.append(err_msg)
             try:
                 tpl = env.get_template("frontend/i18n_en.json.j2")
@@ -511,7 +511,7 @@ def assemble_generation_output(
                 )
             except Exception as e:
                 err_msg = f"i18n_en_admin: {e!s}"
-                logger.warning("codegen template render failed: %s", e)
+                logger.warning("codegen template render failed: {}", e)
                 errors.append(err_msg)
 
         if tenant_ep:
@@ -539,7 +539,7 @@ def assemble_generation_output(
                 )
             except Exception as e:
                 err_msg = f"api_tenant: {e!s}"
-                logger.warning("codegen template render failed: %s", e)
+                logger.warning("codegen template render failed: {}", e)
                 errors.append(err_msg)
             try:
                 tpl = env.get_template(
@@ -557,7 +557,7 @@ def assemble_generation_output(
                 )
             except Exception as e:
                 err_msg = f"data_tenant: {e!s}"
-                logger.warning("codegen template render failed: %s", e)
+                logger.warning("codegen template render failed: {}", e)
                 errors.append(err_msg)
             try:
                 tpl = env.get_template(
@@ -575,7 +575,7 @@ def assemble_generation_output(
                 )
             except Exception as e:
                 err_msg = f"index_tenant: {e!s}"
-                logger.warning("codegen template render failed: %s", e)
+                logger.warning("codegen template render failed: {}", e)
                 errors.append(err_msg)
             try:
                 tpl = env.get_template("frontend/form.vue.j2")
@@ -589,7 +589,7 @@ def assemble_generation_output(
                 )
             except Exception as e:
                 err_msg = f"form_tenant: {e!s}"
-                logger.warning("codegen template render failed: %s", e)
+                logger.warning("codegen template render failed: {}", e)
                 errors.append(err_msg)
             if (ctx.get("detail") or {}).get("enabled"):
                 detail_cfg = ctx.get("detail") or {}
@@ -647,7 +647,7 @@ def assemble_generation_output(
                         )
                 except Exception as e:
                     err_msg = f"detail_tenant: {e!s}"
-                    logger.warning("codegen detail template render failed: %s", e)
+                    logger.warning("codegen detail template render failed: {}", e)
                     errors.append(err_msg)
             try:
                 tpl = env.get_template("frontend/i18n_zh.json.j2")
@@ -661,7 +661,7 @@ def assemble_generation_output(
                 )
             except Exception as e:
                 err_msg = f"i18n_zh_tenant: {e!s}"
-                logger.warning("codegen template render failed: %s", e)
+                logger.warning("codegen template render failed: {}", e)
                 errors.append(err_msg)
             try:
                 tpl = env.get_template("frontend/i18n_en.json.j2")
@@ -675,7 +675,7 @@ def assemble_generation_output(
                 )
             except Exception as e:
                 err_msg = f"i18n_en_tenant: {e!s}"
-                logger.warning("codegen template render failed: %s", e)
+                logger.warning("codegen template render failed: {}", e)
                 errors.append(err_msg)
 
     if step in (None, "controller"):

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import os
 import sys
-from pathlib import Path
 
 import click
 
@@ -20,6 +19,7 @@ _load_config_from_file = S._load_config_from_file
 _load_config_stdin = S._load_config_stdin
 _run_async = S._run_async
 _run_quietly = S._run_quietly
+
 
 def _resolve_codegen_config_json(
     *,

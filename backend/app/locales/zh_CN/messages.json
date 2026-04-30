@@ -3362,5 +3362,6 @@
     "api.param.img_mode": "模式 (fit/fill/crop/pad)",
     "api.param.img_preset": "预设 (thumb/avatar/preview/banner/small/medium/large)",
     "api.param.categories": "分类统计",
+    "system.maintenance.default_message": "系统维护中，请稍后再试。",
     "business": {}
 }

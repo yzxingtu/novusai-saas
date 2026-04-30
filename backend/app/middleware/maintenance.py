@@ -10,10 +10,14 @@ Config / 配置项：
 - maintenance_message: str — Maintenance message / 维护提示信息
 """
 
-from loguru import logger
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+from app.core.i18n import _
+from app.core.logging import get_logger
 from app.core.response import error
+
+logger = get_logger(__name__)
+_DEFAULT_MAINTENANCE_MESSAGE_KEY = "system.maintenance.default_message"
 
 # Exempt paths: still accessible during maintenance / 豁免路径：维护模式下仍可访问
 _EXEMPT_PREFIXES = (
@@ -127,11 +131,7 @@ class MaintenanceMiddleware:
                 service = ConfigService(db)
                 message = await service.get_platform_config("maintenance_message")
 
-            result = (
-                str(message)
-                if message
-                else "System is under maintenance. Please try again later."
-            )
+            result = str(message) if message else _(_DEFAULT_MAINTENANCE_MESSAGE_KEY)
 
             try:
                 redis = get_redis_client()
@@ -142,7 +142,7 @@ class MaintenanceMiddleware:
             return result
         except Exception as exc:
             logger.debug("maintenance message read from DB failed: {}", exc)
-            return "System is under maintenance. Please try again later."
+            return _(_DEFAULT_MAINTENANCE_MESSAGE_KEY)
 
 
 __all__ = ["MaintenanceMiddleware"]

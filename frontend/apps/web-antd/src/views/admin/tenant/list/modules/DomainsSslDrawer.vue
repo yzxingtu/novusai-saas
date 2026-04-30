@@ -182,6 +182,7 @@ async function onUpload() {
 /** 删除证书 / Delete cert */
 async function onDelete() {
   if (!drawerData.value) return;
+  const { domainId, tenantId } = drawerData.value;
   Modal.confirm({
     title: $t('admin.tenant.domain.ssl.actions.delete'),
     content: $t('admin.tenant.domain.ssl.deleteConfirm'),
@@ -189,10 +190,7 @@ async function onDelete() {
     async onOk() {
       actionLoading.value = true;
       try {
-        await deleteSslCertApi(
-          drawerData.value!.tenantId,
-          drawerData.value!.domainId,
-        );
+        await deleteSslCertApi(tenantId, domainId);
         message.success($t('admin.tenant.domain.ssl.deleteSuccess'));
         sslDetail.value = null;
         await loadSslDetail();

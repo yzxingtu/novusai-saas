@@ -93,7 +93,9 @@ async def execute_single_file_migration(
         visibility = StorageVisibility(
             attachment_meta.visibility or StorageVisibility.PRIVATE.value
         )
-        metadata = attachment_meta.meta if isinstance(attachment_meta.meta, dict) else None
+        metadata = (
+            attachment_meta.meta if isinstance(attachment_meta.meta, dict) else None
+        )
         object_metadata = strip_internal_attachment_meta(metadata)
         storage_scope = (
             infer_attachment_storage_scope(
@@ -110,7 +112,9 @@ async def execute_single_file_migration(
         )
 
         content = await source_driver.get(file_path)  # type: ignore[union-attr]
-        file_data = BytesIO(content) if isinstance(content, (bytes, bytearray)) else content
+        file_data = (
+            BytesIO(content) if isinstance(content, (bytes, bytearray)) else content
+        )
 
         await target_driver.put(  # type: ignore[union-attr]
             path=file_path,
@@ -153,7 +157,7 @@ async def execute_single_file_migration(
         await db.commit()
         return True
     except Exception as exc:
-        logger.warning("Failed to migrate file %s (log=%d): %s", file_path, log_id, exc)
+        logger.warning("Failed to migrate file {} (log={}): {}", file_path, log_id, exc)
 
         with suppress(Exception):
             await db.rollback()
@@ -163,7 +167,7 @@ async def execute_single_file_migration(
                 await target_driver.delete(file_path)  # type: ignore[union-attr]
             except Exception as cleanup_exc:
                 logger.warning(
-                    "Failed to cleanup partially written target file %s: %s",
+                    "Failed to cleanup partially written target file {}: {}",
                     file_path,
                     cleanup_exc,
                 )
@@ -181,6 +185,10 @@ async def execute_single_file_migration(
                 {"id": log_id, "error": str(exc)[:500]},
             )
             await db.commit()
-        except Exception:
-            pass
+        except Exception as status_exc:
+            logger.warning(
+                "Failed to persist migration failure status for log {}: {}",
+                log_id,
+                status_exc,
+            )
         return False

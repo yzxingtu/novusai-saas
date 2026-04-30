@@ -44,6 +44,7 @@ def _require_boto3():
 
 class S3StorageDriver(StorageDriver):
     """S3 compatible object storage driver (plugin edition) / 插件"""
+
     name = "s3"
     display_name = "storage.driver.s3"
     config_schema = {
@@ -150,7 +151,7 @@ class S3StorageDriver(StorageDriver):
             return size, hasher.hexdigest()
 
         size, file_hash = await anyio.to_thread.run_sync(_upload)
-        self.logger.debug("put %s (%d bytes)", path, size)
+        self.logger.debug("put {} ({} bytes)", path, size)
         final_mime_type = mime_type or mimetypes.guess_type(path)[0]
         return UploadResult(
             path=path,
@@ -205,7 +206,7 @@ class S3StorageDriver(StorageDriver):
             return True
 
         result = await anyio.to_thread.run_sync(_delete)
-        self.logger.debug("delete %s", path)
+        self.logger.debug("delete {}", path)
         return result
 
     async def exists(self, path: str) -> bool:
@@ -260,7 +261,8 @@ class S3StorageDriver(StorageDriver):
                 path=path,
                 size=response.get("ContentLength", 0),
                 mime_type=response.get("ContentType") or "application/octet-stream",
-                last_modified=response.get("LastModified") or datetime.now(timezone.utc),
+                last_modified=response.get("LastModified")
+                or datetime.now(timezone.utc),
                 visibility=StorageVisibility(visibility_value),
                 metadata=metadata,
             )
@@ -288,7 +290,7 @@ class S3StorageDriver(StorageDriver):
             return True
 
         result = await anyio.to_thread.run_sync(_copy)
-        self.logger.debug("copy %s -> %s", source, destination)
+        self.logger.debug("copy {} -> {}", source, destination)
         return result
 
     async def move(self, source: str, destination: str) -> bool:
@@ -325,7 +327,9 @@ class S3StorageDriver(StorageDriver):
             parts.append(f"fit={fit_map.get(params.mode, 'contain')}")
         return ",".join(parts)
 
-    def _build_imgproxy_params(self, params: ImageProcessParams, source_url: str) -> str:
+    def _build_imgproxy_params(
+        self, params: ImageProcessParams, source_url: str
+    ) -> str:
         parts: list[str] = []
         if params.width or params.height:
             mode_map = {
@@ -342,7 +346,11 @@ class S3StorageDriver(StorageDriver):
         if params.format:
             parts.append(f"f:{params.format}")
         processing = "/".join(parts) if parts else ""
-        return f"/{processing}/plain/{source_url}" if processing else f"/plain/{source_url}"
+        return (
+            f"/{processing}/plain/{source_url}"
+            if processing
+            else f"/plain/{source_url}"
+        )
 
     async def get_image_url(
         self,
@@ -365,7 +373,9 @@ class S3StorageDriver(StorageDriver):
             cf_params = self._build_cloudflare_params(params)
             return f"{process_url.rstrip('/')}/cdn-cgi/image/{cf_params}/{key}"
         if provider == "imgproxy" and process_url:
-            source_url = await self.get_url(path, expires=expires, visibility=visibility)
+            source_url = await self.get_url(
+                path, expires=expires, visibility=visibility
+            )
             imgproxy_path = self._build_imgproxy_params(params, source_url)
             return f"{process_url.rstrip('/')}{imgproxy_path}"
         return await self.get_url(path, expires=expires, visibility=visibility)
@@ -378,6 +388,7 @@ class S3StorageDriver(StorageDriver):
         if params.is_empty():
             return None
         from app.utils.image import ImageProcessor
+
         source = await self.get(path)
         return await ImageProcessor.process(source, params)
 

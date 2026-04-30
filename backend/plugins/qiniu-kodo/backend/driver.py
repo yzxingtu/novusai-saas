@@ -50,6 +50,7 @@ def _require_qiniu_sdk():
 
 class KodoStorageDriver(StorageDriver):
     """Qiniu Kodo object storage driver / 说明"""
+
     name = "qiniu-kodo"
     display_name = "storage.driver.qiniu_kodo"
     config_schema = {
@@ -143,7 +144,9 @@ class KodoStorageDriver(StorageDriver):
     ) -> UploadResult:
         self._validate_visibility(visibility)
         key = self._key(path)
-        final_mime_type = mime_type or mimetypes.guess_type(path)[0] or "application/octet-stream"
+        final_mime_type = (
+            mime_type or mimetypes.guess_type(path)[0] or "application/octet-stream"
+        )
 
         def _upload() -> tuple[int, str]:
             size = 0
@@ -159,9 +162,7 @@ class KodoStorageDriver(StorageDriver):
                 tmp.seek(0)
                 file_hash = hasher.hexdigest()
                 token = self.auth.upload_token(self.bucket_name, key, 3600)
-                upload_params = {
-                    f"x:{k}": str(v) for k, v in (metadata or {}).items()
-                }
+                upload_params = {f"x:{k}": str(v) for k, v in (metadata or {}).items()}
                 upload_params["x:visibility"] = visibility.value
                 ret, info = self._sdk.put_stream(
                     token,
@@ -178,7 +179,7 @@ class KodoStorageDriver(StorageDriver):
             return size, file_hash
 
         size, file_hash = await anyio.to_thread.run_sync(_upload)
-        self.logger.debug("put %s (%d bytes)", path, size)
+        self.logger.debug("put {} ({} bytes)", path, size)
         return UploadResult(
             path=path,
             url=await self.get_url(path, visibility=visibility),
@@ -219,7 +220,7 @@ class KodoStorageDriver(StorageDriver):
             return True
 
         result = await anyio.to_thread.run_sync(_delete)
-        self.logger.debug("delete %s", path)
+        self.logger.debug("delete {}", path)
         return result
 
     async def exists(self, path: str) -> bool:
@@ -262,13 +263,19 @@ class KodoStorageDriver(StorageDriver):
             size = ret.get("fsize", 0)
             mime = ret.get("mimeType", "application/octet-stream")
             put_time = ret.get("putTime", 0)
-            last_modified = datetime.fromtimestamp(put_time / 10000000, tz=timezone.utc) if put_time else datetime.now(timezone.utc)
+            last_modified = (
+                datetime.fromtimestamp(put_time / 10000000, tz=timezone.utc)
+                if put_time
+                else datetime.now(timezone.utc)
+            )
             return FileInfo(
                 path=path,
                 size=size,
                 mime_type=mime,
                 last_modified=last_modified,
-                visibility=StorageVisibility.PRIVATE if self.is_private else StorageVisibility.PUBLIC,
+                visibility=StorageVisibility.PRIVATE
+                if self.is_private
+                else StorageVisibility.PUBLIC,
                 metadata={},
             )
 
@@ -280,13 +287,15 @@ class KodoStorageDriver(StorageDriver):
 
         def _copy() -> bool:
             ret, info = self.bucket_manager.copy(
-                self.bucket_name, src_key,
-                self.bucket_name, dst_key,
+                self.bucket_name,
+                src_key,
+                self.bucket_name,
+                dst_key,
             )
             return info.status_code == 200
 
         result = await anyio.to_thread.run_sync(_copy)
-        self.logger.debug("copy %s -> %s", source, destination)
+        self.logger.debug("copy {} -> {}", source, destination)
         return result
 
     async def move(self, source: str, destination: str) -> bool:
@@ -295,8 +304,10 @@ class KodoStorageDriver(StorageDriver):
 
         def _move() -> bool:
             ret, info = self.bucket_manager.move(
-                self.bucket_name, src_key,
-                self.bucket_name, dst_key,
+                self.bucket_name,
+                src_key,
+                self.bucket_name,
+                dst_key,
             )
             return info.status_code == 200
 
@@ -367,6 +378,7 @@ class KodoStorageDriver(StorageDriver):
         if params.is_empty():
             return None
         from app.utils.image import ImageProcessor
+
         source = await self.get(path)
         return await ImageProcessor.process(source, params)
 

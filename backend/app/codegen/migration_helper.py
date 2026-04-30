@@ -10,13 +10,15 @@ Run alembic downgrade, delete migration file, and auto DROP table on web/CLI rol
 
 from __future__ import annotations
 
-import logging
 import re
 import subprocess
 import sys
 from pathlib import Path
 
-logger = logging.getLogger(__name__)
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
+_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
 def _get_table_name(resource: str) -> str:
@@ -24,6 +26,14 @@ def _get_table_name(resource: str) -> str:
     from app.codegen.config_parser import _infer_plural
 
     return _infer_plural(resource.replace("-", "_")) if resource else ""
+
+
+def _quote_table_identifier(table: str) -> str | None:
+    """Return a safe quoted table identifier, or None when invalid."""
+    if not _IDENTIFIER_RE.fullmatch(table):
+        logger.error("Refusing unsafe table identifier for codegen cleanup: {}", table)
+        return None
+    return f'"{table}"'
 
 
 def _extract_revision(path: Path) -> str | None:
@@ -82,7 +92,7 @@ def _has_fk_references(table: str) -> list[tuple[str, str]]:
             )
             return [(r[0], r[1]) for r in result.fetchall()]
     except Exception as e:
-        logger.warning("Cannot check FK references for table %s: %s", table, e)
+        logger.warning("Cannot check FK references for table {}: {}", table, e)
         return []
 
 
@@ -94,6 +104,9 @@ def _drop_table_if_exists(resource: str, force_cascade: bool = False) -> bool:
     table = _get_table_name(resource)
     if not table:
         return False
+    quoted_table = _quote_table_identifier(table)
+    if quoted_table is None:
+        return False
     try:
         from sqlalchemy import text
 
@@ -103,7 +116,7 @@ def _drop_table_if_exists(resource: str, force_cascade: bool = False) -> bool:
         if fk_refs and not force_cascade:
             ref_info = ", ".join(f"{t}.{c}" for t, c in fk_refs)
             logger.warning(
-                "Table %s is referenced by FK constraints: %s. "
+                "Table {} is referenced by FK constraints: {}. "
                 "Dropping without CASCADE to preserve referential integrity. "
                 "You may need to manually clean up FK constraints.",
                 table,
@@ -112,12 +125,12 @@ def _drop_table_if_exists(resource: str, force_cascade: bool = False) -> bool:
 
         cascade = " CASCADE" if (force_cascade or not fk_refs) else ""
         with sync_session_factory() as session:
-            session.execute(text(f'DROP TABLE IF EXISTS "{table}"{cascade}'))
+            session.execute(text(f"DROP TABLE IF EXISTS {quoted_table}{cascade}"))
             session.commit()
-        logger.info("Dropped table %s%s", table, cascade)
+        logger.info("Dropped table {}{}", table, cascade)
         return True
     except Exception as e:
-        logger.error("Failed to drop table %s: %s", table, e)
+        logger.error("Failed to drop table {}: {}", table, e)
         return False
 
 
@@ -152,7 +165,7 @@ def run_rollback_migration_cleanup(
 
     if not _mp or not _mp.exists():
         logger.warning(
-            "Migration file not found for resource %s, skipping downgrade. "
+            "Migration file not found for resource {}, skipping downgrade. "
             "Refusing DROP TABLE without migration file (use force_drop to override).",
             resource,
         )
@@ -162,20 +175,20 @@ def run_rollback_migration_cleanup(
 
     target_rev = _extract_revision(_mp)
     if not target_rev:
-        logger.warning("Cannot extract revision from %s, skipping downgrade.", _mp)
+        logger.warning("Cannot extract revision from {}, skipping downgrade.", _mp)
         if force_drop and resource:
             _drop_table_if_exists(resource)
         return False
 
     heads, head_err = _get_current_heads(_backend)
     if head_err:
-        logger.error("Cannot get alembic current: %s — refusing downgrade.", head_err)
+        logger.error("Cannot get alembic current: {} — refusing downgrade.", head_err)
         if force_drop and resource:
             _drop_table_if_exists(resource)
         return False
     if len(heads) == 0:
         logger.error(
-            "No alembic head found — cannot safely determine if %s is current. "
+            "No alembic head found — cannot safely determine if {} is current. "
             "Refusing downgrade. Run 'alembic current' to inspect.",
             target_rev,
         )
@@ -184,7 +197,7 @@ def run_rollback_migration_cleanup(
         return False
     if len(heads) > 1:
         logger.error(
-            "Multiple heads detected: %s. Refusing downgrade to prevent chain breakage. "
+            "Multiple heads detected: {}. Refusing downgrade to prevent chain breakage. "
             "Run 'alembic merge' or 'novusai db merge' first.",
             heads,
         )
@@ -193,7 +206,7 @@ def run_rollback_migration_cleanup(
         return False
     if heads[0] != target_rev:
         logger.error(
-            "Codegen migration %s is NOT the current head (head=%s). "
+            "Codegen migration {} is NOT the current head (head={}). "
             "Later migrations depend on it — refusing to downgrade. "
             "Please manually roll back later migrations first.",
             target_rev,
@@ -230,12 +243,12 @@ def run_rollback_migration_cleanup(
         if _mp.exists():
             _mp.unlink()
             migration_cleaned = True
-            logger.info("Downgraded and removed migration %s", _mp.name)
+            logger.info("Downgraded and removed migration {}", _mp.name)
         if resource:
             _drop_table_if_exists(resource)
     else:
         stderr = _proc.stderr if _proc else "no process"
-        logger.error("Downgrade failed for %s: %s", target_rev, stderr)
+        logger.error("Downgrade failed for {}: {}", target_rev, stderr)
 
     return migration_cleaned
 
@@ -281,7 +294,7 @@ def _locate_migration_file(
                     if f"'{_table}'" in _t or f'"{_table}"' in _t:
                         _mp = _f
                         logger.info(
-                            "Located legacy codegen migration (no metadata) for %s: %s",
+                            "Located legacy codegen migration (no metadata) for {}: {}",
                             resource,
                             _f.name,
                         )

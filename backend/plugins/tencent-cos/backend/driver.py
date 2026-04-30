@@ -8,6 +8,7 @@ from __future__ import annotations
 import hashlib
 import mimetypes
 import tempfile
+from contextlib import suppress
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from typing import TYPE_CHECKING, BinaryIO
@@ -54,6 +55,7 @@ def _require_cos_sdk() -> tuple[type, type]:
 
 class CosStorageDriver(StorageDriver):
     """Tencent Cloud COS object storage driver / 说明"""
+
     name = "tencent-cos"
     display_name = "storage.driver.tencent_cos"
     config_schema = {
@@ -164,7 +166,7 @@ class CosStorageDriver(StorageDriver):
             return size, hasher.hexdigest()
 
         size, file_hash = await anyio.to_thread.run_sync(_upload)
-        self.logger.debug("put %s (%d bytes)", path, size)
+        self.logger.debug("put {} ({} bytes)", path, size)
         final_mime_type = mime_type or mimetypes.guess_type(path)[0]
         return UploadResult(
             path=path,
@@ -206,7 +208,7 @@ class CosStorageDriver(StorageDriver):
             return True
 
         result = await anyio.to_thread.run_sync(_delete)
-        self.logger.debug("delete %s", path)
+        self.logger.debug("delete {}", path)
         return result
 
     async def exists(self, path: str) -> bool:
@@ -262,18 +264,16 @@ class CosStorageDriver(StorageDriver):
             for k, v in response.items():
                 lk = k.lower()
                 if lk.startswith("x-cos-meta-"):
-                    meta_key = lk[len("x-cos-meta-"):]
+                    meta_key = lk[len("x-cos-meta-") :]
                     while meta_key.startswith("x-cos-meta-"):
-                        meta_key = meta_key[len("x-cos-meta-"):]
+                        meta_key = meta_key[len("x-cos-meta-") :]
                     metadata[meta_key] = v
             visibility_value = metadata.get("visibility", "private")
             last_modified = datetime.now(timezone.utc)
             raw_lm = response.get("Last-Modified")
             if raw_lm:
-                try:
+                with suppress(ValueError, TypeError):
                     last_modified = parsedate_to_datetime(raw_lm)
-                except (ValueError, TypeError):
-                    pass
             return FileInfo(
                 path=path,
                 size=int(response.get("Content-Length", 0)),
@@ -310,7 +310,7 @@ class CosStorageDriver(StorageDriver):
             return True
 
         result = await anyio.to_thread.run_sync(_copy)
-        self.logger.debug("copy %s -> %s", source, destination)
+        self.logger.debug("copy {} -> {}", source, destination)
         return result
 
     async def move(self, source: str, destination: str) -> bool:
@@ -390,6 +390,7 @@ class CosStorageDriver(StorageDriver):
         if params.is_empty():
             return None
         from app.utils.image import ImageProcessor
+
         source = await self.get(path)
         return await ImageProcessor.process(source, params)
 

@@ -7,7 +7,10 @@ Thank you for your interest in improving this project. This document describes h
 ## Getting started
 
 1. Read [README.md](README.md) for prerequisites and **Quick start** (Docker, backend venv, frontend `pnpm`).
-2. Skim the rule index [`.cursor/rules/novusai-saas.md`](.cursor/rules/novusai-saas.md) so your changes match layering, high cohesion/low coupling, i18n, and AI/plugin boundaries.
+2. Read the Trellis entry points before changing code:
+   [`.trellis/workflow.md`](.trellis/workflow.md),
+   [`.trellis/spec/guides/trellis-paths.md`](.trellis/spec/guides/trellis-paths.md),
+   and the relevant backend/frontend/AI runtime spec index.
 
 ## Branching and pull requests
 
@@ -30,8 +33,9 @@ Thank you for your interest in improving this project. This document describes h
 
 Deeper conventions:
 
-- Backend: [docs/guides/backend-development.md](docs/guides/backend-development.md), [`.cursor/skills/novusai-saas/references/backend-spec.md`](.cursor/skills/novusai-saas/references/backend-spec.md)
-- Frontend: [`.cursor/skills/novusai-saas/references/frontend-spec.md`](.cursor/skills/novusai-saas/references/frontend-spec.md)
+- Backend: [`.trellis/spec/backend/index.md`](.trellis/spec/backend/index.md)
+- Frontend: [`.trellis/spec/frontend/index.md`](.trellis/spec/frontend/index.md)
+- AI runtime: [`.trellis/spec/ai-runtime/index.md`](.trellis/spec/ai-runtime/index.md)
 
 ## Tests
 
@@ -41,7 +45,7 @@ Deeper conventions:
 ## Internationalization and comments
 
 - Do not hardcode user-visible strings: frontend uses `$t()` / `t()`, backend uses `_()`.
-- New comments in code should follow the project’s bilingual convention; see [docs/comment-compliance-remaining.md](docs/comment-compliance-remaining.md) and the specs linked from [`.cursor/rules/novusai-saas.md`](.cursor/rules/novusai-saas.md).
+- New comments in code should follow the project’s bilingual convention when comments are necessary; see the relevant Trellis backend/frontend quality guides.
 
 ## Security
 

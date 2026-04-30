@@ -6,7 +6,6 @@ Defines the captcha provider protocol and data models:
 - CaptchaChallenge: Challenge data returned to client / 返回给客户端的挑战数据
 - CaptchaVerificationResult: Verification result / 验证结果
 - ICaptchaProvider: Provider protocol (generate + verify) / 提供者协议（生成 + 验证）
-- StubImageCaptchaProvider: Stub implementation for fallback / 存根实现用于降级
 """
 
 from __future__ import annotations
@@ -58,25 +57,3 @@ class ICaptchaProvider(Protocol):
     ) -> CaptchaVerificationResult:
         """Verify user's solution / 验证用户的答案"""
         ...
-
-
-class StubImageCaptchaProvider:
-    """Stub captcha provider (always fails, used as fallback) / 存根验证码提供者（始终失败，用于降级）"""
-
-    async def generate_challenge(self, ctx: dict[str, Any]) -> CaptchaChallenge:
-        """Generate a stub challenge / 生成存根挑战"""
-        _ = ctx
-        return CaptchaChallenge(
-            challenge_id="stub",
-            type="image",
-            payload={},
-            expires_at=None,
-            token=None,
-        )
-
-    async def verify(
-        self, challenge_id: str, solution: str, ctx: dict[str, Any]
-    ) -> CaptchaVerificationResult:
-        """Stub verify (always returns failure) / 存根验证（始终返回失败）"""
-        _ = (challenge_id, solution, ctx)
-        return CaptchaVerificationResult(ok=False, reason="not_implemented", score=None)

@@ -29,14 +29,14 @@
 
 ## 概述
 
-本仓库为 **monorepo**：[`backend`](backend)（FastAPI）、[`frontend`](frontend)（Vben Admin）、[`docs`](docs)、[`.cursor`](.cursor)（编辑器规则与技能）。三端（admin / tenant / user）共享模式，但**禁止**跨端业务模块引用。
+本仓库为 **monorepo**：[`backend`](backend)（FastAPI）、[`frontend`](frontend)（Vben Admin）、[`docs`](docs)、[`.trellis`](.trellis)（正式 workflow/spec 入口）、[`.cursor`](.cursor)（编辑器兼容规则与技能）。三端（admin / tenant / user）共享模式，但**禁止**跨端业务模块引用。
 
 | 领域 | 说明 |
 |------|------|
 | **三端** | `admin` / `tenant` / `user`，路由与 API 命名空间分离。 |
-| **AI** | 业务 AI 走 **Agent → Skill → AIGateway**；RAG、会话记忆、页面工具、路由等见 `.cursor`。 |
+| **AI** | 业务 AI 走 **Agent → Skill → AIGateway**；当前运行时契约以 `.trellis/spec/ai-runtime/` 为准。 |
 | **数据** | 列表协议含 `filter` / `sort` / `page`；租户隔离与数据权限在 Service / RBAC 中实现。 |
-| **实时** | Celery 异步；Socket.IO 用于通知、输入状态、页面操作等。 |
+| **实时** | Celery 异步；Socket.IO 用于通知及 admin / tenant / user 实时通道。 |
 | **扩展** | 插件位于 `backend/plugins/`；CRUD 生成与回滚依赖根目录 [`codegen_manifest.json`](codegen_manifest.json)。 |
 
 ## 架构
@@ -80,7 +80,7 @@ flowchart LR
 ## 环境要求
 
 - **Python** 3.10+（见 [`backend/pyproject.toml`](backend/pyproject.toml)）
-- **Node.js** 18+ 与 **pnpm**
+- **Node.js** 20.19+ 与 **pnpm** 10+（workspace 锁定 `pnpm@10.28.2`）
 - **PostgreSQL** 与 **Redis**（本地或 Docker）
 
 ## 快速开始
@@ -131,7 +131,7 @@ cd frontend
 pnpm install
 ```
 
-按需修改 [`frontend/apps/web-antd/.env.development`](frontend/apps/web-antd/.env.development) 中的 `VITE_GLOB_API_URL`（默认 `http://127.0.0.1:8000`）；可新增 `frontend/apps/web-antd/.env.local` 覆盖本地变量。
+按需修改 [`frontend/apps/web-antd/.env.development`](frontend/apps/web-antd/.env.development) 中的 `VITE_GLOB_API_URL`（默认 `http://localhost:8000`）；可新增 `frontend/apps/web-antd/.env.local` 覆盖本地变量。
 
 ```bash
 pnpm dev:antd
@@ -195,17 +195,18 @@ pnpm build:antd
 
 | 位置 | 用途 |
 |------|------|
-| [`.cursor/rules/novusai-saas.md`](.cursor/rules/novusai-saas.md) | 规则总索引：分层、高内聚低耦合、i18n、AI、插件、RBAC 等 |
-| [`.cursor/skills/novusai-saas/SKILL.md`](.cursor/skills/novusai-saas/SKILL.md) | 全栈技能入口 |
-| [`.cursor/skills/`](.cursor/skills) | 各专题 SKILL |
-| [`docs/guides/backend-development.md`](docs/guides/backend-development.md) | 后端开发指南 |
-| [`docs/comment-compliance-remaining.md`](docs/comment-compliance-remaining.md) | 中英注释清单 |
+| [`.trellis/workflow.md`](.trellis/workflow.md) | 当前 workflow 壳层与路径选择入口 |
+| [`.trellis/spec/guides/trellis-paths.md`](.trellis/spec/guides/trellis-paths.md) | `fast` / `normal` / `deep` 正式选择规则 |
+| [`.trellis/spec/backend/index.md`](.trellis/spec/backend/index.md) | 后端规范与指南索引 |
+| [`.trellis/spec/frontend/index.md`](.trellis/spec/frontend/index.md) | 前端规范与指南索引 |
+| [`.trellis/spec/ai-runtime/index.md`](.trellis/spec/ai-runtime/index.md) | AI runtime 治理与测试纪律 |
+| [`.cursor/skills/`](.cursor/skills) | 编辑器/代理专题技能；事实源以 Trellis spec 为准 |
 
 **Codegen：** 在 monorepo 根目录执行生成后，根目录 `codegen_manifest.json` 用于回滚；管理端可能对清单缺失或不一致给出提示。
 
 ## 部署
 
-生产与运维相关资源可能在 [`deploy/`](deploy/)（若存在）；请以该目录及运维文档为准。
+生产与运维入口以当前运维 runbook 和任务记录为准；本 README 只保留本地开发与正式 code/spec 入口。
 
 ## 参与贡献
 
