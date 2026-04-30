@@ -29,7 +29,7 @@
 
 ## 概述
 
-本仓库为 **monorepo**：[`backend`](backend)（FastAPI）、[`frontend`](frontend)（Vben Admin）、[`docs`](docs)、[`.trellis`](.trellis)（正式 workflow/spec 入口）、[`.cursor`](.cursor)（编辑器兼容规则与技能）。三端（admin / tenant / user）共享模式，但**禁止**跨端业务模块引用。
+本仓库为 **monorepo**：[`backend`](backend)（FastAPI）、[`frontend`](frontend)（Vben Admin）、[`docs`](docs)、[`.trellis`](.trellis)（正式 workflow/spec 入口）、[`.agents`](.agents)（当前本地代理技能）、[`.cursor`](.cursor)（编辑器兼容规则）。三端（admin / tenant / user）共享模式，但**禁止**跨端业务模块引用。
 
 | 领域 | 说明 |
 |------|------|
@@ -200,7 +200,8 @@ pnpm build:antd
 | [`.trellis/spec/backend/index.md`](.trellis/spec/backend/index.md) | 后端规范与指南索引 |
 | [`.trellis/spec/frontend/index.md`](.trellis/spec/frontend/index.md) | 前端规范与指南索引 |
 | [`.trellis/spec/ai-runtime/index.md`](.trellis/spec/ai-runtime/index.md) | AI runtime 治理与测试纪律 |
-| [`.cursor/skills/`](.cursor/skills) | 编辑器/代理专题技能；事实源以 Trellis spec 为准 |
+| [`.agents/skills/`](.agents/skills) | 当前本地代理技能；入口应回指 Trellis specs |
+| [`.cursor/skills/`](.cursor/skills) | 编辑器兼容技能；事实源以 Trellis spec 为准 |
 
 **Codegen：** 在 monorepo 根目录执行生成后，根目录 `codegen_manifest.json` 用于回滚；管理端可能对清单缺失或不一致给出提示。
 

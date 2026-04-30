@@ -161,6 +161,14 @@
       "scheduleRefreshFailed": "The plugin task definitions are out of sync with the current scheduler state. Refresh schedules first and then verify recovery."
     }
   },
+  "lifecycleAudit": {
+    "title": "Lifecycle Audit",
+    "refresh": "Refresh",
+    "loading": "Loading lifecycle audit...",
+    "runtimeKind": "Runtime Kind",
+    "degradedReason": "Degraded Reason",
+    "unavailable": "Lifecycle audit data is unavailable."
+  },
   "preview": {
     "title": "Install Preview",
     "pluginInfo": "Plugin Info",

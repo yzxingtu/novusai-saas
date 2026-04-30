@@ -23,7 +23,7 @@ from typing import Any
 
 try:
     from captcha.image import ImageCaptcha
-except Exception:
+except ImportError:
     ImageCaptcha = None  # type: ignore / 可选依赖缺失时忽略类型
 from app.captcha.provider import (
     CaptchaChallenge,
@@ -84,8 +84,7 @@ class ImageCaptchaProvider(ICaptchaProvider, CaptchaLoggerMixin):
             "used": False,
         }
         self.logger.debug(
-            f"[GENERATE] challenge_id={challenge_id} text={text} "
-            f"text_lower={text.strip().lower()} hash={text_hash[:16]}... "
+            f"[GENERATE] challenge_id={challenge_id} "
             f"difficulty={difficulty} expires_at={expires_at} store_size={len(self._store)}"
         )
         return CaptchaChallenge(
@@ -101,10 +100,7 @@ class ImageCaptchaProvider(ICaptchaProvider, CaptchaLoggerMixin):
     ) -> CaptchaVerificationResult:
         """Verify captcha solution against stored hash / 验证验证码答案与存储的哈希比对"""
         _ = ctx
-        self.logger.debug(
-            f"[VERIFY] challenge_id={challenge_id} solution={solution} "
-            f"solution_lower={solution.strip().lower()} store_keys={list(self._store.keys())}"
-        )
+        self.logger.debug(f"[VERIFY] challenge_id={challenge_id}")
         item = self._store.get(challenge_id)
         if not item:
             self.logger.warning(
@@ -125,16 +121,11 @@ class ImageCaptchaProvider(ICaptchaProvider, CaptchaLoggerMixin):
         solution_hash = self._hash(solution)
         stored_hash = item["hash"]
         ok = solution_hash == stored_hash
-        self.logger.debug(
-            f"[VERIFY] COMPARE challenge_id={challenge_id} "
-            f"solution_hash={solution_hash[:16]}... stored_hash={stored_hash[:16]}... match={ok}"
-        )
+        self.logger.debug(f"[VERIFY] COMPARE challenge_id={challenge_id} match={ok}")
         if ok:
             item["used"] = True
             del self._store[challenge_id]
             self.logger.info(f"[VERIFY] SUCCESS challenge_id={challenge_id}")
             return CaptchaVerificationResult(ok=True, reason=None, score=None)
-        self.logger.warning(
-            f"[VERIFY] MISMATCH challenge_id={challenge_id} solution={solution}"
-        )
+        self.logger.warning(f"[VERIFY] MISMATCH challenge_id={challenge_id}")
         return CaptchaVerificationResult(ok=False, reason="mismatch", score=None)

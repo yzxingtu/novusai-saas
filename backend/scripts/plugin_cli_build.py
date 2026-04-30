@@ -33,7 +33,7 @@ def cmd_build(args: argparse.Namespace) -> None:
         print("  [INFO] No frontend extensions declared; nothing to build.")
         return
 
-    frontend = ((data.get("extensions") or {}).get("frontend") or {})
+    frontend = (data.get("extensions") or {}).get("frontend") or {}
     release_manifest_name = str(
         (frontend.get("release") or {}).get("manifest") or "plugin.manifest.json"
     )

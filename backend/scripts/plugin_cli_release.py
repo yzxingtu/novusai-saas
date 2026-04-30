@@ -25,7 +25,9 @@ def _pick_release_entry(js_files: list[str]) -> str | None:
     return js_files[0] if js_files else None
 
 
-def _normalize_release_dist_path(plugin_dir: Path, raw_path: str, field_name: str) -> str:
+def _normalize_release_dist_path(
+    plugin_dir: Path, raw_path: str, field_name: str
+) -> str:
     from app.plugins.exceptions import PluginManifestError
     from app.plugins.frontend_contract import _resolve_frontend_dist_relative_file
 
@@ -72,7 +74,9 @@ def _generate_release_manifest(plugin_dir: Path, manifest_name: str) -> Path:
         field_name="plugin.manifest.entry",
     )
     sanitized_css = [
-        _normalize_release_dist_path(plugin_dir, css_file, field_name="plugin.manifest.css")
+        _normalize_release_dist_path(
+            plugin_dir, css_file, field_name="plugin.manifest.css"
+        )
         for css_file in css_files
     ]
     asset_candidates = [file for file in files if file not in {entry, *css_files}]

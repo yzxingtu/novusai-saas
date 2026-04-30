@@ -60,6 +60,7 @@
     "publint": "vsh publint",
     "reinstall": "pnpm clean --del-lock && pnpm install",
     "test:unit": "vitest run --dom",
+    "test:unit:antd": "pnpm -F @vben/web-antd run test:unit",
     "test:e2e": "turbo run test:e2e",
     "test:e2e:antd": "pnpm -F @vben/web-antd run test:e2e",
     "update:deps": "npx taze -r -w",

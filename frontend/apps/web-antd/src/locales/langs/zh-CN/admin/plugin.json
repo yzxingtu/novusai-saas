@@ -161,6 +161,14 @@
       "scheduleRefreshFailed": "插件任务定义与当前调度器状态未完全同步，建议先刷新调度状态再观察是否恢复。"
     }
   },
+  "lifecycleAudit": {
+    "title": "生命周期审计",
+    "refresh": "刷新",
+    "loading": "正在加载生命周期审计...",
+    "runtimeKind": "运行态类型",
+    "degradedReason": "降级原因",
+    "unavailable": "暂无生命周期审计数据。"
+  },
   "preview": {
     "title": "安装预览",
     "pluginInfo": "插件信息",

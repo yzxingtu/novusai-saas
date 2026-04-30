@@ -115,7 +115,7 @@ class AdminPluginController(GlobalController):
                 admin_id=admin.id,
                 menu_overrides=body.menu_overrides if body else None,
             )
-            return success(data={"message": "Plugin enabled"})
+            return success(data={"message": translate("plugin.enabled")})
 
         @self.router.post("/{plugin_id}/disable")
         @action_update("action.plugin.disable")
@@ -130,7 +130,7 @@ class AdminPluginController(GlobalController):
                 admin_id=admin.id,
                 force=force,
             )
-            return success(data={"message": "Plugin disabled"})
+            return success(data={"message": translate("plugin.disabled")})
 
         @self.router.put("/{plugin_id}/menu-config")
         @action_update("action.plugin.update")
@@ -165,7 +165,9 @@ class AdminPluginController(GlobalController):
             confirm_data_delete: bool = False,
             cleanup_dependencies: bool = False,
         ):
-            deleted_already_message = await self.get_workflow_service(db).uninstall_plugin(
+            deleted_already_message = await self.get_workflow_service(
+                db
+            ).uninstall_plugin(
                 plugin_id=plugin_id,
                 admin_id=admin.id,
                 confirm_data_delete=confirm_data_delete,
@@ -198,9 +200,7 @@ class AdminPluginController(GlobalController):
                 plugin_id=plugin_id,
                 admin_id=admin.id,
             )
-            return success(
-                data={"message": translate("plugin.repaired_and_restored")}
-            )
+            return success(data={"message": translate("plugin.repaired_and_restored")})
 
         @self.router.delete("/{plugin_id}/force-cleanup")
         @action_delete("action.plugin.uninstall")
@@ -209,7 +209,9 @@ class AdminPluginController(GlobalController):
             db: DbSession,
             admin: ActiveAdmin,
         ):
-            await self.get_workflow_service(db).force_cleanup_orphan(plugin_id=plugin_id)
+            await self.get_workflow_service(db).force_cleanup_orphan(
+                plugin_id=plugin_id
+            )
             return deleted()
 
         @self.router.put("/{plugin_id}/config")
@@ -221,7 +223,7 @@ class AdminPluginController(GlobalController):
             admin: ActiveAdmin = None,
         ):
             await self.get_service(db).update_plugin_config(plugin_id, body.config)
-            return success(data={"message": "Config updated"})
+            return success(data={"message": translate("plugin.config_updated")})
 
         @self.router.put("/{plugin_id}/capabilities")
         @action_update("action.plugin.capabilities")
@@ -232,9 +234,7 @@ class AdminPluginController(GlobalController):
             admin: ActiveAdmin = None,
         ):
             await self.get_service(db).update_capabilities(plugin_id, body.capabilities)
-            return success(
-                data={"message": translate("plugin.capabilities_updated")}
-            )
+            return success(data={"message": translate("plugin.capabilities_updated")})
 
         @self.router.post("/{plugin_id}/icon")
         @action_update("action.plugin.icon")
@@ -289,7 +289,9 @@ class AdminPluginController(GlobalController):
             db: DbSession = None,
             admin: ActiveAdmin = None,
         ):
-            count = await self.get_service(db).assign_tenants(plugin_id, body.tenant_ids)
+            count = await self.get_service(db).assign_tenants(
+                plugin_id, body.tenant_ids
+            )
             return success(data={"assigned": count})
 
         @self.router.delete("/{plugin_id}/tenants/{tenant_id}")

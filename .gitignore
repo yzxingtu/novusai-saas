@@ -144,6 +144,11 @@ output/
 
 # Vite
 *.local
+**/.vite/
+**/.vitest/
+**/.eslintcache
+**/.stylelintcache
+**/.pnpm-store/
 
 # Logs
 logs

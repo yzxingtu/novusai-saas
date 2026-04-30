@@ -23,6 +23,7 @@ Do not read all specs or all indexes by default.
 ## Required Behavior
 
 1. Get current context with `python3 ./.trellis/scripts/get_context.py`
+   - On Windows / PowerShell, use `python .\.trellis\scripts\get_context.py`
 2. Classify the request into `fast`, `normal`, or `deep`
 3. Use the lightest path that fits
 4. Create a task only when the selected path requires or benefits from one

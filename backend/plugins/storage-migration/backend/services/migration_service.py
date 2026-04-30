@@ -476,8 +476,14 @@ class StorageMigrationService:
 
         try:
             return await resolver.resolve_for_attachment(driver_name, tenant_id)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning(
+                "Tenant storage config resolution failed; falling back to platform "
+                "config driver={} scope={}: {}",
+                driver_name,
+                normalized_scope,
+                exc,
+            )
 
         config = await resolver.resolve_platform_config()
         if config.driver == driver_name:

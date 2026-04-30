@@ -45,7 +45,9 @@ def _manifest_has_frontend_extensions(manifest_data: dict) -> bool:
     return bool(has_frontend_extensions(manifest_data or {}))
 
 
-def _collect_frontend_i18n_contract_errors(manifest_data: dict) -> tuple[list[str], list[str]]:
+def _collect_frontend_i18n_contract_errors(
+    manifest_data: dict,
+) -> tuple[list[str], list[str]]:
     from app.plugins.frontend_contract_checks import (
         collect_frontend_i18n_contract_errors,
     )
@@ -55,7 +57,7 @@ def _collect_frontend_i18n_contract_errors(manifest_data: dict) -> tuple[list[st
 
 def _collect_unsupported_manifest_contract_errors(manifest_data: dict) -> list[str]:
     errors: list[str] = []
-    extensions = (manifest_data.get("extensions") or {})
+    extensions = manifest_data.get("extensions") or {}
 
     if "capabilities" in extensions:
         errors.append(

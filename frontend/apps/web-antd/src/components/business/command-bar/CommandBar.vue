@@ -260,7 +260,7 @@ function scrollSearchIntoView() {
 function handleMenuItemClick(item: MenuNavigationSearchResult) {
   hide();
   if (item.path.startsWith('http://') || item.path.startsWith('https://')) {
-    window.open(item.path, '_blank');
+    window.open(item.path, '_blank', 'noopener,noreferrer');
   } else {
     router.push({ path: item.path, replace: true });
   }

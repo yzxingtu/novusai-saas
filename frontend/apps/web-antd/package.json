@@ -25,6 +25,7 @@
     "pretypecheck": "pnpm --dir ../.. run icons:generate",
     "preview": "vite preview",
     "typecheck": "vue-tsc --noEmit --skipLibCheck",
+    "test:unit": "vitest run --dom src",
     "test:e2e": "playwright test --config=playwright.config.ts"
   },
   "imports": {

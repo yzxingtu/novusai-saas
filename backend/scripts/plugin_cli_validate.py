@@ -85,7 +85,9 @@ def cmd_validate(args: argparse.Namespace) -> None:
                 if not isinstance(page, dict):
                     continue
                 page_name = str(page.get("name") or page.get("path") or "<unknown>")
-                missing_page_title_locales = _collect_missing_i18n_locales(page.get("title"))
+                missing_page_title_locales = _collect_missing_i18n_locales(
+                    page.get("title")
+                )
                 if missing_page_title_locales:
                     warnings.append(
                         "frontend page title should define locales "
@@ -168,7 +170,9 @@ def cmd_validate(args: argparse.Namespace) -> None:
                             f"plugin.{manifest.name}"
                         )
                 else:
-                    errors.append(f"frontend dev entry missing: frontend/{dev_entry_rel}")
+                    errors.append(
+                        f"frontend dev entry missing: frontend/{dev_entry_rel}"
+                    )
 
                 release_manifest_rel = str(
                     (frontend.get("release") or {}).get("manifest")
@@ -204,7 +208,8 @@ def cmd_validate(args: argparse.Namespace) -> None:
                             f"{vue_file.relative_to(plugin_dir)}: <style scoped> forbidden"
                         )
                 if vue_files and not any(
-                    "<style scoped" in file_handle.read_text(encoding="utf-8", errors="ignore")
+                    "<style scoped"
+                    in file_handle.read_text(encoding="utf-8", errors="ignore")
                     for file_handle in vue_files
                 ):
                     print(f"  [OK] {len(vue_files)} .vue file(s) - no <style scoped>")
@@ -222,48 +227,41 @@ def cmd_validate(args: argparse.Namespace) -> None:
     else:
         print("  [OK] backend/main.py exists")
 
-    try:
-        import yaml as yaml_loader
-
-        from app.plugins.manifest import PluginManifest
-
-        with open(yaml_path, encoding="utf-8") as file_handle:
-            yaml_payload = yaml_loader.safe_load(file_handle)
-        manifest_for_caps = PluginManifest.model_validate(yaml_payload)
-        capabilities = set(manifest_for_caps.capabilities)
-        extensions = manifest_for_caps.extensions
-        if (
-            manifest_for_caps.ai_requirements
-            and manifest_for_caps.ai_requirements.features
-            and "ai:call" not in capabilities
-        ):
-            warnings.append(
-                "ai_requirements.features declared but 'ai:call' not in capabilities"
-            )
-        if (
-            any(
-                route.handler
-                for route in [
-                    *extensions.api.admin_routes,
-                    *extensions.api.tenant_routes,
-                    *extensions.api.public_routes,
-                ]
-            )
-            and not capabilities
-        ):
-            pass
-        encrypted_fields = []
-        if manifest_for_caps.config_schema:
-            for key, value in (manifest_for_caps.config_schema.get("properties") or {}).items():
-                if isinstance(value, dict) and value.get("x-encrypted"):
-                    encrypted_fields.append(key)
-        if encrypted_fields:
-            print(
-                f"  [INFO] x-encrypted fields: {', '.join(encrypted_fields)} "
-                "(will be Fernet-encrypted)"
-            )
-    except Exception:
-        pass
+    if manifest is not None:
+        try:
+            capabilities = set(manifest.capabilities)
+            extensions = manifest.extensions
+            route_handlers = [
+                *extensions.api.admin_routes,
+                *extensions.api.tenant_routes,
+                *extensions.api.public_routes,
+            ]
+            if (
+                manifest.ai_requirements
+                and manifest.ai_requirements.features
+                and "ai:call" not in capabilities
+            ):
+                warnings.append(
+                    "ai_requirements.features declared but 'ai:call' not in capabilities"
+                )
+            if any(route.handler for route in route_handlers) and not capabilities:
+                warnings.append(
+                    "api route handlers declared but plugin capabilities are empty"
+                )
+            encrypted_fields = []
+            if manifest.config_schema:
+                for key, value in (
+                    manifest.config_schema.get("properties") or {}
+                ).items():
+                    if isinstance(value, dict) and value.get("x-encrypted"):
+                        encrypted_fields.append(key)
+            if encrypted_fields:
+                print(
+                    f"  [INFO] x-encrypted fields: {', '.join(encrypted_fields)} "
+                    "(will be Fernet-encrypted)"
+                )
+        except Exception as exc:
+            warnings.append(f"manifest capability audit skipped: {exc}")
 
     _normalize_debug_env_for_cli(warnings)
     from app.plugins.security_scan import scan_plugin_directory

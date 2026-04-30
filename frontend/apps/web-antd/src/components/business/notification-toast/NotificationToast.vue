@@ -58,7 +58,7 @@ function getPriorityClass(priority: string): string {
 function handleClick(toast: { id: number; link?: null | string }) {
   if (toast.link) {
     if (toast.link.startsWith('http://') || toast.link.startsWith('https://')) {
-      window.open(toast.link, '_blank');
+      window.open(toast.link, '_blank', 'noopener,noreferrer');
     } else {
       router.push(toast.link);
     }

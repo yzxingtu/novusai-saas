@@ -2410,6 +2410,7 @@
         "license_activated": "License activated successfully",
         "enabled": "Plugin enabled",
         "disabled": "Plugin disabled",
+        "config_updated": "Config updated",
         "schedule_refreshed": "Plugin schedules refreshed",
         "menu_config_updated": "Menu configuration updated",
         "manifest_synced": "Plugin manifest synced",

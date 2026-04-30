@@ -95,14 +95,18 @@ def cmd_create(args: argparse.Namespace) -> None:
     if template in ("skill", "full-module"):
         (output_dir / "backend" / "skills").mkdir()
         (output_dir / "backend" / "skills" / "__init__.py").touch()
-        (output_dir / "backend" / "skills" / f"{name_underscore}_resolver.py").write_text(
+        (
+            output_dir / "backend" / "skills" / f"{name_underscore}_resolver.py"
+        ).write_text(
             _SKILL_RESOLVER_PY.format(name=name, display_name=display_name),
             encoding="utf-8",
         )
 
         (output_dir / "backend" / "executors").mkdir()
         (output_dir / "backend" / "executors" / "__init__.py").touch()
-        (output_dir / "backend" / "executors" / f"{name_underscore}_executor.py").write_text(
+        (
+            output_dir / "backend" / "executors" / f"{name_underscore}_executor.py"
+        ).write_text(
             _SKILL_EXECUTOR_PY.format(
                 name=name,
                 display_name=display_name,
@@ -142,16 +146,24 @@ def cmd_create(args: argparse.Namespace) -> None:
 
         fe_src = output_dir / "frontend" / "src"
         fe_src.mkdir(parents=True)
-        (fe_src / "index.ts").write_text(_FE_INDEX_TS.format(**fe_vars), encoding="utf-8")
-        (fe_src / "locales.ts").write_text(_FE_LOCALES_TS.format(**fe_vars), encoding="utf-8")
-        (fe_src / "types.ts").write_text(_FE_TYPES_TS.format(**fe_vars), encoding="utf-8")
+        (fe_src / "index.ts").write_text(
+            _FE_INDEX_TS.format(**fe_vars), encoding="utf-8"
+        )
+        (fe_src / "locales.ts").write_text(
+            _FE_LOCALES_TS.format(**fe_vars), encoding="utf-8"
+        )
+        (fe_src / "types.ts").write_text(
+            _FE_TYPES_TS.format(**fe_vars), encoding="utf-8"
+        )
         (fe_src / f"{class_name}Page.vue").write_text(
             _FE_PAGE_VUE.format(**fe_vars),
             encoding="utf-8",
         )
 
         fe_dir = output_dir / "frontend"
-        (fe_dir / "package.json").write_text(_FE_PACKAGE_JSON.format(**fe_vars), encoding="utf-8")
+        (fe_dir / "package.json").write_text(
+            _FE_PACKAGE_JSON.format(**fe_vars), encoding="utf-8"
+        )
         (fe_dir / "vite.config.ts").write_text(
             _FE_VITE_CONFIG_TS.format(**fe_vars),
             encoding="utf-8",

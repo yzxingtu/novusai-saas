@@ -101,11 +101,18 @@ const dayOfWeek = ref('*');
 function parseCron(expression: string) {
   const parts = expression.trim().split(/\s+/);
   if (parts.length === 5) {
-    minute.value = parts[0]!;
-    hour.value = parts[1]!;
-    dayOfMonth.value = parts[2]!;
-    month.value = parts[3]!;
-    dayOfWeek.value = parts[4]!;
+    const [
+      nextMinute = '*',
+      nextHour = '*',
+      nextDayOfMonth = '*',
+      nextMonth = '*',
+      nextDayOfWeek = '*',
+    ] = parts;
+    minute.value = nextMinute;
+    hour.value = nextHour;
+    dayOfMonth.value = nextDayOfMonth;
+    month.value = nextMonth;
+    dayOfWeek.value = nextDayOfWeek;
   }
 }
 

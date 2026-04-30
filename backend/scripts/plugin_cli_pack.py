@@ -58,9 +58,7 @@ def cmd_pack(args: argparse.Namespace) -> None:
             sys.exit(1)
 
     default_name = (
-        f"{name}-{version}-source.zip"
-        if mode == "source"
-        else f"{name}-{version}.zip"
+        f"{name}-{version}-source.zip" if mode == "source" else f"{name}-{version}.zip"
     )
     output_path = Path(args.output) if args.output else Path.cwd() / default_name
 

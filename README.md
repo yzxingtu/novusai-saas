@@ -30,7 +30,7 @@ Multi-tenant, AI-native SaaS platform with **platform admin**, **tenant**, and *
 
 ## Overview
 
-NovusAI SaaS is a **monorepo**: [`backend`](backend) (FastAPI), [`frontend`](frontend) (Vben Admin monorepo), [`docs`](docs), [`.trellis`](.trellis) (canonical workflow/spec entry), and [`.cursor`](.cursor) (editor compatibility rules and skills). Three UI surfaces share patterns but **must not cross-import** business modules between admin, tenant, and user.
+NovusAI SaaS is a **monorepo**: [`backend`](backend) (FastAPI), [`frontend`](frontend) (Vben Admin monorepo), [`docs`](docs), [`.trellis`](.trellis) (canonical workflow/spec entry), [`.agents`](.agents) (active local agent skills), and [`.cursor`](.cursor) (editor compatibility rules). Three UI surfaces share patterns but **must not cross-import** business modules between admin, tenant, and user.
 
 | Area | Notes |
 |------|--------|
@@ -90,9 +90,10 @@ novusai-saas-yudi/
 ├── docs/                    # Guides, audits, design notes
 ├── shared/
 ├── .trellis/                # Canonical workflow, specs, and task records
+├── .agents/                 # Active local agent skills and project agent helpers
 ├── .cursor/
 │   ├── rules/               # Editor compatibility rules
-│   └── skills/              # Topic skills for agents and developers
+│   └── skills/              # Compatibility skills; Trellis/.agents are authoritative
 ├── codegen_manifest.json    # Codegen rollback manifest (may be empty)
 ├── docker-compose.dev.yml   # Dev PostgreSQL + Redis
 ├── LICENSE
@@ -233,7 +234,8 @@ In typical **production** settings, these URLs are disabled (`None` when `DEBUG`
 | [`.trellis/spec/backend/index.md`](.trellis/spec/backend/index.md) | Backend conventions and guide index |
 | [`.trellis/spec/frontend/index.md`](.trellis/spec/frontend/index.md) | Frontend conventions and guide index |
 | [`.trellis/spec/ai-runtime/index.md`](.trellis/spec/ai-runtime/index.md) | AI runtime governance and testing discipline |
-| [`.cursor/skills/`](.cursor/skills) | Editor/agent topic skills; use Trellis specs as the source of truth |
+| [`.agents/skills/`](.agents/skills) | Active local agent skills that point back to Trellis specs |
+| [`.cursor/skills/`](.cursor/skills) | Editor compatibility skills; use Trellis specs as the source of truth |
 
 **Codegen:** after generating CRUD from the monorepo root, `codegen_manifest.json` records artifacts for rollback; the admin UI may warn if the manifest is missing or out of sync.
 

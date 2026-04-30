@@ -40,7 +40,9 @@ interface CredentialValue {
   options: Record<string, unknown>;
 }
 
-const formState = reactive<Record<string, any>>({});
+type CredentialFieldValue = boolean | number | string | undefined;
+
+const formState = reactive<Record<string, CredentialFieldValue>>({});
 let isSyncingFromProps = false;
 
 // Sync external props.value → internal formState / 同步外部 props.value → 内部 formState

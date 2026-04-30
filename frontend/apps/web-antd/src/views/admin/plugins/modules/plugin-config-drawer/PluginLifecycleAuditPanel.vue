@@ -17,25 +17,29 @@ const props = defineProps<{
 <template>
   <div class="mb-6 rounded-lg border border-border/60 p-4">
     <div class="mb-2 flex items-center justify-between gap-2">
-      <h4 class="text-sm font-medium">Lifecycle Audit</h4>
+      <h4 class="text-sm font-medium">
+        {{ $t('admin.plugin.lifecycleAudit.title') }}
+      </h4>
       <Button
         size="small"
         :loading="props.loading"
         @click="props.onRefresh(props.pluginId)"
       >
         <IconifyIcon icon="lucide:refresh-cw" class="mr-1.5 size-3.5" />
-        Refresh
+        {{ $t('admin.plugin.lifecycleAudit.refresh') }}
       </Button>
     </div>
     <div v-if="props.loading" class="text-xs text-muted-foreground">
-      Loading lifecycle audit...
+      {{ $t('admin.plugin.lifecycleAudit.loading') }}
     </div>
     <template v-else-if="props.payload">
       <div class="mb-3 grid grid-cols-1 gap-2 md:grid-cols-2">
         <div
           class="rounded-lg border border-border/60 bg-background/70 px-3 py-2"
         >
-          <div class="text-[11px] text-muted-foreground">Runtime Kind</div>
+          <div class="text-[11px] text-muted-foreground">
+            {{ $t('admin.plugin.lifecycleAudit.runtimeKind') }}
+          </div>
           <div class="mt-1 text-sm font-medium text-foreground">
             {{ String(props.payload.runtime_kind || '-') }}
           </div>
@@ -43,7 +47,9 @@ const props = defineProps<{
         <div
           class="rounded-lg border border-border/60 bg-background/70 px-3 py-2"
         >
-          <div class="text-[11px] text-muted-foreground">Degraded Reason</div>
+          <div class="text-[11px] text-muted-foreground">
+            {{ $t('admin.plugin.lifecycleAudit.degradedReason') }}
+          </div>
           <div class="mt-1 text-sm font-medium text-foreground">
             {{ String(props.payload.degraded_reason || '-') }}
           </div>
@@ -55,7 +61,7 @@ const props = defineProps<{
       >
     </template>
     <div v-else class="text-xs text-muted-foreground">
-      Lifecycle audit data is unavailable.
+      {{ $t('admin.plugin.lifecycleAudit.unavailable') }}
     </div>
   </div>
 </template>

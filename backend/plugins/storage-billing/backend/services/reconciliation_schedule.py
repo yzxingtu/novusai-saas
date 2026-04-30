@@ -14,7 +14,6 @@ from .reconciliation_shared import (
     _aggregate_run_status,
     _month_end,
     _month_start,
-    _resolve_billing_date,
     _resolve_billing_month,
     _stringify,
 )
@@ -23,7 +22,9 @@ from .reconciliation_shared import (
 class StorageBillingReconciliationScheduleMixin:
     """Public reconciliation run entrypoints and provider fan-out orchestration."""
 
-    async def trigger_manual_run(self, payload: dict[str, Any] | None = None) -> dict[str, Any]:
+    async def trigger_manual_run(
+        self, payload: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         request_payload = dict(payload or {})
         if request_payload.get("billing_date") in {None, ""}:
             return await self._run_provider_specific_daily_reconciliation(
@@ -45,7 +46,9 @@ class StorageBillingReconciliationScheduleMixin:
             provider_codes=request_payload.get("provider_codes"),
         )
 
-    async def run_daily_reconciliation(self, billing_date: date | None = None) -> dict[str, Any]:
+    async def run_daily_reconciliation(
+        self, billing_date: date | None = None
+    ) -> dict[str, Any]:
         if billing_date is None:
             return await self._run_provider_specific_daily_reconciliation(
                 trigger_type="schedule",
@@ -110,7 +113,9 @@ class StorageBillingReconciliationScheduleMixin:
         if len(billable_drivers) == 1:
             provider_code = _stringify(billable_drivers[0].get("code"))
             rule = get_provider_daily_reconciliation_rule(provider_code)
-            lag_days = int(rule.get("official_billing_lag_days") or OFFICIAL_BILLING_LAG_DAYS)
+            lag_days = int(
+                rule.get("official_billing_lag_days") or OFFICIAL_BILLING_LAG_DAYS
+            )
             target_date = self._resolve_billing_date(
                 None,
                 default_offset_days=lag_days,
@@ -145,7 +150,9 @@ class StorageBillingReconciliationScheduleMixin:
             if not provider_code:
                 continue
             rule = get_provider_daily_reconciliation_rule(provider_code)
-            lag_days = int(rule.get("official_billing_lag_days") or OFFICIAL_BILLING_LAG_DAYS)
+            lag_days = int(
+                rule.get("official_billing_lag_days") or OFFICIAL_BILLING_LAG_DAYS
+            )
             target_date = self._resolve_billing_date(
                 None,
                 default_offset_days=lag_days,
@@ -180,7 +187,9 @@ class StorageBillingReconciliationScheduleMixin:
             run_payload = dict(result.get("run") or {})
             runs.append(run_payload)
             sources.extend(list(result.get("sources") or []))
-            aggregate_billable_drivers.extend(list(result.get("billable_drivers") or []))
+            aggregate_billable_drivers.extend(
+                list(result.get("billable_drivers") or [])
+            )
 
             run_summary = dict(run_payload.get("summary") or {})
             status_counter.update(dict(run_summary.get("source_status_counts") or {}))
@@ -201,7 +210,11 @@ class StorageBillingReconciliationScheduleMixin:
             provider_summaries.append(provider_summary)
 
         aggregate_status = _aggregate_run_status(
-            [_stringify(item.get("status")) for item in runs if _stringify(item.get("status"))]
+            [
+                _stringify(item.get("status"))
+                for item in runs
+                if _stringify(item.get("status"))
+            ]
         )
         unique_billable_drivers = []
         seen_driver_codes: set[str] = set()

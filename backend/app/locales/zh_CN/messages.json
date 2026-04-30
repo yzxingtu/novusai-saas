@@ -2370,6 +2370,7 @@
         "license_activated": "许可证激活成功",
         "enabled": "插件已启用",
         "disabled": "插件已禁用",
+        "config_updated": "配置已更新",
         "schedule_refreshed": "插件调度已刷新",
         "menu_config_updated": "菜单配置已更新",
         "manifest_synced": "插件清单已同步",

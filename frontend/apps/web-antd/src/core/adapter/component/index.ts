@@ -228,7 +228,7 @@ const withPreviewUpload = () => {
     if (!isImageFile(file)) {
       const previewSource = getPreviewSource(file);
       if (previewSource) {
-        window.open(previewSource, '_blank');
+        window.open(previewSource, '_blank', 'noopener,noreferrer');
       } else {
         message.error($t('ui.formRules.previewWarning'));
       }
