@@ -180,6 +180,12 @@ async function handleEditNode(node: OrgTreeNodeData | TenantOrgNodeInfo) {
   nodeDialogOpen.value = true;
 }
 
+async function handleEditActiveNode() {
+  const node = activeNode.value;
+  if (!node) return;
+  await handleEditNode(node);
+}
+
 async function loadSelectedNodeDetail(nodeId: number) {
   detailLoading.value = true;
   try {
@@ -234,6 +240,12 @@ async function handleDeleteNode(node: OrgTreeNodeData | TenantOrgNodeInfo) {
   } finally {
     deleting.value = false;
   }
+}
+
+async function handleDeleteActiveNode() {
+  const node = activeNode.value;
+  if (!node) return;
+  await handleDeleteNode(node);
 }
 
 async function handleMemberPanelRefresh() {
@@ -481,7 +493,7 @@ onMounted(async () => {
                 </div>
               </div>
               <div class="flex flex-shrink-0 gap-2">
-                <Button size="small" @click="handleEditNode(activeNode!)">
+                <Button size="small" @click="handleEditActiveNode">
                   <template #icon>
                     <IconifyIcon icon="lucide:pencil" />
                   </template>
@@ -496,7 +508,7 @@ onMounted(async () => {
                   :ok-text="$t('shared.common.confirm')"
                   :cancel-text="$t('shared.common.cancel')"
                   :ok-button-props="{ danger: true }"
-                  @confirm="handleDeleteNode(activeNode!)"
+                  @confirm="handleDeleteActiveNode"
                 >
                   <Button danger size="small" :loading="deleting">
                     <template #icon>
@@ -566,9 +578,10 @@ onMounted(async () => {
                         $t('shared.orgNode.permissions')
                       }}</span>
                       <PermissionPreview
+                        v-if="activeNode"
                         api-prefix="tenant"
                         source="org-node"
-                        :node-id="activeNode!.id"
+                        :node-id="activeNode.id"
                         :permissions-count="activeNode?.permissionsCount ?? 0"
                       />
                     </div>

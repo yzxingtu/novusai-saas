@@ -36,7 +36,7 @@ def main() -> None:
 
     keys = list(registry.keys())
     total = len(keys)
-    print(f"=== Redis Registry Inspection / Redis 注册表检查 ===\n")
+    print("=== Redis Registry Inspection / Redis 注册表检查 ===\n")
     print(f"Key: {LITELLM_REDIS_KEY}")
     print(f"Total model keys: {total}\n")
 
@@ -66,7 +66,11 @@ def main() -> None:
         entry = registry.get(k, {})
         if isinstance(entry, dict):
             fields = list(entry.keys())
-            caps = [f for f in fields if "support" in f or "max_" in f or "cost" in f or "mode" in f]
+            caps = [
+                f
+                for f in fields
+                if "support" in f or "max_" in f or "cost" in f or "mode" in f
+            ]
             print(f"  {k}: {caps[:8]}")
 
     # Check TTL

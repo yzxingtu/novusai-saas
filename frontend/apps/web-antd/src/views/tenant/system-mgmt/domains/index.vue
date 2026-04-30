@@ -330,7 +330,7 @@ function onCopy(text: string) {
                 <IconifyIcon
                   icon="lucide:copy"
                   class="size-3.5 cursor-pointer text-muted-foreground hover:text-primary"
-                  @click="onCopy(domain.cnameTarget!)"
+                  @click="onCopy(domain.cnameTarget)"
                 />
               </div>
             </div>

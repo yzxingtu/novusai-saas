@@ -131,4 +131,15 @@ def _should_exclude_release_file(rel_path: Path) -> bool:
         return True
     if any(marker in rel_path.parts for marker in {"__tests__", "tests"}):
         return True
-    return rel_path.name.endswith((".spec.ts", ".spec.tsx", ".test.ts", ".test.tsx"))
+    return rel_path.name.endswith(
+        (
+            ".spec.ts",
+            ".spec.tsx",
+            ".test.ts",
+            ".test.tsx",
+        )
+    ) or (
+        rel_posix.startswith("backend/")
+        and rel_path.name.startswith("test_")
+        and rel_path.suffix == ".py"
+    )

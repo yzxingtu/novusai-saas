@@ -26,6 +26,7 @@
   "readme": "Documentation",
   "create": "Install Plugin",
   "upload": "Upload & Install",
+  "uploadHint": "ZIP file, under 50MB",
   "marketplaceBtn": "Plugin & Skill Marketplace",
   "allTypes": "All Types",
   "pluginType": "Plugin Type",

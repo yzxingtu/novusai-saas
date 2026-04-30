@@ -1,14 +1,31 @@
 from __future__ import annotations
 
 import asyncio
+import sys
+from types import ModuleType
 from typing import Any
 
 from PIL import Image
 
-import captcha_provider as provider_module
+from app.plugins.module_loader import load_plugin_handler
 
 
-def test_generate_challenge_includes_vector_geometry_for_client_render(monkeypatch):
+def _load_provider_module() -> ModuleType:
+    provider_cls = load_plugin_handler(
+        "slider-captcha",
+        "captcha_provider.SliderCaptchaProvider",
+    )
+    if not isinstance(provider_cls, type):
+        raise AssertionError("SliderCaptchaProvider handler did not resolve to a class")
+    return sys.modules[provider_cls.__module__]
+
+
+def _patch_provider_dependencies(
+    monkeypatch: Any,
+    provider_module: ModuleType,
+    *,
+    background_color: tuple[int, int, int],
+) -> dict[str, Any]:
     store: dict[str, Any] = {}
 
     async def fake_cache_get(key: str):
@@ -24,7 +41,7 @@ def test_generate_challenge_includes_vector_geometry_for_client_render(monkeypat
         return 1
 
     async def fake_background(_self, _config: dict[str, Any]):
-        return Image.new("RGB", (320, 180), color=(120, 160, 210))
+        return Image.new("RGB", (320, 180), color=background_color)
 
     monkeypatch.setattr(provider_module, "cache_get", fake_cache_get)
     monkeypatch.setattr(provider_module, "cache_set", fake_cache_set)
@@ -34,7 +51,16 @@ def test_generate_challenge_includes_vector_geometry_for_client_render(monkeypat
         "_load_background_image",
         fake_background,
     )
+    return store
 
+
+def test_generate_challenge_includes_vector_geometry_for_client_render(monkeypatch):
+    provider_module = _load_provider_module()
+    store = _patch_provider_dependencies(
+        monkeypatch,
+        provider_module,
+        background_color=(120, 160, 210),
+    )
     provider = provider_module.SliderCaptchaProvider()
 
     async def scenario():
@@ -56,7 +82,9 @@ def test_generate_challenge_includes_vector_geometry_for_client_render(monkeypat
             geom.keys()
         )
 
-        stored = store[provider_module._CHALLENGE_KEY_PREFIX + f":{challenge.challenge_id}"]
+        stored = store[
+            provider_module._CHALLENGE_KEY_PREFIX + f":{challenge.challenge_id}"
+        ]
         ok = await provider.verify(
             challenge.challenge_id,
             str(stored["expected_offset"]),
@@ -68,32 +96,12 @@ def test_generate_challenge_includes_vector_geometry_for_client_render(monkeypat
 
 
 def test_verify_rejects_context_mismatch(monkeypatch):
-    store: dict[str, Any] = {}
-
-    async def fake_cache_get(key: str):
-        return store.get(key)
-
-    async def fake_cache_set(key: str, value: Any, ttl: int | None = None):
-        _ = ttl
-        store[key] = value
-        return True
-
-    async def fake_cache_delete(key: str):
-        store.pop(key, None)
-        return 1
-
-    async def fake_background(_self, _config: dict[str, Any]):
-        return Image.new("RGB", (320, 180), color=(80, 110, 160))
-
-    monkeypatch.setattr(provider_module, "cache_get", fake_cache_get)
-    monkeypatch.setattr(provider_module, "cache_set", fake_cache_set)
-    monkeypatch.setattr(provider_module, "cache_delete", fake_cache_delete)
-    monkeypatch.setattr(
-        provider_module.SliderCaptchaProvider,
-        "_load_background_image",
-        fake_background,
+    provider_module = _load_provider_module()
+    store = _patch_provider_dependencies(
+        monkeypatch,
+        provider_module,
+        background_color=(80, 110, 160),
     )
-
     provider = provider_module.SliderCaptchaProvider()
 
     async def scenario():
@@ -105,7 +113,9 @@ def test_verify_rejects_context_mismatch(monkeypatch):
                 "ip": "127.0.0.1",
             }
         )
-        stored = store[provider_module._CHALLENGE_KEY_PREFIX + f":{challenge.challenge_id}"]
+        stored = store[
+            provider_module._CHALLENGE_KEY_PREFIX + f":{challenge.challenge_id}"
+        ]
         result = await provider.verify(
             challenge.challenge_id,
             str(stored["expected_offset"]),
@@ -118,32 +128,12 @@ def test_verify_rejects_context_mismatch(monkeypatch):
 
 
 def test_verify_exhausts_attempts_on_mismatch(monkeypatch):
-    store: dict[str, Any] = {}
-
-    async def fake_cache_get(key: str):
-        return store.get(key)
-
-    async def fake_cache_set(key: str, value: Any, ttl: int | None = None):
-        _ = ttl
-        store[key] = value
-        return True
-
-    async def fake_cache_delete(key: str):
-        store.pop(key, None)
-        return 1
-
-    async def fake_background(_self, _config: dict[str, Any]):
-        return Image.new("RGB", (320, 180), color=(150, 120, 90))
-
-    monkeypatch.setattr(provider_module, "cache_get", fake_cache_get)
-    monkeypatch.setattr(provider_module, "cache_set", fake_cache_set)
-    monkeypatch.setattr(provider_module, "cache_delete", fake_cache_delete)
-    monkeypatch.setattr(
-        provider_module.SliderCaptchaProvider,
-        "_load_background_image",
-        fake_background,
+    provider_module = _load_provider_module()
+    store = _patch_provider_dependencies(
+        monkeypatch,
+        provider_module,
+        background_color=(150, 120, 90),
     )
-
     provider = provider_module.SliderCaptchaProvider()
 
     async def scenario():
@@ -155,7 +145,9 @@ def test_verify_exhausts_attempts_on_mismatch(monkeypatch):
                 "ip": "127.0.0.1",
             }
         )
-        challenge_key = provider_module._CHALLENGE_KEY_PREFIX + f":{challenge.challenge_id}"
+        challenge_key = provider_module._CHALLENGE_KEY_PREFIX + (
+            f":{challenge.challenge_id}"
+        )
         for _ in range(provider_module._MAX_VERIFY_ATTEMPTS):
             result = await provider.verify(
                 challenge.challenge_id,

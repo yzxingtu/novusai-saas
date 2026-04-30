@@ -10,6 +10,7 @@ import type {
  */
 import type { MemberListParams } from '#/api/admin/organization';
 import type { TenantMemberListParams } from '#/api/tenant/organization';
+import type { ApiRequestOptions } from '#/utils/request';
 
 import { ref, watch } from 'vue';
 
@@ -33,6 +34,10 @@ import { $t } from '#/locales';
 
 /** Default page size / 默认每页数量 */
 const DEFAULT_PAGE_SIZE = 20;
+const LOCAL_ERROR_MESSAGE_REQUEST_OPTIONS: ApiRequestOptions = {
+  showCodeMessage: false,
+  showErrorMessage: false,
+};
 
 /**
  * Member panel management hook
@@ -104,12 +109,15 @@ export function useMemberPanel(
         params.search = searchKeyword.value.trim();
       }
 
-      const response = await getMembersApi(id, params);
+      const response = await getMembersApi(
+        id,
+        params,
+        LOCAL_ERROR_MESSAGE_REQUEST_OPTIONS,
+      );
       members.value = response.items;
       pagination.value.total = response.total;
       pagination.value.page = response.page;
-    } catch (error_) {
-      console.error('Failed to load members:', error_);
+    } catch {
       error.value = $t('shared.memberPanel.loadFailed');
       members.value = [];
       pagination.value.total = 0;
@@ -131,12 +139,11 @@ export function useMemberPanel(
 
     operating.value = true;
     try {
-      await addMemberApi(id, adminId);
+      await addMemberApi(id, adminId, LOCAL_ERROR_MESSAGE_REQUEST_OPTIONS);
       message.success($t('shared.memberPanel.addSuccess'));
       await loadMembers();
       return true;
-    } catch (error_) {
-      console.error('Failed to add member:', error_);
+    } catch {
       message.error($t('shared.memberPanel.addFailed'));
       return false;
     } finally {
@@ -163,15 +170,14 @@ export function useMemberPanel(
     try {
       // Add sequentially to avoid concurrency issues / 串行添加，避免并发问题
       for (const adminId of adminIds) {
-        await addMemberApi(id, adminId);
+        await addMemberApi(id, adminId, LOCAL_ERROR_MESSAGE_REQUEST_OPTIONS);
       }
       message.success(
         $t('shared.memberPanel.batchAddSuccess', { count: adminIds.length }),
       );
       await loadMembers();
       return true;
-    } catch (error_) {
-      console.error('Failed to add members:', error_);
+    } catch {
       message.error($t('shared.memberPanel.batchAddFailed'));
       // Refresh list even if partially failed / 即使部分失败也刷新列表
       await loadMembers();
@@ -198,13 +204,12 @@ export function useMemberPanel(
 
     operating.value = true;
     try {
-      await removeMemberApi(id, adminId);
+      await removeMemberApi(id, adminId, LOCAL_ERROR_MESSAGE_REQUEST_OPTIONS);
       message.success($t('shared.memberPanel.removeSuccess'));
       // Remove from local list / 从本地列表移除
       members.value = members.value.filter((m) => m.id !== adminId);
       return true;
-    } catch (error_) {
-      console.error('Failed to remove member:', error_);
+    } catch {
       message.error($t('shared.memberPanel.removeFailed'));
       return false;
     } finally {
@@ -231,7 +236,7 @@ export function useMemberPanel(
 
     operating.value = true;
     try {
-      await setLeaderApi(id, adminId);
+      await setLeaderApi(id, adminId, LOCAL_ERROR_MESSAGE_REQUEST_OPTIONS);
       message.success(
         adminId
           ? $t('shared.memberPanel.setLeaderSuccess')
@@ -240,8 +245,7 @@ export function useMemberPanel(
       // Reload list to get latest isLeader status / 重新加载列表以获取最新的 isLeader 状态
       await loadMembers();
       return true;
-    } catch (error_) {
-      console.error('Failed to set leader:', error_);
+    } catch {
       message.error($t('shared.memberPanel.setLeaderFailed'));
       return false;
     } finally {

@@ -114,6 +114,45 @@ interface DomainCreateDefaults {
   remark?: string;
 }
 
+interface DevHostsDomainStatusView {
+  color: string;
+  icon: string;
+  matchedIp?: null | string;
+  reasonText: string;
+  statusText: string;
+}
+
+const devHostsDomainStatusMap = computed(
+  () =>
+    new Map(
+      (devHostsOverview.value?.domains ?? []).map((item) => [
+        item.domainId,
+        item,
+      ]),
+    ),
+);
+
+const devHostsDomainStatusViews = computed(
+  () =>
+    new Map<number, DevHostsDomainStatusView>(
+      [...devHostsDomainStatusMap.value.values()].map((domainStatus) => {
+        const tagConfig = getDevHostsTagConfig(domainStatus.status);
+        return [
+          domainStatus.domainId,
+          {
+            color: tagConfig.color,
+            icon: tagConfig.icon,
+            matchedIp: domainStatus.matchedIp,
+            reasonText: getDevHostsReasonText(domainStatus.reason),
+            statusText: $t(
+              `admin.tenant.domain.devHosts.status.${domainStatus.status}`,
+            ),
+          },
+        ];
+      }),
+    ),
+);
+
 /** Load domain list / 加载域名列表 */
 async function loadDomains() {
   if (!currentTenant.value?.tenantId) return;
@@ -258,11 +297,11 @@ async function onDeleteDomain(domain: TenantDomainInfo) {
 }
 
 function getDevHostsDomainStatus(domainId: number) {
-  return (
-    devHostsOverview.value?.domains.find(
-      (item) => item.domainId === domainId,
-    ) || null
-  );
+  return devHostsDomainStatusMap.value.get(domainId) || null;
+}
+
+function getDevHostsDomainStatusView(domainId: number) {
+  return devHostsDomainStatusViews.value.get(domainId) || null;
 }
 
 function getDevHostsTagConfig(status: DevHostsStatus) {
@@ -711,7 +750,7 @@ defineExpose({ open, openAddDomain });
               </div>
 
               <div
-                v-if="getDevHostsDomainStatus(domain.id)"
+                v-if="getDevHostsDomainStatusView(domain.id)"
                 class="flex items-center gap-1"
               >
                 <span class="text-sm text-muted-foreground">
@@ -719,30 +758,23 @@ defineExpose({ open, openAddDomain });
                 </span>
                 <Tag
                   :color="
-                    getDevHostsTagConfig(
-                      getDevHostsDomainStatus(domain.id)!.status,
-                    ).color
+                    getDevHostsDomainStatusView(domain.id)?.color || 'warning'
                   "
                 >
                   <IconifyIcon
                     :icon="
-                      getDevHostsTagConfig(
-                        getDevHostsDomainStatus(domain.id)!.status,
-                      ).icon
+                      getDevHostsDomainStatusView(domain.id)?.icon ||
+                      'lucide:triangle-alert'
                     "
                     class="mr-1 size-3"
                   />
-                  {{
-                    $t(
-                      `admin.tenant.domain.devHosts.status.${getDevHostsDomainStatus(domain.id)!.status}`,
-                    )
-                  }}
+                  {{ getDevHostsDomainStatusView(domain.id)?.statusText || '' }}
                 </Tag>
                 <span
-                  v-if="getDevHostsDomainStatus(domain.id)?.matchedIp"
+                  v-if="getDevHostsDomainStatusView(domain.id)?.matchedIp"
                   class="text-xs text-muted-foreground"
                 >
-                  {{ getDevHostsDomainStatus(domain.id)?.matchedIp }}
+                  {{ getDevHostsDomainStatusView(domain.id)?.matchedIp }}
                 </span>
               </div>
             </div>
@@ -759,14 +791,10 @@ defineExpose({ open, openAddDomain });
             </div>
 
             <div
-              v-if="getDevHostsDomainStatus(domain.id)?.reason"
+              v-if="getDevHostsDomainStatusView(domain.id)?.reasonText"
               class="mt-2 text-xs text-muted-foreground"
             >
-              {{
-                getDevHostsReasonText(
-                  getDevHostsDomainStatus(domain.id)?.reason,
-                )
-              }}
+              {{ getDevHostsDomainStatusView(domain.id)?.reasonText }}
             </div>
 
             <!-- 操作按钮 -->

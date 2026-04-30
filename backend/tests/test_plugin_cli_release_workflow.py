@@ -77,6 +77,10 @@ export const DemoPage = {};
         "def test_placeholder():\n    assert True\n",
         encoding="utf-8",
     )
+    (plugin_dir / "backend" / "test_should_not_pack.py").write_text(
+        "def test_placeholder():\n    assert True\n",
+        encoding="utf-8",
+    )
     (plugin_dir / "locales" / "zh-CN.json").write_text(
         json.dumps(
             {
@@ -705,6 +709,7 @@ def test_cmd_pack_release_excludes_source_and_tests(tmp_path: Path) -> None:
     assert "demo-plugin/frontend/src/index.ts" not in names
     assert "demo-plugin/frontend/package.json" not in names
     assert "demo-plugin/backend/tests/test_should_not_pack.py" not in names
+    assert "demo-plugin/backend/test_should_not_pack.py" not in names
 
 
 def test_cmd_pack_source_keeps_frontend_source(tmp_path: Path) -> None:

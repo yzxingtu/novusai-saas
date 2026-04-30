@@ -8,12 +8,10 @@ hard to review and may corrupt code. Fix comments line-by-line in the editor (or
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import re
-import sys
-import time
 from pathlib import Path
+
 SKIP_DIR_NAMES = {
     "node_modules",
     ".venv",
@@ -31,7 +29,18 @@ SKIP_DIR_NAMES = {
     "out",
 }
 
-TEXT_EXT = {".py", ".ts", ".tsx", ".vue", ".js", ".mjs", ".cjs", ".css", ".scss", ".less"}
+TEXT_EXT = {
+    ".py",
+    ".ts",
+    ".tsx",
+    ".vue",
+    ".js",
+    ".mjs",
+    ".cjs",
+    ".css",
+    ".scss",
+    ".less",
+}
 
 # Third-party / tool-only: do not translate / 第三方或工具向：不翻译
 SKIP_SUBSTR = (
@@ -70,9 +79,7 @@ def is_bilingual_text(s: str) -> bool:
         return True
     if " / " in t and has_cjk(t) and has_latin_word(t):
         return True
-    if has_cjk(t) and has_latin_word(t):
-        return True
-    return False
+    return bool(has_cjk(t) and has_latin_word(t))
 
 
 def should_skip_comment_text(t: str) -> bool:
@@ -85,9 +92,7 @@ def should_skip_comment_text(t: str) -> bool:
             return True
     if t.startswith("#!"):
         return True
-    if re.fullmatch(r"[#=*\-_]{2,}", t):
-        return True
-    return False
+    return bool(re.fullmatch(r"[#=*\-_]{2,}", t))
 
 
 def py_full_line_comment(line: str) -> str | None:
@@ -130,7 +135,9 @@ def walk_files(root: Path) -> list[Path]:
         dirnames[:] = [
             d
             for d in dirnames
-            if d not in SKIP_DIR_NAMES and not d.startswith(".") and d not in {"build", "out", "coverage"}
+            if d not in SKIP_DIR_NAMES
+            and not d.startswith(".")
+            and d not in {"build", "out", "coverage"}
         ]
         for fn in filenames:
             p = Path(dirpath) / fn
@@ -176,7 +183,10 @@ def scan_py_blocks(path: Path) -> list[dict]:
                 block_lines.append((j + 1, fj))
                 j += 1
             combined = "\n".join(t for _, t in block_lines)
-            if should_skip_comment_text(combined.split("\n")[0]) and len(block_lines) == 1:
+            if (
+                should_skip_comment_text(combined.split("\n")[0])
+                and len(block_lines) == 1
+            ):
                 i = j
                 continue
             if is_bilingual_text(combined):
@@ -203,7 +213,11 @@ def scan_py_blocks(path: Path) -> list[dict]:
             i = j
             continue
         inl = py_inline_tail(line)
-        if inl is not None and not should_skip_comment_text(inl) and not is_bilingual_text(inl):
+        if (
+            inl is not None
+            and not should_skip_comment_text(inl)
+            and not is_bilingual_text(inl)
+        ):
             if not has_cjk(inl) and has_latin_word(inl):
                 k = "en_inline"
             elif has_cjk(inl) and not has_latin_word(inl):
@@ -225,7 +239,9 @@ def scan_py_blocks(path: Path) -> list[dict]:
     return hits
 
 
-def scan_ts_like_blocks(lines: list[str] | list[tuple[int, str]], path: str) -> list[dict]:
+def scan_ts_like_blocks(
+    lines: list[str] | list[tuple[int, str]], path: str
+) -> list[dict]:
     """If lines are (file_line_no, text) tuples, use first as physical line number. / 若为 (行号, 文本) 元组则使用真实行号。"""
     hits: list[dict] = []
     if not lines:
@@ -253,7 +269,10 @@ def scan_ts_like_blocks(lines: list[str] | list[tuple[int, str]], path: str) -> 
                 block_lines.append((line_map[j], fj))
                 j += 1
             combined = "\n".join(t for _, t in block_lines)
-            if should_skip_comment_text(combined.split("\n")[0]) and len(block_lines) == 1:
+            if (
+                should_skip_comment_text(combined.split("\n")[0])
+                and len(block_lines) == 1
+            ):
                 i = j
                 continue
             if is_bilingual_text(combined):
@@ -290,7 +309,9 @@ def scan_file(path: Path) -> list[dict]:
         slines = extract_vue_script_lines(path.read_text(encoding="utf-8"))
         return scan_ts_like_blocks(slines, str(path))
     if ext in {".ts", ".tsx", ".js", ".mjs", ".cjs"}:
-        return scan_ts_like_blocks(path.read_text(encoding="utf-8").splitlines(), str(path))
+        return scan_ts_like_blocks(
+            path.read_text(encoding="utf-8").splitlines(), str(path)
+        )
     return []
 
 
@@ -302,7 +323,9 @@ def main() -> None:
             "仅审计；请在编辑器逐行或小范围已审阅 diff 修改；禁止脚本批量替换、禁止按审计 JSON 自动写回、禁止机翻批量写入。"
         ),
     )
-    ap.add_argument("roots", nargs="*", default=["backend/app", "frontend", "backend/plugins"])
+    ap.add_argument(
+        "roots", nargs="*", default=["backend/app", "frontend", "backend/plugins"]
+    )
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--count", action="store_true")
     args = ap.parse_args()
@@ -324,7 +347,9 @@ def main() -> None:
     else:
         print("total", len(all_hits))
         for h in all_hits[:80]:
-            print(f"{h['kind']}\t{h['file']}:{h['start_line']}-{h['end_line']}\t{h['text'][:100].replace(chr(10), ' | ')}")
+            print(
+                f"{h['kind']}\t{h['file']}:{h['start_line']}-{h['end_line']}\t{h['text'][:100].replace(chr(10), ' | ')}"
+            )
 
 
 if __name__ == "__main__":

@@ -283,7 +283,9 @@ defineExpose({ open, openMarketplace });
                   : $t('admin.plugin.upload')
               }}
             </span>
-            <span class="text-xs text-muted-foreground"> .zip &lt; 50MB </span>
+            <span class="text-xs text-muted-foreground">
+              {{ $t('admin.plugin.uploadHint') }}
+            </span>
           </div>
         </div>
       </Upload.Dragger>

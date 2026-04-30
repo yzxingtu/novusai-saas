@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -15,6 +16,7 @@ from tests.services.conftest import (
 )
 
 # ── Helpers ──
+
 
 def _make_admin(**overrides):
     defaults = {
@@ -81,6 +83,7 @@ def _make_tenant_user(**overrides):
 
 # ── Tests ──
 
+
 class TestPasswordPolicy:
     """密码策略验证测试 / Test."""
 
@@ -91,7 +94,9 @@ class TestPasswordPolicy:
 
         service = AuthService(mock_db)
 
-        with patch.object(service._config_service, "get_platform_config", new_callable=AsyncMock) as mock_cfg:
+        with patch.object(
+            service._config_service, "get_platform_config", new_callable=AsyncMock
+        ) as mock_cfg:
             mock_cfg.side_effect = lambda key, default=None: {
                 "password_min_length": 8,
                 "password_complexity": "low",
@@ -107,7 +112,9 @@ class TestPasswordPolicy:
 
         service = AuthService(mock_db)
 
-        with patch.object(service._config_service, "get_platform_config", new_callable=AsyncMock) as mock_cfg:
+        with patch.object(
+            service._config_service, "get_platform_config", new_callable=AsyncMock
+        ) as mock_cfg:
             mock_cfg.side_effect = lambda key, default=None: {
                 "password_min_length": 6,
                 "password_complexity": "medium",
@@ -122,7 +129,9 @@ class TestPasswordPolicy:
 
         service = AuthService(mock_db)
 
-        with patch.object(service._config_service, "get_platform_config", new_callable=AsyncMock) as mock_cfg:
+        with patch.object(
+            service._config_service, "get_platform_config", new_callable=AsyncMock
+        ) as mock_cfg:
             mock_cfg.side_effect = lambda key, default=None: {
                 "password_min_length": 6,
                 "password_complexity": "medium",
@@ -137,7 +146,9 @@ class TestPasswordPolicy:
 
         service = AuthService(mock_db)
 
-        with patch.object(service._config_service, "get_platform_config", new_callable=AsyncMock) as mock_cfg:
+        with patch.object(
+            service._config_service, "get_platform_config", new_callable=AsyncMock
+        ) as mock_cfg:
             mock_cfg.side_effect = lambda key, default=None: {
                 "password_min_length": 6,
                 "password_complexity": "high",
@@ -152,7 +163,9 @@ class TestPasswordPolicy:
 
         service = AuthService(mock_db)
 
-        with patch.object(service._config_service, "get_platform_config", new_callable=AsyncMock) as mock_cfg:
+        with patch.object(
+            service._config_service, "get_platform_config", new_callable=AsyncMock
+        ) as mock_cfg:
             mock_cfg.side_effect = lambda key, default=None: {
                 "password_min_length": 6,
                 "password_complexity": "high",
@@ -173,8 +186,15 @@ class TestAdminLogin:
         service = AuthService(mock_db)
 
         with (
-            patch.object(service, "_record_admin_login_failure", new_callable=AsyncMock),
-            patch.object(service._config_service, "get_platform_config", new_callable=AsyncMock, return_value=True),
+            patch.object(
+                service, "_record_admin_login_failure", new_callable=AsyncMock
+            ),
+            patch.object(
+                service._config_service,
+                "get_platform_config",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
             pytest.raises(AuthenticationException),
         ):
             await service.authenticate_admin("nonexistent", "password")
@@ -189,10 +209,24 @@ class TestAdminLogin:
         service = AuthService(mock_db)
 
         with (
-            patch.object(service, "_is_account_locked", new_callable=AsyncMock, return_value=False),
-            patch.object(service, "_record_admin_login_failure", new_callable=AsyncMock),
-            patch.object(service._config_service, "get_platform_config", new_callable=AsyncMock, return_value=False),
-            patch("app.services.common.auth_service.verify_password", return_value=False),
+            patch.object(
+                service,
+                "_is_account_locked",
+                new_callable=AsyncMock,
+                return_value=False,
+            ),
+            patch.object(
+                service, "_record_admin_login_failure", new_callable=AsyncMock
+            ),
+            patch.object(
+                service._config_service,
+                "get_platform_config",
+                new_callable=AsyncMock,
+                return_value=False,
+            ),
+            patch(
+                "app.services.common.auth_service.verify_password", return_value=False
+            ),
             pytest.raises(AuthenticationException),
         ):
             await service.authenticate_admin("admin", "wrong_password")
@@ -207,7 +241,9 @@ class TestAdminLogin:
         service = AuthService(mock_db)
 
         with (
-            patch.object(service, "_is_account_locked", new_callable=AsyncMock, return_value=True),
+            patch.object(
+                service, "_is_account_locked", new_callable=AsyncMock, return_value=True
+            ),
             pytest.raises(AuthenticationException),
         ):
             await service.authenticate_admin("admin", "password")
@@ -222,7 +258,12 @@ class TestAdminLogin:
         service = AuthService(mock_db)
 
         with (
-            patch.object(service, "_is_account_locked", new_callable=AsyncMock, return_value=False),
+            patch.object(
+                service,
+                "_is_account_locked",
+                new_callable=AsyncMock,
+                return_value=False,
+            ),
             pytest.raises(AuthenticationException),
         ):
             await service.authenticate_admin("admin", "password")
@@ -236,12 +277,32 @@ class TestAdminLogin:
         service = AuthService(mock_db)
 
         with (
-            patch.object(service, "_is_account_locked", new_callable=AsyncMock, return_value=False),
-            patch.object(service, "_reset_admin_login_failures", new_callable=AsyncMock),
-            patch.object(service._config_service, "get_platform_config", new_callable=AsyncMock, return_value=False),
-            patch("app.services.common.auth_service.verify_password", return_value=True),
-            patch("app.services.common.auth_service.create_access_token", return_value=("access_tok", "jti_ok")),
-            patch("app.services.common.auth_service.create_refresh_token", return_value=("refresh_tok", "refresh_jti_ok")),
+            patch.object(
+                service,
+                "_is_account_locked",
+                new_callable=AsyncMock,
+                return_value=False,
+            ),
+            patch.object(
+                service, "_reset_admin_login_failures", new_callable=AsyncMock
+            ),
+            patch.object(
+                service._config_service,
+                "get_platform_config",
+                new_callable=AsyncMock,
+                return_value=False,
+            ),
+            patch(
+                "app.services.common.auth_service.verify_password", return_value=True
+            ),
+            patch(
+                "app.services.common.auth_service.create_access_token",
+                return_value=("access_tok", "jti_ok"),
+            ),
+            patch(
+                "app.services.common.auth_service.create_refresh_token",
+                return_value=("refresh_tok", "refresh_jti_ok"),
+            ),
         ):
             result = await service.authenticate_admin("admin", "correct_password")
 
@@ -263,9 +324,7 @@ class TestAdminDevBootstrap:
         service = AuthService(mock_db)
 
         monkeypatch.setattr(settings, "APP_ENV", "development", raising=False)
-        monkeypatch.setattr(
-            settings, "DEV_BOOTSTRAP_AUTH_ENABLED", True, raising=False
-        )
+        monkeypatch.setattr(settings, "DEV_BOOTSTRAP_AUTH_ENABLED", True, raising=False)
         monkeypatch.setattr(
             settings,
             "DEV_BOOTSTRAP_ALLOWED_HOSTS",
@@ -315,9 +374,7 @@ class TestAdminDevBootstrap:
         service = AuthService(mock_db)
 
         monkeypatch.setattr(settings, "APP_ENV", "development", raising=False)
-        monkeypatch.setattr(
-            settings, "DEV_BOOTSTRAP_AUTH_ENABLED", True, raising=False
-        )
+        monkeypatch.setattr(settings, "DEV_BOOTSTRAP_AUTH_ENABLED", True, raising=False)
         monkeypatch.setattr(
             settings, "DEV_BOOTSTRAP_ALLOWED_HOSTS", "localhost", raising=False
         )
@@ -340,9 +397,7 @@ class TestAdminDevBootstrap:
         service = AuthService(mock_db)
 
         monkeypatch.setattr(settings, "APP_ENV", "development", raising=False)
-        monkeypatch.setattr(
-            settings, "DEV_BOOTSTRAP_AUTH_ENABLED", True, raising=False
-        )
+        monkeypatch.setattr(settings, "DEV_BOOTSTRAP_AUTH_ENABLED", True, raising=False)
         monkeypatch.setattr(
             settings, "DEV_BOOTSTRAP_ALLOWED_HOSTS", "localhost,.local", raising=False
         )
@@ -372,9 +427,7 @@ class TestTenantAdminDevBootstrap:
         service = AuthService(mock_db)
 
         monkeypatch.setattr(settings, "APP_ENV", "development", raising=False)
-        monkeypatch.setattr(
-            settings, "DEV_BOOTSTRAP_AUTH_ENABLED", True, raising=False
-        )
+        monkeypatch.setattr(settings, "DEV_BOOTSTRAP_AUTH_ENABLED", True, raising=False)
         monkeypatch.setattr(
             settings, "DEV_BOOTSTRAP_ALLOWED_HOSTS", "localhost,.local", raising=False
         )
@@ -412,14 +465,12 @@ class TestTenantAdminDevBootstrap:
             ),
             patch.object(service, "_record_active_tokens", new_callable=AsyncMock),
             patch(
-                "app.services.common.auth_service.create_token_pair",
-                return_value={
-                    "access_token": "tenant_access",
-                    "refresh_token": "tenant_refresh",
-                    "access_jti": "tenant_access_jti",
-                    "refresh_jti": "tenant_refresh_jti",
-                    "token_type": "bearer",
-                },
+                "app.services.common.auth_service.create_access_token",
+                return_value=("tenant_access", "tenant_access_jti"),
+            ),
+            patch(
+                "app.services.common.auth_service.create_refresh_token",
+                return_value=("tenant_refresh", "tenant_refresh_jti"),
             ),
         ):
             result = await service.authenticate_tenant_admin_by_dev_bootstrap(
@@ -445,9 +496,7 @@ class TestTenantAdminDevBootstrap:
         service = AuthService(mock_db)
 
         monkeypatch.setattr(settings, "APP_ENV", "development", raising=False)
-        monkeypatch.setattr(
-            settings, "DEV_BOOTSTRAP_AUTH_ENABLED", True, raising=False
-        )
+        monkeypatch.setattr(settings, "DEV_BOOTSTRAP_AUTH_ENABLED", True, raising=False)
         monkeypatch.setattr(
             settings, "DEV_BOOTSTRAP_ALLOWED_HOSTS", "localhost,.local", raising=False
         )
@@ -471,6 +520,105 @@ class TestTenantAdminDevBootstrap:
             )
 
 
+class TestTenantAdminLogin:
+    """企业管理员登录测试 / Tenant admin login tests."""
+
+    @pytest.mark.asyncio
+    async def test_login_inactive_tenant_raises_authentication_exception(self, mock_db):
+        from app.exceptions import AuthenticationException
+        from app.services.common.auth_service import AuthService
+
+        tenant_admin = _make_tenant_admin()
+        inactive_tenant = _make_tenant(is_active=False)
+        mock_db.execute.side_effect = [
+            make_scalars_result([tenant_admin]),
+            make_scalar_result(inactive_tenant),
+        ]
+        service = AuthService(mock_db)
+        service._config_service.get_tenant_config = AsyncMock(
+            side_effect=lambda _tenant_id, key, default=None: {
+                "tenant_captcha_enabled": False,
+                "tenant_captcha_enable_threshold": 2,
+            }.get(key, default)
+        )
+
+        with (
+            patch.object(
+                service,
+                "_is_account_locked",
+                new_callable=AsyncMock,
+                return_value=False,
+            ),
+            patch.object(service, "_reset_login_failures", new_callable=AsyncMock),
+            patch(
+                "app.services.common.auth_service.verify_password",
+                return_value=True,
+            ),
+            pytest.raises(AuthenticationException),
+        ):
+            await service.authenticate_tenant_admin(
+                "tenant_admin",
+                "password",
+                tenant_id_from_ctx=tenant_admin.tenant_id,
+            )
+
+    @pytest.mark.asyncio
+    async def test_issue_login_tokens_uses_tenant_session_timeout(self, mock_db):
+        from app.services.common.auth_service import AuthService
+
+        tenant_admin = _make_tenant_admin(id=7, tenant_id=3)
+        tenant = _make_tenant(id=3, code="acme")
+        mock_db.execute.return_value = make_scalar_result(tenant)
+        service = AuthService(mock_db)
+
+        with (
+            patch.object(
+                service._config_service,
+                "get_tenant_config",
+                new_callable=AsyncMock,
+                return_value=45,
+            ) as mock_tenant_config,
+            patch.object(
+                service._config_service,
+                "get_platform_config",
+                new_callable=AsyncMock,
+            ) as mock_platform_config,
+            patch.object(service, "_record_active_tokens", new_callable=AsyncMock),
+            patch(
+                "app.services.common.auth_service.create_access_token",
+                return_value=("tenant_access", "tenant_access_jti"),
+            ) as mock_create_access_token,
+            patch(
+                "app.services.common.auth_service.create_refresh_token",
+                return_value=("tenant_refresh", "tenant_refresh_jti"),
+            ) as mock_create_refresh_token,
+        ):
+            result = await service._issue_tenant_admin_login_tokens(tenant_admin)
+
+        assert result == {
+            "access_token": "tenant_access",
+            "refresh_token": "tenant_refresh",
+            "token_type": "bearer",
+        }
+        mock_tenant_config.assert_awaited_once_with(
+            tenant_admin.tenant_id,
+            "tenant_session_timeout",
+            default=None,
+        )
+        mock_platform_config.assert_not_awaited()
+        mock_create_access_token.assert_called_once_with(
+            subject=tenant_admin.id,
+            scope="tenant_admin",
+            expires_delta=timedelta(minutes=45),
+            extra_claims={"tenant_id": tenant_admin.tenant_id},
+        )
+        mock_create_refresh_token.assert_called_once_with(
+            subject=tenant_admin.id,
+            scope="tenant_admin",
+            extra_claims={"tenant_id": tenant_admin.tenant_id},
+        )
+
+
 class TestTenantUserDevBootstrap:
     """开发环境 tenant user bootstrap 测试 / Dev bootstrap tests for tenant user."""
 
@@ -488,9 +636,7 @@ class TestTenantUserDevBootstrap:
         service = AuthService(mock_db)
 
         monkeypatch.setattr(settings, "APP_ENV", "development", raising=False)
-        monkeypatch.setattr(
-            settings, "DEV_BOOTSTRAP_AUTH_ENABLED", True, raising=False
-        )
+        monkeypatch.setattr(settings, "DEV_BOOTSTRAP_AUTH_ENABLED", True, raising=False)
         monkeypatch.setattr(
             settings, "DEV_BOOTSTRAP_ALLOWED_HOSTS", "localhost,.local", raising=False
         )
@@ -535,9 +681,7 @@ class TestTenantUserDevBootstrap:
         service = AuthService(mock_db)
 
         monkeypatch.setattr(settings, "APP_ENV", "development", raising=False)
-        monkeypatch.setattr(
-            settings, "DEV_BOOTSTRAP_AUTH_ENABLED", True, raising=False
-        )
+        monkeypatch.setattr(settings, "DEV_BOOTSTRAP_AUTH_ENABLED", True, raising=False)
         monkeypatch.setattr(
             settings, "DEV_BOOTSTRAP_ALLOWED_HOSTS", "localhost", raising=False
         )
@@ -569,7 +713,9 @@ class TestChangePassword:
         service = AuthService(mock_db)
 
         with (
-            patch("app.services.common.auth_service.verify_password", return_value=False),
+            patch(
+                "app.services.common.auth_service.verify_password", return_value=False
+            ),
             pytest.raises(BusinessException),
         ):
             await service.change_admin_password(admin, "wrong_old", "new_pass123!")
@@ -582,8 +728,13 @@ class TestChangePassword:
         service = AuthService(mock_db)
 
         with (
-            patch("app.services.common.auth_service.verify_password", return_value=True),
-            patch("app.services.common.auth_service.get_password_hash", return_value="new_hash"),
+            patch(
+                "app.services.common.auth_service.verify_password", return_value=True
+            ),
+            patch(
+                "app.services.common.auth_service.get_password_hash",
+                return_value="new_hash",
+            ),
             patch.object(service, "_validate_password_policy", new_callable=AsyncMock),
         ):
             await service.change_admin_password(admin, "old_pass", "new_pass123!")
@@ -614,10 +765,19 @@ class TestTenantUserLogin:
         service = AuthService(mock_db)
 
         with (
-            patch.object(service, "_is_account_locked", new_callable=AsyncMock, return_value=False),
-            patch.object(service, "_verify_captcha", new_callable=AsyncMock) as mock_verify_captcha,
+            patch.object(
+                service,
+                "_is_account_locked",
+                new_callable=AsyncMock,
+                return_value=False,
+            ),
+            patch.object(
+                service, "_verify_captcha", new_callable=AsyncMock
+            ) as mock_verify_captcha,
             patch.object(service, "_record_login_failure", new_callable=AsyncMock),
-            patch("app.services.common.auth_service.verify_password", return_value=False),
+            patch(
+                "app.services.common.auth_service.verify_password", return_value=False
+            ),
             pytest.raises(AuthenticationException),
         ):
             service._config_service.get_tenant_config = AsyncMock(
@@ -674,10 +834,19 @@ class TestTenantUserLogin:
         service = AuthService(mock_db)
 
         with (
-            patch.object(service, "_is_account_locked", new_callable=AsyncMock, return_value=False),
-            patch.object(service, "_verify_captcha", new_callable=AsyncMock) as mock_verify_captcha,
+            patch.object(
+                service,
+                "_is_account_locked",
+                new_callable=AsyncMock,
+                return_value=False,
+            ),
+            patch.object(
+                service, "_verify_captcha", new_callable=AsyncMock
+            ) as mock_verify_captcha,
             patch.object(service, "_record_login_failure", new_callable=AsyncMock),
-            patch("app.services.common.auth_service.verify_password", return_value=False),
+            patch(
+                "app.services.common.auth_service.verify_password", return_value=False
+            ),
             pytest.raises(AuthenticationException),
         ):
             service._config_service.get_tenant_config = AsyncMock(
@@ -721,7 +890,9 @@ class TestTenantUserCodeLogin:
             )
 
     @pytest.mark.asyncio
-    async def test_send_login_code_returns_uniform_success_for_missing_user(self, mock_db):
+    async def test_send_login_code_returns_uniform_success_for_missing_user(
+        self, mock_db
+    ):
         from app.services.common.auth_service import AuthService
 
         service = AuthService(mock_db)
@@ -733,10 +904,17 @@ class TestTenantUserCodeLogin:
         )
         mock_db.execute.return_value = make_scalar_result(None)
 
-        with patch("app.services.common.auth_service.cache_get", new_callable=AsyncMock, return_value=None), patch(
-            "app.services.common.auth_service.cache_set",
-            new_callable=AsyncMock,
-        ) as mock_cache_set:
+        with (
+            patch(
+                "app.services.common.auth_service.cache_get",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
+            patch(
+                "app.services.common.auth_service.cache_set",
+                new_callable=AsyncMock,
+            ) as mock_cache_set,
+        ):
             result = await service.send_tenant_user_login_code(
                 channel="email",
                 email="missing@example.com",
@@ -761,14 +939,23 @@ class TestTenantUserCodeLogin:
         )
         mock_db.execute.return_value = make_scalar_result(user)
 
-        with patch("app.services.common.auth_service.cache_get", new_callable=AsyncMock, return_value=None), patch(
-            "app.services.common.auth_service.cache_set",
-            new_callable=AsyncMock,
-        ) as mock_cache_set, patch(
-            "app.tasks.email.send_email_task.delay",
-        ) as mock_delay, patch(
-            "app.services.common.email_templates.render_login_code_email",
-            return_value=("subject", "<p>html</p>", "text"),
+        with (
+            patch(
+                "app.services.common.auth_service.cache_get",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
+            patch(
+                "app.services.common.auth_service.cache_set",
+                new_callable=AsyncMock,
+            ) as mock_cache_set,
+            patch(
+                "app.tasks.email.send_email_task.delay",
+            ) as mock_delay,
+            patch(
+                "app.services.common.email_templates.render_login_code_email",
+                return_value=("subject", "<p>html</p>", "text"),
+            ) as mock_render_email,
         ):
             result = await service.send_tenant_user_login_code(
                 channel="email",
@@ -779,7 +966,19 @@ class TestTenantUserCodeLogin:
 
         assert result["message"]
         assert mock_cache_set.await_count == 2
-        assert mock_delay.called
+        mock_render_email.assert_called_once_with(
+            user_name=user.nickname,
+            code=mock_cache_set.await_args_list[1].args[1]["code"],
+            expire_minutes=service.LOGIN_CODE_TTL // 60,
+        )
+        mock_delay.assert_called_once_with(
+            to=["user@example.com"],
+            subject="subject",
+            html_body="<p>html</p>",
+            text_body="text",
+            triggered_by="login_code",
+            tenant_id=user.tenant_id,
+        )
 
     @pytest.mark.asyncio
     async def test_login_by_code_success(self, mock_db):
@@ -794,24 +993,34 @@ class TestTenantUserCodeLogin:
         )
         mock_db.execute.return_value = make_scalar_result(user)
 
-        with patch("app.services.common.auth_service.cache_get", new_callable=AsyncMock, return_value={"code": "123456", "user_id": user.id}), patch(
-            "app.services.common.auth_service.cache_delete",
-            new_callable=AsyncMock,
-        ) as mock_cache_delete, patch.object(
-            service,
-            "_is_account_locked",
-            new_callable=AsyncMock,
-            return_value=False,
-        ), patch.object(
-            service,
-            "_reset_login_failures",
-            new_callable=AsyncMock,
-        ), patch.object(
-            service,
-            "_issue_tenant_user_tokens",
-            new_callable=AsyncMock,
-            return_value={"access_token": "token"},
-        ) as mock_issue_tokens:
+        with (
+            patch(
+                "app.services.common.auth_service.cache_get",
+                new_callable=AsyncMock,
+                return_value={"code": "123456", "user_id": user.id},
+            ),
+            patch(
+                "app.services.common.auth_service.cache_delete",
+                new_callable=AsyncMock,
+            ) as mock_cache_delete,
+            patch.object(
+                service,
+                "_is_account_locked",
+                new_callable=AsyncMock,
+                return_value=False,
+            ),
+            patch.object(
+                service,
+                "_reset_login_failures",
+                new_callable=AsyncMock,
+            ),
+            patch.object(
+                service,
+                "_issue_tenant_user_tokens",
+                new_callable=AsyncMock,
+                return_value={"access_token": "token"},
+            ) as mock_issue_tokens,
+        ):
             result = await service.authenticate_tenant_user_by_code(
                 channel="email",
                 code="123456",
@@ -846,6 +1055,7 @@ class TestTenantUserCodeLogin:
 
 
 # ── 真实密码 Hash 测试（无 Mock，测试 security 模块）──
+
 
 class TestRealPasswordHash:
     """使用真实 hash/verify 函数，不 mock"""

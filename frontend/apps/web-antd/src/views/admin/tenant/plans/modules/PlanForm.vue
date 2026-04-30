@@ -20,6 +20,12 @@ const emits = defineEmits<{ success: [] }>();
 
 type TenantPlanInfo = adminApi.TenantPlanInfo;
 
+function toNullablePlanPrice(
+  price: null | number | string | undefined,
+): null | number | string {
+  return price === '' || price === null || price === undefined ? null : price;
+}
+
 // Form / 表单
 const [Form, formApi] = useVbenForm({
   schema: useFormSchema(false),
@@ -69,7 +75,7 @@ const { Drawer, isEdit } = useCrudDrawer<TenantPlanInfo>({
       code: values.code,
       name: values.name,
       description: values.description || null,
-      price: values.price || null,
+      price: toNullablePlanPrice(values.price),
       billing_cycle: values.billing_cycle || 'monthly',
       sort_order: values.sort_order || 0,
       is_active: values.is_active ?? true,

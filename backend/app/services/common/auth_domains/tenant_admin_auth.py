@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import or_, select
@@ -80,18 +81,24 @@ class AuthTenantAdminDomain:
                 "session_timeout_minutes",
                 default=120,
             )
-        _ = session_timeout
 
-        tokens = self._service._create_token_pair(
+        extra_claims = {"tenant_id": tenant_admin.tenant_id}
+        access_token, access_jti = self._service._create_access_token(
             tenant_admin.id,
             scope=TOKEN_SCOPE_TENANT_ADMIN,
-            extra_claims={"tenant_id": tenant_admin.tenant_id},
+            expires_delta=timedelta(minutes=session_timeout),
+            extra_claims=extra_claims,
+        )
+        refresh_token, refresh_jti = self._service._create_refresh_token(
+            tenant_admin.id,
+            scope=TOKEN_SCOPE_TENANT_ADMIN,
+            extra_claims=extra_claims,
         )
         await self._service._record_active_tokens(
             "tenant_admin",
             str(tenant_admin.id),
-            tokens["access_jti"],
-            tokens["refresh_jti"],
+            access_jti,
+            refresh_jti,
         )
 
         self._service._log_auth_info(
@@ -103,7 +110,11 @@ class AuthTenantAdminDomain:
             client_ip=client_ip,
         )
 
-        return tokens
+        return {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer",
+        }
 
     async def authenticate(
         self,

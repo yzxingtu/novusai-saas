@@ -7,7 +7,7 @@ Execute these steps:
    - Database changes → `.trellis/spec/backend/database-guidelines.md`
    - Error handling → `.trellis/spec/backend/error-handling.md`
    - Logging changes → `.trellis/spec/backend/logging-guidelines.md`
-   - Type changes → `.trellis/spec/backend/type-safety.md`
+   - Tests, release readiness, or type-adjacent quality questions → `.trellis/spec/backend/quality-guidelines.md`
    - Any changes → `.trellis/spec/backend/quality-guidelines.md`
 4. Review your code against the guidelines
 5. Report any violations and fix them if found

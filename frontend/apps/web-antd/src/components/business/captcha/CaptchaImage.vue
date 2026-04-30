@@ -176,7 +176,7 @@ defineExpose({
           <img
             v-if="captchaImage && !loading"
             :src="captchaImage"
-            alt="captcha"
+            :alt="$t('shared.auth.captcha.clickToRefresh')"
             class="captcha-image"
           />
           <div v-else-if="!loading && errorMsg" class="captcha-status error">

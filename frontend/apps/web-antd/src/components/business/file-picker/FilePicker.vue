@@ -3,6 +3,8 @@ import type { FilePickerProps } from './types';
 
 import type { AttachmentInfo } from '#/types/attachment';
 
+import { computed } from 'vue';
+
 import { IconifyIcon } from '@vben/icons';
 
 import {
@@ -87,6 +89,13 @@ const {
   onSelect: (files) => emit('select', files),
   props,
 });
+
+const filesWithPreview = computed(() =>
+  files.value.map((file) => ({
+    file,
+    previewSrc: getPreviewUrl(file),
+  })),
+);
 
 defineExpose({
   close: () => modalApi.close(),
@@ -352,7 +361,7 @@ defineExpose({
             <div v-if="viewMode === 'grid' && files.length > 0">
               <Row :gutter="[10, 10]">
                 <Col
-                  v-for="(file, idx) in files"
+                  v-for="({ file, previewSrc }, idx) in filesWithPreview"
                   :key="file.id"
                   :span="4"
                   :style="{ '--fp-i': idx }"
@@ -389,8 +398,8 @@ defineExpose({
                       class="relative mb-1.5 flex h-[90px] items-center justify-center overflow-hidden rounded-md bg-muted/30"
                     >
                       <img
-                        v-if="getPreviewUrl(file)"
-                        :src="getPreviewUrl(file)!"
+                        v-if="previewSrc"
+                        :src="previewSrc"
                         :alt="file.name"
                         loading="lazy"
                         class="size-full object-cover"
@@ -401,7 +410,7 @@ defineExpose({
                         "
                       />
                       <IconifyIcon
-                        v-if="!getPreviewUrl(file)"
+                        v-if="!previewSrc"
                         :icon="getFileIcon(file.name, file.mimeType)"
                         class="size-10 text-muted-foreground/60"
                       />
@@ -444,7 +453,7 @@ defineExpose({
             >
               <!-- List item: click entire row to select/deselect / 列表项：点击整行选中/取消选中 -->
               <div
-                v-for="file in files"
+                v-for="{ file, previewSrc } in filesWithPreview"
                 :key="file.id"
                 class="group flex cursor-pointer items-center gap-3 rounded-lg border border-transparent px-3 py-2 transition-all duration-150 hover:border-border hover:bg-accent/40"
                 :class="{
@@ -463,8 +472,8 @@ defineExpose({
                   class="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted/40"
                 >
                   <img
-                    v-if="getPreviewUrl(file)"
-                    :src="getPreviewUrl(file)!"
+                    v-if="previewSrc"
+                    :src="previewSrc"
                     loading="lazy"
                     class="size-full object-cover"
                     @error="
@@ -474,7 +483,7 @@ defineExpose({
                     "
                   />
                   <IconifyIcon
-                    v-if="!getPreviewUrl(file)"
+                    v-if="!previewSrc"
                     :icon="getFileIcon(file.name, file.mimeType)"
                     class="size-5 text-muted-foreground/60"
                   />

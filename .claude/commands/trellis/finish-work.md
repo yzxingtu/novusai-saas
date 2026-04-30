@@ -11,14 +11,20 @@ Before submitting or committing, use this checklist to ensure work completeness.
 ### 1. Code Quality
 
 ```bash
-# Must pass
-pnpm lint
-pnpm type-check
-pnpm test
+# Frontend examples (run from repo root)
+pnpm --dir frontend lint
+pnpm --dir frontend --filter @vben/web-antd typecheck
+pnpm --dir frontend test
+
+# Backend examples (run from backend/)
+python scripts/check_prompt_contracts.py
+pytest
+ruff check .
+ruff format --check .
 ```
 
-- [ ] `pnpm lint` passes with 0 errors?
-- [ ] `pnpm type-check` passes with no type errors?
+- [ ] Relevant frontend lint/type/test commands pass when frontend files changed?
+- [ ] Relevant backend ruff/pytest/prompt-contract commands pass when backend files changed?
 - [ ] Tests pass?
 - [ ] No `console.log` statements (use logger)?
 - [ ] No non-null assertions (the `x!` operator)?
@@ -26,7 +32,8 @@ pnpm test
 
 ### 1.5. Test Coverage
 
-Check if your change needs new or updated tests (see `.trellis/spec/unit-test/conventions.md`):
+Check the relevant backend/frontend quality guide and decide whether your change
+needs new or updated tests:
 
 - [ ] New pure function → unit test added?
 - [ ] Bug fix → regression test added in `test/regression.test.ts`?
@@ -104,7 +111,8 @@ If the change spans multiple layers:
 
 ```bash
 # 1. Code checks
-pnpm lint && pnpm type-check
+# Frontend: pnpm --dir frontend lint && pnpm --dir frontend --filter @vben/web-antd typecheck
+# Backend:  cd backend && ruff check . && ruff format --check . && pytest
 
 # 2. View changes
 git status

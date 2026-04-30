@@ -26,6 +26,7 @@
   "readme": "说明文档",
   "create": "安装插件",
   "upload": "上传安装",
+  "uploadHint": "ZIP 文件，50MB 以内",
   "marketplaceBtn": "插件与技能市场",
   "allTypes": "全部类型",
   "pluginType": "插件类型",

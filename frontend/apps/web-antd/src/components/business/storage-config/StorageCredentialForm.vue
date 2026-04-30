@@ -45,6 +45,15 @@ type CredentialFieldValue = boolean | number | string | undefined;
 const formState = reactive<Record<string, CredentialFieldValue>>({});
 let isSyncingFromProps = false;
 
+function getTextFieldValue(key: string): number | string | undefined {
+  const value = formState[key];
+  return typeof value === 'boolean' ? undefined : value;
+}
+
+function setCredentialFieldValue(key: string, value: CredentialFieldValue) {
+  formState[key] = value;
+}
+
 // Sync external props.value → internal formState / 同步外部 props.value → 内部 formState
 watch(
   () => props.value,
@@ -286,19 +295,22 @@ watch(
       <FormItem :label="$t(field.label)" :required="field.required">
         <Switch
           v-if="field.type === 'boolean'"
-          v-model:checked="formState[field.key]"
+          :checked="Boolean(formState[field.key])"
+          @update:checked="(value) => setCredentialFieldValue(field.key, value)"
         />
         <InputPassword
           v-else-if="field.type === 'password'"
-          v-model:value="formState[field.key]"
+          :value="getTextFieldValue(field.key)"
           :placeholder="field.placeholder || ''"
           autocomplete="new-password"
+          @update:value="(value) => setCredentialFieldValue(field.key, value)"
         />
         <Input
           v-else
-          v-model:value="formState[field.key]"
+          :value="getTextFieldValue(field.key)"
           :placeholder="field.placeholder || ''"
           autocomplete="new-password"
+          @update:value="(value) => setCredentialFieldValue(field.key, value)"
         />
       </FormItem>
     </template>
