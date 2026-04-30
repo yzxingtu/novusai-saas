@@ -39,7 +39,7 @@ from app.ai.web_search.types import (
     STATUS_TIMEOUT,
     STATUS_UNSUPPORTED,
     STATUS_UPSTREAM_ERROR,
-    STRATEGY_NATIVE_FIRST_FALLBACK_PUBLIC,
+    WEB_SEARCH_POLICY_NATIVE_FIRST_BAIDU_FALLBACK,
     SearchProviderRun,
     WebSearchExecution,
     WebSearchExecutionMeta,
@@ -69,7 +69,7 @@ _NATIVE_RETRYABLE_FAILURES = {
     STATUS_UNSUPPORTED,
 }
 
-_SEARCH_ENGINE_HOSTS = frozenset({"www.baidu.com", "baidu.com", "www.so.com", "so.com"})
+_SEARCH_ENGINE_HOSTS = frozenset({"www.baidu.com", "baidu.com"})
 _MIN_STAGE_TIMEOUT_SECONDS = 1
 _SEARCH_TIMEOUT_SAFETY_MARGIN_SECONDS = 0.25
 
@@ -77,7 +77,7 @@ _SEARCH_TIMEOUT_SAFETY_MARGIN_SECONDS = 0.25
 def _duplicate_query_signature(
     *,
     query: str,
-    strategy: str,
+    policy: str,
     provider_label: str,
     model_code: str,
     locale: str | None,
@@ -86,7 +86,7 @@ def _duplicate_query_signature(
 ) -> tuple[int, str, str, str, str, str, int]:
     return _support_duplicate_query_signature(
         query=query,
-        strategy=strategy,
+        strategy=policy,
         provider_label=provider_label,
         model_code=model_code,
         locale=locale,
@@ -143,7 +143,7 @@ class WebSearchOrchestrator:
         )
         duplicate_signature = _duplicate_query_signature(
             query=rewritten_query,
-            strategy=resolved_config.strategy,
+            policy=resolved_config.policy,
             provider_label=provider_label,
             model_code=model_code,
             locale=locale,
@@ -175,7 +175,7 @@ class WebSearchOrchestrator:
                 seen_signatures=_DUPLICATE_QUERY_SIGNATURES,
             )
 
-        if resolved_config.strategy != STRATEGY_NATIVE_FIRST_FALLBACK_PUBLIC:
+        if resolved_config.policy != WEB_SEARCH_POLICY_NATIVE_FIRST_BAIDU_FALLBACK:
             return _support_build_execution(
                 query=rewritten_query,
                 items=[],
@@ -184,7 +184,7 @@ class WebSearchOrchestrator:
                     attempted_backends=[],
                     selected_backend=None,
                     used_fallback=False,
-                    failure_reason=f"unsupported web search strategy: {resolved_config.strategy}",
+                    failure_reason=f"unsupported web search policy: {resolved_config.policy}",
                     latency_ms=int((time.perf_counter() - start) * 1000),
                     provider=None,
                     provider_mode=None,
@@ -205,16 +205,16 @@ class WebSearchOrchestrator:
         fallback_reason: str | None = None
         native_failure_kind: str | None = None
 
-        should_attempt_legacy_native = (
+        should_attempt_runtime_native_without_db = (
             resolved_config.provider is None
             and resolved_config.model is None
-            and resolved_config.native_target_reason
-            == "runtime_db_unavailable_for_verified_target_resolution"
+            and resolved_config.native_readiness_reason
+            == "runtime_db_unavailable_for_native_readiness_resolution"
         )
 
         if (
             (resolved_config.provider is None or resolved_config.model is None)
-            and not should_attempt_legacy_native
+            and not should_attempt_runtime_native_without_db
         ):
             native_run = SearchProviderRun(
                 provider=provider_label,
@@ -223,8 +223,8 @@ class WebSearchOrchestrator:
                 status=STATUS_UNSUPPORTED,
                 items=[],
                 failure_reason=(
-                    resolved_config.native_target_reason
-                    or "verified native target unavailable"
+                    resolved_config.native_readiness_reason
+                    or "native readiness target unavailable"
                 ),
                 attempted_backends=[],
                 native_attempted=False,
@@ -241,7 +241,7 @@ class WebSearchOrchestrator:
                 locale=locale,
                 timeout_seconds=native_timeout_seconds,
                 context=context,
-                strategy=resolved_config.strategy,
+                strategy=resolved_config.policy,
                 runtime_provider_label=provider_label,
                 runtime_model_code=model_code,
                 provider_id_override=(
@@ -290,20 +290,20 @@ class WebSearchOrchestrator:
                     bool(native_run.native_attempted),
                     native_run.failure_reason or "",
                 )
-                public_timeout_seconds = _clamp_stage_timeout_seconds(
-                    resolved_config.public_timeout_seconds,
+                fallback_timeout_seconds = _clamp_stage_timeout_seconds(
+                    resolved_config.fallback_timeout_seconds,
                     context=context,
                 )
                 public_provider = PublicHtmlSearchProvider(
-                    providers=resolved_config.public_providers,
+                    providers=[resolved_config.fallback_provider],
                 )
                 public_run = await public_provider.search(
                     query=rewritten_query,
                     max_results=effective_max_results,
                     locale=locale,
-                    timeout_seconds=public_timeout_seconds,
+                    timeout_seconds=fallback_timeout_seconds,
                     context=context,
-                    strategy=resolved_config.strategy,
+                    strategy=resolved_config.policy,
                     runtime_provider_label=provider_label,
                     runtime_model_code=model_code,
                 )

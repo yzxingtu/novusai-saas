@@ -56,48 +56,6 @@ def extract_baidu_public_results(html: str, max_results: int) -> list[dict[str, 
     return results
 
 
-def extract_so360_public_results(html: str, max_results: int) -> list[dict[str, str]]:
-    from bs4 import BeautifulSoup
-
-    soup = BeautifulSoup(html, "lxml")
-    results: list[dict[str, str]] = []
-    seen_urls: set[str] = set()
-
-    selectors = (
-        "li.res-list",
-        "div.res-list",
-        "li[class*='result']",
-        "div[class*='result']",
-        "div[class*='res-list']",
-    )
-    containers = []
-    for selector in selectors:
-        containers = soup.select(selector)
-        if containers:
-            break
-
-    for container in containers:
-        title_link = container.select_one("h3 a")
-        if title_link is None:
-            continue
-
-        href = (title_link.get("href") or "").strip()
-        title = normalize_text(title_link.get_text(" ", strip=True))
-        if not href or not title or href in seen_urls:
-            continue
-
-        snippet = clean_search_snippet(
-            container.get_text(" ", strip=True),
-            title,
-        )
-        results.append({"title": title, "url": href, "snippet": snippet})
-        seen_urls.add(href)
-        if len(results) >= max_results:
-            break
-
-    return results
-
-
 def extract_title_from_html(html: str) -> str:
     lowered = (html or "").lower()
     start = lowered.find("<title")
@@ -147,27 +105,6 @@ def classify_baidu_public_html(html: str) -> str:
     return STATUS_UPSTREAM_ERROR
 
 
-def classify_so360_public_html(html: str) -> str:
-    if not html:
-        return STATUS_UPSTREAM_ERROR
-    title = extract_title_from_html(html)
-    normalized = normalize_text(html)
-    if "安全验证" in title or "请输入验证码" in normalized:
-        return STATUS_POLICY_FILTERED
-    if extract_so360_public_results(html, 1):
-        return STATUS_SUCCESS
-    if (
-        "没有找到相关结果" in normalized
-        or "相关结果约0个" in normalized
-        or "未找到相关搜索结果" in normalized
-        or "抱歉，未找到相关搜索结果" in normalized
-    ):
-        return STATUS_NO_RESULTS
-    if html_may_contain_search_results(html):
-        return STATUS_PARSE_ERROR
-    return STATUS_UPSTREAM_ERROR
-
-
 def make_items(
     *,
     provider: str,
@@ -192,10 +129,8 @@ def make_items(
 
 __all__ = [
     "classify_baidu_public_html",
-    "classify_so360_public_html",
     "clean_search_snippet",
     "extract_baidu_public_results",
-    "extract_so360_public_results",
     "extract_title_from_html",
     "html_may_contain_search_results",
     "make_items",

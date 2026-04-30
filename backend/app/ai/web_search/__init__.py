@@ -4,8 +4,7 @@ Lightweight web search package exports.
 """
 
 from app.ai.web_search.types import (
-    DEFAULT_PUBLIC_PROVIDERS,
-    NativeSearchCapability,
+    DEFAULT_FALLBACK_PROVIDER,
     PROVIDER_MODE_NATIVE,
     PROVIDER_MODE_PUBLIC,
     STATUS_NO_RESULTS,
@@ -15,7 +14,8 @@ from app.ai.web_search.types import (
     STATUS_TIMEOUT,
     STATUS_UNSUPPORTED,
     STATUS_UPSTREAM_ERROR,
-    STRATEGY_NATIVE_FIRST_FALLBACK_PUBLIC,
+    WEB_SEARCH_POLICY_NATIVE_FIRST_BAIDU_FALLBACK,
+    NativeSearchCapability,
     SearchProviderRun,
     SearchResultItem,
     WebSearchExecution,
@@ -23,7 +23,7 @@ from app.ai.web_search.types import (
 )
 
 __all__ = [
-    "DEFAULT_PUBLIC_PROVIDERS",
+    "DEFAULT_FALLBACK_PROVIDER",
     "NativeSearchCapability",
     "PROVIDER_MODE_NATIVE",
     "PROVIDER_MODE_PUBLIC",
@@ -34,7 +34,7 @@ __all__ = [
     "STATUS_TIMEOUT",
     "STATUS_UNSUPPORTED",
     "STATUS_UPSTREAM_ERROR",
-    "STRATEGY_NATIVE_FIRST_FALLBACK_PUBLIC",
+    "WEB_SEARCH_POLICY_NATIVE_FIRST_BAIDU_FALLBACK",
     "SearchProviderRun",
     "SearchResultItem",
     "WebSearchExecution",

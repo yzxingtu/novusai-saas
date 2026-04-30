@@ -32,7 +32,6 @@ if TYPE_CHECKING:
 logger = LogManager.get_logger("ai.web_search")
 
 PUBLIC_PROVIDER_BAIDU = "baidu"
-PUBLIC_PROVIDER_SO360 = "so360"
 
 _BACKEND_FAIL_STREAK = _state._BACKEND_FAIL_STREAK
 _BACKEND_DISABLED = _state._BACKEND_DISABLED
@@ -56,7 +55,7 @@ class BaseSearchProvider(ABC):
         max_results: int,
         locale: str | None,
         timeout_seconds: int,
-        context: "ExecutionContext | None" = None,
+        context: ExecutionContext | None = None,
         strategy: str | None = None,
         runtime_provider_label: str | None = None,
         runtime_model_code: str | None = None,
@@ -74,10 +73,6 @@ def _correct_query_year(query: str) -> str:
 
 def _extract_baidu_public_results(html: str, max_results: int) -> list[dict[str, str]]:
     return _parsing.extract_baidu_public_results(html, max_results)
-
-
-def _extract_so360_public_results(html: str, max_results: int) -> list[dict[str, str]]:
-    return _parsing.extract_so360_public_results(html, max_results)
 
 
 async def _search_with_baidu_public(
@@ -152,78 +147,6 @@ async def _search_with_baidu_public(
         )
 
 
-async def _search_with_so360_public(
-    query: str,
-    max_results: int,
-    *,
-    timeout_seconds: int,
-) -> _HtmlSearchAttempt:
-    backend_key = "public:so360"
-    try:
-        resp = await _transport.fetch_public_html(
-            "https://www.so.com/s",
-            params={"q": query},
-            timeout_seconds=timeout_seconds,
-        )
-        if resp.status_code >= 400:
-            return _HtmlSearchAttempt(
-                backend_key=backend_key,
-                status=STATUS_UPSTREAM_ERROR,
-                items=[],
-                error=f"HTTP {resp.status_code}",
-            )
-
-        status = _parsing.classify_so360_public_html(resp.text)
-        if status == STATUS_SUCCESS:
-            results = _parsing.extract_so360_public_results(resp.text, max_results)
-            filtered_results = _policy.filter_low_confidence_results(query, results)
-            if filtered_results:
-                return _HtmlSearchAttempt(
-                    backend_key=backend_key,
-                    status=status,
-                    items=_parsing.make_items(
-                        provider="so360_public",
-                        backend_key=backend_key,
-                        raw_results=filtered_results,
-                    ),
-                )
-            return _HtmlSearchAttempt(
-                backend_key=backend_key,
-                status=STATUS_POLICY_FILTERED,
-                items=[],
-                error="returned low-confidence results",
-            )
-        return _HtmlSearchAttempt(
-            backend_key=backend_key,
-            status=status,
-            items=[],
-            error=(
-                "returned safety verification"
-                if status == STATUS_POLICY_FILTERED
-                else "returned no results"
-                if status == STATUS_NO_RESULTS
-                else "result parser missed current page structure"
-                if status == STATUS_PARSE_ERROR
-                else "returned an unreadable page"
-            ),
-        )
-    except _transport.PublicHtmlTransportTimeout:
-        return _HtmlSearchAttempt(
-            backend_key=backend_key,
-            status=STATUS_TIMEOUT,
-            items=[],
-            error="timeout",
-        )
-    except _transport.PublicHtmlTransportError as exc:
-        logger.warning("360 public search failed: {}", exc)
-        return _HtmlSearchAttempt(
-            backend_key=backend_key,
-            status=STATUS_UPSTREAM_ERROR,
-            items=[],
-            error=str(exc),
-        )
-
-
 def _build_failure_reason(attempts: list[_HtmlSearchAttempt]) -> str:
     parts: list[str] = []
     for attempt in attempts:
@@ -245,10 +168,10 @@ class PublicHtmlSearchProvider(BaseSearchProvider):
         self.providers = [
             item
             for item in normalized
-            if item in {PUBLIC_PROVIDER_BAIDU, PUBLIC_PROVIDER_SO360}
+            if item == PUBLIC_PROVIDER_BAIDU
         ]
         if not self.providers:
-            self.providers = [PUBLIC_PROVIDER_BAIDU, PUBLIC_PROVIDER_SO360]
+            self.providers = [PUBLIC_PROVIDER_BAIDU]
 
     async def search(
         self,
@@ -257,7 +180,7 @@ class PublicHtmlSearchProvider(BaseSearchProvider):
         max_results: int,
         locale: str | None,
         timeout_seconds: int,
-        context: "ExecutionContext | None" = None,
+        context: ExecutionContext | None = None,
         strategy: str | None = None,
         runtime_provider_label: str | None = None,
         runtime_model_code: str | None = None,
@@ -271,7 +194,6 @@ class PublicHtmlSearchProvider(BaseSearchProvider):
 
         provider_map = {
             PUBLIC_PROVIDER_BAIDU: _search_with_baidu_public,
-            PUBLIC_PROVIDER_SO360: _search_with_so360_public,
         }
 
         for provider_name in self.providers:
@@ -396,10 +318,7 @@ class PublicHtmlSearchProvider(BaseSearchProvider):
 __all__ = [
     "BaseSearchProvider",
     "PUBLIC_PROVIDER_BAIDU",
-    "PUBLIC_PROVIDER_SO360",
     "PublicHtmlSearchProvider",
     "_extract_baidu_public_results",
-    "_extract_so360_public_results",
     "_search_with_baidu_public",
-    "_search_with_so360_public",
 ]

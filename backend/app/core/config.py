@@ -149,7 +149,7 @@ class Settings(BaseSettings):
     WEB_SEARCH_DEFAULT_MAX_RESULTS_CAP: int = 8
     WEB_SEARCH_DEFAULT_NATIVE_TIMEOUT_SECONDS: int = 20
     WEB_SEARCH_DEFAULT_PUBLIC_TIMEOUT_SECONDS: int = 15
-    WEB_SEARCH_DEFAULT_PUBLIC_PROVIDERS: list[str] = ["baidu", "so360"]
+    WEB_SEARCH_DEFAULT_PUBLIC_PROVIDERS: list[str] = ["baidu"]
 
     # ========================================
     # 日志配置 / Logging Configuration

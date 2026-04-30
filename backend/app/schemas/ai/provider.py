@@ -61,34 +61,25 @@ class AIProviderUpdate(BaseUpdateSchema):
     config: dict | None = Field(None, description=_("enum.ai_provider.config"))
 
 
+WEB_SEARCH_CANONICAL_FIELDS = {
+    "enabled",
+    "max_results_cap",
+    "native_timeout_seconds",
+    "fallback_provider",
+    "fallback_timeout_seconds",
+}
+
+
 class AIProviderWebSearchConfig(BaseModel):
     """AI Provider web_search config (stored under provider.config.web_search)."""
 
     model_config = ConfigDict(extra="forbid")
 
     enabled: bool = True
-    strategy: Literal["native_first_fallback_public"] = "native_first_fallback_public"
     max_results_cap: int = Field(8, ge=1, le=10)
     native_timeout_seconds: int = Field(20, ge=1, le=60)
-    public_timeout_seconds: int = Field(15, ge=1, le=60)
-    public_providers: list[Literal["baidu", "so360"]] = Field(
-        default_factory=lambda: ["baidu", "so360"],
-        min_length=1,
-    )
-    prefer_hosted_tool: bool = False
-    allow_unverified_runtime_target: bool = False
-    verified_native_target: "AIProviderWebSearchVerifiedTarget | None" = None
-
-
-class AIProviderWebSearchVerifiedTarget(BaseModel):
-    """Explicitly verified native-search runtime target."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    provider_id: int | None = Field(None, ge=1)
-    provider_code: str | None = Field(None, min_length=1, max_length=50)
-    model_id: int | None = Field(None, ge=1)
-    model_code: str | None = Field(None, min_length=1, max_length=100)
+    fallback_provider: Literal["baidu"] = "baidu"
+    fallback_timeout_seconds: int = Field(15, ge=1, le=60)
 
 
 class AIProviderWebSearchRuntime(BaseModel):
@@ -126,7 +117,13 @@ def normalize_provider_web_search_config(
     """Normalize provider.config.web_search using structured schema + defaults."""
     merged = defaults.model_dump()
     if isinstance(config, dict):
-        merged.update(config)
+        raw_config = {
+            key: value
+            for key, value in config.items()
+            if key in WEB_SEARCH_CANONICAL_FIELDS
+        }
+        merged.update(raw_config)
+
     return AIProviderWebSearchConfig.model_validate(merged)
 
 
@@ -135,7 +132,6 @@ __all__ = [
     "AIProviderUpdate",
     "AIProviderResponse",
     "AIProviderWebSearchConfig",
-    "AIProviderWebSearchVerifiedTarget",
     "AIProviderWebSearchRuntime",
     "normalize_provider_web_search_config",
 ]

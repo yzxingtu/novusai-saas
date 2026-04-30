@@ -13,6 +13,20 @@ BASELINE_RUNTIME_BUILTINS = (
     "web_search",
     "fetch_url",
 )
+PAGE_RUNTIME_BUILTINS = (
+    "editor_ops",
+    "ui_click",
+    "ui_fill_form",
+    "ui_get_form_state",
+    "ui_get_snapshot",
+    "ui_list_interactables",
+    "ui_open_surface",
+    "ui_read_region",
+    "ui_read_table",
+    "ui_set_field",
+    "ui_submit_form",
+)
+RUNTIME_BUILTINS = frozenset((*BASELINE_RUNTIME_BUILTINS, *PAGE_RUNTIME_BUILTINS))
 
 
 def augment_builtin_tool_description(
@@ -237,7 +251,7 @@ def resolve_builtin(
     if tools_config and isinstance(tools_config, list):
         for tool_cfg in tools_config:
             tool_name = tool_cfg.get("name", "")
-            if not tool_name:
+            if not tool_name or str(tool_name).strip() in RUNTIME_BUILTINS:
                 continue
             tool_params = build_params_from_schema(tool_cfg.get("parameters"))
             description = augment_builtin_tool_description(
@@ -261,6 +275,8 @@ def resolve_builtin(
         return
 
     params = build_params_from_schema(skill.input_schema)
+    if str(skill.name or "").strip() in RUNTIME_BUILTINS:
+        return
     description = augment_builtin_tool_description(
         skill.name,
         skill.description or "",

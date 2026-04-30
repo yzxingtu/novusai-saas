@@ -5,7 +5,11 @@ from typing import TYPE_CHECKING
 
 from app.ai.web_search.orchestrator_support.diagnostics import (
     conv_id as _support_conv_id,
+)
+from app.ai.web_search.orchestrator_support.diagnostics import (
     native_backend_disabled as _support_native_backend_disabled,
+)
+from app.ai.web_search.orchestrator_support.diagnostics import (
     record_native_backend_outcome as _support_record_native_backend_outcome,
 )
 from app.ai.web_search.public_html import BaseSearchProvider, _normalize_text
@@ -21,7 +25,6 @@ from app.core.logging import LogManager
 
 if TYPE_CHECKING:
     from app.ai.tools.types import ExecutionContext
-    from app.models.ai import AIModel, AIProvider
 
 logger = LogManager.get_logger("ai.web_search")
 

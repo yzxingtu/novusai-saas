@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 from app.ai.web_search.public_html_parsing import normalize_text
 from app.core.config import settings
 
-_SEARCH_ENGINE_HOSTS = frozenset({"www.baidu.com", "baidu.com", "www.so.com", "so.com"})
+_SEARCH_ENGINE_HOSTS = frozenset({"www.baidu.com", "baidu.com"})
 _QUERY_RELEVANCE_MIN_RATIO = 0.28
 _HISTORY_QUERY_TERMS = frozenset(
     {

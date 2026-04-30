@@ -29,17 +29,31 @@ from app.ai.tools.types import ToolDefinition
 
 
 @pytest.mark.asyncio
-async def test_plugin_skill_without_registered_resolver_logs_warning(
+async def test_plugin_skill_without_registered_resolver_falls_back_to_canonical_toolkit(
     monkeypatch,
 ) -> None:
-    """SkillResolver should skip plugin skills gracefully when no resolver is registered."""
+    """Plugin-packaged toolkit skills should still resolve via canonical toolkit parsing."""
 
     skill = SimpleNamespace(
         id=101,
         name="weather_tools",
         type="toolkit",
         package_id=77,
+        package=SimpleNamespace(
+            id=77,
+            name="weather-widget",
+            source_plugin="weather-widget",
+            is_active=True,
+            is_deleted=False,
+            valves_config=None,
+        ),
         config=None,
+        toolkit_content="""
+class Tools:
+    def get_current_weather(self, city: str) -> str:
+        \"\"\"Get the current weather for a city.\"\"\"
+        return city
+""",
         timeout=30,
         is_active=True,
         is_deleted=False,
@@ -54,15 +68,102 @@ async def test_plugin_skill_without_registered_resolver_logs_warning(
         lambda: registry_stub,
     )
 
-    result = SkillResolveResult()
-    await resolver._resolve_plugin_skill(
-        skill,
-        config={},
-        result=result,
-        source_plugin="weather-widget",
+    result = await resolver.resolve([skill])
+
+    assert [tool.name for tool in result.tools] == ["get_current_weather"]
+    assert result.tools[0].source_skill_id == 101
+    assert result.tools[0].source_skill_name == "weather_tools"
+    assert result.tools[0].source_skill_type == "toolkit"
+    assert result.tools[0].source_plugin == "weather-widget"
+
+
+@pytest.mark.asyncio
+async def test_plugin_skill_without_registered_resolver_falls_back_to_canonical_builtin(
+    monkeypatch,
+) -> None:
+    """Plugin-packaged builtin skills should fall back to builtin tool resolution."""
+
+    skill = SimpleNamespace(
+        id=102,
+        name="weather_builtin",
+        type="builtin",
+        package_id=88,
+        package=SimpleNamespace(
+            id=88,
+            name="weather-widget",
+            source_plugin="weather-widget",
+            is_active=True,
+            is_deleted=False,
+            valves_config=None,
+        ),
+        config={
+            "tools": [
+                {
+                    "name": "get_current_weather",
+                    "description": "Fetch current weather",
+                }
+            ]
+        },
+        timeout=30,
+        is_active=True,
+        is_deleted=False,
     )
 
-    assert result.tools == []
+    resolver = SkillResolver(db=None)
+    resolver._load_source_plugins = AsyncMock(return_value={88: "weather-widget"})
+
+    registry_stub = SimpleNamespace(get_plugin_skill_resolver=lambda _plugin_name: None)
+    monkeypatch.setattr(
+        "app.plugins.registry.ExtensionRegistry.get_instance",
+        lambda: registry_stub,
+    )
+
+    result = await resolver.resolve([skill])
+
+    assert [tool.name for tool in result.tools] == ["get_current_weather"]
+    assert result.tools[0].source_skill_id == 102
+    assert result.tools[0].source_skill_name == "weather_builtin"
+    assert result.tools[0].source_skill_type == "builtin"
+    assert result.tools[0].source_plugin == "weather-widget"
+
+
+@pytest.mark.asyncio
+async def test_resolve_one_falls_back_to_toolkit_when_source_plugin_has_no_resolver(
+    monkeypatch,
+) -> None:
+    skill = SimpleNamespace(
+        id=101,
+        name="weather_tools",
+        type="toolkit",
+        package_id=77,
+        config=None,
+        timeout=30,
+        is_active=True,
+        is_deleted=False,
+    )
+
+    resolver = SkillResolver(db=None)
+    registry_stub = SimpleNamespace(get_plugin_skill_resolver=lambda _plugin_name: None)
+    monkeypatch.setattr(
+        "app.plugins.registry.ExtensionRegistry.get_instance",
+        lambda: registry_stub,
+    )
+
+    def _append_forecast_tool(*, skill, config, result):
+        del skill, config
+        result.tools.append(SimpleNamespace(name="get_weather_forecast"))
+
+    resolver._resolve_toolkit = MagicMock(  # type: ignore[method-assign]
+        side_effect=_append_forecast_tool
+    )
+
+    result = SkillResolveResult()
+    await resolver._resolve_one(
+        skill, config={}, result=result, source_plugin="weather-widget"
+    )
+
+    assert [tool.name for tool in result.tools] == ["get_weather_forecast"]
+    resolver._resolve_toolkit.assert_called_once()
 
 
 def test_selected_skill_names_merges_descriptor_and_tool_sources() -> None:
@@ -259,6 +360,92 @@ def test_skill_resolve_result_keeps_inventory_truth_separate_from_live_activatio
     ]
     assert result.selected_tool_names == ["ui_get_snapshot"]
     assert result.selected_skill_names == ["Plugin Page Skill"]
+
+
+def test_selected_skill_names_skips_page_runtime_builtin_capability_truth() -> None:
+    result = SkillResolveResult(
+        tools=[
+            SimpleNamespace(
+                name="ui_get_snapshot",
+                source_skill_name="ui_get_snapshot",
+                config={},
+            ),
+            SimpleNamespace(
+                name="ui_click",
+                source_skill_name="page_runtime",
+                config={},
+            ),
+            SimpleNamespace(
+                name="ui_read_table",
+                source_skill_name="Plugin Page Skill",
+                source_skill_id=12,
+                source_package_name="plugin.page",
+                config={},
+            ),
+        ],
+        capability_descriptors=[
+            CapabilityDescriptor(
+                name="ui_get_snapshot",
+                kind="capability_pack",
+                source="page_runtime",
+                metadata={"has_execution_tools": True},
+            ),
+            CapabilityDescriptor(
+                name="page_runtime",
+                kind="capability_pack",
+                source="request.page_context",
+                metadata={"has_execution_tools": True},
+            ),
+            CapabilityDescriptor(
+                name="Plugin Page Skill",
+                kind="capability_pack",
+                source="skill_package:plugin.page",
+                metadata={"skill_id": 12, "has_execution_tools": True},
+            ),
+        ],
+    )
+
+    assert result.selected_skill_names == ["Plugin Page Skill"]
+
+
+@pytest.mark.asyncio
+async def test_resolver_does_not_materialize_platform_builtins_as_installable_skills() -> (
+    None
+):
+    resolver = SkillResolver(db=None)
+    resolver._load_source_plugins = AsyncMock(return_value={})
+    skill = SimpleNamespace(
+        id=131,
+        name="platform_builtin_bundle",
+        type="builtin",
+        package_id=7131,
+        package=SimpleNamespace(
+            id=7131,
+            name="platform-builtins",
+            source_plugin=None,
+            is_active=True,
+            is_deleted=False,
+            valves_config=None,
+        ),
+        config={
+            "tools": [
+                {"name": "ui_get_snapshot", "description": "Read current page"},
+                {"name": "editor_ops", "description": "Edit rich text"},
+                {"name": "web_search", "description": "Search the web"},
+                {"name": "fetch_url", "description": "Fetch a URL"},
+                {"name": "vendor_lookup", "description": "Lookup vendor data"},
+            ]
+        },
+        input_schema=None,
+        timeout=30,
+        is_active=True,
+        is_deleted=False,
+    )
+
+    result = await resolver.resolve([skill])
+
+    assert [tool.name for tool in result.tools] == ["vendor_lookup"]
+    assert result.tools[0].source_skill_name == "platform_builtin_bundle"
 
 
 def test_enrich_skill_capability_descriptors_keeps_same_name_skills_isolated() -> None:

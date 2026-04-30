@@ -42,6 +42,48 @@ def is_skill_descriptor_kind(kind: str | None) -> bool:
     return normalized == "capability_pack"
 
 
+_PAGE_RUNTIME_CAPABILITY_NAMES = frozenset(
+    {
+        "editor_ops",
+        "page_context",
+        "page_runtime",
+        "runtime_page",
+        "runtime_page_context",
+        "runtime_page_runtime",
+        "runtime_ui",
+        "ui_runtime",
+        "ui_snapshot",
+        "ui_read",
+        "ui_action",
+    }
+)
+_PAGE_RUNTIME_CAPABILITY_SOURCES = frozenset(
+    {
+        "page_runtime",
+        "request.page_context",
+        "runtime.page_runtime",
+        "system_page_runtime",
+    }
+)
+
+
+def _normalized_runtime_capability_token(value: Any) -> str:
+    return (
+        str(value or "")
+        .strip()
+        .lower()
+        .replace("-", "_")
+        .replace(" ", "_")
+        .replace(".", "_")
+        .replace(":", "_")
+    )
+
+
+def is_page_runtime_capability_name(value: Any) -> bool:
+    normalized = _normalized_runtime_capability_token(value)
+    return normalized.startswith("ui_") or normalized in _PAGE_RUNTIME_CAPABILITY_NAMES
+
+
 def _stable_unique_names(values: list[Any] | None) -> list[str]:
     normalized: list[str] = []
     for value in values or []:
@@ -316,10 +358,16 @@ def capability_pack_descriptor_is_live(descriptor: Any) -> bool:
     name = str(getattr(descriptor, "name", "") or "").strip()
     if not is_skill_descriptor_kind(kind) or not name:
         return False
+    if is_page_runtime_capability_name(name):
+        return False
 
     metadata = getattr(descriptor, "metadata", {}) or {}
     if not isinstance(metadata, dict):
-        return True
+        source = str(getattr(descriptor, "source", "") or "").strip()
+        return source not in _PAGE_RUNTIME_CAPABILITY_SOURCES
+    source = str(getattr(descriptor, "source", "") or "").strip()
+    if source in _PAGE_RUNTIME_CAPABILITY_SOURCES:
+        return False
     if metadata.get("has_execution_tools") is False:
         return False
     # Startup-available baseline builtins still carry skill-like metadata for
@@ -330,6 +378,19 @@ def capability_pack_descriptor_is_live(descriptor: Any) -> bool:
 def tool_is_auto_injected_runtime_builtin(tool: Any) -> bool:
     config = getattr(tool, "config", {}) or {}
     return isinstance(config, dict) and config.get("auto_injected") is True
+
+
+def tool_is_page_runtime_builtin(tool: Any) -> bool:
+    tool_name = str(getattr(tool, "name", "") or "").strip()
+    skill_name = str(getattr(tool, "source_skill_name", "") or "").strip()
+    if skill_name:
+        return is_page_runtime_capability_name(skill_name)
+    if not is_page_runtime_capability_name(tool_name):
+        return False
+    return not any(
+        str(getattr(tool, attr, "") or "").strip()
+        for attr in ("source_skill_id", "source_package_name", "source_plugin")
+    )
 
 
 def collect_selected_skill_names(
@@ -347,7 +408,9 @@ def collect_selected_skill_names(
             names.append(skill_name)
 
     for tool in tools or []:
-        if tool_is_auto_injected_runtime_builtin(tool):
+        if tool_is_auto_injected_runtime_builtin(tool) or tool_is_page_runtime_builtin(
+            tool
+        ):
             continue
         skill_name = str(getattr(tool, "source_skill_name", "") or "").strip()
         if skill_name and skill_name not in names:

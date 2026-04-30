@@ -8,13 +8,10 @@ from redis.exceptions import RedisError
 
 from app.ai.failover import HEALTH_KEY_PREFIX
 from app.ai.web_search.orchestrator_support.provider_selector import (
-    is_verified_native_runtime_candidate as _support_is_verified_native_runtime_candidate,
+    is_native_runtime_readiness_candidate as _support_is_native_runtime_readiness_candidate,
 )
 from app.repositories.ai import AIModelRepository, AIProviderRepository
-from app.schemas.ai.provider import (
-    AIProviderWebSearchConfig,
-    AIProviderWebSearchVerifiedTarget,
-)
+from app.schemas.ai.provider import AIProviderWebSearchConfig
 
 if TYPE_CHECKING:
     from app.ai.tools.types import ExecutionContext
@@ -47,7 +44,7 @@ def _parse_health_checked_at(value: object) -> datetime | None:
     return parsed.astimezone(timezone.utc)
 
 
-async def is_health_verified_native_candidate(
+async def is_health_ready_native_candidate(
     provider: AIProvider | None,
     *,
     model_code: str,
@@ -108,33 +105,31 @@ async def is_health_verified_native_candidate(
     )
 
 
-async def verify_native_runtime_candidate(
+async def check_native_runtime_readiness(
     provider: AIProvider | None,
     *,
     model_code: str,
-    allow_unverified_runtime_target: bool,
 ) -> tuple[bool, str]:
-    is_verified, verify_reason = _support_is_verified_native_runtime_candidate(
+    is_ready, readiness_reason = _support_is_native_runtime_readiness_candidate(
         provider,
-        allow_unverified_runtime_target=allow_unverified_runtime_target,
         trusted_hosts=_TRUSTED_OPENAI_COMPATIBLE_HOSTS,
     )
-    if is_verified:
-        return True, verify_reason
-    if provider is None or allow_unverified_runtime_target:
-        return is_verified, verify_reason
+    if is_ready:
+        return True, readiness_reason
+    if provider is None:
+        return is_ready, readiness_reason
 
     provider_type = str(getattr(provider, "type", "") or "").strip().lower()
     if provider_type != "openai_compatible":
-        return False, verify_reason
+        return False, readiness_reason
 
-    health_verified, health_reason = await is_health_verified_native_candidate(
+    health_ready, health_reason = await is_health_ready_native_candidate(
         provider,
         model_code=model_code,
     )
-    if health_verified:
+    if health_ready:
         return True, health_reason
-    return False, f"{verify_reason}:{health_reason}"
+    return False, f"{readiness_reason}:{health_reason}"
 
 
 async def load_runtime_provider_and_model(
@@ -161,45 +156,7 @@ async def load_runtime_provider_and_model(
     return provider, model
 
 
-async def resolve_verified_target_from_config(
-    *,
-    target: AIProviderWebSearchVerifiedTarget,
-    provider_repo: AIProviderRepository,
-    model_repo: AIModelRepository,
-    runtime_model: AIModel | None,
-) -> tuple[AIProvider | None, AIModel | None, str]:
-    provider = None
-    if target.provider_id is not None:
-        provider = await provider_repo.get_by_id(int(target.provider_id))
-    elif target.provider_code:
-        provider = await provider_repo.get_by_code(str(target.provider_code).strip())
-    if provider is None or not provider.is_active:
-        return None, None, "verified_target_provider_unavailable"
-
-    model = None
-    if target.model_id is not None:
-        model = await model_repo.get_active_with_provider(int(target.model_id))
-        if model is not None and int(getattr(model, "provider_id", 0) or 0) != int(
-            provider.id
-        ):
-            model = None
-    if model is None and target.model_code:
-        model = await model_repo.get_active_by_code_and_provider(
-            str(target.model_code).strip(),
-            provider.id,
-        )
-    if (
-        model is None
-        and runtime_model is not None
-        and int(getattr(runtime_model, "provider_id", 0) or 0) == int(provider.id)
-    ):
-        model = runtime_model
-    if model is None:
-        return provider, None, "verified_target_model_unavailable"
-    return provider, model, "verified_native_target"
-
-
-async def resolve_default_verified_native_target(
+async def resolve_default_native_readiness_target(
     *,
     runtime_provider: AIProvider | None,
     runtime_model: AIModel | None,
@@ -212,24 +169,23 @@ async def resolve_default_verified_native_target(
     ).strip()
 
     if runtime_provider is not None and runtime_model is not None:
-        is_verified, verify_reason = await verify_native_runtime_candidate(
+        is_ready, readiness_reason = await check_native_runtime_readiness(
             runtime_provider,
             model_code=preferred_model_code,
-            allow_unverified_runtime_target=False,
         )
-        if is_verified:
+        if is_ready:
             return (
                 runtime_provider,
                 runtime_model,
-                "default_verified_native_target",
-                verify_reason,
+                "default_native_readiness_target",
+                readiness_reason,
             )
         runtime_provider_id = int(getattr(runtime_provider, "id", 0) or 0)
     else:
         runtime_provider_id = 0
 
     if not preferred_model_code:
-        return None, None, None, "default_verified_target_model_code_missing"
+        return None, None, None, "default_native_readiness_target_model_code_missing"
 
     active_providers = await provider_repo.get_active_providers()
     for provider in active_providers:
@@ -237,12 +193,11 @@ async def resolve_default_verified_native_target(
         if provider_id and provider_id == runtime_provider_id:
             continue
 
-        is_verified, verify_reason = await verify_native_runtime_candidate(
+        is_ready, readiness_reason = await check_native_runtime_readiness(
             provider,
             model_code=preferred_model_code,
-            allow_unverified_runtime_target=False,
         )
-        if not is_verified:
+        if not is_ready:
             continue
 
         model = await model_repo.get_active_by_code_and_provider(
@@ -255,14 +210,14 @@ async def resolve_default_verified_native_target(
         return (
             provider,
             model,
-            "default_verified_native_target",
-            verify_reason,
+            "default_native_readiness_target",
+            readiness_reason,
         )
 
-    return None, None, None, "default_verified_target_unavailable"
+    return None, None, None, "default_native_readiness_target_unavailable"
 
 
-async def resolve_verified_native_target(
+async def resolve_native_readiness_target(
     *,
     normalized_config: AIProviderWebSearchConfig,
     runtime_provider: AIProvider | None,
@@ -271,33 +226,13 @@ async def resolve_verified_native_target(
     provider_repo: AIProviderRepository,
     model_repo: AIModelRepository,
 ) -> tuple[AIProvider | None, AIModel | None, str | None, str]:
-    explicit_target = normalized_config.verified_native_target
-    if explicit_target is not None:
-        provider, model, reason = await resolve_verified_target_from_config(
-            target=explicit_target,
-            provider_repo=provider_repo,
-            model_repo=model_repo,
-            runtime_model=runtime_model,
-        )
-        if provider is not None and model is not None:
-            is_verified, verify_reason = await verify_native_runtime_candidate(
-                provider,
-                model_code=str(getattr(model, "code", "") or "").strip(),
-                allow_unverified_runtime_target=bool(
-                    normalized_config.allow_unverified_runtime_target
-                ),
-            )
-            if not is_verified:
-                return None, None, None, f"verified_target_rejected:{verify_reason}"
-            return provider, model, "verified_native_target", verify_reason
-        return None, None, None, reason
-
+    _ = normalized_config
     (
         default_provider,
         default_model,
         default_source,
         default_reason,
-    ) = await resolve_default_verified_native_target(
+    ) = await resolve_default_native_readiness_target(
         runtime_provider=runtime_provider,
         runtime_model=runtime_model,
         runtime_model_code=runtime_model_code,
@@ -307,42 +242,33 @@ async def resolve_verified_native_target(
     if default_provider is not None and default_model is not None:
         return default_provider, default_model, default_source, default_reason
 
-    if (
-        bool(normalized_config.allow_unverified_runtime_target)
-        and runtime_provider is not None
-        and runtime_model is not None
-    ):
-        return (
-            runtime_provider,
-            runtime_model,
-            "runtime_unverified_override",
-            "allow_unverified_runtime_target_override",
-        )
-
-    runtime_verify_reason = None
+    runtime_readiness_reason = None
     if runtime_provider is not None and runtime_model is not None:
-        _, runtime_verify_reason = await verify_native_runtime_candidate(
+        _, runtime_readiness_reason = await check_native_runtime_readiness(
             runtime_provider,
             model_code=str(getattr(runtime_model, "code", "") or runtime_model_code),
-            allow_unverified_runtime_target=False,
         )
 
     if runtime_provider is None or runtime_model is None:
-        return None, None, None, default_reason or "runtime_target_missing"
+        reason = default_reason or "runtime_readiness_candidate_missing"
+        return None, None, None, reason
 
-    if runtime_verify_reason:
+    if runtime_readiness_reason:
+        reason = (
+            f"{default_reason or 'default_native_readiness_target_unavailable'}:{runtime_readiness_reason}"
+        )
         return (
             None,
             None,
             None,
-            f"{default_reason or 'default_verified_target_unavailable'}:{runtime_verify_reason}",
+            reason,
         )
 
-    return None, None, None, default_reason or "default_verified_target_unavailable"
+    return None, None, None, default_reason or "default_native_readiness_target_unavailable"
 
 
 __all__ = [
+    "check_native_runtime_readiness",
     "load_runtime_provider_and_model",
-    "resolve_verified_native_target",
-    "verify_native_runtime_candidate",
+    "resolve_native_readiness_target",
 ]

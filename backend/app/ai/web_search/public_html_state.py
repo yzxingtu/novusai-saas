@@ -28,7 +28,7 @@ _BACKEND_QUERY_CACHE: dict[
 ] = {}
 
 
-def conv_id(context: "ExecutionContext | None") -> int:
+def conv_id(context: ExecutionContext | None) -> int:
     if context is None or context.conversation_id is None:
         return 0
     return int(context.conversation_id)
@@ -43,7 +43,7 @@ def backend_cache_key(
     runtime_model_code: str | None,
     locale: str | None,
     max_results: int,
-    context: "ExecutionContext | None",
+    context: ExecutionContext | None,
 ) -> tuple[int, str, str, str, str, str, str, int]:
     return (
         conv_id(context),

@@ -35,7 +35,7 @@ _FORBIDDEN_OPENAI_COMPATIBLE_BASE_URL_SUFFIXES = (
     "/responses",
     "/chat/completions",
 )
-_SUPPORTED_PUBLIC_WEB_SEARCH_PROVIDERS = {"baidu", "so360"}
+_BAIDU_FALLBACK_PROVIDER = "baidu"
 
 
 class AIProviderService(BaseService[AIProvider, AIProviderRepository]):
@@ -170,21 +170,14 @@ class AIProviderService(BaseService[AIProvider, AIProviderRepository]):
     def _default_web_search_config() -> AIProviderWebSearchConfig:
         return AIProviderWebSearchConfig(
             enabled=bool(settings.WEB_SEARCH_DEFAULT_ENABLED),
-            strategy=str(settings.WEB_SEARCH_DEFAULT_STRATEGY).strip()
-            or "native_first_fallback_public",
             max_results_cap=int(settings.WEB_SEARCH_DEFAULT_MAX_RESULTS_CAP),
             native_timeout_seconds=int(
                 settings.WEB_SEARCH_DEFAULT_NATIVE_TIMEOUT_SECONDS
             ),
-            public_timeout_seconds=int(
+            fallback_provider=_BAIDU_FALLBACK_PROVIDER,
+            fallback_timeout_seconds=int(
                 settings.WEB_SEARCH_DEFAULT_PUBLIC_TIMEOUT_SECONDS
             ),
-            public_providers=[
-                provider
-                for provider in settings.WEB_SEARCH_DEFAULT_PUBLIC_PROVIDERS
-                if str(provider or "").strip()
-            ]
-            or ["baidu", "so360"],
         )
 
     @classmethod
@@ -211,17 +204,10 @@ class AIProviderService(BaseService[AIProvider, AIProviderRepository]):
                 message=f"Invalid web_search config: {exc}"
             ) from exc
 
-        # Defensive filtering in case env defaults were customized to unsupported providers.
-        normalized_public_providers = [
-            provider
-            for provider in normalized_web_search.public_providers
-            if provider in _SUPPORTED_PUBLIC_WEB_SEARCH_PROVIDERS
-        ]
-        if not normalized_public_providers:
+        if normalized_web_search.fallback_provider != _BAIDU_FALLBACK_PROVIDER:
             raise ValidationException(
-                message="web_search.public_providers must contain at least one supported provider"
+                message="web_search.fallback_provider must be baidu"
             )
-        normalized_web_search.public_providers = normalized_public_providers
 
         provider_config["web_search"] = normalized_web_search.model_dump()
         return provider_config or None
@@ -243,41 +229,34 @@ class AIProviderService(BaseService[AIProvider, AIProviderRepository]):
             return AIProviderWebSearchRuntime(
                 native_supported=False,
                 native_provider=provider_type or "unknown",
-                reason="provider config.web_search is invalid",
+                reason="native_denied: provider config.web_search is invalid",
             )
         web_search_cfg = (normalized_config or {}).get("web_search") or {}
         enabled = bool(web_search_cfg.get("enabled", True))
-        strategy = str(web_search_cfg.get("strategy", "") or "")
         wire_api = str(provider_config.get("wire_api", "") or "").strip().lower()
 
         if not enabled:
             return AIProviderWebSearchRuntime(
                 native_supported=False,
                 native_provider=provider_type or "unknown",
-                reason="web_search disabled in provider config",
-            )
-        if strategy != "native_first_fallback_public":
-            return AIProviderWebSearchRuntime(
-                native_supported=False,
-                native_provider=provider_type or "unknown",
-                reason=f"unsupported strategy: {strategy or '(empty)'}",
+                reason="native_denied: web_search disabled in provider config",
             )
         if provider_type != "openai_compatible":
             return AIProviderWebSearchRuntime(
                 native_supported=False,
                 native_provider=provider_type or "unknown",
-                reason="provider type has no native web search adapter",
+                reason="native_denied: provider type has no native web search adapter",
             )
         if wire_api != "responses":
             return AIProviderWebSearchRuntime(
                 native_supported=False,
                 native_provider=provider_type,
-                reason="openai_compatible native web search requires wire_api=responses",
+                reason="native_denied: openai_compatible native web search requires wire_api=responses",
             )
         return AIProviderWebSearchRuntime(
             native_supported=True,
             native_provider=provider_type,
-            reason="native web search available; runtime still validates model capability and may fallback to public search",
+            reason="native_ready: runtime still validates model capability and may use Baidu fallback",
         )
 
     @classmethod

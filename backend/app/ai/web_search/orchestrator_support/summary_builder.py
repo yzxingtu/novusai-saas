@@ -15,9 +15,7 @@ def has_search_wrapper_url(
             host = (urlparse(item.url).hostname or "").lower()
         except Exception:
             continue
-        if host in search_engine_hosts or host.endswith(".baidu.com") or host.endswith(
-            ".so.com"
-        ):
+        if host in search_engine_hosts or host.endswith(".baidu.com"):
             return True
     return False
 
@@ -41,4 +39,3 @@ def build_search_output_text(
             lines.append(f"   {item.snippet}")
         lines.append("")
     return "\n".join(lines).rstrip()
-

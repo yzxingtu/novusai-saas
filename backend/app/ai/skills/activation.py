@@ -13,6 +13,7 @@ from app.ai.runtime.contracts import PAGE_CONTEXT_KEY
 from app.ai.runtime.types import (
     capability_pack_descriptor_is_live,
     tool_is_auto_injected_runtime_builtin,
+    tool_is_page_runtime_builtin,
 )
 from app.ai.text_semantics_terms import extract_textual_tool_call_names
 from app.ai.tools.semantic_defaults import tool_family_from_name
@@ -28,6 +29,7 @@ _PAGE_TOOL_NAMES = {
     "ui_read_table",
     "ui_set_field",
     "ui_submit_form",
+    "editor_ops",
 }
 _WEB_RESEARCH_TOOL_NAMES = {"web_search", "fetch_url"}
 
@@ -81,7 +83,9 @@ def _turn_activation(skill_result: Any) -> TurnSkillActivation | None:
 
 
 def _tool_has_skill_owner(tool: Any) -> bool:
-    if tool_is_auto_injected_runtime_builtin(tool):
+    if tool_is_auto_injected_runtime_builtin(tool) or tool_is_page_runtime_builtin(
+        tool
+    ):
         return False
     return any(
         str(getattr(tool, attr, "") or "").strip()
@@ -95,7 +99,9 @@ def _skill_name_has_live_execution(skill_result: Any, skill_name: str) -> bool:
         return False
 
     for tool in list(getattr(skill_result, "tools", []) or []):
-        if tool_is_auto_injected_runtime_builtin(tool):
+        if tool_is_auto_injected_runtime_builtin(tool) or tool_is_page_runtime_builtin(
+            tool
+        ):
             continue
         tool_name = str(getattr(tool, "name", "") or "").strip()
         tool_skill_name = str(getattr(tool, "source_skill_name", "") or "").strip()
@@ -172,7 +178,9 @@ def _explicit_skill_mentions(skill_result: Any, user_text: str) -> list[str]:
                 )
 
     for tool in tools:
-        if tool_is_auto_injected_runtime_builtin(tool):
+        if tool_is_auto_injected_runtime_builtin(tool) or tool_is_page_runtime_builtin(
+            tool
+        ):
             continue
         skill_name = str(getattr(tool, "source_skill_name", "") or "").strip()
         if skill_name:
@@ -305,7 +313,9 @@ def _skill_names_for_runtime_policy(
             selected.append(descriptor_name)
 
     for tool in list(getattr(skill_result, "tools", []) or []):
-        if tool_is_auto_injected_runtime_builtin(tool):
+        if tool_is_auto_injected_runtime_builtin(tool) or tool_is_page_runtime_builtin(
+            tool
+        ):
             continue
         tool_name = str(getattr(tool, "name", "") or "").strip()
         if not tool_name:
@@ -366,10 +376,7 @@ def execution_tools_for_turn(skill_result: Any | None) -> list[Any]:
 
 def execution_selected_tool_names_for_turn(skill_result: Any | None) -> list[str]:
     return _stable_unique(
-        [
-            getattr(tool, "name", None)
-            for tool in execution_tools_for_turn(skill_result)
-        ]
+        [getattr(tool, "name", None) for tool in execution_tools_for_turn(skill_result)]
     )
 
 
@@ -454,6 +461,7 @@ def apply_turn_skill_activation(
             getattr(tool, "source_skill_name", None)
             for tool in list(skill_result.tools or [])
             if not tool_is_auto_injected_runtime_builtin(tool)
+            if not tool_is_page_runtime_builtin(tool)
             if str(getattr(tool, "name", "") or "").strip() in set(activated_tool_names)
         ]
     )

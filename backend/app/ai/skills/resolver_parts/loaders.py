@@ -371,19 +371,19 @@ async def resolve_plugin_skill(
     config: dict[str, Any],
     result: Any,
     source_plugin: str = "",
-) -> None:
+) -> bool:
     from app.plugins.registry import ExtensionRegistry
 
     registry = ExtensionRegistry.get_instance()
     resolver_func = registry.get_plugin_skill_resolver(source_plugin)
     if resolver_func is None:
         logger.warning(
-            "No plugin resolver for plugin '{}' (skill={}, type={})",
+            "No plugin resolver for plugin '{}' (skill={}, type={}); falling back to canonical skill-type resolver",
             source_plugin,
             skill.id,
             skill.type,
         )
-        return
+        return False
 
     try:
         tool_defs = (
@@ -411,6 +411,7 @@ async def resolve_plugin_skill(
             source_plugin,
             exc,
         )
+    return True
 
 
 async def resolve_one_skill(
@@ -428,14 +429,18 @@ async def resolve_one_skill(
 ) -> None:
     if config.get("internal"):
         return
-    if source_plugin:
-        await resolve_plugin(
+    normalized_source_plugin = str(source_plugin or "").strip()
+    fallback_start_index = len(result.tools)
+
+    if normalized_source_plugin:
+        plugin_owned = await resolve_plugin(
             skill=skill,
             config=config,
             result=result,
-            source_plugin=source_plugin,
+            source_plugin=normalized_source_plugin,
         )
-        return
+        if plugin_owned:
+            return
 
     skill_type = skill.type
     if skill_type == SkillTypeEnum.TOOLKIT.value:
@@ -454,3 +459,9 @@ async def resolve_one_skill(
             skill_type,
             skill.id,
         )
+        return
+
+    if normalized_source_plugin:
+        for tool in result.tools[fallback_start_index:]:
+            if not getattr(tool, "source_plugin", None):
+                tool.source_plugin = normalized_source_plugin

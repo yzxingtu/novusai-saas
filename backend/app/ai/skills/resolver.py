@@ -45,6 +45,24 @@ _PAGE_RUNTIME_HINT_TOKENS = frozenset(
 _WEB_RESEARCH_HINT_TOKENS = frozenset(
     {"research", "search", "web", "fetch", "url", "crawl", "browse"}
 )
+_PAGE_RUNTIME_BUILTIN_TOOL_NAMES = frozenset(
+    {
+        "editor_ops",
+        "ui_click",
+        "ui_fill_form",
+        "ui_get_form_state",
+        "ui_get_snapshot",
+        "ui_list_interactables",
+        "ui_open_surface",
+        "ui_read_region",
+        "ui_read_table",
+        "ui_set_field",
+        "ui_submit_form",
+    }
+)
+_RUNTIME_BUILTIN_TOOL_NAMES = frozenset(
+    set(_BASELINE_RUNTIME_BUILTINS) | set(_PAGE_RUNTIME_BUILTIN_TOOL_NAMES)
+)
 
 
 def _stable_unique_texts(values: list[Any]) -> list[str]:
@@ -203,8 +221,12 @@ def _preview_tool_names_for_skill(
                 str((tool_cfg or {}).get("name") or "").strip()
                 for tool_cfg in tools_config
                 if str((tool_cfg or {}).get("name") or "").strip()
+                and str((tool_cfg or {}).get("name") or "").strip()
+                not in _RUNTIME_BUILTIN_TOOL_NAMES
             ]
         tool_name = str(getattr(skill, "name", "") or "").strip()
+        if tool_name in _RUNTIME_BUILTIN_TOOL_NAMES:
+            return []
         return [tool_name] if tool_name else []
     if skill_type == "http":
         tool_name = str(getattr(skill, "name", "") or "").strip().lower()
@@ -548,10 +570,10 @@ class SkillResolver:
             if (
                 str(getattr(skill, "type", "") or "").strip() == "builtin"
                 and str(getattr(skill, "name", "") or "").strip()
-                in _BASELINE_RUNTIME_BUILTINS
+                in _RUNTIME_BUILTIN_TOOL_NAMES
             ):
                 logger.debug(
-                    "Skipping DB builtin skill '{}' (id={}) — covered by baseline runtime builtins",
+                    "Skipping DB builtin skill '{}' (id={}) — covered by runtime builtins",
                     skill.name,
                     skill.id,
                 )
@@ -741,8 +763,8 @@ class SkillResolver:
         config: dict[str, Any],
         result: SkillResolveResult,
         source_plugin: str = "",
-    ) -> None:
-        await parts.resolve_plugin_skill(
+    ) -> bool:
+        return await parts.resolve_plugin_skill(
             skill=skill,
             config=config,
             result=result,
