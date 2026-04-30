@@ -37,12 +37,12 @@ from app.services.tenant.announcement_service import AnnouncementService
     resource="announcement",
     name="menu.tenant.announcement",
     scope=PermissionScope.TENANT,
-    parent_resource="system",
+    parent_resource="system_mgmt",
     menu=MenuConfig(
         icon="lucide:megaphone",
         path="/system/announcements",
         component="tenant/system/announcements/index",
-        parent="system",
+        parent="system_mgmt",
         sort_order=42,
     ),
 )

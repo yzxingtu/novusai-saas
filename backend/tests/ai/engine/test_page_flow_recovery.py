@@ -4,7 +4,12 @@ Scope: Page no-progress recovery derives canonical page_workflow metadata withou
 re-emitting legacy page_* aliases into live recovery diagnostics.
 """
 
+import json
+
 from app.ai.engine.base import BaseEngine
+from app.ai.engine.page_flow_recovery_helpers import (
+    build_page_deterministic_recovery_step_default,
+)
 from app.ai.tools.types import ToolDefinition, ToolResult
 from app.ai.types import ChatMessage
 
@@ -424,3 +429,81 @@ def test_build_page_no_progress_recovery_skips_generic_page_summary_turn() -> No
 
     assert preferred_tool_names == []
     assert diagnostics == {}
+
+
+def test_build_page_deterministic_recovery_reads_main_after_snapshot() -> None:
+    synthetic_calls, diagnostics = build_page_deterministic_recovery_step_default(
+        messages=[ChatMessage(role="user", content="读一下当前页面有什么")],
+        tool_calls=[
+            {
+                "id": "call_snapshot",
+                "type": "function",
+                "function": {"name": "ui_get_snapshot", "arguments": "{}"},
+            }
+        ],
+        tool_results=[_snapshot_result()],
+        tools=_page_tools(),
+        input_variables={
+            **_build_input_variables_without_form(),
+            "_runtime_intent_facts": {
+                "active_intent_kind": "page_workflow",
+                "page_workflow_goal": "page_summary",
+            },
+        },
+    )
+
+    assert diagnostics["reason"] == "page_deterministic_next_step"
+    assert diagnostics["synthetic_tool_names"] == ["ui_read_region"]
+    assert synthetic_calls[0]["function"]["name"] == "ui_read_region"
+    assert json.loads(synthetic_calls[0]["function"]["arguments"]) == {
+        "locator": "main",
+        "ui_epoch": 9,
+    }
+
+
+def test_build_page_deterministic_recovery_opens_create_surface() -> None:
+    synthetic_calls, diagnostics = build_page_deterministic_recovery_step_default(
+        messages=[
+            ChatMessage(
+                role="user",
+                content="请新建一个测试智能体，名称叫 E2E-Test-001",
+            )
+        ],
+        tool_calls=[
+            {
+                "id": "call_list",
+                "type": "function",
+                "function": {"name": "ui_list_interactables", "arguments": "{}"},
+            }
+        ],
+        tool_results=[
+            ToolResult(
+                tool_call_id="call_list",
+                name="ui_list_interactables",
+                success=True,
+                output=json.dumps(
+                    {
+                        "items": [
+                            {
+                                "label": "创建智能体",
+                                "locator": "testid:create-agent",
+                                "kind": "button",
+                                "enabled": True,
+                            }
+                        ]
+                    },
+                    ensure_ascii=False,
+                ),
+            )
+        ],
+        tools=_page_tools(),
+        input_variables=_build_input_variables_without_form(),
+    )
+
+    assert diagnostics["reason"] == "page_deterministic_next_step"
+    assert diagnostics["synthetic_tool_names"] == ["ui_open_surface"]
+    assert synthetic_calls[0]["function"]["name"] == "ui_open_surface"
+    assert json.loads(synthetic_calls[0]["function"]["arguments"]) == {
+        "target_locator": "testid:create-agent",
+        "ui_epoch": 9,
+    }

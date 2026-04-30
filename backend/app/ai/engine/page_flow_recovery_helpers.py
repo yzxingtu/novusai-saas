@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
+from hashlib import sha1
 from typing import Any
 
 from app.ai.navigation_semantics import has_navigation_intent
@@ -60,6 +61,7 @@ _RECOVERY_FORM_WRITE_TERMS = (
     "保存",
     "创建",
     "新增",
+    "新建",
     "添加",
     "绑定",
     "编辑",
@@ -257,6 +259,218 @@ def _snapshot_payload(result: ToolResult) -> dict[str, Any]:
     except json.JSONDecodeError:
         return {}
     return dict(payload) if isinstance(payload, dict) else {}
+
+
+def _load_json_object(value: Any) -> dict[str, Any]:
+    if isinstance(value, dict):
+        return dict(value)
+    if not str(value or "").strip():
+        return {}
+    try:
+        payload = json.loads(str(value or "").strip())
+    except json.JSONDecodeError:
+        return {}
+    return dict(payload) if isinstance(payload, dict) else {}
+
+
+def _tool_call_arguments(tool_call: dict[str, Any]) -> dict[str, Any]:
+    function_block = tool_call.get("function")
+    if not isinstance(function_block, dict):
+        return {}
+    raw_arguments = function_block.get("arguments")
+    if isinstance(raw_arguments, dict):
+        return dict(raw_arguments)
+    return _load_json_object(raw_arguments)
+
+
+def _tool_call(
+    *,
+    name: str,
+    arguments: dict[str, Any] | None = None,
+    reason: str,
+) -> dict[str, Any]:
+    serialized_arguments = json.dumps(
+        arguments or {},
+        ensure_ascii=False,
+        sort_keys=True,
+        default=str,
+    )
+    digest = sha1(serialized_arguments.encode("utf-8")).hexdigest()[:8]
+    safe_name = "".join(ch if ch.isalnum() or ch == "_" else "_" for ch in name)
+    safe_name = safe_name.strip("_") or "page_tool"
+    return {
+        "id": f"fc_page_recovery_{safe_name}_{digest}",
+        "type": "function",
+        "function": {
+            "name": name,
+            "arguments": json.dumps(arguments or {}, ensure_ascii=False, default=str),
+        },
+        "metadata": {
+            "synthetic_page_workflow_tool_call": True,
+            "reason": reason,
+        },
+    }
+
+
+def _result_payloads(result: ToolResult) -> list[dict[str, Any]]:
+    payloads: list[dict[str, Any]] = []
+    output_payload = _load_json_object(result.output)
+    if output_payload:
+        payloads.append(output_payload)
+    if isinstance(result.summary_payload, dict):
+        summary_payload = dict(result.summary_payload)
+        payloads.append(summary_payload)
+        data = summary_payload.get("data")
+        if isinstance(data, dict):
+            payloads.append(dict(data))
+            form_session = data.get("form_session")
+            if isinstance(form_session, dict):
+                payloads.append(dict(form_session))
+    return payloads
+
+
+def _last_successful_result(tool_results: list[ToolResult]) -> ToolResult | None:
+    for result in reversed(tool_results):
+        if result.success:
+            return result
+    return None
+
+
+def _active_form_state(
+    *,
+    page_context: dict[str, Any],
+    tool_results: list[ToolResult],
+) -> dict[str, Any]:
+    for result in reversed(tool_results):
+        for payload in _result_payloads(result):
+            form_session = payload.get("form_session")
+            if isinstance(form_session, dict):
+                return dict(form_session)
+            active_form_summary = payload.get("active_form_summary")
+            if isinstance(active_form_summary, dict):
+                state = dict(active_form_summary)
+                active_form_session_id = str(
+                    payload.get("active_form_session_id") or ""
+                ).strip()
+                if active_form_session_id and not str(
+                    state.get("form_session_id") or ""
+                ).strip():
+                    state["form_session_id"] = active_form_session_id
+                return state
+            if (
+                str(payload.get("form_session_id") or "").strip()
+                or str(payload.get("active_form_session_id") or "").strip()
+                or isinstance(payload.get("fields"), list)
+                or isinstance(payload.get("remaining_required_fields"), list)
+            ):
+                return dict(payload)
+    active_summary = page_context.get("active_form_summary")
+    if isinstance(active_summary, dict):
+        state = dict(active_summary)
+        active_form_session_id = str(
+            page_context.get("active_form_session_id") or ""
+        ).strip()
+        if active_form_session_id and not str(state.get("form_session_id") or "").strip():
+            state["form_session_id"] = active_form_session_id
+        return state
+    active_id = str(page_context.get("active_form_session_id") or "").strip()
+    return {"form_session_id": active_id} if active_id else {}
+
+
+def _form_session_id_from_round(
+    *,
+    page_context: dict[str, Any],
+    tool_calls: list[dict[str, Any]],
+    tool_results: list[ToolResult],
+) -> str:
+    state = _active_form_state(page_context=page_context, tool_results=tool_results)
+    form_session_id = str(
+        state.get("form_session_id") or state.get("active_form_session_id") or ""
+    ).strip()
+    if form_session_id:
+        return form_session_id
+    for tool_call in reversed(tool_calls):
+        arguments = _tool_call_arguments(tool_call)
+        form_session_id = str(arguments.get("form_session_id") or "").strip()
+        if form_session_id:
+            return form_session_id
+    return ""
+
+
+def _requested_name_value(user_text: str) -> str:
+    normalized = str(user_text or "").strip()
+    if not normalized:
+        return ""
+    markers = ("名称叫", "名字叫", "命名为", "name is", "named")
+    for marker in markers:
+        marker_index = normalized.lower().find(marker.lower())
+        if marker_index < 0:
+            continue
+        value = normalized[marker_index + len(marker) :].strip(" ：:，,。.")
+        value = value.split("，", 1)[0].split(",", 1)[0].split("。", 1)[0].strip()
+        if value:
+            return value[:120]
+    return ""
+
+
+def _iter_interactable_items(tool_results: list[ToolResult]) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    for result in reversed(tool_results):
+        if not result.success or result.name not in {
+            "ui_get_snapshot",
+            "ui_list_interactables",
+        }:
+            continue
+        for payload in _result_payloads(result):
+            raw_items = payload.get("items")
+            if result.name == "ui_get_snapshot" and not isinstance(raw_items, list):
+                raw_items = payload.get("nodes")
+            if not isinstance(raw_items, list):
+                continue
+            for item in raw_items:
+                if isinstance(item, dict):
+                    items.append(dict(item))
+        if items:
+            break
+    return items
+
+
+def _item_label(item: dict[str, Any]) -> str:
+    return str(
+        item.get("label")
+        or item.get("summary")
+        or item.get("title")
+        or item.get("text")
+        or item.get("content")
+        or ""
+    ).strip()
+
+
+def _item_locator(item: dict[str, Any]) -> str:
+    return str(item.get("locator") or item.get("target_locator") or "").strip()
+
+
+def _find_create_surface_item(items: list[dict[str, Any]]) -> dict[str, Any]:
+    create_terms = ("创建", "新增", "添加", "新建", "create", "add", "new")
+    for item in items:
+        haystack = f"{_item_label(item)} {_item_locator(item)}".lower()
+        if any(term in haystack for term in create_terms) and not bool(
+            item.get("disabled")
+        ):
+            return item
+    return {}
+
+
+def _form_is_submittable(form_state: dict[str, Any]) -> bool:
+    if bool(form_state.get("can_submit")):
+        return True
+    remaining = form_state.get("remaining_required_fields")
+    if isinstance(remaining, list) and not remaining:
+        return True
+    return str(form_state.get("stage") or "").strip() in {
+        "ready_to_submit",
+        "submitting",
+    }
 
 
 def _snapshot_result_indicates_navigation_progress(
@@ -606,6 +820,224 @@ def build_page_no_progress_recovery_default(
     input_variables: dict[str, Any] | None,
 ) -> tuple[list[str], dict[str, Any]]:
     return build_page_no_progress_recovery(
+        messages=messages,
+        tool_calls=tool_calls,
+        tool_results=tool_results,
+        tools=tools,
+        input_variables=input_variables,
+        extract_last_user_text=_extract_last_user_text_impl,
+        first_page_workflow_goal=_first_page_workflow_goal_impl,
+        tool_call_name=_tool_call_name_impl,
+    )
+
+
+def build_page_deterministic_recovery_step(
+    *,
+    messages: list[ChatMessage],
+    tool_calls: list[dict[str, Any]],
+    tool_results: list[ToolResult],
+    tools: list[ToolDefinition],
+    input_variables: dict[str, Any] | None,
+    extract_last_user_text: Callable[[list[ChatMessage]], str],
+    first_page_workflow_goal: Callable[..., str | None],
+    tool_call_name: Callable[[dict[str, Any]], str],
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    if not tool_calls or not tool_results or not tools or not isinstance(
+        input_variables,
+        dict,
+    ):
+        return [], {}
+
+    from app.ai.tools.semantic_defaults import (
+        page_context_available_ui_tools,
+        page_context_payload,
+    )
+
+    page_context = page_context_payload(input_variables)
+    if not isinstance(page_context, dict):
+        return [], {}
+
+    user_text = extract_last_user_text(messages)
+    workflow_state = PageWorkflowStateMachine.resolve_state(
+        input_variables=input_variables
+    )
+    round_tool_names = [
+        tool_call_name(tool_call)
+        for tool_call in tool_calls
+        if tool_call_name(tool_call)
+    ]
+    if not round_tool_names:
+        return [], {}
+
+    workflow_goal = str(
+        first_page_workflow_goal(
+            user_text=user_text,
+            tools=tools,
+            input_variables=input_variables,
+        )
+        or ""
+    ).strip()
+    recovery_goal = _recovery_workflow_goal(
+        user_text=user_text,
+        page_context=page_context,
+        workflow_state=workflow_state,
+        round_tool_names=round_tool_names,
+        tool_results=tool_results,
+    )
+    if recovery_goal and (
+        not workflow_goal
+        or workflow_goal == "page_summary"
+        or (workflow_goal == "form_read" and recovery_goal == "form_write")
+    ):
+        workflow_goal = recovery_goal
+    if not workflow_goal:
+        return [], {}
+
+    workflow_plan = ToolRouter.page_intent_tool_plan(
+        "page_workflow",
+        user_text=user_text,
+        input_variables=input_variables,
+        intent_metadata={
+            "page_workflow_kind": "page_workflow",
+            "page_workflow_goal": workflow_goal,
+        },
+    )
+    workflow_goal = str(workflow_plan.workflow_goal or workflow_goal or "").strip()
+    available_tool_names = {tool.name for tool in tools}
+    available_ui_tools = set(
+        page_context_available_ui_tools(
+            page_context,
+            available_tool_names=available_tool_names,
+        )
+    )
+    last_result = _last_successful_result(tool_results)
+    if last_result is None:
+        return [], {}
+
+    next_call: dict[str, Any] | None = None
+    if (
+        workflow_goal == "page_summary"
+        and last_result.name == "ui_get_snapshot"
+        and "ui_read_region" in available_ui_tools
+    ):
+        next_call = _tool_call(
+            name="ui_read_region",
+            arguments={
+                "locator": "main",
+                "ui_epoch": page_context.get("ui_epoch"),
+            },
+            reason="page_summary_main_region_after_snapshot",
+        )
+    elif workflow_goal == "form_write":
+        form_state = _active_form_state(
+            page_context=page_context,
+            tool_results=tool_results,
+        )
+        form_session_id = _form_session_id_from_round(
+            page_context=page_context,
+            tool_calls=tool_calls,
+            tool_results=tool_results,
+        )
+        requested_name = _requested_name_value(user_text)
+        if (
+            requested_name
+            and form_session_id
+            and last_result.name in {"ui_get_form_state", "ui_open_surface", "ui_click"}
+            and "ui_fill_form" in available_ui_tools
+        ):
+            next_call = _tool_call(
+                name="ui_fill_form",
+                arguments={
+                    "form_session_id": form_session_id,
+                    "fields": {"name": requested_name},
+                    "ui_epoch": page_context.get("ui_epoch"),
+                },
+                reason="page_form_fill_name_from_active_form",
+            )
+        elif (
+            form_session_id
+            and last_result.name in {"ui_fill_form", "ui_set_field"}
+            and _form_is_submittable(form_state)
+            and "ui_submit_form" in available_ui_tools
+        ):
+            next_call = _tool_call(
+                name="ui_submit_form",
+                arguments={
+                    "form_session_id": form_session_id,
+                    "confirm": True,
+                    "ui_epoch": page_context.get("ui_epoch"),
+                },
+                reason="page_form_submit_after_fill",
+            )
+        elif (
+            not form_session_id
+            and last_result.name in {"ui_get_snapshot", "ui_list_interactables"}
+            and {"ui_open_surface", "ui_click"} & available_ui_tools
+        ):
+            create_item = _find_create_surface_item(
+                _iter_interactable_items(tool_results)
+            )
+            target_locator = _item_locator(create_item)
+            if target_locator:
+                tool_name = (
+                    "ui_open_surface"
+                    if "ui_open_surface" in available_ui_tools
+                    else "ui_click"
+                )
+                next_call = _tool_call(
+                    name=tool_name,
+                    arguments={
+                        "target_locator": target_locator,
+                        "ui_epoch": page_context.get("ui_epoch"),
+                    },
+                    reason="page_form_open_create_surface_from_interactables",
+                )
+
+    if next_call is None:
+        return [], {}
+
+    synthetic_tool_name = str(
+        ((next_call.get("function") or {}) if isinstance(next_call, dict) else {}).get(
+            "name"
+        )
+        or ""
+    ).strip()
+    progress = _build_recovery_progress(
+        recovery_reason="page_deterministic_next_step",
+        preferred_tool_names=[synthetic_tool_name] if synthetic_tool_name else [],
+        round_tool_names=round_tool_names,
+        workflow_plan=workflow_plan,
+    )
+    diagnostics = {
+        "reason": "page_deterministic_next_step",
+        "intent_kind": "page_workflow",
+        "synthetic_tool_names": [synthetic_tool_name] if synthetic_tool_name else [],
+        "round_tool_names": round_tool_names,
+        "workflow_stage": workflow_plan.workflow_stage,
+        "workflow_phase": workflow_plan.workflow_phase,
+        "workflow_goal": workflow_goal,
+        "page_workflow_kind": "page_workflow",
+        "page_workflow_stage": workflow_plan.workflow_stage,
+        "page_workflow_phase": workflow_plan.workflow_phase,
+        "page_workflow_goal": workflow_goal,
+        "workflow_state": workflow_plan.workflow_state.to_dict(),
+        "workflow_completion": workflow_plan.completion_contract.to_dict(),
+        "page_workflow_state": workflow_plan.workflow_state.to_dict(),
+        "page_workflow_completion": workflow_plan.completion_contract.to_dict(),
+        "page_workflow_progress": progress,
+    }
+    return [next_call], diagnostics
+
+
+def build_page_deterministic_recovery_step_default(
+    *,
+    messages: list[ChatMessage],
+    tool_calls: list[dict[str, Any]],
+    tool_results: list[ToolResult],
+    tools: list[ToolDefinition],
+    input_variables: dict[str, Any] | None,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    return build_page_deterministic_recovery_step(
         messages=messages,
         tool_calls=tool_calls,
         tool_results=tool_results,
