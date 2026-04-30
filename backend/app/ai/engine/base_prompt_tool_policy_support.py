@@ -44,9 +44,6 @@ from .tool_policy_helpers import (
     first_page_intent_kind as _first_page_intent_kind_impl,
 )
 from .tool_policy_helpers import (
-    log_tool_selection_status as _log_tool_selection_status_impl,
-)
-from .tool_policy_helpers import (
     looks_like_explicit_time_request as _looks_like_explicit_time_request_impl,
 )
 from .tool_policy_helpers import (
@@ -119,9 +116,7 @@ class BasePromptToolPolicySupportMixin:
     )
     _looks_like_tool_planning_leak = staticmethod(_looks_like_tool_planning_leak_impl)
     _detect_requested_turn_intents = staticmethod(_detect_requested_turn_intents_impl)
-    _collect_completed_turn_intents = staticmethod(
-        _collect_completed_turn_intents_impl
-    )
+    _collect_completed_turn_intents = staticmethod(_collect_completed_turn_intents_impl)
     _response_has_native_web_search_evidence = staticmethod(
         _response_has_native_web_search_evidence_impl
     )
@@ -131,15 +126,11 @@ class BasePromptToolPolicySupportMixin:
         _allowed_tool_names_for_families_impl
     )
     _filter_tools_for_policy = staticmethod(_filter_tools_for_policy_impl)
-    _restore_explicit_family_tools = staticmethod(
-        _restore_explicit_family_tools_impl
-    )
+    _restore_explicit_family_tools = staticmethod(_restore_explicit_family_tools_impl)
     _ensure_explicit_family_coverage = staticmethod(
         _ensure_explicit_family_coverage_impl
     )
-    _ensure_web_research_tool_pair = staticmethod(
-        _ensure_web_research_tool_pair_impl
-    )
+    _ensure_web_research_tool_pair = staticmethod(_ensure_web_research_tool_pair_impl)
     _looks_like_explicit_web_research_request = staticmethod(
         _looks_like_explicit_web_research_request_impl
     )
@@ -153,7 +144,6 @@ class BasePromptToolPolicySupportMixin:
     _looks_like_explicit_time_request = staticmethod(
         _looks_like_explicit_time_request_impl
     )
-    _log_tool_selection_status = staticmethod(_log_tool_selection_status_impl)
     _ordered_requested_families_from_intents = staticmethod(
         _ordered_requested_families_from_intents_impl
     )

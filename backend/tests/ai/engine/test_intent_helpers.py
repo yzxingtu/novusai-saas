@@ -1,12 +1,16 @@
+"""
+Test type: behavioral
+Scope: intent signal helper behavior after page-operation retirement.
+Mocked dependencies: none.
+"""
+
 from types import SimpleNamespace
 
 from app.ai.engine.intent_clause_helpers import _split_clauses
 from app.ai.engine.intent_signal_helpers import (
     _continuation_families,
     _first_position,
-    _has_page_context,
     _last_user_text,
-    _page_operation_names,
     _tool_families,
 )
 from app.ai.tools.types import ToolDefinition
@@ -21,27 +25,18 @@ def test_last_user_text_picks_latest_and_handles_empty() -> None:
     ]
 
     assert _last_user_text(messages) == "final"
-    assert _last_user_text(
-        [
-            ChatMessage(role="system", content="sys"),
-            ChatMessage(role="assistant", content="assistant"),
-        ]
-    ) == ""
+    assert (
+        _last_user_text(
+            [
+                ChatMessage(role="system", content="sys"),
+                ChatMessage(role="assistant", content="assistant"),
+            ]
+        )
+        == ""
+    )
 
 
-def test_page_context_helpers_resolve_context_and_page_tools() -> None:
-    input_variables = {"page_context": {"page_key": "admin.ai.logs"}}
-
-    assert _has_page_context(input_variables) is False
-    assert _has_page_context({"page_context": "nope"}) is False
-    assert _has_page_context(None) is False
-
-    names = _page_operation_names(input_variables)
-    assert names == set()
-    assert _page_operation_names(None) == set()
-
-
-def test_tool_families_includes_page_ops_and_filters_none() -> None:
+def test_tool_families_filters_none_without_page_context_side_effects() -> None:
     tools = [
         ToolDefinition(name="web_search", description="Search the web"),
         ToolDefinition(name="get_current_time", description="Current time"),
@@ -56,14 +51,14 @@ def test_tool_families_includes_page_ops_and_filters_none() -> None:
     assert "none" not in families
 
 
-def test_continuation_families_merges_sources() -> None:
+def test_continuation_families_filters_retired_page_ops_sources() -> None:
     context = SimpleNamespace(
         continuation_capable_families=["page_ops", ""],
         family="web_research",
         tool_families=["weather", "page_ops", ""],
     )
 
-    assert _continuation_families(context) == {"page_ops", "web_research", "weather"}
+    assert _continuation_families(context) == {"web_research", "weather"}
     assert _continuation_families(None) == set()
 
 

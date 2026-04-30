@@ -61,8 +61,6 @@ describe('ai chat panel body', () => {
         ],
         ensureAgentKnowledgeBases,
         ensureAgentSkills,
-        getPendingOpsForMessage: () => [],
-        getRichTextDraftState: () => null,
         selectedAgent: {
           avatar: null,
           description: null,
@@ -150,8 +148,6 @@ describe('ai chat panel body', () => {
             role: 'assistant',
           },
         ],
-        getPendingOpsForMessage: () => [],
-        getRichTextDraftState: () => null,
         groupedConversations: [
           {
             label: '今天',

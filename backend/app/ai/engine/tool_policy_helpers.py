@@ -7,7 +7,6 @@ from .tool_policy_intent_helpers import (
     detect_requested_turn_intents,
 )
 from .tool_policy_message_helpers import (
-    log_tool_selection_status,
     looks_like_generic_follow_up,
     messages_have_blocking_pending_interaction,
     response_has_native_web_search_evidence,
@@ -59,6 +58,7 @@ def restrict_page_tools_for_generic_summary(
     del all_tools, user_text, input_variables
     return selected_tools, False
 
+
 __all__ = [
     "allowed_tool_names_for_families",
     "allowed_tool_names_for_family",
@@ -73,7 +73,6 @@ __all__ = [
     "filter_tools_for_policy",
     "first_incomplete_requested_family",
     "first_page_intent_kind",
-    "log_tool_selection_status",
     "looks_like_explicit_time_request",
     "looks_like_explicit_web_research_request",
     "looks_like_generic_follow_up",

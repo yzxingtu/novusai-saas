@@ -1,5 +1,10 @@
 # 六子代理并行执行的 AI 模块重写与拆分总计划
 
+> Superseded note (2026-05-01): this root plan is historical planning material.
+> Current AI runtime authority is `.trellis/spec/ai-runtime/index.md`; page
+> awareness/page operation/page runtime work in this document is retired for AI
+> dialogue live paths and must not be used as an implementation instruction.
+
 ## 摘要
 
 - 本计划采用“六个执行子代理并行开发，主代理只做架构守卫、代码审计、集成、验证、最终提交到 `main`”的执行模式。

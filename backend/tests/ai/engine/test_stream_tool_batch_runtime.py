@@ -1,3 +1,9 @@
+"""
+Test type: behavioral
+Scope: stream tool batch runtime consent, result projection, and budget handling.
+Mock strategy: sandbox/runtime collaborators are fakes; stream batch orchestration runs real.
+"""
+
 from __future__ import annotations
 
 import asyncio
@@ -319,61 +325,6 @@ async def test_run_stream_tool_batch_uses_runtime_tool_processor_binding(
 
 
 @pytest.mark.asyncio
-async def test_run_stream_tool_batch_aborts_after_consecutive_page_parse_failures() -> (
-    None
-):
-    class _Sandbox:
-        async def execute(self, *_args, **_kwargs) -> ToolResult:  # pragma: no cover
-            raise AssertionError("parse failures should not reach execute()")
-
-    response = ChatResponse(
-        message=ChatMessage(role="assistant", content="先试试页面操作"),
-        tool_calls=[
-            {
-                "id": "c1",
-                "type": "function",
-                "function": {"name": "ui_click", "arguments": "{bad json 1"},
-            },
-            {
-                "id": "c2",
-                "type": "function",
-                "function": {"name": "ui_click", "arguments": "{bad json 2"},
-            },
-            {
-                "id": "c3",
-                "type": "function",
-                "function": {"name": "ui_click", "arguments": "{bad json 3"},
-            },
-        ],
-    )
-    runtime = _build_runtime(
-        sandbox=_Sandbox(),
-        tools=[ToolDefinition(name="ui_click", description="Click UI element")],
-        response=response,
-        starting_total_tokens=30,
-        starting_completion_tokens=30,
-    )
-    events: list[dict] = []
-    emitted_chunks: list[str] = []
-
-    result = await run_stream_tool_batch(
-        runtime=runtime,
-        callbacks=_build_callbacks(events=events, emitted_chunks=emitted_chunks),
-    )
-
-    assert result.page_op_aborted is True
-    assert result.response is not None
-    assert result.response.message.content == result.output_override
-    assert len(result.tool_results) == 3
-    assert len([event for event in events if event.get("event") == "tool_call"]) == 3
-    assert (
-        len([event for event in events if event.get("event") == "turn_stage_update"])
-        == 3
-    )
-    assert emitted_chunks == [result.output_override]
-
-
-@pytest.mark.asyncio
 async def test_run_stream_tool_batch_trims_unexecuted_tail_after_budget_exit() -> None:
     class _Sandbox:
         def __init__(self) -> None:
@@ -393,9 +344,7 @@ async def test_run_stream_tool_batch_trims_unexecuted_tail_after_budget_exit() -
                 tool_call_id=tool_call_id,
                 name=name,
                 success=True,
-                output=json.dumps(
-                    {"name": name, "page_key": arguments.get("page_key")}
-                ),
+                output=json.dumps({"name": name, "query": arguments.get("query")}),
             )
 
     sandbox = _Sandbox()
@@ -403,11 +352,11 @@ async def test_run_stream_tool_batch_trims_unexecuted_tail_after_budget_exit() -
         message=ChatMessage(role="assistant", content=""),
         tool_calls=[
             {
-                "id": "call_snapshot",
+                "id": "call_search",
                 "type": "function",
                 "function": {
-                    "name": "ui_get_snapshot",
-                    "arguments": '{"page_key":"tenant.crm.detail"}',
+                    "name": "web_search",
+                    "arguments": '{"query":"latest AI news"}',
                 },
             },
             {
@@ -423,7 +372,7 @@ async def test_run_stream_tool_batch_trims_unexecuted_tail_after_budget_exit() -
     runtime = _build_runtime(
         sandbox=sandbox,
         tools=[
-            ToolDefinition(name="ui_get_snapshot", description="Get UI snapshot"),
+            ToolDefinition(name="web_search", description="Search the web"),
             ToolDefinition(name="fetch_url", description="Fetch URL"),
         ],
         response=response,
@@ -446,16 +395,14 @@ async def test_run_stream_tool_batch_trims_unexecuted_tail_after_budget_exit() -
     )
 
     assert result.response is None
-    assert [tool_result.name for tool_result in result.tool_results] == [
-        "ui_get_snapshot"
-    ]
+    assert [tool_result.name for tool_result in result.tool_results] == ["web_search"]
     assert registered_budget_exit == ["tool_result_budget_exceeded"]
     assert [tc["id"] for tc in (runtime.messages[1].tool_calls or [])] == [
-        "call_snapshot"
+        "call_search"
     ]
     assert [
         message.tool_call_id for message in runtime.messages if message.role == "tool"
-    ] == ["call_snapshot"]
+    ] == ["call_search"]
 
 
 @pytest.mark.asyncio

@@ -1,20 +1,19 @@
 /**
- * AIPanel tool action store tests.
- * AI 面板工具动作状态测试。
+ * Test type: behavioral
+ * Verifies: shared AI panel mode and interaction-update queue ordering after page-operation retirement.
+ * Mock strategy: Pinia store runs real; no external transport is mocked.
+ *
+ * AIPanel shared state tests.
+ * AI 面板共享状态测试。
  */
 import { createPinia, setActivePinia } from 'pinia';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 import { useAIPanelStore } from '../ai-panel';
 
 describe('useAIPanelStore', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
-    vi.useFakeTimers();
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
   });
 
   it('defaults to panel mode', () => {
@@ -23,54 +22,50 @@ describe('useAIPanelStore', () => {
     expect(store.mode).toBe('panel');
   });
 
-  it('auto-cleans resolved tool actions after a short grace period', async () => {
+  it('queues and consumes interaction updates without page-operation actions', () => {
     const store = useAIPanelStore();
-    const confirmation = store.requestToolActionConfirmation({
-      invokeId: 'op-1',
-      pageKey: 'admin.ai.agents',
-      operationName: 'create_record',
-      operationLabel: '新建记录',
-      operationDescription: '打开新建表单',
-      params: {},
-      toolCallId: 'tc-1',
+
+    store.queueInteractionUpdate({
+      kind: 'pending_confirmation',
+      tool_name: 'web_search',
+      value: 'confirm-search',
     });
 
-    expect(store.pendingToolActions).toHaveLength(1);
-
-    store.resolveToolAction('op-1', true);
-    await expect(confirmation).resolves.toBe(true);
-
-    expect(store.pendingToolActions).toHaveLength(1);
-    vi.advanceTimersByTime(1500);
-
-    expect(store.pendingToolActions).toHaveLength(0);
+    expect(store.consumeInteractionUpdates()).toEqual([
+      {
+        kind: 'pending_confirmation',
+        tool_name: 'web_search',
+        value: 'confirm-search',
+      },
+    ]);
+    expect(store.consumeInteractionUpdates()).toEqual([]);
   });
 
-  it('clearResolvedToolActions keeps unresolved actions intact', () => {
+  it('restores interaction updates before newer queued updates', () => {
     const store = useAIPanelStore();
 
-    void store.requestToolActionConfirmation({
-      invokeId: 'resolved-op',
-      pageKey: 'admin.ai.agents',
-      operationName: 'create_record',
-      operationLabel: '新建记录',
-      operationDescription: '打开新建表单',
-      params: {},
+    store.queueInteractionUpdate({
+      action: 'accepted',
+      kind: 'action_buttons',
+      tool_name: 'query_records',
     });
-    void store.requestToolActionConfirmation({
-      invokeId: 'pending-op',
-      pageKey: 'admin.ai.agents',
-      operationName: 'edit_record',
-      operationLabel: '编辑记录',
-      operationDescription: '打开编辑表单',
-      params: {},
-    });
+    store.restoreInteractionUpdates([
+      {
+        kind: 'pending_consent',
+        tool_name: 'fetch_url',
+      },
+    ]);
 
-    store.resolveToolAction('resolved-op', false);
-    store.clearResolvedToolActions();
-
-    expect(store.pendingToolActions.map((op) => op.invokeId)).toEqual([
-      'pending-op',
+    expect(store.consumeInteractionUpdates()).toEqual([
+      {
+        kind: 'pending_consent',
+        tool_name: 'fetch_url',
+      },
+      {
+        action: 'accepted',
+        kind: 'action_buttons',
+        tool_name: 'query_records',
+      },
     ]);
   });
 });

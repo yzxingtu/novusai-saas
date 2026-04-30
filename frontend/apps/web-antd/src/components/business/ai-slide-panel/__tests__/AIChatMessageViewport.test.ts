@@ -36,7 +36,6 @@ describe('aiChatMessageViewport', () => {
         chatMessages: [],
         effectiveSuggestedQuestions: ['帮我总结今天页面上的重点'],
         effectiveWelcomeMessage: '欢迎开始新的对话',
-        getPendingOpsForMessage: () => [],
         getRichTextDraftState: () => null,
         routing: false,
         sending: false,
@@ -72,7 +71,6 @@ describe('aiChatMessageViewport', () => {
             role: 'assistant',
           } satisfies ChatMessage,
         ],
-        getPendingOpsForMessage: () => [],
         getRichTextDraftState: () => null,
       },
       global: {
@@ -93,14 +91,6 @@ describe('aiChatMessageViewport', () => {
   });
 
   it('passes shared message-item props including normalized turn-flow payload', () => {
-    const richTextState = {
-      canAppendToEnd: true,
-      canCopy: true,
-      canInsertAfterSelection: true,
-      canReplaceSelection: true,
-      canUndo: false,
-    };
-    const pendingOps = [{ invokeId: 'op-1' }];
     const wrapper = mount(AIChatMessageViewport, {
       props: {
         apiPrefix: '/tenant',
@@ -126,8 +116,6 @@ describe('aiChatMessageViewport', () => {
             },
           } as ChatMessage,
         ],
-        getPendingOpsForMessage: () => pendingOps as never[],
-        getRichTextDraftState: () => richTextState as never,
       },
       global: {
         stubs: {
@@ -137,11 +125,9 @@ describe('aiChatMessageViewport', () => {
               compact: { type: Boolean, required: false },
               index: { type: Number, required: true },
               msg: { type: Object, required: true },
-              pendingOps: { type: Array, required: false },
-              richTextState: { type: Object, required: false },
             },
             template:
-              '<div data-testid="message-item-props" :data-compact="String(compact)" :data-stage-id="msg?.turnFlow?.timeline?.[0]?.id" :data-index="String(index)" :data-pending-ops="String((pendingOps || []).length)" :data-has-rich-text-state="String(!!richTextState)" :data-streaming="String(!!msg?.streaming)" />',
+              '<div data-testid="message-item-props" :data-compact="String(compact)" :data-stage-id="msg?.turnFlow?.timeline?.[0]?.id" :data-index="String(index)" :data-streaming="String(!!msg?.streaming)" />',
           }),
         },
       },
@@ -151,8 +137,6 @@ describe('aiChatMessageViewport', () => {
     expect(propsSnapshot.attributes('data-compact')).toBe('true');
     expect(propsSnapshot.attributes('data-stage-id')).toBe('stage-thinking');
     expect(propsSnapshot.attributes('data-index')).toBe('0');
-    expect(propsSnapshot.attributes('data-pending-ops')).toBe('1');
-    expect(propsSnapshot.attributes('data-has-rich-text-state')).toBe('true');
     expect(propsSnapshot.attributes('data-streaming')).toBe('false');
   });
 
@@ -172,7 +156,6 @@ describe('aiChatMessageViewport', () => {
         agentKnowledgeBaseMap: {},
         agents: [],
         ensureAgentKnowledgeBases,
-        getPendingOpsForMessage: () => [],
         getRichTextDraftState: () => null,
       },
       global: {
@@ -204,7 +187,6 @@ describe('aiChatMessageViewport', () => {
         agentSkillMap: {},
         agents: [],
         ensureAgentSkills,
-        getPendingOpsForMessage: () => [],
         getRichTextDraftState: () => null,
       },
       global: {
@@ -237,7 +219,6 @@ describe('aiChatMessageViewport', () => {
           } satisfies ChatMessage,
         ],
         ensureAgentKnowledgeBases,
-        getPendingOpsForMessage: () => [],
         getRichTextDraftState: () => null,
       },
       global: {
@@ -287,7 +268,6 @@ describe('aiChatMessageViewport', () => {
             role: 'assistant',
           } satisfies ChatMessage,
         ],
-        getPendingOpsForMessage: () => [],
         getRichTextDraftState: () => null,
       },
       global: {
@@ -327,7 +307,6 @@ describe('aiChatMessageViewport', () => {
           } satisfies ChatMessage,
         ],
         compact: false,
-        getPendingOpsForMessage: () => [],
         getRichTextDraftState: () => null,
       },
       global: {
@@ -363,7 +342,6 @@ describe('aiChatMessageViewport', () => {
             role: 'assistant',
           } satisfies ChatMessage,
         ],
-        getPendingOpsForMessage: () => [],
         getRichTextDraftState: () => null,
         showScrollToBottom: true,
         showScrollToTop: true,
@@ -410,7 +388,6 @@ describe('aiChatMessageViewport', () => {
             role: 'assistant',
           } satisfies ChatMessage,
         ],
-        getPendingOpsForMessage: () => [],
         getRichTextDraftState: () => null,
         showScrollToBottom: true,
         showScrollToTop: true,
@@ -432,46 +409,6 @@ describe('aiChatMessageViewport', () => {
         .find('button[aria-label="common.globalAiChat.scrollToTop"]')
         .exists(),
     ).toBe(false);
-  });
-
-  it('keeps pending approval chrome visible without exposing raw operation args', () => {
-    const wrapper = mount(AIChatMessageViewport, {
-      props: {
-        apiPrefix: '/tenant',
-        chatMessages: [],
-        countdownNow: 61_000,
-        getPendingOpsForMessage: () => [],
-        getRichTextDraftState: () => null,
-        unassociatedPendingOps: [
-          {
-            allowed: false,
-            invokeId: 'op-redact',
-            operationDescription: 'apply the change',
-            operationLabel: 'Update record',
-            params: {
-              internal_note: 'secretValue',
-              recordId: 42,
-            },
-            resolved: false,
-            startedAt: 1_000,
-          },
-        ],
-      },
-      global: {
-        stubs: {
-          ChatMessageItem: defineComponent({
-            name: 'ChatMessageItemStub',
-            template: '<div />',
-          }),
-        },
-      },
-    });
-
-    expect(wrapper.text()).toContain('Update record');
-    expect(wrapper.text()).toContain('apply the change');
-    expect(wrapper.text()).not.toContain('common.globalAiChat.args');
-    expect(wrapper.text()).not.toContain('secretValue');
-    expect(wrapper.find('details').exists()).toBe(false);
   });
 
   it('keeps canonical turnFlow payload intact while stripping legacy display fields', () => {
@@ -579,7 +516,6 @@ describe('aiChatMessageViewport', () => {
             },
           } as unknown as ChatMessage,
         ],
-        getPendingOpsForMessage: () => [],
         getRichTextDraftState: () => null,
       },
       global: {
@@ -635,7 +571,6 @@ describe('aiChatMessageViewport', () => {
             toolCalls: [{ name: 'legacy_tool', status: 'success' }],
           } as unknown as ChatMessage,
         ],
-        getPendingOpsForMessage: () => [],
         getRichTextDraftState: () => null,
       },
       global: {
@@ -721,7 +656,6 @@ describe('aiChatMessageViewport', () => {
       props: {
         apiPrefix: '/tenant',
         chatMessages: initialMessages,
-        getPendingOpsForMessage: () => [],
         getRichTextDraftState: () => null,
       },
       global: {
@@ -782,7 +716,6 @@ describe('aiChatMessageViewport', () => {
             streaming: true,
           } as ChatMessage,
         ],
-        getPendingOpsForMessage: () => [],
         getRichTextDraftState: () => null,
         streaming: true,
       },

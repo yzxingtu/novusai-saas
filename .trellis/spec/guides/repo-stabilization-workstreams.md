@@ -97,7 +97,7 @@ Default order:
 
 1. Control plane and governance freeze
 2. AI runtime core
-3. Page awareness / provider / AI admin alignment
+3. Page-awareness retirement guard / provider / AI admin alignment
 4. Plugin runtime and plugin-facing frontend
 5. Permission / org / shared API
 6. Final combined assembly verification

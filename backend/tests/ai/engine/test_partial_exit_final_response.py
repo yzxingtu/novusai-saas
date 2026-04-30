@@ -1,3 +1,11 @@
+"""
+Test type: behavioral
+Scope: partial-exit final response and recovery cache behavior, including
+page-operation retirement guards.
+Mock strategy: provider/tool collaborators use fakes; recovery status and cache
+projection run real.
+"""
+
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -995,7 +1003,7 @@ def test_recovery_manager_prefers_current_completed_tool_result_over_stale_cache
     assert updated[0].cached_result != "旧的搜索命中缓存"
 
 
-def test_recovery_manager_caches_completed_page_table_result_from_tool_output() -> None:
+def test_recovery_manager_does_not_cache_retired_page_table_result() -> None:
     intents = [
         IntentPlan(
             intent_id="intent-page-table",
@@ -1028,13 +1036,11 @@ def test_recovery_manager_caches_completed_page_table_result_from_tool_output() 
     )
 
     assert updated[0].status == "completed"
-    assert "表格列：标题、时间、状态" in updated[0].cached_result
-    assert "标题=对话 A" in updated[0].cached_result
-    assert "时间=2026-04-22 09:30" in updated[0].cached_result
-    assert "共 12 条" in updated[0].cached_result
+    assert updated[0].cached_result is None
+    assert "cached_result" not in dict(updated[0].metadata or {})
 
 
-def test_recovery_manager_caches_page_snapshot_result_from_tool_output() -> None:
+def test_recovery_manager_does_not_cache_retired_page_snapshot_result() -> None:
     intents = [
         IntentPlan(
             intent_id="intent-page-snapshot",
@@ -1069,15 +1075,11 @@ def test_recovery_manager_caches_page_snapshot_result_from_tool_output() -> None
     )
 
     assert updated[0].status == "completed"
-    assert "当前焦点：概览" in updated[0].cached_result
-    assert "平台控制塔" in updated[0].cached_result
-    assert "企业增长航迹" in updated[0].cached_result
-    assert "8 个可交互元素" in updated[0].cached_result
+    assert updated[0].cached_result is None
+    assert "cached_result" not in dict(updated[0].metadata or {})
 
 
-def test_recovery_manager_prefers_node_surface_over_overlay_title_in_page_snapshot() -> (
-    None
-):
+def test_recovery_manager_does_not_surface_retired_overlay_page_snapshot() -> None:
     intents = [
         IntentPlan(
             intent_id="intent-page-snapshot",
@@ -1115,13 +1117,11 @@ def test_recovery_manager_prefers_node_surface_over_overlay_title_in_page_snapsh
     )
 
     assert updated[0].status == "completed"
-    assert updated[0].cached_result.startswith("当前焦点：记录管理")
-    assert "浮层 1（popover）" not in updated[0].cached_result
-    assert "查看详情" in updated[0].cached_result
-    assert "记录列表" in updated[0].cached_result
+    assert updated[0].cached_result is None
+    assert "cached_result" not in dict(updated[0].metadata or {})
 
 
-def test_recovery_manager_caches_page_interactables_result_from_tool_output() -> None:
+def test_recovery_manager_does_not_cache_retired_page_interactables_result() -> None:
     intents = [
         IntentPlan(
             intent_id="intent-page-discovery",
@@ -1155,13 +1155,11 @@ def test_recovery_manager_caches_page_interactables_result_from_tool_output() ->
     )
 
     assert updated[0].status == "completed"
-    assert "新增企业" in updated[0].cached_result
-    assert "搜索企业名称" in updated[0].cached_result
-    assert "管理企业" in updated[0].cached_result
-    assert "29 个可交互元素" in updated[0].cached_result
+    assert updated[0].cached_result is None
+    assert "cached_result" not in dict(updated[0].metadata or {})
 
 
-def test_recovery_manager_caches_page_form_state_from_summary_payload_data() -> None:
+def test_recovery_manager_does_not_cache_retired_page_form_state_payload() -> None:
     intents = [
         IntentPlan(
             intent_id="intent-form-read",
@@ -1199,9 +1197,8 @@ def test_recovery_manager_caches_page_form_state_from_summary_payload_data() -> 
     )
 
     assert updated[0].status == "completed"
-    assert "技能包表单" in updated[0].cached_result
-    assert "名称=Runtime Pack" in updated[0].cached_result
-    assert "待填字段：图标" in updated[0].cached_result
+    assert updated[0].cached_result is None
+    assert "cached_result" not in dict(updated[0].metadata or {})
 
 
 def test_recovery_manager_treats_terminal_failure_as_partial_exit_not_retry() -> None:
@@ -1229,4 +1226,3 @@ def test_recovery_manager_treats_terminal_failure_as_partial_exit_not_retry() ->
     assert decision.action == "return_partial"
     assert decision.reason == "terminal_failure"
     assert decision.provider_failure_kind == "provider_unavailable"
-
