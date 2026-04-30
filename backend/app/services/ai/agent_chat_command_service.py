@@ -30,7 +30,7 @@ from app.core.logging import LogManager
 from app.enums.agent import AgentExecutionModeEnum
 from app.enums.common import UserRoleEnum
 from app.exceptions import BusinessException
-from app.schemas.ai.agent_chat import AgentChatResponse, InteractionMode, PageContext
+from app.schemas.ai.agent_chat import AgentChatResponse, InteractionMode
 from app.services.ai.agent_chat_command_ephemeral_support import (
     execute_ephemeral_stream_chat,
 )
@@ -53,6 +53,15 @@ if TYPE_CHECKING:
 logger = LogManager.get_logger("ai.agent_chat_service")
 
 
+def _normalize_chat_variables(
+    variables: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    normalized_variables = dict(variables or {})
+    normalized_variables.pop("page_context", None)
+    normalized_variables.pop("page_session_id", None)
+    return normalized_variables or None
+
+
 class AgentChatCommandService:
     """Command entrypoints extracted from AgentChatService."""
 
@@ -63,7 +72,6 @@ class AgentChatCommandService:
         message: str,
         conversation_id: int | None = None,
         variables: dict[str, Any] | None = None,
-        page_context: PageContext | dict[str, Any] | None = None,
         user_id: int | None = None,
         knowledge_base_ids: list[int] | None = None,
         user_role: str = UserRoleEnum.TENANT_ADMIN.value,
@@ -74,7 +82,6 @@ class AgentChatCommandService:
         memory_scene: str = DEFAULT_MEMORY_SCENE,
         memory_channel: str = MEMORY_CHANNEL_SYSTEM,
         memory_source: str = "",
-        page_session_id: str | None = None,
         route_source: str | None = None,
         interaction_updates: list[dict[str, Any]] | None = None,
         trust_policy_ref: dict[str, Any] | None = None,
@@ -82,8 +89,7 @@ class AgentChatCommandService:
     ) -> AgentChatResponse:
         """Non-streaming chat orchestration."""
         start = time.perf_counter()
-        variables = PageContext.normalize_variables(variables, None)
-        del page_context, page_session_id
+        variables = _normalize_chat_variables(variables)
 
         agent = await service._validate_agent(agent_id)
         (
@@ -182,7 +188,6 @@ class AgentChatCommandService:
             ),
             trust_policy_ref=resolved_trust_policy_ref,
             interaction_mode=interaction_mode_effective,
-            page_session_id=None,
             interaction_updates=interaction_updates,
             knowledge_base_feedback=(
                 {
@@ -344,7 +349,6 @@ class AgentChatCommandService:
         messages: list[str] | None = None,
         conversation_id: int | None = None,
         variables: dict[str, Any] | None = None,
-        page_context: PageContext | dict[str, Any] | None = None,
         user_id: int | None = None,
         knowledge_base_ids: list[int] | None = None,
         user_role: str = UserRoleEnum.TENANT_ADMIN.value,
@@ -356,15 +360,13 @@ class AgentChatCommandService:
         memory_scene: str = DEFAULT_MEMORY_SCENE,
         memory_channel: str = MEMORY_CHANNEL_SYSTEM,
         memory_source: str = "",
-        page_session_id: str | None = None,
         route_source: str | None = None,
         interaction_updates: list[dict[str, Any]] | None = None,
         trust_policy_ref: dict[str, Any] | None = None,
         interaction_mode: InteractionMode = "trusted_auto",
     ) -> StreamingResponse:
         """Streaming chat orchestration."""
-        variables = PageContext.normalize_variables(variables, None)
-        del page_context, page_session_id
+        variables = _normalize_chat_variables(variables)
 
         agent = await service._validate_agent(agent_id)
         (
@@ -457,7 +459,6 @@ class AgentChatCommandService:
                 memory_enabled=memory_enabled,
                 trust_policy_ref=resolved_trust_policy_ref,
                 interaction_mode=interaction_mode_effective,
-                page_session_id=None,
                 interaction_updates=interaction_updates,
                 long_term_memory_enabled=bool(
                     ctx_cfg.get("long_term_memory_enabled", memory_enabled)

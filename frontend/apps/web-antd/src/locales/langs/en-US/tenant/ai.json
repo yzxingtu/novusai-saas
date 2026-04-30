@@ -413,7 +413,7 @@
     },
     "help": {
       "temperature": "Controls output randomness. 0 = deterministic, 2 = highly random. Recommended: 0~0.3 for precise tasks, 0.7~1.2 for creative writing",
-      "maxTokens": "Only limits the reply length for one response. It does not increase input context capacity. Leave empty for the model default and do not exceed the selected model limit. It is different from the model's total context budget and the separate page_context.page_data byte budget. ~2 tokens per Chinese character",
+      "maxTokens": "Only limits the reply length for one response. It does not increase input context capacity. Leave empty for the model default and do not exceed the selected model limit. It is different from the model's total context budget. ~2 tokens per Chinese character",
       "topP": "Nucleus sampling parameter, works with temperature to control diversity. Usually keep at 1, avoid adjusting both simultaneously",
       "welcomeMessage": "Shown when this agent is the current target and the user has not sent the first message yet, including sidebar selection, pinned agent, or {'@'} mention",
       "suggestedQuestions": "Shown before the first message when this agent is the current target. Recommend 3-4 short starter questions, one per line",

@@ -39,9 +39,6 @@ defineOptions({ name: 'SystemConfigList' });
 
 const CONFIG_GROUP_QUERY_KEY = 'group';
 const CONFIG_ITEM_QUERY_KEY = 'config';
-const DEFAULT_PAGE_CONTEXT_MAX_BYTES = 8192;
-const PAGE_CONTEXT_GROUP_CODE = 'platform_ai_toolkit';
-const PAGE_CONTEXT_CONFIG_KEY = 'ai_page_context_max_bytes';
 const PLATFORM_SSL_GROUP_CODE = 'platform_ssl';
 
 const generatingKey = ref(false);
@@ -280,17 +277,6 @@ async function onSelectGroup(code: string) {
   }
 }
 
-async function onLocatePageContextLimit() {
-  if (activeGroup.value !== PAGE_CONTEXT_GROUP_CODE) {
-    await activateGroup(PAGE_CONTEXT_GROUP_CODE, {
-      configKey: PAGE_CONTEXT_CONFIG_KEY,
-    });
-    return;
-  }
-  await syncRouteSelection(PAGE_CONTEXT_GROUP_CODE, PAGE_CONTEXT_CONFIG_KEY);
-  await scrollToConfigItem(PAGE_CONTEXT_CONFIG_KEY);
-}
-
 async function onSave() {
   if (!activeGroup.value) return;
   if (activeGroup.value === 'platform_storage') {
@@ -405,25 +391,6 @@ onBeforeUnmount(() => {
             ref="storagePanelRef"
           />
           <div v-else-if="activeGroup" class="max-w-[800px]">
-            <Alert
-              v-if="activeGroup === PAGE_CONTEXT_GROUP_CODE"
-              class="mb-4"
-              type="info"
-              show-icon
-              :message="t('shared.config.page.page_context_limit_title')"
-              :description="
-                t('shared.config.page.page_context_limit_desc', {
-                  configKey: PAGE_CONTEXT_CONFIG_KEY,
-                  defaultValue: DEFAULT_PAGE_CONTEXT_MAX_BYTES,
-                })
-              "
-            >
-              <template #action>
-                <Button size="small" @click="onLocatePageContextLimit">
-                  {{ t('shared.config.page.locate_page_context_limit') }}
-                </Button>
-              </template>
-            </Alert>
             <Alert
               v-if="activeGroup === PLATFORM_SSL_GROUP_CODE && dnsReadiness"
               class="mb-4"

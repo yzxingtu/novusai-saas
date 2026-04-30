@@ -142,14 +142,6 @@ export interface SearchConfig {
   quickSearch?: boolean | QuickSearchConfig;
 }
 
-export interface CrudPageAiOptions {
-  /**
-   * Override the page key that runtime thin context injects.
-   * Use `pageKey` only when you need a deterministic key that differs from the route-derived default.
-   */
-  pageKey?: string;
-}
-
 /**
  * useCrudPage configuration options / useCrudPage 配置选项
  */
@@ -225,13 +217,6 @@ export interface UseCrudPageOptions<T extends BaseRow = BaseRow> {
    */
   gridOptions?: Record<string, unknown>;
 
-  /**
-   * AI page awareness config.
-   * - Omit / 省略: auto-enable page AI with inferred defaults / 自动启用并推导默认配置
-   * - false: fully disable page AI for this CRUD page / 完全禁用该 CRUD 页的页面 AI
-   * - CrudPageAiOptions: enable with overrides (currently only `pageKey`) / 启用并覆盖默认配置（当前仅支持 `pageKey` 覆盖）
-   */
-  ai?: CrudPageAiOptions | false;
 }
 
 /**

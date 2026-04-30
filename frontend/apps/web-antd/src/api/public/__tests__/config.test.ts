@@ -31,9 +31,6 @@ describe('public config api transforms', () => {
           captcha_provider: 'slider',
           login_captcha_enabled: true,
           logo_dark: '15',
-          runtime_limits: {
-            page_context_max_bytes: 8192,
-          },
           site_copyright: 'Platform Copyright',
           site_description: 'Platform Description',
           site_favicon: '26',
@@ -74,7 +71,7 @@ describe('public config api transforms', () => {
       driver: 'local',
       maxFileSizeMb: 100,
     });
-    expect(result.runtimeLimits?.pageContextMaxBytes).toBe(8192);
+    expect('runtimeLimits' in result).toBe(false);
   });
 
   it('maps tenant public config dark logo, icp, and storage fields', async () => {

@@ -17,8 +17,8 @@ import {
   toggleSkillStatusApi,
 } from '#/api/admin/skills';
 import ValvesConfigPanel from '#/components/business/valves-config-panel/ValvesConfigPanel.vue';
-import { buildPageAIFormExtraData } from '#/composables';
 import { $t } from '#/locales';
+import { buildFormExtraData } from '#/utils/form-extra-data';
 
 import SkillForm from '../skills/modules/form.vue';
 
@@ -26,8 +26,6 @@ type UseSkillPackageDetailOptions = {
   loadPackages: () => Promise<void>;
   selectedPackageId: Ref<null | number>;
 };
-
-const PAGE_KEY = 'admin.ai.skill-packages';
 
 export function useSkillPackageDetail(options: UseSkillPackageDetailOptions) {
   const skills = ref<AdminSkillInfo[]>([]);
@@ -97,8 +95,7 @@ export function useSkillPackageDetail(options: UseSkillPackageDetailOptions) {
       .setData({
         mode: 'add',
         _resource: '/admin/ai/skills',
-        ...buildPageAIFormExtraData({
-          pageKey: PAGE_KEY,
+        ...buildFormExtraData({
           defaults: buildSkillCreateDefaults(overrides),
         }),
       })
@@ -117,7 +114,7 @@ export function useSkillPackageDetail(options: UseSkillPackageDetailOptions) {
         ...row,
         mode: 'edit',
         _resource: '/admin/ai/skills',
-        ...buildPageAIFormExtraData({ pageKey: PAGE_KEY }),
+        ...buildFormExtraData(),
       })
       .open();
   }

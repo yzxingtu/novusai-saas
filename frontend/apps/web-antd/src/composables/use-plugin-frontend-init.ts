@@ -359,15 +359,6 @@ function _registerStandalonePageRoutes(
     if (item.ai) {
       routeMeta.ai = {
         ...(item.ai.mode ? { mode: item.ai.mode } : {}),
-        ...(item.ai.page_context_key
-          ? { pageContextKey: item.ai.page_context_key }
-          : {}),
-        ...(item.ai.disabled_capabilities?.length
-          ? { disabledCapabilities: item.ai.disabled_capabilities }
-          : {}),
-        ...(item.ai.disabled_operations?.length
-          ? { disabledOperations: item.ai.disabled_operations }
-          : {}),
       };
     }
 

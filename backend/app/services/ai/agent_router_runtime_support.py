@@ -31,7 +31,6 @@ class AgentRouterRuntimeSupport:
         router_agent: Agent,
         candidates: list[Agent],
         message: str,
-        page_context: dict[str, Any] | None,
         execution_tenant_id: int | None,
         execution_user_role: str,
         execution_user_role_id: int | None = None,
@@ -91,9 +90,6 @@ class AgentRouterRuntimeSupport:
             vision_preamble=vision_preamble.strip(),
             attachment_preamble=attachment_preamble.strip(),
             agent_list_json=json.dumps(agent_list, ensure_ascii=False),
-            page_context_json=(
-                json.dumps(page_context, ensure_ascii=False) if page_context else ""
-            ),
             message=message,
         )
 

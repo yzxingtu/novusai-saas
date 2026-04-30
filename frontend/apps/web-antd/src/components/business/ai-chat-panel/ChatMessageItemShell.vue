@@ -1,14 +1,11 @@
 <script lang="ts" setup>
-import type { PendingPageOpForDisplay } from './pending-page-op';
+import type { PendingToolActionForDisplay } from './pending-tool-action';
 import type {
   AgentKnowledgeBaseBindingsByAgentId,
   AgentKnowledgeBaseBindingSummary,
   AgentSkillBindingsByAgentId,
   AgentItem,
   ChatMessage,
-  RichTextAIApplyMode,
-  RichTextAIApplyTarget,
-  RichTextDraftRuntimeState,
 } from './types';
 
 import type { TurnFlowState } from '#/components/business/ai-chat-kernel/TurnFlowState';
@@ -31,9 +28,8 @@ const props = withDefaults(
     index: number;
     kernelState?: null | TurnFlowState;
     msg: ChatMessage;
-    /** Pending page ops for this message (filtered by toolCallId) / 本消息关联的待确认操作 */
-    pendingOps?: PendingPageOpForDisplay[];
-    richTextState?: null | RichTextDraftRuntimeState;
+    /** Pending tool actions for this message (filtered by toolCallId) / 本消息关联的待确认工具动作 */
+    pendingOps?: PendingToolActionForDisplay[];
     selectedAgent?: AgentItem | null;
   }>(),
   {
@@ -48,7 +44,6 @@ const props = withDefaults(
     kernelState: null,
     selectedAgent: null,
     pendingOps: () => [],
-    richTextState: null,
   },
 );
 
@@ -63,13 +58,6 @@ const emit = defineEmits<{
   regenerate: [index: number];
   reject: [index: number];
   retry: [index: number];
-  richTextApply: [
-    index: number,
-    target: RichTextAIApplyTarget,
-    mode: RichTextAIApplyMode,
-  ];
-  richTextDiscard: [index: number];
-  richTextUndo: [index: number];
 }>();
 
 const forwardAssistantListeners = {
@@ -83,13 +71,6 @@ const forwardAssistantListeners = {
   regenerate: (index: number) => emit('regenerate', index),
   reject: (index: number) => emit('reject', index),
   retry: (index: number) => emit('retry', index),
-  richTextApply: (
-    index: number,
-    target: RichTextAIApplyTarget,
-    mode: RichTextAIApplyMode,
-  ) => emit('richTextApply', index, target, mode),
-  richTextDiscard: (index: number) => emit('richTextDiscard', index),
-  richTextUndo: (index: number) => emit('richTextUndo', index),
 };
 
 const forwardUserListeners = {

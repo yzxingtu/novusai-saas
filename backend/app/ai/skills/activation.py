@@ -4,12 +4,10 @@ Turn-level skill activation ownership.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
 from app.ai.engine.system_prompt_intent_helpers import is_capability_reporting_query
-from app.ai.runtime.contracts import PAGE_CONTEXT_KEY
 from app.ai.runtime.types import (
     capability_pack_descriptor_is_live,
     tool_is_auto_injected_runtime_builtin,
@@ -18,19 +16,6 @@ from app.ai.runtime.types import (
 from app.ai.text_semantics_terms import extract_textual_tool_call_names
 from app.ai.tools.semantic_defaults import tool_family_from_name
 
-_PAGE_TOOL_NAMES = {
-    "ui_click",
-    "ui_fill_form",
-    "ui_get_form_state",
-    "ui_get_snapshot",
-    "ui_list_interactables",
-    "ui_open_surface",
-    "ui_read_region",
-    "ui_read_table",
-    "ui_set_field",
-    "ui_submit_form",
-    "editor_ops",
-}
 _WEB_RESEARCH_TOOL_NAMES = {"web_search", "fetch_url"}
 
 
@@ -60,16 +45,6 @@ def _last_user_text(request: Any) -> str:
         if text:
             return text
     return ""
-
-
-def _request_page_context(request: Any) -> Mapping[str, Any] | None:
-    input_variables = getattr(request, "input_variables", None)
-    if isinstance(input_variables, Mapping):
-        page_context = input_variables.get(PAGE_CONTEXT_KEY)
-        if isinstance(page_context, Mapping):
-            return page_context
-    page_context = getattr(request, "page_context", None)
-    return page_context if isinstance(page_context, Mapping) else None
 
 
 def _descriptor_is_auto_injected_runtime_builtin(descriptor: Any) -> bool:
@@ -144,10 +119,7 @@ def resolve_startup_intent_flags(request: Any) -> dict[str, bool]:
 
     from app.services.ai.agent_router_policy import requested_tool_families
 
-    requested_families = requested_tool_families(
-        user_text,
-        _request_page_context(request),
-    )
+    requested_families = requested_tool_families(user_text)
     return {
         "has_page_intent": False,
         "has_web_research_intent": "web_research" in requested_families,

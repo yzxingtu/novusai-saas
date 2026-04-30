@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { mount } from '@vue/test-utils';
-import { nextTick, ref, shallowRef } from 'vue';
+import { ref, shallowRef } from 'vue';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -9,9 +9,6 @@ import RichTextEditor from '../RichTextEditor.vue';
 const mocks = vi.hoisted(() => ({
   handleImageDrop: vi.fn(() => false),
   handleImagePaste: vi.fn(() => false),
-  registerSourceEditor: vi.fn(),
-  updateSourceEditorRevision: vi.fn(),
-  useEditorPageOps: vi.fn(),
   useRichTextEditor: vi.fn(),
 }));
 
@@ -24,14 +21,6 @@ vi.mock('@tiptap/vue-3', () => ({
     name: 'EditorContentStub',
     props: ['editor'],
     template: '<div class="editor-content-stub"></div>',
-  },
-}));
-
-vi.mock('../ai/AIBubbleMenu.vue', () => ({
-  default: {
-    name: 'AIBubbleMenuStub',
-    props: ['editor', 'loading'],
-    template: '<div class="ai-bubble-menu-stub"></div>',
   },
 }));
 
@@ -52,15 +41,6 @@ vi.mock('../toolbar/MiniToolbar.vue', () => ({
   },
 }));
 
-vi.mock('../sourceEditorRegistry', () => ({
-  registerSourceEditor: mocks.registerSourceEditor,
-  updateSourceEditorRevision: mocks.updateSourceEditorRevision,
-}));
-
-vi.mock('../useEditorPageOps', () => ({
-  useEditorPageOps: mocks.useEditorPageOps,
-}));
-
 vi.mock('../useEditorUpload', () => ({
   handleImageDrop: mocks.handleImageDrop,
   handleImagePaste: mocks.handleImagePaste,
@@ -78,7 +58,6 @@ describe('richTextEditor', () => {
     },
   });
 
-  const unregisterSourceEditorMock = vi.fn();
   const setContentMock = vi.fn();
   const focusMock = vi.fn();
   const getJSONMock = vi.fn(() => ({
@@ -97,7 +76,6 @@ describe('richTextEditor', () => {
       },
     });
 
-    unregisterSourceEditorMock.mockReset();
     setContentMock.mockReset();
     focusMock.mockReset();
     getJSONMock.mockClear();
@@ -106,14 +84,7 @@ describe('richTextEditor', () => {
     getRevisionMock.mockClear();
     mocks.handleImageDrop.mockClear();
     mocks.handleImagePaste.mockClear();
-    mocks.registerSourceEditor.mockReset();
-    mocks.updateSourceEditorRevision.mockReset();
-    mocks.useEditorPageOps.mockReset();
     mocks.useRichTextEditor.mockReset();
-
-    mocks.registerSourceEditor.mockImplementation(
-      () => unregisterSourceEditorMock,
-    );
     mocks.useRichTextEditor.mockImplementation(() => ({
       editor,
       wordCount: ref(2),
@@ -133,62 +104,28 @@ describe('richTextEditor', () => {
     document.body.innerHTML = '';
   });
 
-  it('registers the source editor on mount and unregisters it on unmount', () => {
+  it('mounts without registering page-level AI editor operations', () => {
     const wrapper = mount(RichTextEditor, {
       props: {
-        ai: false,
-        pageKey: 'tenant.docs.detail',
+        ai: true,
       },
     });
 
-    expect(mocks.registerSourceEditor).toHaveBeenCalledOnce();
-    expect(mocks.registerSourceEditor).toHaveBeenCalledWith(
-      expect.objectContaining({
-        editorInstanceId: 'editor-under-test',
-        pageKey: 'tenant.docs.detail',
-        revision: 1,
-      }),
-    );
-
-    wrapper.unmount();
-
-    expect(unregisterSourceEditorMock).toHaveBeenCalledOnce();
-  });
-
-  it('pushes revision updates into the source editor registry', async () => {
-    const wrapper = mount(RichTextEditor, {
-      props: {
-        ai: false,
-        pageKey: 'tenant.docs.detail',
-      },
-    });
-
-    revision.value = 2;
-    await nextTick();
-
-    expect(mocks.updateSourceEditorRevision).toHaveBeenCalledOnce();
-    expect(mocks.updateSourceEditorRevision).toHaveBeenCalledWith(
-      'tenant.docs.detail',
-      'editor-under-test',
-      2,
-    );
+    expect(mocks.useRichTextEditor).toHaveBeenCalledOnce();
+    expect(wrapper.find('.ai-bubble-menu-stub').exists()).toBe(false);
 
     wrapper.unmount();
   });
 
-  it('throws when ai is explicitly enabled without a pageKey', () => {
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  it('does not require pageKey when ai is explicitly enabled', () => {
+    const wrapper = mount(RichTextEditor, {
+      props: {
+        ai: true,
+      },
+    });
 
-    expect(() =>
-      mount(RichTextEditor, {
-        props: {
-          ai: true,
-        },
-      }),
-    ).toThrowError('RichTextEditor: pageKey is required when ai=true');
+    expect(mocks.useRichTextEditor).toHaveBeenCalledOnce();
 
-    expect(mocks.useRichTextEditor).not.toHaveBeenCalled();
-
-    warnSpy.mockRestore();
+    wrapper.unmount();
   });
 });

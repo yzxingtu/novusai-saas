@@ -57,7 +57,6 @@ const mainRoutes: RouteRecordRaw = {
         affixTab: true,
         icon: 'lucide:layout-dashboard',
         title: 'page.dashboard.title',
-        ai: { mode: 'navigation_only' as const },
       },
     },
     // Analytics：数据分析页面
@@ -68,7 +67,6 @@ const mainRoutes: RouteRecordRaw = {
       meta: {
         icon: 'lucide:bar-chart-3',
         title: 'tenant.analytics.title',
-        ai: { mode: 'navigation_only' as const },
       },
     },
     // 智能体详情页 / Agent detail page
@@ -80,7 +78,6 @@ const mainRoutes: RouteRecordRaw = {
         hideInMenu: true,
         title: 'tenant.ai.agent.detail.title',
         activePath: '/tenant/ai/agents',
-        ai: { pageContextKey: 'tenant.ai.agents.detail' },
       },
     },
     // 个人中心：不在后端菜单中，必须静态注册 / Profile: not in backend menu

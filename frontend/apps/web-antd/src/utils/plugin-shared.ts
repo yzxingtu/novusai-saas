@@ -29,13 +29,10 @@ import { useAccessStore, useUserStore } from '@vben/stores';
 
 import * as AntDesignVue from 'ant-design-vue';
 
-import { normalizePageKey } from '#/components/business/ai-runtime/page-key-utils';
 import { registerCaptchaProvider as registerCaptchaProviderRegistry } from '#/components/business/captcha';
 import {
   mountRichTextEditor,
-  registerRichTextDocumentPageAI,
   RichTextEditor,
-  waitForRichTextEditorOperations,
 } from '#/components/business/rich-text-editor';
 import { $t } from '#/locales';
 import { router } from '#/router';
@@ -61,13 +58,11 @@ export {
   mountRichTextEditor,
   openAIPanel,
   registerCaptchaProviderRegistry as registerCaptchaProvider,
-  registerRichTextDocumentPageAI,
   requestClient,
   RichTextEditor,
   subscribeAIConversation,
   usePluginExtensionsStore,
   usePluginSlotsStore,
-  waitForRichTextEditorOperations,
 };
 
 /**
@@ -152,16 +147,9 @@ export interface OpenAIPanelOptions {
 export interface ActiveAIConversationSnapshot {
   agentId: null | number;
   conversationId: null | number;
-  pageContextKey: null | string;
   routePath: string;
   visible: boolean;
 }
-
-type RouteAIMeta = {
-  ai?: {
-    pageContextKey?: string;
-  };
-};
 
 const aiConversationListeners = new Set<
   (snapshot: ActiveAIConversationSnapshot) => void
@@ -172,21 +160,9 @@ function getActiveAIConversation(): ActiveAIConversationSnapshot {
   try {
     const aiPanelStore = useAIPanelStore();
     const route = router.currentRoute.value;
-    const routeMeta = route.meta as
-      | undefined
-      | {
-          ai?: {
-            pageContextKey?: string;
-          };
-        };
-    const rawPageContextKey =
-      routeMeta?.ai?.pageContextKey || route.path || undefined;
     return {
       agentId: aiPanelStore.activeAgentId ?? null,
       conversationId: aiPanelStore.activeConversationId ?? null,
-      pageContextKey: rawPageContextKey
-        ? normalizePageKey(rawPageContextKey)
-        : null,
       routePath: route.path,
       visible: aiPanelStore.visible,
     };
@@ -194,7 +170,6 @@ function getActiveAIConversation(): ActiveAIConversationSnapshot {
     return {
       agentId: null,
       conversationId: null,
-      pageContextKey: null,
       routePath: '',
       visible: false,
     };
@@ -221,9 +196,6 @@ function ensureAIConversationBridge(): void {
         () => aiPanelStore.activeConversationId,
         () => aiPanelStore.visible,
         () => router.currentRoute.value.path,
-        () =>
-          (router.currentRoute.value.meta as RouteAIMeta | undefined)?.ai
-            ?.pageContextKey ?? '',
       ],
       () => {
         notifyAIConversationListeners();
@@ -304,10 +276,6 @@ export interface NovusPluginSharedAPI {
   getCurrentUser: () => { id: null | number; name: string; username: string };
   /** Vue Router instance (for plugin in-page navigation) / Vue Router 实例（供插件页面内导航使用） */
   router: typeof router;
-  /** Register rich text editor document AI bridge / 注册富文本文档 AI bridge */
-  registerRichTextDocumentPageAI: typeof registerRichTextDocumentPageAI;
-  /** Wait for rich text editor operations to become available / 等待富文本编辑器页面操作就绪 */
-  waitForRichTextEditorOperations: typeof waitForRichTextEditorOperations;
   /** Register captcha provider component / 注册验证码提供方组件 */
   registerCaptchaProvider: typeof registerCaptchaProviderRegistry;
   /** Download blob as file (handles cross-browser quirks) / 下载 Blob 为文件（处理跨浏览器兼容） */
@@ -357,8 +325,6 @@ export function exposePluginShared(): void {
     hasAccessByCodes,
     router,
     registerCaptchaProvider: registerCaptchaProviderRegistry,
-    registerRichTextDocumentPageAI,
-    waitForRichTextEditorOperations,
     downloadBlob,
     openAIPanel,
     getActiveAIConversation,

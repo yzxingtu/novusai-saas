@@ -282,38 +282,18 @@ describe('useCrudPage', () => {
     });
   });
 
-  it('injects _pageKey by default for AI-enabled pages', () => {
+  it('does not inject retired _pageKey into form popup payloads', () => {
     mockRoute.path = '/admin/items';
     const vm = mountCrudPage({});
 
     vm.onCreate();
     const createPayload = mockRefs.drawerPayloads.at(-1);
-    expect(createPayload?._pageKey).toBe('admin.items');
+    expect(createPayload?._pageKey).toBeUndefined();
     expect(createPayload?._aiPageKey).toBeUndefined();
 
     vm.onEdit({ id: 9, name: 'Row 9' });
     const editPayload = mockRefs.drawerPayloads.at(-1);
-    expect(editPayload?._pageKey).toBe('admin.items');
-  });
-
-  it('respects explicit ai.pageKey override', () => {
-    const vm = mountCrudPage({
-      ai: { pageKey: 'custom.page' },
-    });
-
-    vm.onCreate();
-    const createPayload = mockRefs.drawerPayloads.at(-1);
-    expect(createPayload?._pageKey).toBe('custom.page');
-  });
-
-  it('skips _pageKey when ai is false', () => {
-    const vm = mountCrudPage({
-      ai: false,
-    });
-
-    vm.onCreate();
-    const createPayload = mockRefs.drawerPayloads.at(-1);
-    expect(createPayload?._pageKey).toBeUndefined();
+    expect(editPayload?._pageKey).toBeUndefined();
   });
 
   it('passes search defaultOpen and quick search config to grid wrapper', async () => {

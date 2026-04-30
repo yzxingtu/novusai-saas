@@ -21,7 +21,6 @@ async def handle_route(
     conversation_id: int | None,
     user_role: str,
     user_role_id: int | None,
-    page_context: dict[str, Any] | None,
     pinned_agent_id: int | None,
     user_id: int | None = None,
     force_reroute: bool = False,
@@ -41,13 +40,11 @@ async def handle_route(
     """
     from app.services.ai.agent_router_service import AgentRouterService
 
-    del page_context
     router_svc = AgentRouterService(db)
     result = await router_svc.route(
         tenant_id=tenant_id,
         message=message,
         conversation_id=conversation_id,
-        page_context=None,
         pinned_agent_id=pinned_agent_id,
         user_role=user_role,
         user_role_id=user_role_id,

@@ -1,4 +1,4 @@
-import type { PendingPageOpForDisplay } from './pending-page-op';
+import type { PendingToolActionForDisplay } from './pending-tool-action';
 import type {
   AgentItem,
   AgentKnowledgeBaseBindingsByAgentId,
@@ -6,7 +6,6 @@ import type {
   AgentSkillBindingsByAgentId,
   AgentSkillBindingSummary,
   ChatMessage,
-  RichTextDraftRuntimeState,
 } from './types';
 
 import type { TurnFlowState } from '#/components/business/ai-chat-kernel/TurnFlowState';
@@ -41,8 +40,7 @@ export interface UseAssistantMessageVmOptions {
   >;
   kernelState?: MaybeRefOrGetter<null | TurnFlowState | undefined>;
   msg: MaybeRefOrGetter<ChatMessage>;
-  pendingOps?: MaybeRefOrGetter<PendingPageOpForDisplay[] | undefined>;
-  richTextState?: MaybeRefOrGetter<null | RichTextDraftRuntimeState | undefined>;
+  pendingOps?: MaybeRefOrGetter<PendingToolActionForDisplay[] | undefined>;
   selectedAgent?: MaybeRefOrGetter<AgentItem | null | undefined>;
 }
 
@@ -62,9 +60,6 @@ export function useAssistantMessageViewModel(
   const currentKernelState = computed(() => toValue(options.kernelState) ?? null);
   const currentMessage = computed(() => toValue(options.msg));
   const currentPendingOps = computed(() => toValue(options.pendingOps) ?? []);
-  const currentRichTextState = computed(
-    () => toValue(options.richTextState) ?? null,
-  );
   const currentSelectedAgent = computed(
     () => toValue(options.selectedAgent) ?? null,
   );
@@ -99,13 +94,7 @@ export function useAssistantMessageViewModel(
       currentMessage.value.streaming !== true,
   );
 
-  const hasRichTextDraftCard = computed(
-    () =>
-      currentMessage.value.source === 'rich_text_ai' &&
-      Boolean(currentMessage.value.richTextAI) &&
-      !currentMessage.value.streaming &&
-      !currentRichTextState.value?.discarded,
-  );
+  const hasRichTextDraftCard = computed(() => false);
 
   const hasPostContentSections = computed(
     () =>

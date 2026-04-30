@@ -371,107 +371,6 @@ export function buildChatAttachmentFromUpload(
 
 // ============ Route Types / 路由请求类型 ============
 
-export type PageSurfaceKind =
-  | 'drawer'
-  | 'dropdown'
-  | 'modal'
-  | 'page'
-  | 'popover';
-
-export interface PageSurfaceSummary {
-  kind: PageSurfaceKind;
-  surface_id: string;
-  title?: string;
-}
-
-export type ActiveFormMode = 'create' | 'edit' | 'unknown' | 'view';
-
-export type ActiveFormStage =
-  | 'failed'
-  | 'filled_partial'
-  | 'opening'
-  | 'ready'
-  | 'ready_to_submit'
-  | 'submitted'
-  | 'submitting'
-  | 'validating';
-
-export interface ActiveFormSummary {
-  can_submit?: boolean;
-  entity_name?: string;
-  form_session_id: string;
-  mode?: ActiveFormMode;
-  record_id?: number | string;
-  remaining_required_fields?: string[];
-  stage?: ActiveFormStage;
-  submit_policy?: 'auto' | 'confirm' | 'off';
-}
-
-export type PageContextSuggestedTool =
-  | 'ui_click'
-  | 'ui_fill_form'
-  | 'ui_get_form_state'
-  | 'ui_get_snapshot'
-  | 'ui_list_interactables'
-  | 'ui_open_surface'
-  | 'ui_read_region'
-  | 'ui_read_table'
-  | 'ui_set_field'
-  | 'ui_submit_form';
-
-export interface PageContextNavigationCatalogEntry {
-  breadcrumb: string[];
-  capabilities?: string[];
-  category?: string;
-  description?: string;
-  endpoint?: string;
-  keywords?: string[];
-  page_key: string;
-  path: string;
-  title: string;
-}
-
-export interface PageContextSearchInputAffordance {
-  field_name?: string;
-  label?: string;
-  locator: string;
-  placeholder?: string;
-}
-
-export interface PageContextVisibleTableAffordance {
-  column_count?: number;
-  label?: string;
-  locator: string;
-  row_count?: number;
-}
-
-export interface PageContextPageData {
-  entity_description?: string;
-  locale?: string;
-  navigation_catalog?: PageContextNavigationCatalogEntry[];
-  navigation_context?: {
-    breadcrumb: string[];
-    endpoint?: string;
-    page_key?: string;
-    path?: string;
-  };
-  search_inputs?: PageContextSearchInputAffordance[];
-  visible_tables?: PageContextVisibleTableAffordance[];
-}
-
-export interface PageContext {
-  active_form_session_id?: string;
-  active_form_summary?: ActiveFormSummary;
-  active_surface_id?: string;
-  locale?: string;
-  page_data?: PageContextPageData;
-  page_key: string;
-  page_session_id?: string;
-  page_title?: string;
-  surface_stack?: PageSurfaceSummary[];
-  ui_epoch?: number;
-}
-
 export interface AgentChatImageParams {
   n?: number;
   quality?: string;
@@ -497,8 +396,6 @@ export interface AgentChatRequestBody {
   message?: string;
   /** 批量消息（800ms 内多条合并为一次请求） */
   messages?: string[];
-  page_context?: null | PageContext;
-  page_session_id?: null | string;
   route_source?: null | string;
   trust_policy_ref?: TrustPolicyRef;
   variables?: Record<string, string>;
@@ -543,7 +440,6 @@ export async function routeMessageApi(
     /** 含视频附件时传 true，后端可感知视频能力需求 */
     has_video_attachments?: boolean;
     message: string;
-    page_context?: null | PageContext;
     pinned_agent_id?: null | number;
   },
 ): Promise<AgentRouteResponse> {

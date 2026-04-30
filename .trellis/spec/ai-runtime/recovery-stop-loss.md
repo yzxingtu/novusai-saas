@@ -14,30 +14,12 @@ Recovery should narrow the task, not restart the entire turn blindly.
 - return partial results when stop-loss is reached
 - treat consent-required tool responses as a pause that waits for user input,
   not as retry exhaustion
-- keep page-intent completion stage-aware: snapshot-only, click-only, or
-  open-only rounds must not complete navigation/detail workflows when the
-  workflow still requires a verification read or submit step
-- reuse canonical page workflow metadata (`page_workflow_stage`,
-  `page_workflow_phase`, `page_workflow_state`, `page_workflow_completion`)
-  across routing, recovery, and completion checks instead of letting each seam
-  guess page progress independently
-- page-intent recovery/stop-loss must also project machine-readable
-  `page_workflow_progress` and carry the active page-workflow snapshot on retry,
-  consent-pause, and partial-exit decisions so downstream diagnostics do not
-  fall back to prompt-only page-progress guesses
-- when a page turn stalls inside an inner tool loop, recovery must freeze the
-  narrowed tool subset and write the pending `page_workflow_progress` back into
-  the active runtime intent/view state instead of appending an ad-hoc page
-  recovery system hint
-- page no-progress recovery must not reopen a `page_navigation` retry after a
-  snapshot-only verification round when the snapshot already exposes opened-form
-  state or another concrete navigation result such as a new active surface or a
-  deeper surface stack; successful verify snapshots are completion evidence, not
-  another no-progress signal
-- page-snapshot recovery evidence must derive the reported focus surface from
-  the dominant node/form surface when snapshot content and overlay stack diverge;
-  do not blindly surface the top popover/drawer title if the recovered content
-  belongs to another surface
+- historical page workflow fields may be read for legacy diagnostics only; live
+  recovery must not create page-specific retries, page progress snapshots, or
+  page-operation hints
+- if a request needs data that used to be inferred from the rendered page,
+  recovery must stop and point to an explicit backend API/export/skill-pack
+  contract instead of trying to operate the page
 
 ## Stop-Loss
 
@@ -58,16 +40,8 @@ Do not consume retry budget solely because a tool is waiting for consent.
 - failure classification
 - protocol history when relevant
 - next-step guidance only when actionable
-- for page intents, the active workflow stage and the narrowed recovery tool
-  subset when a follow-up page step is still required; prefer reporting the
-  canonical workflow phase/contract instead of prompt-only recovery hints
-- for page intents, diagnostics and turn events should expose the same
-  `active_page_workflow` snapshot
-  (`stage` / `phase` / `goal` / `completion` / `progress` / narrowed tool subset)
-  that recovery used, instead of rebuilding another stop-loss explanation path
-- user-visible partial output for unfinished page turns should read from that
-  workflow snapshot so submit/read/verify/discover phases do not collapse back
-  into a generic page “not finished yet” line
+- for retired page-workflow signals, diagnostics should state that the live path
+  is unavailable and should not suggest restoring page operations
 
 ## Consent Pause
 

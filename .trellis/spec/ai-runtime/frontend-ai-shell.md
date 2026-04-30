@@ -14,10 +14,12 @@ AI dialogue APIs.
 
 If AI must analyze data that is currently visible on a page, add a backend
 read-model/API/report/export endpoint or a permissioned installable skill-pack
-tool. Do not make the rendered page the source of truth.
+tool. Do not make the rendered page the source of truth. Page perception was
+retired because it was slow, operationally awkward, hard to make reliable, and
+too easy to turn into fragile browser automation.
 
-Route `meta.ai` may remain as compatibility metadata for whether chat is shown,
-but it must not be used to reintroduce DOM/page runtime behavior.
+Route `meta.ai` may describe whether chat is shown, but it must not carry
+page-context keys or any DOM/page runtime contract.
 
 ## Required Split
 
@@ -84,9 +86,8 @@ page-local composables/context -> focused workspace sections`.
   running tool evidence by `tool_call_id` / canonical event `id`. Same-name
   fallback is not a valid live owner path because repeated tool names can exist
   within one turn.
-- Read-model: `PageContext` and related structures (from shared API types)
-  are treated as read-models. UI code must not reconstruct or mutate them
-  outside the runtime bridge.
+- AI data analysis read-models are explicit backend/API or skill-pack outputs.
+  `PageContext` is not a frontend AI shell read-model.
 - Page-local workspace or form shells may use typed local context seams and
   colocated composables when the state is route-owned and not reused across
   surfaces. They should not promote route-only state into shared global stores

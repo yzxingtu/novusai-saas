@@ -1,4 +1,4 @@
-import type { PendingPageOpForDisplay } from './pending-page-op';
+import type { PendingToolActionForDisplay } from './pending-tool-action';
 import type { ToolDisplayItem } from './tool-call-utils';
 import type { ChatMessage, ToolCallEvent } from './types';
 
@@ -19,7 +19,7 @@ import {
 interface UseChatMessageToolCallsProps {
   index: number;
   msg: ChatMessage;
-  pendingOps?: PendingPageOpForDisplay[];
+  pendingOps?: PendingToolActionForDisplay[];
 }
 
 export function useChatMessageToolCalls(props: UseChatMessageToolCallsProps) {

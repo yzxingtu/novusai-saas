@@ -49,7 +49,7 @@ const mainRoutes: RouteRecordRaw = {
         affixTab: true,
         icon: 'lucide:layout-dashboard',
         title: 'page.dashboard.title',
-        ai: { mode: 'navigation_only' as const },
+        ai: { mode: 'enabled' as const },
       },
     },
     // Analytics：数据分析页面
@@ -60,7 +60,7 @@ const mainRoutes: RouteRecordRaw = {
       meta: {
         icon: 'lucide:bar-chart-3',
         title: 'admin.analytics.title',
-        ai: { mode: 'navigation_only' as const },
+        ai: { mode: 'enabled' as const },
       },
     },
     // 技能包详情页：带 :id 动态参数 + activePath，后端不注册此路由
@@ -72,7 +72,6 @@ const mainRoutes: RouteRecordRaw = {
         hideInMenu: true,
         title: 'admin.ai.skillPackage.detail.title',
         activePath: '/admin/ai/skill-packages',
-        ai: { pageContextKey: 'admin.ai.skill-packages.detail' },
       },
     },
     // 智能体详情页 / Agent detail page
@@ -84,7 +83,6 @@ const mainRoutes: RouteRecordRaw = {
         hideInMenu: true,
         title: 'admin.ai.agent.detail.title',
         activePath: '/admin/ai/agents',
-        ai: { pageContextKey: 'admin.ai.agents.detail' },
       },
     },
     // 插件市场页：后端不注册此路由 / Plugin marketplace (not from backend menu)

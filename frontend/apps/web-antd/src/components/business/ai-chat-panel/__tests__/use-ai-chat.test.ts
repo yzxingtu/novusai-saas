@@ -84,19 +84,11 @@ vi.mock('#/api/shared/ai-chat', () => ({
   uploadChatFileApi: vi.fn(),
 }));
 
-vi.mock('#/components/business/ai-runtime/page-key-utils', () => ({
-  normalizePageKey: (value: string) => value,
-}));
-
 vi.mock('#/composables/use-file-upload', () => ({
   useFileUpload: () => ({
     revokePreviewUrls: vi.fn(),
     validateChatFile: vi.fn(() => true),
   }),
-}));
-
-vi.mock('#/composables/use-ui-action-channel', () => ({
-  waitForPageSessionJoin: vi.fn(() => Promise.resolve(true)),
 }));
 
 vi.mock('#/constants/upload', () => ({
@@ -2282,6 +2274,18 @@ describe('useAIChat interrupted stream recovery', () => {
   });
 
   it('applies knowledge base feedback from SSE to selectedKBIds', async () => {
+    apiMocks.getChatAgentKBBindingsApi.mockResolvedValue([
+      {
+        enabled: true,
+        kb_name: 'Operations KB',
+        knowledge_base_id: 10,
+      },
+      {
+        enabled: true,
+        kb_name: 'Legacy KB',
+        knowledge_base_id: 20,
+      },
+    ]);
     apiMocks.sendChatStreamApi.mockImplementation(
       async (
         _prefix: string,
@@ -2392,7 +2396,6 @@ describe('useAIChat interrupted stream recovery', () => {
     );
     expect(assistantMessage?.content).toBe('debounced answer');
     expect(assistantMessage?.routeSource).toBeUndefined();
-    expect(assistantMessage?.source).toBeUndefined();
 
     const requestBody = apiMocks.sendChatStreamApi.mock.calls.at(-1)?.[2] as
       | Record<string, unknown>
@@ -2400,37 +2403,40 @@ describe('useAIChat interrupted stream recovery', () => {
     expect(requestBody?.route_source).toBeUndefined();
   });
 
-  it('short-circuits page operation chat when socket channel is unavailable', async () => {
-    const chat = createChat({
-      pageContextResolver: () => ({
-        active_surface_id: 'page:tenant.dashboard',
-        page_key: 'tenant.dashboard',
-        suggested_tools: {
-          primary: ['ui_get_snapshot', 'ui_list_interactables'],
-          secondary: ['ui_click'],
+  it('sends chat without retired page awareness fields', async () => {
+    apiMocks.sendChatStreamApi.mockImplementation(
+      async (
+        _prefix: string,
+        _agentId: number,
+        _body: Record<string, unknown>,
+        options: {
+          onMessage: (chunk: string) => Promise<void>;
         },
-        surface_stack: [
-          {
-            kind: 'page',
-            surface_id: 'page:tenant.dashboard',
-            title: 'Tenant Dashboard',
-          },
-        ],
-        ui_epoch: 1,
-      }),
-      pageSessionIdGetter: () => 'page-session-1',
-    });
+      ) => {
+        await options.onMessage(
+          sseEvent({ event: 'conversation', conversation_id: 42 }),
+        );
+        await options.onMessage(sseEvent({ event: 'done', total_tokens: 18 }));
+      },
+    );
+
+    const chat = createChat();
 
     await chat.loadAgents();
     chat.inputMessage.value = '请帮我打开智能体页面';
 
-    const sendPromise = chat.sendMessage();
-    await vi.advanceTimersByTimeAsync(3200);
-    await sendPromise;
+    await chat.sendMessage();
+    await flushPromises();
+    await vi.advanceTimersByTimeAsync(1000);
     await flushPromises();
 
-    expect(socketStoreMocks.connect).toHaveBeenCalledOnce();
-    expect(apiMocks.sendChatStreamApi).not.toHaveBeenCalled();
+    expect(apiMocks.sendChatStreamApi).toHaveBeenCalledOnce();
+    const requestBody = apiMocks.sendChatStreamApi.mock.calls.at(-1)?.[2] as
+      | Record<string, unknown>
+      | undefined;
+    expect(requestBody).not.toHaveProperty('page_context');
+    expect(requestBody).not.toHaveProperty('page_session_id');
+    expect(socketStoreMocks.connect).not.toHaveBeenCalled();
   });
 
   it('sends interaction_updates when user resolves confirmation/consent/button state', async () => {

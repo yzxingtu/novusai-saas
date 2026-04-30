@@ -112,7 +112,6 @@ class AdminAgentChatController(GlobalController):
                 message=data.message,
                 conversation_id=data.conversation_id,
                 variables=data.variables,
-                page_context=None,
                 user_id=admin.id,
                 knowledge_base_ids=data.knowledge_base_ids,
                 user_role=UserRoleEnum.PLATFORM_ADMIN.value,
@@ -125,7 +124,6 @@ class AdminAgentChatController(GlobalController):
                 memory_scene=MemorySceneEnum.ADMIN_CHAT.value,
                 memory_channel=MemoryChannelEnum.ADMIN_CHAT.value,
                 memory_source=MemorySceneEnum.ADMIN_CHAT.value,
-                page_session_id=None,
                 route_source=data.route_source,
                 interaction_updates=[
                     item.model_dump() for item in data.interaction_updates
@@ -169,7 +167,6 @@ class AdminAgentChatController(GlobalController):
                 messages=data.messages,
                 conversation_id=data.conversation_id,
                 variables=data.variables,
-                page_context=None,
                 user_id=admin.id,
                 knowledge_base_ids=data.knowledge_base_ids,
                 user_role=UserRoleEnum.PLATFORM_ADMIN.value,
@@ -185,7 +182,6 @@ class AdminAgentChatController(GlobalController):
                 memory_scene=MemorySceneEnum.ADMIN_CHAT.value,
                 memory_channel=MemoryChannelEnum.ADMIN_CHAT.value,
                 memory_source=MemorySceneEnum.ADMIN_CHAT.value,
-                page_session_id=None,
                 route_source=data.route_source,
                 interaction_updates=[
                     item.model_dump() for item in data.interaction_updates
@@ -210,7 +206,7 @@ class AdminAgentChatController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            基于消息和页面上下文智能选择目标智能体 / Intelligently select target agent based on message and page context.
+            基于消息、附件类型和当前对话智能选择目标智能体 / Intelligently select target agent from message, attachment flags, and conversation state.
 
             优先级 / Priority:
             1. pinned_agent_id 直通 / pinned_agent_id pass-through
@@ -226,7 +222,6 @@ class AdminAgentChatController(GlobalController):
                 conversation_id=data.conversation_id,
                 user_role=UserRoleEnum.PLATFORM_ADMIN.value,
                 user_role_id=admin.org_node_id,
-                page_context=None,
                 pinned_agent_id=data.pinned_agent_id,
                 user_id=admin.id,
                 force_reroute=data.force_reroute,

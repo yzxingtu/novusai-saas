@@ -1,8 +1,9 @@
 """
 智能体路由服务 / Agent Router Service
 
-根据用户消息和页面上下文，通过 Router 智能体智能选择最合适的目标智能体。
-Selects the most suitable target agent via Router agent based on user messages and page context.
+根据用户消息、附件类型和当前对话，通过 Router 智能体智能选择最合适的目标智能体。
+Selects the most suitable target agent via Router agent based on user messages,
+attachments, and conversation state.
 候选过滤遵循平台分发、企业发布和端内访问控制的新语义。
 Candidate filtering follows the new platform distribution, tenant publication,
 and endpoint-internal access semantics.
@@ -25,9 +26,6 @@ from app.models.system.agent_assignment import SystemAgentAssignment
 from app.services.ai.agent_router_candidate_support import filter_router_candidates
 from app.services.ai.agent_router_capability_support import (
     agent_can_handle_images,
-    agent_needs_function_calling,
-    agent_supports_families,
-    agent_supports_page_operations,
 )
 from app.services.ai.agent_router_query_service import AgentRouterQueryService
 from app.services.ai.agent_router_runtime_support import (
@@ -99,7 +97,6 @@ class AgentRouterService:
         tenant_id: int | None,
         message: str,
         conversation_id: int | None = None,
-        page_context: dict[str, Any] | None = None,
         pinned_agent_id: int | None = None,
         user_role: str = UserRoleEnum.TENANT_ADMIN.value,
         user_role_id: int | None = None,
@@ -117,7 +114,6 @@ class AgentRouterService:
             tenant_id: 企业 ID（管理端可为 None）
             message: 用户消息
             conversation_id: 已有对话 ID（若存在且未 force_reroute，则沿用当前对话绑定智能体）
-            page_context: 页面上下文信息
             pinned_agent_id: 用户固定选择的智能体 ID
             user_role: 调用方角色（UserRoleEnum 值），用于候选列表过滤
 
@@ -213,7 +209,6 @@ class AgentRouterService:
 
         filter_result = await filter_router_candidates(
             message=message,
-            page_context=page_context,
             candidates=candidates,
             has_image_attachments=has_image_attachments,
             agent_can_handle_images=self._agent_can_handle_images,
@@ -267,7 +262,6 @@ class AgentRouterService:
                 router_agent,
                 candidates,
                 message,
-                page_context,
                 execution_tenant_id=(
                     PLATFORM_TENANT_ID
                     if user_role == UserRoleEnum.PLATFORM_ADMIN.value
@@ -379,7 +373,6 @@ class AgentRouterService:
         router_agent: Agent,
         candidates: list[Agent],
         message: str,
-        page_context: dict[str, Any] | None,
         *,
         execution_tenant_id: int | None,
         execution_user_role: str,
@@ -394,7 +387,6 @@ class AgentRouterService:
             router_agent=router_agent,
             candidates=candidates,
             message=message,
-            page_context=page_context,
             execution_tenant_id=execution_tenant_id or PLATFORM_TENANT_ID,
             execution_user_role=execution_user_role,
             execution_user_role_id=execution_user_role_id,
@@ -558,10 +550,6 @@ class AgentRouterService:
             user_id=user_id,
             user_role_id=user_role_id,
         )
-
-    _agent_supports_page_operations = staticmethod(agent_supports_page_operations)
-    _agent_supports_families = staticmethod(agent_supports_families)
-    _agent_needs_function_calling = staticmethod(agent_needs_function_calling)
 
     async def _agent_can_handle_images(self, agent: Agent | None) -> bool:
         return await agent_can_handle_images(self.db, agent)

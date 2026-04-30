@@ -70,17 +70,12 @@ class ExecutionStateMachine:
         default_factory=dict,
         repr=False,
     )
-    page_context_cache: dict[str, tuple[ToolResult, int]] = field(
-        default_factory=dict,
-        repr=False,
-    )
     search_query_cache: dict[str, tuple[ToolResult, int]] = field(
         default_factory=dict,
         repr=False,
     )
     cache_hit_kinds: set[str] = field(default_factory=set, repr=False)
     dedupe_hit: bool = False
-    page_context_cache_hit: bool = False
     started_at: float = field(default_factory=time.perf_counter)
     current_state: ExecutionState = "prepared"
     state_history: list[ExecutionState] = field(default_factory=lambda: ["prepared"])
@@ -256,8 +251,6 @@ class ExecutionStateMachine:
     ) -> dict[str, tuple[ToolResult, int]]:
         if kind == "search_query":
             return self.search_query_cache
-        if kind == "page_context":
-            return self.page_context_cache
         return self.readonly_tool_cache
 
     def register_cache_hit(self, kind: str) -> None:
@@ -265,8 +258,6 @@ class ExecutionStateMachine:
             return
         self.dedupe_hit = True
         self.cache_hit_kinds.add(kind)
-        if kind == "page_context":
-            self.page_context_cache_hit = True
 
     def _has_turn_event(self, kind: TurnEventKind) -> bool:
         return any(event.kind == kind for event in self.turn_events)
@@ -466,7 +457,6 @@ class ExecutionStateMachine:
         cache_insights = {
             "dedupe_hit": self.dedupe_hit,
             "cache_hit_kind": cache_hit_kind,
-            "page_context_cache_hit": self.page_context_cache_hit,
         }
         return TurnDiagnostics.build_payload(
             execution_path=self.execution_path,

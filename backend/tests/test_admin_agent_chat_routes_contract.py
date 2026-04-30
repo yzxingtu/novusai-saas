@@ -81,7 +81,7 @@ class _ChatResult:
         }
 
 
-def test_admin_agent_chat_route_filters_invalid_navigation_catalog_entries(
+def test_admin_agent_chat_route_rejects_retired_page_context(
     monkeypatch,
 ) -> None:
     admin_module = _load_admin_agent_chat_module()
@@ -128,13 +128,11 @@ def test_admin_agent_chat_route_filters_invalid_navigation_catalog_entries(
             },
         )
 
-    assert response.status_code == 200
-    handle_route.assert_awaited_once()
-    page_context = handle_route.await_args.kwargs["page_context"]
-    assert page_context["page_data"]["navigation_catalog"] == [_navigation_entry()]
+    assert response.status_code == 422
+    handle_route.assert_not_awaited()
 
 
-def test_admin_agent_chat_chat_rejects_unknown_page_data_keys(monkeypatch) -> None:
+def test_admin_agent_chat_chat_rejects_retired_page_context(monkeypatch) -> None:
     admin_module = _load_admin_agent_chat_module()
     monkeypatch.setattr(admin_module.AdminAgentChatController, "_instance", None)
     monkeypatch.setattr(admin_module.AdminAgentChatController, "_router", None)
@@ -142,18 +140,12 @@ def test_admin_agent_chat_chat_rejects_unknown_page_data_keys(monkeypatch) -> No
     permission_service = SimpleNamespace(
         get_admin_permissions=AsyncMock(return_value=["*"])
     )
-    validate_page_context_size = AsyncMock(return_value=None)
     chat_service = SimpleNamespace(chat=AsyncMock(return_value=_ChatResult()))
 
     monkeypatch.setattr(
         admin_module,
         "PermissionService",
         lambda _db: permission_service,
-    )
-    monkeypatch.setattr(
-        admin_module,
-        "validate_page_context_size",
-        validate_page_context_size,
     )
     monkeypatch.setattr(
         admin_module,
@@ -177,5 +169,4 @@ def test_admin_agent_chat_chat_rejects_unknown_page_data_keys(monkeypatch) -> No
         )
 
     assert response.status_code == 422
-    validate_page_context_size.assert_not_awaited()
     chat_service.chat.assert_not_awaited()

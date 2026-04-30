@@ -2,7 +2,7 @@
 /**
  * Test type: behavioral
  * Verifies: the shared panel utility actions expose text labels in the regular toolbar
- * while preserving icon-only compact rendering inside the page-AI rail.
+ * while preserving icon-only compact rendering inside the editor-AI rail.
  * Mock strategy: ant-design wrappers and icons are stubbed, while the utility-action
  * rendering logic runs real.
  */

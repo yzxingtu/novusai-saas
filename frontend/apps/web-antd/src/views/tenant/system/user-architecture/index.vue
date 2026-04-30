@@ -46,11 +46,11 @@ import {
   toggleTenantUserStatusApi,
 } from '#/api/tenant/tenant-users';
 import IdentityDisplay from '#/components/business/identity-display/IdentityDisplay.vue';
-import { buildPageAIFormExtraData } from '#/composables/use-page-ai-operation-helpers';
 import { $t } from '#/locales';
 import { usePresenceStore } from '#/store';
 import { formatDate, formatRelativeTime } from '#/utils/common';
 import { showRequestError } from '#/utils/error-helpers';
+import { buildFormExtraData } from '#/utils/form-extra-data';
 import IdentityTrigger from '#/views/_shared/identity/IdentityTrigger.vue';
 
 import {
@@ -65,8 +65,6 @@ import UserForm from './modules/UserForm.vue';
 import UserRoleFormComponent from './modules/UserRoleForm.vue';
 
 defineOptions({ name: 'TenantUserArchitecture' });
-
-const AI_PAGE_KEY = 'tenant.system.userArchitecture';
 
 const roles = ref<TenantUserRoleInfo[]>([]);
 const rolesLoading = ref(false);
@@ -226,8 +224,7 @@ function handleCreateRole() {
     .setData({
       mode: 'add' as const,
       _resource: '/tenant/user-roles',
-      ...buildPageAIFormExtraData({
-        pageKey: AI_PAGE_KEY,
+      ...buildFormExtraData({
         defaults: getRoleFormDefaults(),
       }),
     })
@@ -240,7 +237,7 @@ function handleEditRole(role: TenantUserRoleInfo) {
       ...role,
       mode: 'edit' as const,
       _resource: '/tenant/user-roles',
-      ...buildPageAIFormExtraData({ pageKey: AI_PAGE_KEY }),
+      ...buildFormExtraData(),
     })
     .open();
 }
@@ -428,9 +425,6 @@ const {
   customActions: {
     forceLogout: onForceLogout,
     resetPassword: onResetPassword,
-  },
-  ai: {
-    pageKey: AI_PAGE_KEY,
   },
 });
 

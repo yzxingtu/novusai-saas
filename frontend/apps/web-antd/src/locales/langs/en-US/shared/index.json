@@ -10,7 +10,7 @@
     "./identity.json",
     "./knowledgeDocPicker.json",
     "./page.json",
-    "./pageOperation.json",
-    "./profile.json"
+    "./profile.json",
+    "./toolAction.json"
   ]
 }

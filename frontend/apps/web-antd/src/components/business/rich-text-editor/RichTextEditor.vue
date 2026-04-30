@@ -1,32 +1,16 @@
 <script lang="ts" setup>
 import type { JSONContent } from '@tiptap/core';
 
-import type {
-  EditorAIAdapter,
-  EditorAIPreviewResult,
-} from './ai/editor-ai-adapter';
 import type { RichTextEditorProps } from './types';
 
-import { computed, getCurrentInstance, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 import { $t } from '@vben/locales';
 
 import { EditorContent } from '@tiptap/vue-3';
-import { message } from 'ant-design-vue';
 
-import AIPreviewOverlay from './ai/ai-preview-overlay.vue';
-import AIBubbleMenu from './ai/AIBubbleMenu.vue';
-import {
-  createTiptapEditorAIAdapter,
-  getEditorAIErrorMessage,
-} from './ai/tiptap-adapter';
-import {
-  registerSourceEditor,
-  updateSourceEditorRevision,
-} from './sourceEditorRegistry';
 import EditorToolbar from './toolbar/EditorToolbar.vue';
 import MiniToolbar from './toolbar/MiniToolbar.vue';
-import { useEditorPageOps } from './useEditorPageOps';
 import { handleImageDrop, handleImagePaste } from './useEditorUpload';
 import { useRichTextEditor } from './useRichTextEditor';
 
@@ -45,16 +29,6 @@ const emit = defineEmits<{
   change: [json: JSONContent, html: string, text: string];
   'update:modelValue': [value: JSONContent | null];
 }>();
-
-const explicitProps = getCurrentInstance()?.vnode.props;
-const aiExplicitlyEnabled =
-  props.ai === true &&
-  !!explicitProps &&
-  Object.prototype.hasOwnProperty.call(explicitProps, 'ai');
-
-if (aiExplicitlyEnabled && !props.pageKey) {
-  throw new Error('RichTextEditor: pageKey is required when ai=true');
-}
 
 const isFull = computed(() => props.mode === 'full');
 
@@ -78,7 +52,6 @@ const {
   editor,
   wordCount,
   characterCount,
-  revision,
   setContent,
   getJSON,
   getHTML,
@@ -129,16 +102,6 @@ const {
   },
 });
 
-const aiEntryEnabled = computed(
-  () => props.ai !== false && !!props.pageKey && !!editor.value,
-);
-const aiAdapter = ref<EditorAIAdapter | null>(null);
-const aiBusy = ref(false);
-const aiPreview = ref<EditorAIPreviewResult | null>(null);
-const canUndoAiOperation = computed(
-  () => aiAdapter.value?.canUndoLastOperation() ?? false,
-);
-
 watch(
   () => props.modelValue,
   (val) => {
@@ -155,110 +118,18 @@ watch(
 );
 
 watch(
-  [editor, () => props.pageKey, () => props.contextTitle],
-  ([editorInstance, pageKey, contextTitle]) => {
-    if (!editorInstance || !pageKey) {
-      aiAdapter.value = null;
-      return;
-    }
-
-    aiAdapter.value = createTiptapEditorAIAdapter({
-      contextTitle,
-      editor: editorInstance,
-      editorInstanceId,
-      getRevision,
-      pageKey,
-    });
-  },
-  { immediate: true },
-);
-
-watch(
   () => props.editable,
   (val) => {
     if (editor.value) editor.value.setEditable(val !== false);
   },
 );
 
-useEditorPageOps(editor, {
-  editable: computed(() => props.editable !== false),
-  enabled: computed(() => props.ai !== false && !!editor.value),
-  pageKey: computed(() => props.pageKey),
-});
-
 const sourceMode = ref(false);
 const sourceCode = ref('');
-let unregisterSourceEditorEntry: (() => void) | null = null;
-
-function cleanupSourceEditorRegistration() {
-  if (!unregisterSourceEditorEntry) return;
-  unregisterSourceEditorEntry();
-  unregisterSourceEditorEntry = null;
-}
-
-watch(
-  [editor, () => props.pageKey],
-  ([editorInstance, pageKey]) => {
-    cleanupSourceEditorRegistration();
-    if (!editorInstance || !pageKey) return;
-
-    unregisterSourceEditorEntry = registerSourceEditor({
-      pageKey,
-      editorInstanceId,
-      revision: getRevision(),
-      getRevision,
-      isMounted: () => !!editor.value,
-      getText,
-      getHTML,
-      focus,
-      replaceRange: (from, to, content) => {
-        if (!editor.value) return false;
-        editor.value
-          .chain()
-          .focus()
-          .deleteRange({ from, to })
-          .insertContent(content, {
-            parseOptions: { preserveWhitespace: false },
-          })
-          .run();
-        return true;
-      },
-      insertAfterRange: (_from, to, content) => {
-        if (!editor.value) return false;
-        editor.value.commands.insertContentAt(to, content, {
-          parseOptions: { preserveWhitespace: false },
-        });
-        return true;
-      },
-      appendToEnd: (content) => {
-        if (!editor.value) return false;
-        const end = editor.value.state.doc.content.size;
-        editor.value.commands.insertContentAt(end, content, {
-          parseOptions: { preserveWhitespace: false },
-        });
-        return true;
-      },
-      undo: () => {
-        if (!editor.value) return false;
-        return editor.value.chain().focus().undo().run();
-      },
-    });
-  },
-  { immediate: true },
-);
-
-watch(revision, (nextRevision) => {
-  if (!props.pageKey) return;
-  updateSourceEditorRevision(props.pageKey, editorInstanceId, nextRevision);
-});
 
 watch(sourceMode, (enabled) => {
   if (!enabled) return;
   sourceCode.value = getHTML();
-});
-
-onBeforeUnmount(() => {
-  cleanupSourceEditorRegistration();
 });
 
 function toggleSourceMode() {
@@ -272,69 +143,6 @@ function toggleSourceMode() {
     sourceCode.value = editor.value.getHTML();
     sourceMode.value = true;
   }
-}
-
-async function handleAiAction(feature: string) {
-  if (!aiAdapter.value || aiBusy.value) return;
-
-  aiBusy.value = true;
-  try {
-    aiPreview.value = await aiAdapter.value.previewOperation({
-      contextTitle: props.contextTitle,
-      feature,
-    });
-  } catch (error) {
-    message.error(getEditorAIErrorMessage(error));
-  } finally {
-    aiBusy.value = false;
-  }
-}
-
-async function applyAiPreview(mode: 'formatted' | 'plain') {
-  if (!aiAdapter.value || !aiPreview.value || aiBusy.value) {
-    return;
-  }
-
-  aiBusy.value = true;
-  try {
-    const result = await aiAdapter.value.applyOperation({
-      ...aiPreview.value,
-      mode,
-    });
-
-    if (!result.applied) {
-      const reasonKey =
-        result.reason === 'selection_changed'
-          ? 'common.richTextDraftSelectionChanged'
-          : 'common.pleaseRetry';
-      message.warning($t(reasonKey));
-      return;
-    }
-
-    aiPreview.value = null;
-  } catch {
-    message.error($t('common.pleaseRetry'));
-  } finally {
-    aiBusy.value = false;
-  }
-}
-
-function closeAiPreview() {
-  aiPreview.value = null;
-}
-
-function undoAiPreview() {
-  if (!aiAdapter.value) {
-    return;
-  }
-
-  const undone = aiAdapter.value.undoLastAIOperation();
-  if (!undone) {
-    message.warning($t('common.pleaseRetry'));
-    return;
-  }
-
-  aiPreview.value = null;
 }
 
 function focusEditorEnd() {
@@ -398,23 +206,6 @@ defineExpose({
       ></textarea>
     </div>
 
-    <AIBubbleMenu
-      v-if="aiEntryEnabled && !aiPreview"
-      :editor="editor!"
-      :loading="aiBusy"
-      @action="handleAiAction"
-    />
-
-    <AIPreviewOverlay
-      v-if="aiPreview"
-      :preview="aiPreview"
-      :loading="aiBusy"
-      :can-undo="canUndoAiOperation"
-      @apply="applyAiPreview"
-      @close="closeAiPreview"
-      @undo="undoAiPreview"
-    />
-
     <div
       class="flex items-center justify-between border-t border-border px-4 py-1.5 text-xs text-muted-foreground"
     >
@@ -433,21 +224,5 @@ defineExpose({
       <EditorContent v-if="editor" :editor="editor" />
     </div>
 
-    <AIBubbleMenu
-      v-if="aiEntryEnabled && !aiPreview"
-      :editor="editor!"
-      :loading="aiBusy"
-      @action="handleAiAction"
-    />
-
-    <AIPreviewOverlay
-      v-if="aiPreview"
-      :preview="aiPreview"
-      :loading="aiBusy"
-      :can-undo="canUndoAiOperation"
-      @apply="applyAiPreview"
-      @close="closeAiPreview"
-      @undo="undoAiPreview"
-    />
   </div>
 </template>

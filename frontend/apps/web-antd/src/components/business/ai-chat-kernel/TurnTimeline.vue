@@ -2,7 +2,7 @@
 import type { TurnFlowState } from './TurnFlowState';
 
 import type { TurnFlowStageForDisplay } from '#/components/business/ai-chat-panel/chat-message-turn-flow';
-import type { PendingPageOpForDisplay } from '#/components/business/ai-chat-panel/pending-page-op';
+import type { PendingToolActionForDisplay } from '#/components/business/ai-chat-panel/pending-tool-action';
 import type { ChatMessage } from '#/types/ai-chat';
 
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
@@ -43,7 +43,7 @@ const props = withDefaults(
     countdownNow?: number;
     index?: number;
     msg: ChatMessage;
-    pendingOps?: PendingPageOpForDisplay[];
+    pendingOps?: PendingToolActionForDisplay[];
     state: TurnFlowState;
   }>(),
   {

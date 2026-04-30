@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import type { ItemType } from 'ant-design-vue/es/menu';
 
-import type { PendingOpDisplayItem } from './use-pending-page-ops';
+import type { PendingOpDisplayItem } from './use-pending-tool-actions';
 
 import type {
   AgentItem,
@@ -9,9 +9,6 @@ import type {
   AgentKnowledgeBaseBindingSummary,
   AgentSkillBindingsByAgentId,
   ChatMessage,
-  RichTextAIApplyMode,
-  RichTextAIApplyTarget,
-  RichTextDraftRuntimeState,
 } from '#/types/ai-chat';
 
 import { ref, watch } from 'vue';
@@ -84,9 +81,6 @@ const props = withDefaults(
     exportMenuItems?: ItemType[];
     forceShowDiagnostics?: boolean;
     getPendingOpsForMessage: (msg: ChatMessage) => PendingOpDisplayItem[];
-    getRichTextDraftState: (
-      message: ChatMessage,
-    ) => null | RichTextDraftRuntimeState;
     groupedConversations?: HistoryConversationGroup[];
     inputMessage?: string;
     mentionCandidates?: ComposerMentionCandidateItem[];
@@ -182,16 +176,8 @@ const emit = defineEmits<{
   (e: 'openUrl', url: string): void;
   (e: 'regenerate', index: number): void;
   (e: 'reject', index: number): void;
-  (e: 'resolvePendingOp', invokeId: string, allowed: boolean): void;
+  (e: 'resolvePendingAction', invokeId: string, allowed: boolean): void;
   (e: 'retry', index: number): void;
-  (
-    e: 'richTextApply',
-    index: number,
-    target: RichTextAIApplyTarget,
-    mode: RichTextAIApplyMode,
-  ): void;
-  (e: 'richTextDiscard', index: number): void;
-  (e: 'richTextUndo', index: number): void;
   (e: 'registerContainer', element: HTMLDivElement | null): void;
   (e: 'scroll'): void;
   (e: 'scrollToBottom'): void;
@@ -264,7 +250,6 @@ watch(
         :effective-welcome-message="effectiveWelcomeMessage"
         :force-show-diagnostics="forceShowDiagnostics"
         :get-pending-ops-for-message="getPendingOpsForMessage"
-        :get-rich-text-draft-state="getRichTextDraftState"
         :ensure-agent-knowledge-bases="ensureAgentKnowledgeBases"
         :ensure-agent-skills="ensureAgentSkills"
         :register-container="(element) => emit('registerContainer', element)"
@@ -286,13 +271,8 @@ watch(
         @regenerate="emit('regenerate', $event)"
         @edit="emit('edit', $event)"
         @retry="emit('retry', $event)"
-        @rich-text-apply="
-          (index, target, mode) => emit('richTextApply', index, target, mode)
-        "
-        @rich-text-discard="emit('richTextDiscard', $event)"
-        @rich-text-undo="emit('richTextUndo', $event)"
-        @resolve-pending-op="
-          (invokeId, allowed) => emit('resolvePendingOp', invokeId, allowed)
+        @resolve-pending-action="
+          (invokeId, allowed) => emit('resolvePendingAction', invokeId, allowed)
         "
         @scroll="emit('scroll')"
         @scroll-to-top="emit('scrollToTop')"

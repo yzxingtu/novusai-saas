@@ -1,4 +1,7 @@
 // @vitest-environment happy-dom
+// Test type: behavioral
+// Verifies: route meta AI policy only controls chat-entry visibility after page awareness retirement.
+// Mock strategy: permission and route refs are mocked; policy computation runs real.
 import { effectScope, nextTick } from 'vue';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -9,16 +12,12 @@ const mockRefs = vi.hoisted(() => ({
   canViewHistory: { value: true },
   resource: { value: 'admin_agent_chat' },
   routeMeta: { value: {} as Record<string, unknown> },
-  routePath: { value: '/admin/ai/agents' },
 }));
 
 vi.mock('vue-router', () => ({
   useRoute: () => ({
     get meta() {
       return mockRefs.routeMeta.value;
-    },
-    get path() {
-      return mockRefs.routePath.value;
     },
   }),
 }));
@@ -32,38 +31,12 @@ vi.mock('../use-ai-permission', () => ({
   }),
 }));
 
-vi.mock('#/components/business/ai-runtime/page-key-utils', () => ({
-  normalizePageKey: (value?: string) =>
-    String(value ?? '')
-      .replace(/^\//, '')
-      .replaceAll('/', '.'),
-}));
-
-vi.mock('#/utils/ai-page-capabilities', () => ({
-  normalizeCapabilityKeys: (value?: string | string[]) => {
-    if (Array.isArray(value)) return value;
-    return value ? [value] : [];
-  },
-  normalizeOperationNames: (value?: string | string[]) => {
-    if (Array.isArray(value)) return value;
-    return value ? [value] : [];
-  },
-  normalizePageAIMode: (mode?: string, fallback = 'operate') =>
-    mode === 'disabled' ||
-    mode === 'context_only' ||
-    mode === 'navigation_only' ||
-    mode === 'operate'
-      ? mode
-      : fallback,
-}));
-
 describe('useCurrentPageAIPolicy', () => {
   beforeEach(() => {
     mockRefs.canChat.value = true;
     mockRefs.canRoute.value = true;
     mockRefs.canViewHistory.value = true;
     mockRefs.resource.value = 'admin_agent_chat';
-    mockRefs.routePath.value = '/admin/ai/agents';
     mockRefs.routeMeta.value = {};
   });
 
@@ -71,17 +44,9 @@ describe('useCurrentPageAIPolicy', () => {
     vi.clearAllMocks();
   });
 
-  it('applies route meta policy and updates global execution policy', async () => {
+  it('keeps AI enabled by default and records an enabled global policy', async () => {
     const scope = effectScope();
     const module = await import('../use-ai-page-policy');
-    mockRefs.routeMeta.value = {
-      ai: {
-        disabledCapabilities: ['search'],
-        disabledOperations: 'delete_record',
-        mode: 'context_only',
-        pageContextKey: '/custom/page',
-      },
-    };
 
     let policy!: ReturnType<typeof module.useCurrentPageAIPolicy>;
     scope.run(() => {
@@ -90,28 +55,25 @@ describe('useCurrentPageAIPolicy', () => {
     await nextTick();
 
     expect(policy.aiEnabled.value).toBe(true);
-    expect(policy.pageDisabled.value).toBe(false);
-    expect(policy.pageMode.value).toBe('context_only');
-    expect(policy.effectiveMode.value).toBe('context_only');
-    expect(policy.pageContextKey.value).toBe('custom.page');
+    expect(policy.effectiveMode.value).toBe('enabled');
     expect(module.currentPageAIExecutionPolicy.value).toEqual({
-      disabledCapabilities: ['search'],
-      disabledOperations: ['delete_record'],
-      mode: 'context_only',
-      pageContextKey: 'custom.page',
+      mode: 'enabled',
+    });
+    expect(module.currentRouteAISecurityPolicy.value).toEqual({
+      enabled: true,
+      confirmActionKinds: [],
+      disabledActionKinds: [],
     });
 
     scope.stop();
   });
 
-  it('disables AI when chat permission is missing and falls back to route path key', async () => {
+  it('disables AI when route meta explicitly disables the entry', async () => {
     const scope = effectScope();
     const module = await import('../use-ai-page-policy');
-    mockRefs.canChat.value = false;
-    mockRefs.routePath.value = '/tenant/ai/chat';
     mockRefs.routeMeta.value = {
       ai: {
-        mode: 'operate',
+        mode: 'disabled',
       },
     };
 
@@ -122,21 +84,19 @@ describe('useCurrentPageAIPolicy', () => {
     await nextTick();
 
     expect(policy.aiEnabled.value).toBe(false);
+    expect(policy.pageDisabled.value).toBe(true);
     expect(policy.effectiveMode.value).toBe('disabled');
-    expect(policy.pageContextKey.value).toBe('tenant.ai.chat');
+    expect(module.currentPageAIExecutionPolicy.value).toEqual({
+      mode: 'disabled',
+    });
 
     scope.stop();
   });
 
-  it('emits canonical ui_* form action kinds into the runtime security policy', async () => {
+  it('disables AI when chat permission is missing', async () => {
     const scope = effectScope();
     const module = await import('../use-ai-page-policy');
-    mockRefs.routeMeta.value = {
-      ai: {
-        disabledCapabilities: ['form', 'submit'],
-        mode: 'navigation_only',
-      },
-    };
+    mockRefs.canChat.value = false;
 
     let policy!: ReturnType<typeof module.useCurrentPageAIPolicy>;
     scope.run(() => {
@@ -144,24 +104,9 @@ describe('useCurrentPageAIPolicy', () => {
     });
     await nextTick();
 
-    expect(policy.routeSecurityPolicy.value.disabledActionKinds).toEqual(
-      expect.arrayContaining([
-        'create_record',
-        'delete_record',
-        'edit_record',
-        'replace_content',
-        'replace_section',
-        'ui_fill_form',
-        'ui_set_field',
-        'ui_submit_form',
-      ]),
-    );
-    expect(policy.routeSecurityPolicy.value.disabledActionKinds).not.toEqual(
-      expect.arrayContaining(['fill_field', 'fill_form', 'submit_form']),
-    );
-    expect(module.currentRouteAISecurityPolicy.value.disabledActionKinds).toEqual(
-      expect.arrayContaining(['ui_fill_form', 'ui_set_field', 'ui_submit_form']),
-    );
+    expect(policy.aiEnabled.value).toBe(false);
+    expect(policy.effectiveMode.value).toBe('disabled');
+    expect(module.currentRouteAISecurityPolicy.value.enabled).toBe(false);
 
     scope.stop();
   });

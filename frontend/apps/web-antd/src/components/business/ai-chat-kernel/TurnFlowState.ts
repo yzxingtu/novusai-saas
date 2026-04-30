@@ -2,7 +2,7 @@ import type {
   TurnFlowForDisplay,
   TurnFlowStageForDisplay,
 } from '#/components/business/ai-chat-panel/chat-message-turn-flow';
-import type { PendingPageOpForDisplay } from '#/components/business/ai-chat-panel/pending-page-op';
+import type { PendingToolActionForDisplay } from '#/components/business/ai-chat-panel/pending-tool-action';
 import type {
   DisplayReferenceLink,
   TurnAnswerCard,
@@ -73,7 +73,7 @@ function toFallbackReference(
 
 function buildPendingActionState(
   msg: ChatMessage,
-  pendingOps: PendingPageOpForDisplay[],
+  pendingOps: PendingToolActionForDisplay[],
 ): KernelPendingActionState | undefined {
   if (msg.pendingConfirmation) {
     const unresolvedPendingOp = pendingOps.find(
@@ -108,7 +108,7 @@ function buildPendingActionState(
 
 export function buildTurnFlowState(
   msg: ChatMessage,
-  pendingOps: PendingPageOpForDisplay[] = [],
+  pendingOps: PendingToolActionForDisplay[] = [],
 ): TurnFlowState {
   const flow = getTurnFlowForDisplay(msg);
   const preparedMessageContent = prepareMessageContent(msg);

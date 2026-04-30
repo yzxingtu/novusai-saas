@@ -10,9 +10,6 @@ from .contract_diagnostics_helpers import (
 from .contract_diagnostics_helpers import (
     merge_contract_diagnostics_into_turn_record as _merge_contract_diagnostics_into_turn_record_impl,
 )
-from .page_flow_recovery_helpers import (
-    build_page_no_progress_recovery_default as _build_page_no_progress_recovery_default_impl,
-)
 from .tool_contract_retry_helpers import (
     analyze_post_tool_contract_breach as _analyze_post_tool_contract_breach_impl,
 )
@@ -31,6 +28,11 @@ from .tool_contract_retry_helpers import (
 from .tool_contract_retry_helpers import (
     should_retry_web_research_contract_breach as _should_retry_web_research_contract_breach_impl,
 )
+
+
+def _build_page_no_progress_recovery_default_impl(*args, **kwargs):
+    del args, kwargs
+    return [], {}
 
 
 class BasePromptContractSupportMixin:

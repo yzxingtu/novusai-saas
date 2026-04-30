@@ -13,14 +13,6 @@ class StoragePublicConfig(BaseSchema):
     allowed_extensions: str | None = Field(None, description="允许的文件扩展名")
 
 
-class RuntimeLimitsPublicConfig(BaseSchema):
-    """Runtime limits public config / 运行时限制公开配置"""
-
-    page_context_max_bytes: int = Field(
-        ..., description="page_context.page_data 最大字节数"
-    )
-
-
 class CaptchaPluginFrontendRuntimePublicConfig(BaseSchema):
     """Captcha plugin frontend runtime / 验证码插件前端运行时信息"""
 
@@ -71,14 +63,8 @@ class PlatformPublicConfig(BaseSchema):
 
     # 存储配置 / Storage
     storage: StoragePublicConfig | None = Field(None, description="存储配置")
-    runtime_limits: RuntimeLimitsPublicConfig | None = Field(
-        None, description="运行时限制"
-    )
-
-
 __all__ = [
     "CaptchaPluginFrontendRuntimePublicConfig",
     "PlatformPublicConfig",
-    "RuntimeLimitsPublicConfig",
     "StoragePublicConfig",
 ]

@@ -232,7 +232,7 @@
       "code": "Enter the upstream model ID actually accepted by the provider API, such as gpt-4 or gpt-5.4. Legacy alias rows are normalized automatically when edited.",
       "reasoningEffort": "Only applies to GPT-5 / o-series style reasoning models. Models like Claude will neither show nor send this parameter.",
       "type": "Chat models for conversation and text generation; embedding models for knowledge base document vectorization; image models for image generation",
-      "contextWindow": "Total token budget for one request (system prompt + history + user input + RAG context + model output). If you want the model to accept more input, increase this first. This is unrelated to the separate page_context.page_data byte budget",
+      "contextWindow": "Total token budget for one request (system prompt + history + user input + RAG context + model output). If you want the model to accept more input, increase this first.",
       "maxOutputTokens": "Maximum generated tokens per request. This only limits how much the model can output in one reply and does not increase input context capacity",
       "functionCalling": "When enabled, the model can call tool functions. Requires the model to natively support Function Calling",
       "tier": "Model tier for multi-model routing. Fast = simple tasks, Premium = complex analysis. Leave unset to opt out of auto-routing",
@@ -822,7 +822,7 @@
     },
     "help": {
       "temperature": "Controls output randomness. 0 = deterministic, 2 = highly random. Recommended: 0~0.3 for precise tasks, 0.7~1.2 for creative writing",
-      "maxTokens": "Only limits the reply length for one response. It does not increase input context capacity. Leave empty for the model default and do not exceed the selected model limit. It is different from the model's total context budget and the separate page_context.page_data byte budget. ~2 tokens per Chinese character",
+      "maxTokens": "Only limits the reply length for one response. It does not increase input context capacity. Leave empty for the model default and do not exceed the selected model limit. It is different from the model's total context budget. ~2 tokens per Chinese character",
       "topP": "Nucleus sampling parameter, works with temperature to control diversity. Usually keep at 1, avoid adjusting both simultaneously",
       "skillBindings": "Select the skills this agent can invoke. Skills are the direct runtime grant unit, while skill packages are only used for grouping and management",
       "skillPackageBindings": "Select skill packages this agent can invoke",

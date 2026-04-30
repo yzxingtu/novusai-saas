@@ -13,7 +13,7 @@ import { usePanelHistory } from './use-panel-history';
 import { usePanelSendMessage } from './use-panel-send-message';
 import { usePanelShellActions } from './use-panel-shell-actions';
 import { usePanelShellContext } from './use-panel-shell-context';
-import { usePendingPageOps } from './use-pending-page-ops';
+import { usePendingToolActions } from './use-pending-tool-actions';
 
 export interface AIChatSlidePanelShellProps {
   apiPrefix: string;
@@ -145,9 +145,9 @@ export function useAIChatSlidePanelShell(
   } = chat;
 
   const { countdownNow, getPendingOpsForMessage, unassociatedPendingOps } =
-    usePendingPageOps({
+    usePendingToolActions({
       chatMessages,
-      pendingPageOps: toRef(aiPanelStore, 'pendingPageOps'),
+      pendingToolActions: toRef(aiPanelStore, 'pendingToolActions'),
     });
 
   const exportMenuItems = computed(() => [
@@ -180,7 +180,7 @@ export function useAIChatSlidePanelShell(
     apiPrefix,
     chatMessages,
     clearConversationMemory,
-    clearResolvedPageOps: () => aiPanelStore.clearResolvedPageOps?.(),
+    clearResolvedToolActions: () => aiPanelStore.clearResolvedToolActions?.(),
     consumePendingAgentId: () => aiPanelStore.consumePendingAgentId() ?? null,
     conversations,
     ensureAgentVarsLoaded,
@@ -195,7 +195,6 @@ export function useAIChatSlidePanelShell(
     loadConversations,
     onConversationRestored: () => emit('conversationRestored'),
     onMessageSent: () => emit('messageSent'),
-    panelStore: aiPanelStore,
     pendingConversationId: toRef(props, 'pendingConversationId'),
     pendingMessage: toRef(props, 'pendingMessage'),
     routing,
@@ -220,7 +219,6 @@ export function useAIChatSlidePanelShell(
     clearRoutingIntent,
     deferSendForMissingVariables,
     forceRerouteNextTurn,
-    getRichTextDraftState,
     headerConversationSummary,
     headerMemoryHasAttention,
     headerMoreHasAttention,
@@ -230,9 +228,6 @@ export function useAIChatSlidePanelShell(
     onClearMemory,
     onEditHeaderVars,
     onToggleMemory,
-    onRichTextApply,
-    onRichTextDiscard,
-    onRichTextUndo,
     onToggleForceReroute,
     openVarsModal,
     routeNotice,
@@ -274,7 +269,7 @@ export function useAIChatSlidePanelShell(
   }
 
   const history = usePanelHistory({
-    clearResolvedPageOps: aiPanelStore.clearResolvedPageOps,
+    clearResolvedToolActions: aiPanelStore.clearResolvedToolActions,
     clearRoutingIntent,
     conversations,
     deleteConversation,
@@ -318,7 +313,7 @@ export function useAIChatSlidePanelShell(
     chatAcceptAttribute,
     chatMessages,
     cleanup,
-    clearResolvedPageOps: aiPanelStore.clearResolvedPageOps,
+    clearResolvedToolActions: aiPanelStore.clearResolvedToolActions,
     clearingMemory,
     commitEditTitle: history.commitEditTitle,
     confirmAction,
@@ -338,7 +333,6 @@ export function useAIChatSlidePanelShell(
     exportMenuItems,
     forceRerouteNextTurn,
     getPendingOpsForMessage,
-    getRichTextDraftState,
     groupedConversations: history.groupedConversations,
     handleClose: shellActions.handleClose,
     handleDragOver,
@@ -375,9 +369,6 @@ export function useAIChatSlidePanelShell(
     onDocumentClick: shellActions.onDocumentClick,
     onEditHeaderVars,
     onToggleMemory,
-    onRichTextApply,
-    onRichTextDiscard,
-    onRichTextUndo,
     onSelectConversation: history.onSelectConversation,
     onStartNewChat: history.onStartNewChat,
     onToggleForceReroute,
@@ -390,8 +381,8 @@ export function useAIChatSlidePanelShell(
     rejectConsent,
     removePendingAttachment,
     removeSelectedKnowledgeBase,
-    resolvePendingOp: (invokeId: string, allowed: boolean) =>
-      aiPanelStore.resolvePageOp(invokeId, allowed),
+    resolvePendingAction: (invokeId: string, allowed: boolean) =>
+      aiPanelStore.resolveToolAction(invokeId, allowed),
     retryLastMessage,
     routeNotice,
     routing,

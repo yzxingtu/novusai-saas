@@ -24,8 +24,6 @@ export interface RichTextEditorProps {
   autofocus?: boolean;
   extensions?: AnyExtension[];
   contextTitle?: string;
-  /** Page key for Ctrl+K AI page operations. When set, the editor auto-registers content operations. / 页面键，用于 Ctrl+K AI 页面操作；设置后编辑器自动注册内容操作 */
-  pageKey?: string;
 }
 
 /** 命令式挂载选项 / Imperative mount options */
@@ -43,7 +41,6 @@ export interface MountOptions {
   autofocus?: boolean;
   extensions?: AnyExtension[];
   contextTitle?: string;
-  pageKey?: string;
   onChange?: (json: JSONContent, html: string, text: string) => void;
   onReady?: (editor: Editor) => void;
 }

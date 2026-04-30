@@ -34,7 +34,6 @@ class RuntimeCapabilityManifestSchema(BaseSchema):
     skills: list[RuntimeCapabilityItem] = Field(default_factory=list)
     knowledge_bases: list[RuntimeCapabilityItem] = Field(default_factory=list)
     memory: list[RuntimeCapabilityItem] = Field(default_factory=list)
-    page_context: list[RuntimeCapabilityItem] = Field(default_factory=list)
     web_research: list[RuntimeCapabilityItem] = Field(default_factory=list)
     extensions: list[RuntimeCapabilityItem] = Field(default_factory=list)
     disabled_capabilities: list[RuntimeCapabilityItem] = Field(default_factory=list)

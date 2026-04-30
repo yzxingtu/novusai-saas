@@ -16,28 +16,14 @@ vi.mock('../RichTextEditor.vue', () => ({
   },
 }));
 
-vi.mock('../document-page-ai', () => ({
-  registerRichTextDocumentPageAI: vi.fn(),
-  waitForRichTextEditorOperations: vi.fn(),
-}));
-
-vi.mock('../sourceEditorRegistry', () => ({
-  registerSourceEditor: vi.fn(),
-  resolveSourceEditor: vi.fn(),
-  unregisterSourceEditor: vi.fn(),
-}));
-
 describe('mountRichTextEditor', () => {
-  it('throws when ai is explicitly enabled without a pageKey', () => {
+  it('mounts without requiring page-level AI context keys', () => {
     const container = document.createElement('div');
     document.body.append(container);
 
-    expect(() =>
-      mountRichTextEditor(container, {
-        ai: true,
-      }),
-    ).toThrowError(
-      'mountRichTextEditor: pageKey is required when ai=true for RichTextEditor',
-    );
+    const editor = mountRichTextEditor(container, { ai: true });
+
+    expect(container.querySelector('.rich-text-editor-stub')).not.toBeNull();
+    editor.destroy();
   });
 });

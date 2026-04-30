@@ -28,7 +28,7 @@ from app.ai.events.hooks import HookPoint, get_hook_registry  # noqa: F401
 from app.core.database import async_session_factory  # noqa: F401
 from app.core.logging import LogManager
 from app.enums.common import UserRoleEnum
-from app.schemas.ai.agent_chat import AgentChatResponse, InteractionMode, PageContext
+from app.schemas.ai.agent_chat import AgentChatResponse, InteractionMode
 from app.services.ai.agent_chat_command_service import AgentChatCommandService
 from app.services.ai.agent_chat_error_surface import (
     build_stream_error_display,
@@ -317,7 +317,6 @@ class AgentChatService:
         message: str,
         conversation_id: int | None = None,
         variables: dict[str, Any] | None = None,
-        page_context: PageContext | dict[str, Any] | None = None,
         user_id: int | None = None,
         knowledge_base_ids: list[int] | None = None,
         user_role: str = UserRoleEnum.TENANT_ADMIN.value,
@@ -328,7 +327,6 @@ class AgentChatService:
         memory_scene: str = DEFAULT_MEMORY_SCENE,
         memory_channel: str = MEMORY_CHANNEL_SYSTEM,
         memory_source: str = "",
-        page_session_id: str | None = None,
         route_source: str | None = None,
         interaction_updates: list[dict[str, Any]] | None = None,
         trust_policy_ref: dict[str, Any] | None = None,
@@ -340,7 +338,6 @@ class AgentChatService:
             message=message,
             conversation_id=conversation_id,
             variables=variables,
-            page_context=page_context,
             user_id=user_id,
             knowledge_base_ids=knowledge_base_ids,
             user_role=user_role,
@@ -351,7 +348,6 @@ class AgentChatService:
             memory_scene=memory_scene,
             memory_channel=memory_channel,
             memory_source=memory_source,
-            page_session_id=page_session_id,
             route_source=route_source,
             interaction_updates=interaction_updates,
             trust_policy_ref=trust_policy_ref,
@@ -369,7 +365,6 @@ class AgentChatService:
         messages: list[str] | None = None,
         conversation_id: int | None = None,
         variables: dict[str, Any] | None = None,
-        page_context: PageContext | dict[str, Any] | None = None,
         user_id: int | None = None,
         knowledge_base_ids: list[int] | None = None,
         user_role: str = UserRoleEnum.TENANT_ADMIN.value,
@@ -381,7 +376,6 @@ class AgentChatService:
         memory_scene: str = DEFAULT_MEMORY_SCENE,
         memory_channel: str = MEMORY_CHANNEL_SYSTEM,
         memory_source: str = "",
-        page_session_id: str | None = None,
         route_source: str | None = None,
         interaction_updates: list[dict[str, Any]] | None = None,
         trust_policy_ref: dict[str, Any] | None = None,
@@ -394,7 +388,6 @@ class AgentChatService:
             messages=messages,
             conversation_id=conversation_id,
             variables=variables,
-            page_context=page_context,
             user_id=user_id,
             knowledge_base_ids=knowledge_base_ids,
             user_role=user_role,
@@ -406,7 +399,6 @@ class AgentChatService:
             memory_scene=memory_scene,
             memory_channel=memory_channel,
             memory_source=memory_source,
-            page_session_id=page_session_id,
             route_source=route_source,
             interaction_updates=interaction_updates,
             trust_policy_ref=trust_policy_ref,

@@ -401,23 +401,11 @@ class FloatingPanelSchema(BaseModel):
 
 
 class FrontendPageAISchema(BaseModel):
-    """Frontend page AI metadata (optional) / 前端页面 AI 元信息（可选）"""
+    """Frontend AI entry metadata (optional) / 前端 AI 入口元信息（可选）"""
 
-    mode: Literal["disabled", "context_only", "operate"] | None = Field(
+    mode: Literal["disabled", "enabled"] | None = Field(
         None,
-        description="AI mode override: disabled / context_only / operate",
-    )
-    page_context_key: str | None = Field(
-        None,
-        description="Page context registry key (for resolvePageContext exact matching)",
-    )
-    disabled_capabilities: list[str] | None = Field(
-        None,
-        description="Capability keys disabled on this page",
-    )
-    disabled_operations: list[str] | None = Field(
-        None,
-        description="Operation names disabled on this page",
+        description="AI chat visibility override: disabled / enabled",
     )
 
 

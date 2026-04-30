@@ -103,7 +103,6 @@ export const LUCIDE_ICON_NAMES = [
   "ellipsis",
   "ellipsis-vertical",
   "eraser",
-  "expand",
   "external-link",
   "eye",
   "file",
@@ -287,7 +286,6 @@ export const LUCIDE_ICON_NAMES = [
   "smile",
   "snowflake",
   "sparkles",
-  "spell-check",
   "square",
   "square-check",
   "square-pen",
@@ -442,7 +440,6 @@ export const LUCIDE_ICON_IDS = [
   "lucide:ellipsis",
   "lucide:ellipsis-vertical",
   "lucide:eraser",
-  "lucide:expand",
   "lucide:external-link",
   "lucide:eye",
   "lucide:file",
@@ -626,7 +623,6 @@ export const LUCIDE_ICON_IDS = [
   "lucide:smile",
   "lucide:snowflake",
   "lucide:sparkles",
-  "lucide:spell-check",
   "lucide:square",
   "lucide:square-check",
   "lucide:square-pen",
@@ -1068,9 +1064,6 @@ export const LUCIDE_ICON_SUBSET = {
     },
     "eraser": {
       "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M21 21H8a2 2 0 0 1-1.42-.587l-3.994-3.999a2 2 0 0 1 0-2.828l10-10a2 2 0 0 1 2.829 0l5.999 6a2 2 0 0 1 0 2.828L12.834 21m-7.752-9.91l8.828 8.828\"/>"
-    },
-    "expand": {
-      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"m15 15l6 6M15 9l6-6m0 13v5h-5m5-13V3h-5M3 16v5h5m-5 0l6-6M3 8V3h5m1 6L3 3\"/>"
     },
     "external-link": {
       "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M15 3h6v6m-11 5L21 3m-3 10v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6\"/>"
@@ -1600,9 +1593,6 @@ export const LUCIDE_ICON_SUBSET = {
     },
     "sparkles": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594zM20 2v4m2-2h-4\"/><circle cx=\"4\" cy=\"20\" r=\"2\"/></g>"
-    },
-    "spell-check": {
-      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"m6 16l6-12l6 12M8 12h8m0 8l2 2l4-4\"/>"
     },
     "square": {
       "body": "<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" rx=\"2\"/>"

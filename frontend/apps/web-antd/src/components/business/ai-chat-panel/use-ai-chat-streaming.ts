@@ -17,7 +17,6 @@ import type { PendingInteractionUpdate } from './use-ai-chat-streaming-types';
 import type {
   ChatKBBindingInfo,
   MemoryState,
-  PageContext,
 } from '#/api/shared/ai-chat';
 import type { AIInteractionUpdate } from '#/store/shared/ai-panel';
 
@@ -50,11 +49,6 @@ interface UseAIChatStreamingDeps {
   conversationContextDiagnostics: Ref<null | Record<string, unknown>>;
   conversations: Ref<ConversationItem[]>;
   ensureAgentVarsLoaded: (agentId: number) => void;
-  ensurePageOperationChannelReady: (
-    apiPrefix: string,
-    pageContext?: null | PageContext,
-  ) => Promise<boolean>;
-  hasPageOperations: (pageContext?: null | PageContext) => boolean;
   inputMessage: Ref<string>;
   interactionMode: Ref<InteractionMode>;
   interactionModeEffective: Ref<InteractionMode>;
@@ -105,8 +99,6 @@ export function useAIChatStreaming(deps: UseAIChatStreamingDeps) {
     conversationContextDiagnostics,
     conversations,
     ensureAgentVarsLoaded,
-    ensurePageOperationChannelReady,
-    hasPageOperations,
     inputMessage,
     interactionMode,
     interactionModeEffective,
@@ -197,8 +189,6 @@ export function useAIChatStreaming(deps: UseAIChatStreamingDeps) {
       conversationContextDiagnostics,
       conversations,
       deferredAutoConfirm,
-      ensurePageOperationChannelReady,
-      hasPageOperations,
       interactionMode,
       interactionModeEffective,
       lastMemoryUpdated,
@@ -223,7 +213,6 @@ export function useAIChatStreaming(deps: UseAIChatStreamingDeps) {
 
   async function sendMessage(opts?: {
     agentId?: number;
-    pageContext?: null | PageContext;
     routeSource?: null | string;
     silent?: boolean;
   }): Promise<boolean> {
@@ -245,10 +234,6 @@ export function useAIChatStreaming(deps: UseAIChatStreamingDeps) {
     const maybeTargetAgentId =
       opts?.agentId ?? effectiveConversationAgentId ?? selectedAgentId.value;
     const routeSource = opts?.routeSource ?? null;
-    const pageContext =
-      opts?.pageContext === undefined
-        ? (options.pageContextResolver?.() ?? null)
-        : opts.pageContext;
     const hasText = inputMessage.value.trim().length > 0;
     const hasAttachments = pendingAttachments.value.length > 0;
     const hasInteractionUpdates = pendingInteractionUpdates.value.length > 0;
@@ -369,7 +354,6 @@ export function useAIChatStreaming(deps: UseAIChatStreamingDeps) {
         debounceTimerId = null;
         flushPendingAndSend({
           targetAgentId,
-          pageContext,
         });
       }, SEND_DEBOUNCE_MS);
       return true;
@@ -397,9 +381,6 @@ export function useAIChatStreaming(deps: UseAIChatStreamingDeps) {
       model_name: targetAgent?.model_name ?? null,
       routeSource,
       created_at: new Date().toISOString(),
-      ...(routeSource === 'rich_text_ai'
-        ? { source: 'rich_text_ai' as const }
-        : {}),
     });
     userScrolledUp.value = false;
     scrollToBottom(true);
@@ -423,14 +404,12 @@ export function useAIChatStreaming(deps: UseAIChatStreamingDeps) {
             )
           : undefined,
       targetAgentId,
-      pageContext,
       routeSource,
     });
     return true;
   }
 
   async function flushPendingAndSend(opts: {
-    pageContext: null | PageContext;
     targetAgentId: number;
   }) {
     const msgs = [...pendingMessages.value];
@@ -438,7 +417,7 @@ export function useAIChatStreaming(deps: UseAIChatStreamingDeps) {
     if (msgs.length === 0) return;
     if (sending.value) return;
 
-    const { targetAgentId, pageContext } = opts;
+    const { targetAgentId } = opts;
     const targetAgent = agents.value.find((a) => a.id === targetAgentId);
     chatMessages.value.push({
       clientKey: nextClientKey('assistant'),
@@ -460,7 +439,6 @@ export function useAIChatStreaming(deps: UseAIChatStreamingDeps) {
       texts: msgs.map((m) => m.text),
       apiAttachments: undefined,
       targetAgentId,
-      pageContext,
     });
   }
 

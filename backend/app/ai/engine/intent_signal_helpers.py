@@ -5,16 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from app.ai.runtime.contracts import PAGE_CONTEXT_KEY
 from app.ai.text_semantics import (
     extract_cjk_bigram_and_word_tokens,
     normalize_match_text,
 )
-from app.ai.tools.semantic_defaults import (
-    page_context_available_ui_tools,
-    page_context_has_runtime_state,
-    tool_semantic_family,
-)
+from app.ai.tools.semantic_defaults import tool_semantic_family
 from app.ai.tools.types import ToolDefinition
 from app.ai.types import ChatMessage
 
@@ -75,17 +70,13 @@ def _last_user_text(messages: list[ChatMessage]) -> str:
 
 
 def _has_page_context(input_variables: dict[str, Any] | None) -> bool:
-    if not isinstance(input_variables, dict):
-        return False
-    page_context = input_variables.get(PAGE_CONTEXT_KEY)
-    return isinstance(page_context, dict) and page_context_has_runtime_state(page_context)
+    del input_variables
+    return False
 
 
 def _page_operation_names(input_variables: dict[str, Any] | None) -> set[str]:
-    if not isinstance(input_variables, dict):
-        return set()
-    page_context = input_variables.get(PAGE_CONTEXT_KEY)
-    return set(page_context_available_ui_tools(page_context))
+    del input_variables
+    return set()
 
 
 def _tool_families(

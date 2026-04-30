@@ -52,8 +52,7 @@ describe('usePanelContextBridge', () => {
     const visible = ref(true);
 
     const applyVariables = vi.fn();
-    const clearPendingRichTextTask = vi.fn();
-    const clearResolvedPageOps = vi.fn();
+    const clearResolvedToolActions = vi.fn();
     const consumePendingAgentId = vi.fn(() => {
       const nextId = storePendingAgentId.value;
       storePendingAgentId.value = undefined;
@@ -67,7 +66,6 @@ describe('usePanelContextBridge', () => {
     const onConversationRestored = vi.fn();
     const onMessageSent = vi.fn();
     const sendMessage = vi.fn(async () => {});
-    const sendPreparedRichTextTask = vi.fn(async () => false);
     const startNewConversation = vi.fn((forceReset?: boolean) => {
       if (forceReset) {
         activeConversationId.value = null;
@@ -85,8 +83,7 @@ describe('usePanelContextBridge', () => {
             applyVariables,
             chatMessages,
             clearMentionedAgent: vi.fn(),
-            clearPendingRichTextTask,
-            clearResolvedPageOps,
+            clearResolvedToolActions,
             consumePendingAgentId,
             ensureAgentVarsLoaded,
             forceRerouteNextTurn,
@@ -102,7 +99,6 @@ describe('usePanelContextBridge', () => {
             pendingMessage,
             selectedAgentId,
             sendMessage,
-            sendPreparedRichTextTask,
             showHistory,
             showMemoryPanel,
             startNewConversation,
@@ -118,7 +114,7 @@ describe('usePanelContextBridge', () => {
 
     await flushBridge();
 
-    expect(clearResolvedPageOps).toHaveBeenCalled();
+    expect(clearResolvedToolActions).toHaveBeenCalled();
     expect(consumePendingAgentId).toHaveBeenCalledTimes(1);
     expect(loadAgents).toHaveBeenCalledWith(2);
     expect(startNewConversation).toHaveBeenCalledWith(true);
@@ -164,8 +160,7 @@ describe('usePanelContextBridge', () => {
             applyVariables: vi.fn(),
             chatMessages,
             clearMentionedAgent: vi.fn(),
-            clearPendingRichTextTask: vi.fn(),
-            clearResolvedPageOps: vi.fn(),
+            clearResolvedToolActions: vi.fn(),
             consumePendingAgentId: vi.fn(() => null),
             ensureAgentVarsLoaded: vi.fn(),
             forceRerouteNextTurn,
@@ -181,7 +176,6 @@ describe('usePanelContextBridge', () => {
             pendingMessage,
             selectedAgentId,
             sendMessage: vi.fn(async () => {}),
-            sendPreparedRichTextTask: vi.fn(async () => false),
             showHistory,
             showMemoryPanel,
             startNewConversation: vi.fn(),

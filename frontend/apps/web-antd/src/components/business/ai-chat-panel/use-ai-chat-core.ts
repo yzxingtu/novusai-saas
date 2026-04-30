@@ -11,12 +11,11 @@ import type { AgentItem, ChatMessage, InteractionMode } from './types';
 import type { UseAIChatOptions } from './use-ai-chat-options';
 import type { PendingInteractionUpdate } from './use-ai-chat-streaming';
 
-import type { PageContext, RawMessageItem } from '#/api/shared/ai-chat';
+import type { RawMessageItem } from '#/api/shared/ai-chat';
 
 import { computed, ref, watch } from 'vue';
 
 import { useFileUpload } from '#/composables/use-file-upload';
-import { useSocketIOStore } from '#/store';
 import { useAIPanelStore } from '#/store/shared/ai-panel';
 import { clearConsents } from '#/utils/ai-consent';
 
@@ -28,7 +27,6 @@ import { useAIChatExport } from './use-ai-chat-export';
 import { useAIChatInteractions } from './use-ai-chat-interactions';
 import { useAIChatMemory } from './use-ai-chat-memory';
 import { mergeMessagesForDisplay as mergeMessagesForDisplayHelper } from './use-ai-chat-message-helpers';
-import { createAIChatPageOperations } from './use-ai-chat-page-operations';
 import { useAIChatStreaming } from './use-ai-chat-streaming';
 import { useAIChatVariables } from './use-ai-chat-variables';
 
@@ -36,20 +34,13 @@ export type { UseAIChatOptions } from './use-ai-chat-options';
 
 interface SendMessageOptions {
   agentId?: number;
-  pageContext?: null | PageContext;
   routeSource?: null | string;
   silent?: boolean;
 }
 
 export function useAIChat(options: UseAIChatOptions) {
   const { validateChatFile, revokePreviewUrls } = useFileUpload();
-  const socketIOStore = useSocketIOStore();
   const aiPanelStore = useAIPanelStore();
-  const { ensurePageOperationChannelReady, hasPageOperations } =
-    createAIChatPageOperations({
-      pageSessionIdGetter: options.pageSessionIdGetter,
-      socketIOStore,
-    });
 
   const interactionMode = ref<InteractionMode>('trusted_auto');
   const interactionModeEffective = ref<InteractionMode>('trusted_auto');
@@ -268,8 +259,6 @@ export function useAIChat(options: UseAIChatOptions) {
     conversationContextDiagnostics,
     conversations,
     ensureAgentVarsLoaded,
-    ensurePageOperationChannelReady,
-    hasPageOperations,
     imageParams,
     inputMessage,
     interactionMode,

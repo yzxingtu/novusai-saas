@@ -39,10 +39,7 @@ describe('aIChatSlidePanel (wrapper)', () => {
   it('forwards supported props and does not leak retired page-awareness attrs', async () => {
     const wrapper = mount(AIChatSlidePanel, {
       attrs: {
-        aiMode: 'context_only',
-        disabledCapabilities: ['page_context'],
-        disabledOperations: ['ui_click'],
-        pageContextKey: 'admin.system.logs',
+        retiredPageAwareness: 'ignored',
       },
       props: {
         apiPrefix: '/admin',
@@ -59,10 +56,7 @@ describe('aIChatSlidePanel (wrapper)', () => {
       '/admin/attachments/upload',
     );
     expect(shell.attributes('data-show-attachments')).toBe('false');
-    expect(shell.attributes('data-page-context-key')).toBeUndefined();
-    expect(shell.attributes('data-ai-mode')).toBeUndefined();
-    expect(shell.attributes('data-disabled-capabilities')).toBeUndefined();
-    expect(shell.attributes('data-disabled-operations')).toBeUndefined();
+    expect(shell.attributes('data-retired-page-awareness')).toBeUndefined();
 
     await wrapper
       .get('[data-testid="emit-conversation-restored"]')

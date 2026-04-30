@@ -196,6 +196,18 @@ def plan_execution_tools(
 ) -> PreparedExecutionToolPlan:
     raw_intent_plan = diagnostics.get("intent_plan")
     intent_plan = _deserialize_intent_plan_impl(raw_intent_plan)
+    for intent in intent_plan:
+        if intent.family != "page_ops":
+            continue
+        intent.metadata = {
+            **dict(intent.metadata or {}),
+            "retired_reason": "page_awareness_retired",
+        }
+        intent.requires_tools = False
+        intent.allowed_tool_names = []
+        intent.preferred_tool_names = []
+        intent.completion_signals = []
+        intent.status = "completed"
     intent_flags = _intent_plan_gating_flags_impl(intent_plan, request=request)
 
     explicit_requested_families = _ordered_requested_families_from_intents_impl(
@@ -253,20 +265,10 @@ def plan_execution_tools(
         actionable_intents = [
             intent
             for intent in intent_plan
-            if intent.family != "none" and intent.requires_tools
+            if intent.family not in {"none", "page_ops"} and intent.requires_tools
         ]
         for intent in intent_plan:
             intent.metadata = dict(intent.metadata or {})
-            page_workflow_plan = (
-                ToolRouter.page_intent_tool_plan(
-                    intent.kind,
-                    input_variables=request.input_variables,
-                    intent_metadata=intent.metadata,
-                    user_text=intent.source_text or request.current_user_text,
-                )
-                if intent.family == "page_ops"
-                else None
-            )
             allowed = list(
                 routing.intent_allowed_tools.get(intent.intent_id, [])
             )
@@ -275,8 +277,6 @@ def plan_execution_tools(
             )
             intent.allowed_tool_names = allowed
             intent.preferred_tool_names = preferred
-            if page_workflow_plan is not None:
-                intent.metadata.update(page_workflow_plan.to_metadata())
             intent.completion_signals = _intent_completion_signals_impl(
                 intent.family,
                 intent_kind=intent.kind,
@@ -411,7 +411,7 @@ def plan_execution_tools(
                     [
                         intent
                         for intent in intent_plan
-                        if intent.family != "none"
+                        if intent.family not in {"none", "page_ops"}
                         and intent.requires_tools
                     ]
                 )

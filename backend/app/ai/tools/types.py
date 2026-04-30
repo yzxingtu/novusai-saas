@@ -230,7 +230,6 @@ class ExecutionContext:
     trust_policy_ref: dict[str, Any] | None = None
     skill_id: int | None = None
     variables: dict[str, Any] = field(default_factory=dict)
-    page_session_id: str | None = None
     conversation_id: int | None = None
     interaction_mode: str = "trusted_auto"
     runtime_provider_id: int | None = None

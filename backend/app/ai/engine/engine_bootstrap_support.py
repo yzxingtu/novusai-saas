@@ -99,7 +99,6 @@ def build_tool_sandbox(
         toolkit_security_level=toolkit_security_level,
         toolkit_memory_limit_mb=toolkit_memory_limit_mb,
         input_variables=request.input_variables,
-        page_session_id=request.page_session_id,
         conversation_id=request.conversation_id,
         trust_policy_ref=request.trust_policy_ref,
         interaction_mode=request.interaction_mode,

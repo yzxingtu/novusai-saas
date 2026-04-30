@@ -1,6 +1,6 @@
 import type { Ref } from 'vue';
 
-import type { InputVariable, RichTextAITask } from '#/types/ai-chat';
+import type { InputVariable } from '#/types/ai-chat';
 
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 
@@ -11,7 +11,6 @@ import { $t } from '#/locales';
 interface DeferredSendContext {
   agentId: number;
   consumeMention?: boolean;
-  richTextTask?: RichTextAITask;
   routeSource?: string;
 }
 
@@ -31,8 +30,7 @@ interface UsePanelContextBridgeOptions {
     persist: boolean,
   ) => void;
   clearMentionedAgent: () => void;
-  clearPendingRichTextTask: (taskId?: string) => void;
-  clearResolvedPageOps: () => void;
+  clearResolvedToolActions: () => void;
   chatMessages: Ref<ArrayLike<unknown>>;
   consumePendingAgentId: () => null | number;
   ensureAgentVarsLoaded: (agentId: number) => void;
@@ -54,7 +52,6 @@ interface UsePanelContextBridgeOptions {
     consumeMention?: boolean;
     routeSource?: string;
   }) => Promise<unknown> | unknown;
-  sendPreparedRichTextTask: (task: RichTextAITask) => Promise<boolean>;
   selectedAgentId: Ref<null | number>;
   showHistory: Ref<boolean>;
   showMemoryPanel: Ref<boolean>;
@@ -177,13 +174,11 @@ export function usePanelContextBridge(options: UsePanelContextBridgeOptions) {
     agentName: string;
     consumeMention?: boolean;
     requiredVars: InputVariable[];
-    richTextTask?: RichTextAITask;
     routeSource?: string;
   }) {
     pendingSendContext.value = {
       agentId: payload.agentId,
       consumeMention: payload.consumeMention,
-      richTextTask: payload.richTextTask,
       routeSource: payload.routeSource,
     };
     openVarsModal(payload.requiredVars, payload.agentId, payload.agentName);
@@ -214,20 +209,12 @@ export function usePanelContextBridge(options: UsePanelContextBridgeOptions) {
       return;
     }
 
-    const {
-      agentId: pendingAgentId,
-      consumeMention,
-      richTextTask,
-      routeSource,
-    } = pendingSendContext.value;
+    const { agentId: pendingAgentId, consumeMention, routeSource } =
+      pendingSendContext.value;
     pendingSendContext.value = null;
 
     if (consumeMention) {
       options.clearMentionedAgent();
-    }
-    if (richTextTask) {
-      void options.sendPreparedRichTextTask(richTextTask);
-      return;
     }
     void options.sendMessage({
       agentId: pendingAgentId,
@@ -236,12 +223,8 @@ export function usePanelContextBridge(options: UsePanelContextBridgeOptions) {
   }
 
   function onVarsCancel() {
-    const taskId = pendingSendContext.value?.richTextTask?.taskId;
     varsModalVisible.value = false;
     pendingSendContext.value = null;
-    if (taskId) {
-      options.clearPendingRichTextTask(taskId);
-    }
   }
 
   async function applyExternalContext(): Promise<void> {
@@ -322,7 +305,7 @@ export function usePanelContextBridge(options: UsePanelContextBridgeOptions) {
       return;
     }
 
-    options.clearResolvedPageOps();
+    options.clearResolvedToolActions();
     const pendingAgentId = consumeQueuedPendingAgentId();
     options.forceRerouteNextTurn.value = false;
     openingPanelContext.value = true;
@@ -366,7 +349,7 @@ export function usePanelContextBridge(options: UsePanelContextBridgeOptions) {
       return;
     }
 
-    options.clearResolvedPageOps();
+    options.clearResolvedToolActions();
     await options.loadAgents();
     await options.loadConversations();
     await applyExternalContext();

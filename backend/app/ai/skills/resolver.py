@@ -27,7 +27,10 @@ from app.ai.events.hooks import HookPoint, get_hook_registry
 from app.ai.runtime.types import CapabilityDescriptor, collect_selected_skill_names
 from app.ai.skills import resolver_parts as parts
 from app.ai.skills.activation import TurnSkillActivation
-from app.ai.tools.semantic_defaults import tool_family_from_name
+from app.ai.tools.semantic_defaults import (
+    is_retired_page_tool_name,
+    tool_family_from_name,
+)
 from app.ai.tools.types import ToolDefinition, ToolParameter
 from app.core.logging import LogManager
 
@@ -42,24 +45,7 @@ _BASELINE_RUNTIME_BUILTINS = parts.BASELINE_RUNTIME_BUILTINS
 _WEB_RESEARCH_HINT_TOKENS = frozenset(
     {"research", "search", "web", "fetch", "url", "crawl", "browse"}
 )
-_PAGE_RUNTIME_BUILTIN_TOOL_NAMES = frozenset(
-    {
-        "editor_ops",
-        "ui_click",
-        "ui_fill_form",
-        "ui_get_form_state",
-        "ui_get_snapshot",
-        "ui_list_interactables",
-        "ui_open_surface",
-        "ui_read_region",
-        "ui_read_table",
-        "ui_set_field",
-        "ui_submit_form",
-    }
-)
-_RUNTIME_BUILTIN_TOOL_NAMES = frozenset(
-    set(_BASELINE_RUNTIME_BUILTINS) | set(_PAGE_RUNTIME_BUILTIN_TOOL_NAMES)
-)
+_RUNTIME_BUILTIN_TOOL_NAMES = frozenset(_BASELINE_RUNTIME_BUILTINS)
 
 
 def _stable_unique_texts(values: list[Any]) -> list[str]:
@@ -75,20 +61,12 @@ def _normalized_match_text(value: Any) -> str:
     return " ".join(str(value or "").strip().lower().split())
 
 
-def _is_disabled_page_runtime_tool_name(value: Any) -> bool:
-    normalized = str(value or "").strip()
-    return (
-        normalized.startswith("ui_")
-        or normalized in _PAGE_RUNTIME_BUILTIN_TOOL_NAMES
-    )
-
-
-def _remove_disabled_page_runtime_tools(result: Any) -> None:
+def _remove_retired_page_tools(result: Any) -> None:
     tools = list(getattr(result, "tools", []) or [])
     result.tools = [
         tool
         for tool in tools
-        if not _is_disabled_page_runtime_tool_name(getattr(tool, "name", None))
+        if not is_retired_page_tool_name(getattr(tool, "name", None))
     ]
     if hasattr(result, "tool_consent_modes"):
         result.tool_consent_modes = {
@@ -96,7 +74,7 @@ def _remove_disabled_page_runtime_tools(result: Any) -> None:
             for name, mode in dict(
                 getattr(result, "tool_consent_modes", {}) or {}
             ).items()
-            if not _is_disabled_page_runtime_tool_name(name)
+            if not is_retired_page_tool_name(name)
         }
 
 
@@ -631,7 +609,7 @@ class SkillResolver:
         # Prevent tool name duplicates causing execution and consent attribution mismatch
         # 避免工具重名导致执行与 consent 归因错配
         self._ensure_unique_tool_names(result.tools)
-        _remove_disabled_page_runtime_tools(result)
+        _remove_retired_page_tools(result)
 
         logger.info(
             "Resolved {} skills → {} tools",
@@ -987,7 +965,7 @@ async def resolve_for_agent(
             tool_definitions=resolve_result.tools,
         )
         resolve_result.tools = hook_ctx.get("tool_definitions", resolve_result.tools)
-    _remove_disabled_page_runtime_tools(resolve_result)
+    _remove_retired_page_tools(resolve_result)
     enrich_skill_capability_descriptors_with_tools(
         descriptors=resolve_result.capability_descriptors,
         tools=resolve_result.tools,

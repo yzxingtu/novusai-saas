@@ -13,20 +13,7 @@ BASELINE_RUNTIME_BUILTINS = (
     "web_search",
     "fetch_url",
 )
-PAGE_RUNTIME_BUILTINS = (
-    "editor_ops",
-    "ui_click",
-    "ui_fill_form",
-    "ui_get_form_state",
-    "ui_get_snapshot",
-    "ui_list_interactables",
-    "ui_open_surface",
-    "ui_read_region",
-    "ui_read_table",
-    "ui_set_field",
-    "ui_submit_form",
-)
-RUNTIME_BUILTINS = frozenset((*BASELINE_RUNTIME_BUILTINS, *PAGE_RUNTIME_BUILTINS))
+RUNTIME_BUILTINS = frozenset(BASELINE_RUNTIME_BUILTINS)
 
 
 def augment_builtin_tool_description(
@@ -209,31 +196,9 @@ def build_time_only_runtime_result(
     apply_tool_semantics: Callable[[ToolDefinition], None],
 ) -> Any:
     result = result_factory()
-    tool = build_baseline_builtin_tool(
-        tool_name="get_current_time",
+    inject_baseline_runtime_builtins(
+        result=result,
         apply_tool_semantics=apply_tool_semantics,
-    )
-    if tool is None:
-        return result
-
-    result.tools.append(tool)
-    result.tool_consent_modes[tool.name] = "auto"
-    result.capability_descriptors.append(
-        CapabilityDescriptor(
-            name="get_current_time",
-            kind="capability_pack",
-            source="system_baseline_builtin",
-            description=(
-                "System baseline builtin injected at runtime for "
-                "fast-lane time/date queries."
-            ),
-            metadata={
-                "auto_injected": True,
-                "resolved_tool_names": [tool.name],
-                "resolved_tool_count": 1,
-                "has_execution_tools": True,
-            },
-        )
     )
     return result
 

@@ -151,12 +151,6 @@ export interface StoragePublicConfig {
   maxFileSizeMb?: number;
 }
 
-/** Runtime limits / 运行时限制 */
-export interface RuntimeLimitsConfig {
-  /** Hard limit for page_context.page_data bytes / page_context.page_data 硬限制 */
-  pageContextMaxBytes: number;
-}
-
 /** Platform public config / 平台公开配置 */
 export interface PlatformPublicConfig {
   /** Brand config / 品牌配置 */
@@ -169,8 +163,6 @@ export interface PlatformPublicConfig {
   maintenance: MaintenanceConfig;
   /** Domain config / 域名配置 */
   domain: DomainConfig;
-  /** Runtime limits / 运行时限制 */
-  runtimeLimits?: RuntimeLimitsConfig;
   /** Public storage config / 公开存储配置 */
   storage?: StoragePublicConfig;
   /** Platform admin domain list (for domain detection) / 平台管理端域名列表 */
@@ -195,8 +187,6 @@ export interface TenantPublicConfig {
   maintenance: MaintenanceConfig;
   /** Domain config / 域名配置 */
   domain: DomainConfig;
-  /** Runtime limits / 运行时限制 */
-  runtimeLimits?: RuntimeLimitsConfig;
   /** Public storage config / 公开存储配置 */
   storage?: StoragePublicConfig;
   /** Feature toggles / 功能开关 */
@@ -236,11 +226,6 @@ interface PlatformPublicConfigRaw {
   tenant_domain_suffix?: string;
   domain_verification_prefix?: string;
   platform_domains?: string[];
-
-  // Runtime limits / 运行时限制
-  runtime_limits?: {
-    page_context_max_bytes?: number;
-  };
 
   // Storage / 存储
   storage?: {
@@ -343,10 +328,6 @@ interface TenantPublicConfigRaw {
     max_file_size_mb?: number;
   };
 
-  // Runtime limits / 运行时限制
-  runtime_limits?: {
-    page_context_max_bytes?: number;
-  };
 }
 
 interface CaptchaPluginRuntimeRaw {
@@ -423,13 +404,6 @@ function transformPlatformConfig(
           maxFileSizeMb: raw.storage.max_file_size_mb,
         }
       : undefined,
-    runtimeLimits:
-      raw.runtime_limits?.page_context_max_bytes === null ||
-      raw.runtime_limits?.page_context_max_bytes === undefined
-        ? undefined
-        : {
-            pageContextMaxBytes: raw.runtime_limits.page_context_max_bytes,
-          },
     platformDomains: raw.platform_domains ?? [],
   };
 }
@@ -494,13 +468,6 @@ function transformTenantConfig(raw: TenantPublicConfigRaw): TenantPublicConfig {
           maxFileSizeMb: raw.storage.max_file_size_mb,
         }
       : undefined,
-    runtimeLimits:
-      raw.runtime_limits?.page_context_max_bytes === null ||
-      raw.runtime_limits?.page_context_max_bytes === undefined
-        ? undefined
-        : {
-            pageContextMaxBytes: raw.runtime_limits.page_context_max_bytes,
-          },
     userLoginCaptchaEnabled: raw.user_login_captcha_enabled,
     userLoginCaptchaEnableThreshold: raw.user_login_captcha_enable_threshold,
     userRegistrationCaptchaEnabled: raw.user_registration_captcha_enabled,

@@ -18,7 +18,6 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from app.ai.tools.sandbox import ToolSandbox
-from app.ai.tools.semantic_defaults import UI_READONLY_PAGE_TOOL_NAMES
 from app.ai.tools.types import ToolDefinition, ToolResult
 from app.ai.types import ChatMessage
 from app.core.logging import LogManager
@@ -78,7 +77,7 @@ def is_trusted_auto_read_only_tool_call(
         "fetch_url",
     }:
         return True
-    return name in UI_READONLY_PAGE_TOOL_NAMES
+    return False
 
 
 @dataclass
@@ -227,7 +226,7 @@ class ToolCallProcessor:
             conversation_id=conversation_id,
         )
         duration_ms = int((time.perf_counter() - tc_start) * 1000)
-        self._cache.bump_page_readonly_cache_epoch_if_needed(func_name, arguments, result)
+        self._cache.bump_readonly_cache_epoch_if_needed(func_name, arguments, result)
         self._cache.store_readonly_cache(
             func_name,
             arguments,

@@ -12,8 +12,9 @@ import {
   publishAIAgentApi,
   updateAIAgentStatusApi,
 } from '#/api/admin/ai';
-import { buildPageAIFormExtraData, useCrudList } from '#/composables';
+import { useCrudList } from '#/composables';
 import { $t } from '#/locales';
+import { buildFormExtraData } from '#/utils/form-extra-data';
 import {
   getAdminScopeOptions,
   getScopeColor,
@@ -23,8 +24,6 @@ import {
 import { getStatusText } from '../data';
 import AgentForm from '../modules/form.vue';
 import VersionHistoryDrawer from '../modules/VersionHistory.vue';
-
-const AI_PAGE_KEY = 'admin.ai.agents';
 
 export function useAgentListPage() {
   const agentFormRef = ref<InstanceType<typeof AgentForm>>();
@@ -37,10 +36,6 @@ export function useAgentListPage() {
   const publishChangeLog = ref('');
   const publishLoading = ref(false);
   const publishAgentId = ref<null | number>(null);
-
-  function buildFormExtraData() {
-    return buildPageAIFormExtraData({ pageKey: AI_PAGE_KEY });
-  }
 
   function openAgentEdit(agent: AIAgentInfo) {
     agentFormRef.value?.openEdit(agent, buildFormExtraData());

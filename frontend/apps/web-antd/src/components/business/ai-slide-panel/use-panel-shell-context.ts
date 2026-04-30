@@ -2,56 +2,12 @@ import type { ItemType } from 'ant-design-vue/es/menu';
 
 import type { ComputedRef, Ref } from 'vue';
 
-import type {
-  AgentItem,
-  ChatMessage,
-  RichTextAIApplyMode,
-  RichTextAITask,
-  RichTextConversationBinding,
-} from '#/types/ai-chat';
+import type { AgentItem, ChatMessage } from '#/types/ai-chat';
 
 import { computed, ref } from 'vue';
 
-import { message } from 'ant-design-vue';
-
-import { $t } from '#/locales';
-
 import { usePanelShellHeaderContext } from './use-panel-shell-header-context';
 import { usePanelVarsEditor } from './use-panel-vars-editor';
-import { useRichTextTaskOrchestration } from './use-rich-text-task-orchestration';
-
-interface ShellRichTextStore {
-  bindRichTextConversation: (
-    binding: Omit<RichTextConversationBinding, 'updatedAt'> & {
-      updatedAt?: number;
-    },
-  ) => void;
-  clearPendingRichTextTask: (taskId?: string) => void;
-  getRichTextConversationBinding: (
-    pageKey: string,
-    editorInstanceId: string,
-    agentId: number,
-  ) => null | RichTextConversationBinding;
-  markRichTextTaskApplied: (
-    taskId: string,
-    options?: {
-      conversationId?: null | number;
-      lastAppliedMode?: RichTextAIApplyMode;
-    },
-  ) => void;
-  markRichTextTaskUndone: (
-    taskId: string,
-    options?: {
-      conversationId?: null | number;
-      lastAppliedMode?: RichTextAIApplyMode;
-    },
-  ) => void;
-  open: () => void;
-  pendingRichTextTask: null | RichTextAITask;
-  promoteQueuedRichTextTask: () => null | RichTextAITask;
-  queueRichTextTask: (task: RichTextAITask) => void;
-  visible: boolean;
-}
 
 interface UsePanelShellContextOptions {
   activeConversationId: Ref<null | number>;
@@ -61,7 +17,7 @@ interface UsePanelShellContextOptions {
   apiPrefix: Ref<string>;
   chatMessages: Ref<ChatMessage[]>;
   clearConversationMemory: () => boolean | Promise<boolean>;
-  clearResolvedPageOps: () => void;
+  clearResolvedToolActions: () => void;
   consumePendingAgentId: () => null | number;
   conversations: Ref<Array<{ agent_name?: null | string; id: number }>>;
   ensureAgentVarsLoaded: (agentId: number) => void;
@@ -78,7 +34,6 @@ interface UsePanelShellContextOptions {
   loadConversations: () => Promise<unknown> | unknown;
   onConversationRestored: () => void;
   onMessageSent: () => void;
-  panelStore: ShellRichTextStore;
   pendingConversationId: Ref<null | number | undefined>;
   pendingMessage: Ref<null | string | undefined>;
   routing: Ref<boolean>;
@@ -106,9 +61,6 @@ interface UsePanelShellContextOptions {
 }
 
 export function usePanelShellContext(options: UsePanelShellContextOptions) {
-  const sendPreparedRichTextTaskRef = ref<
-    (task: RichTextAITask) => Promise<boolean>
-  >(async () => false);
   const openMultiVarsEditorRef = ref<() => void>(() => {});
 
   const headerContext = usePanelShellHeaderContext({
@@ -120,8 +72,7 @@ export function usePanelShellContext(options: UsePanelShellContextOptions) {
     applyVariables: options.applyVariables,
     chatMessages: options.chatMessages,
     clearConversationMemory: options.clearConversationMemory,
-    clearPendingRichTextTask: options.panelStore.clearPendingRichTextTask,
-    clearResolvedPageOps: options.clearResolvedPageOps,
+    clearResolvedToolActions: options.clearResolvedToolActions,
     consumePendingAgentId: options.consumePendingAgentId,
     conversations: options.conversations,
     ensureAgentVarsLoaded: options.ensureAgentVarsLoaded,
@@ -144,7 +95,6 @@ export function usePanelShellContext(options: UsePanelShellContextOptions) {
     selectedAgentId: options.selectedAgentId,
     sending: options.sending,
     sendMessage: options.sendMessage,
-    sendPreparedRichTextTask: (task) => sendPreparedRichTextTaskRef.value(task),
     startNewConversation: options.startNewConversation,
     storePendingAgentId: options.storePendingAgentId,
     storePendingConversationId: options.storePendingConversationId,
@@ -164,38 +114,6 @@ export function usePanelShellContext(options: UsePanelShellContextOptions) {
     varsPersist: headerContext.varsPersist,
   });
   openMultiVarsEditorRef.value = varsEditor.openMultiVarsEditor;
-
-  const richTextTask = useRichTextTaskOrchestration({
-    activeConversationId: options.activeConversationId,
-    agents: options.agents,
-    allAgentsVariables: options.allAgentsVariables,
-    chatMessages: options.chatMessages,
-    ensureAgentVarsLoaded: options.ensureAgentVarsLoaded,
-    inputMessage: options.inputMessage,
-    loadConversationMessages: options.loadConversationMessages,
-    manualNewConversationAgentId: headerContext.manualNewConversationAgentId,
-    onMissingVariables: ({ agentId, agentName, requiredVars, task }) => {
-      headerContext.deferSendForMissingVariables({
-        agentId,
-        agentName,
-        requiredVars,
-        richTextTask: task,
-        routeSource: 'rich_text_ai',
-      });
-    },
-    onTaskQueued: () => {
-      message.info($t('common.richTextTaskQueued'));
-    },
-    selectedAgentId: options.selectedAgentId,
-    sendMessage: options.sendMessage,
-    sending: options.sending,
-    showHistory: headerContext.showHistory,
-    showMemoryPanel: headerContext.showMemoryPanel,
-    startNewConversation: options.startNewConversation,
-    store: options.panelStore,
-    streaming: options.streaming,
-  });
-  sendPreparedRichTextTaskRef.value = richTextTask.sendPreparedRichTextTask;
 
   const agentVarsModalProps = computed(() => ({
     multiAgents: options.agentsWithVarsInConversation.value,
@@ -223,9 +141,5 @@ export function usePanelShellContext(options: UsePanelShellContextOptions) {
     ...headerContext,
     agentVarsModalListeners,
     agentVarsModalProps,
-    getRichTextDraftState: richTextTask.getRichTextDraftState,
-    onRichTextApply: richTextTask.onRichTextApply,
-    onRichTextDiscard: richTextTask.onRichTextDiscard,
-    onRichTextUndo: richTextTask.onRichTextUndo,
   };
 }

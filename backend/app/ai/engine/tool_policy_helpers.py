@@ -12,11 +12,6 @@ from .tool_policy_message_helpers import (
     messages_have_blocking_pending_interaction,
     response_has_native_web_search_evidence,
 )
-from .tool_policy_page_helpers import (
-    first_page_intent_kind,
-    looks_like_generic_page_summary_request,
-    restrict_page_tools_for_generic_summary,
-)
 from .tool_policy_selection_helpers import (
     allowed_tool_names_for_families,
     allowed_tool_names_for_family,
@@ -42,6 +37,27 @@ from .tool_policy_semantics import (
     tool_semantic_tags,
 )
 from .tool_policy_trust_helpers import apply_execution_trust_policy
+
+
+def first_page_intent_kind(*args, **kwargs) -> None:
+    del args, kwargs
+    return None
+
+
+def looks_like_generic_page_summary_request(*args, **kwargs) -> bool:
+    del args, kwargs
+    return False
+
+
+def restrict_page_tools_for_generic_summary(
+    *,
+    selected_tools,
+    all_tools,
+    user_text,
+    input_variables=None,
+):
+    del all_tools, user_text, input_variables
+    return selected_tools, False
 
 __all__ = [
     "allowed_tool_names_for_families",

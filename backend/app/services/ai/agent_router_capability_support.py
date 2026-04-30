@@ -10,9 +10,6 @@ from app.ai.tools.semantic_defaults import tool_family_from_name
 from app.models.ai.agent import Agent
 from app.models.ai.agent_skill_grant import AgentSkillGrant
 
-PAGE_OPERATION_REQUIRED_SKILL_GROUPS = (
-    frozenset({"ui_get_snapshot", "ui_click"}),
-)
 BASELINE_RUNTIME_FAMILIES = frozenset({"time_ops"})
 
 
@@ -190,7 +187,6 @@ def agent_supports_families(agent: Agent | None, families: list[str]) -> bool:
 
 __all__ = [
     "BASELINE_RUNTIME_FAMILIES",
-    "PAGE_OPERATION_REQUIRED_SKILL_GROUPS",
     "agent_can_handle_images",
     "agent_needs_function_calling",
     "agent_skill_names",

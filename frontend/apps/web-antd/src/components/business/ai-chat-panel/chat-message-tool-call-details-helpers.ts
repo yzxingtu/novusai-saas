@@ -2,7 +2,7 @@ import type { ToolDisplayItem } from './tool-call-utils';
 
 import { $t } from '#/locales';
 
-import { getPageOpErrorHintKey } from './pageOpErrorHints';
+import { getToolActionErrorHintKey } from './toolActionErrorHints';
 import {
   getSearchFallbackNotice,
   getSearchProviderLabel,
@@ -368,7 +368,7 @@ export function buildToolCallDetailsViewModel(
 
   return {
     argumentFields,
-    errorHintKey: getPageOpErrorHintKey(toolItem.tc.errorType),
+    errorHintKey: getToolActionErrorHintKey(toolItem.tc.errorType),
     hasSearchTechnicalDetails: searchTechnicalDetails.length > 0,
     hasStructuredOutputPreview: outputFields.length > 0 || outputPreview !== null,
     outputFields,

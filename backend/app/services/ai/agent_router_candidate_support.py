@@ -6,7 +6,6 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Any
 
 from app.core.i18n import _
 from app.core.logging import LogManager
@@ -28,12 +27,11 @@ class CandidateFilterResult:
 async def filter_router_candidates(
     *,
     message: str,
-    page_context: dict[str, Any] | None,
     candidates: list[Agent],
     has_image_attachments: bool,
     agent_can_handle_images: Callable[[Agent], Awaitable[bool]],
 ) -> CandidateFilterResult:
-    requested_families = requested_tool_families(message, page_context)
+    requested_families = requested_tool_families(message)
     family_coverage_filtered = False
 
     if has_image_attachments:

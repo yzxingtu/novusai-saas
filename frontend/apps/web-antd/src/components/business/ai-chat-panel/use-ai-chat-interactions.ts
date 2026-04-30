@@ -3,8 +3,6 @@ import type { Ref } from 'vue';
 import type { ChatMessage } from './types';
 import type { PendingInteractionUpdate } from './use-ai-chat-streaming';
 
-import type { PageContext } from '#/api/shared/ai-chat';
-
 import { ref } from 'vue';
 
 interface UseAIChatInteractionsDeps {
@@ -13,7 +11,6 @@ interface UseAIChatInteractionsDeps {
   pendingInteractionUpdates?: Ref<PendingInteractionUpdate[]>;
   sendMessage: (options?: {
     agentId?: number;
-    pageContext?: null | PageContext;
     routeSource?: null | string;
     silent?: boolean;
   }) => boolean | Promise<boolean> | Promise<undefined> | undefined;

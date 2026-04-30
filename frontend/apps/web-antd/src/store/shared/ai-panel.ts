@@ -5,13 +5,6 @@
  * pinned agent, tool call dispatch, etc. Replaces global-ai-chat.ts.
  * 管理 AI 侧滑面板的全局状态。
  */
-import type {
-  RichTextAIApplyMode,
-  RichTextAITask,
-  RichTextAITaskState,
-  RichTextConversationBinding,
-} from '#/types/ai-chat';
-
 import { ref } from 'vue';
 
 import { defineStore } from 'pinia';
@@ -19,7 +12,7 @@ import { defineStore } from 'pinia';
 /** Panel display mode / 面板显示模式 */
 export type AIPanelMode = 'full' | 'panel';
 
-export interface PendingPageOp {
+export interface PendingToolAction {
   invokeId: string;
   pageKey: string;
   operationName: string;
@@ -43,32 +36,6 @@ export interface AIInteractionUpdate {
   table?: string;
   tool_name?: string;
   value?: string;
-}
-
-function cloneRichTextTask(task: RichTextAITask): RichTextAITask {
-  return {
-    ...task,
-    availableModes: [...task.availableModes],
-    draft: { ...task.draft },
-    selectionSnapshot: { ...task.selectionSnapshot },
-  };
-}
-
-function cloneRichTextConversationBinding(
-  binding: RichTextConversationBinding,
-): RichTextConversationBinding {
-  return {
-    ...binding,
-    task: cloneRichTextTask(binding.task),
-  };
-}
-
-function getRichTextConversationBindingKey(
-  pageKey: string,
-  editorInstanceId: string,
-  agentId: number,
-): string {
-  return `${pageKey}::${editorInstanceId}::${agentId}`;
 }
 
 export const useAIPanelStore = defineStore('ai-panel', () => {
@@ -115,17 +82,6 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
 
   /** Pending conversation to restore after panel opens / 面板打开后待恢复的对话 */
   const pendingConversationId = ref<null | number>(null);
-
-  /** Rich text draft task that can be rendered immediately / 当前可直接渲染的富文本草稿任务 */
-  const pendingRichTextTask = ref<null | RichTextAITask>(null);
-
-  /** Rich text draft task waiting for panel to become idle / 等待面板空闲后渲染的富文本草稿任务 */
-  const queuedRichTextTask = ref<null | RichTextAITask>(null);
-
-  /** Latest rich text draft binding for each source editor / 来源编辑器级富文本草稿绑定 */
-  const richTextConversationBindings = ref<
-    Record<string, RichTextConversationBinding>
-  >({});
 
   /** Whether there are unread messages / 是否有未读消息 */
   const hasUnread = ref(false);
@@ -282,218 +238,37 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
     }
   }
 
-  // ==================== Rich Text Draft Tasks / 富文本草稿任务 ====================
+  // ==================== Tool Action Confirmation / 工具动作确认 ====================
 
-  function queueRichTextTask(task: RichTextAITask) {
-    queuedRichTextTask.value = {
-      ...cloneRichTextTask(task),
-      state: 'queued',
-      updatedAt: Date.now(),
-    };
-  }
-
-  function setPendingRichTextTask(task: null | RichTextAITask) {
-    pendingRichTextTask.value = task
-      ? {
-          ...cloneRichTextTask(task),
-          state: task.state === 'queued' ? 'ready' : task.state,
-          updatedAt: Date.now(),
-        }
-      : null;
-  }
-
-  function clearPendingRichTextTask(taskId?: string) {
-    if (!taskId || pendingRichTextTask.value?.taskId === taskId) {
-      pendingRichTextTask.value = null;
-    }
-  }
-
-  function clearQueuedRichTextTask(taskId?: string) {
-    if (!taskId || queuedRichTextTask.value?.taskId === taskId) {
-      queuedRichTextTask.value = null;
-    }
-  }
-
-  function promoteQueuedRichTextTask(): null | RichTextAITask {
-    if (!queuedRichTextTask.value) {
-      return null;
-    }
-    const task = {
-      ...cloneRichTextTask(queuedRichTextTask.value),
-      state: 'ready' as RichTextAITaskState,
-      updatedAt: Date.now(),
-    };
-    queuedRichTextTask.value = null;
-    pendingRichTextTask.value = task;
-    return cloneRichTextTask(task);
-  }
-
-  function bindRichTextConversation(
-    binding: Omit<RichTextConversationBinding, 'updatedAt'> & {
-      updatedAt?: number;
-    },
-  ) {
-    const key = getRichTextConversationBindingKey(
-      binding.pageKey,
-      binding.editorInstanceId,
-      binding.agentId,
-    );
-    richTextConversationBindings.value = {
-      ...richTextConversationBindings.value,
-      [key]: cloneRichTextConversationBinding({
-        ...binding,
-        updatedAt: binding.updatedAt ?? Date.now(),
-      }),
-    };
-  }
-
-  function getRichTextConversationBinding(
-    pageKey: string,
-    editorInstanceId: string,
-    agentId: number,
-  ): null | RichTextConversationBinding {
-    if (!pageKey || !editorInstanceId || !Number.isFinite(agentId)) {
-      return null;
-    }
-    const binding =
-      richTextConversationBindings.value[
-        getRichTextConversationBindingKey(pageKey, editorInstanceId, agentId)
-      ];
-    return binding ? cloneRichTextConversationBinding(binding) : null;
-  }
-
-  function clearRichTextConversationBinding(
-    pageKey: string,
-    editorInstanceId: string,
-    agentId: number,
-  ) {
-    const nextBindings = { ...richTextConversationBindings.value };
-    Reflect.deleteProperty(
-      nextBindings,
-      getRichTextConversationBindingKey(pageKey, editorInstanceId, agentId),
-    );
-    richTextConversationBindings.value = nextBindings;
-  }
-
-  function updateTaskState(
-    task: RichTextAITask,
-    state: RichTextAITaskState,
-    lastAppliedMode?: RichTextAIApplyMode,
-  ): RichTextAITask {
-    return {
-      ...cloneRichTextTask(task),
-      state,
-      updatedAt: Date.now(),
-      ...(lastAppliedMode ? { lastAppliedMode } : {}),
-    };
-  }
-
-  function updateRichTextTaskState(
-    taskId: string,
-    options: {
-      conversationId?: null | number;
-      lastAppliedMode?: RichTextAIApplyMode;
-      state: RichTextAITaskState;
-    },
-  ) {
-    if (pendingRichTextTask.value?.taskId === taskId) {
-      pendingRichTextTask.value = updateTaskState(
-        pendingRichTextTask.value,
-        options.state,
-        options.lastAppliedMode,
-      );
-    }
-    if (queuedRichTextTask.value?.taskId === taskId) {
-      queuedRichTextTask.value = updateTaskState(
-        queuedRichTextTask.value,
-        options.state,
-        options.lastAppliedMode,
-      );
-    }
-
-    const bindings = richTextConversationBindings.value;
-    const matchingEntry = Object.entries(bindings).find(
-      ([, binding]) =>
-        binding.task.taskId === taskId &&
-        (options.conversationId === null ||
-          options.conversationId === undefined ||
-          binding.conversationId === options.conversationId),
-    );
-    if (!matchingEntry) return;
-    const [bindingKey, binding] = matchingEntry;
-    richTextConversationBindings.value = {
-      ...bindings,
-      [bindingKey]: cloneRichTextConversationBinding({
-        ...binding,
-        task: updateTaskState(
-          binding.task,
-          options.state,
-          options.lastAppliedMode,
-        ),
-        updatedAt: Date.now(),
-      }),
-    };
-  }
-
-  function markRichTextTaskApplied(
-    taskId: string,
-    options?: {
-      conversationId?: null | number;
-      lastAppliedMode?: RichTextAIApplyMode;
-    },
-  ) {
-    updateRichTextTaskState(taskId, {
-      state: 'applied',
-      conversationId: options?.conversationId,
-      lastAppliedMode: options?.lastAppliedMode,
-    });
-  }
-
-  function markRichTextTaskUndone(
-    taskId: string,
-    options?: {
-      conversationId?: null | number;
-      lastAppliedMode?: RichTextAIApplyMode;
-    },
-  ) {
-    updateRichTextTaskState(taskId, {
-      state: 'undone',
-      conversationId: options?.conversationId,
-      lastAppliedMode: options?.lastAppliedMode,
-    });
-  }
-
-  // ==================== Page Operation Confirmation / 页面操作确认 ====================
-
-  const pendingPageOps = ref<PendingPageOp[]>([]);
+  const pendingToolActions = ref<PendingToolAction[]>([]);
   const pendingInteractionUpdates = ref<AIInteractionUpdate[]>([]);
-  const RESOLVED_PAGE_OP_TTL_MS = 1500;
-  const pageOpCleanupTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  const RESOLVED_TOOL_ACTION_TTL_MS = 1500;
+  const toolActionCleanupTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
-  function clearPageOpCleanupTimer(invokeId: string) {
-    const timerId = pageOpCleanupTimers.get(invokeId);
+  function clearToolActionCleanupTimer(invokeId: string) {
+    const timerId = toolActionCleanupTimers.get(invokeId);
     if (timerId !== undefined) {
       clearTimeout(timerId);
-      pageOpCleanupTimers.delete(invokeId);
+      toolActionCleanupTimers.delete(invokeId);
     }
   }
 
-  function removePageOp(invokeId: string) {
-    clearPageOpCleanupTimer(invokeId);
-    pendingPageOps.value = pendingPageOps.value.filter(
+  function removeToolAction(invokeId: string) {
+    clearToolActionCleanupTimer(invokeId);
+    pendingToolActions.value = pendingToolActions.value.filter(
       (op) => op.invokeId !== invokeId,
     );
   }
 
-  function scheduleResolvedPageOpCleanup(invokeId: string) {
-    clearPageOpCleanupTimer(invokeId);
+  function scheduleResolvedToolActionCleanup(invokeId: string) {
+    clearToolActionCleanupTimer(invokeId);
     const timerId = setTimeout(() => {
-      removePageOp(invokeId);
-    }, RESOLVED_PAGE_OP_TTL_MS);
-    pageOpCleanupTimers.set(invokeId, timerId);
+      removeToolAction(invokeId);
+    }, RESOLVED_TOOL_ACTION_TTL_MS);
+    toolActionCleanupTimers.set(invokeId, timerId);
   }
 
-  function requestPageOpConfirmation(op: {
+  function requestToolActionConfirmation(op: {
     invokeId: string;
     operationDescription: string;
     operationLabel: string;
@@ -502,8 +277,8 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
     params: Record<string, unknown>;
     toolCallId?: string;
   }): Promise<boolean> {
-    clearResolvedPageOps();
-    const existing = pendingPageOps.value.find(
+    clearResolvedToolActions();
+    const existing = pendingToolActions.value.find(
       (item) => item.invokeId === op.invokeId,
     );
     if (existing && !existing.resolved) {
@@ -511,9 +286,9 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
       existing.allowed = false;
       existing.resolve(false);
     }
-    removePageOp(op.invokeId);
+    removeToolAction(op.invokeId);
     return new Promise<boolean>((resolvePromise) => {
-      pendingPageOps.value.push({
+      pendingToolActions.value.push({
         ...op,
         resolved: false,
         resolve: resolvePromise,
@@ -522,22 +297,22 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
     });
   }
 
-  function resolvePageOp(invokeId: string, allowed: boolean) {
-    const op = pendingPageOps.value.find((o) => o.invokeId === invokeId);
+  function resolveToolAction(invokeId: string, allowed: boolean) {
+    const op = pendingToolActions.value.find((o) => o.invokeId === invokeId);
     if (!op || op.resolved) return;
     op.resolved = true;
     op.allowed = allowed;
     op.resolve(allowed);
-    scheduleResolvedPageOpCleanup(invokeId);
+    scheduleResolvedToolActionCleanup(invokeId);
   }
 
-  function clearResolvedPageOps() {
-    for (const op of pendingPageOps.value) {
+  function clearResolvedToolActions() {
+    for (const op of pendingToolActions.value) {
       if (op.resolved) {
-        clearPageOpCleanupTimer(op.invokeId);
+        clearToolActionCleanupTimer(op.invokeId);
       }
     }
-    pendingPageOps.value = pendingPageOps.value.filter((o) => !o.resolved);
+    pendingToolActions.value = pendingToolActions.value.filter((o) => !o.resolved);
   }
 
   function queueInteractionUpdate(update: AIInteractionUpdate) {
@@ -597,14 +372,11 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
     pendingAgentId.value = undefined;
     pendingMessage.value = null;
     pendingConversationId.value = null;
-    pendingRichTextTask.value = null;
-    queuedRichTextTask.value = null;
-    richTextConversationBindings.value = {};
     hasUnread.value = false;
-    for (const invokeId of pageOpCleanupTimers.keys()) {
-      clearPageOpCleanupTimer(invokeId);
+    for (const invokeId of toolActionCleanupTimers.keys()) {
+      clearToolActionCleanupTimer(invokeId);
     }
-    pendingPageOps.value = [];
+    pendingToolActions.value = [];
     pendingInteractionUpdates.value = [];
     toolCallHandlers.clear();
   }
@@ -623,9 +395,6 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
     pendingAgentId,
     pendingMessage,
     pendingConversationId,
-    pendingRichTextTask,
-    queuedRichTextTask,
-    richTextConversationBindings,
     hasUnread,
 
     // Panel actions / 面板操作
@@ -657,25 +426,14 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
     consumePendingConversationId,
     consumePendingAgentId,
     markUnread,
-    queueRichTextTask,
-    setPendingRichTextTask,
-    clearPendingRichTextTask,
-    clearQueuedRichTextTask,
-    promoteQueuedRichTextTask,
-    bindRichTextConversation,
-    getRichTextConversationBinding,
-    clearRichTextConversationBinding,
-    markRichTextTaskApplied,
-    markRichTextTaskUndone,
-
-    // Page operation confirmation / 页面操作确认
-    pendingPageOps,
-    requestPageOpConfirmation,
-    resolvePageOp,
+    // Tool action confirmation / 工具动作确认
+    pendingToolActions,
+    requestToolActionConfirmation,
+    resolveToolAction,
     queueInteractionUpdate,
     consumeInteractionUpdates,
     restoreInteractionUpdates,
-    clearResolvedPageOps,
+    clearResolvedToolActions,
 
     // Tool calls / 工具调用
     registerToolCallHandler,

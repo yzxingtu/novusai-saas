@@ -14,9 +14,6 @@ from app.ai.runtime.types import (
 )
 from app.ai.types import ChatChunk, ChatMessage, ChatResponse
 
-PAGE_CONTEXT_KEY = "page_context"
-
-
 TurnFlowStageType = Literal[
     "thinking",
     "tool_selection",
@@ -33,7 +30,7 @@ TurnFlowStageStatus = Literal[
     "error",
     "interrupted",
 ]
-TurnEvidenceKind = Literal["web", "knowledge_base", "tool", "page", "memory"]
+TurnEvidenceKind = Literal["web", "knowledge_base", "tool", "memory"]
 
 
 @dataclass

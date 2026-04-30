@@ -16,9 +16,10 @@ Retired concepts include:
 - Prompt, planner, router, manifest, or diagnostics logic that promotes a user
   request into a `page_ops` family.
 
-Compatibility fields may remain temporarily on public schemas, but they are
-ignored by live AI dialogue. They must not be used as evidence that page
-awareness is enabled.
+This is a new-system boundary, not a compatibility mode. Do not keep or add
+public request fields, frontend route metadata, socket channels, or runtime
+bridges whose only purpose is to preserve `page_context`, `page_session_id`, or
+`ui_*` page-operation behavior.
 
 ## Replacement Pattern
 
@@ -31,6 +32,9 @@ backend boundary instead of page perception:
   permissioned, and intentionally callable by AI.
 - Return structured data with provenance and authorization checks; do not ask
   the model to infer state from rendered DOM.
+- If a product area knows AI will need to analyze its data, reserve an explicit
+  backend API or skill-pack tool contract during feature design. Do not add a
+  generic page-perception fallback later.
 
 ## Skill Governance
 
@@ -46,7 +50,7 @@ backend boundary instead of page perception:
 
 ## Required Guards
 
-- API entrypoints must ignore `page_context` and `page_session_id`.
+- API entrypoints must not accept `page_context` or `page_session_id`.
 - Runtime context assembly must not create `page_context` context sources.
 - Tool definitions returned to the model must not include retired page tools.
 - `ToolSandbox` must reject retired page tool names even when supplied by a

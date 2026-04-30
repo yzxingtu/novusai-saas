@@ -32,11 +32,8 @@ export interface BackendMenuItemRaw {
       capabilities?: string[];
       category?: string;
       description?: string;
-      disabled_capabilities?: string | string[];
-      disabled_operations?: string | string[];
       keywords?: string[];
       mode?: string;
-      page_context_key?: string;
     };
     authority?: string[];
     badge?: string;
@@ -220,15 +217,6 @@ function transformMenuItem(
         aiMeta.capabilities = item.meta.ai.capabilities;
       }
       if (item.meta.ai.mode) aiMeta.mode = item.meta.ai.mode;
-      if (item.meta.ai.page_context_key) {
-        aiMeta.pageContextKey = item.meta.ai.page_context_key;
-      }
-      if (item.meta.ai.disabled_capabilities !== undefined) {
-        aiMeta.disabledCapabilities = item.meta.ai.disabled_capabilities;
-      }
-      if (item.meta.ai.disabled_operations !== undefined) {
-        aiMeta.disabledOperations = item.meta.ai.disabled_operations;
-      }
       if (Object.keys(aiMeta).length > 0) {
         (meta as Record<string, unknown>).ai = aiMeta;
       }

@@ -131,7 +131,6 @@ class UserAgentChatController(BaseController):
                 message=data.message,
                 conversation_id=data.conversation_id,
                 variables=data.variables,
-                page_context=None,
                 user_id=current_user.id,
                 knowledge_base_ids=data.knowledge_base_ids,
                 user_role=UserRoleEnum.TENANT_USER.value,
@@ -144,7 +143,6 @@ class UserAgentChatController(BaseController):
                 memory_scene=MemorySceneEnum.AI_CHAT_PAGE.value,
                 memory_channel=MemoryChannelEnum.USER_CHAT.value,
                 memory_source=MemorySceneEnum.AI_CHAT_PAGE.value,
-                page_session_id=None,
                 route_source=data.route_source,
                 interaction_updates=[
                     item.model_dump() for item in data.interaction_updates
@@ -198,7 +196,6 @@ class UserAgentChatController(BaseController):
                 messages=data.messages,
                 conversation_id=data.conversation_id,
                 variables=data.variables,
-                page_context=None,
                 user_id=current_user.id,
                 knowledge_base_ids=data.knowledge_base_ids,
                 user_role=UserRoleEnum.TENANT_USER.value,
@@ -214,7 +211,6 @@ class UserAgentChatController(BaseController):
                 memory_scene=MemorySceneEnum.AI_CHAT_PAGE.value,
                 memory_channel=MemoryChannelEnum.USER_CHAT.value,
                 memory_source=MemorySceneEnum.AI_CHAT_PAGE.value,
-                page_session_id=None,
                 route_source=data.route_source,
                 interaction_updates=[
                     item.model_dump() for item in data.interaction_updates
@@ -241,8 +237,8 @@ class UserAgentChatController(BaseController):
             current_user: ActiveTenantUser,
         ):
             """
-            根据消息和页面上下文智能选择目标智能体
-            Intelligently select target agent based on message and page context
+            根据消息、附件类型和当前对话智能选择目标智能体
+            Intelligently select target agent from message, attachment flags, and conversation state
 
             路由优先级 / Routing priority:
             1. pinned_agent_id 直通 / pinned_agent_id pass-through
@@ -256,7 +252,6 @@ class UserAgentChatController(BaseController):
                 conversation_id=data.conversation_id,
                 user_role=UserRoleEnum.TENANT_USER.value,
                 user_role_id=current_user.role_id,
-                page_context=None,
                 pinned_agent_id=data.pinned_agent_id,
                 user_id=current_user.id,
                 force_reroute=data.force_reroute,

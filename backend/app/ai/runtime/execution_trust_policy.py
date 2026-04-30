@@ -7,12 +7,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import Any
 
-from app.ai.tools.semantic_defaults import (
-    UI_DANGEROUS_PAGE_TOOL_NAMES,
-    UI_READONLY_PAGE_TOOL_NAMES,
-    UI_SAFE_WRITE_PAGE_TOOL_NAMES,
-    tool_family_from_name,
-)
+from app.ai.tools.semantic_defaults import tool_family_from_name
 from app.enums.agent import ActionLevelEnum
 
 _RISK_ORDER = {
@@ -71,15 +66,6 @@ def tool_risk_level(
 
     if normalized_family in {"web_research", "weather"}:
         return ActionLevelEnum.READ.value
-    if normalized_name in UI_READONLY_PAGE_TOOL_NAMES:
-        return ActionLevelEnum.READ.value
-    if normalized_name in UI_DANGEROUS_PAGE_TOOL_NAMES:
-        return ActionLevelEnum.DANGEROUS.value
-    if (
-        normalized_name in UI_SAFE_WRITE_PAGE_TOOL_NAMES
-        or normalized_family == "page_ops"
-    ):
-        return ActionLevelEnum.SAFE_WRITE.value
     if normalized_name.startswith(("http", "email", "code_", "toolkit")):
         return ActionLevelEnum.DANGEROUS.value
     return ActionLevelEnum.SAFE_WRITE.value

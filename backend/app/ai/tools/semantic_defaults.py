@@ -15,8 +15,6 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from app.ai.runtime.contracts import PAGE_CONTEXT_KEY
-
 # Per-family short phrases used for tool optimization and capability-term expansion.
 # 按族的短语文本，用于工具优化与能力词扩展。
 FAMILY_HINT_TAGS: dict[str, tuple[str, ...]] = {
@@ -63,7 +61,8 @@ FAMILY_EXPLICIT_REQUEST_HINTS: dict[str, tuple[str, ...]] = {
     for family, tags in FAMILY_HINT_TAGS.items()
 }
 
-UI_PAGE_TOOL_ORDER: tuple[str, ...] = (
+RETIRED_PAGE_TOOL_ORDER: tuple[str, ...] = (
+    "editor_ops",
     "ui_get_snapshot",
     "ui_read_region",
     "ui_read_table",
@@ -75,8 +74,8 @@ UI_PAGE_TOOL_ORDER: tuple[str, ...] = (
     "ui_fill_form",
     "ui_submit_form",
 )
-UI_PAGE_TOOL_NAMES: frozenset[str] = frozenset(UI_PAGE_TOOL_ORDER)
-UI_READONLY_PAGE_TOOL_NAMES: frozenset[str] = frozenset(
+RETIRED_PAGE_TOOL_NAMES: frozenset[str] = frozenset(RETIRED_PAGE_TOOL_ORDER)
+READONLY_RETIRED_PAGE_TOOL_NAMES: frozenset[str] = frozenset(
     {
         "ui_get_snapshot",
         "ui_read_region",
@@ -85,7 +84,7 @@ UI_READONLY_PAGE_TOOL_NAMES: frozenset[str] = frozenset(
         "ui_get_form_state",
     }
 )
-UI_SAFE_WRITE_PAGE_TOOL_NAMES: frozenset[str] = frozenset(
+SAFE_WRITE_RETIRED_PAGE_TOOL_NAMES: frozenset[str] = frozenset(
     {
         "ui_click",
         "ui_open_surface",
@@ -93,7 +92,7 @@ UI_SAFE_WRITE_PAGE_TOOL_NAMES: frozenset[str] = frozenset(
         "ui_fill_form",
     }
 )
-UI_DANGEROUS_PAGE_TOOL_NAMES: frozenset[str] = frozenset({"ui_submit_form"})
+DANGEROUS_RETIRED_PAGE_TOOL_NAMES: frozenset[str] = frozenset({"ui_submit_form"})
 
 
 # ---------------------------------------------------------------------------
@@ -109,15 +108,18 @@ def _has_page_context(input_variables: dict[str, Any] | None) -> bool:
     return False
 
 
+def is_retired_page_tool_name(name: str) -> bool:
+    normalized = str(name or "").strip()
+    return normalized.startswith("ui_") or normalized in RETIRED_PAGE_TOOL_NAMES
+
+
 def is_ui_page_tool_name(name: str) -> bool:
-    return str(name or "").strip() in UI_PAGE_TOOL_NAMES
+    return is_retired_page_tool_name(name)
 
 
 def page_context_payload(input_variables: dict[str, Any] | None) -> dict[str, Any] | None:
-    if not isinstance(input_variables, dict):
-        return None
-    page_context = input_variables.get(PAGE_CONTEXT_KEY)
-    return page_context if isinstance(page_context, dict) else None
+    del input_variables
+    return None
 
 
 def page_context_has_active_form(page_context: Mapping[str, Any] | None) -> bool:

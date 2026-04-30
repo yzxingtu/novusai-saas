@@ -307,7 +307,7 @@ export interface ToolCallEvent {
   summaryPayload?: Record<string, unknown>;
   /** Link to view the created/updated resource / 查看创建/更新资源的链接 */
   resultLink?: string;
-  /** Error type for page ops: timeout, user_cancelled, not_registered, invalid_input, etc. / 页面操作错误类型 */
+  /** Error type for tool actions: timeout, user_cancelled, not_registered, invalid_input, etc. / 工具动作错误类型 */
   errorType?: string;
   /** Timestamp when tool_start was received (for "still running" hint after 8s) / 收到 tool_start 的时间戳 */
   startedAt?: number;
@@ -353,79 +353,6 @@ export interface ImageResult {
   revisedPrompt?: string;
 }
 
-export type RichTextAIApplyMode = 'formatted' | 'plain';
-export type RichTextAIApplyTarget =
-  | 'append_to_end'
-  | 'insert_after_selection'
-  | 'replace_selection';
-
-export type RichTextAITaskState = 'applied' | 'queued' | 'ready' | 'undone';
-
-export interface RichTextAIDraftContent {
-  html?: string;
-  markdown?: string;
-  plainText?: string;
-}
-
-export interface RichTextAISelectionSnapshot {
-  afterTextExcerpt: string;
-  beforeTextExcerpt: string;
-  editorInstanceId: string;
-  editorRevision: number;
-  from: number;
-  pageKey: string;
-  selectedText: string;
-  to: number;
-}
-
-export interface RichTextAITask {
-  agentId: number;
-  availableModes: RichTextAIApplyMode[];
-  conversationId?: null | number;
-  contextTitle?: string;
-  createdAt: number;
-  draft: RichTextAIDraftContent;
-  editorInstanceId: string;
-  feature?: string;
-  lastAppliedMode?: RichTextAIApplyMode;
-  lastAppliedTarget?: RichTextAIApplyTarget;
-  messageClientKey?: string;
-  message: string;
-  messageIndex?: number;
-  pageKey: string;
-  preferredApplyMode: RichTextAIApplyMode;
-  selectionLabel?: string;
-  selectionSnapshot: RichTextAISelectionSnapshot;
-  sourceToolCallId?: string;
-  state: RichTextAITaskState;
-  summary?: string;
-  taskId: string;
-  title?: string;
-  updatedAt: number;
-}
-
-export interface RichTextConversationBinding {
-  agentId: number;
-  conversationId: number;
-  editorInstanceId: string;
-  messageIndex?: number;
-  pageKey: string;
-  task: RichTextAITask;
-  updatedAt: number;
-}
-
-export interface RichTextDraftRuntimeState {
-  canAppendToEnd: boolean;
-  canCopy: boolean;
-  canInsertAfterSelection: boolean;
-  canReplaceSelection: boolean;
-  canUndo: boolean;
-  discarded?: boolean;
-  helperText?: null | string;
-  lastApplyMode?: RichTextAIApplyMode;
-  lastApplyTarget?: RichTextAIApplyTarget;
-}
-
 export interface ChatMessage {
   clientKey: string;
   role: 'assistant' | 'user';
@@ -464,12 +391,6 @@ export interface ChatMessage {
   actionButtonsUsed?: boolean;
   /** Generated images from image generation models / 生成图片列表 */
   imageResults?: ImageResult[];
-  /** Local-only source marker for special assistant cards / 本地特殊消息来源标记 */
-  source?: 'rich_text_ai';
-  /** Rich text feature code for UI badges / 富文本动作标识 */
-  richTextFeature?: string;
-  /** Rich text draft task rendered inline in the message / 消息内联展示的富文本草稿任务 */
-  richTextAI?: RichTextAITask;
   /** Whether session memory was updated during this response / 本次回复是否更新了会话记忆 */
   memoryUpdated?: boolean;
   /** Whether a compacted context snapshot was used / 是否使用了压缩上下文快照 */

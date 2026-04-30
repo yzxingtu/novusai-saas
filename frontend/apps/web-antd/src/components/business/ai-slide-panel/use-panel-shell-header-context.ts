@@ -2,7 +2,7 @@ import type { ItemType } from 'ant-design-vue/es/menu';
 
 import type { ComputedRef, Ref } from 'vue';
 
-import type { AgentItem, ChatMessage, RichTextAITask } from '#/types/ai-chat';
+import type { AgentItem, ChatMessage } from '#/types/ai-chat';
 
 import { computed, onUnmounted, ref } from 'vue';
 
@@ -22,8 +22,7 @@ interface UsePanelShellHeaderContextOptions {
   apiPrefix: Ref<string>;
   chatMessages: Ref<ChatMessage[]>;
   clearConversationMemory: () => boolean | Promise<boolean>;
-  clearPendingRichTextTask: (taskId?: string) => void;
-  clearResolvedPageOps: () => void;
+  clearResolvedToolActions: () => void;
   consumePendingAgentId: () => null | number;
   conversations: Ref<Array<{ agent_name?: null | string; id: number }>>;
   ensureAgentVarsLoaded: (agentId: number) => void;
@@ -52,7 +51,6 @@ interface UsePanelShellHeaderContextOptions {
     consumeMention?: boolean;
     routeSource?: string;
   }) => Promise<unknown> | unknown;
-  sendPreparedRichTextTask: (task: RichTextAITask) => Promise<boolean>;
   startNewConversation: (forceReset?: boolean) => void;
   storePendingAgentId: Ref<number | undefined>;
   storePendingConversationId: Ref<null | number>;
@@ -117,8 +115,7 @@ export function usePanelShellHeaderContext(
     allAgentsVariables: options.allAgentsVariables,
     applyVariables: options.applyVariables,
     clearMentionedAgent: () => {},
-    clearPendingRichTextTask: options.clearPendingRichTextTask,
-    clearResolvedPageOps: options.clearResolvedPageOps,
+    clearResolvedToolActions: options.clearResolvedToolActions,
     chatMessages: options.chatMessages,
     consumePendingAgentId: options.consumePendingAgentId,
     ensureAgentVarsLoaded: options.ensureAgentVarsLoaded,
@@ -134,7 +131,6 @@ export function usePanelShellHeaderContext(
     pendingConversationId: options.pendingConversationId,
     pendingMessage: options.pendingMessage,
     sendMessage: options.sendMessage,
-    sendPreparedRichTextTask: options.sendPreparedRichTextTask,
     selectedAgentId: options.selectedAgentId,
     showHistory,
     showMemoryPanel,

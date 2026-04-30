@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import type { PendingOpDisplayItem } from './use-pending-page-ops';
+import type { PendingOpDisplayItem } from './use-pending-tool-actions';
 
 import type { TurnFlowState } from '#/components/business/ai-chat-kernel/TurnFlowState';
 import type {
@@ -8,9 +8,6 @@ import type {
   AgentSkillBindingsByAgentId,
   AgentItem,
   ChatMessage,
-  RichTextAIApplyMode,
-  RichTextAIApplyTarget,
-  RichTextDraftRuntimeState,
 } from '#/types/ai-chat';
 
 import { computed, watch } from 'vue';
@@ -36,9 +33,6 @@ const props = withDefaults(
     effectiveWelcomeMessage?: string;
     forceShowDiagnostics?: boolean;
     getPendingOpsForMessage: (msg: ChatMessage) => PendingOpDisplayItem[];
-    getRichTextDraftState: (
-      message: ChatMessage,
-    ) => null | RichTextDraftRuntimeState;
     ensureAgentKnowledgeBases?: (agentId: number) => Promise<unknown> | void;
     ensureAgentSkills?: (agentId: number) => Promise<unknown> | void;
     registerContainer?: (element: HTMLDivElement | null) => void;
@@ -85,16 +79,8 @@ const emit = defineEmits<{
   (e: 'openUrl', url: string): void;
   (e: 'regenerate', index: number): void;
   (e: 'reject', index: number): void;
-  (e: 'resolvePendingOp', invokeId: string, allowed: boolean): void;
+  (e: 'resolvePendingAction', invokeId: string, allowed: boolean): void;
   (e: 'retry', index: number): void;
-  (
-    e: 'richTextApply',
-    index: number,
-    target: RichTextAIApplyTarget,
-    mode: RichTextAIApplyMode,
-  ): void;
-  (e: 'richTextDiscard', index: number): void;
-  (e: 'richTextUndo', index: number): void;
   (e: 'scroll'): void;
   (e: 'scrollToBottom'): void;
   (e: 'scrollToTop'): void;
@@ -350,7 +336,6 @@ watch(
             :kernel-state="entry.kernelState"
             :countdown-now="countdownNow"
             :force-show-diagnostics="forceShowDiagnostics"
-            :rich-text-state="getRichTextDraftState(entry.message)"
             :compact="compact"
             @copy="emit('copy', $event)"
             @confirm="emit('confirm', $event)"
@@ -364,12 +349,6 @@ watch(
             @regenerate="emit('regenerate', $event)"
             @edit="emit('edit', $event)"
             @retry="emit('retry', $event)"
-            @rich-text-apply="
-              (index, target, mode) =>
-                emit('richTextApply', index, target, mode)
-            "
-            @rich-text-discard="emit('richTextDiscard', $event)"
-            @rich-text-undo="emit('richTextUndo', $event)"
           />
         </div>
 
@@ -412,8 +391,8 @@ watch(
             >
               {{
                 op.allowed
-                  ? $t('shared.pageOperation.confirmOk')
-                  : $t('shared.pageOperation.confirmCancel')
+                  ? $t('shared.toolAction.confirmOk')
+                  : $t('shared.toolAction.confirmCancel')
               }}
             </span>
           </div>
@@ -438,7 +417,7 @@ watch(
                 </div>
                 <div class="mt-0.5 text-[9.5px] text-muted-foreground/50">
                   {{
-                    $t('shared.pageOperation.confirmCountdown', {
+                    $t('shared.toolAction.confirmCountdown', {
                       seconds: Math.max(
                         0,
                         60 -
@@ -453,17 +432,17 @@ watch(
               <div class="flex shrink-0 items-center gap-1">
                 <button
                   class="inline-flex items-center gap-0.5 rounded-full bg-primary px-2 py-0.5 text-[10px] font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
-                  @click="emit('resolvePendingOp', op.invokeId, true)"
+                  @click="emit('resolvePendingAction', op.invokeId, true)"
                 >
                   <IconifyIcon icon="lucide:check" class="size-3" />
-                  {{ $t('shared.pageOperation.confirmOk') }}
+                  {{ $t('shared.toolAction.confirmOk') }}
                 </button>
                 <button
                   class="inline-flex items-center gap-0.5 rounded-full border border-border/60 px-2 py-0.5 text-[10px] text-muted-foreground transition-colors hover:border-destructive/40 hover:text-destructive"
-                  @click="emit('resolvePendingOp', op.invokeId, false)"
+                  @click="emit('resolvePendingAction', op.invokeId, false)"
                 >
                   <IconifyIcon icon="lucide:x" class="size-3" />
-                  {{ $t('shared.pageOperation.confirmCancel') }}
+                  {{ $t('shared.toolAction.confirmCancel') }}
                 </button>
               </div>
             </div>

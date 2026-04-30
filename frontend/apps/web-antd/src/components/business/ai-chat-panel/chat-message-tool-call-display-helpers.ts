@@ -1,4 +1,4 @@
-import type { PendingPageOpForDisplay } from './pending-page-op';
+import type { PendingToolActionForDisplay } from './pending-tool-action';
 import type { ToolDisplayItem } from './tool-call-utils';
 import type { ToolCallEvent } from './types';
 
@@ -8,7 +8,6 @@ import {
   getToolHeadlineSummary,
   getToolTargetBadges,
   hasToolCardDetails,
-  isRuntimePageToolName,
 } from './tool-call-utils';
 
 export interface ToolGroupSummary {
@@ -24,10 +23,9 @@ export function hasPendingOpArgs(params?: Record<string, unknown>) {
 
 export function hasPendingForToolCall(
   tc: Pick<ToolCallEvent, 'id' | 'name' | 'status'>,
-  pendingOps?: PendingPageOpForDisplay[],
+  pendingOps?: PendingToolActionForDisplay[],
 ): boolean {
   if (tc.status !== 'running') return false;
-  if (!isRuntimePageToolName(tc.name)) return false;
   if (!pendingOps?.length) return false;
   const matched = pendingOps.some(
     (op) => op.toolCallId && op.toolCallId === tc.id && !op.resolved,
@@ -38,7 +36,7 @@ export function hasPendingForToolCall(
 
 export function getToolDisplayState(
   tc: Pick<ToolCallEvent, 'id' | 'name' | 'status'>,
-  pendingOps?: PendingPageOpForDisplay[],
+  pendingOps?: PendingToolActionForDisplay[],
 ): 'executing' | 'waiting_confirm' {
   if (tc.status !== 'running') return 'executing';
   if (hasPendingForToolCall(tc, pendingOps)) return 'waiting_confirm';

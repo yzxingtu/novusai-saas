@@ -2,7 +2,7 @@ import type { ItemType } from 'ant-design-vue/es/menu';
 
 import type { ComputedRef, Ref } from 'vue';
 
-import type { PendingOpDisplayItem } from './use-pending-page-ops';
+import type { PendingOpDisplayItem } from './use-pending-tool-actions';
 
 import type { ChatKBBindingInfo } from '#/api/shared/ai-chat';
 import type {
@@ -12,9 +12,6 @@ import type {
   AgentSkillBindingSummary,
   AgentItem,
   ChatMessage,
-  RichTextAIApplyMode,
-  RichTextAIApplyTarget,
-  RichTextDraftRuntimeState,
 } from '#/types/ai-chat';
 
 import { computed } from 'vue';
@@ -90,9 +87,6 @@ interface UsePanelShellBodyBindingsOptions {
   exportMenuItems: ComputedRef<ItemType[]>;
   fileSelect: (event: Event) => void;
   getPendingOpsForMessage: (msg: ChatMessage) => PendingOpDisplayItem[];
-  getRichTextDraftState: (
-    message: ChatMessage,
-  ) => null | RichTextDraftRuntimeState;
   groupedConversations: ComputedRef<HistoryConversationGroup[]>;
   handleDragOver: (event: DragEvent) => void;
   handleDrop: (event: DragEvent) => void;
@@ -121,15 +115,8 @@ interface UsePanelShellBodyBindingsOptions {
   rejectConsent: (index: number) => void;
   removeAttachment: (index: number) => void;
   removeSelectedKnowledgeBase: (id: number) => void;
-  resolvePendingOp: (invokeId: string, allowed: boolean) => void;
+  resolvePendingAction: (invokeId: string, allowed: boolean) => void;
   retryLastMessage: (index: number) => void;
-  richTextApply: (
-    index: number,
-    target: RichTextAIApplyTarget,
-    mode: RichTextAIApplyMode,
-  ) => void;
-  richTextDiscard: (index: number) => void;
-  richTextUndo: (index: number) => void;
   routing: Ref<boolean>;
   screenshotDisabled: ComputedRef<boolean>;
   screenshotLoading: Ref<boolean>;
@@ -182,7 +169,6 @@ export function usePanelShellBodyBindings(
     effectiveWelcomeMessage: options.effectiveWelcomeMessage.value,
     exportMenuItems: options.exportMenuItems.value,
     getPendingOpsForMessage: options.getPendingOpsForMessage,
-    getRichTextDraftState: options.getRichTextDraftState,
     groupedConversations: options.groupedConversations.value,
     inputMessage: options.inputMessage.value,
     ensureAgentKnowledgeBases: options.ensureAgentKnowledgeBases,
@@ -249,11 +235,8 @@ export function usePanelShellBodyBindings(
     reject: options.rejectAction,
     removeAttachment: options.removeAttachment,
     removeSelectedKnowledgeBase: options.removeSelectedKnowledgeBase,
-    resolvePendingOp: options.resolvePendingOp,
+    resolvePendingAction: options.resolvePendingAction,
     retry: options.retryLastMessage,
-    richTextApply: options.richTextApply,
-    richTextDiscard: options.richTextDiscard,
-    richTextUndo: options.richTextUndo,
     scroll: options.handleMessagesScroll,
     scrollToBottom: () => options.scrollToBottom(true),
     scrollToTop: options.scrollToTop,

@@ -69,7 +69,7 @@ vi.mock('ant-design-vue', () => {
 
 vi.mock('#/store', () => ({
   useAIPanelStore: () => ({
-    resolvePageOp: vi.fn(),
+    resolveToolAction: vi.fn(),
   }),
 }));
 

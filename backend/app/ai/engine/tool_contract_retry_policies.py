@@ -8,7 +8,6 @@ from app.ai.tools.types import ToolDefinition
 from app.ai.types import ChatMessage, ChatResponse
 
 from .contract_diagnostics_helpers import build_contract_recovery_system_message
-from .page_workflow_state_machine import resolve_page_workflow_goal
 from .tool_policy_helpers import (
     allowed_tool_names_for_families,
     build_required_policy_for_family,
@@ -45,13 +44,7 @@ def build_post_tool_retry_policy(
 
     for intent in unfinished_intents or []:
         normalized_intent = str(intent or "").strip()
-        if normalized_intent == "page_workflow" or resolve_page_workflow_goal(
-            intent_kind=normalized_intent,
-            intent_metadata=None,
-            user_text=None,
-        ):
-            family = "page_ops"
-        elif normalized_intent in {"weather", "rail_ticket_research"}:
+        if normalized_intent in {"weather", "rail_ticket_research"}:
             if (
                 any(tool_semantic_family(tool, input_variables) == "weather" for tool in tools)
                 and normalized_intent == "weather"
@@ -127,7 +120,7 @@ def resolve_breach_retry_policy(
             reason=f"capability_denial:{current_policy.family}",
         )
 
-    for family in ("web_research", "weather", "time_ops", "page_ops"):
+    for family in ("web_research", "weather", "time_ops"):
         if not response_denies_family_capability(
             normalized_text=normalized,
             family=family,

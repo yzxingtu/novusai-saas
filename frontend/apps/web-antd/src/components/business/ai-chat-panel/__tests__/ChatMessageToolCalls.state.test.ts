@@ -23,7 +23,7 @@ vi.mock('@vben/icons', () => ({
 
 vi.mock('#/store', () => ({
   useAIPanelStore: () => ({
-    resolvePageOp: vi.fn(),
+    resolveToolAction: vi.fn(),
   }),
 }));
 

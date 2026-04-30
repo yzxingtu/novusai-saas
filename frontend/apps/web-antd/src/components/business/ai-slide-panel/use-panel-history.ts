@@ -20,7 +20,7 @@ interface UsePanelHistoryOptions {
   startNewConversation: (forceReset?: boolean) => void;
   updateConversationTitle: (convId: number, title: string) => void;
   clearRoutingIntent: () => void;
-  clearResolvedPageOps?: () => void;
+  clearResolvedToolActions?: () => void;
   showHistory: Ref<boolean>;
   showMemoryPanel: Ref<boolean>;
 }
@@ -93,7 +93,7 @@ export function usePanelHistory(options: UsePanelHistoryOptions) {
 
   function onSelectConversation(convId: number) {
     options.clearRoutingIntent();
-    options.clearResolvedPageOps?.();
+    options.clearResolvedToolActions?.();
     options.loadConversationMessages(convId);
     options.showHistory.value = false;
     options.showMemoryPanel.value = false;
@@ -128,7 +128,7 @@ export function usePanelHistory(options: UsePanelHistoryOptions) {
 
   function onStartNewChat() {
     options.clearRoutingIntent();
-    options.clearResolvedPageOps?.();
+    options.clearResolvedToolActions?.();
     options.startNewConversation();
     options.showHistory.value = false;
     options.showMemoryPanel.value = false;

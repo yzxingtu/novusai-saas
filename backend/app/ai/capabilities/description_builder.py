@@ -26,7 +26,7 @@ class CapabilityDescription:
     表示一类能力（技能、知识库等），包含标题和项目列表。
     """
 
-    category: str  # skills / knowledge_bases / page_context / memory
+    category: str  # skills / knowledge_bases / memory
     title: str
     items: list[str] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -243,47 +243,6 @@ class CapabilityDescriptionBuilder:
                 "displayed_count": len(items),
                 "total_documents": total_documents,
             },
-        )
-
-    def build_page_context_description(
-        self,
-        page_context: dict[str, Any] | None,
-    ) -> CapabilityDescription | None:
-        """
-        Build page context description from thin context (ui_* runtime).
-        """
-        if not isinstance(page_context, dict):
-            return None
-
-        page_key = str(page_context.get("page_key") or "").strip()
-        page_title = str(page_context.get("page_title") or "").strip()
-        if not page_key and not page_title:
-            return None
-
-        items: list[str] = []
-        if page_title:
-            items.append(f"Current page: {page_title}")
-        elif page_key:
-            items.append(f"Current page: {page_key}")
-
-        active_surface_id = str(page_context.get("active_surface_id") or "").strip()
-        if active_surface_id:
-            items.append(f"Active surface: {active_surface_id}")
-
-        active_form = page_context.get("active_form_summary")
-        if isinstance(active_form, dict):
-            mode = str(active_form.get("mode") or "").strip() or "unknown"
-            stage = str(active_form.get("stage") or "").strip() or "ready"
-            items.append(f"Active form: mode={mode}, stage={stage}")
-
-        if not items:
-            return None
-
-        return CapabilityDescription(
-            category="page_context",
-            title="Current Page Context",
-            items=items,
-            metadata={"page_key": page_key, "page_title": page_title},
         )
 
     def build_memory_description(

@@ -371,7 +371,3 @@ export function hasToolCardDetails(
     (tc.arguments && Object.keys(tc.arguments).length > 0),
   );
 }
-
-export function isRuntimePageToolName(name: string): boolean {
-  return name.startsWith('ui_');
-}

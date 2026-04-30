@@ -341,16 +341,6 @@ class ContextAssembler:
         )
 
     @staticmethod
-    def _collect_page_context_capabilities(
-        context: CapabilityContext,
-    ) -> CapabilityFragment:
-        del context
-        # Page awareness is retired from AI dialogue. Do not let direct
-        # ExecutionRequest callers or batch paths reintroduce page_context as a
-        # runtime capability source.
-        return CapabilityFragment()
-
-    @staticmethod
     def _collect_knowledge_capabilities(
         context: CapabilityContext,
     ) -> CapabilityFragment:
@@ -542,11 +532,6 @@ class ContextAssembler:
                 )
             ],
         )
-
-    @staticmethod
-    def _extract_page_context(request: Any) -> dict[str, Any] | None:
-        del request
-        return None
 
     @staticmethod
     def _build_skill_descriptors_from_tools(

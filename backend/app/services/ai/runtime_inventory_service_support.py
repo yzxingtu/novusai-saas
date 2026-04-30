@@ -307,10 +307,6 @@ def shape_manifest_payload(
                 item.get("name")
                 for item in (payload.get("disabled_capabilities") or [])
             ],
-            "page_context_available": any(
-                item.get("status") == "available"
-                for item in (payload.get("page_context") or [])
-            ),
             "web_research_status": next(
                 (
                     str(item.get("status"))
@@ -382,16 +378,6 @@ def build_empty_manifest(
                 "source": "request.flags",
             }
         ],
-        "page_context": [
-            {
-                "name": "page_context",
-                "kind": "context_provider",
-                "status": "unavailable",
-                "reason": "page_context_not_attached",
-                "metadata": {},
-                "source": "request.page_context",
-            }
-        ],
         "web_research": [
             {
                 "name": "web_research",
@@ -432,8 +418,6 @@ def build_empty_manifest(
             "context_line": "",
             "context_source_kinds": [],
             "tool_families": [],
-            "page_operation_names": [],
-            "page_context_attached": False,
             "web_research_pair_complete": False,
             "continuation_capable_families": [],
             "provider": None,
@@ -444,7 +428,6 @@ def build_empty_manifest(
             "knowledge_base_names": [],
             "extension_names": [],
             "disabled_capability_names": ["agent_resolution"],
-            "page_context_available": False,
             "web_research_status": "unavailable",
             "agent_name": None,
             "manifest_version": "runtime-capability-manifest/v1",

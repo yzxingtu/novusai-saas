@@ -78,7 +78,6 @@ class RuntimeDiagnosticsService:
             self.check_support.build_manifest_checks(
                 manifest,
                 require_agent=False,
-                require_page_context=False,
             )
         )
         recent_failures = await self._aggregate_recent_failures(tenant_id=tenant_id)
@@ -140,7 +139,6 @@ class RuntimeDiagnosticsService:
             self.check_support.build_manifest_checks(
                 manifest,
                 require_agent=True,
-                require_page_context=False,
             )
         )
         recommended_actions = RuntimeRootCauseProjector.build_recommended_actions(

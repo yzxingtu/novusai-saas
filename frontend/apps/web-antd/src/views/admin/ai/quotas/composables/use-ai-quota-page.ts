@@ -16,8 +16,9 @@ import {
   getAIRateLimitListApi,
 } from '#/api/admin/ai';
 import { getTenantSelectApi } from '#/api/admin/tenant';
-import { buildPageAIFormExtraData, useCrudList } from '#/composables';
+import { useCrudList } from '#/composables';
 import { $t } from '#/locales';
+import { buildFormExtraData } from '#/utils/form-extra-data';
 
 import { getFormDefaults, getRateLimitFormDefaults } from '../data';
 import Form from '../modules/form.vue';
@@ -53,8 +54,6 @@ export interface SharedFilters {
   tenant_id?: number;
 }
 
-const AI_PAGE_KEY = 'admin.ai.quotas';
-
 const EMPTY_SUMMARY: AIQuotaDiagnosticsSummaryInfo = {
   active_quota_rules: 0,
   active_rate_limit_rules: 0,
@@ -69,7 +68,7 @@ const EMPTY_SUMMARY: AIQuotaDiagnosticsSummaryInfo = {
 };
 
 function buildRateLimitExtraData() {
-  return buildPageAIFormExtraData({ pageKey: AI_PAGE_KEY });
+  return buildFormExtraData();
 }
 
 export function useAIQuotaPage() {

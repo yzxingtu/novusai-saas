@@ -75,9 +75,6 @@ export function buildAssistantMessageFromState(
     role: 'assistant',
     routeSource: state.turnRouteSource,
   };
-  if (state.turnRouteSource === 'rich_text_ai') {
-    assistantMessage.source = 'rich_text_ai';
-  }
   if (state.turnCreatedAt) {
     assistantMessage.created_at = state.turnCreatedAt;
   }

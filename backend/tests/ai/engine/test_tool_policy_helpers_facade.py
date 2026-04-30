@@ -4,7 +4,6 @@ from app.ai.engine import (
     tool_policy_helpers as facade,
 )
 from app.ai.engine import (
-    tool_policy_page_helpers,
     tool_policy_semantics,
     tool_policy_trust_helpers,
 )
@@ -18,9 +17,7 @@ from app.ai.types import ChatMessage
 
 def test_tool_policy_helpers_facade_exports() -> None:
     assert facade.tool_semantic_family is tool_policy_semantics.tool_semantic_family
-    assert (
-        facade.first_page_intent_kind is tool_policy_page_helpers.first_page_intent_kind
-    )
+    assert facade.first_page_intent_kind() is None
     assert (
         facade.apply_execution_trust_policy
         is tool_policy_trust_helpers.apply_execution_trust_policy

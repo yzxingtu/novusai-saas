@@ -1,4 +1,4 @@
-"""Helpers for resolving page locale and user-visible page language."""
+"""Helpers for resolving user-visible AI reply language."""
 
 from __future__ import annotations
 
@@ -10,7 +10,6 @@ from app.core.i18n import get_locale
 _CJK_RE = re.compile(r"[\u3400-\u9fff]")
 _LATIN_RE = re.compile(r"[A-Za-z]")
 _LOCALE_KEY_RE = re.compile(r"^[a-z0-9]+(?:[._-][a-z0-9]+){2,}$")
-_PAGE_CONTEXT_KEY = "page_context"
 
 
 def normalize_page_locale(locale: Any) -> str | None:
@@ -25,55 +24,16 @@ def normalize_page_locale(locale: Any) -> str | None:
 
 
 def resolve_page_locale(input_variables: dict[str, Any] | None) -> str:
-    page_context = (
-        input_variables.get(_PAGE_CONTEXT_KEY)
-        if isinstance(input_variables, dict)
-        else None
-    )
-    if isinstance(page_context, dict):
-        page_data = (
-            page_context.get("page_data")
-            if isinstance(page_context.get("page_data"), dict)
-            else {}
-        )
+    if isinstance(input_variables, dict):
         explicit_locale = normalize_page_locale(
-            page_data.get("locale") or page_context.get("locale")
+            input_variables.get("reply_locale")
+            or input_variables.get("user_locale")
+            or input_variables.get("locale")
         )
         if explicit_locale:
             return explicit_locale
 
-        inferred_locale = infer_page_locale_from_page_context(page_context)
-        if inferred_locale:
-            return inferred_locale
-
     return normalize_page_locale(get_locale()) or "zh_CN"
-
-
-def infer_page_locale_from_page_context(page_context: dict[str, Any]) -> str | None:
-    page_data = (
-        page_context.get("page_data")
-        if isinstance(page_context.get("page_data"), dict)
-        else {}
-    )
-    breadcrumb = (
-        page_data.get("navigation_context", {}).get("breadcrumb")
-        if isinstance(page_data.get("navigation_context"), dict)
-        else None
-    )
-    text_candidates: list[str] = []
-    for value in (
-        page_context.get("page_title"),
-        page_data.get("entity_description"),
-    ):
-        if isinstance(value, str) and value.strip():
-            text_candidates.append(value)
-    if isinstance(breadcrumb, list):
-        text_candidates.extend(
-            str(item).strip()
-            for item in breadcrumb
-            if isinstance(item, str) and str(item).strip()
-        )
-    return infer_page_locale_from_text(*text_candidates)
 
 
 def infer_page_locale_from_text(*values: Any) -> str | None:
@@ -137,7 +97,6 @@ def page_language_name(locale: str) -> str:
 
 
 __all__ = [
-    "infer_page_locale_from_page_context",
     "infer_page_locale_from_text",
     "infer_user_message_locale",
     "looks_like_locale_key",

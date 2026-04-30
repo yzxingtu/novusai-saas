@@ -36,9 +36,6 @@ function getPendingOpsForMessage() {
   return [];
 }
 
-function getRichTextDraftState() {
-  return null;
-}
 </script>
 
 <template>
@@ -55,7 +52,6 @@ function getRichTextDraftState() {
     :ensure-agent-knowledge-bases="loadAgentKBBindings"
     :ensure-agent-skills="loadAgentSkillBindings"
     :get-pending-ops-for-message="getPendingOpsForMessage"
-    :get-rich-text-draft-state="getRichTextDraftState"
     :register-container="setMessagesContainerRef"
     :selected-agent="selectedAgent"
     :sending="sending"

@@ -69,17 +69,11 @@ available.
   may use local structured semantic profiles plus the bounded shortcircuit
   layer above. That fallback must remain schema-shaped and compact; it must not
   regress into per-intent verb buckets.
-- Page intent taxonomy is being collapsed. The target live taxonomy keeps a
-  single `page_workflow` intent family; per-phase decisions (`discover`,
-  `navigate_or_open`, `read`, `write`, `submit`, `verify`) live in
-  `IntentPlan.metadata` and in the page workflow state machine, not in separate
-  intent kinds such as `page_navigation` / `page_row_detail` / `page_form_*` /
-  `page_editor_*` / `page_search` / `page_pagination` / `page_summary` /
-  `page_screenshot`. Those kinds are kept only as transitional read-path
-  aliases during migration.
-- Continuation guards, page-negation guards, and deterministic shortcircuits are
-  allowed to stay as keyword-based checks, but they must be colocated in a
-  single shortcircuit module and explicitly marked with `# SHORTCIRCUIT: <reason>`.
+- Page intent taxonomy is retired for live AI dialogue. New planner output must
+  not emit `page_workflow`, `page_*`, or `page_ops`; historical records may only
+  be read for diagnostics or retirement guards.
+- Page-negation guards may remain only to prevent retired page-routing
+  behavior. They must not create page intents or page-tool requests.
 - Implementations should stamp routing provenance in `IntentPlan.metadata`
   (`routing_mode=deterministic_shortcircuit` or `routing_mode=structured_semantic`)
   so downstream audits can distinguish bounded guards from semantic fallback.
@@ -94,6 +88,6 @@ available.
   (e.g., `_PAGE_NAVIGATION_PREFACE_*`, `_KNOWLEDGE_TERMS`, `_WEATHER_TERMS` style
   expansions). New coverage must come from LLM-driven routing or from explicit
   bounded shortcircuits, not from an ever-growing phrase bucket.
-- Introducing a new `page_*` intent kind beyond the collapsed `page_workflow`
-  target (e.g., `page_screenshot`, `page_editor_write`). Instead, extend the
-  workflow state machine or add a new tool.
+- Introducing or restoring `page_workflow`, `page_*`, or `page_ops` as a live
+  intent family. Use explicit backend APIs, exports, or permissioned skill-pack
+  tools for analyzable data instead.

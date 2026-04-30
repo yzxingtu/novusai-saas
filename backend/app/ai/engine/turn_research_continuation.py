@@ -11,7 +11,6 @@ from app.ai.tools.types import ToolDefinition
 from app.ai.types import ChatMessage
 
 from .base_helpers import stable_unique_text_list
-from .intent_page_rules import looks_like_page_follow_up
 from .turn_research_evidence import (
     collect_web_research_evidence,
     extract_recent_successful_tool_names,
@@ -37,6 +36,11 @@ def page_operation_names_from_input_variables(
     return []
 
 
+def looks_like_page_follow_up(text: str) -> bool:
+    del text
+    return False
+
+
 def build_web_research_continuation_context(
     messages: list[ChatMessage],
     all_tools: list[ToolDefinition],
@@ -50,8 +54,6 @@ def build_web_research_continuation_context(
         )
         if family != "none"
     ]
-    page_operation_names = page_operation_names_from_input_variables(input_variables)
-    page_context_attached = has_page_context(input_variables)
     web_research_pair_complete = {"web_search", "fetch_url"} <= tool_names
     continuation_capable_families: list[str] = []
     if web_research_pair_complete and "web_research" in tool_families:
@@ -69,8 +71,6 @@ def build_web_research_continuation_context(
     if not current_user_text:
         return ResearchContinuationContext(
             tool_families=tool_families,
-            page_operation_names=page_operation_names,
-            page_context_attached=page_context_attached,
             web_research_pair_complete=web_research_pair_complete,
             continuation_capable_families=continuation_capable_families,
         )
@@ -87,27 +87,13 @@ def build_web_research_continuation_context(
         recent_successful_tool_names[0] if recent_successful_tool_names else ""
     )
     last_tool_name = str(last_turn_facts.get("last_tool_name") or "").strip()
-    last_page_key = str(last_turn_facts.get("last_page_key") or "").strip()
-    last_page_op = str(last_turn_facts.get("last_page_op") or "").strip()
     active_intent_kind = (
         str(last_turn_facts.get("active_intent_kind") or "").strip() or None
     )
-    page_follow_up_requested = looks_like_page_follow_up(current_user_text)
-    # A bare historical ui_* tool name is not a safe continuation anchor: the
-    # current page may be unrelated. Canonical page continuation requires a
-    # page key from turn diagnostics/tool evidence.
-    prior_page_progress = bool(last_page_key)
 
     active = False
     family: str | None = None
-    if (
-        "page_ops" in continuation_capable_families
-        and page_follow_up_requested
-        and prior_page_progress
-    ):
-        active = True
-        family = "page_ops"
-    elif latest_successful_tool in {"web_search", "fetch_url"} and "web_search" in tool_names:
+    if latest_successful_tool in {"web_search", "fetch_url"} and "web_search" in tool_names:
         active = True
         family = "web_research"
 
@@ -116,11 +102,7 @@ def build_web_research_continuation_context(
     research_target_text = (
         recent_web_queries[0]
         if recent_web_queries
-        else (
-            last_page_key
-            if family == "page_ops" and last_page_key
-            else extract_last_user_text(prior_messages) or current_user_text
-        )
+        else extract_last_user_text(prior_messages) or current_user_text
     )
 
     return ResearchContinuationContext(
@@ -135,12 +117,8 @@ def build_web_research_continuation_context(
         fetched_url_count=len(fetched_urls),
         research_instruction_texts=research_instruction_texts,
         tool_families=tool_families,
-        page_operation_names=page_operation_names,
-        page_context_attached=page_context_attached,
         web_research_pair_complete=web_research_pair_complete,
         continuation_capable_families=continuation_capable_families,
         last_tool_name=last_tool_name,
-        last_page_key=last_page_key,
-        last_page_op=last_page_op,
         active_intent_kind=active_intent_kind,
     )

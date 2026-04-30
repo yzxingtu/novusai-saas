@@ -55,14 +55,14 @@ describe('countdown display (AIChatSlidePanel logic)', () => {
 
   it('confirmCountdown i18n key receives { seconds }', () => {
     const t = (key: string, params?: { seconds?: number }) =>
-      key === 'shared.pageOperation.confirmCountdown'
+      key === 'shared.toolAction.confirmCountdown'
         ? `${params?.seconds ?? 0}s valid`
         : key;
 
-    expect(t('shared.pageOperation.confirmCountdown', { seconds: 45 })).toBe(
+    expect(t('shared.toolAction.confirmCountdown', { seconds: 45 })).toBe(
       '45s valid',
     );
-    expect(t('shared.pageOperation.confirmCountdown', { seconds: 0 })).toBe(
+    expect(t('shared.toolAction.confirmCountdown', { seconds: 0 })).toBe(
       '0s valid',
     );
   });

@@ -20,19 +20,18 @@ from app.core.security import (
 )
 from app.middleware.trace import trace_id_var
 from app.sio.error_utils import socket_connect_refusal
-from app.sio.page_session import PageSessionMixin
+from app.sio.socket_trace import SocketTraceMixin
 
 logger = LogManager.get_logger("app")
 
 
-class UserNamespace(PageSessionMixin, socketio.AsyncNamespace):
+class UserNamespace(SocketTraceMixin, socketio.AsyncNamespace):
     """
     /user namespace — Tenant business users / 企业业务用户
 
     Rooms:
     - user:{user_id} — All devices of specified user / 指定用户的所有设备
     - tenant:{tenant_id} — All online business users of this tenant / 该企业的所有在线业务用户
-    - page_session:{id} — Page operation targeting (dynamic join) / 页面操作定位（动态加入）
     """
 
     # sid → session backup, prevents inability to clean up presence when get_session fails / sid → session 备份，防止 get_session 失败时无法清理 presence
@@ -187,7 +186,6 @@ class UserNamespace(PageSessionMixin, socketio.AsyncNamespace):
         """Disconnect, update online status / 断开连接，更新在线状态"""
         session = await self.bind_socket_trace(sid, default_trace_id=str(uuid.uuid4()))
         try:
-            self.cleanup_page_sessions_for_disconnect(sid)
             user_id = None
             tenant_id = None
             if session:

@@ -1,11 +1,11 @@
 from app.ai.engine.base_helpers import (
     messages_to_dicts,
-    truncate_tool_calls_after_page_navigation,
+    truncate_tool_calls_after_navigation,
 )
 from app.ai.types import ChatMessage
 
 
-def test_truncate_tool_calls_after_page_navigation_skips_malformed_ui_actions() -> None:
+def test_truncate_tool_calls_after_navigation_is_noop_after_page_ops_retirement() -> None:
     tool_calls = [
         {
             "id": "c1",
@@ -33,7 +33,10 @@ def test_truncate_tool_calls_after_page_navigation_skips_malformed_ui_actions() 
         },
     ]
 
-    truncated, trimmed = truncate_tool_calls_after_page_navigation(tool_calls)
+    truncated, trimmed = truncate_tool_calls_after_navigation(
+        tool_calls,
+        navigation_operation_names={"ui_click"},
+    )
 
     assert trimmed is False
     assert [tool_call["id"] for tool_call in truncated] == ["c1", "c2", "c3"]

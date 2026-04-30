@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 from app.ai.tools.types import ToolResult
 from app.ai.types import ChatMessage, ChatResponse
 
-from .base_helpers import truncate_tool_calls_after_page_navigation
+from .base_helpers import truncate_tool_calls_after_navigation
 from .execution_state_machine import ExecutionStateMachine
 from .tool_contract_retry_helpers import (
     analyze_post_tool_contract_breach as _analyze_post_tool_contract_breach_impl,
@@ -146,7 +146,10 @@ class DefaultStreamRuntimeHooks:
         self,
         tool_calls: list[dict[str, Any]],
     ) -> tuple[list[dict[str, Any]], bool]:
-        return truncate_tool_calls_after_page_navigation(tool_calls)
+        return truncate_tool_calls_after_navigation(
+            tool_calls,
+            navigation_operation_names=set(),
+        )
 
     def should_retry_tool_contract_breach(
         self,

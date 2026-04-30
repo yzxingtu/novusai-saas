@@ -5,10 +5,7 @@
     "unsaved_content": "当前配置尚未保存，确定要离开吗？",
     "password_placeholder": "如需修改请输入新密码",
     "select_group": "请从左侧选择配置分组",
-    "json_placeholder": "请输入 JSON 格式的配置",
-    "page_context_limit_title": "这里可以调整页面上下文大小限制",
-    "page_context_limit_desc": "配置键：{configKey}。默认值 {defaultValue}。它限制 AI 聊天/路由请求中 page_context.page_data 的最大字节数，不是模型输入 token，也不是输出 token。",
-    "locate_page_context_limit": "定位该配置项"
+    "json_placeholder": "请输入 JSON 格式的配置"
   },
   "group": {
     "platform_general": "通用设置",
@@ -16,7 +13,7 @@
     "platform_security": "安全设置",
     "platform_email": "邮件设置",
     "platform_ssl": "SSL 证书管理",
-    "platform_ai_toolkit": "AI Toolkit 与页面上下文",
+    "platform_ai_toolkit": "AI Toolkit",
     "tenant_appearance": "外观设置",
     "tenant_general": "安全设置",
     "tenant_registration": "注册与协议",
@@ -28,7 +25,7 @@
     "platform_security": "密码策略、登录安全等配置",
     "platform_email": "SMTP 邮件发送配置",
     "platform_ssl": "ACME 证书签发、DNS 提供商、续期策略配置",
-    "platform_ai_toolkit": "Toolkit 安全策略、资源限制，以及 AI 聊天页面上下文大小限制",
+    "platform_ai_toolkit": "Toolkit 安全策略与资源限制",
     "tenant_appearance": "Logo、登录页品牌设置",
     "tenant_general": "登录安全、密码策略、会话设置",
     "tenant_registration": "用户注册流程、默认角色、隐私政策和服务条款配置",
@@ -69,8 +66,7 @@
     "ssl_allow_custom_cert": "允许自定义证书",
     "dns_provider": "DNS 提供商",
     "dns_cloudflare_api_token": "Cloudflare API Token",
-    "dns_cloudflare_zone_id": "Cloudflare Zone ID",
-    "ai_page_context_max_bytes": "聊天页面上下文最大字节数"
+    "dns_cloudflare_zone_id": "Cloudflare Zone ID"
   },
   "platform_desc": {
     "site_name": "显示在浏览器标题栏和页面顶部的名称",
@@ -83,8 +79,7 @@
     "ssl_allow_custom_cert": "是否允许企业上传自定义 SSL 证书",
     "dns_provider": "生产环境仅支持 Cloudflare 自动化 DNS-01；手动模式仅用于开发调试",
     "dns_cloudflare_api_token": "Cloudflare API Token（需要 Zone.DNS 编辑权限）",
-    "dns_cloudflare_zone_id": "Cloudflare 域名区域 ID",
-    "ai_page_context_max_bytes": "限制 AI 聊天/路由请求中 page_context.page_data 的最大字节数；这是页面上下文预算，不是模型 token 限制"
+    "dns_cloudflare_zone_id": "Cloudflare 域名区域 ID"
   },
   "platform_options": {
     "password_complexity": {

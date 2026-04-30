@@ -10,7 +10,6 @@ from pydantic import Field
 from app.core.base_schema import BaseSchema
 from app.schemas.public.platform import (
     CaptchaPluginFrontendRuntimePublicConfig,
-    RuntimeLimitsPublicConfig,
     StoragePublicConfig,
 )
 
@@ -93,9 +92,6 @@ class TenantPublicConfig(BaseSchema):
 
     # 存储配置 / Storage
     storage: StoragePublicConfig | None = Field(None, description="存储配置")
-    runtime_limits: RuntimeLimitsPublicConfig | None = Field(
-        None, description="运行时限制"
-    )
 
 
 class DomainVerificationInfo(BaseSchema):

@@ -589,7 +589,7 @@ def test_apply_turn_skill_activation_tracks_explicit_tool_mentions() -> None:
     ]
 
 
-def test_apply_turn_skill_activation_allows_catalog_runtime_policy_for_startup_prefilter() -> (
+def test_apply_turn_skill_activation_ignores_retired_page_runtime_policy() -> (
     None
 ):
     result = SkillResolveResult(
@@ -627,10 +627,10 @@ def test_apply_turn_skill_activation_allows_catalog_runtime_policy_for_startup_p
     )
 
     assert result.turn_activation is not None
-    assert result.turn_activation.applied is True
-    assert result.turn_activation.reason == "runtime_policy"
+    assert result.turn_activation.applied is False
+    assert result.turn_activation.reason == "no_turn_skill_activation"
     assert result.turn_activation.activated_tool_names == []
-    assert result.turn_activation.activated_skill_names == ["Plugin Page Skill"]
+    assert result.turn_activation.activated_skill_names == []
 
 
 def test_apply_turn_skill_activation_keeps_live_selection_execution_backed() -> None:
@@ -744,7 +744,7 @@ def _make_grant(skill: SimpleNamespace) -> SimpleNamespace:
 
 
 @pytest.mark.asyncio
-async def test_resolve_for_agent_falls_back_to_time_tool_when_grants_filter_out() -> (
+async def test_resolve_for_agent_falls_back_to_baseline_builtins_when_grants_filter_out() -> (
     None
 ):
     package = SimpleNamespace(
@@ -783,8 +783,16 @@ async def test_resolve_for_agent_falls_back_to_time_tool_when_grants_filter_out(
     resolved = await resolve_for_agent(db, agent, tenant_id=9)
 
     assert resolved is not None
-    assert [tool.name for tool in resolved.tools] == ["get_current_time"]
-    assert resolved.tool_consent_modes == {"get_current_time": "auto"}
+    assert [tool.name for tool in resolved.tools] == [
+        "get_current_time",
+        "web_search",
+        "fetch_url",
+    ]
+    assert resolved.tool_consent_modes == {
+        "get_current_time": "auto",
+        "web_search": "auto",
+        "fetch_url": "auto",
+    }
     assert resolved.capability_descriptors[0].name == "get_current_time"
 
 
@@ -931,7 +939,7 @@ async def test_resolve_for_agent_keeps_full_inventory_for_capability_reporting_q
 
 
 @pytest.mark.asyncio
-async def test_resolve_for_agent_prefilters_page_runtime_policy_before_resolve(
+async def test_resolve_for_agent_does_not_prefilter_for_retired_page_policy(
     monkeypatch,
 ) -> None:
     plugin_page_skill = _make_runtime_skill(
@@ -976,7 +984,10 @@ async def test_resolve_for_agent_prefilters_page_runtime_policy_before_resolve(
 
     await resolve_for_agent(db, agent, tenant_id=9, request=request)
 
-    assert [skill.name for skill in captured["skills"]] == ["Plugin Page Skill"]
+    assert [skill.name for skill in captured["skills"]] == [
+        "Plugin Page Skill",
+        "Plugin Research Skill",
+    ]
 
 
 @pytest.mark.asyncio
@@ -1088,7 +1099,7 @@ async def test_resolve_for_agent_prefilters_plugin_tool_mentions_from_manifest_p
 
 
 @pytest.mark.asyncio
-async def test_resolve_for_agent_prefilters_runtime_policy_from_manifest_preview(
+async def test_resolve_for_agent_ignores_retired_page_policy_from_manifest_preview(
     monkeypatch,
 ) -> None:
     neutral_page_skill = _make_runtime_skill(
@@ -1168,7 +1179,10 @@ async def test_resolve_for_agent_prefilters_runtime_policy_from_manifest_preview
 
     await resolve_for_agent(db, agent, tenant_id=9, request=request)
 
-    assert [skill.name for skill in captured["skills"]] == ["Assistant Extension"]
+    assert [skill.name for skill in captured["skills"]] == [
+        "Assistant Extension",
+        "Search Extension",
+    ]
 
 
 @pytest.mark.asyncio
@@ -1235,12 +1249,12 @@ async def test_resolve_for_agent_preserves_manifest_startup_preview_on_descripto
         if item.name == "Assistant Extension"
     )
     assert descriptor.metadata["startup_preview_tool_names"] == ["crm_lookup"]
-    assert descriptor.metadata["startup_preview_semantic_families"] == ["page_ops"]
+    assert descriptor.metadata["startup_preview_semantic_families"] == []
     assert descriptor.metadata["resolved_tool_names"] == ["crm_lookup"]
 
 
 @pytest.mark.asyncio
-async def test_resolve_for_agent_returns_time_tool_when_agent_has_no_grants() -> None:
+async def test_resolve_for_agent_returns_baseline_builtin_tools_when_agent_has_no_grants() -> None:
     result = MagicMock()
     result.scalars.return_value.all.return_value = []
     db = MagicMock()
@@ -1251,5 +1265,13 @@ async def test_resolve_for_agent_returns_time_tool_when_agent_has_no_grants() ->
     resolved = await resolve_for_agent(db, agent, tenant_id=9)
 
     assert resolved is not None
-    assert [tool.name for tool in resolved.tools] == ["get_current_time"]
-    assert resolved.tool_consent_modes == {"get_current_time": "auto"}
+    assert [tool.name for tool in resolved.tools] == [
+        "get_current_time",
+        "web_search",
+        "fetch_url",
+    ]
+    assert resolved.tool_consent_modes == {
+        "get_current_time": "auto",
+        "web_search": "auto",
+        "fetch_url": "auto",
+    }

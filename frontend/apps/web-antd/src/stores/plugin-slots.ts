@@ -29,16 +29,12 @@ import {
 } from '#/utils/plugin-loader';
 
 export interface PluginSlotAI {
-  disabled_capabilities?: string[];
-  disabled_operations?: string[];
-  mode?: 'context_only' | 'disabled' | 'operate';
-  page_context_key?: string;
+  mode?: 'disabled' | 'enabled';
 }
 
 const PLUGIN_AI_MODES = new Set<NonNullable<PluginSlotAI['mode']>>([
-  'context_only',
   'disabled',
-  'operate',
+  'enabled',
 ]);
 
 export interface PluginSlotItem {
@@ -237,20 +233,6 @@ export const usePluginSlotsStore = defineStore('plugin-slots', () => {
                               PluginSlotAI['mode']
                             >,
                           }
-                        : {}),
-                      ...(slot.ai.page_context_key
-                        ? { page_context_key: slot.ai.page_context_key }
-                        : {}),
-                      ...(Array.isArray(slot.ai.disabled_capabilities) &&
-                      slot.ai.disabled_capabilities.length > 0
-                        ? {
-                            disabled_capabilities:
-                              slot.ai.disabled_capabilities,
-                          }
-                        : {}),
-                      ...(Array.isArray(slot.ai.disabled_operations) &&
-                      slot.ai.disabled_operations.length > 0
-                        ? { disabled_operations: slot.ai.disabled_operations }
                         : {}),
                     } satisfies PluginSlotAI,
                   }

@@ -131,7 +131,7 @@ export function useAIChatComposer(deps: UseAIChatComposerDeps) {
     return agentKBBindingsByAgentId.value[agentId] ?? null;
   }
 
-function updateAgentSkillBindings(
+  function updateAgentSkillBindings(
     agentId: number,
     items: AgentSkillBindingSummary[],
   ): AgentSkillBindingSummary[] {

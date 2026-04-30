@@ -281,7 +281,6 @@ class ExecutionRequest:
     session_memory_injected: bool = False
     long_term_memory_enabled: bool = False
     memory_runtime_policy: dict[str, Any] = field(default_factory=dict)
-    page_session_id: str | None = None
     knowledge_base_feedback: dict[str, Any] | None = None
     tool_use_policy: ToolUsePolicy = field(default_factory=ToolUsePolicy)
 
@@ -372,13 +371,9 @@ class ResearchContinuationContext:
     fetched_url_count: int = 0
     research_instruction_texts: list[str] = field(default_factory=list)
     tool_families: list[str] = field(default_factory=list)
-    page_operation_names: list[str] = field(default_factory=list)
-    page_context_attached: bool = False
     web_research_pair_complete: bool = False
     continuation_capable_families: list[str] = field(default_factory=list)
     last_tool_name: str = ""
-    last_page_key: str = ""
-    last_page_op: str = ""
     active_intent_kind: str | None = None
 
 

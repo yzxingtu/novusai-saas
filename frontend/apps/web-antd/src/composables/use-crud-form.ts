@@ -27,12 +27,8 @@ import { computed, nextTick, ref, unref } from 'vue';
 
 import { useVbenDrawer } from '@vben/common-ui';
 
-import { ensureGlobalUIRuntime } from '#/components/business/ai-runtime/runtime-bridge';
 import { $t } from '#/locales';
 import { requestClient } from '#/utils/request';
-
-import { extractFormParams } from './form-schema-ai-descriptors';
-import { formStateTracker } from './use-form-state-tracker';
 
 // ============ 字段映射工具函数 / field mapping helpers ============
 
@@ -75,21 +71,6 @@ function createTransform(
     }
     return result;
   };
-}
-
-function resolveTrackedSurfaceId(pageKey: string): string {
-  const normalizedPageKey = String(pageKey || '').trim();
-  const fallbackSurfaceId = `page:${normalizedPageKey || 'unknown'}`;
-  try {
-    const runtimeSnapshot = ensureGlobalUIRuntime().readPage('compact');
-    return (
-      runtimeSnapshot.active_surface?.id ||
-      runtimeSnapshot.surface_stack.at(-1)?.id ||
-      fallbackSurfaceId
-    );
-  } catch {
-    return fallbackSurfaceId;
-  }
 }
 
 /**
@@ -189,11 +170,6 @@ export interface UseCrudDrawerOptions<T = any> {
    */
   idField?: string;
 
-  /**
-   * Stable page key for runtime form-state tracking.
-   * 供运行时表单状态追踪使用的稳定页面标识。
-   */
-  pageKey?: string;
 }
 
 /**
@@ -215,11 +191,7 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
     apiPath,
     detailApi,
     idField = 'id',
-    pageKey: staticPageKey,
   } = options;
-
-  let currentPageKey: null | string = staticPageKey ?? null;
-  let currentFormSessionId: null | string = null;
 
   // 如果提供了 fields，自动生成 transform 和 toFormValues / auto-build from fields
   const transform =
@@ -241,14 +213,7 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
   const isSubmitting = ref(false);
 
   function closeTrackedFormSession() {
-    const closeTarget = currentFormSessionId ?? currentPageKey;
-    if (closeTarget) {
-      formStateTracker.close(closeTarget);
-    }
-    currentFormSessionId = null;
-    if (!staticPageKey) {
-      currentPageKey = null;
-    }
+    return undefined;
   }
 
   async function doSubmit() {
@@ -308,7 +273,6 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
             [key: string]: any;
             _defaults?: Record<string, any>;
             _overrides?: Record<string, any>;
-            _pageKey?: string;
             _resource?: string;
             id?: number | string;
             mode?: FormMode;
@@ -316,12 +280,6 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
         | undefined;
       mode.value = data?.mode ?? 'add';
       recordId.value = data?.[idField];
-
-      const payloadPageKey =
-        typeof data?._pageKey === 'string' && data._pageKey.trim()
-          ? data._pageKey.trim()
-          : null;
-      currentPageKey = staticPageKey ?? payloadPageKey;
       {
         const p = unref(apiPath) as (() => string) | string | undefined;
         const resolved = typeof p === 'function' ? p() : p;
@@ -379,34 +337,6 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
         }
       }
 
-      // Register form state for AI tracking / 注册表单状态供 AI 追踪
-      if (currentPageKey && formApi) {
-        const fieldDescriptors = schema
-          ? extractFormParams(schema(isEdit.value))
-          : {};
-        let initialValues: Record<string, unknown> = {};
-        try {
-          initialValues = await formApi.getValues();
-        } catch {
-          // Form may not be fully ready / 表单可能尚未就绪
-        }
-        const trackableApi = {
-          getValues: () =>
-            formApi.getValues() as Promise<Record<string, unknown>>,
-          setValues: (v: Record<string, unknown>) => formApi.setValues(v),
-          validate: () => formApi.validate() as Promise<{ valid: boolean }>,
-          submitForm: doSubmit,
-        };
-        currentFormSessionId = formStateTracker.open(currentPageKey, {
-          mode: mode.value as 'add' | 'edit' | 'view',
-          formApi: trackableApi,
-          fieldDescriptors,
-          initialValues,
-          surfaceId: resolveTrackedSurfaceId(currentPageKey),
-        });
-      } else {
-        currentFormSessionId = null;
-      }
     },
   });
 

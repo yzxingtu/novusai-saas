@@ -43,6 +43,7 @@ logger = LogManager.get_logger("ai.tool.sandbox")
 
 _RETIRED_PAGE_TOOL_NAMES = frozenset(
     {
+        "editor_ops",
         "get_page_context",
         "invoke_page_operation",
         "list_page_operations",
@@ -110,7 +111,6 @@ class ToolSandbox:
         toolkit_security_level: str = "normal",
         toolkit_memory_limit_mb: int = 256,
         input_variables: dict[str, Any] | None = None,
-        page_session_id: str | None = None,
         conversation_id: int | None = None,
         trust_policy_ref: dict[str, Any] | None = None,
         interaction_mode: str = "trusted_auto",
@@ -128,8 +128,7 @@ class ToolSandbox:
             agent: Agent model instance (optional executor context) / 智能体模型实例（执行器可选上下文）
             toolkit_security_level: Toolkit security level (strict/normal/permissive) / 安全等级
             toolkit_memory_limit_mb: Toolkit subprocess memory limit (MB) / 子进程内存限制
-            input_variables: Runtime variables (page context, etc.) / 运行时变量
-            page_session_id: Frontend page session ID (for PageOperationExecutor) / 页面会话 ID
+            input_variables: Runtime variables / 运行时变量
             conversation_id: Conversation ID for audit correlation / 会话 ID（用于审计串联）
         """
         self.tenant_id = tenant_id
@@ -145,15 +144,10 @@ class ToolSandbox:
         self._agent = agent
         self._toolkit_security_level = toolkit_security_level
         self._toolkit_memory_limit_mb = toolkit_memory_limit_mb
-        self._page_session_id = page_session_id
         self._conversation_id = conversation_id
         self._runtime_model_info: dict[str, Any] | None = None
         self.trust_policy_ref = trust_policy_ref
         self.interaction_mode = interaction_mode
-        # Bumped when a non-readonly page tool succeeds; ToolCallProcessor folds into readonly cache keys.
-        # 非只读页面工具成功执行后递增，供 ToolCallProcessor 只读快照缓存键区分同页状态。
-        self._page_readonly_cache_epoch: int = 0
-
         # Initialize executors / 初始化执行器
         self._executors: dict[str, BaseToolExecutor] = {}
         self._named_executors: dict[str, BaseToolExecutor] = {}
@@ -336,7 +330,6 @@ class ToolSandbox:
             trust_policy_ref=self.trust_policy_ref,
             skill_id=definition.source_skill_id,
             variables=self.input_variables,
-            page_session_id=self._page_session_id,
             conversation_id=self._conversation_id,
             interaction_mode=self.interaction_mode,
             runtime_provider_id=(
@@ -408,17 +401,6 @@ class ToolSandbox:
             # Ensure result.name is set (some executors omit on error paths) / 确保 result.name 有值（部分执行器错误路径未设）
             if not result.name:
                 result.name = name
-            # Persist executor-mutated page session identity (navigation / reconnect) for subsequent tools + cache keys.
-            # 将执行器写回的页面会话身份持久化到沙箱，供后续工具与只读缓存键使用。
-            try:
-                if context.page_session_id is not None:
-                    self._page_session_id = context.page_session_id
-                    if isinstance(self.input_variables, dict):
-                        self.input_variables["page_session_id"] = (
-                            context.page_session_id
-                        )
-            except Exception:
-                pass
         except asyncio.TimeoutError:
             duration_ms = int((time.perf_counter() - start) * 1000)
             logger.warning(

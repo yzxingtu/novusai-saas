@@ -290,9 +290,6 @@ class PermissionPresentationDomain:
                 or None
             )
             mode = str(ai_config.mode or "").strip() or None
-            page_context_key = str(ai_config.page_context_key or "").strip() or None
-            disabled_capabilities = ai_config.disabled_capabilities
-            disabled_operations = ai_config.disabled_operations
         else:
             capabilities = []
             category = cls._infer_menu_ai_category(permission)
@@ -300,9 +297,6 @@ class PermissionPresentationDomain:
                 str(getattr(permission, "description", "") or "").strip() or None
             )
             mode = None
-            page_context_key = None
-            disabled_capabilities = None
-            disabled_operations = None
 
         if not any(
             [
@@ -311,9 +305,6 @@ class PermissionPresentationDomain:
                 capabilities,
                 category,
                 mode,
-                page_context_key,
-                disabled_capabilities,
-                disabled_operations,
             ]
         ):
             return None
@@ -325,9 +316,6 @@ class PermissionPresentationDomain:
                 capabilities=capabilities,
                 category=category,
                 mode=mode,
-                page_context_key=page_context_key,
-                disabled_capabilities=disabled_capabilities,
-                disabled_operations=disabled_operations,
             )
         )
 

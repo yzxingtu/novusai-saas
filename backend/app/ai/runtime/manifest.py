@@ -50,7 +50,6 @@ class RuntimeCapabilityManifest:
     skills: list[RuntimeCapabilityItem] = field(default_factory=list)
     knowledge_bases: list[RuntimeCapabilityItem] = field(default_factory=list)
     memory: list[RuntimeCapabilityItem] = field(default_factory=list)
-    page_context: list[RuntimeCapabilityItem] = field(default_factory=list)
     web_research: list[RuntimeCapabilityItem] = field(default_factory=list)
     extensions: list[RuntimeCapabilityItem] = field(default_factory=list)
     disabled_capabilities: list[RuntimeCapabilityItem] = field(default_factory=list)
@@ -70,7 +69,6 @@ class RuntimeCapabilityManifest:
             "skills": [item.to_dict() for item in self.skills],
             "knowledge_bases": [item.to_dict() for item in self.knowledge_bases],
             "memory": [item.to_dict() for item in self.memory],
-            "page_context": [item.to_dict() for item in self.page_context],
             "web_research": [item.to_dict() for item in self.web_research],
             "extensions": [item.to_dict() for item in self.extensions],
             "disabled_capabilities": [
@@ -197,16 +195,6 @@ class AIRuntimeInventoryService:
             or None
         )
         return provider, model
-
-    @staticmethod
-    def _page_context_payload(request: Any) -> dict[str, Any]:
-        del request
-        return {}
-
-    @classmethod
-    def _page_operation_names(cls, request: Any) -> list[str]:
-        del request
-        return []
 
     @classmethod
     def _tool_families(cls, bundle: CapabilityBundle, request: Any) -> list[str]:
@@ -366,20 +354,6 @@ class AIRuntimeInventoryService:
             )
         ]
 
-        page_items = [
-            RuntimeCapabilityItem(
-                name="page_context",
-                kind="context_provider",
-                status="unavailable",
-                reason="page_awareness_retired",
-                metadata={
-                    "page_context_attached": False,
-                    "available_ui_tools": [],
-                },
-                source="retired",
-            )
-        ]
-
         has_web_search = "web_search" in selected_tools
         has_fetch_url = "fetch_url" in selected_tools
         research_status: RuntimeCapabilityStatus
@@ -463,7 +437,6 @@ class AIRuntimeInventoryService:
             skills=skill_items,
             knowledge_bases=knowledge_items,
             memory=memory_items,
-            page_context=page_items,
             web_research=web_research_items,
             extensions=[],
             disabled_capabilities=disabled_items,
@@ -515,19 +488,6 @@ class AIRuntimeInventoryService:
                     if item.status == "available"
                 ]
             ),
-            "page_operation_names": cls._stable_unique(
-                [
-                    name
-                    for item in manifest.page_context
-                    for name in (
-                        item.metadata.get("available_ui_tools")
-                        if isinstance(item.metadata.get("available_ui_tools"), list)
-                        else []
-                    )
-                    if isinstance(name, str) and name
-                ]
-            ),
-            "page_context_attached": False,
             "web_research_pair_complete": any(
                 item.name == "web_research"
                 and bool(item.metadata.get("has_web_search"))

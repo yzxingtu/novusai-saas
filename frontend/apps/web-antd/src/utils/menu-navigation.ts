@@ -1,17 +1,13 @@
 import type { MenuRecordRaw, RouteMeta } from '@vben/types';
 
-import { normalizePageKey } from '#/components/business/ai-runtime/page-key-utils';
 import { getEndpointFromPath } from '#/utils/endpoint';
 
 interface RouteMetaAI {
   capabilities?: string[];
   category?: string;
   description?: string;
-  disabledCapabilities?: string | string[];
-  disabledOperations?: string | string[];
   keywords?: string[];
   mode?: string;
-  pageContextKey?: string;
 }
 
 interface MenuWithMeta extends MenuRecordRaw {
@@ -116,6 +112,13 @@ function compactSearchText(value: string): string {
   return normalizeSearchText(value).replaceAll(' ', '');
 }
 
+function normalizeNavigationKey(value: string): string {
+  return String(value ?? '')
+    .trim()
+    .replace(/^\//, '')
+    .replaceAll('/', '.');
+}
+
 function normalizeComparablePath(value: string): string {
   return String(value || '').split(/[?#]/, 1)[0] || '';
 }
@@ -181,8 +184,7 @@ function resolveMenuMetaAi(menu: MenuWithMeta): RouteMetaAI | undefined {
 }
 
 function resolveMenuPageKey(menu: MenuWithMeta): string {
-  const metaAi = resolveMenuMetaAi(menu);
-  return normalizePageKey(metaAi?.pageContextKey ?? menu.path);
+  return normalizeNavigationKey(menu.path);
 }
 
 function resolveMenuSemanticMetadata(options: {
@@ -464,11 +466,11 @@ export function resolveMenuNavigationTarget(
     return { kind: 'not_found' };
   }
 
-  const currentPageKey = normalizePageKey(options.currentPageKey ?? '');
+  const currentPageKey = normalizeNavigationKey(options.currentPageKey ?? '');
   const currentPath = normalizeSearchText(
     normalizeComparablePath(options.currentPath ?? ''),
   );
-  if (currentPageKey && currentPageKey === normalizePageKey(top.pageKey)) {
+  if (currentPageKey && currentPageKey === normalizeNavigationKey(top.pageKey)) {
     return { entry: top, kind: 'already_on_page' };
   }
   if (
@@ -564,7 +566,7 @@ export function buildNavigationContext(options: {
 }): NavigationContextData {
   const normalizedCurrentPath = normalizeComparablePath(options.currentPath);
   const normalizedActivePath = normalizeComparablePath(options.activePath ?? '');
-  const currentPageKey = normalizePageKey(
+  const currentPageKey = normalizeNavigationKey(
     options.currentPageKey ?? normalizedCurrentPath,
   );
   const activeEntry =

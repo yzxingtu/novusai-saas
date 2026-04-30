@@ -5,9 +5,6 @@
 import type {
   AgentItem,
   ChatMessage,
-  RichTextAISelectionSnapshot,
-  RichTextAITask,
-  RichTextDraftRuntimeState,
   ToolCallEvent,
 } from '../types';
 
@@ -27,7 +24,7 @@ import ChatMessageItem from '../ChatMessageItem.vue';
 import ChatMessageThinkingBlock from '../ChatMessageThinkingBlock.vue';
 import ChatMessageToolCalls from '../ChatMessageToolCalls.vue';
 
-interface PendingPageOpTest {
+interface PendingToolActionTest {
   invokeId: string;
   operationLabel: string;
   operationDescription: string;
@@ -38,15 +35,15 @@ interface PendingPageOpTest {
   toolCallId?: string;
 }
 
-const pendingPageOpsValue = ref<PendingPageOpTest[]>([]);
-const resolvePageOp = vi.fn();
+const pendingToolActionsValue = ref<PendingToolActionTest[]>([]);
+const resolveToolAction = vi.fn();
 
 vi.mock('#/store', () => ({
   useAIPanelStore: () => ({
-    get pendingPageOps() {
-      return pendingPageOpsValue.value;
+    get pendingToolActions() {
+      return pendingToolActionsValue.value;
     },
-    resolvePageOp,
+    resolveToolAction,
   }),
 }));
 
@@ -158,8 +155,8 @@ function createTurnFlow(
 }
 
 function createPendingOp(
-  overrides: Partial<PendingPageOpTest> = {},
-): PendingPageOpTest {
+  overrides: Partial<PendingToolActionTest> = {},
+): PendingToolActionTest {
   return {
     invokeId: 'inv-1',
     operationLabel: 'Op',
@@ -168,78 +165,6 @@ function createPendingOp(
     resolved: false,
     startedAt: Date.now(),
     ...overrides,
-  };
-}
-
-function createRichTextTask(
-  overrides: Partial<RichTextAITask> & {
-    selectionSnapshot?: Partial<RichTextAISelectionSnapshot>;
-  } = {},
-): RichTextAITask {
-  const pageKey = overrides.pageKey ?? 'tenant.docs.detail';
-  const editorInstanceId = overrides.editorInstanceId ?? 'editor-1';
-  return {
-    agentId: 7,
-    availableModes: ['plain', 'formatted'],
-    conversationId: 88,
-    contextTitle: '富文档',
-    createdAt: 1000,
-    draft: {
-      html: '<p>Draft</p>',
-      markdown: 'Draft',
-      plainText: 'Draft',
-    },
-    editorInstanceId,
-    feature: 'rewrite',
-    message: '[Rich Text Task] Rewrite',
-    pageKey,
-    preferredApplyMode: 'formatted',
-    selectionLabel: '待改写段落',
-    selectionSnapshot: {
-      afterTextExcerpt: 'after',
-      beforeTextExcerpt: 'before',
-      editorInstanceId,
-      editorRevision: 2,
-      from: 4,
-      pageKey,
-      selectedText: '待改写段落',
-      to: 12,
-      ...overrides.selectionSnapshot,
-    },
-    state: 'ready',
-    summary: '已生成一版草稿',
-    taskId: 'rich-text-task-1',
-    title: 'AI Rewrite',
-    updatedAt: 1000,
-    ...overrides,
-  };
-}
-
-function createRichTextState(
-  overrides: Partial<RichTextDraftRuntimeState> = {},
-): RichTextDraftRuntimeState {
-  return {
-    canAppendToEnd: true,
-    canCopy: true,
-    canInsertAfterSelection: true,
-    canReplaceSelection: true,
-    canUndo: true,
-    helperText: '可以直接应用到原文',
-    ...overrides,
-  };
-}
-
-function createRichTextMessage(
-  overrides: Partial<ChatMessage> = {},
-): ChatMessage {
-  const { clientKey = 'assistant-rich-text-message', ...rest } = overrides;
-  return {
-    clientKey,
-    role: 'assistant',
-    content: '这是一段 AI 草稿正文',
-    source: 'rich_text_ai',
-    richTextAI: createRichTextTask(),
-    ...rest,
   };
 }
 
@@ -284,7 +209,7 @@ async function expandDigestIfCollapsed(wrapper: {
 
 describe('chatMessageItem', () => {
   beforeEach(() => {
-    pendingPageOpsValue.value = [];
+    pendingToolActionsValue.value = [];
     vi.useRealTimers();
   });
 
@@ -292,12 +217,12 @@ describe('chatMessageItem', () => {
     vi.useRealTimers();
   });
 
-  it('shows toolWaitingConfirm when ui runtime tool is pending confirmation', async () => {
-    pendingPageOpsValue.value = [createPendingOp()];
+  it('shows toolWaitingConfirm when a tool action is pending confirmation', async () => {
+    pendingToolActionsValue.value = [createPendingOp()];
     const wrapper = mount(ChatMessageItem, {
       props: {
         msg: createAssistantMsg([
-          { name: 'ui_submit_form', status: 'running' },
+          { name: 'submit_form_tool', status: 'running' },
         ]),
         pendingOps: [createPendingOp({ invokeId: 'i1' })],
         index: 0,
@@ -317,12 +242,12 @@ describe('chatMessageItem', () => {
   });
 
   it('shows toolExecuting when running tool without pending op', async () => {
-    pendingPageOpsValue.value = [];
+    pendingToolActionsValue.value = [];
     const wrapper = mount(ChatMessageItem, {
       props: {
         msg: createAssistantMsg([
           {
-            name: 'ui_submit_form',
+            name: 'submit_form_tool',
             status: 'running',
           },
         ]),
@@ -342,7 +267,7 @@ describe('chatMessageItem', () => {
     expect(wrapper.text()).toContain('common.globalAiChat.toolExecuting');
   });
 
-  it('shows toolExecuting for non-page-op running tool', async () => {
+  it('shows toolExecuting for a generic running tool', async () => {
     const wrapper = mount(ChatMessageItem, {
       props: {
         msg: createAssistantMsg([
@@ -376,7 +301,7 @@ describe('chatMessageItem', () => {
       props: {
         msg: createAssistantMsg([
           {
-            name: 'ui_submit_form',
+            name: 'submit_form_tool',
             status: 'running',
             startedAt: baseTime - 9000,
           },
@@ -400,12 +325,12 @@ describe('chatMessageItem', () => {
     );
   });
 
-  it('shows pageOpPendingConfirmationHint for errorType=pending_confirmation', async () => {
+  it('shows toolActionPendingConfirmationHint for errorType=pending_confirmation', async () => {
     const wrapper = mount(ChatMessageItem, {
       props: {
         msg: createAssistantMsg([
           {
-            name: 'ui_submit_form',
+            name: 'submit_form_tool',
             status: 'error',
             error: 'Awaiting confirmation',
             errorType: 'pending_confirmation',
@@ -426,12 +351,12 @@ describe('chatMessageItem', () => {
     await wrapper.vm.$nextTick();
     await expandKernelOverviewIfCollapsed(wrapper);
     expect(wrapper.text()).toContain(
-      'common.globalAiChat.pageOpPendingConfirmationHint',
+      'common.globalAiChat.toolActionPendingConfirmationHint',
     );
   });
 
   it('shows waiting_confirm when pendingOps has matching toolCallId', async () => {
-    pendingPageOpsValue.value = [
+    pendingToolActionsValue.value = [
       createPendingOp({
         invokeId: 'inv_1',
         operationLabel: 'Replace content',
@@ -442,9 +367,9 @@ describe('chatMessageItem', () => {
     const wrapper = mount(ChatMessageItem, {
       props: {
         msg: createAssistantMsg([
-          { id: 'tc_123', name: 'ui_set_field', status: 'running' },
+            { id: 'tc_123', name: 'editor_set_content', status: 'running' },
         ]),
-        pendingOps: pendingPageOpsValue.value,
+        pendingOps: pendingToolActionsValue.value,
         index: 0,
         compact: true,
       },
@@ -462,12 +387,12 @@ describe('chatMessageItem', () => {
     expect(wrapper.text()).toContain('Replace content');
   });
 
-  it('shows toolStatusOk (not error) when ui runtime tool completes successfully', async () => {
+  it('shows toolStatusOk when a tool completes successfully', async () => {
     const wrapper = mount(ChatMessageItem, {
       props: {
         msg: createAssistantMsg([
           {
-            name: 'ui_get_snapshot',
+            name: 'web_search',
             status: 'success',
             durationMs: 200,
           },
@@ -491,7 +416,7 @@ describe('chatMessageItem', () => {
   });
 
   it('shows toolExecuting when pendingOps has non-matching toolCallId', async () => {
-    pendingPageOpsValue.value = [
+    pendingToolActionsValue.value = [
       createPendingOp({
         invokeId: 'inv_1',
         operationLabel: 'Replace',
@@ -501,9 +426,9 @@ describe('chatMessageItem', () => {
     const wrapper = mount(ChatMessageItem, {
       props: {
         msg: createAssistantMsg([
-          { id: 'tc_123', name: 'ui_fill_form', status: 'running' },
+          { id: 'tc_123', name: 'editor_update_content', status: 'running' },
         ]),
-        pendingOps: pendingPageOpsValue.value,
+        pendingOps: pendingToolActionsValue.value,
         index: 0,
         compact: true,
       },
@@ -520,12 +445,12 @@ describe('chatMessageItem', () => {
     expect(wrapper.text()).toContain('common.globalAiChat.toolExecuting');
   });
 
-  it('shows pageOpExecFailedHint for unknown error_type fallback', async () => {
+  it('shows toolActionExecFailedHint for unknown error_type fallback', async () => {
     const wrapper = mount(ChatMessageItem, {
       props: {
         msg: createAssistantMsg([
           {
-            name: 'ui_submit_form',
+            name: 'submit_form_tool',
             status: 'error',
             error: 'Unknown failure',
             errorType: 'unknown_type',
@@ -546,7 +471,7 @@ describe('chatMessageItem', () => {
     await wrapper.vm.$nextTick();
     await expandKernelOverviewIfCollapsed(wrapper);
     expect(wrapper.text()).toContain(
-      'common.globalAiChat.pageOpExecFailedHint',
+      'common.globalAiChat.toolActionExecFailedHint',
     );
   });
 
@@ -798,7 +723,7 @@ describe('chatMessageItem', () => {
           agent_id: 2,
           agent_avatar: '/uploads/avatars/cat-agent.png',
           agent_name: '猫娘智能体',
-          agent_description: '负责轻量问答与页面操作。',
+          agent_description: '负责轻量问答与工具调用。',
           model_name: 'gpt-5.4-mini',
         },
         index: 0,
@@ -828,22 +753,22 @@ describe('chatMessageItem', () => {
         id: 2,
         tenant_id: 1,
         name: '猫娘智能体',
-        description: '负责轻量问答与页面操作。',
+        description: '负责轻量问答与工具调用。',
         avatar: null,
         status: 'published',
         model_name: 'gpt-5.4-mini',
         skills: [
           {
             id: 10,
-            name: '页面点击',
+            name: '网页搜索',
             package_id: 100,
-            package_name: '页面工具包',
+            package_name: '搜索工具包',
           },
           {
             id: 11,
-            name: '表单填写',
-            package_id: 100,
-            package_name: '页面工具包',
+            name: '内容整理',
+            package_id: 101,
+            package_name: '编辑工具包',
           },
           {
             id: 12,
@@ -893,17 +818,17 @@ describe('chatMessageItem', () => {
     ).toContain('猫娘智能体');
     expect(
       wrapper.get('[data-testid="agent-profile-description"]').text(),
-    ).toContain('负责轻量问答与页面操作。');
+    ).toContain('负责轻量问答与工具调用。');
     expect(
       wrapper
         .findAll('[data-testid="agent-profile-skill-package-chip"]')
         .map((chip) => chip.text()),
-    ).toEqual(['页面工具包', '检索工具包']);
+      ).toEqual(['搜索工具包', '编辑工具包', '检索工具包']);
     expect(
       wrapper
         .findAll('[data-testid="agent-profile-skill-entry-chip"]')
         .map((chip) => chip.text()),
-    ).toEqual(['页面点击', '表单填写', '知识检索']);
+      ).toEqual(['网页搜索', '内容整理', '知识检索']);
     expect(
       wrapper
         .findAll('[data-testid="agent-profile-kb-chip"]')
@@ -1230,108 +1155,6 @@ describe('chatMessageItem', () => {
 
     expect(wrapper.text()).not.toContain('common.globalAiChat.tokens');
     expect(wrapper.text()).not.toContain('5.2s');
-  });
-
-  it('renders the rich text draft card and re-emits rich text draft actions', async () => {
-    const wrapper = mount(ChatMessageItem, {
-      props: {
-        msg: createRichTextMessage({
-          richTextAI: createRichTextTask({
-            draft: {
-              html: '<p>Formatted draft</p>',
-              markdown: '**Formatted draft**',
-              plainText: 'Plain draft',
-            },
-          }),
-        }),
-        index: 4,
-        compact: true,
-        richTextState: createRichTextState(),
-      },
-      global: {
-        stubs: {
-          AgentProfilePopover: true,
-          MarkdownRender: true,
-          IconifyIcon: true,
-          RichTextDraftCard: {
-            props: ['compact', 'state', 'task'],
-            template: `
-              <div data-testid="rich-text-draft-card">
-                <span>{{ task.title }}</span>
-                <span>{{ state ? state.helperText : '' }}</span>
-                <button
-                  data-testid="rich-text-apply"
-                  @click="$emit('apply', 'replace_selection', 'formatted')"
-                />
-                <button
-                  data-testid="rich-text-copy-plain"
-                  @click="$emit('copy', 'plain')"
-                />
-                <button
-                  data-testid="rich-text-copy-formatted"
-                  @click="$emit('copy', 'formatted')"
-                />
-                <button
-                  data-testid="rich-text-discard"
-                  @click="$emit('discard')"
-                />
-                <button data-testid="rich-text-undo" @click="$emit('undo')" />
-              </div>
-            `,
-          },
-        },
-      },
-    });
-
-    await wrapper.vm.$nextTick();
-
-    const card = wrapper.get('[data-testid="rich-text-draft-card"]');
-    expect(card.text()).toContain('AI Rewrite');
-    expect(card.text()).toContain('可以直接应用到原文');
-
-    await wrapper.get('[data-testid="rich-text-apply"]').trigger('click');
-    await wrapper.get('[data-testid="rich-text-copy-plain"]').trigger('click');
-    await wrapper
-      .get('[data-testid="rich-text-copy-formatted"]')
-      .trigger('click');
-    await wrapper.get('[data-testid="rich-text-discard"]').trigger('click');
-    await wrapper.get('[data-testid="rich-text-undo"]').trigger('click');
-
-    expect(wrapper.emitted('richTextApply')?.[0]).toEqual([
-      4,
-      'replace_selection',
-      'formatted',
-    ]);
-    expect(wrapper.emitted('copy')?.[0]).toEqual(['Plain draft']);
-    expect(wrapper.emitted('copy')?.[1]).toEqual(['**Formatted draft**']);
-    expect(wrapper.emitted('richTextDiscard')?.[0]).toEqual([4]);
-    expect(wrapper.emitted('richTextUndo')?.[0]).toEqual([4]);
-  });
-
-  it('hides the rich text draft card once the draft state is discarded', async () => {
-    const wrapper = mount(ChatMessageItem, {
-      props: {
-        msg: createRichTextMessage(),
-        index: 2,
-        compact: true,
-        richTextState: createRichTextState({ discarded: true }),
-      },
-      global: {
-        stubs: {
-          AgentProfilePopover: true,
-          MarkdownRender: true,
-          IconifyIcon: true,
-          RichTextDraftCard: {
-            template: '<div data-testid="rich-text-draft-card" />',
-          },
-        },
-      },
-    });
-
-    await wrapper.vm.$nextTick();
-    expect(wrapper.find('[data-testid="rich-text-draft-card"]').exists()).toBe(
-      false,
-    );
   });
 
   it('renders tool target badges and toggles tool details with animated state in default mode', async () => {
@@ -2985,12 +2808,12 @@ describe('chatMessageItem', () => {
   it('strips DSML tool-call protocol text from the assistant transcript body', async () => {
     const assistantMessage = createAssistantMsg([
       {
-        displayName: '读取表格',
-        id: 'tc_read_table',
-        name: 'ui_read_table',
-        output: '{"explanation":"读取了 1 个表格"}',
+        displayName: '搜索资料',
+        id: 'tc_search',
+        name: 'web_search',
+        output: '{"explanation":"整理了 1 条搜索结果"}',
         status: 'success',
-        summary: '读取了 1 个表格',
+        summary: '整理了 1 条搜索结果',
       },
     ]);
 
@@ -2999,7 +2822,7 @@ describe('chatMessageItem', () => {
         msg: {
           ...assistantMessage,
           content:
-            '我看到页面上有一个表格，但表格内容只显示了部分数据。为了获取更完整的表格数据，让我读取一下表格区域。<｜DSML｜tool_calls><｜DSML｜invoke name="ui_read_table"><｜DSML｜parameter name="locator">div.table</｜DSML｜parameter></｜DSML｜invoke></｜DSML｜tool_calls>现在把整理结果告诉你。',
+            '我需要补充资料，所以先调用搜索工具。<｜DSML｜tool_calls><｜DSML｜invoke name="web_search"><｜DSML｜parameter name="query">产品定价</｜DSML｜parameter></｜DSML｜invoke></｜DSML｜tool_calls>现在把整理结果告诉你。',
         },
         index: 0,
         compact: true,

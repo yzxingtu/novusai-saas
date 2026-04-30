@@ -5,10 +5,7 @@
     "unsaved_content": "You have unsaved changes. Are you sure to leave?",
     "password_placeholder": "Enter new password to change",
     "select_group": "Please select a config group from the left",
-    "json_placeholder": "Enter JSON configuration",
-    "page_context_limit_title": "Adjust the page-context size limit here",
-    "page_context_limit_desc": "Config key: {configKey}. Default: {defaultValue}. This limits the maximum bytes of page_context.page_data in AI chat/router requests, not model input tokens or output tokens.",
-    "locate_page_context_limit": "Locate this setting"
+    "json_placeholder": "Enter JSON configuration"
   },
   "group": {
     "platform_general": "General Settings",
@@ -16,7 +13,7 @@
     "platform_security": "Security Settings",
     "platform_email": "Email Settings",
     "platform_ssl": "SSL Certificate Management",
-    "platform_ai_toolkit": "AI Toolkit & Page Context",
+    "platform_ai_toolkit": "AI Toolkit",
     "tenant_appearance": "Appearance",
     "tenant_general": "Security",
     "tenant_registration": "Registration & Legal",
@@ -28,7 +25,7 @@
     "platform_security": "Password policy, login security, etc.",
     "platform_email": "SMTP email delivery configuration",
     "platform_ssl": "ACME certificate issuance, DNS provider, renewal policy",
-    "platform_ai_toolkit": "Toolkit security policies, resource limits, and AI chat page-context size limits",
+    "platform_ai_toolkit": "Toolkit security policies and resource limits",
     "tenant_appearance": "Logo, login page branding",
     "tenant_general": "Login security, password policy, session settings",
     "tenant_registration": "User registration flow, default role, privacy policy and terms settings",
@@ -69,8 +66,7 @@
     "ssl_allow_custom_cert": "Allow Custom Certificates",
     "dns_provider": "DNS Provider",
     "dns_cloudflare_api_token": "Cloudflare API Token",
-    "dns_cloudflare_zone_id": "Cloudflare Zone ID",
-    "ai_page_context_max_bytes": "Chat Page Context Max Bytes"
+    "dns_cloudflare_zone_id": "Cloudflare Zone ID"
   },
   "platform_desc": {
     "site_name": "Displayed in browser title bar and header",
@@ -83,8 +79,7 @@
     "ssl_allow_custom_cert": "Whether to allow tenants to upload custom SSL certificates",
     "dns_provider": "Production automation currently supports only Cloudflare DNS-01; manual mode is for development/debug only",
     "dns_cloudflare_api_token": "Cloudflare API Token (requires Zone.DNS edit permission)",
-    "dns_cloudflare_zone_id": "Cloudflare domain zone ID",
-    "ai_page_context_max_bytes": "Limits the maximum bytes of page_context.page_data in AI chat/router requests; this is a page-context budget, not a model token limit"
+    "dns_cloudflare_zone_id": "Cloudflare domain zone ID"
   },
   "platform_options": {
     "password_complexity": {

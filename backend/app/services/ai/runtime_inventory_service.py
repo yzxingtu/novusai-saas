@@ -91,7 +91,6 @@ class RuntimeInventoryService:
             memory_scene="conversation",
             memory_channel="session",
             memory_source="conversation",
-            page_context=None,
         )
         kb_ids = [
             int(binding["knowledge_base_id"])

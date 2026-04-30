@@ -313,48 +313,6 @@ class TestCapabilityDescriptionBuilder:
 
         assert result is None
 
-    def test_build_page_context_description_empty(self):
-        """Test with no page context"""
-        builder = CapabilityDescriptionBuilder()
-        result = builder.build_page_context_description(None)
-        assert result is None
-
-    def test_build_page_context_description_with_thin_runtime_hints(self):
-        """Test page context with thin runtime hints"""
-        page_context = {
-            "page_key": "user_management",
-            "page_title": "用户管理页面",
-            "active_surface_id": "drawer-user-edit",
-            "active_form_summary": {
-                "mode": "edit",
-                "stage": "ready_to_submit",
-            },
-        }
-
-        builder = CapabilityDescriptionBuilder()
-        result = builder.build_page_context_description(page_context)
-
-        assert result is not None
-        assert result.category == "page_context"
-        assert result.title == "Current Page Context"
-        assert len(result.items) == 3
-        assert "用户管理页面" in result.items[0]
-        assert "Active surface: drawer-user-edit" in result.items[1]
-        assert "Active form: mode=edit, stage=ready_to_submit" in result.items[2]
-
-    def test_build_page_context_description_falls_back_to_page_key(self):
-        """Test page key fallback when title is missing"""
-        page_context = {
-            "page_key": "admin.logs",
-            "suggested_tools": {"primary": ["", "   "]},
-        }
-
-        builder = CapabilityDescriptionBuilder()
-        result = builder.build_page_context_description(page_context)
-
-        assert result is not None
-        assert result.items == ["Current page: admin.logs"]
-
     def test_build_memory_description_none(self):
         """Test with no memory enabled"""
         builder = CapabilityDescriptionBuilder()

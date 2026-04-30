@@ -14,15 +14,6 @@ import { i18n } from '@vben/locales';
 import RichTextEditor from './RichTextEditor.vue';
 
 export { RichTextEditor };
-export {
-  registerRichTextDocumentPageAI,
-  waitForRichTextEditorOperations,
-} from './document-page-ai';
-export {
-  registerSourceEditor,
-  resolveSourceEditor,
-  unregisterSourceEditor,
-} from './sourceEditorRegistry';
 export type {
   AttachmentInfo,
   MountedEditor,
@@ -30,7 +21,6 @@ export type {
   RichTextEditorExposed,
   RichTextEditorProps,
   RichTextEditorSetContentOptions,
-  SourceEditorRegistration,
 } from './types';
 export { useRichTextEditor } from './useRichTextEditor';
 
@@ -47,12 +37,6 @@ export function mountRichTextEditor(
   if (!container) {
     throw new Error(`mountRichTextEditor: target "${target}" not found in DOM`);
   }
-  if (options.ai === true && !options.pageKey) {
-    throw new Error(
-      'mountRichTextEditor: pageKey is required when ai=true for RichTextEditor',
-    );
-  }
-
   let editorRef: null | RichTextEditorExposed = null;
   let app: App | null = null;
 
@@ -84,8 +68,6 @@ export function mountRichTextEditor(
     propsObj.extensions = options.extensions;
   if (options.contextTitle !== undefined)
     propsObj.contextTitle = options.contextTitle;
-  if (options.pageKey !== undefined) propsObj.pageKey = options.pageKey;
-
   const Wrapper = defineComponent({
     setup() {
       return () =>

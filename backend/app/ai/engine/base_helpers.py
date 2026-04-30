@@ -8,12 +8,6 @@ from typing import Any
 
 from app.ai.types import ChatMessage
 
-_PAGE_NAVIGATION_OPERATION_NAMES = {
-    "ui_click",
-    "ui_open_surface",
-}
-
-
 def build_user_message(content: str) -> ChatMessage:
     return ChatMessage(role="user", content=content)
 
@@ -36,17 +30,12 @@ def tool_call_name(tool_call: dict[str, Any]) -> str:
 
 
 def tool_call_operation_name(tool_call: dict[str, Any]) -> str:
-    normalized_name = tool_call_name(tool_call)
-    if not normalized_name.startswith("ui_"):
-        return ""
     raw_arguments = (tool_call.get("function") or {}).get("arguments")
     if isinstance(raw_arguments, str) and raw_arguments.strip() and not parse_tool_arguments(
         raw_arguments
     ):
         return ""
-    if normalized_name.startswith("ui_"):
-        return normalized_name
-    return ""
+    return tool_call_name(tool_call)
 
 
 def truncate_tool_calls_after_navigation(
@@ -54,22 +43,8 @@ def truncate_tool_calls_after_navigation(
     *,
     navigation_operation_names: set[str],
 ) -> tuple[list[dict[str, Any]], bool]:
-    for index, tool_call in enumerate(tool_calls):
-        operation_name = tool_call_operation_name(tool_call)
-        if operation_name in navigation_operation_names:
-            if index < len(tool_calls) - 1:
-                return tool_calls[: index + 1], True
-            return tool_calls, False
+    del navigation_operation_names
     return tool_calls, False
-
-
-def truncate_tool_calls_after_page_navigation(
-    tool_calls: list[dict[str, Any]],
-) -> tuple[list[dict[str, Any]], bool]:
-    return truncate_tool_calls_after_navigation(
-        tool_calls,
-        navigation_operation_names=_PAGE_NAVIGATION_OPERATION_NAMES,
-    )
 
 
 def messages_to_dicts(messages: list[ChatMessage]) -> list[dict[str, Any]]:

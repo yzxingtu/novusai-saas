@@ -2,7 +2,7 @@ import type { ItemType } from 'ant-design-vue/es/menu';
 
 import type { ComputedRef, Ref } from 'vue';
 
-import type { PendingOpDisplayItem } from './use-pending-page-ops';
+import type { PendingOpDisplayItem } from './use-pending-tool-actions';
 
 import type {
   ChatKBBindingInfo,
@@ -20,9 +20,6 @@ import type {
   ConversationItem,
   MentionCandidate,
   MentionKnowledgeBaseBinding,
-  RichTextAIApplyMode,
-  RichTextAIApplyTarget,
-  RichTextDraftRuntimeState,
 } from '#/types/ai-chat';
 
 export interface UseAIChatSlidePanelShellBindingsOptions {
@@ -41,7 +38,7 @@ export interface UseAIChatSlidePanelShellBindingsOptions {
   chatAcceptAttribute: string;
   chatMessages: Ref<ChatMessage[]>;
   cleanup: () => void;
-  clearResolvedPageOps?: (() => void) | undefined;
+  clearResolvedToolActions?: (() => void) | undefined;
   clearingMemory: Ref<boolean>;
   commitEditTitle: () => void;
   confirmAction: (index: number) => void;
@@ -61,9 +58,6 @@ export interface UseAIChatSlidePanelShellBindingsOptions {
   exportMenuItems: ComputedRef<ItemType[]>;
   forceRerouteNextTurn: Ref<boolean>;
   getPendingOpsForMessage: (msg: ChatMessage) => PendingOpDisplayItem[];
-  getRichTextDraftState: (
-    message: ChatMessage,
-  ) => null | RichTextDraftRuntimeState;
   groupedConversations: ComputedRef<
     Array<{ items: ConversationItem[]; label: string }>
   >;
@@ -104,13 +98,6 @@ export interface UseAIChatSlidePanelShellBindingsOptions {
   onDocumentClick: (event: MouseEvent) => void;
   onEditHeaderVars: () => void;
   onToggleMemory: () => void | Promise<void>;
-  onRichTextApply: (
-    index: number,
-    target: RichTextAIApplyTarget,
-    mode: RichTextAIApplyMode,
-  ) => void;
-  onRichTextDiscard: (index: number) => void;
-  onRichTextUndo: (index: number) => void;
   onSelectConversation: (conversationId: number) => void;
   onStartNewChat: () => void;
   onToggleForceReroute: () => void;
@@ -123,7 +110,7 @@ export interface UseAIChatSlidePanelShellBindingsOptions {
   rejectConsent: (index: number) => void;
   removePendingAttachment: (index: number) => void;
   removeSelectedKnowledgeBase: (id: number) => void;
-  resolvePendingOp: (invokeId: string, allowed: boolean) => void;
+  resolvePendingAction: (invokeId: string, allowed: boolean) => void;
   retryLastMessage: (index: number) => void;
   routeNotice: Ref<null | string>;
   routing: Ref<boolean>;

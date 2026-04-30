@@ -47,16 +47,7 @@ class MenuAIResponse(BaseSchema):
         description="AI 菜单能力标签",
     )
     category: str | None = Field(None, description="AI 菜单分类")
-    mode: str | None = Field(None, description="AI 页面模式")
-    page_context_key: str | None = Field(None, description="AI 页面上下文键")
-    disabled_capabilities: list[str] | str | None = Field(
-        None,
-        description="禁用的 AI 能力",
-    )
-    disabled_operations: list[str] | str | None = Field(
-        None,
-        description="禁用的 AI 操作",
-    )
+    mode: str | None = Field(None, description="AI 对话入口模式")
 
 
 class MenuMetaResponse(BaseSchema):

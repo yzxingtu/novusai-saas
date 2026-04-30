@@ -114,14 +114,12 @@ class RuntimeDiagnosticsCheckSupport:
         manifest: dict[str, Any],
         *,
         require_agent: bool,
-        require_page_context: bool,
     ) -> list[dict[str, Any]]:
         checks: list[dict[str, Any]] = []
         summary = dict(manifest.get("summary") or {})
         provider = dict(manifest.get("provider") or {})
         model = dict(manifest.get("model") or {})
         web_research_items = list(manifest.get("web_research") or [])
-        page_context_items = list(manifest.get("page_context") or [])
         memory_items = list(manifest.get("memory") or [])
         kb_items = list(manifest.get("knowledge_bases") or [])
 
@@ -245,30 +243,6 @@ class RuntimeDiagnosticsCheckSupport:
             )
         )
 
-        page_status = next(
-            (
-                str(item.get("status") or "unavailable")
-                for item in page_context_items
-                if str(item.get("name") or "").strip()
-            ),
-            "unavailable",
-        )
-        page_reason = next(
-            (
-                item.get("reason")
-                for item in page_context_items
-                if str(item.get("name") or "").strip()
-            ),
-            None,
-        )
-        checks.append(
-            self.build_check_item(
-                "page_context",
-                status=page_status,
-                blocking=require_page_context,
-                reason=page_reason,
-            )
-        )
         return checks
 
 

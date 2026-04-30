@@ -12,7 +12,7 @@ import { onBeforeUnmount, ref } from 'vue';
 import { useEditor } from '@tiptap/vue-3';
 
 import { buildExtensions } from './extensions';
-import { createEditorInstanceId } from './sourceEditorRegistry';
+import { createEditorInstanceId } from './editorInstanceId';
 
 export interface UseRichTextEditorOptions {
   content?: JSONContent | null;

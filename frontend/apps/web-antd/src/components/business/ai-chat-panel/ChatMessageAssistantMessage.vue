@@ -1,14 +1,11 @@
 <script lang="ts" setup>
-import type { PendingPageOpForDisplay } from './pending-page-op';
+import type { PendingToolActionForDisplay } from './pending-tool-action';
 import type {
   AgentItem,
   AgentKnowledgeBaseBindingsByAgentId,
   AgentKnowledgeBaseBindingSummary,
   AgentSkillBindingsByAgentId,
   ChatMessage,
-  RichTextAIApplyMode,
-  RichTextAIApplyTarget,
-  RichTextDraftRuntimeState,
 } from './types';
 
 import type { TurnFlowState } from '#/components/business/ai-chat-kernel/TurnFlowState';
@@ -20,7 +17,6 @@ import { IconifyIcon } from '@vben/icons';
 import { Button } from 'ant-design-vue';
 
 import ChatMessageKernel from '#/components/business/ai-chat-kernel/ChatMessageKernel.vue';
-import RichTextDraftCard from '#/components/business/ai-chat-panel/RichTextDraftCard.vue';
 import { useDiagnosticsPolicy } from '#/composables/use-diagnostics-policy';
 import { $t } from '#/locales';
 
@@ -47,9 +43,8 @@ const props = withDefaults(
     index: number;
     kernelState?: null | TurnFlowState;
     msg: ChatMessage;
-    /** Pending page ops for this message (filtered by toolCallId) / 本消息关联的待确认操作 */
-    pendingOps?: PendingPageOpForDisplay[];
-    richTextState?: null | RichTextDraftRuntimeState;
+    /** Pending tool actions for this message (filtered by toolCallId) / 本消息关联的待确认工具动作 */
+    pendingOps?: PendingToolActionForDisplay[];
     selectedAgent?: AgentItem | null;
   }>(),
   {
@@ -64,7 +59,6 @@ const props = withDefaults(
     kernelState: null,
     selectedAgent: null,
     pendingOps: () => [],
-    richTextState: null,
   },
 );
 
@@ -78,13 +72,6 @@ const emit = defineEmits<{
   regenerate: [index: number];
   reject: [index: number];
   retry: [index: number];
-  richTextApply: [
-    index: number,
-    target: RichTextAIApplyTarget,
-    mode: RichTextAIApplyMode,
-  ];
-  richTextDiscard: [index: number];
-  richTextUndo: [index: number];
 }>();
 const { showDiagnostics } = useDiagnosticsPolicy({
   apiPrefix: computed(() => props.apiPrefix),
@@ -95,7 +82,6 @@ const {
   hasGeneratedImages,
   hasKernelSections,
   hasPostContentSections,
-  hasRichTextDraftCard,
   resolvedKernelState,
   resolvedMessageAgent,
   showFooter,
@@ -107,7 +93,6 @@ const {
   kernelState: toRef(props, 'kernelState'),
   msg: toRef(props, 'msg'),
   pendingOps: toRef(props, 'pendingOps'),
-  richTextState: toRef(props, 'richTextState'),
   selectedAgent: toRef(props, 'selectedAgent'),
 });
 const showTurnDiagnostics = computed(() =>
@@ -117,37 +102,6 @@ const showKernelSection = computed(
   () => hasKernelSections.value || showTurnDiagnostics.value,
 );
 
-function pickRichTextDraftCopyContent(
-  ...values: Array<null | string | undefined>
-) {
-  for (const value of values) {
-    if (typeof value === 'string' && value.trim()) {
-      return value;
-    }
-  }
-  return '';
-}
-
-function getRichTextDraftCopyContent(mode: RichTextAIApplyMode) {
-  const task = props.msg.richTextAI;
-  if (!task) {
-    return props.msg.content;
-  }
-  if (mode === 'plain') {
-    return pickRichTextDraftCopyContent(
-      task.draft.plainText,
-      task.draft.markdown,
-      props.msg.content,
-      task.draft.html,
-    );
-  }
-  return pickRichTextDraftCopyContent(
-    task.draft.markdown,
-    task.draft.plainText,
-    props.msg.content,
-    task.draft.html,
-  );
-}
 </script>
 
 <template>
@@ -297,22 +251,6 @@ function getRichTextDraftCopyContent(mode: RichTextAIApplyMode) {
                   </div>
                 </div>
               </div>
-
-              <RichTextDraftCard
-                v-if="hasRichTextDraftCard"
-                :task="msg.richTextAI!"
-                :state="richTextState"
-                :compact="compact"
-                @apply="
-                  (target, mode) =>
-                    emit('richTextApply', props.index, target, mode)
-                "
-                @copy="
-                  (mode) => emit('copy', getRichTextDraftCopyContent(mode))
-                "
-                @discard="emit('richTextDiscard', props.index)"
-                @undo="emit('richTextUndo', props.index)"
-              />
 
               <div
                 v-if="hasActionButtons"

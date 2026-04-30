@@ -20,19 +20,18 @@ from app.core.security import (
 )
 from app.middleware.trace import trace_id_var
 from app.sio.error_utils import socket_connect_refusal
-from app.sio.page_session import PageSessionMixin
+from app.sio.socket_trace import SocketTraceMixin
 
 logger = LogManager.get_logger("app")
 
 
-class AdminNamespace(PageSessionMixin, socketio.AsyncNamespace):
+class AdminNamespace(SocketTraceMixin, socketio.AsyncNamespace):
     """
     /admin namespace — Platform admins / 平台管理员
 
     Rooms:
     - user:{user_id} — All devices of specified admin / 指定管理员的所有设备
     - admins — All platform admins / 所有平台管理员
-    - page_session:{id} — Page operation targeting (dynamic join) / 页面操作定位（动态加入）
     """
 
     # sid → session backup, prevents inability to clean up presence when get_session fails / sid → session 备份，防止 get_session 失败时无法清理 presence
@@ -168,7 +167,6 @@ class AdminNamespace(PageSessionMixin, socketio.AsyncNamespace):
         """Disconnect, update online status / 断开连接，更新在线状态"""
         session = await self.bind_socket_trace(sid, default_trace_id=str(uuid.uuid4()))
         try:
-            self.cleanup_page_sessions_for_disconnect(sid)
             user_id = None
             if session:
                 user_id = session.get("user_id")

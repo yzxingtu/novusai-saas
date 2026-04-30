@@ -1,7 +1,5 @@
 import type { Ref } from 'vue';
 
-import type { PageContext } from '#/api/shared/ai-chat';
-
 export interface UseAIChatOptions {
   /** API prefix: '/admin', '/tenant', or '/api/user' / API 前缀 */
   apiPrefix: Ref<string> | string;
@@ -15,8 +13,6 @@ export interface UseAIChatOptions {
   onToolCall?: (toolName: string, output: string) => void;
   /** Callback when streaming completes (used for unread badge) / 流式结束回调（未读角标等） */
   onStreamComplete?: () => void;
-  pageContextResolver?: () => null | PageContext;
-  pageSessionIdGetter?: () => string;
   /** Callback when required input variables are missing — opens the vars modal / 必填变量缺失时回调，打开变量弹窗 */
   onVariablesMissing?: () => void;
 }

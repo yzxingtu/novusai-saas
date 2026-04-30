@@ -19,10 +19,11 @@ import {
 } from '#/api/tenant/knowledge-bases';
 import AIPageHeroCard from '#/components/business/ai-page-hero/AIPageHeroCard.vue';
 import KnowledgeBaseCardGrid from '#/components/business/knowledge-base-card-grid/KnowledgeBaseCardGrid.vue';
-import { buildPageAIFormExtraData, useCrudList } from '#/composables';
+import { useCrudList } from '#/composables';
 import { $t } from '#/locales';
 import { formatDate, formatRelativeTime } from '#/utils/common';
 import { formatFileSize } from '#/utils/file';
+import { buildFormExtraData } from '#/utils/form-extra-data';
 import { getScopeColor, getScopeText } from '#/utils/scope-helpers';
 
 import {
@@ -34,8 +35,6 @@ import KnowledgeBaseDetail from './modules/KnowledgeBaseDetail.vue';
 import KnowledgeBaseForm from './modules/KnowledgeBaseForm.vue';
 
 defineOptions({ name: 'TenantKnowledgeBaseList' });
-
-const AI_PAGE_KEY = 'tenant.ai.knowledge-bases';
 
 /** Editable/deletable = owned by current tenant (tenant_id is owner_tenant_id synonym) */
 function isTenantManageableKb(row: KnowledgeBaseItem): boolean {
@@ -67,10 +66,7 @@ const {
   recycleBin: true,
   customActions: {
     edit: (row) =>
-      kbFormRef.value?.openEdit(
-        row,
-        buildPageAIFormExtraData({ pageKey: AI_PAGE_KEY }),
-      ),
+      kbFormRef.value?.openEdit(row, buildFormExtraData()),
   },
 });
 
@@ -116,8 +112,7 @@ const kbFormRef = ref<InstanceType<typeof KnowledgeBaseForm>>();
 
 function openKnowledgeBaseCreate(defaults: Record<string, unknown> = {}) {
   kbFormRef.value?.openNew(
-    buildPageAIFormExtraData({
-      pageKey: AI_PAGE_KEY,
+    buildFormExtraData({
       defaults,
     }),
   );

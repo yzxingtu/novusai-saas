@@ -86,9 +86,9 @@ class MenuAIConfig:
     AI metadata attached to a menu declaration.
     菜单声明上的 AI 元信息。
 
-    These fields are emitted through `/permissions/menus` so the frontend page-AI
-    layer can consume a single backend-owned menu semantic contract.
-    这些字段会通过 `/permissions/menus` 下发，供前端页面 AI 层消费统一的后端菜单语义契约。
+    These fields are emitted through `/permissions/menus` so the frontend can
+    decide AI chat entry visibility without carrying page-awareness contracts.
+    这些字段会通过 `/permissions/menus` 下发，供前端判断 AI 对话入口显隐，不携带页面感知契约。
     """
 
     description: str | None = None
@@ -96,9 +96,6 @@ class MenuAIConfig:
     capabilities: list[str] | None = None
     category: str | None = None
     mode: str | None = None
-    page_context_key: str | None = None
-    disabled_capabilities: list[str] | str | None = None
-    disabled_operations: list[str] | str | None = None
 
 
 @dataclass

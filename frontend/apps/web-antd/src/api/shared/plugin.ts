@@ -22,10 +22,7 @@ export interface PluginSlotData {
   event?: string;
   access_codes?: string[];
   ai?: {
-    disabled_capabilities?: string[];
-    disabled_operations?: string[];
-    mode?: string;
-    page_context_key?: string;
+    mode?: 'disabled' | 'enabled';
   };
   [key: string]: unknown;
 }

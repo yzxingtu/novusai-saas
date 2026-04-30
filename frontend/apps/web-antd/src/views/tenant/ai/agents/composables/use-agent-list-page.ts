@@ -11,14 +11,13 @@ import {
   getAgentListApi,
   publishAgentApi,
 } from '#/api/tenant/agents';
-import { buildPageAIFormExtraData, useCrudList } from '#/composables';
+import { useCrudList } from '#/composables';
 import { $t } from '#/locales';
+import { buildFormExtraData } from '#/utils/form-extra-data';
 
 import { getFormDefaults, getStatusText } from '../data';
 import AgentForm from '../modules/AgentForm.vue';
 import VersionHistory from '../modules/VersionHistory.vue';
-
-const AI_PAGE_KEY = 'tenant.ai.agents';
 
 export function useAgentListPage() {
   const agentFormRef = ref<InstanceType<typeof AgentForm>>();
@@ -33,21 +32,17 @@ export function useAgentListPage() {
 
   function buildCreateExtraData(defaults?: Record<string, unknown>) {
     if (!defaults || Object.keys(defaults).length === 0) {
-      return buildPageAIFormExtraData({ pageKey: AI_PAGE_KEY });
+      return buildFormExtraData();
     }
 
-    return buildPageAIFormExtraData({
-      pageKey: AI_PAGE_KEY,
+    return buildFormExtraData({
       baseDefaults: getFormDefaults(),
       defaults,
     });
   }
 
   function openAgentEdit(agent: AgentListItem) {
-    agentFormRef.value?.openEdit(
-      agent,
-      buildPageAIFormExtraData({ pageKey: AI_PAGE_KEY }),
-    );
+    agentFormRef.value?.openEdit(agent, buildFormExtraData());
   }
 
   const {

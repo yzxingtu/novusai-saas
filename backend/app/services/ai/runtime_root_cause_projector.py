@@ -542,16 +542,16 @@ class RuntimeRootCauseProjector:
             return (
                 "post_processing",
                 "incomplete_promissory_reply",
-                "The assistant stopped at a promissory page-operation preamble instead of returning the requested page result or a clear not-found conclusion.",
-                "Keep page-op turns open until the assistant emits either a concrete page-search result or an explicit no-result/no-search-UI conclusion.",
+                "The assistant stopped at a promissory legacy page-operation preamble after page awareness had already been retired.",
+                "Do not recover page-operation turns. Route the request through explicit backend APIs, exports, or permissioned skill-pack tools instead.",
                 0.96,
             )
         if continuation_source == "page_ops" and planner_intent == "direct_reply":
             return (
                 "post_processing",
-                "planner_false_direct_reply",
-                "A page continuation turn was misplanned as direct_reply even though page context and page tools were still available.",
-                "Fix the intent planner so page continuation stays in the page_ops family before any direct_reply fallback is allowed.",
+                "retired_page_continuation",
+                "A legacy page continuation signal was observed after page awareness retirement.",
+                "Keep page_ops unavailable in live routing and replace any needed data access with explicit backend/API/export/skill-tool contracts.",
                 0.94,
             )
         if (
@@ -588,9 +588,9 @@ class RuntimeRootCauseProjector:
         ):
             return (
                 "post_processing",
-                "page_continuation_missed",
-                "The runtime missed a page continuation and failed to carry the turn forward inside the page_ops family.",
-                "Start with page continuation detection and keep the active page family available through tool routing and recovery.",
+                "retired_page_continuation",
+                "The runtime observed a legacy page continuation, but page_ops is retired for live AI dialogue.",
+                "Do not restore page continuation recovery. Remove the stale source or replace it with an explicit backend/API/export/skill-tool contract.",
                 0.9,
             )
         if (

@@ -50,7 +50,7 @@ def test_base_prompt_support_facade_bindings_match_helpers() -> None:
     )
     assert (
         BaseEnginePromptSupport._truncate_tool_calls_after_navigation
-        is base_helpers.truncate_tool_calls_after_page_navigation
+        is base_helpers.truncate_tool_calls_after_navigation
     )
     assert BaseEnginePromptSupport._truncate_preview is base_helpers.truncate_preview
     assert (

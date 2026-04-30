@@ -9,13 +9,11 @@ import type {
 import type { UseAIChatOptions } from './use-ai-chat-options';
 import type { PendingInteractionUpdate } from './use-ai-chat-streaming-types';
 
-import type { ChatKBBindingInfo, PageContext } from '#/api/shared/ai-chat';
+import type { ChatKBBindingInfo } from '#/api/shared/ai-chat';
 import type { AIInteractionUpdate } from '#/store/shared/ai-panel';
 import type { AppErrorInfo } from '#/utils/request';
 
 import { unref } from 'vue';
-
-import { message } from 'ant-design-vue';
 
 import { sendChatStreamApi } from '#/api/shared/ai-chat';
 import { $t } from '#/locales';
@@ -49,11 +47,6 @@ export interface StreamRequestDeps {
   conversationContextDiagnostics: Ref<null | Record<string, unknown>>;
   conversations: Ref<ConversationItem[]>;
   deferredAutoConfirm: Ref<boolean>;
-  ensurePageOperationChannelReady: (
-    apiPrefix: string,
-    pageContext?: null | PageContext,
-  ) => Promise<boolean>;
-  hasPageOperations: (pageContext?: null | PageContext) => boolean;
   interactionMode: Ref<InteractionMode>;
   interactionModeEffective: Ref<InteractionMode>;
   lastMemoryUpdated: Ref<boolean>;
@@ -69,7 +62,6 @@ export interface StreamRequestDeps {
   selectedKBIds: Ref<number[]>;
   sendMessage: (options?: {
     agentId?: number;
-    pageContext?: null | PageContext;
     routeSource?: null | string;
     silent?: boolean;
   }) => Promise<boolean>;
@@ -98,7 +90,6 @@ export interface StreamRequestParams {
   apiAttachments?:
     | Pick<ChatAttachment, 'mime_type' | 'name' | 'type' | 'url'>[]
     | undefined;
-  pageContext: null | PageContext;
   routeSource?: null | string;
   targetAgentId: number;
   texts: string[];
@@ -110,8 +101,6 @@ export async function runStreamRequest(
 ) {
   const {
     allAgentsVariables,
-    ensurePageOperationChannelReady,
-    hasPageOperations,
     interactionMode,
     loadConversations,
     options,
@@ -120,9 +109,7 @@ export async function runStreamRequest(
     uiPanelStore,
     imageParams,
   } = deps;
-  const { texts, apiAttachments, targetAgentId, routeSource } =
-    params;
-  const pageContext = null;
+  const { texts, apiAttachments, targetAgentId, routeSource } = params;
 
   const lifecycle = createStreamRequestLifecycle(deps, targetAgentId);
   const sseBuffer = { value: '' };
@@ -133,21 +120,6 @@ export async function runStreamRequest(
 
   try {
     const prefix = unref(options.apiPrefix) as string;
-    const pageChannelReady = await ensurePageOperationChannelReady(
-      prefix,
-      pageContext,
-    );
-    if (!pageChannelReady && hasPageOperations(pageContext)) {
-      const reconnectError = {
-        message: $t('shared.common.connectionLost'),
-        raw: { name: 'PageOperationChannelUnavailable' },
-      } as AppErrorInfo;
-      message.warning(reconnectError.message);
-      lifecycle.applyAssistantError(reconnectError);
-      lifecycle.terminalizeMessage();
-      return;
-    }
-
     const singleText = texts.length === 1 ? (texts[0] ?? '') : null;
     panelInteractionUpdates = uiPanelStore.consumeInteractionUpdates();
     localInteractionUpdates = [...pendingInteractionUpdates.value];

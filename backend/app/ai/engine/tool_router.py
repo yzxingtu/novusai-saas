@@ -6,12 +6,6 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from app.ai.tools.types import ToolDefinition
-
-from .page_workflow_state_machine import (
-    PageIntentToolPlan,
-    PageWorkflowState,
-    PageWorkflowStateMachine,
-)
 from .types import ExecutionBudget, IntentPlan
 
 
@@ -26,47 +20,6 @@ class ToolRoutingDecision:
 
 
 class ToolRouter:
-    @classmethod
-    def page_intent_tool_plan(
-        cls,
-        intent_kind: str,
-        *,
-        input_variables: dict[str, Any] | None = None,
-        intent_metadata: dict[str, Any] | None = None,
-        user_text: str | None = None,
-    ) -> PageIntentToolPlan:
-        return PageWorkflowStateMachine.plan_for_intent(
-            intent_kind,
-            input_variables=input_variables,
-            intent_metadata=intent_metadata,
-            user_text=user_text,
-        )
-
-    @classmethod
-    def resolve_page_workflow_state(
-        cls,
-        *,
-        input_variables: dict[str, Any] | None = None,
-    ) -> PageWorkflowState:
-        return PageWorkflowStateMachine.resolve_state(input_variables=input_variables)
-
-    @classmethod
-    def page_intent_tool_preferences(
-        cls,
-        intent_kind: str,
-        *,
-        input_variables: dict[str, Any] | None = None,
-        intent_metadata: dict[str, Any] | None = None,
-        user_text: str | None = None,
-    ) -> tuple[list[str], list[str]]:
-        plan = cls.page_intent_tool_plan(
-            intent_kind,
-            input_variables=input_variables,
-            intent_metadata=intent_metadata,
-            user_text=user_text,
-        )
-        return list(plan.allowed_names), list(plan.preferred_names)
-
     @classmethod
     def route(
         cls,
@@ -151,13 +104,10 @@ class ToolRouter:
                 continue
 
             if intent.family == "page_ops":
-                names, preferred = cls.page_intent_tool_preferences(
-                    intent.kind,
-                    input_variables=input_variables,
-                    intent_metadata=intent.metadata,
-                    user_text=user_text,
-                )
-                register(intent, names, preferred)
+                # Page-awareness/page-operation routing is retired for the new
+                # system. Even manually supplied legacy intents must not regain
+                # tool candidates through router fallback.
+                register(intent, [], [])
                 continue
 
             if intent.kind == "knowledge_query":
@@ -190,8 +140,6 @@ class ToolRouter:
 
 
 __all__ = [
-    "PageIntentToolPlan",
-    "PageWorkflowState",
     "ToolRouter",
     "ToolRoutingDecision",
 ]

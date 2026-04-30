@@ -40,10 +40,6 @@ async def _return_none(*_args, **_kwargs):
     return None
 
 
-async def _return_page_context_limit(_db):
-    return 8192
-
-
 @pytest.mark.asyncio
 async def test_platform_public_config_reads_domain_group(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
@@ -66,10 +62,6 @@ async def test_platform_public_config_reads_domain_group(monkeypatch: pytest.Mon
     monkeypatch.setattr(
         "app.api.public.platform.resolve_public_captcha_plugin_bundle",
         _return_none,
-    )
-    monkeypatch.setattr(
-        "app.api.public.platform.get_ui_runtime_payload_max_bytes",
-        _return_page_context_limit,
     )
     monkeypatch.setattr(
         "app.api.public.platform.settings.PLATFORM_DOMAINS",
@@ -124,10 +116,6 @@ async def test_tenant_public_config_reads_registration_group(monkeypatch: pytest
     monkeypatch.setattr(
         "app.api.public.tenant.resolve_public_captcha_plugin_bundle",
         _return_none,
-    )
-    monkeypatch.setattr(
-        "app.api.public.tenant.get_ui_runtime_payload_max_bytes",
-        _return_page_context_limit,
     )
     monkeypatch.setattr(
         "app.api.public.tenant.settings.TENANT_DOMAIN_SUFFIX",

@@ -17,8 +17,8 @@ import {
   toggleSkillPackageStatusApi,
   uploadSkillPackageApi,
 } from '#/api/admin/skill-packages';
-import { buildPageAIFormExtraData } from '#/composables';
 import { $t } from '#/locales';
+import { buildFormExtraData } from '#/utils/form-extra-data';
 
 import PackageForm from './modules/form.vue';
 
@@ -26,8 +26,6 @@ type UseSkillPackageActionsOptions = {
   loadPackages: () => Promise<void>;
   refreshRecycleBin?: () => void;
 };
-
-const PAGE_KEY = 'admin.ai.skill-packages';
 
 export function useSkillPackageActions(options: UseSkillPackageActionsOptions) {
   const router = useRouter();
@@ -57,8 +55,7 @@ export function useSkillPackageActions(options: UseSkillPackageActionsOptions) {
       .setData({
         mode: 'add',
         _resource: '/admin/ai/skill-packages',
-        ...buildPageAIFormExtraData({
-          pageKey: PAGE_KEY,
+        ...buildFormExtraData({
           defaults: { is_active: true, sort_order: 0 },
         }),
       })
@@ -71,7 +68,7 @@ export function useSkillPackageActions(options: UseSkillPackageActionsOptions) {
         ...pkg,
         mode: 'edit',
         _resource: '/admin/ai/skill-packages',
-        ...buildPageAIFormExtraData({ pageKey: PAGE_KEY }),
+        ...buildFormExtraData(),
       })
       .open();
   }

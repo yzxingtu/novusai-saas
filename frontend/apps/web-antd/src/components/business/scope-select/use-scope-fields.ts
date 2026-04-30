@@ -24,7 +24,7 @@ export interface ScopeFieldsOptions {
   scopeHelp?: string;
   /** Whether scope field is disabled (locked during edit) / scope 字段是否禁用（编辑时锁定） */
   scopeDisabled?: ((values: Record<string, unknown>) => boolean) | boolean;
-  /** Default scope value exposed to form schema and AI page awareness / 作用域默认值，用于表单 schema 与 AI 页面感知 */
+  /** Default scope value exposed to form schema and explicit AI data tools / 作用域默认值，用于表单 schema 与显式 AI 数据工具 */
   scopeDefaultValue?: string;
   /**
    * Whether to show an owner-tenant select for special scenarios, default false.

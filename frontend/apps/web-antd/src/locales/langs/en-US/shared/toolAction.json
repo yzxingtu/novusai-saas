@@ -1,0 +1,9 @@
+{
+  "confirmOk": "Allow",
+  "confirmCancel": "Cancel",
+  "confirmCountdown": "Valid for {seconds}s",
+  "msg": {
+    "actionCompleted": "Executed {target}",
+    "operationNotRegistered": "Editor action \"{op}\" is not registered for \"{page}\""
+  }
+}

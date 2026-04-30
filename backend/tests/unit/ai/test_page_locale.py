@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from app.ai.page_locale import (
-    infer_page_locale_from_page_context,
     infer_user_message_locale,
     looks_like_locale_key,
     page_language_name,
@@ -56,31 +55,8 @@ def test_looks_like_locale_key_detects_route_meta_keys() -> None:
     assert looks_like_locale_key("仪表盘") is False
 
 
-def test_infer_page_locale_ignores_locale_keys_without_real_language_signal() -> None:
-    assert (
-        infer_page_locale_from_page_context(
-            {
-                "page_key": "tenant.dashboard",
-                "page_title": "page.dashboard.title",
-            }
-        )
-        is None
-    )
-
-
-def test_resolve_page_locale_prefers_explicit_locale_over_route_title_key() -> None:
-    assert (
-        resolve_page_locale(
-            {
-                "page_context": {
-                    "page_key": "tenant.dashboard",
-                    "page_title": "page.dashboard.title",
-                    "locale": "zh-CN",
-                }
-            }
-        )
-        == "zh_CN"
-    )
+def test_resolve_page_locale_prefers_explicit_locale() -> None:
+    assert resolve_page_locale({"locale": "zh-CN"}) == "zh_CN"
 
 
 def test_infer_user_message_locale_requires_stronger_english_signal() -> None:
@@ -95,11 +71,7 @@ def test_resolve_visible_reply_locale_prefers_latest_user_language_signal() -> N
             [
                 ChatMessage(role="user", content="How is the weather in Shanghai today?"),
             ],
-            {
-                "page_context": {
-                    "locale": "zh-CN",
-                }
-            },
+            {"locale": "zh-CN"},
         )
         == "en"
     )
@@ -113,11 +85,7 @@ def test_resolve_visible_reply_locale_skips_ambiguous_confirmation_and_uses_prio
                 ChatMessage(role="assistant", content=""),
                 ChatMessage(role="user", content="Okay"),
             ],
-            {
-                "page_context": {
-                    "locale": "en",
-                }
-            },
+            {"locale": "en"},
         )
         == "zh_CN"
     )

@@ -14,7 +14,6 @@ from app.ai.types import ChatMessage, ChatResponse
 from app.core.logging import LogManager
 
 from .intent_plan_accessors import resolve_intent_plan_from_input_variables
-from .page_workflow_state_machine import resolve_page_workflow_goal
 from .types import ExecutionBudget, ResearchContinuationContext, ToolUsePolicy
 
 logger = LogManager.get_logger("ai.engine")
@@ -177,70 +176,7 @@ def _target_page_recovery_intent(
     intent_kind: str,
     workflow_goal: str = "",
 ) -> Any | None:
-    normalized_workflow_goal = str(workflow_goal or "").strip()
-
-    def _historical_page_workflow_goal_from_legacy_intent_kind(value: Any) -> str:
-        # HISTORICAL_READ_FALLBACK: older stored intent plans may still carry
-        # legacy page_* kinds without canonical page_workflow_* metadata.
-        return {
-            "page_summary": "page_summary",
-            "table_summary": "table_summary",
-            "page_navigation": "navigation",
-            "page_search": "search",
-            "page_pagination": "pagination",
-            "page_row_detail": "row_detail",
-            "page_form_read": "form_read",
-            "page_form_write": "form_write",
-            "page_editor_read": "editor_read",
-            "page_editor_write": "editor_write",
-            "page_screenshot": "page_screenshot",
-        }.get(str(value or "").strip(), "")
-
-    def _intent_workflow_goal(intent: Any) -> str:
-        metadata = dict(getattr(intent, "metadata", {}) or {})
-        workflow_goal_value = str(
-            resolve_page_workflow_goal(
-                intent_kind=str(getattr(intent, "kind", "") or "").strip(),
-                intent_metadata=metadata,
-                user_text=str(getattr(intent, "source_text", "") or "").strip()
-                or None,
-            )
-            or ""
-        ).strip()
-        if workflow_goal_value:
-            return workflow_goal_value
-        return _historical_page_workflow_goal_from_legacy_intent_kind(
-            getattr(intent, "kind", ""),
-        )
-
-    unfinished = [
-        intent
-        for intent in intent_plan
-        if getattr(intent, "family", None) == "page_ops"
-        and getattr(intent, "status", None) not in {"completed", "failed", "skipped"}
-    ]
-    if normalized_workflow_goal:
-        for intent in unfinished:
-            if _intent_workflow_goal(intent) == normalized_workflow_goal:
-                return intent
-    for intent in unfinished:
-        if str(getattr(intent, "kind", "") or "").strip() == intent_kind:
-            return intent
-    if unfinished:
-        return unfinished[0]
-    if normalized_workflow_goal:
-        for intent in intent_plan:
-            if (
-                getattr(intent, "family", None) == "page_ops"
-                and _intent_workflow_goal(intent) == normalized_workflow_goal
-            ):
-                return intent
-    for intent in intent_plan:
-        if (
-            getattr(intent, "family", None) == "page_ops"
-            and str(getattr(intent, "kind", "") or "").strip() == intent_kind
-        ):
-            return intent
+    del intent_plan, intent_kind, workflow_goal
     return None
 
 
@@ -251,136 +187,8 @@ def project_page_recovery_into_runtime_intent_plan(
     recovery_diagnostics: dict[str, Any],
     recovery_tool_names: list[str],
 ) -> None:
-    if not recovery_tool_names:
-        return
-    resolved_intent_plan = (
-        list(intent_plan)
-        if intent_plan is not None
-        else resolve_intent_plan_from_input_variables(input_variables)
-    )
-    if not resolved_intent_plan:
-        return
-
-    target_intent_kind = str(
-        recovery_diagnostics.get("page_workflow_kind")
-        or recovery_diagnostics.get("intent_kind")
-        or ""
-    ).strip()
-    target_workflow_goal = str(
-        recovery_diagnostics.get("page_workflow_goal")
-        or recovery_diagnostics.get("workflow_goal")
-        or ""
-    ).strip()
-    if not target_intent_kind and not target_workflow_goal:
-        return
-    target_intent = _target_page_recovery_intent(
-        resolved_intent_plan,
-        intent_kind=target_intent_kind,
-        workflow_goal=target_workflow_goal,
-    )
-    if target_intent is None:
-        return
-
-    page_workflow_progress = (
-        dict(recovery_diagnostics.get("page_workflow_progress") or {})
-        if isinstance(recovery_diagnostics.get("page_workflow_progress"), dict)
-        else {}
-    )
-    if not page_workflow_progress:
-        return
-
-    metadata = dict(getattr(target_intent, "metadata", {}) or {})
-    metadata["page_workflow_kind"] = str(
-        recovery_diagnostics.get("page_workflow_kind")
-        or metadata.get("page_workflow_kind")
-        or ("page_workflow" if target_workflow_goal else "")
-    ).strip()
-    metadata["page_workflow_stage"] = str(
-        recovery_diagnostics.get("page_workflow_stage")
-        or recovery_diagnostics.get("workflow_stage")
-        or metadata.get("page_workflow_stage")
-        or ""
-    ).strip()
-    metadata["page_workflow_phase"] = str(
-        recovery_diagnostics.get("page_workflow_phase")
-        or recovery_diagnostics.get("workflow_phase")
-        or metadata.get("page_workflow_phase")
-        or ""
-    ).strip()
-    metadata["page_workflow_goal"] = str(
-        recovery_diagnostics.get("page_workflow_goal")
-        or recovery_diagnostics.get("workflow_goal")
-        or metadata.get("page_workflow_goal")
-        or ""
-    ).strip()
-    metadata.pop("page_workflow_intent_alias", None)
-    page_workflow_state = recovery_diagnostics.get("page_workflow_state")
-    if not isinstance(page_workflow_state, dict):
-        page_workflow_state = recovery_diagnostics.get("workflow_state")
-    if isinstance(page_workflow_state, dict):
-        metadata["page_workflow_state"] = dict(page_workflow_state or {})
-    page_workflow_completion = recovery_diagnostics.get("page_workflow_completion")
-    if not isinstance(page_workflow_completion, dict):
-        page_workflow_completion = recovery_diagnostics.get("workflow_completion")
-    if isinstance(page_workflow_completion, dict):
-        metadata["page_workflow_completion"] = dict(page_workflow_completion or {})
-    metadata["page_workflow_progress"] = page_workflow_progress
-    metadata["page_workflow_continuation_required"] = bool(
-        page_workflow_progress.get("continuation_required", True)
-    )
-    metadata["page_no_progress_recovery"] = {
-        "reason": str(recovery_diagnostics.get("reason") or "").strip(),
-        "allowed_tool_names": list(recovery_tool_names),
-        "round_tool_names": list(recovery_diagnostics.get("round_tool_names") or []),
-    }
-    preferred_tool_names = list(
-        recovery_diagnostics.get("preferred_tool_names") or recovery_tool_names
-    )
-    preferred_tool_names = [
-        name for name in preferred_tool_names if name in set(recovery_tool_names)
-    ] or list(recovery_tool_names)
-    target_intent.allowed_tool_names = list(recovery_tool_names)
-    target_intent.preferred_tool_names = preferred_tool_names
-    target_intent.metadata = metadata
-    target_intent.status = "pending"
-    target_intent.cached_result = None
-    target_intent.completed_by_tool_names = []
-
-    if not isinstance(input_variables, dict):
-        return
-    runtime_intent_facts = input_variables.get("_runtime_intent_facts")
-    if not isinstance(runtime_intent_facts, dict):
-        runtime_intent_facts = {}
-        input_variables["_runtime_intent_facts"] = runtime_intent_facts
-    runtime_intent_facts["active_intent_kind"] = str(
-        metadata.get("page_workflow_kind")
-        or ("page_workflow" if metadata.get("page_workflow_goal") else target_intent.kind)
-        or ""
-    ).strip()
-    for field_name in (
-        "page_workflow_kind",
-        "page_workflow_stage",
-        "page_workflow_phase",
-        "page_workflow_goal",
-    ):
-        value = metadata.get(field_name)
-        if isinstance(value, str):
-            normalized = value.strip()
-            if normalized:
-                runtime_intent_facts[field_name] = normalized
-    if isinstance(metadata.get("page_workflow_state"), dict):
-        runtime_intent_facts["page_workflow_state"] = dict(
-            metadata.get("page_workflow_state") or {}
-        )
-    if isinstance(metadata.get("page_workflow_completion"), dict):
-        runtime_intent_facts["page_workflow_completion"] = dict(
-            metadata.get("page_workflow_completion") or {}
-        )
-    runtime_intent_facts["page_workflow_progress"] = dict(page_workflow_progress)
-    input_variables["_runtime_intent_plan"] = [
-        intent_item.to_dict() if hasattr(intent_item, "to_dict") else dict(intent_item)
-        for intent_item in resolved_intent_plan
-    ]
+    del intent_plan, input_variables, recovery_diagnostics, recovery_tool_names
+    return
 
 
 def append_ordered_progress_hint(

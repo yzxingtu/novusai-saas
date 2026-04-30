@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import type { PendingPageOpForDisplay } from './pending-page-op';
+import type { PendingToolActionForDisplay } from './pending-tool-action';
 import type { ToolDisplayItem } from './tool-call-utils';
 import type { ChatMessage } from './types';
 
@@ -13,8 +13,8 @@ import { $t } from '#/locales';
 import { useAIPanelStore } from '#/store';
 
 import ToolCallDetails from './ToolCallDetails.vue';
-import ToolCallPendingOpCard from './ToolCallPendingOpCard.vue';
-import { getPageOpErrorHintKey } from './pageOpErrorHints';
+import ToolCallPendingActionCard from './ToolCallPendingActionCard.vue';
+import { getToolActionErrorHintKey } from './toolActionErrorHints';
 import { useChatMessageToolCalls } from './use-chat-message-tool-calls';
 
 const props = withDefaults(
@@ -24,7 +24,7 @@ const props = withDefaults(
     embedded?: boolean;
     index: number;
     msg: ChatMessage;
-    pendingOps?: PendingPageOpForDisplay[];
+    pendingOps?: PendingToolActionForDisplay[];
   }>(),
   {
     compact: false,
@@ -131,7 +131,7 @@ function getEmbeddedToolHint(toolItem: ToolDisplayItem): string {
   if (toolItem.tc.status !== 'error') {
     return '';
   }
-  return $t(getPageOpErrorHintKey(toolItem.tc.errorType));
+  return $t(getToolActionErrorHintKey(toolItem.tc.errorType));
 }
 </script>
 
@@ -645,7 +645,7 @@ function getEmbeddedToolHint(toolItem: ToolDisplayItem): string {
               </div>
 
               <!-- Inline confirmation card (for this tool call) / 内联确认卡片（对应本工具调用） -->
-              <ToolCallPendingOpCard
+              <ToolCallPendingActionCard
                 v-for="op in (pendingOps || []).filter(
                   (o) => o.toolCallId === toolItem.tc.id,
                 )"
@@ -657,7 +657,8 @@ function getEmbeddedToolHint(toolItem: ToolDisplayItem): string {
                 :now="now"
                 :op="op"
                 @resolve="
-                  (allowed) => aiPanelStore.resolvePageOp(op.invokeId, allowed)
+                  (allowed) =>
+                    aiPanelStore.resolveToolAction(op.invokeId, allowed)
                 "
                 @toggle-args="togglePendingOpExpand(op.invokeId)"
               />

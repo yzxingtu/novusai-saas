@@ -65,11 +65,6 @@ describe('menu-navigation', () => {
         {
           name: '智能体管理',
           path: '/admin/ai/agents',
-          meta: {
-            ai: {
-              pageContextKey: 'admin.ai.agents',
-            },
-          },
         },
       ] as any,
     });

@@ -45,16 +45,11 @@ import type {
 } from '#/components/business/dependency-block-modal/service';
 
 import { computed, defineComponent, h, ref } from 'vue';
-import { useRoute } from 'vue-router';
 
 import { useVbenDrawer, useVbenModal } from '@vben/common-ui';
 
 import { message, Modal } from 'ant-design-vue';
 
-import {
-  normalizePageKey,
-  resolveRoutePageKey,
-} from '#/components/business/ai-runtime/page-key-utils';
 import {
   showDependencyBlockModal,
   showDependencyPreviewModal,
@@ -140,30 +135,7 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
     createPermission,
     recycleBin,
     gridOptions: extraGridOptions = {},
-    ai,
   } = options;
-  const route = useRoute();
-  const aiEnabled = ai !== false;
-  const explicitPageKey = computed(() => {
-    if (!aiEnabled) return '';
-    const raw = ai?.pageKey;
-    if (typeof raw === 'string' && raw.trim()) {
-      return normalizePageKey(raw.trim());
-    }
-    return '';
-  });
-  const defaultPageKey = computed(() => {
-    if (!aiEnabled) return '';
-    const fallbackPath =
-      typeof window === 'undefined' ? '' : window.location.pathname;
-    return normalizePageKey(resolveRoutePageKey(route, fallbackPath));
-  });
-  const injectedPageKey = computed(
-    () => explicitPageKey.value || defaultPageKey.value,
-  );
-  const shouldInjectPageKey = computed(
-    () => aiEnabled && injectedPageKey.value.trim().length > 0,
-  );
 
   // ==================== Recycle bin config / 回收站配置 ====================
   const recycleBinEnabled = !!recycleBin;
@@ -234,9 +206,6 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
         mode: 'add' as FormMode,
         _resource: api.resource,
         _defaults: defaults,
-        ...(shouldInjectPageKey.value
-          ? { _pageKey: injectedPageKey.value }
-          : {}),
       })
       .open();
   }
@@ -248,9 +217,6 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
         ...row,
         mode: 'edit' as FormMode,
         _resource: api.resource,
-        ...(shouldInjectPageKey.value
-          ? { _pageKey: injectedPageKey.value }
-          : {}),
       })
       .open();
   }
