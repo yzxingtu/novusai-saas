@@ -5,8 +5,6 @@ from typing import Any
 
 import pytest
 
-from app.ai.tools.executors.ui_snapshot_executor import UISnapshotExecutor
-from app.ai.tools.page_runtime.executor import PageRuntimeToolExecutor
 from app.ai.tools.sandbox import SandboxConfig, ToolSandbox
 from app.ai.tools.types import ToolDefinition, ToolResult
 
@@ -103,17 +101,19 @@ async def test_tool_sandbox_runtime_model_info_is_optional() -> None:
     assert capture.last_context.runtime_model_code is None
 
 
-def test_tool_sandbox_wires_live_page_runtime_executor_for_page_tools() -> None:
+def test_tool_sandbox_does_not_wire_page_runtime_executors() -> None:
+    """
+    Test type: structural
+    Scope: ToolSandbox executor registry no longer exposes page-runtime ui_* tools.
+    """
     sandbox = ToolSandbox(
         tenant_id=100,
         agent_id=200,
         config=SandboxConfig(),
     )
 
-    page_runtime_executor = sandbox._named_executors["ui_read_region"]
-
-    assert isinstance(page_runtime_executor, PageRuntimeToolExecutor)
     for tool_name in {
+        "ui_get_snapshot",
         "ui_read_region",
         "ui_read_table",
         "ui_list_interactables",
@@ -124,6 +124,28 @@ def test_tool_sandbox_wires_live_page_runtime_executor_for_page_tools() -> None:
         "ui_fill_form",
         "ui_submit_form",
     }:
-        assert sandbox._named_executors[tool_name] is page_runtime_executor
+        assert tool_name not in sandbox._named_executors
 
-    assert isinstance(sandbox._named_executors["ui_get_snapshot"], UISnapshotExecutor)
+
+@pytest.mark.asyncio
+async def test_tool_sandbox_rejects_retired_page_tools_even_if_defined() -> None:
+    """
+    Test type: structural
+    Scope: retired page tools cannot be resurrected by manually supplied definitions.
+    """
+    sandbox = ToolSandbox(
+        tenant_id=100,
+        agent_id=200,
+        config=SandboxConfig(),
+    )
+    sandbox._named_executors["ui_get_snapshot"] = _CaptureExecutor()
+
+    result = await sandbox.execute(
+        tool_call_id="tc-page-retired",
+        name="ui_get_snapshot",
+        arguments={},
+        definitions=[ToolDefinition(name="ui_get_snapshot", description="snapshot")],
+    )
+
+    assert result.success is False
+    assert result.error_type == "page_awareness_retired"

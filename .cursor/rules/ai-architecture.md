@@ -194,7 +194,6 @@
 
 - 所有副作用工具必须统一写 `AIActionLog`
 - 当前最低覆盖要求：
-  - `invoke_page_operation / pageop_*`
   - `http`
   - `email`
   - `toolkit`
@@ -207,54 +206,21 @@
   - `execution_decision_id`
 - 若某路径当前只能写到 `request_data / response_data`，视为临时兼容，不视为最终完成状态
 
-## 七、页面感知与操作规则
+## 七、页面感知与页面操作退役规则
 
-- 三层架构：Layer 1（system prompt 注入）+ Layer 2（`get_page_context` 工具）+ Layer 3（`invoke_page_operation` WebSocket 执行）
-- 页面操作：**tool-first** — 有 `pageop_*` 时优先直调专用 tools；不再只限富文本页，`search` / `read_visible_rows` / `get_form_state` / `fill_form` / `refresh_list` / 分页类等高频操作也应优先展开；`content_format: 'html'|'markdown'` 与迁移/前端契约一致；禁止向用户回显 HTML/JSON/tool 参数，仅返回自然语言结果
-- `_PROTECTED_TOOL_NAMES` 白名单保护页面感知/操作工具不被优化器过滤
-- `readonly=false` 操作必须前端用户确认后才执行
-- 操作确认超时 60s；页面会话切换、离开 page_session 房间或连接断开时必须清理链式确认状态
-- 前端页面操作通道必须按 `invoke_id` 做幂等保护；重复事件只能回放已缓存结果，禁止重复执行或重复弹确认
-- 前端执行页面操作前必须校验 `event.page_key` 与当前活动页面一致；不一致时返回 `page_key_mismatch`
-- 若后端 `page_operation_invoke` 显式携带 `auto_approved=true`，前端必须直接执行，不得再按 `readonly=false` 自行弹确认
-- 页面截图能力统一使用 `capture_screenshot` 页面操作 + 附件上传链路；仅当当前运行模型明确支持视觉时才允许真正执行。截图结果必须作为内部多模态输入注入下一轮 LLM，禁止只返回图片 URL 文本假装“已看图”
-- `capture_screenshot` 仅用于页面视觉/布局问题或 DOM/文本上下文不足的场景；禁止把截图当作默认读取手段，优先使用 `read_current_view` / `read_current_sections` / `get_page_context`
-- 新增页面操作时必须通过 `registerPageOperations()` 注册，禁止绕过注册表直接执行
+- AI 对话不再通过页面感知或页面操作理解/操控前端页面。
+- 禁止新增或恢复 `page_context`、`page_data`、`page_session_id`、`ui_epoch`、
+  DOM snapshot、`ui_*`、`pageop_*`、`get_page_context`、
+  `invoke_page_operation`、`list_page_operations`。
+- 禁止新增 `registerPageOperations()`、page-session socket join、
+  `use-ui-action-channel`、页面 AI rail 或 DOM scanner 作为 AI 对话能力。
+- AI 如需分析页面可见的业务数据，必须改为后端 read-model/query API、
+  report/export endpoint，或权限受控的 installable skill-pack tool。
+- AI 如需执行业务动作，必须走显式后端 command 或 skill-pack tool，并保留权限校验、
+  参数校验、审计日志和确认策略。
+- 历史页面感知文档只作为 archive，不能作为新实现依据。
 
-### 七-A、前端接入优先级
-
-1. CRUD 列表页：优先 `useCrudPage` / `useCrudList`
-2. 详情页：优先 `useDetailPageAi()`
-3. 富文本页：优先 `useEditorPageOps()`
-4. 只有在以上三类承载不了时，才允许直接使用 `usePageAIContext()` / `usePageAIOperations()`
-
-### 七-B、统一接入规范
-
-- 页面默认应复用平台自动 page AI 协议，**不要**在业务页重新发明注册流程
-- 自定义上下文只允许追加到 `contextExtras` 或 `usePageAIContext({ contextStrategy: 'extras' })`
-- 自定义页面操作只允许通过 `ai.extra`、`useDetailPageAi({ extra })` 或 `usePageAIOperations({ operationStrategy: 'append' })` 追加
-- 非 CRUD 自定义页面只要使用 `usePageAIOperations()`，默认必须传 `operationStrategy: 'append'`；只有明确需要整体替换平台能力时才允许 `primary`
-- 需要裁剪能力时，优先 `disabledCapabilities` / `disabledOperations` / `enabled: false`，不要复制标准操作后改名重写
-- 打开 drawer/modal/panel 的操作统一用 `createOpenPageOperation()`
-- 打开当前详情页已加载实体的子抽屉/子面板时，统一用 `createOpenCurrentPageOperation()`
-- 若要先从当前可见列表解析记录再打开 UI，统一用 `createOpenRecordPageOperation()`
-- 若要先从当前可见列表解析记录再执行动作，统一用 `createRecordActionPageOperation()`
-- ref 模式表单或 `drawerApi.setData()` 需要带 `_aiPageKey` / `_defaults` 时，统一用 `buildPageAIFormExtraData()`
-- 打开新建表单且带默认值的操作统一用 `createPrefilledCreatePageOperation()`
-- `createPrefilledCreatePageOperation()` 的 `openCreate()` 允许直接返回 `{ success: false, message }` 处理“未选中父实体”“当前上下文不足”等前置条件失败，不要在页面外再包一层重复判断
-- 富文本编辑器内部涉及 `content + content_format` 的操作统一走共享 helper；禁止各页面重复解析 markdown/html
-- 富文本命令型操作（如 format/list/align/table/link）统一走共享 command builder；禁止每个命令各自手写 enum 校验和默认值逻辑
-
-### 七-C、打开型操作规则
-
-- handler 输入只接收稳定参数：优先 `id` / `code` / `slug`
-- 在页面内部先 `findRowById()` / `findEntityByCode()`，或直接复用 `createOpenRecordPageOperation()`，再调用本地 `openXxxDrawer()` / `openXxxModal()`
-- 若目标 UI 位于宿主 modal 内部，优先由宿主组件暴露 `openAddXxx()` / `openDetailXxx()` 这类意图方法，再由页面操作调用宿主方法；不要从父页直接穿透到宿主内部子组件 ref
-- 不允许让 AI 直接传整个 row JSON 或组件内部数据结构
-- 纯“打开 UI”动作应标记为 `readonly: true`，避免落入确认流
-- success / error message 统一复用 `shared.pageOperation.msg.*` 或已有 i18n key
-
-## 七-D、确认/拒绝/同意交互协议
+## 七-A、确认/拒绝/同意交互协议
 
 - 前端确认/拒绝/同意操作**必须**通过 `interaction_updates` 结构化字段传递，**禁止**将 i18n 翻译文案作为真实 `message` 发送
 - `interaction_updates` 是机器可读协议，`kind` 字段标识交互类型（`pending_confirmation` / `pending_consent` / `action_buttons`）

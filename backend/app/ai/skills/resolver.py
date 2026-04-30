@@ -39,9 +39,6 @@ if TYPE_CHECKING:
 logger = LogManager.get_logger("ai.skill.resolver")
 
 _BASELINE_RUNTIME_BUILTINS = parts.BASELINE_RUNTIME_BUILTINS
-_PAGE_RUNTIME_HINT_TOKENS = frozenset(
-    {"page", "ui", "surface", "form", "browser", "dom", "locator", "snapshot"}
-)
 _WEB_RESEARCH_HINT_TOKENS = frozenset(
     {"research", "search", "web", "fetch", "url", "crawl", "browse"}
 )
@@ -76,6 +73,31 @@ def _stable_unique_texts(values: list[Any]) -> list[str]:
 
 def _normalized_match_text(value: Any) -> str:
     return " ".join(str(value or "").strip().lower().split())
+
+
+def _is_disabled_page_runtime_tool_name(value: Any) -> bool:
+    normalized = str(value or "").strip()
+    return (
+        normalized.startswith("ui_")
+        or normalized in _PAGE_RUNTIME_BUILTIN_TOOL_NAMES
+    )
+
+
+def _remove_disabled_page_runtime_tools(result: Any) -> None:
+    tools = list(getattr(result, "tools", []) or [])
+    result.tools = [
+        tool
+        for tool in tools
+        if not _is_disabled_page_runtime_tool_name(getattr(tool, "name", None))
+    ]
+    if hasattr(result, "tool_consent_modes"):
+        result.tool_consent_modes = {
+            name: mode
+            for name, mode in dict(
+                getattr(result, "tool_consent_modes", {}) or {}
+            ).items()
+            if not _is_disabled_page_runtime_tool_name(name)
+        }
 
 
 @dataclass
@@ -256,7 +278,11 @@ def _preview_semantic_families_for_skill(
     preview_semantic_families: list[str] | None = None,
     extra_hint_values: list[str] | None = None,
 ) -> list[str]:
-    families = _stable_unique_texts(list(preview_semantic_families or []))
+    families = [
+        family
+        for family in _stable_unique_texts(list(preview_semantic_families or []))
+        if family != "page_ops"
+    ]
     for tool_name in preview_tool_names:
         family = tool_family_from_name(str(tool_name or "").strip())
         if family != "none" and family not in families:
@@ -268,8 +294,6 @@ def _preview_semantic_families_for_skill(
         source_plugin,
         *(extra_hint_values or []),
     )
-    if hint_tokens & _PAGE_RUNTIME_HINT_TOKENS and "page_ops" not in families:
-        families.append("page_ops")
     if hint_tokens & _WEB_RESEARCH_HINT_TOKENS and "web_research" not in families:
         families.append("web_research")
     return families
@@ -607,6 +631,7 @@ class SkillResolver:
         # Prevent tool name duplicates causing execution and consent attribution mismatch
         # 避免工具重名导致执行与 consent 归因错配
         self._ensure_unique_tool_names(result.tools)
+        _remove_disabled_page_runtime_tools(result)
 
         logger.info(
             "Resolved {} skills → {} tools",
@@ -962,6 +987,7 @@ async def resolve_for_agent(
             tool_definitions=resolve_result.tools,
         )
         resolve_result.tools = hook_ctx.get("tool_definitions", resolve_result.tools)
+    _remove_disabled_page_runtime_tools(resolve_result)
     enrich_skill_capability_descriptors_with_tools(
         descriptors=resolve_result.capability_descriptors,
         tools=resolve_result.tools,

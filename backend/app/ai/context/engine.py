@@ -273,10 +273,8 @@ class ConversationContextEngine(ContextEngine):
                 total_token_limit=context_budget["system_additions_tokens"],
                 budget_usage=budget_usage,
             )
-        visible_output_locale_hint = (
-            prompt_addition_support.build_page_locale_hint(request)
-            if intent_flags["has_page_intent"]
-            else prompt_addition_support.build_visible_output_locale_hint(request)
+        visible_output_locale_hint = prompt_addition_support.build_visible_output_locale_hint(
+            request
         )
         if visible_output_locale_hint:
             self._append_budgeted_addition(
@@ -287,9 +285,6 @@ class ConversationContextEngine(ContextEngine):
                 total_token_limit=context_budget["system_additions_tokens"],
                 budget_usage=budget_usage,
             )
-        if visible_output_locale_hint and intent_flags["has_page_intent"]:
-            capability_injection_decision["page_injected"] = True
-
         capability_awareness = await self.capability_bridge.compute_awareness(
             db=self.db,
             agent=agent,

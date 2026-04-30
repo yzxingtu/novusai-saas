@@ -24,7 +24,7 @@ diagnostics.
 
 1. current turn and active intent
 2. minimal system/runtime rules
-3. current page or active external context
+3. active external context
 4. compacted history
 5. session memory
 6. long-term profile snapshot
@@ -41,8 +41,8 @@ diagnostics.
   (`capability_pack`) and resolved tool bindings. Descriptor-only entries with
   `has_execution_tools=false` are catalog metadata, not budget-worthy live
   capability context.
-- `page_context` should be attached only when the intent plan actually needs
-  page-aware runtime behavior
+- `page_context` is retired for AI dialogue and must not be attached to prompt,
+  manifest, or diagnostics context
 - `knowledge_base` should not be injected for all-shortcircuit turns that do
   not need retrieval
 - `memory` should be attached only when the turn or runtime flags justify it;
@@ -54,11 +54,8 @@ diagnostics.
   assisted turn
 - `runtime_model` capability summaries may stay always-on because they drive
   downstream tool/runtime decisions
-- thin `page_context` payload size must respect the runtime config
-  `ai_page_context_max_bytes` (default `8192`); large UI content belongs behind
-  `ui_get_snapshot` / `ui_read_*`, not inside the baseline prompt payload
-- `page_context.page_data` is a strict compact seam; unsupported keys are
-  contract violations that should be rejected rather than silently dropped
+- If AI needs page/business data, add an explicit backend read-model/API/export
+  or permissioned skill-pack tool instead of budgeting rendered DOM/page state.
 
 ## Required Diagnostics
 

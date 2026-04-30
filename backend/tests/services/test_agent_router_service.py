@@ -164,8 +164,9 @@ def test_agent_supports_families_uses_skill_preview_metadata() -> None:
 
     assert AgentRouterService._agent_supports_families(
         agent,
-        ["weather", "web_research", "page_ops"],
+        ["weather", "web_research"],
     )
+    assert not AgentRouterService._agent_supports_families(agent, ["page_ops"])
 
 
 def test_agent_supports_families_treats_time_as_runtime_baseline() -> None:
@@ -204,7 +205,7 @@ def test_requested_tool_families_leaves_colloquial_here_question_unrouted() -> N
         "每页显示50条",
     ],
 )
-def test_requested_tool_families_routes_pagination_messages_to_page_ops(
+def test_requested_tool_families_ignores_retired_page_pagination_messages(
     message: str,
 ) -> None:
     families = requested_tool_families(
@@ -212,19 +213,19 @@ def test_requested_tool_families_routes_pagination_messages_to_page_ops(
         _thin_page_context("admin.runtime.records"),
     )
 
-    assert families == ["page_ops"]
+    assert families == []
 
 
-def test_requested_tool_families_keeps_page_search_keywords_inside_page_ops() -> None:
+def test_requested_tool_families_treats_page_search_keywords_as_non_page() -> None:
     families = requested_tool_families(
         "帮我搜索一下包含'天气'的记录",
         _thin_page_context("admin.runtime.records"),
     )
 
-    assert families == ["page_ops"]
+    assert families == ["weather", "web_research"]
 
 
-def test_requested_tool_families_keeps_mixed_web_and_page_summary_families() -> None:
+def test_requested_tool_families_does_not_add_retired_page_summary_family() -> None:
     families = requested_tool_families(
         "帮我搜索一下今天的 AI 新闻，再顺便概括一下当前页面都能做什么",
         _thin_page_context(
@@ -233,7 +234,7 @@ def test_requested_tool_families_keeps_mixed_web_and_page_summary_families() -> 
         ),
     )
 
-    assert families == ["web_research", "page_ops"]
+    assert families == ["web_research"]
 
 
 @pytest.mark.parametrize(
@@ -244,7 +245,7 @@ def test_requested_tool_families_keeps_mixed_web_and_page_summary_families() -> 
         "帮我编辑第一条记录，把名称改成 E2E-Edit-Test",
     ],
 )
-def test_requested_tool_families_routes_detail_and_form_messages_to_page_ops(
+def test_requested_tool_families_ignores_retired_page_detail_and_form_messages(
     message: str,
 ) -> None:
     families = requested_tool_families(
@@ -252,7 +253,7 @@ def test_requested_tool_families_routes_detail_and_form_messages_to_page_ops(
         _thin_page_context("admin.ai.skill-packages"),
     )
 
-    assert families == ["page_ops"]
+    assert families == []
 
 
 def _semantic_agents_menu_entry() -> dict[str, object]:
@@ -465,7 +466,7 @@ async def test_route_accepts_image_turn_when_smart_routing_can_supply_vision_mod
 
 
 @pytest.mark.asyncio
-async def test_route_directly_selects_only_page_operation_capable_agent(mock_db):
+async def test_route_does_not_directly_select_page_operation_agent(mock_db):
     service = AgentRouterService(mock_db)
     general_agent = _make_agent(
         agent_id=15,
@@ -482,8 +483,15 @@ async def test_route_directly_selects_only_page_operation_capable_agent(mock_db)
     service._list_available_agents = AsyncMock(
         return_value=[general_agent, page_agent],
     )
-    service._get_router_agent = AsyncMock()
-    service._fallback_to_default = AsyncMock()
+    service._get_router_agent = AsyncMock(return_value=None)
+    service._fallback_to_default = AsyncMock(
+        return_value=RouteResult(
+            agent_id=15,
+            agent_name="General Agent",
+            confidence=1.0,
+            routed_by="default",
+        ),
+    )
 
     result = await service.route(
         tenant_id=1,
@@ -494,14 +502,15 @@ async def test_route_directly_selects_only_page_operation_capable_agent(mock_db)
         user_id=10,
     )
 
-    assert result.agent_id == 59
-    assert result.agent_name == "Page Agent"
-    service._get_router_agent.assert_not_awaited()
-    service._fallback_to_default.assert_not_awaited()
+    assert result.agent_id == 15
+    assert result.agent_name == "General Agent"
+    service._get_router_agent.assert_awaited_once()
+    service._fallback_to_default.assert_awaited_once()
+    assert service._fallback_to_default.await_args.kwargs["preferred_candidates"] is None
 
 
 @pytest.mark.asyncio
-async def test_route_detects_admin_cross_page_navigation_intent(mock_db):
+async def test_route_ignores_admin_cross_page_navigation_intent(mock_db):
     service = AgentRouterService(mock_db)
     general_agent = _make_agent(
         agent_id=15,
@@ -519,8 +528,15 @@ async def test_route_detects_admin_cross_page_navigation_intent(mock_db):
     service._list_available_agents = AsyncMock(
         return_value=[general_agent, page_agent],
     )
-    service._get_router_agent = AsyncMock()
-    service._fallback_to_default = AsyncMock()
+    service._get_router_agent = AsyncMock(return_value=None)
+    service._fallback_to_default = AsyncMock(
+        return_value=RouteResult(
+            agent_id=15,
+            agent_name="General Agent",
+            confidence=1.0,
+            routed_by="default",
+        ),
+    )
 
     result = await service.route(
         tenant_id=None,
@@ -542,13 +558,14 @@ async def test_route_detects_admin_cross_page_navigation_intent(mock_db):
         user_id=1,
     )
 
-    assert result.agent_id == 59
-    assert result.routed_by == "router"
-    service._get_router_agent.assert_not_awaited()
+    assert result.agent_id == 15
+    assert result.routed_by == "default"
+    service._get_router_agent.assert_awaited_once()
+    assert service._fallback_to_default.await_args.kwargs["preferred_candidates"] is None
 
 
 @pytest.mark.asyncio
-async def test_route_detects_tenant_cross_page_navigation_intent(mock_db):
+async def test_route_ignores_tenant_cross_page_navigation_intent(mock_db):
     service = AgentRouterService(mock_db)
     general_agent = _make_agent(
         agent_id=15,
@@ -565,8 +582,15 @@ async def test_route_detects_tenant_cross_page_navigation_intent(mock_db):
     service._list_available_agents = AsyncMock(
         return_value=[general_agent, page_agent],
     )
-    service._get_router_agent = AsyncMock()
-    service._fallback_to_default = AsyncMock()
+    service._get_router_agent = AsyncMock(return_value=None)
+    service._fallback_to_default = AsyncMock(
+        return_value=RouteResult(
+            agent_id=15,
+            agent_name="General Agent",
+            confidence=1.0,
+            routed_by="default",
+        ),
+    )
 
     result = await service.route(
         tenant_id=1,
@@ -588,13 +612,14 @@ async def test_route_detects_tenant_cross_page_navigation_intent(mock_db):
         user_id=10,
     )
 
-    assert result.agent_id == 66
-    assert result.routed_by == "router"
-    service._get_router_agent.assert_not_awaited()
+    assert result.agent_id == 15
+    assert result.routed_by == "default"
+    service._get_router_agent.assert_awaited_once()
+    assert service._fallback_to_default.await_args.kwargs["preferred_candidates"] is None
 
 
 @pytest.mark.asyncio
-async def test_route_detects_semantic_agent_navigation_phrase(mock_db):
+async def test_route_ignores_semantic_agent_navigation_phrase(mock_db):
     service = AgentRouterService(mock_db)
     general_agent = _make_agent(
         agent_id=15,
@@ -612,8 +637,15 @@ async def test_route_detects_semantic_agent_navigation_phrase(mock_db):
     service._list_available_agents = AsyncMock(
         return_value=[general_agent, page_agent],
     )
-    service._get_router_agent = AsyncMock()
-    service._fallback_to_default = AsyncMock()
+    service._get_router_agent = AsyncMock(return_value=None)
+    service._fallback_to_default = AsyncMock(
+        return_value=RouteResult(
+            agent_id=15,
+            agent_name="General Agent",
+            confidence=1.0,
+            routed_by="default",
+        ),
+    )
 
     result = await service.route(
         tenant_id=None,
@@ -635,13 +667,14 @@ async def test_route_detects_semantic_agent_navigation_phrase(mock_db):
         user_id=1,
     )
 
-    assert result.agent_id == 59
-    assert result.routed_by == "router"
-    service._get_router_agent.assert_not_awaited()
+    assert result.agent_id == 15
+    assert result.routed_by == "default"
+    service._get_router_agent.assert_awaited_once()
+    assert service._fallback_to_default.await_args.kwargs["preferred_candidates"] is None
 
 
 @pytest.mark.asyncio
-async def test_route_detects_semantic_ai_assistant_navigation_phrase(mock_db):
+async def test_route_ignores_semantic_ai_assistant_navigation_phrase(mock_db):
     service = AgentRouterService(mock_db)
     general_agent = _make_agent(
         agent_id=15,
@@ -659,8 +692,15 @@ async def test_route_detects_semantic_ai_assistant_navigation_phrase(mock_db):
     service._list_available_agents = AsyncMock(
         return_value=[general_agent, page_agent],
     )
-    service._get_router_agent = AsyncMock()
-    service._fallback_to_default = AsyncMock()
+    service._get_router_agent = AsyncMock(return_value=None)
+    service._fallback_to_default = AsyncMock(
+        return_value=RouteResult(
+            agent_id=15,
+            agent_name="General Agent",
+            confidence=1.0,
+            routed_by="default",
+        ),
+    )
 
     result = await service.route(
         tenant_id=None,
@@ -682,9 +722,10 @@ async def test_route_detects_semantic_ai_assistant_navigation_phrase(mock_db):
         user_id=1,
     )
 
-    assert result.agent_id == 59
-    assert result.routed_by == "router"
-    service._get_router_agent.assert_not_awaited()
+    assert result.agent_id == 15
+    assert result.routed_by == "default"
+    service._get_router_agent.assert_awaited_once()
+    assert service._fallback_to_default.await_args.kwargs["preferred_candidates"] is None
 
 
 @pytest.mark.asyncio
@@ -907,7 +948,7 @@ async def test_route_prefers_candidate_covering_weather_and_time_for_mixed_non_p
     service._fallback_to_default.assert_not_awaited()
 
 
-async def test_route_uses_page_operation_candidate_pool_for_fallback(mock_db):
+async def test_route_does_not_use_page_operation_candidate_pool_for_fallback(mock_db):
     service = AgentRouterService(mock_db)
     general_agent = _make_agent(
         agent_id=15,
@@ -933,8 +974,8 @@ async def test_route_uses_page_operation_candidate_pool_for_fallback(mock_db):
     service._get_router_agent = AsyncMock(return_value=None)
     service._fallback_to_default = AsyncMock(
         return_value=RouteResult(
-            agent_id=59,
-            agent_name="Page Agent A",
+            agent_id=15,
+            agent_name="General Agent",
             confidence=1.0,
             routed_by="default",
         ),
@@ -949,13 +990,10 @@ async def test_route_uses_page_operation_candidate_pool_for_fallback(mock_db):
         user_id=10,
     )
 
-    assert result.agent_id == 59
+    assert result.agent_id == 15
     service._fallback_to_default.assert_awaited_once()
     fallback_kwargs = service._fallback_to_default.await_args.kwargs
-    assert [agent.id for agent in fallback_kwargs["preferred_candidates"]] == [
-        59,
-        60,
-    ]
+    assert fallback_kwargs["preferred_candidates"] is None
 
 
 @pytest.mark.asyncio
@@ -1052,7 +1090,7 @@ async def test_fallback_to_default_uses_preferred_pool_when_default_agent_is_out
 
 
 @pytest.mark.asyncio
-async def test_route_prefers_vision_page_agent_for_screenshot_request(mock_db):
+async def test_route_does_not_prefer_vision_page_agent_for_screenshot_request(mock_db):
     service = AgentRouterService(mock_db)
     text_page_agent = _make_agent(
         agent_id=59,
@@ -1073,8 +1111,15 @@ async def test_route_prefers_vision_page_agent_for_screenshot_request(mock_db):
     service._agent_can_handle_images = AsyncMock(
         side_effect=lambda agent: bool(agent.model.supports_vision)
     )
-    service._get_router_agent = AsyncMock()
-    service._fallback_to_default = AsyncMock()
+    service._get_router_agent = AsyncMock(return_value=None)
+    service._fallback_to_default = AsyncMock(
+        return_value=RouteResult(
+            agent_id=59,
+            agent_name="Text Page Agent",
+            confidence=1.0,
+            routed_by="default",
+        ),
+    )
 
     result = await service.route(
         tenant_id=1,
@@ -1088,12 +1133,14 @@ async def test_route_prefers_vision_page_agent_for_screenshot_request(mock_db):
         user_id=10,
     )
 
-    assert result.agent_id == 60
-    service._get_router_agent.assert_not_awaited()
+    assert result.agent_id == 59
+    service._get_router_agent.assert_awaited_once()
+    service._fallback_to_default.assert_awaited_once()
+    assert service._fallback_to_default.await_args.kwargs["preferred_candidates"] is None
 
 
 @pytest.mark.asyncio
-async def test_route_rejects_screenshot_request_when_no_vision_page_agent_exists(mock_db):
+async def test_route_does_not_treat_screenshot_request_as_page_vision_gate(mock_db):
     service = AgentRouterService(mock_db)
     text_page_agent = _make_agent(
         agent_id=59,
@@ -1104,21 +1151,30 @@ async def test_route_rejects_screenshot_request_when_no_vision_page_agent_exists
 
     service._list_available_agents = AsyncMock(return_value=[text_page_agent])
     service._agent_can_handle_images = AsyncMock(return_value=False)
-    service._fallback_to_default = AsyncMock()
+    service._get_router_agent = AsyncMock(return_value=None)
+    service._fallback_to_default = AsyncMock(
+        return_value=RouteResult(
+            agent_id=59,
+            agent_name="Text Page Agent",
+            confidence=1.0,
+            routed_by="default",
+        ),
+    )
 
-    with pytest.raises(BusinessException):
-        await service.route(
-            tenant_id=1,
-            message="请帮我把当前页面截图发出来",
-            page_context=_thin_page_context(
-                "admin.ai.quotas",
-                primary_tools=["ui_get_snapshot", "ui_read_region", "ui_click"],
-            ),
-            user_role=UserRoleEnum.TENANT_ADMIN.value,
-            user_role_id=1,
-            user_id=10,
-        )
+    result = await service.route(
+        tenant_id=1,
+        message="请帮我把当前页面截图发出来",
+        page_context=_thin_page_context(
+            "admin.ai.quotas",
+            primary_tools=["ui_get_snapshot", "ui_read_region", "ui_click"],
+        ),
+        user_role=UserRoleEnum.TENANT_ADMIN.value,
+        user_role_id=1,
+        user_id=10,
+    )
 
-    service._fallback_to_default.assert_not_awaited()
+    assert result.agent_id == 59
+    service._fallback_to_default.assert_awaited_once()
+    assert service._fallback_to_default.await_args.kwargs["preferred_candidates"] is None
 
 

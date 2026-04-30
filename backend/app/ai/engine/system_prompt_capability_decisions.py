@@ -66,12 +66,5 @@ def resolve_capability_injection_decision(
             )
         )
     )
-    decision["page_injected"] = bool(
-        decision["page_injected"]
-        or (
-            capability_summary_injected
-            and "page_context" in active_context_source_kinds
-            and bool(intent_flags.get("has_page_intent"))
-        )
-    )
+    decision["page_injected"] = False
     return decision

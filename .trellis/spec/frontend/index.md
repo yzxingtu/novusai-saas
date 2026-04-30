@@ -10,8 +10,9 @@
 - Three UI surfaces are maintained separately: `admin`, `tenant`, and `user`.
 - The dominant page patterns are `useCrudPage` for data-heavy table pages and
   `useCrudList` for card, split-panel, and configuration pages.
-- Shared page AI infrastructure is already built into the platform; new pages
-  should extend it instead of recreating it.
+- Page awareness/page-operation infrastructure is retired for AI dialogue. New
+  pages must not extend DOM/page perception; expose analyzable data through
+  backend read-models, APIs, exports, or permissioned skill-pack tools instead.
 
 ## Sources Of Truth
 
@@ -36,7 +37,7 @@
 |-------|-------------|--------------|
 | [Directory Structure](./directory-structure.md) | Where views, composables, API modules, stores, and shared utilities live | Before adding or moving frontend files |
 | [Component Guidelines](./component-guidelines.md) | Page/component patterns, i18n, permissions, uploads, and styling | Before building or editing UI |
-| [Hook Guidelines](./hook-guidelines.md) | Composable design, data loading, and page AI extension rules | Before creating or extending a composable |
+| [Hook Guidelines](./hook-guidelines.md) | Composable design, data loading, and retired AI page-awareness rules | Before creating or extending a composable |
 | [State Management](./state-management.md) | Pinia usage, shared stores, route/domain state, and public config | Before adding store state |
 | [Type Safety](./type-safety.md) | API transforms, generics, payload typing, and unsafe patterns to avoid | Before touching types or API wrappers |
 | [Quality Guidelines](./quality-guidelines.md) | Linting, tests, browser validation, and release checks | Before merging frontend work |
@@ -105,7 +106,7 @@ Read these files in order when touching frontend code:
 2. [Directory Structure](./directory-structure.md)
 3. The task-specific file:
    - page/component work -> [Component Guidelines](./component-guidelines.md)
-   - composables/page AI extensions -> [Hook Guidelines](./hook-guidelines.md)
+   - composables or AI data access -> [Hook Guidelines](./hook-guidelines.md)
    - Pinia/domain/auth/public config work -> [State Management](./state-management.md)
    - API payloads and types -> [Type Safety](./type-safety.md)
    - tests and regression checks -> [Quality Guidelines](./quality-guidelines.md)
@@ -116,7 +117,7 @@ Read these files in order when touching frontend code:
 
 - Table CRUD page with `useCrudPage`:
   `frontend/apps/web-antd/src/views/admin/system/attachments/index.vue`
-- Card/list CRUD page with `useCrudList` and page AI extras:
+- Card/list CRUD page with `useCrudList`:
   `frontend/apps/web-antd/src/views/admin/ai/agents/index.vue`
 - Upload and download wrapper:
   `frontend/apps/web-antd/src/api/admin/attachment.ts`
@@ -135,8 +136,10 @@ Read these files in order when touching frontend code:
 
 ## Anti-Patterns To Avoid
 
-- Building a one-off page pattern when `useCrudPage`, `useCrudList`,
-  `useCrudDrawer`, or shared page AI helpers already cover it.
+- Building a one-off page pattern when `useCrudPage`, `useCrudList`, or
+  `useCrudDrawer` already cover it.
+- Reintroducing AI page awareness with DOM scanners, `page_context`,
+  `page_session_id`, `ui_*` tools, or page-operation registries.
 - Calling `requestClient.upload()` directly from business code.
 - Parsing image or attachment ids with blind `Number()` / `parseInt()` casts.
 - Creating local permission logic instead of using `v-access` or shared access

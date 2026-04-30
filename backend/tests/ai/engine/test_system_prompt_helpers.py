@@ -12,15 +12,15 @@ from app.ai.engine.contract_diagnostics_helpers import (
     build_contract_recovery_system_message,
     merge_contract_diagnostics_into_turn_record,
 )
+from app.ai.engine.system_prompt_capability_hints import (
+    build_runtime_capability_hint,
+)
 from app.ai.engine.system_prompt_helpers import (
     build_system_message,
     deserialize_intent_plan,
     inject_runtime_summary,
     is_capability_reporting_query,
     resolve_capability_injection_decision,
-)
-from app.ai.engine.system_prompt_capability_hints import (
-    build_runtime_capability_hint,
 )
 from app.ai.engine.types import IntentPlan
 from app.ai.runtime.types import TurnRecord
@@ -318,7 +318,11 @@ def test_deserialize_intent_plan_filters_invalid_entries() -> None:
     assert intents[0].intent_id == "intent-1"
 
 
-def test_resolve_capability_injection_decision_sets_context_flags() -> None:
+def test_resolve_capability_injection_decision_does_not_advertise_page_context() -> None:
+    """
+    Test type: structural
+    Scope: page_context sources no longer set runtime prompt capability flags.
+    """
     class _Source:
         def __init__(self, kind: str, active: bool = True) -> None:
             self.kind = kind
@@ -338,7 +342,7 @@ def test_resolve_capability_injection_decision_sets_context_flags() -> None:
     )
 
     assert decision["all_shortcircuit"] is False
-    assert decision["page_injected"] is True
+    assert decision["page_injected"] is False
     assert decision["kb_injected"] is False
     assert decision["memory_injected"] is False
     assert decision["skills_injected"] is False

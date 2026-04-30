@@ -149,7 +149,7 @@ def resolve_startup_intent_flags(request: Any) -> dict[str, bool]:
         _request_page_context(request),
     )
     return {
-        "has_page_intent": "page_ops" in requested_families,
+        "has_page_intent": False,
         "has_web_research_intent": "web_research" in requested_families,
     }
 
@@ -259,9 +259,6 @@ def _tool_names_for_runtime_policy(
         tool_name = str(getattr(tool, "name", "") or "").strip()
         if not tool_name:
             continue
-        if intent_flags.get("has_page_intent") and tool_name in _PAGE_TOOL_NAMES:
-            selected.append(tool_name)
-            continue
         if (
             intent_flags.get("has_web_research_intent")
             and tool_name in _WEB_RESEARCH_TOOL_NAMES
@@ -290,8 +287,6 @@ def _skill_names_for_runtime_policy(
     allow_catalog_skill_activation: bool,
 ) -> list[str]:
     requested_families: set[str] = set()
-    if intent_flags.get("has_page_intent"):
-        requested_families.add("page_ops")
     if intent_flags.get("has_web_research_intent"):
         requested_families.add("web_research")
     if not requested_families:

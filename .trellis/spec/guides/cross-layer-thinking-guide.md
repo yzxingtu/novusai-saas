@@ -77,18 +77,17 @@ For each layer pair, answer:
   touched controller module directly while still validating the public transport
   contract?
 
-### Frontend UI Runtime Priority Order
+### Frontend AI Data Access Priority
 
-When the work involves page context, page operations, or UI runtime tools,
-check whether the page fits an existing entry point before adding low-level
-wiring:
+Page perception and UI Runtime page-operation tools are retired for AI dialogue.
+When AI needs to analyze page-visible or domain data, do not add DOM scanners,
+`page_context`, `page_session_id`, `ui_*` tools, or page-operation registries.
+Choose the first backend-owned seam that fits:
 
-1. `useCrudPage`
-2. `useCrudList` (+ shared runtime helpers such as
-   `use-page-ai-operation-helpers.ts`, `use-form-state-tracker.ts`, and
-   `use-ui-action-channel.ts` when the page needs protocol-aligned metadata or
-   form/session hooks)
-3. thin `page_context` + UI Runtime `ui_*` tools path for non-CRUD pages
+1. typed read-model/query API for product data
+2. report/export endpoint for larger datasets
+3. permissioned installable skill-pack tool for AI-specific analysis or action
+4. ordinary frontend rendering of the backend/skill result
 
 ### Dev-only Bootstrap Credential Contract
 
@@ -154,10 +153,9 @@ If the answer is no, stop and gather the missing contract before coding.
 - Verify trace_id surfaces via `showRequestError` or backend `build_public_error_text`.
 - If uploads/files changed, ensure downloads still call `requestClient.download` + `downloadBlob`.
 - If plugins or permissions changed, confirm `/permissions/menus`, `/plugins/slots`, and `v-access` flows match the manifest contract.
-- If AI agents changed, ensure frontend still exposes a thin `page_context`
-  contract, `ui_*` runtime actions, and shared runtime helpers through
-  `useCrudList`/`useCrudPage` without reviving legacy `ai.*` or `ai.extra`
-  option bags.
+- If AI agents changed, confirm the frontend did not reintroduce DOM-driven
+  page perception, `page_context`, `page_session_id`, `ui_*` runtime actions,
+  or page-operation registries.
 - If quota/rate-limit behavior changed, confirm runtime interception behavior,
   not only CRUD or diagnostics UI.
 - If tenant/user routing changed, confirm `router/guard.ts` and

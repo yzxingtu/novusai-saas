@@ -1,8 +1,12 @@
-"""Agent chat thin page context tests / AgentChat 薄页面上下文测试。"""
+"""
+Test type: behavioral
+Scope: Agent chat retired page-context compatibility and page-runtime unavailability.
+Mock strategy: runtime bridge/config collaborators are mocked; schema normalization,
+tool-availability policy, and executor fallback behavior execute real logic.
+"""
 
 from __future__ import annotations
 
-import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -104,9 +108,16 @@ def test_page_context_normalize_returns_none_for_invalid_payload() -> None:
     assert PageContext.normalize({"page_title": "missing page_key"}) is None
 
 
-def test_page_context_normalize_variables_prefers_explicit_page_context() -> None:
+def test_page_context_normalize_variables_strips_retired_page_context() -> None:
     normalized = PageContext.normalize_variables(
-        {"foo": "bar"},
+        {
+            "foo": "bar",
+            "page_context": {
+                "page_key": "legacy.page",
+                "page_session_id": "legacy-session",
+                "ui_epoch": 4,
+            },
+        },
         {
             "page_key": "tenant.ai.agents",
             "ui_epoch": 5,
@@ -115,17 +126,7 @@ def test_page_context_normalize_variables_prefers_explicit_page_context() -> Non
             },
         },
     )
-    assert normalized == {
-        "foo": "bar",
-        "page_context": {
-            "page_key": "tenant.ai.agents",
-            "ui_epoch": 5,
-            "page_data": {
-                "navigation_catalog": [_navigation_entry()],
-            },
-            "surface_stack": [],
-        },
-    }
+    assert normalized == {"foo": "bar"}
 
 
 def test_page_context_normalize_drops_suggested_tools_payload() -> None:
@@ -317,17 +318,14 @@ async def test_validate_page_context_size_rejects_payload_over_runtime_limit() -
     assert "32" in str(exc_info.value)
 
 
-def test_page_context_available_ui_tools_infers_base_tools_from_thin_context() -> None:
+def test_page_context_available_ui_tools_retired_for_thin_context() -> None:
     tools = page_context_available_ui_tools(
         {
             "page_key": "tenant.ai.agents",
             "ui_epoch": 9,
         }
     )
-    assert "ui_get_snapshot" in tools
-    assert "ui_read_region" in tools
-    assert "ui_read_table" in tools
-    assert "ui_click" in tools
+    assert tools == []
 
 
 def test_page_context_available_ui_tools_requires_live_runtime_state() -> None:
@@ -340,7 +338,7 @@ def test_page_context_available_ui_tools_requires_live_runtime_state() -> None:
     assert tools == []
 
 
-def test_page_context_available_ui_tools_accepts_page_session_without_ui_epoch() -> None:
+def test_page_context_available_ui_tools_ignores_page_session_without_ui_epoch() -> None:
     tools = page_context_available_ui_tools(
         {
             "page_key": "tenant.ai.agents",
@@ -348,11 +346,10 @@ def test_page_context_available_ui_tools_accepts_page_session_without_ui_epoch()
         }
     )
 
-    assert "ui_get_snapshot" in tools
-    assert "ui_click" in tools
+    assert tools == []
 
 
-def test_page_context_available_ui_tools_infers_form_tools_when_active_form_exists() -> None:
+def test_page_context_available_ui_tools_ignores_active_form() -> None:
     tools = page_context_available_ui_tools(
         {
             "page_key": "tenant.ai.agents",
@@ -364,9 +361,7 @@ def test_page_context_available_ui_tools_infers_form_tools_when_active_form_exis
             },
         }
     )
-    assert "ui_get_form_state" in tools
-    assert "ui_fill_form" in tools
-    assert "ui_submit_form" in tools
+    assert tools == []
 
 
 def test_page_context_available_ui_tools_ignores_suggested_submit_hint_without_form() -> (
@@ -383,14 +378,10 @@ def test_page_context_available_ui_tools_ignores_suggested_submit_hint_without_f
         }
     )
 
-    assert "ui_get_snapshot" in tools
-    assert "ui_click" in tools
-    assert "ui_fill_form" not in tools
-    assert "ui_get_form_state" not in tools
-    assert "ui_submit_form" not in tools
+    assert tools == []
 
 
-def test_page_context_available_ui_tools_filters_available_names_by_runtime_state() -> None:
+def test_page_context_available_ui_tools_ignores_available_names() -> None:
     tools = page_context_available_ui_tools(
         {
             "page_key": "tenant.ai.agents",
@@ -402,7 +393,7 @@ def test_page_context_available_ui_tools_filters_available_names_by_runtime_stat
         available_tool_names={"ui_get_snapshot", "ui_click", "ui_submit_form"},
     )
 
-    assert tools == ["ui_get_snapshot", "ui_click"]
+    assert tools == []
 
 
 @pytest.mark.asyncio
@@ -420,7 +411,7 @@ async def test_ui_snapshot_executor_requires_page_session_id() -> None:
 
 
 @pytest.mark.asyncio
-async def test_ui_snapshot_executor_uses_cached_snapshot_when_bridge_unavailable() -> None:
+async def test_ui_snapshot_executor_does_not_use_cached_snapshot_after_retirement() -> None:
     executor = UISnapshotExecutor()
     cached_snapshot = {
         "ui_epoch": 2,
@@ -454,15 +445,13 @@ async def test_ui_snapshot_executor_uses_cached_snapshot_when_bridge_unavailable
             context,
         )
 
-    assert result.success is True
-    payload = json.loads(result.output)
-    assert payload["ui_epoch"] == 2
-    assert payload["nodes"][0]["kind"] == "button"
-    assert payload["interactables_count"] >= 1
+    assert result.success is False
+    assert result.error_type == "snapshot_unavailable"
+    assert result.output == ""
 
 
 @pytest.mark.asyncio
-async def test_ui_snapshot_executor_prefers_bridge_payload_when_available() -> None:
+async def test_ui_snapshot_executor_reports_unavailable_when_runtime_bridge_is_absent() -> None:
     executor = UISnapshotExecutor()
     context = ExecutionContext(
         tenant_id=1,
@@ -470,27 +459,10 @@ async def test_ui_snapshot_executor_prefers_bridge_payload_when_available() -> N
         page_session_id="sess-99",
         variables={},
     )
-    bridge_payload = {
-        "success": True,
-        "snapshot": {
-            "ui_epoch": 6,
-            "nodes": [
-                {
-                    "node_id": "node-a",
-                    "kind": "input",
-                    "locator": "name",
-                    "summary": "Agent Name",
-                    "interactable": True,
-                }
-            ],
-            "surface_stack": [{"surface_id": "root", "kind": "page"}],
-            "suggested_tools": {"primary": ["ui_get_snapshot"]},
-        },
-    }
 
     with patch(
         "app.ai.tools.executors.ui_snapshot_executor._request_ui_snapshot",
-        new=AsyncMock(return_value=bridge_payload),
+        new=AsyncMock(return_value=None),
     ):
         result = await executor.execute(
             ToolDefinition(name="ui_get_snapshot", description="Get UI snapshot"),
@@ -499,9 +471,7 @@ async def test_ui_snapshot_executor_prefers_bridge_payload_when_available() -> N
             context,
         )
 
-    assert result.success is True
-    payload = json.loads(result.output)
-    assert payload["ui_epoch"] == 6
-    assert payload["mode"] == "full"
-    assert payload["nodes"][0]["node_id"] == "node-a"
+    assert result.success is False
+    assert result.error_type == "snapshot_unavailable"
+    assert result.output == ""
 

@@ -120,8 +120,9 @@ export async function runStreamRequest(
     uiPanelStore,
     imageParams,
   } = deps;
-  const { texts, apiAttachments, targetAgentId, pageContext, routeSource } =
+  const { texts, apiAttachments, targetAgentId, routeSource } =
     params;
+  const pageContext = null;
 
   const lifecycle = createStreamRequestLifecycle(deps, targetAgentId);
   const sseBuffer = { value: '' };
@@ -176,11 +177,7 @@ export async function runStreamRequest(
       imageParams.value.n !== 1
         ? { image_params: imageParams.value }
         : {}),
-      ...(pageContext ? { page_context: pageContext } : {}),
       ...(routeSource ? { route_source: routeSource } : {}),
-      ...(options.pageSessionIdGetter
-        ? { page_session_id: options.pageSessionIdGetter() || null }
-        : {}),
     };
 
     pendingInteractionUpdates.value = [];

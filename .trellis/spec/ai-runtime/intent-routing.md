@@ -9,11 +9,9 @@ Produce explicit, ordered intents before tool routing or context injection.
 - Intent routing emits a list of `IntentPlan` items.
 - Each intent includes `kind`, `family`, `shortcircuit`, `requires_tools`,
   `allow_text_response`, `continuation`, and `metadata`.
-- During the current migration, page-routing metadata must carry the collapsed
-  workflow projection (`page_workflow_kind=page_workflow`,
-  `page_workflow_goal`, plus stage or phase fields when available). If an
-  emitted `kind` is still a legacy `page_*` alias for downstream compatibility,
-  that alias lives in `IntentPlan.kind`, not in a duplicated metadata field.
+- Page-routing metadata is retired for AI dialogue live paths. Historical
+  `page_workflow` or `page_*` records may be read for diagnostics only; new
+  planner output must not emit `page_ops` intents.
 
 ## Supported Intent Families
 
@@ -23,28 +21,18 @@ Produce explicit, ordered intents before tool routing or context injection.
 - `web_research` for external search.
 - `time_query` and `weather_query` for tool families that are explicitly
 available.
-- `page_workflow` for page operations under the `page_ops` family. Historical
-`page_*` kinds are bounded read-path aliases during migration only; live
-routing truth is `page_workflow` plus `IntentPlan.metadata.page_workflow_*`.
+- Page operation routing is retired. Do not emit `page_workflow`, `page_*`, or
+  `page_ops` intents for live AI dialogue.
 
 ## Routing Rules
 
-- Build a provisional capability bundle before intent planning so tool families
-and page context are known.
+- Build a provisional capability bundle before intent planning so non-page tool
+  families are known.
 - Split user input into clauses and emit intents ordered by clause position.
 - If no intent signal is found, return a single `direct_reply` intent.
-- When a page continuation context is active, route to `page_workflow` with
-collapsed workflow metadata and suppress `knowledge_query` or `web_research`
-signals from the same clause.
-- Action-style page continuations such as `点击一下添加供应商`, `单击`, or
-  `click` must override a prior read-only page intent and route to
-  `page_navigation`; continuation inheritance must not pin those clauses to
-  `page_summary` or another read-only `page_*` kind.
-- Page-continuation runtime facts such as `last_tool_name`, `last_page_key`,
-  and `last_page_op` must be read from canonical turn diagnostics or
-  `turn_record` payloads first. Parsing legacy tool-call arguments is a
-  bounded historical fallback only, not the live owner path for continuation
-  routing.
+- Page-continuation clauses such as click, open, fill, submit, summarize this
+  page, or use current page must not trigger page tools. If data analysis is
+  needed, route through an explicit backend/API/export or skill-pack capability.
 - `memory_recall` takes precedence over `memory_save` when both signals appear.
 - Codeword save prompts such as `把这个代号写入长期记忆` stay in
   `memory_save`; placeholder tokens like `CASE-*` / `SAVED_*` and caveats such

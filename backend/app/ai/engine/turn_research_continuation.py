@@ -5,16 +5,6 @@ from __future__ import annotations
 from typing import Any
 
 from app.ai.tools.semantic_defaults import (
-    _has_page_context as _has_page_context_unified,
-)
-from app.ai.tools.semantic_defaults import (
-    page_context_available_ui_tools,
-    page_context_payload,
-)
-from app.ai.tools.semantic_defaults import (
-    tool_family_from_name as _tool_family_from_name_unified,
-)
-from app.ai.tools.semantic_defaults import (
     tool_semantic_family as _tool_semantic_family_unified,
 )
 from app.ai.tools.types import ToolDefinition
@@ -36,18 +26,15 @@ from .types import ResearchContinuationContext
 
 
 def has_page_context(input_variables: dict[str, Any] | None) -> bool:
-    return _has_page_context_unified(input_variables)
+    del input_variables
+    return False
 
 
 def page_operation_names_from_input_variables(
     input_variables: dict[str, Any] | None,
 ) -> list[str]:
-    if not isinstance(input_variables, dict):
-        return []
-    page_context = page_context_payload(input_variables)
-    if not isinstance(page_context, dict):
-        return []
-    return page_context_available_ui_tools(page_context)
+    del input_variables
+    return []
 
 
 def build_web_research_continuation_context(
@@ -67,8 +54,6 @@ def build_web_research_continuation_context(
     page_context_attached = has_page_context(input_variables)
     web_research_pair_complete = {"web_search", "fetch_url"} <= tool_names
     continuation_capable_families: list[str] = []
-    if page_context_attached and "page_ops" in tool_families:
-        continuation_capable_families.append("page_ops")
     if web_research_pair_complete and "web_research" in tool_families:
         continuation_capable_families.append("web_research")
 
@@ -107,7 +92,6 @@ def build_web_research_continuation_context(
     active_intent_kind = (
         str(last_turn_facts.get("active_intent_kind") or "").strip() or None
     )
-    last_tool_family = _tool_family_from_name_unified(last_tool_name, input_variables)
     page_follow_up_requested = looks_like_page_follow_up(current_user_text)
     # A bare historical ui_* tool name is not a safe continuation anchor: the
     # current page may be unrelated. Canonical page continuation requires a

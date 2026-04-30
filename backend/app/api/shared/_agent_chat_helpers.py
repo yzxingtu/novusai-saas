@@ -11,7 +11,6 @@ from typing import Any
 
 from app.core.response import success
 from app.schemas.ai.agent_chat import AgentRouteResponse
-from app.services.ai.page_context_limits import validate_page_context_size
 
 
 async def handle_route(
@@ -42,13 +41,13 @@ async def handle_route(
     """
     from app.services.ai.agent_router_service import AgentRouterService
 
+    del page_context
     router_svc = AgentRouterService(db)
-    await validate_page_context_size(db, page_context)
     result = await router_svc.route(
         tenant_id=tenant_id,
         message=message,
         conversation_id=conversation_id,
-        page_context=page_context,
+        page_context=None,
         pinned_agent_id=pinned_agent_id,
         user_role=user_role,
         user_role_id=user_role_id,

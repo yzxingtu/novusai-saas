@@ -137,6 +137,11 @@ const mountPanel = (
   overrides?: Parameters<typeof createPanelMountOptions>[0],
 ) => mount(AIChatSlidePanel, createPanelMountOptions(overrides));
 
+function expectSendMessageWithoutPageContext(callIndex = 0) {
+  const sendOptions = sendMessageMock.mock.calls[callIndex]?.[0];
+  expect(Boolean(sendOptions && 'pageContext' in sendOptions)).toBe(false);
+}
+
 describe('aIChatSlidePanel (component mount)', () => {
   beforeEach(() => {
     aiPanelStore = resetPanelState();
@@ -218,11 +223,7 @@ describe('aIChatSlidePanel (component mount)', () => {
     expect(startNewConversationMock).not.toHaveBeenCalled();
     expect(loadConversationMessagesMock).toHaveBeenCalledWith(10);
     expect(sendMessageMock).toHaveBeenCalled();
-    expect(sendMessageMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        pageContext: null,
-      }),
-    );
+    expectSendMessageWithoutPageContext();
     const loadInvocationOrder =
       loadConversationMessagesMock.mock.invocationCallOrder[0];
     const sendInvocationOrder = sendMessageMock.mock.invocationCallOrder[0];
@@ -254,11 +255,7 @@ describe('aIChatSlidePanel (component mount)', () => {
     aiPanelStore.visible = true;
     await flushPromises();
 
-    expect(sendMessageMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        pageContext: null,
-      }),
-    );
+    expectSendMessageWithoutPageContext();
     expect(wrapper.emitted('messageSent')).toBeTruthy();
 
     wrapper.unmount();
@@ -300,9 +297,9 @@ describe('aIChatSlidePanel (component mount)', () => {
     expect(sendMessageMock).toHaveBeenCalledWith(
       expect.objectContaining({
         agentId: 1,
-        pageContext: null,
       }),
     );
+    expectSendMessageWithoutPageContext();
     expect(wrapper.emitted('messageSent')).toBeTruthy();
 
     wrapper.unmount();
@@ -323,11 +320,7 @@ describe('aIChatSlidePanel (component mount)', () => {
     ];
     aiPanelStore.pendingPageOps = pendingPageOpsValue.value;
 
-    const wrapper = mountPanel({
-      props: {
-        pageContextKey: 'tenant.demo.page',
-      },
-    });
+    const wrapper = mountPanel();
 
     await flushPanel();
     let panel = document.querySelector('[data-ai-panel]');
@@ -366,11 +359,7 @@ describe('aIChatSlidePanel (component mount)', () => {
     selectedAgentIdValue.value = 2;
     inputMessageValue.value = 'follow-up';
 
-    const wrapper = mountPanel({
-      props: {
-        pageContextKey: 'tenant.demo.page',
-      },
-    });
+    const wrapper = mountPanel();
 
     await flushPromises();
     const sendButton = document.body.querySelector('button.send-btn');
@@ -381,13 +370,7 @@ describe('aIChatSlidePanel (component mount)', () => {
     await flushPromises();
 
     expect(routeMessageMock).not.toHaveBeenCalled();
-    expect(sendMessageMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        pageContext: expect.objectContaining({
-          page_key: 'tenant.demo.page',
-        }),
-      }),
-    );
+    expectSendMessageWithoutPageContext();
 
     wrapper.unmount();
   });
@@ -396,11 +379,7 @@ describe('aIChatSlidePanel (component mount)', () => {
     activeConversationIdValue.value = 10;
     selectedAgentIdValue.value = 2;
 
-    const wrapper = mountPanel({
-      props: {
-        pageContextKey: 'tenant.demo.page',
-      },
-    });
+    const wrapper = mountPanel();
 
     await flushPromises();
 
@@ -496,7 +475,7 @@ describe('aIChatSlidePanel (component mount)', () => {
     wrapper.unmount();
   });
 
-  it('renders a compact page AI rail that expands on demand', async () => {
+  it('keeps page AI rail and details hidden after page awareness is disabled', async () => {
     pageOperationsValue.value = [
       { name: 'ui_get_snapshot', label: 'Refresh', readonly: true },
       { name: 'ui_open_surface', label: 'Open Drawer', readonly: false },
@@ -506,22 +485,18 @@ describe('aIChatSlidePanel (component mount)', () => {
       { name: 'ui_list_interactables', label: 'Export View', readonly: true },
     ];
 
-    const wrapper = mountPanel({
-      props: {
-        pageContextKey: 'tenant.demo.page',
-      },
-    });
+    const wrapper = mountPanel();
 
     await flushPromises();
 
     expect(
       document.body.querySelector('[data-testid="ai-panel-page-ai-card"]'),
-    ).toBeTruthy();
+    ).toBeFalsy();
     const pageAiRow = document.body.querySelector(
       '[data-testid="ai-panel-toolbar-row"]',
     ) as HTMLDivElement | null;
     expect(pageAiRow).toBeTruthy();
-    expect(pageAiRow?.className).toContain('w-full');
+    expect(pageAiRow?.className).toContain('justify-end');
     expect(
       document.body.querySelector('[data-testid="ai-panel-page-ai-details"]'),
     ).toBeFalsy();
@@ -530,12 +505,6 @@ describe('aIChatSlidePanel (component mount)', () => {
         '[data-testid="ai-panel-page-ai-preview-item"]',
       ),
     ).toHaveLength(0);
-
-    const capabilityRail = document.body.querySelector(
-      '[data-testid="ai-panel-page-ai-card"]',
-    ) as HTMLDivElement | null;
-    expect(capabilityRail).toBeTruthy();
-    expect(capabilityRail?.className).toContain('w-full');
     const utilityBar = document.body.querySelector(
       '[data-testid="ai-panel-utility-bar"]',
     ) as HTMLDivElement | null;
@@ -545,86 +514,23 @@ describe('aIChatSlidePanel (component mount)', () => {
     expect(
       document.body.querySelector('[data-testid="ai-panel-page-ai-details"]'),
     ).toBeFalsy();
-
-    const capabilityTriggerAgain = document.body.querySelector(
-      '[data-testid="ai-panel-page-ai-trigger"]',
-    ) as HTMLDivElement | null;
-    expect(capabilityTriggerAgain).toBeTruthy();
-    capabilityTriggerAgain?.dispatchEvent(
-      new MouseEvent('click', { bubbles: true }),
-    );
-    await flushPromises();
-
-    const pageAiDetails = document.body.querySelector(
-      '[data-testid="ai-panel-page-ai-details"]',
-    ) as HTMLDivElement | null;
-    expect(pageAiDetails).toBeTruthy();
-    expect(pageAiDetails?.className).toContain('w-full');
     expect(
-      document.body.querySelectorAll(
-        '[data-testid="ai-panel-page-ai-preview-item"]',
-      ),
-    ).toHaveLength(4);
-
-    const capabilityTrigger = document.body.querySelector(
-      '[data-testid="ai-panel-page-ai-trigger"]',
-    ) as HTMLDivElement | null;
-    expect(capabilityTrigger).toBeTruthy();
-    capabilityTrigger?.dispatchEvent(
-      new MouseEvent('click', { bubbles: true }),
-    );
-    await flushPromises();
-    expect(
-      document.body.querySelector('[data-testid="ai-panel-page-ai-details"]'),
-    ).toBeFalsy();
-
-    const toggleButton = document.body.querySelector(
-      '[data-testid="ai-panel-page-ai-toggle"]',
-    ) as HTMLButtonElement | null;
-    expect(toggleButton).toBeTruthy();
-    toggleButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    await flushPromises();
-
-    expect(
-      document.body.querySelector('[data-testid="ai-panel-page-ai-details"]'),
-    ).toBeTruthy();
-    expect(document.body.textContent).not.toContain(
-      'common.aiPanel.pageAiDiagnostics',
-    );
-    expect(
-      document.body.querySelector(
-        '[data-testid="ai-panel-page-ai-diagnostics"]',
-      ),
+      document.body.querySelector('[data-testid="ai-panel-page-ai-trigger"]'),
     ).toBeFalsy();
     expect(
-      document.body.querySelectorAll(
-        '[data-testid="ai-panel-page-ai-preview-item"]',
-      ),
-    ).toHaveLength(4);
-
-    const moreButton = document.body.querySelector(
-      '[data-testid="ai-panel-page-ai-more"]',
-    ) as HTMLButtonElement | null;
-    expect(moreButton).toBeTruthy();
-    moreButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    await flushPromises();
-
+      document.body.querySelector('[data-testid="ai-panel-page-ai-toggle"]'),
+    ).toBeFalsy();
     expect(
-      document.body.querySelectorAll(
-        '[data-testid="ai-panel-page-ai-preview-item"]',
-      ),
-    ).toHaveLength(5);
-
-    toggleButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    await flushPromises();
+      document.body.querySelector('[data-testid="ai-panel-page-ai-more"]'),
+    ).toBeFalsy();
     expect(
-      document.body.querySelector('[data-testid="ai-panel-page-ai-details"]'),
+      document.body.querySelector('[data-testid="ai-panel-page-ai-diagnostics"]'),
     ).toBeFalsy();
 
     wrapper.unmount();
   });
 
-  it('auto-expands page AI details while streaming and collapses them after completion', async () => {
+  it('does not auto-expand page AI details while streaming', async () => {
     pageContextValue.value = {
       page_key: 'tenant.demo.streaming',
       page_title: 'Streaming Demo',
@@ -643,17 +549,13 @@ describe('aIChatSlidePanel (component mount)', () => {
     ];
     useAIChatState.streaming.value = true;
 
-    const wrapper = mountPanel({
-      props: {
-        pageContextKey: 'tenant.demo.streaming',
-      },
-    });
+    const wrapper = mountPanel();
 
     await flushPanel();
 
     expect(
       document.body.querySelector('[data-testid="ai-panel-page-ai-details"]'),
-    ).toBeTruthy();
+    ).toBeFalsy();
 
     useAIChatState.streaming.value = false;
     await flushPanel();
@@ -666,11 +568,7 @@ describe('aIChatSlidePanel (component mount)', () => {
   });
 
   it('keeps the toolbar row outside the restored header shell when no status badge is shown', async () => {
-    const wrapper = mountPanel({
-      props: {
-        pageContextKey: 'tenant.demo.page',
-      },
-    });
+    const wrapper = mountPanel();
 
     await flushPromises();
 
@@ -705,27 +603,27 @@ describe('aIChatSlidePanel (component mount)', () => {
       { name: 'ui_get_snapshot', label: 'Inspect', readonly: true },
     ];
 
-    const wrapper = mountPanel({
-      props: {
-        pageContextKey: 'tenant.demo.page',
-      },
-    });
+    const wrapper = mountPanel();
 
     await flushPromises();
 
     const pageAiCard = document.body.querySelector(
       '[data-testid="ai-panel-page-ai-card"]',
     ) as HTMLDivElement | null;
-    expect(pageAiCard).toBeTruthy();
-    expect(pageAiCard?.textContent).toContain('common.aiPanel.pageAiSupported');
-    expect(pageAiCard?.textContent).not.toContain('admin.system.codegen.name');
-    expect(pageAiCard?.textContent).not.toContain('common.aiPanel.pageAiSummary');
+    expect(pageAiCard).toBeFalsy();
+    expect(document.body.textContent).not.toContain(
+      'common.aiPanel.pageAiSupported',
+    );
+    expect(document.body.textContent).not.toContain('admin.system.codegen.name');
+    expect(document.body.textContent).not.toContain(
+      'common.aiPanel.pageAiSummary',
+    );
     expect(antMessageMocks.error).not.toHaveBeenCalled();
 
     wrapper.unmount();
   });
 
-  it('shows fallback-only page AI support with a downgraded awareness badge', async () => {
+  it('does not show fallback-only page AI support after page awareness is disabled', async () => {
     pageContextValue.value = {
       page_key: 'tenant.demo.fallback',
       page_title: 'Fallback Only',
@@ -734,25 +632,21 @@ describe('aIChatSlidePanel (component mount)', () => {
       },
     };
 
-    const wrapper = mountPanel({
-      props: {
-        pageContextKey: 'tenant.demo.fallback',
-      },
-    });
+    const wrapper = mountPanel();
 
     await flushPromises();
 
     expect(
       document.body.querySelector('[data-testid="ai-panel-page-ai-card"]'),
-    ).toBeTruthy();
-    expect(document.body.textContent).toContain(
+    ).toBeFalsy();
+    expect(document.body.textContent).not.toContain(
       'common.aiPanel.pageAiFallbackBadge',
     );
 
     const fallbackTrigger = document.body.querySelector(
       '[data-testid="ai-panel-page-ai-trigger"]',
     ) as HTMLDivElement | null;
-    expect(fallbackTrigger).toBeTruthy();
+    expect(fallbackTrigger).toBeFalsy();
     fallbackTrigger?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await flushPromises();
 
@@ -765,7 +659,7 @@ describe('aIChatSlidePanel (component mount)', () => {
     wrapper.unmount();
   });
 
-  it('shows runtime page AI summary instead of fallback copy when ui runtime state is present', async () => {
+  it('does not show runtime page AI summary when ui runtime state is present', async () => {
     pageContextValue.value = {
       page_key: 'tenant.demo.runtime',
       page_session_id: 'page-session-1',
@@ -786,24 +680,18 @@ describe('aIChatSlidePanel (component mount)', () => {
       { name: 'ui_fill_form', label: 'Fill Form', readonly: false },
     ];
 
-    const wrapper = mountPanel({
-      props: {
-        pageContextKey: 'tenant.demo.runtime',
-      },
-    });
+    const wrapper = mountPanel();
 
     await flushPromises();
 
-    const trigger = requireElement(
-      document.body.querySelector(
-        '[data-testid="ai-panel-page-ai-trigger"]',
-      ) as HTMLDivElement | null,
-      'expected page AI trigger',
+    const trigger = document.body.querySelector(
+      '[data-testid="ai-panel-page-ai-trigger"]',
     );
-    trigger.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    await flushPromises();
+    expect(trigger).toBeFalsy();
 
-    expect(document.body.textContent).toContain('common.aiPanel.pageAiSummary');
+    expect(document.body.textContent).not.toContain(
+      'common.aiPanel.pageAiSummary',
+    );
     expect(document.body.textContent).not.toContain(
       'common.aiPanel.pageAiFallbackSummary',
     );
@@ -817,7 +705,7 @@ describe('aIChatSlidePanel (component mount)', () => {
     wrapper.unmount();
   });
 
-  it('preserves compact page_data while keeping routed page context thin', async () => {
+  it('does not pass compact page_data while routing after page awareness is disabled', async () => {
     inputMessageValue.value = 'inspect this page';
     pageContextValue.value = {
       page_key: 'tenant.demo.large',
@@ -881,11 +769,7 @@ describe('aIChatSlidePanel (component mount)', () => {
       };
     });
 
-    const wrapper = mountPanel({
-      props: {
-        pageContextKey: 'tenant.demo.large',
-      },
-    });
+    const wrapper = mountPanel();
 
     await flushPromises();
     const sendButton = document.body.querySelector('button.send-btn');
@@ -895,49 +779,21 @@ describe('aIChatSlidePanel (component mount)', () => {
     ).dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await flushPromises();
 
-    const routedContext = routeMessageMock.mock.calls[0]?.[2] as null | {
-      page_data?: {
-        entity_description?: string;
-        navigation_catalog?: Array<{
-          page_key?: string;
-          path?: string;
-          title?: string;
-        }>;
-        navigation_context?: {
-          page_key?: string;
-          path?: string;
-        };
-      };
-      page_key?: string;
-      page_title?: string;
-    };
-    expect(routedContext?.page_key).toBe('tenant.demo.large');
-    expect(routedContext?.page_title).toBe('Large Demo Page');
-    expect(routedContext?.page_data).toMatchObject({
-      entity_description: 'Large demo runtime page',
-      navigation_catalog: [
-        {
-          page_key: 'tenant.dashboard',
-          path: '/tenant/dashboard',
-          title: 'Dashboard',
-        },
-        {
-          page_key: 'tenant.ai.agents',
-          path: '/tenant/ai/agents',
-          title: 'Agents',
-        },
-      ],
-      navigation_context: {
-        page_key: 'tenant.ai.agents',
-        path: '/tenant/ai/agents',
+    expect(routeMessageMock.mock.calls[0]).toEqual([
+      'inspect this page',
+      {
+        hasAudioAttachments: false,
+        hasFileAttachments: false,
+        hasImageAttachments: false,
+        hasVideoAttachments: false,
       },
-    });
-    expect('suggested_tools' in (routedContext ?? {})).toBe(false);
+      false,
+    ]);
 
     const diagnosticsTrigger = document.body.querySelector(
       '[data-testid="ai-panel-page-ai-trigger"]',
     ) as HTMLDivElement | null;
-    expect(diagnosticsTrigger).toBeTruthy();
+    expect(diagnosticsTrigger).toBeFalsy();
     diagnosticsTrigger?.dispatchEvent(
       new MouseEvent('click', { bubbles: true }),
     );
@@ -951,7 +807,7 @@ describe('aIChatSlidePanel (component mount)', () => {
     wrapper.unmount();
   });
 
-  it('shows page AI diagnostics only when tenant diagnostics are explicitly enabled', async () => {
+  it('keeps page AI diagnostics hidden even when tenant diagnostics are explicitly enabled', async () => {
     publicConfigState.tenantConfig = {
       features: {
         show_diagnostics: true,
@@ -973,18 +829,14 @@ describe('aIChatSlidePanel (component mount)', () => {
       { name: 'ui_get_snapshot', label: 'Snapshot', readonly: true },
     ];
 
-    const wrapper = mountPanel({
-      props: {
-        pageContextKey: 'tenant.demo.diagnostics',
-      },
-    });
+    const wrapper = mountPanel();
 
     await flushPromises();
 
     const diagnosticsTrigger = document.body.querySelector(
       '[data-testid="ai-panel-page-ai-trigger"]',
     ) as HTMLDivElement | null;
-    expect(diagnosticsTrigger).toBeTruthy();
+    expect(diagnosticsTrigger).toBeFalsy();
     diagnosticsTrigger?.dispatchEvent(
       new MouseEvent('click', { bubbles: true }),
     );
@@ -994,12 +846,12 @@ describe('aIChatSlidePanel (component mount)', () => {
       document.body.querySelector(
         '[data-testid="ai-panel-page-ai-diagnostics"]',
       ),
-    ).toBeTruthy();
+    ).toBeFalsy();
 
     wrapper.unmount();
   });
 
-  it('keeps screenshot runtime page context thin for backend gating', async () => {
+  it('does not pass screenshot runtime page context for backend gating', async () => {
     inputMessageValue.value = 'inspect this page';
     supportsVisionValue.value = false;
     pageContextValue.value = {
@@ -1016,11 +868,7 @@ describe('aIChatSlidePanel (component mount)', () => {
       { label: 'Read View', name: 'ui_list_interactables', readonly: true },
     ];
 
-    const wrapper = mountPanel({
-      props: {
-        pageContextKey: 'tenant.demo.visual',
-      },
-    });
+    const wrapper = mountPanel();
 
     await flushPromises();
     const sendButton = document.body.querySelector('button.send-btn');
@@ -1030,12 +878,16 @@ describe('aIChatSlidePanel (component mount)', () => {
     ).dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await flushPromises();
 
-    const routedContext = routeMessageMock.mock.calls[0]?.[2] as null | Record<
-      string,
-      unknown
-    >;
-    expect(routedContext).toBeTruthy();
-    expect('suggested_tools' in (routedContext ?? {})).toBe(false);
+    expect(routeMessageMock.mock.calls[0]).toEqual([
+      'inspect this page',
+      {
+        hasAudioAttachments: false,
+        hasFileAttachments: false,
+        hasImageAttachments: false,
+        hasVideoAttachments: false,
+      },
+      false,
+    ]);
 
     wrapper.unmount();
   });
@@ -1065,7 +917,7 @@ describe('aIChatSlidePanel (component mount)', () => {
     await flushPromises();
 
     expect(routeMessageMock).toHaveBeenCalledOnce();
-    expect(routeMessageMock.mock.calls[0]?.[4]).toBe(true);
+    expect(routeMessageMock.mock.calls[0]?.[2]).toBe(true);
     expect(sendMessageMock).not.toHaveBeenCalled();
 
     wrapper.unmount();
@@ -1089,16 +941,18 @@ describe('aIChatSlidePanel (component mount)', () => {
 
     expect(routeMessageMock).toHaveBeenCalledOnce();
     expect(routeMessageMock.mock.calls[0]?.[0]).toBe(' ');
-    expect(routeMessageMock.mock.calls[0]?.[3]).toEqual({
+    expect(routeMessageMock.mock.calls[0]?.[1]).toEqual({
       hasAudioAttachments: true,
       hasFileAttachments: false,
       hasImageAttachments: false,
       hasVideoAttachments: false,
     });
-    expect(sendMessageMock).toHaveBeenCalledWith({
+    expect(sendMessageMock).toHaveBeenCalledWith(
+      expect.objectContaining({
       agentId: 1,
-      pageContext: null,
-    });
+      }),
+    );
+    expectSendMessageWithoutPageContext();
 
     wrapper.unmount();
   });
@@ -1198,7 +1052,7 @@ describe('aIChatSlidePanel (component mount)', () => {
     await flushPromises();
 
     expect(routeMessageMock).toHaveBeenCalledOnce();
-    expect(routeMessageMock.mock.calls[0]?.[4]).toBe(true);
+    expect(routeMessageMock.mock.calls[0]?.[2]).toBe(true);
     expect(sendMessageMock).not.toHaveBeenCalled();
 
     wrapper.unmount();

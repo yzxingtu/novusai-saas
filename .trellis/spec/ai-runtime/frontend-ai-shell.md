@@ -5,27 +5,19 @@
 Frontend AI surfaces must compose state from focused composables and shared
 runtime bridges, not re-implement backend orchestration semantics.
 
-## Stable Page-AI Chain (Executable)
+## Page Awareness Retirement
 
-The page AI policy and runtime context flow is fixed and must remain a single
-chain:
+Page awareness is no longer a frontend AI shell capability. Frontend AI
+surfaces must not collect DOM state, build thin `page_context`, join
+`page_session` channels, render Page AI rails, or send page-operation data to
+AI dialogue APIs.
 
-1. Route meta defines page AI policy at `route.meta.ai`.
-2. `useCurrentPageAIPolicy()` normalizes and enforces the policy
-   (`frontend/apps/web-antd/src/composables/use-ai-page-policy.ts`).
-3. `layouts/basic.vue` is the only global layout that wires the policy into the
-   AI panel and initializes the runtime bridge
-   (`frontend/apps/web-antd/src/layouts/basic.vue`).
-4. `AIChatSlidePanel` forwards policy props to `AIChatSlidePanelShell`, which
-   uses `usePageAICapability` and passes runtime page context into `useAIChat`
-   (`frontend/apps/web-antd/src/components/business/ai-slide-panel/AIChatSlidePanel.vue`,
-   `frontend/apps/web-antd/src/components/business/ai-slide-panel/AIChatSlidePanelShell.vue`,
-   `frontend/apps/web-antd/src/components/business/ai-slide-panel/use-page-ai-capability.ts`).
-5. `usePageAICapability` reads the runtime bridge (`getRuntimeThinPageContext`,
-   `getRuntimePageContextDiagnostics`) and filters operations by the policy
-   (`frontend/apps/web-antd/src/components/business/ai-runtime/runtime-bridge.ts`).
+If AI must analyze data that is currently visible on a page, add a backend
+read-model/API/report/export endpoint or a permissioned installable skill-pack
+tool. Do not make the rendered page the source of truth.
 
-No page-level component or composable may introduce an alternate policy parser.
+Route `meta.ai` may remain as compatibility metadata for whether chat is shown,
+but it must not be used to reintroduce DOM/page runtime behavior.
 
 ## Required Split
 
@@ -55,8 +47,9 @@ page-local composables/context -> focused workspace sections`.
   `UserAIChatWorkspaceHeader.vue`,
   `UserAIChatWorkspaceMessages.vue`, and
   `UserAIChatWorkspaceComposer.vue`.
-- Page context and page operations flow through the shared AI runtime bridge;
-  page key normalization and page-operation types come from the shared runtime.
+- AI chat shells render conversation, backend read-models, skill results, and
+  explicit rich-text/task state only. They do not treat current DOM/page state
+  as model context.
 - Shared AI chat API calls live in the shared API module so UI surfaces do not
   embed their own requestClient flows.
 - Monitoring and admin AI pages now follow the same wrapper-to-shell rule:
@@ -70,29 +63,17 @@ page-local composables/context -> focused workspace sections`.
 
 ## Responsibility Boundaries
 
-- Route/page shell: only declares `route.meta.ai` and stays thin. It does not
-  parse policy and does not read DOM/page runtime directly.
-- Policy composable: `useCurrentPageAIPolicy()` is the single interpreter of
-  `route.meta.ai`, merging RBAC, default mode, and policy normalization.
-  It owns `currentPageAIExecutionPolicy` and `currentRouteAISecurityPolicy`.
-- Layout shell: `layouts/basic.vue` binds the policy to `AIChatSlidePanel`,
-  calls `ensureGlobalUIRuntime({ getRoute })`, and passes `pageContextKey` to
-  the AI panel. It does not re-map policy values.
-- AI panel shell: `AIChatSlidePanelShell` composes `usePageAICapability` and
-  `useAIChat`, and uses the runtime-provided `PageContext` as a read-model.
-  It does not infer page policy from route meta.
+- Route/page shell: stays thin and does not read DOM/page runtime for AI.
+- Layout shell: `layouts/basic.vue` mounts chat surfaces, but does not initialize
+  page runtime bridges or pass page context props to the AI panel.
+- AI panel shell: composes chat, history, attachments, memory, variables,
+  routing, and rich-text task helpers. It must not compose page-AI capability
+  helpers or pass page context into `useAIChat`.
   Slide-panel shell state should further delegate to page-local shell helpers
   (`use-ai-chat-slide-panel-shell.ts` and related companions) rather than
   re-growing orchestration inline.
-- Runtime bridge: `runtime-bridge.ts` is the only owner of DOM-driven page
-  context assembly (snapshot, form state, page key, security policy).
-  It provides read-only accessors for `PageContext` and diagnostics, and it is
-  the canonical frontend owner for compact navigation metadata
-  (`page_data.navigation_catalog` / `page_data.navigation_context`) carried in
-  thin page context.
-- AI panel display helpers and policy filters must not re-emit legacy
-  non-`ui_` page-operation names. Live page-operation chips, pending-op state,
-  and navigation-only allowlists recognize only canonical `ui_*` runtime tools.
+- Retired page-runtime helpers must not be used as live dependencies. If a
+  compatibility module remains, it must be isolated from the AI dialogue shell.
 - `turnFlow` is the canonical assistant-process protocol. Live chat state,
   streaming SSE handlers, and history merge/finalize helpers must not mutate
   canonical `turnFlow` back into legacy `thinkingContent`, `optimizingTools`,
@@ -125,28 +106,25 @@ page-local composables/context -> focused workspace sections`.
   rebuilding them from raw metadata in multiple places.
 - Route-level pages delegate to shell components instead of embedding full
   workflows inline.
-- Page-AI policy flows through `route.meta.ai` and `useCurrentPageAIPolicy()`.
-  Do not create a second policy surface for a single page, a page-local registry,
-  or a parallel policy composable.
-- Page runtime state comes from the shared UI runtime bridge, not from
-  page-local registries.
-- `usePageAICapability` and the AI panel only consume `pageContextKey` and the
-  runtime read-model; they must not parse `route.meta.ai` or infer policy.
+- Do not add page-awareness policy surfaces, page-local operation registries,
+  DOM scanners, `data-ai*` contracts, or `ui_*` runtime tool UI.
+- Retired UI runtime bridge modules must not be treated as live AI shell
+  dependencies.
 
 ## Transitional Notes
 
 - Wrapper pattern is canonical, but internal shell granularity is still in
   motion. Avoid freezing helper or companion file names as global rules.
-- CRUD-specific AI overrides are a narrow compatibility seam and must not
-  replace route-level AI policy.
+- CRUD-specific AI overrides are compatibility metadata only; they must not
+  register page-operation capabilities.
 
 ## Transcript-first & Diagnostics Gate (2026-04)
 
-- `ChatMessageDiagnostics`, `TurnTimeline`, and page-AI rail diagnostics panels
-  must not expose protocol path, selected tools, selected skills, or
-  context-source internals to end users by default. Those surfaces are gated by
-  `useDiagnosticsPolicy()` (or an equivalent tenant-level flag); default
-  rendering for end-user scopes (tenant / user) stays off.
+- `ChatMessageDiagnostics` and `TurnTimeline` must not expose protocol path,
+  selected tools, selected skills, or context-source internals to end users by
+  default. Those surfaces are gated by `useDiagnosticsPolicy()` (or an
+  equivalent tenant-level flag); default rendering for end-user scopes
+  (tenant / user) stays off.
 - AI chat surfaces should support a `transcript-first` layout option in which
   the chat transcript is the primary content region and tool-call / reasoning /
   citation blocks render inline with messages. The existing side-panel dock
@@ -166,12 +144,11 @@ page-local composables/context -> focused workspace sections`.
 - Moving one 900-line shell into a differently named 900-line shell or content
   file without introducing a real responsibility split.
 - Frontend-only guesses about protocol or fallback semantics.
-- Inventing a second page-AI policy surface beside `route.meta.ai`.
-- Reviving legacy page-AI registration flows outside the shared UI runtime
-  bridge.
+- Inventing page-AI policy surfaces, page-operation registries, or DOM runtime
+  bridges for AI dialogue.
 - Adding new `use-ai-chat-*` micro-composables whose only job is to forward one
   ref or one helper. New chat behavior goes into the existing bounded set of
-  domain composables (core, streaming, turn-flow, history, interactions, page
-  operations, memory, export).
+  domain composables (core, streaming, turn-flow, history, interactions,
+  memory, export).
 - Default-enabled diagnostics surfaces that expose protocol / tool / skill /
   context-source internals to end users without a diagnostics policy gate.

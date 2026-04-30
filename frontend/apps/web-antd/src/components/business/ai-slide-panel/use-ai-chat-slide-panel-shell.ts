@@ -1,21 +1,14 @@
 import type { ComponentPublicInstance } from 'vue';
 
-import type { AIPageMode } from '@vben/types';
-
 import { computed, ref, toRef } from 'vue';
 
 import { useAIChat } from '#/components/business/ai-chat-panel/use-ai-chat';
-import { useModalDetector } from '#/composables/use-modal-detector';
-import { getActivePageSessionId } from '#/composables/use-page-session';
 import { $t } from '#/locales';
 import { useAIPanelStore } from '#/store';
-import { usePublicConfigStore } from '#/store/shared/public-config';
 import { getAgentInputVariables } from '#/types/ai-chat';
-import { normalizePageAIMode } from '#/utils/ai-page-capabilities';
 
 import { useAgentRouter } from './use-agent-router';
 import { useAIChatSlidePanelShellBindings } from './use-ai-chat-slide-panel-shell-bindings';
-import { usePageAICapability } from './use-page-ai-capability';
 import { usePanelHistory } from './use-panel-history';
 import { usePanelSendMessage } from './use-panel-send-message';
 import { usePanelShellActions } from './use-panel-shell-actions';
@@ -23,11 +16,7 @@ import { usePanelShellContext } from './use-panel-shell-context';
 import { usePendingPageOps } from './use-pending-page-ops';
 
 export interface AIChatSlidePanelShellProps {
-  aiMode?: AIPageMode;
   apiPrefix: string;
-  disabledCapabilities?: string[];
-  disabledOperations?: string[];
-  pageContextKey?: string;
   pendingConversationId?: null | number;
   pendingMessage?: null | string;
   showAttachments?: boolean;
@@ -43,19 +32,9 @@ export function useAIChatSlidePanelShell(
   emit: AIChatSlidePanelShellEmit,
 ) {
   const aiPanelStore = useAIPanelStore();
-  const publicConfigStore = usePublicConfigStore();
   const apiPrefix = toRef(props, 'apiPrefix');
-  const disabledCapabilities = toRef(props, 'disabledCapabilities');
-  const pageContextKey = toRef(props, 'pageContextKey');
   const showAttachments = computed(() => props.showAttachments ?? true);
   const uploadUrl = toRef(props, 'uploadUrl');
-  const { modalState } = useModalDetector();
-  const normalizedPageMode = computed(() => normalizePageAIMode(props.aiMode));
-  const pageAIPolicy = computed(() => ({
-    mode: normalizedPageMode.value,
-    disabledCapabilities: props.disabledCapabilities,
-    disabledOperations: props.disabledOperations,
-  }));
   const panelTitle = computed(() => {
     return $t('common.aiPanel.title');
   });
@@ -79,8 +58,6 @@ export function useAIChatSlidePanelShell(
     onStreamComplete: () => {
       aiPanelStore.markUnread();
     },
-    pageContextResolver: () => currentPageContext.value,
-    pageSessionIdGetter: getActivePageSessionId,
     onVariablesMissing: () => {
       const agent = selectedAgent.value;
       if (!agent) return;
@@ -225,8 +202,7 @@ export function useAIChatSlidePanelShell(
     selectedAgent,
     selectedAgentId,
     sending,
-    sendMessage: ({ agentId, pageContext, routeSource }) =>
-      sendMessage({ agentId, pageContext, routeSource }),
+    sendMessage: ({ agentId, routeSource }) => sendMessage({ agentId, routeSource }),
     startNewConversation,
     storePendingAgentId: toRef(aiPanelStore, 'pendingAgentId'),
     storePendingConversationId: toRef(aiPanelStore, 'pendingConversationId'),
@@ -275,34 +251,16 @@ export function useAIChatSlidePanelShell(
   } = panelShellContext;
   openVarsModalRef = openVarsModal;
 
-  const pageContextLimitBytes = computed(
-    () =>
-      publicConfigStore.platformConfig?.runtimeLimits?.pageContextMaxBytes ||
-      publicConfigStore.tenantConfig?.runtimeLimits?.pageContextMaxBytes,
-  );
-  const pageAICapability = usePageAICapability({
-    apiPrefix,
-    disabledCapabilities,
-    modalState,
-    normalizedPageMode,
-    pageAIPolicy,
-    pageContextKey,
-    pageContextLimitBytes,
-  });
-  const currentPageContext = pageAICapability.currentPageContext;
-
   const { handleSendMessage: dispatchPanelMessage } = usePanelSendMessage({
     activeConversationId,
     agents,
     allAgentsVariables,
-    currentPageContext,
     deferSendForMissingVariables,
     ensureAgentVarsLoaded,
     forceRerouteNextTurn,
     inputMessage,
     isPinned,
     manualNewConversationAgentId,
-    pageContextKey,
     pendingAttachments,
     pinnedAgentId: toRef(aiPanelStore, 'pinnedAgentId'),
     routeMessage,
@@ -423,7 +381,6 @@ export function useAIChatSlidePanelShell(
     onSelectConversation: history.onSelectConversation,
     onStartNewChat: history.onStartNewChat,
     onToggleForceReroute,
-    pageAICapability,
     panelRef: shellActions.panelRef,
     panelTitle,
     pendingAttachments,

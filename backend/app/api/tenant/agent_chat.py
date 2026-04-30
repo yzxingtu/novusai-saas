@@ -39,7 +39,6 @@ from app.schemas.ai.agent_chat import (
 from app.services.ai.agent_chat_service import AgentChatService
 from app.services.ai.agent_service import AgentService
 from app.services.ai.conversation_service import ConversationService
-from app.services.ai.page_context_limits import validate_page_context_size
 
 
 @permission_resource(
@@ -123,14 +122,13 @@ class TenantAgentChatController(TenantController):
 
             perm_service = PermissionService(db)
             user_perms = await perm_service.get_tenant_admin_permissions(tenant_admin)
-            await validate_page_context_size(db, data.page_context)
             service = AgentChatService(db, tenant_admin.tenant_id)
             result = await service.chat(
                 agent_id=agent_id,
                 message=data.message,
                 conversation_id=data.conversation_id,
                 variables=data.variables,
-                page_context=data.page_context,
+                page_context=None,
                 user_id=tenant_admin.id,
                 knowledge_base_ids=data.knowledge_base_ids,
                 user_role=UserRoleEnum.TENANT_ADMIN.value,
@@ -143,7 +141,7 @@ class TenantAgentChatController(TenantController):
                 memory_scene=MemorySceneEnum.AI_CHAT_PAGE.value,
                 memory_channel=MemoryChannelEnum.TENANT_CHAT.value,
                 memory_source=MemorySceneEnum.AI_CHAT_PAGE.value,
-                page_session_id=data.page_session_id,
+                page_session_id=None,
                 route_source=data.route_source,
                 interaction_updates=[
                     item.model_dump() for item in data.interaction_updates
@@ -187,7 +185,6 @@ class TenantAgentChatController(TenantController):
 
             perm_service = PermissionService(db)
             user_perms = await perm_service.get_tenant_admin_permissions(tenant_admin)
-            await validate_page_context_size(db, data.page_context)
             service = AgentChatService(db, tenant_admin.tenant_id)
 
             return await service.stream_chat(
@@ -196,7 +193,7 @@ class TenantAgentChatController(TenantController):
                 messages=data.messages,
                 conversation_id=data.conversation_id,
                 variables=data.variables,
-                page_context=data.page_context,
+                page_context=None,
                 user_id=tenant_admin.id,
                 knowledge_base_ids=data.knowledge_base_ids,
                 user_role=UserRoleEnum.TENANT_ADMIN.value,
@@ -212,7 +209,7 @@ class TenantAgentChatController(TenantController):
                 memory_scene=MemorySceneEnum.AI_CHAT_PAGE.value,
                 memory_channel=MemoryChannelEnum.TENANT_CHAT.value,
                 memory_source=MemorySceneEnum.AI_CHAT_PAGE.value,
-                page_session_id=data.page_session_id,
+                page_session_id=None,
                 route_source=data.route_source,
                 interaction_updates=[
                     item.model_dump() for item in data.interaction_updates
@@ -253,9 +250,7 @@ class TenantAgentChatController(TenantController):
                 conversation_id=data.conversation_id,
                 user_role=UserRoleEnum.TENANT_ADMIN.value,
                 user_role_id=tenant_admin.role_id,
-                page_context=data.page_context.model_dump()
-                if data.page_context
-                else None,
+                page_context=None,
                 pinned_agent_id=data.pinned_agent_id,
                 user_id=tenant_admin.id,
                 force_reroute=data.force_reroute,

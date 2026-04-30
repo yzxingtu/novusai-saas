@@ -85,16 +85,6 @@ def build_initial_events(
             )
         )
 
-    current_page_context = (
-        request.input_variables.get("page_context")
-        if isinstance(getattr(request, "input_variables", None), dict)
-        else None
-    )
-    if isinstance(current_page_context, dict):
-        view.update_turn_progress(
-            last_page_key=str(current_page_context.get("page_key") or "").strip() or None
-        )
-
     kb_feedback = getattr(request, "knowledge_base_feedback", None)
     if isinstance(kb_feedback, dict) and kb_feedback.get("dropped_knowledge_base_ids"):
         events.append(

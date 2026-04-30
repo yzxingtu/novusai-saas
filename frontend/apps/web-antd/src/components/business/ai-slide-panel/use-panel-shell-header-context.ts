@@ -2,7 +2,6 @@ import type { ItemType } from 'ant-design-vue/es/menu';
 
 import type { ComputedRef, Ref } from 'vue';
 
-import type { PageContext } from '#/api/shared/ai-chat';
 import type { AgentItem, ChatMessage, RichTextAITask } from '#/types/ai-chat';
 
 import { computed, onUnmounted, ref } from 'vue';
@@ -51,7 +50,6 @@ interface UsePanelShellHeaderContextOptions {
   sendMessage: (options: {
     agentId: number;
     consumeMention?: boolean;
-    pageContext: null | PageContext;
     routeSource?: string;
   }) => Promise<unknown> | unknown;
   sendPreparedRichTextTask: (task: RichTextAITask) => Promise<boolean>;

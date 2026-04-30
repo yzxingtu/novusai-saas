@@ -68,7 +68,6 @@ export function registerSlidePanelRichTextCases(
     expect(sendMessageMock).toHaveBeenCalledWith(
       expect.objectContaining({
         agentId: 1,
-        pageContext: null,
         routeSource: 'rich_text_ai',
       }),
     );
@@ -165,7 +164,6 @@ export function registerSlidePanelRichTextCases(
     expect(sendMessageMock).toHaveBeenCalledWith(
       expect.objectContaining({
         agentId: 1,
-        pageContext: null,
         routeSource: 'rich_text_ai',
       }),
     );

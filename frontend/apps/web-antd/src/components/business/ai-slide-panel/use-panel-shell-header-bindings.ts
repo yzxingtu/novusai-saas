@@ -2,8 +2,6 @@ import type { ItemType } from 'ant-design-vue/es/menu';
 
 import type { ComputedRef, Ref } from 'vue';
 
-import type { UsePageAICapabilityReturn } from './use-page-ai-capability';
-
 import type { ConversationTimelineItem } from '#/api/shared/ai-chat';
 
 import { computed } from 'vue';
@@ -23,7 +21,6 @@ interface UsePanelShellHeaderBindingsOptions {
   onToggleMemory: () => void | Promise<void>;
   onToggleForceReroute: () => void;
   panelTitle: ComputedRef<string>;
-  pageAICapability: UsePageAICapabilityReturn;
   routeNotice: Ref<null | string>;
   routing: Ref<boolean>;
   showHeaderMemoryButton: Ref<boolean>;
@@ -39,8 +36,6 @@ interface UsePanelShellHeaderBindingsOptions {
   refreshTimeline: () => void;
   isPinned: ComputedRef<boolean>;
   toggleHistory: () => void;
-  togglePageAIDetails: () => void;
-  expandAllPageAIOperations: () => void;
   onStartNewChat: () => void;
   handleClose: () => void;
   handleMinimize: () => void;
@@ -63,26 +58,11 @@ export function usePanelShellHeaderBindings(
   const toolbarProps = computed(() => ({
     canForceReroute: options.canForceReroute.value,
     forceRerouteNextTurn: options.forceRerouteNextTurn.value,
-    hasExpandablePageAIDetails:
-      options.pageAICapability.hasExpandablePageAIDetails?.value ?? false,
     hasHeaderVariableValues: options.hasHeaderVariableValues.value,
-    hasPageAI: options.pageAICapability.hasPageAI.value,
     headerMemoryHasAttention: options.headerMemoryHasAttention.value,
     headerMoreHasAttention: options.headerMoreHasAttention.value,
     headerMoreMenuItems: options.headerMoreMenuItems.value,
     memoryLoading: options.memoryLoading.value,
-    pageAIDetailsExpanded: options.pageAICapability.pageAIDetailsExpanded.value,
-    pageAIDiagnostics: options.pageAICapability.pageAIDiagnostics.value,
-    pageAIFallbackOnly: options.pageAICapability.pageAIFallbackOnly.value,
-    pageAIOperationCount: options.pageAICapability.pageAIOperationCount.value,
-    pageAIRailTooltip: options.pageAICapability.pageAIRailTooltip.value,
-    pageAIRemainingOperationCount:
-      options.pageAICapability.pageAIRemainingOperationCount.value,
-    pageAIStatBadges: options.pageAICapability.pageAIStatBadges.value,
-    pageAISummary: options.pageAICapability.pageAISummary.value,
-    pageAIVisibleOperations:
-      options.pageAICapability.pageAIVisibleOperations.value,
-    resolvedPageAITitle: options.pageAICapability.resolvedPageAITitle.value,
     showHeaderMemoryButton: options.showHeaderMemoryButton.value,
     showHeaderMoreMenu: options.showHeaderMoreMenu.value,
     showHeaderVarsButton: options.showHeaderVarsButton.value,
@@ -101,11 +81,9 @@ export function usePanelShellHeaderBindings(
 
   const toolbarListeners = {
     editVars: options.onEditHeaderVars,
-    expandAllOperations: options.expandAllPageAIOperations,
     newChat: options.onStartNewChat,
     toggleHistory: options.toggleHistory,
     toggleMemory: options.onToggleMemory,
-    togglePageDetails: options.togglePageAIDetails,
     toggleReroute: options.onToggleForceReroute,
   };
 

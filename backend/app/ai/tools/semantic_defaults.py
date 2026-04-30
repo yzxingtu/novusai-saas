@@ -45,17 +45,6 @@ FAMILY_HINT_TAGS: dict[str, tuple[str, ...]] = {
         "current time",
         "current date",
     ),
-    "page_ops": (
-        "页面操作",
-        "页面交互",
-        "页面感知能力",
-        "页面感知交互",
-        "页面能力",
-        "读取页面",
-        "填写表单",
-        "提交页面",
-        "page operation",
-    ),
 }
 
 # Tags omitted from explicit-request hints (optimizer): slightly shorter / less “broad” cues than full FAMILY_HINT_TAGS.
@@ -113,12 +102,11 @@ UI_DANGEROUS_PAGE_TOOL_NAMES: frozenset[str] = frozenset({"ui_submit_form"})
 
 
 def _has_page_context(input_variables: dict[str, Any] | None) -> bool:
-    if not input_variables:
-        return False
-    page_ctx = page_context_payload(input_variables)
-    if not isinstance(page_ctx, dict):
-        return False
-    return bool((page_ctx.get("page_key") or "").strip())
+    del input_variables
+    # Page-awareness/page-operation routing is retired from AI dialogue.
+    # Legacy payloads may still deserialize for compatibility, but they must
+    # never reactivate page semantics.
+    return False
 
 
 def is_ui_page_tool_name(name: str) -> bool:
@@ -133,27 +121,13 @@ def page_context_payload(input_variables: dict[str, Any] | None) -> dict[str, An
 
 
 def page_context_has_active_form(page_context: Mapping[str, Any] | None) -> bool:
-    if not isinstance(page_context, Mapping):
-        return False
-    if str(page_context.get("active_form_session_id") or "").strip():
-        return True
-    return isinstance(page_context.get("active_form_summary"), Mapping)
+    del page_context
+    return False
 
 
 def page_context_has_runtime_state(page_context: Mapping[str, Any] | None) -> bool:
-    if not isinstance(page_context, Mapping):
-        return False
-    if str(page_context.get("page_session_id") or "").strip():
-        return True
-    if isinstance(page_context.get("ui_epoch"), int):
-        return True
-    if isinstance(page_context.get("surface_stack"), list) and page_context.get(
-        "surface_stack"
-    ):
-        return True
-    if str(page_context.get("active_surface_id") or "").strip():
-        return True
-    return page_context_has_active_form(page_context)
+    del page_context
+    return False
 
 
 def page_context_available_ui_tools(
@@ -162,57 +136,11 @@ def page_context_available_ui_tools(
     available_tool_names: set[str] | None = None,
     include_secondary: bool = True,
 ) -> list[str]:
-    if not isinstance(page_context, Mapping):
-        return []
-
-    inferred: list[str] = []
-    if page_context_has_runtime_state(page_context):
-        inferred.extend(
-            [
-                "ui_get_snapshot",
-                "ui_read_region",
-                "ui_read_table",
-                "ui_list_interactables",
-                "ui_click",
-            ]
-        )
-    if str(page_context.get("active_surface_id") or "").strip() or (
-        isinstance(page_context.get("surface_stack"), list) and page_context.get("surface_stack")
-    ):
-        inferred.append("ui_open_surface")
-
-    active_form_summary = page_context.get("active_form_summary")
-    has_active_form = page_context_has_active_form(page_context)
-    if has_active_form:
-        inferred.extend(["ui_get_form_state", "ui_set_field", "ui_fill_form"])
-        stage = (
-            str(active_form_summary.get("stage") or "").strip()
-            if isinstance(active_form_summary, Mapping)
-            else ""
-        )
-        can_submit = (
-            bool(active_form_summary.get("can_submit"))
-            if isinstance(active_form_summary, Mapping)
-            else False
-        )
-        if can_submit or stage in {"ready_to_submit", "submitting", "submitted"}:
-            inferred.append("ui_submit_form")
-
-    allowed = (
-        {str(name).strip() for name in available_tool_names if str(name).strip()}
-        if available_tool_names
-        else None
-    )
-    resolved: list[str] = []
-    for name in UI_PAGE_TOOL_ORDER:
-        if name not in inferred:
-            continue
-        if name not in UI_PAGE_TOOL_NAMES or name in resolved:
-            continue
-        if allowed is not None and name not in allowed:
-            continue
-        resolved.append(name)
-    return resolved
+    del page_context, available_tool_names, include_secondary
+    # Page-awareness is retired from AI dialogue. This compatibility helper must
+    # not infer ui_* tools from any payload, even if legacy clients still send
+    # page_context.
+    return []
 
 
 def tool_family_from_name(
@@ -229,10 +157,6 @@ def tool_family_from_name(
         return "time_ops"
     if normalized in {"get_current_weather", "get_weather_forecast"}:
         return "weather"
-    if is_ui_page_tool_name(normalized) or (
-        normalized.startswith("ui_") and _has_page_context(input_variables)
-    ):
-        return "page_ops"
     return "none"
 
 
@@ -242,6 +166,8 @@ def tool_semantic_family(
 ) -> str:
     """Return the semantic family, preferring the ToolDefinition attribute."""
     family = str(getattr(tool, "semantic_family", "") or "").strip()
+    if family == "page_ops":
+        return "none"
     if family:
         return family
     return tool_family_from_name(getattr(tool, "name", ""), input_variables)

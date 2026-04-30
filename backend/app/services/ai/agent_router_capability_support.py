@@ -6,7 +6,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from app.ai.routing.router import ModelRouter
-from app.ai.tools.semantic_defaults import is_ui_page_tool_name, tool_family_from_name
+from app.ai.tools.semantic_defaults import tool_family_from_name
 from app.models.ai.agent import Agent
 from app.models.ai.agent_skill_grant import AgentSkillGrant
 
@@ -124,7 +124,9 @@ def _grant_preview_families(grant: AgentSkillGrant | Any) -> list[str]:
         family = tool_family_from_name(tool_name)
         if family != "none":
             families.append(family)
-    return _stable_unique(families)
+    return _stable_unique(
+        [family for family in families if str(family or "").strip() != "page_ops"]
+    )
 
 
 def agent_skill_names(agent: Agent | None) -> set[str]:
@@ -147,10 +149,7 @@ def agent_supports_images(agent: Agent | None) -> bool:
 
 def agent_needs_function_calling(agent: Agent | None) -> bool:
     skill_grants = getattr(agent, "skill_grants", None) or []
-    for grant in skill_grants:
-        if grant_skill_name_if_active(grant):
-            return True
-    return False
+    return any(grant_skill_name_if_active(grant) for grant in skill_grants)
 
 
 async def agent_can_handle_images(db: Any, agent: Agent | None) -> bool:
@@ -167,13 +166,8 @@ async def agent_can_handle_images(db: Any, agent: Agent | None) -> bool:
 
 
 def agent_supports_page_operations(agent: Agent | None) -> bool:
-    skill_names = agent_skill_names(agent)
-    if any(group.issubset(skill_names) for group in PAGE_OPERATION_REQUIRED_SKILL_GROUPS):
-        return True
-    if any(is_ui_page_tool_name(skill_name) for skill_name in skill_names):
-        return True
-    skill_grants = getattr(agent, "skill_grants", None) or []
-    return any("page_ops" in _grant_preview_families(grant) for grant in skill_grants)
+    del agent
+    return False
 
 
 def agent_supports_families(agent: Agent | None, families: list[str]) -> bool:

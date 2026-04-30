@@ -1,6 +1,5 @@
 import type { Ref } from 'vue';
 
-import type { PageContext } from '#/api/shared/ai-chat';
 import type { InputVariable, RichTextAITask } from '#/types/ai-chat';
 
 import { computed, onMounted, reactive, ref, watch } from 'vue';
@@ -12,7 +11,6 @@ import { $t } from '#/locales';
 interface DeferredSendContext {
   agentId: number;
   consumeMention?: boolean;
-  pageContext: null | PageContext;
   richTextTask?: RichTextAITask;
   routeSource?: string;
 }
@@ -54,7 +52,6 @@ interface UsePanelContextBridgeOptions {
   sendMessage: (options: {
     agentId: number;
     consumeMention?: boolean;
-    pageContext: null | PageContext;
     routeSource?: string;
   }) => Promise<unknown> | unknown;
   sendPreparedRichTextTask: (task: RichTextAITask) => Promise<boolean>;
@@ -179,7 +176,6 @@ export function usePanelContextBridge(options: UsePanelContextBridgeOptions) {
     agentId: number;
     agentName: string;
     consumeMention?: boolean;
-    pageContext: null | PageContext;
     requiredVars: InputVariable[];
     richTextTask?: RichTextAITask;
     routeSource?: string;
@@ -187,7 +183,6 @@ export function usePanelContextBridge(options: UsePanelContextBridgeOptions) {
     pendingSendContext.value = {
       agentId: payload.agentId,
       consumeMention: payload.consumeMention,
-      pageContext: payload.pageContext,
       richTextTask: payload.richTextTask,
       routeSource: payload.routeSource,
     };
@@ -222,7 +217,6 @@ export function usePanelContextBridge(options: UsePanelContextBridgeOptions) {
     const {
       agentId: pendingAgentId,
       consumeMention,
-      pageContext,
       richTextTask,
       routeSource,
     } = pendingSendContext.value;
@@ -237,7 +231,6 @@ export function usePanelContextBridge(options: UsePanelContextBridgeOptions) {
     }
     void options.sendMessage({
       agentId: pendingAgentId,
-      pageContext,
       routeSource,
     });
   }

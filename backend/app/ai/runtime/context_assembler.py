@@ -19,7 +19,6 @@ from app.ai.runtime.capabilities import (
     CapabilityFragment,
     CapabilityRegistry,
 )
-from app.ai.runtime.contracts import PAGE_CONTEXT_KEY
 from app.ai.runtime.types import (
     CapabilityBundle,
     CapabilityDescriptor,
@@ -125,7 +124,6 @@ class ContextAssembler:
     def _default_provider_map(cls) -> dict[str, Any]:
         return {
             "skills": cls._collect_skill_capabilities,
-            "page_context": cls._collect_page_context_capabilities,
             "knowledge_base": cls._collect_knowledge_capabilities,
             "memory": cls._collect_memory_capabilities,
             "runtime_model": cls._collect_runtime_model_capabilities,
@@ -174,8 +172,6 @@ class ContextAssembler:
         )
 
         provider_names = ["skills"]
-        if flags.has_page_intent:
-            provider_names.append("page_context")
         if not flags.all_shortcircuit and flags.has_knowledge_intent:
             provider_names.append("knowledge_base")
         if memory_policy.memory_context_enabled or has_session_memory_context:
@@ -348,40 +344,11 @@ class ContextAssembler:
     def _collect_page_context_capabilities(
         context: CapabilityContext,
     ) -> CapabilityFragment:
-        page_context = ContextAssembler._extract_page_context(context.request)
-        if not page_context:
-            return CapabilityFragment()
-
-        page_key = str(page_context.get("page_key") or "").strip() or "page_context"
-        page_title = str(page_context.get("page_title") or "").strip()
-        page_data = (
-            page_context.get("page_data") if isinstance(page_context, dict) else {}
-        )
-        metadata = {
-            "page_key": page_key,
-            "page_title": page_title or None,
-            "has_page_data": isinstance(page_data, dict),
-        }
-
-        return CapabilityFragment(
-            capability_descriptors=[
-                CapabilityDescriptor(
-                    name=page_key,
-                    kind="context_provider",
-                    source="request.page_context",
-                    description="Page context provided by frontend runtime.",
-                    metadata=metadata,
-                )
-            ],
-            context_sources=[
-                ContextSource(
-                    kind="page_context",
-                    name=page_key,
-                    active=True,
-                    metadata=metadata,
-                )
-            ],
-        )
+        del context
+        # Page awareness is retired from AI dialogue. Do not let direct
+        # ExecutionRequest callers or batch paths reintroduce page_context as a
+        # runtime capability source.
+        return CapabilityFragment()
 
     @staticmethod
     def _collect_knowledge_capabilities(
@@ -578,13 +545,8 @@ class ContextAssembler:
 
     @staticmethod
     def _extract_page_context(request: Any) -> dict[str, Any] | None:
-        input_variables = getattr(request, "input_variables", None)
-        if not isinstance(input_variables, dict):
-            return None
-        page_context = input_variables.get(PAGE_CONTEXT_KEY)
-        if not isinstance(page_context, dict):
-            return None
-        return page_context
+        del request
+        return None
 
     @staticmethod
     def _build_skill_descriptors_from_tools(

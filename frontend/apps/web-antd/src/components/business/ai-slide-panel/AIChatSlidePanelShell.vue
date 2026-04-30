@@ -15,13 +15,9 @@ import { useAIChatSlidePanelShell } from './use-ai-chat-slide-panel-shell';
 defineOptions({ name: 'AIChatSlidePanelShell' });
 
 const props = withDefaults(defineProps<AIChatSlidePanelShellProps>(), {
-  aiMode: 'operate',
-  disabledCapabilities: undefined,
-  disabledOperations: undefined,
   showAttachments: true,
   pendingMessage: null,
   pendingConversationId: null,
-  pageContextKey: undefined,
 });
 
 const emit = defineEmits<AIChatSlidePanelShellEmit>();

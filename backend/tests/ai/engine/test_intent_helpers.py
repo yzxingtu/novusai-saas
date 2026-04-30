@@ -32,12 +32,12 @@ def test_last_user_text_picks_latest_and_handles_empty() -> None:
 def test_page_context_helpers_resolve_context_and_page_tools() -> None:
     input_variables = {"page_context": {"page_key": "admin.ai.logs"}}
 
-    assert _has_page_context(input_variables) is True
+    assert _has_page_context(input_variables) is False
     assert _has_page_context({"page_context": "nope"}) is False
     assert _has_page_context(None) is False
 
     names = _page_operation_names(input_variables)
-    assert "ui_get_snapshot" in names
+    assert names == set()
     assert _page_operation_names(None) == set()
 
 
@@ -52,7 +52,7 @@ def test_tool_families_includes_page_ops_and_filters_none() -> None:
 
     assert "web_research" in families
     assert "time_ops" in families
-    assert "page_ops" in families
+    assert "page_ops" not in families
     assert "none" not in families
 
 

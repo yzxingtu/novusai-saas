@@ -938,18 +938,15 @@ class PageContext(BaseModel):
         variables: dict[str, Any] | None,
         page_context: Any = None,
     ) -> dict[str, Any] | None:
-        normalized_variables = dict(variables or {})
-        raw_page_context = (
-            page_context
-            if page_context is not None
-            else normalized_variables.get(PAGE_CONTEXT_KEY)
-        )
-        normalized_page_context = cls.normalize(raw_page_context)
+        """Normalize request variables after retiring page-awareness.
 
-        if normalized_page_context is not None:
-            normalized_variables[PAGE_CONTEXT_KEY] = normalized_page_context
-        else:
-            normalized_variables.pop(PAGE_CONTEXT_KEY, None)
+        ``page_context`` remains in schemas for backwards-compatible request
+        parsing, but AI dialogue must not smuggle page runtime state into the
+        execution variables anymore.
+        """
+        normalized_variables = dict(variables or {})
+        del page_context
+        normalized_variables.pop(PAGE_CONTEXT_KEY, None)
 
         return normalized_variables or None
 

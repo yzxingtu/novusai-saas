@@ -12,12 +12,8 @@ from typing import Any, Literal
 
 from app.ai.memory_policy import resolve_memory_runtime_policy
 from app.ai.runtime.context_assembler import ContextAssemblerState
-from app.ai.runtime.contracts import PAGE_CONTEXT_KEY
 from app.ai.runtime.types import CapabilityBundle
-from app.ai.tools.semantic_defaults import (
-    page_context_available_ui_tools,
-    tool_semantic_family,
-)
+from app.ai.tools.semantic_defaults import tool_semantic_family
 
 RuntimeCapabilityStatus = Literal["available", "degraded", "unavailable"]
 
@@ -204,18 +200,13 @@ class AIRuntimeInventoryService:
 
     @staticmethod
     def _page_context_payload(request: Any) -> dict[str, Any]:
-        input_variables = getattr(request, "input_variables", None)
-        if isinstance(input_variables, dict):
-            page_context = input_variables.get(PAGE_CONTEXT_KEY)
-            if isinstance(page_context, dict):
-                return page_context
-        page_context = getattr(request, "page_context", None)
-        return page_context if isinstance(page_context, dict) else {}
+        del request
+        return {}
 
     @classmethod
     def _page_operation_names(cls, request: Any) -> list[str]:
-        page_context = cls._page_context_payload(request)
-        return page_context_available_ui_tools(page_context)
+        del request
+        return []
 
     @classmethod
     def _tool_families(cls, bundle: CapabilityBundle, request: Any) -> list[str]:
@@ -264,8 +255,6 @@ class AIRuntimeInventoryService:
         selected_skills = cls._stable_unique(list(bundle.selected_skill_names or []))
         tool_families = cls._tool_families(bundle, request)
         tool_family_map = cls._tool_family_map(bundle, request)
-        page_operation_names = cls._page_operation_names(request)
-        page_context_attached = bool(cls._page_context_payload(request))
 
         tool_items = [
             RuntimeCapabilityItem(
@@ -379,34 +368,17 @@ class AIRuntimeInventoryService:
 
         page_items = [
             RuntimeCapabilityItem(
-                name=str(source.get("name") or "page_context"),
+                name="page_context",
                 kind="context_provider",
-                status="available" if source.get("active") else "degraded",
-                reason=None if source.get("active") else "inactive_page_context_source",
+                status="unavailable",
+                reason="page_awareness_retired",
                 metadata={
-                    **dict(source.get("metadata") or {}),
-                    "page_context_attached": page_context_attached,
-                    "available_ui_tools": list(page_operation_names),
+                    "page_context_attached": False,
+                    "available_ui_tools": [],
                 },
-                source="request.page_context",
+                source="retired",
             )
-            for source in context_sources
-            if source.get("kind") == "page_context"
         ]
-        if not page_items:
-            page_items = [
-                RuntimeCapabilityItem(
-                    name="page_context",
-                    kind="context_provider",
-                    status="unavailable",
-                    reason="page_context_not_attached",
-                    metadata={
-                        "page_context_attached": page_context_attached,
-                        "available_ui_tools": [],
-                    },
-                    source="request.page_context",
-                )
-            ]
 
         has_web_search = "web_search" in selected_tools
         has_fetch_url = "fetch_url" in selected_tools
@@ -434,8 +406,6 @@ class AIRuntimeInventoryService:
             )
         ]
         continuation_capable_families: list[str] = []
-        if page_context_attached and "page_ops" in tool_families:
-            continuation_capable_families.append("page_ops")
         if has_web_search and has_fetch_url and "web_research" in tool_families:
             continuation_capable_families.append("web_research")
 
@@ -557,9 +527,7 @@ class AIRuntimeInventoryService:
                     if isinstance(name, str) and name
                 ]
             ),
-            "page_context_attached": any(
-                item.status == "available" for item in manifest.page_context
-            ),
+            "page_context_attached": False,
             "web_research_pair_complete": any(
                 item.name == "web_research"
                 and bool(item.metadata.get("has_web_search"))
@@ -570,19 +538,6 @@ class AIRuntimeInventoryService:
                 [
                     family
                     for family in (
-                        "page_ops"
-                        if any(
-                            item.status == "available" for item in manifest.page_context
-                        )
-                        and "page_ops"
-                        in cls._stable_unique(
-                            [
-                                item.metadata.get("family")
-                                for item in manifest.tools
-                                if item.status == "available"
-                            ]
-                        )
-                        else None,
                         "web_research"
                         if any(
                             item.name == "web_research"

@@ -20,7 +20,6 @@ from app.ai.runtime.context_assembler import (
     get_context_assembler,
 )
 from app.ai.runtime.contracts import (
-    PAGE_CONTEXT_KEY,
     ContextCapabilityAwareness,
     ContextCapabilityBridge,
     ContextCapabilityFinalization,
@@ -105,7 +104,6 @@ class DefaultContextCapabilityBridge(ContextCapabilityBridge):
             bundle = CapabilityBundle()
             fragments = (
                 ContextAssembler._collect_skill_capabilities(capability_context),
-                ContextAssembler._collect_page_context_capabilities(capability_context),
                 ContextAssembler._collect_knowledge_capabilities(capability_context),
                 ContextAssembler._collect_runtime_model_capabilities(
                     capability_context
@@ -186,16 +184,6 @@ class DefaultContextCapabilityBridge(ContextCapabilityBridge):
                 if kb_description:
                     capability_descriptions.append(kb_description)
 
-            if intent_flags.get("has_page_intent"):
-                page_context = None
-                if isinstance(request.input_variables, dict):
-                    page_context = request.input_variables.get(PAGE_CONTEXT_KEY)
-                page_description = capability_builder.build_page_context_description(
-                    page_context
-                )
-                if page_description:
-                    capability_descriptions.append(page_description)
-
             if intent_flags.get("memory_context_enabled"):
                 memory_description = capability_builder.build_memory_description(
                     memory_enabled=request.memory_enabled,
@@ -268,9 +256,7 @@ class DefaultContextCapabilityBridge(ContextCapabilityBridge):
                 or "session_memory" in context_source_kinds
                 or "long_term_memory" in context_source_kinds
             )
-            decision["page_injected"] = bool(
-                decision.get("page_injected") or "page_context" in context_source_kinds
-            )
+            decision["page_injected"] = False
         except Exception as exc:
             diagnostics["capability_bundle_error"] = str(exc)
             logger.warning(

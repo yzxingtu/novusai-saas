@@ -2,7 +2,6 @@ import type { ItemType } from 'ant-design-vue/es/menu';
 
 import type { ComputedRef, Ref } from 'vue';
 
-import type { PageContext } from '#/api/shared/ai-chat';
 import type {
   AgentItem,
   ChatMessage,
@@ -89,7 +88,6 @@ interface UsePanelShellContextOptions {
   sendMessage: (options: {
     agentId: number;
     consumeMention?: boolean;
-    pageContext: null | PageContext;
     routeSource?: string;
   }) => Promise<boolean>;
   startNewConversation: (forceReset?: boolean) => void;
@@ -180,7 +178,6 @@ export function usePanelShellContext(options: UsePanelShellContextOptions) {
       headerContext.deferSendForMissingVariables({
         agentId,
         agentName,
-        pageContext: null,
         requiredVars,
         richTextTask: task,
         routeSource: 'rich_text_ai',

@@ -8,12 +8,7 @@ from typing import Any
 
 from app.ai.engine.intent_clause_helpers import _split_clauses
 from app.ai.engine.intent_page_rules import detect_page_signal
-from app.ai.navigation_semantics import has_navigation_intent
 from app.ai.text_semantics import collapse_whitespace
-from app.ai.tools.semantic_defaults import (
-    page_context_available_ui_tools,
-    page_context_has_runtime_state,
-)
 
 PAGE_OPERATION_STRONG_INTENT_TOKENS = (
     "operate on the current page",
@@ -81,35 +76,20 @@ def _iter_message_clauses(message: str) -> list[str]:
 
 
 def page_context_has_runtime_ui_tools(page_context: dict[str, Any] | None) -> bool:
-    return bool(
-        page_context_has_runtime_state(page_context)
-        and page_context_available_ui_tools(page_context)
-    )
+    del page_context
+    return False
 
 
 def requires_vision_page_operation(message: str) -> bool:
-    normalized_message = _normalize_message(message)
-    if not normalized_message:
-        return False
-    return any(
-        token in normalized_message
-        for token in (
-            "截图",
-            "截屏",
-            "屏幕截图",
-            "页面截图",
-            "screenshot",
-            "capture screenshot",
-            "take a screenshot",
-        )
-    )
+    del message
+    return False
 
 
 def page_context_supports_navigation(
     page_context: dict[str, Any] | None,
 ) -> bool:
-    tool_names = set(page_context_available_ui_tools(page_context))
-    return bool({"ui_click", "ui_open_surface", "ui_list_interactables"} & tool_names)
+    del page_context
+    return False
 
 
 def _detect_page_signal(
@@ -172,59 +152,15 @@ def requires_page_operation_routing(
     message: str,
     page_context: dict[str, Any] | None,
 ) -> bool:
-    if not message or not page_context:
-        return False
-
-    normalized_message = _normalize_message(message)
-    if not normalized_message:
-        return False
-
-    page_signal = _page_signal_snapshot(message, page_context)
-    if _page_signal_requires_page_agent_routing(page_signal):
-        return True
-
-    if not page_context_has_runtime_ui_tools(page_context):
-        return False
-
-    if any(token in normalized_message for token in PAGE_OPERATION_STRONG_INTENT_TOKENS):
-        return True
-
-    has_navigation_request = has_navigation_intent(
-        normalized_message,
-        page_context,
-    )
-    return bool(has_navigation_request)
+    del message, page_context
+    return False
 
 
 def has_non_page_mixed_intent(
     message: str,
     page_context: dict[str, Any] | None = None,
 ) -> bool:
-    normalized_message = _normalize_message(message)
-    if not normalized_message:
-        return False
-
-    clauses = _iter_message_clauses(message)
-    has_page_clause = any(
-        _page_signal_snapshot(clause, page_context) is not None for clause in clauses
-    )
-    if not has_page_clause:
-        return False
-
-    for clause in clauses:
-        normalized_clause = _normalize_message(clause)
-        if not normalized_clause:
-            continue
-        if _is_page_scoped_search_request(clause, page_context):
-            continue
-        if any(token in normalized_clause for token in NON_PAGE_WEATHER_TOKENS):
-            return True
-        if any(token in normalized_clause for token in NON_PAGE_TIME_TOKENS):
-            return True
-        if any(token in normalized_clause for token in NON_PAGE_WEB_SEARCH_TOKENS):
-            return True
-        if "搜索" in normalized_clause or "搜" in normalized_clause:
-            return True
+    del message, page_context
     return False
 
 
@@ -242,12 +178,10 @@ def requested_tool_families(
         if family not in families:
             families.append(family)
 
-    has_page_runtime_ui = page_context_has_runtime_ui_tools(page_context)
     for clause in _iter_message_clauses(message):
         normalized_clause = _normalize_message(clause)
         if not normalized_clause:
             continue
-        page_signal = _page_signal_snapshot(clause, page_context)
         page_scoped_search_request = _is_page_scoped_search_request(
             clause,
             page_context,
@@ -269,17 +203,6 @@ def requested_tool_families(
             and ("搜索" in normalized_clause or "搜" in normalized_clause)
         ):
             add("web_research")
-
-        if has_page_runtime_ui and (
-            page_signal is not None
-            or page_scoped_search_request
-            or requires_page_operation_routing(clause, page_context)
-            or any(
-                token in normalized_clause
-                for token in PAGE_OPERATION_STRONG_INTENT_TOKENS
-            )
-        ):
-            add("page_ops")
 
     return families
 

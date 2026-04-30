@@ -40,7 +40,6 @@ from app.schemas.ai.agent_chat import (
 from app.schemas.common.query import FilterRule
 from app.services.ai.agent_chat_service import AgentChatService
 from app.services.ai.conversation_service import ConversationService
-from app.services.ai.page_context_limits import validate_page_context_size
 
 
 def _build_platform_admin_chat_filters(admin_id: int) -> list[FilterRule]:
@@ -107,14 +106,13 @@ class AdminAgentChatController(GlobalController):
             """
             perm_service = PermissionService(db)
             user_perms = await perm_service.get_admin_permissions(admin)
-            await validate_page_context_size(db, data.page_context)
             service = AgentChatService(db, PLATFORM_TENANT_ID)
             result = await service.chat(
                 agent_id=agent_id,
                 message=data.message,
                 conversation_id=data.conversation_id,
                 variables=data.variables,
-                page_context=data.page_context,
+                page_context=None,
                 user_id=admin.id,
                 knowledge_base_ids=data.knowledge_base_ids,
                 user_role=UserRoleEnum.PLATFORM_ADMIN.value,
@@ -127,7 +125,7 @@ class AdminAgentChatController(GlobalController):
                 memory_scene=MemorySceneEnum.ADMIN_CHAT.value,
                 memory_channel=MemoryChannelEnum.ADMIN_CHAT.value,
                 memory_source=MemorySceneEnum.ADMIN_CHAT.value,
-                page_session_id=data.page_session_id,
+                page_session_id=None,
                 route_source=data.route_source,
                 interaction_updates=[
                     item.model_dump() for item in data.interaction_updates
@@ -164,7 +162,6 @@ class AdminAgentChatController(GlobalController):
             """
             perm_service = PermissionService(db)
             user_perms = await perm_service.get_admin_permissions(admin)
-            await validate_page_context_size(db, data.page_context)
             service = AgentChatService(db, PLATFORM_TENANT_ID)
             return await service.stream_chat(
                 agent_id=agent_id,
@@ -172,7 +169,7 @@ class AdminAgentChatController(GlobalController):
                 messages=data.messages,
                 conversation_id=data.conversation_id,
                 variables=data.variables,
-                page_context=data.page_context,
+                page_context=None,
                 user_id=admin.id,
                 knowledge_base_ids=data.knowledge_base_ids,
                 user_role=UserRoleEnum.PLATFORM_ADMIN.value,
@@ -188,7 +185,7 @@ class AdminAgentChatController(GlobalController):
                 memory_scene=MemorySceneEnum.ADMIN_CHAT.value,
                 memory_channel=MemoryChannelEnum.ADMIN_CHAT.value,
                 memory_source=MemorySceneEnum.ADMIN_CHAT.value,
-                page_session_id=data.page_session_id,
+                page_session_id=None,
                 route_source=data.route_source,
                 interaction_updates=[
                     item.model_dump() for item in data.interaction_updates
@@ -229,9 +226,7 @@ class AdminAgentChatController(GlobalController):
                 conversation_id=data.conversation_id,
                 user_role=UserRoleEnum.PLATFORM_ADMIN.value,
                 user_role_id=admin.org_node_id,
-                page_context=data.page_context.model_dump()
-                if data.page_context
-                else None,
+                page_context=None,
                 pinned_agent_id=data.pinned_agent_id,
                 user_id=admin.id,
                 force_reroute=data.force_reroute,

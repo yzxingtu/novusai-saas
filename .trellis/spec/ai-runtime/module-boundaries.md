@@ -29,8 +29,9 @@ the runtime capability manifest + summary.
 rescue policy for a single provider turn.
 6. Adapter and provider layer: protocol-specific request construction and
 response mapping for one protocol step.
-7. Tool runtime and skills: tool catalog, consent gating, tool execution,
-page operations, and web research orchestration.
+7. Tool runtime and skills: tool catalog, consent gating, tool execution, and
+web research orchestration. Page operations are retired from AI dialogue live
+paths.
 8. Service layer: business use cases, persistence, memory capture, and read
 model projection.
 9. Observability and monitoring: diagnostics projection and operator read models.
@@ -76,7 +77,7 @@ reconstructs protocol path, fallback history, or context sources.
 manifest builder, and service lookup helpers with no runtime imports.
 - Service layer -> orchestration layer, runtime kernel, provider registry.
 - Observability -> service read models, contracts.
-- Frontend shell -> backend read models and shared UI runtime bridges.
+- Frontend shell -> backend read models and explicit domain APIs.
 
 ## Forbidden Dependencies
 

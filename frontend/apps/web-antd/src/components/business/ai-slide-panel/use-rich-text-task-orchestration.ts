@@ -85,7 +85,6 @@ interface UseRichTextTaskOrchestrationOptions {
   selectedAgentId: Ref<null | number>;
   sendMessage: (options: {
     agentId: number;
-    pageContext: null;
     routeSource: 'rich_text_ai';
   }) => Promise<boolean>;
   sending: Ref<boolean>;
@@ -197,7 +196,6 @@ export function useRichTextTaskOrchestration(
     const previousMessageCount = options.chatMessages.value.length;
     const sendPromise = options.sendMessage({
       agentId: task.agentId,
-      pageContext: null,
       routeSource: 'rich_text_ai',
     });
     const newAssistantMessage = [...options.chatMessages.value]

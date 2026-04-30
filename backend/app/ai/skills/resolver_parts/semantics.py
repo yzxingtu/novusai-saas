@@ -51,16 +51,9 @@ def apply_tool_semantics(tool: ToolDefinition) -> None:
         )
         return
 
-    if name in {
-        "get_page_context",
-        "invoke_page_operation",
-        "list_page_operations",
-    } or name.startswith("pageop_") or name.startswith("ui_"):
-        tool.semantic_family = "page_ops"
-        tool.semantic_tags = tool.semantic_tags or semantic_tags(
-            *FAMILY_HINT_TAGS["page_ops"],
-            "page context",
-        )
+    # Page-awareness/page-operation tools are retired from AI dialogue. Keep
+    # legacy tool names unclassified so they cannot re-enter live activation via
+    # semantic hints.
 
 
 def is_runtime_eligible_skill(skill: Any) -> bool:

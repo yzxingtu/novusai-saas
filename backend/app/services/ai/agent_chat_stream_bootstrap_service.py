@@ -22,7 +22,6 @@ from app.ai.engine.execution_preflight_support import (
     trigger_before_execute_preflight,
 )
 from app.ai.engine.types import ExecutionRequest
-from app.ai.runtime.contracts import PAGE_CONTEXT_KEY
 from app.ai.types import ChatMessage
 from app.ai.utils.token_estimator import estimate_tokens
 from app.core.i18n import _
@@ -91,28 +90,7 @@ class AgentChatStreamBootstrapService:
         variables: dict[str, Any] | None,
         explicit_page_session_id: str | None,
     ) -> str | None:
-        normalized_page_session_id = cls._normalize_page_session_id(
-            explicit_page_session_id
-        )
-        if normalized_page_session_id:
-            return normalized_page_session_id
-
-        if not variables:
-            return None
-
-        variables_getter = getattr(variables, "get", None)
-        if not callable(variables_getter):
-            return None
-
-        normalized_page_session_id = cls._normalize_page_session_id(
-            variables_getter("page_session_id")
-        )
-        if normalized_page_session_id:
-            return normalized_page_session_id
-
-        page_context = variables_getter(PAGE_CONTEXT_KEY)
-        if isinstance(page_context, dict):
-            return cls._normalize_page_session_id(page_context.get("page_session_id"))
+        del variables, explicit_page_session_id
         return None
 
     async def build_conversation_stream_request(

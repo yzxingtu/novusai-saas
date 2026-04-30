@@ -1,6 +1,5 @@
 import type { ComputedRef, Ref } from 'vue';
 
-import type { PageContext } from '#/api/shared/ai-chat';
 import type { AgentItem, InputVariable } from '#/types/ai-chat';
 
 import { message } from 'ant-design-vue';
@@ -26,12 +25,10 @@ interface UsePanelSendMessageOptions {
   activeConversationId: Ref<null | number>;
   agents: Ref<AgentItem[]>;
   allAgentsVariables: Ref<Record<number, Record<string, string>>>;
-  currentPageContext: ComputedRef<null | PageContext>;
   deferSendForMissingVariables: (payload: {
     agentId: number;
     agentName: string;
     consumeMention?: boolean;
-    pageContext: null | PageContext;
     requiredVars: InputVariable[];
     routeSource?: string;
   }) => void;
@@ -40,13 +37,10 @@ interface UsePanelSendMessageOptions {
   inputMessage: Ref<string>;
   isPinned: ComputedRef<boolean>;
   manualNewConversationAgentId: Ref<null | number>;
-  pageContextKey: Ref<string | undefined>;
   pendingAttachments: Ref<PendingAttachmentLike[]>;
   pinnedAgentId: Ref<null | number | undefined>;
   routeMessage: (
     message: string,
-    pageContextKey?: string,
-    pageContext?: null | PageContext,
     attachmentFlags?: RouteAttachmentFlags,
     forceReroute?: boolean,
   ) => Promise<{
@@ -57,7 +51,6 @@ interface UsePanelSendMessageOptions {
   selectedAgentId: Ref<null | number>;
   sendMessage: (options?: {
     agentId?: number;
-    pageContext?: null | PageContext;
     routeSource?: null | string;
     silent?: boolean;
   }) => Promise<boolean>;
@@ -133,8 +126,6 @@ export function usePanelSendMessage(options: UsePanelSendMessageOptions) {
       hasImageAttachments,
       hasVideoAttachments,
     } = collectAttachmentFlags(options.pendingAttachments.value);
-    const pageContext = options.currentPageContext.value;
-
     if (options.isPinned.value && options.pinnedAgentId.value) {
       const pinnedAgentId = options.pinnedAgentId.value;
       if (pinnedAgentId !== options.selectedAgentId.value) {
@@ -154,7 +145,6 @@ export function usePanelSendMessage(options: UsePanelSendMessageOptions) {
         options.deferSendForMissingVariables({
           agentId: pinnedAgentId,
           agentName: missingPinnedVariables.agentName,
-          pageContext,
           requiredVars: missingPinnedVariables.inputVariables,
         });
         return false;
@@ -162,7 +152,6 @@ export function usePanelSendMessage(options: UsePanelSendMessageOptions) {
 
       return options.sendMessage({
         agentId: pinnedAgentId,
-        pageContext,
       });
     }
 
@@ -181,7 +170,6 @@ export function usePanelSendMessage(options: UsePanelSendMessageOptions) {
       options.manualNewConversationAgentId.value = null;
       return options.sendMessage({
         agentId: explicitAgentId,
-        pageContext,
       });
     }
 
@@ -190,14 +178,12 @@ export function usePanelSendMessage(options: UsePanelSendMessageOptions) {
       options.selectedAgentId.value &&
       !forceReroute
     ) {
-      return options.sendMessage({ pageContext });
+      return options.sendMessage();
     }
 
     try {
       const routeResult = await options.routeMessage(
         text || (hasAnyAttachments ? ' ' : ''),
-        options.pageContextKey.value,
-        pageContext,
         {
           hasAudioAttachments,
           hasFileAttachments,
@@ -213,7 +199,6 @@ export function usePanelSendMessage(options: UsePanelSendMessageOptions) {
         options.selectedAgentId.value = routeResult.agentId;
       }
 
-      const routedPageContext = options.currentPageContext.value;
       if (routeResult.routedBy === 'router') {
         options.showRouteNotice(
           $t('common.aiPanel.routedTo', { agent: routeResult.agentName }),
@@ -233,7 +218,6 @@ export function usePanelSendMessage(options: UsePanelSendMessageOptions) {
         options.deferSendForMissingVariables({
           agentId: routeResult.agentId,
           agentName: missingRoutedVariables.agentName,
-          pageContext: routedPageContext,
           requiredVars: missingRoutedVariables.inputVariables,
         });
         return false;
@@ -241,12 +225,11 @@ export function usePanelSendMessage(options: UsePanelSendMessageOptions) {
 
       return options.sendMessage({
         agentId: routeResult.agentId,
-        pageContext: routedPageContext,
       });
     } catch (error: unknown) {
       if (options.selectedAgentId.value && !hasCapabilitySensitiveAttachments) {
         message.warning($t('common.globalAiChat.routeFailedFallback'));
-        return options.sendMessage({ pageContext });
+        return options.sendMessage();
       }
 
       const baseMessage = getErrorMessage(

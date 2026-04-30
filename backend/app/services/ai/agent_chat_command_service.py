@@ -82,7 +82,8 @@ class AgentChatCommandService:
     ) -> AgentChatResponse:
         """Non-streaming chat orchestration."""
         start = time.perf_counter()
-        variables = PageContext.normalize_variables(variables, page_context)
+        variables = PageContext.normalize_variables(variables, None)
+        del page_context, page_session_id
 
         agent = await service._validate_agent(agent_id)
         (
@@ -181,7 +182,7 @@ class AgentChatCommandService:
             ),
             trust_policy_ref=resolved_trust_policy_ref,
             interaction_mode=interaction_mode_effective,
-            page_session_id=page_session_id,
+            page_session_id=None,
             interaction_updates=interaction_updates,
             knowledge_base_feedback=(
                 {
@@ -362,7 +363,8 @@ class AgentChatCommandService:
         interaction_mode: InteractionMode = "trusted_auto",
     ) -> StreamingResponse:
         """Streaming chat orchestration."""
-        variables = PageContext.normalize_variables(variables, page_context)
+        variables = PageContext.normalize_variables(variables, None)
+        del page_context, page_session_id
 
         agent = await service._validate_agent(agent_id)
         (
@@ -455,7 +457,7 @@ class AgentChatCommandService:
                 memory_enabled=memory_enabled,
                 trust_policy_ref=resolved_trust_policy_ref,
                 interaction_mode=interaction_mode_effective,
-                page_session_id=page_session_id,
+                page_session_id=None,
                 interaction_updates=interaction_updates,
                 long_term_memory_enabled=bool(
                     ctx_cfg.get("long_term_memory_enabled", memory_enabled)

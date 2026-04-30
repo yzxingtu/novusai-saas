@@ -305,51 +305,23 @@ tools_schema = skill_result.to_openai_tools()
 - `SkillPackage` 仅作为归组 / 来源 / 目录单元参与展示与管理，不再承担运行时 auto-bind 语义
 - `ToolRegistry` 属于历史概念，新增实现不要再依赖它
 
-### 页面感知与页面操作（Page Awareness & Operations）
+### 页面感知与页面操作（Retired）
 
-当前页面感知已经切到共享 UI Runtime `ui_*` 工具链：
+AI 对话页面感知和页面操作已退役。不要再接入、修复或恢复：
 
-- **Layer 1**：`page_context` 通过 `input_variables` 注入运行时，提供薄摘要态页面感知
-- **Layer 2**：`ui_read_page` / `ui_get_snapshot` / `ui_read_surface` / `ui_read_region` / `ui_read_table` / `ui_list_interactables` 提供按需读取
-- **Layer 3**：`ui_click` / `ui_open_surface` / `ui_get_form_state` / `ui_set_field` / `ui_fill_form` / `ui_submit_form` 在共享安全策略下执行页面操作
+- thin `page_context` / `page_data` / `page_session_id` / `ui_epoch`
+- shared UI Runtime `ui_*` tools
+- page-session socket join / `use-ui-action-channel`
+- DOM scanner、runtime snapshot、Page AI rail
+- `get_page_context` / `invoke_page_operation` / `list_page_operations`
 
-> 旧的 registry + dedicated page-op 架构已退役，只应存在于历史归档材料，
-> 不得再作为新实现依据。
+替代方案：
 
-#### 前端接入点
-
-- 路由通过 `route.meta.ai` 声明页面 AI 策略。
-- `layouts/basic.vue` 通过 `ensureGlobalUIRuntime({ getRoute })` 初始化共享 Runtime。
-- 页面上下文统一由 `frontend/apps/web-antd/src/components/business/ai-runtime/runtime-bridge.ts` 生成：
-  - `getRuntimeThinPageContext()`
-  - `getRuntimeSnapshot()`
-  - `readRuntimeSurface()`
-  - `readRuntimeRegion()`
-  - `readRuntimeTable()`
-  - `listRuntimeInteractables()`
-- CRUD 页面通过 `useCrudPage` / `useCrudList` 以及
-  `use-page-ai-operation-helpers.ts`、`use-form-state-tracker.ts` 接入。
-- 富文本页面通过 `editor-page-ai-exposure.ts` /
-  `editor-page-ai-operations.ts` / `editor-ai-adapter.ts` 暴露特定能力。
-
-#### 后端接入点
-
-- `AgentChatService.chat()` / `stream_chat()` 接收 thin `page_context`。
-- `PageContext.normalize_variables()` 将其收口到 `ExecutionRequest.input_variables["page_context"]`。
-- `resolve_for_agent()` 负责从 `AgentSkillGrant` 直接加载 Agent 当前有效 Skill 集合。
-- page-runtime 工具定义收口在 `backend/app/ai/tools/page_runtime/definitions.py`。
-- `PageRuntimeToolExecutor` 位于 `backend/app/ai/tools/page_runtime/executor.py`，并把 `ui_get_snapshot` 兼容映射到 `ui_read_page`。
-- live sandbox 当前仍有过渡期 legacy executor wiring，但对外工具协议已经是 `ui_*`。
-
-#### 关键规则
-
-- **仅注册 Executor 不算完成** — 必须同时存在 `SkillPackage + Skill`，并通过 `AgentSkillGrant` 进入运行时工具集合。
-- `page_context` 必须保持 summary-first；不要塞 DOM、整页 HTML 或完整 UI graph。
-- 需要细节时优先使用 `ui_read_page` / `ui_get_snapshot` / `ui_read_surface` / `ui_read_region` / `ui_read_table` / `ui_list_interactables`。
-- `ui_epoch` 是 stale-context 保护字段，前端运行时在 route / surface / graph 变化时递增。
-- `readonly=true` 的页面操作走读工具；写工具必须受 security policy 与确认策略约束。
-- 不得复活旧 registry、旧 dedicated page-op 展开层、旧 slide-panel page registry，或旧全局页面操作 helper family。
-- 富文本页面能力沿用 `editor-page-ai-*` 与 `editor-ai-adapter.ts`，不要再接回旧 runtime registry skeleton。
+- 读取业务数据：后端 read-model/query API、报表/导出接口，或权限受控的
+  installable skill-pack tool。
+- 执行业务动作：显式后端 command 或 skill-pack tool，并保留权限校验、参数校验、
+  审计日志和确认策略。
+- 前端只负责展示后端/技能结果，不再把渲染 DOM 作为 AI runtime 的数据源。
 
 #### SkillPackage 目录与资源作用域规则
 
@@ -366,12 +338,7 @@ tools_schema = skill_result.to_openai_tools()
 
 工具族推断已统一到 `semantic_defaults.tool_family_from_name()`，optimizer 和 BaseEngine 均复用此单一真相源。`_infer_tool_use_policy()` 中的语义提示（web_research / time_ops 等）已从强制门控降级为软信号（`mode="auto"`），优先依赖 tool history 和结构信号。
 
-**2. `page_data` 大小限制** (`agent_chat.py` + `page_context_executor.py`)
-
-- Schema 层：`PageContext` 添加 `@model_validator` 校验 `page_data` 序列化后 ≤ 4KB（`MAX_PAGE_DATA_BYTES=4096`），超限返回 422
-- Executor 层：输出截断保护 `MAX_OUTPUT_CHARS=6000`，防御绕过 schema 的内部路径
-
-#### 测试覆盖（31 项全通过）
+#### 测试覆盖
 
 | 测试 | 覆盖点 |
 |------|--------|
@@ -379,34 +346,6 @@ tools_schema = skill_result.to_openai_tools()
 | `test_load_auto_bind_admin_scope_only_admin_visible` | ADMIN_ONLY agent 只查管理端可见作用域 |
 | `test_load_auto_bind_returns_empty_for_mismatched_scope` | 不匹配的 scope+tenant_id 组合直接返回空 |
 | `test_conversation_engine_injects_tools_into_gateway` | skill_result.tools → _prepare_execution → _call_llm → gateway.chat(tools=...) 完整链路 |
-
-#### 典型数据流
-
-```text
-前端页面
-  ├── route.meta.ai
-  ├── ensureGlobalUIRuntime({ getRoute })
-  └── getRuntimeThinPageContext()
-
-用户发消息
-  → getRuntimeThinPageContext() → page_context
-  → POST /chat/stream { page_context, page_session_id }
-  → AgentChatService.chat()
-  → PageContext.normalize_variables()
-  → ExecutionRequest.input_variables["page_context"]
-  → resolve_for_agent()
-  → page-runtime `ui_*` tools
-
-Layer 2（上下文读取）:
-  → LLM 调用 ui_read_page / ui_get_snapshot / ui_read_surface / ui_read_region / ui_read_table / ui_list_interactables
-  → ToolSandbox → page runtime executor / runtime bridge
-  → 返回摘要或结构化页面数据
-
-Layer 3（操作执行）:
-  → LLM 调用 ui_click / ui_open_surface / ui_get_form_state / ui_set_field / ui_fill_form / ui_submit_form
-  → ToolSandbox → page runtime executor
-  → 前端 shared UI Runtime 执行并返回 ToolResult
-```
 
 ### RAG 检索 (`rag/retriever.py`)
 

@@ -87,9 +87,9 @@ We already ship shared helpers for:
   `transformAttachmentInfo`)
 - Backend tenants (`TenantController`, `TenantService`, `TenantRepository`)
 - Responses (`success()`, `error()`, `build_error_payload()`)
-- UI Runtime/page operation extensions (`use-page-ai-operation-helpers`,
-  `use-form-state-tracker`, `use-ui-action-channel`, protocol-aligned page
-  metadata, etc.)
+- form state helpers (`use-form-state-tracker`) and backend/skill result
+  renderers. AI page-operation extensions are retired and must not be reused for
+  new work.
 
 Examples:
 
@@ -100,8 +100,7 @@ Examples:
   `frontend/apps/web-antd/src/api/admin/attachment.ts`
 - Shared CRUD composables:
   `frontend/apps/web-antd/src/composables/use-crud-list.ts`,
-  `frontend/apps/web-antd/src/composables/use-crud-form.ts`, and
-  `frontend/apps/web-antd/src/composables/use-page-ai-operation-helpers.ts`
+  `frontend/apps/web-antd/src/composables/use-crud-form.ts`
 - Tenant stack sample: `backend/app/api/tenant/domains.py` → `TenantService` →
   `TenantRepository` → `success()`
 
@@ -199,23 +198,22 @@ Examples & anti-pattern:
 - `backend/app/repositories/tenant/tenant_domain_tenant_repository.py`
 - Anti-pattern: copying repository code into services or controllers.
 
-### Plugin + UI Runtime Helpers
+### Plugin + AI Data Helpers
 
-- Extend UI behavior through shared runtime helpers such as
-  `use-page-ai-operation-helpers.ts`, `use-form-state-tracker.ts`, and
-  `use-ui-action-channel.ts`, not through legacy page registries or ad-hoc
-  bridge channels.
-- Keep page context payloads thin and serializable, and use `ui_get_snapshot`
-  plus `ui_read_*` for on-demand detail reads.
-- Reuse `use-ui-action-channel.ts` for `ui_*` action handling and avoid
-  reintroducing `page_operation_*` style bridge channels.
+- Do not extend AI capabilities through page perception, DOM snapshots,
+  `page_context`, `page_session_id`, `ui_*` action handling, or
+  `page_operation_*` bridge channels.
+- If AI needs plugin or page-visible business data, expose it through typed
+  backend APIs, read models, report/export endpoints, or permissioned skill-pack
+  tools.
+- Frontend helpers may render backend/skill results, but must not make rendered
+  DOM the source of truth for AI analysis.
 - Register plugin menus/routes via the shared plugin helper stack to keep
   permission and runtime gating consistent.
 
 Examples & anti-pattern:
 
 - `frontend/apps/web-antd/src/views/admin/ai/agents/index.vue`
-- `frontend/apps/web-antd/src/composables/use-page-ai-operation-helpers.ts`
 - `frontend/apps/web-antd/src/composables/use-form-state-tracker.ts`
 - Anti-pattern: manually wiring ad-hoc runtime action pipelines, legacy bridge
   channels, or plugin runtime gating.

@@ -2,7 +2,6 @@ import type { ItemType } from 'ant-design-vue/es/menu';
 
 import type { ComputedRef, Ref } from 'vue';
 
-import type { usePageAICapability } from './use-page-ai-capability';
 import type { PendingOpDisplayItem } from './use-pending-page-ops';
 
 import type {
@@ -115,7 +114,6 @@ export interface UseAIChatSlidePanelShellBindingsOptions {
   onSelectConversation: (conversationId: number) => void;
   onStartNewChat: () => void;
   onToggleForceReroute: () => void;
-  pageAICapability: ReturnType<typeof usePageAICapability>;
   panelRef: Ref<HTMLElement | null>;
   panelTitle: ComputedRef<string>;
   pendingAttachments: Ref<ChatAttachment[]>;

@@ -1,6 +1,6 @@
 import type { UseAIChatSlidePanelShellBindingsOptions } from './use-ai-chat-slide-panel-shell-bindings-contract';
 
-import { computed, watch } from 'vue';
+import { computed } from 'vue';
 
 import { $t } from '#/locales';
 
@@ -18,14 +18,6 @@ export function useAIChatSlidePanelShellBindings(
 ) {
   const compactMessages = computed(() => true);
 
-  watch(
-    () => options.streaming.value,
-    (streaming) => {
-      options.pageAICapability.pageAIDetailsExpanded.value = streaming;
-    },
-    { immediate: true },
-  );
-
   const headerBindings = usePanelShellHeaderBindings({
     activeConversationId: options.activeConversationId,
     aiPanelStore: options.aiPanelStore,
@@ -41,7 +33,6 @@ export function useAIChatSlidePanelShellBindings(
     onToggleMemory: options.onToggleMemory,
     onToggleForceReroute: options.onToggleForceReroute,
     panelTitle: options.panelTitle,
-    pageAICapability: options.pageAICapability,
     routeNotice: options.routeNotice,
     routing: options.routing,
     showHeaderMemoryButton: options.showHeaderMemoryButton,
@@ -62,9 +53,6 @@ export function useAIChatSlidePanelShellBindings(
         options.conversationSearch.value = '';
       }
     },
-    togglePageAIDetails: options.pageAICapability.togglePageAIDetails,
-    expandAllPageAIOperations:
-      options.pageAICapability.expandAllPageAIOperations,
     onStartNewChat: options.onStartNewChat,
     handleClose: options.handleClose,
     handleMinimize: options.handleMinimize,

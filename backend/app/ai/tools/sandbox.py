@@ -41,6 +41,23 @@ if TYPE_CHECKING:
 
 logger = LogManager.get_logger("ai.tool.sandbox")
 
+_RETIRED_PAGE_TOOL_NAMES = frozenset(
+    {
+        "get_page_context",
+        "invoke_page_operation",
+        "list_page_operations",
+    }
+)
+
+
+def _is_retired_page_tool_name(name: str) -> bool:
+    normalized = str(name or "").strip()
+    return (
+        normalized.startswith("ui_")
+        or normalized.startswith("pageop_")
+        or normalized in _RETIRED_PAGE_TOOL_NAMES
+    )
+
 
 @dataclass
 class SandboxConfig:
@@ -164,25 +181,8 @@ class ToolSandbox:
         from app.ai.tools.executors.code_execution_executor import CodeExecutionExecutor
 
         self._executors[ToolTypeEnum.CODE_EXECUTION.value] = CodeExecutionExecutor()
-        # Page runtime executor (matched by tool name, prioritized over type-based lookup) / 页面 runtime 执行器
-        from app.ai.tools.executors.ui_snapshot_executor import UISnapshotExecutor
-        from app.ai.tools.page_runtime.executor import PageRuntimeToolExecutor
-        from app.ai.tools.page_runtime.live_bridge import SocketIOPageRuntimeBridge
-
-        page_runtime_executor = PageRuntimeToolExecutor(SocketIOPageRuntimeBridge())
-        self._named_executors["ui_get_snapshot"] = UISnapshotExecutor()
-        for tool_name in {
-            "ui_read_region",
-            "ui_read_table",
-            "ui_list_interactables",
-            "ui_click",
-            "ui_open_surface",
-            "ui_get_form_state",
-            "ui_set_field",
-            "ui_fill_form",
-            "ui_submit_form",
-        }:
-            self._named_executors[tool_name] = page_runtime_executor
+        # Page-runtime compatibility modules still exist, but live AI dialogue
+        # no longer registers ui_* executors or exposes page operations.
 
     def get_executor(self, tool_type: str) -> BaseToolExecutor | None:
         """Get executor for specified type / 获取指定类型的执行器"""
@@ -226,6 +226,15 @@ class ToolSandbox:
         start = time.perf_counter()
         event_bus = get_event_bus()
         hook_registry = get_hook_registry()
+
+        if _is_retired_page_tool_name(name):
+            return ToolResult(
+                tool_call_id=tool_call_id,
+                name=name,
+                success=False,
+                error="Page awareness tools are retired from AI dialogue.",
+                error_type="page_awareness_retired",
+            )
 
         # 1. Find tool definition / 查找工具定义
         definition = self._find_definition(name, definitions)

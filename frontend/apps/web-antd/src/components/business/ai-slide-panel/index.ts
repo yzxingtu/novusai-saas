@@ -11,6 +11,5 @@ export type {
   PageOperationHandler,
   PageOperationResult,
 } from './page-operation-types';
-export { default as PageAIRail } from './PageAIRail.vue';
 export { ROUTED_BY, useAgentRouter } from './use-agent-router';
 export type { RouteResult, UseAgentRouterOptions } from './use-agent-router';
