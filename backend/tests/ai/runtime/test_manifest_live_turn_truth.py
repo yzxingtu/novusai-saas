@@ -73,24 +73,6 @@ def _descriptor(
 
 
 def _inventory_bundle(*, activation_reason: str) -> CapabilityBundle:
-    page_tools = [
-        _tool(
-            "ui_get_snapshot",
-            skill_id=101,
-            skill_name="Page Skill",
-            package_name="pkg.page",
-            plugin_name="plugin-page",
-            family="page_ops",
-        ),
-        _tool(
-            "ui_click",
-            skill_id=101,
-            skill_name="Page Skill",
-            package_name="pkg.page",
-            plugin_name="plugin-page",
-            family="page_ops",
-        ),
-    ]
     research_tools = [
         _tool(
             "web_search",
@@ -111,13 +93,6 @@ def _inventory_bundle(*, activation_reason: str) -> CapabilityBundle:
     ]
     descriptors = [
         _descriptor(
-            "Page Skill",
-            skill_id=101,
-            package_name="pkg.page",
-            plugin_name="plugin-page",
-            resolved_tool_names=["ui_get_snapshot", "ui_click"],
-        ),
-        _descriptor(
             "Research Skill",
             skill_id=202,
             package_name="pkg.research",
@@ -126,7 +101,7 @@ def _inventory_bundle(*, activation_reason: str) -> CapabilityBundle:
         ),
     ]
     return CapabilityBundle(
-        tools=[*page_tools, *research_tools],
+        tools=list(research_tools),
         capability_descriptors=descriptors,
         context_sources=[
             ContextSource(
@@ -137,11 +112,6 @@ def _inventory_bundle(*, activation_reason: str) -> CapabilityBundle:
                     "turn_skill_activation_reason": activation_reason,
                 },
             ),
-            ContextSource(
-                kind="page_context",
-                name="page_context",
-                metadata={"ui_epoch": 3},
-            ),
         ],
     )
 
@@ -149,12 +119,7 @@ def _inventory_bundle(*, activation_reason: str) -> CapabilityBundle:
 def _turn_request() -> SimpleNamespace:
     return SimpleNamespace(
         tenant_id=9,
-        input_variables={
-            "page_context": {
-                "page_key": "admin.ai.dashboard",
-                "ui_epoch": 3,
-            }
-        },
+        input_variables={},
     )
 
 
@@ -187,16 +152,13 @@ def test_build_manifest_projects_live_subset_from_projected_bundle() -> None:
         inventory_bundle,
         [inventory_bundle.tools[0]],
     )
-    assert live_bundle.selected_tool_names == ["ui_get_snapshot"]
-    assert live_bundle.selected_skill_names == ["Page Skill"]
+    assert live_bundle.selected_tool_names == ["web_search"]
+    assert live_bundle.selected_skill_names == ["Research Skill"]
     assert live_bundle.inventory_selected_tool_names == [
-        "ui_get_snapshot",
-        "ui_click",
         "web_search",
         "fetch_url",
     ]
     assert live_bundle.inventory_selected_skill_names == [
-        "Page Skill",
         "Research Skill",
     ]
 
@@ -209,14 +171,14 @@ def test_build_manifest_projects_live_subset_from_projected_bundle() -> None:
     )
     summary = AIRuntimeInventoryService.build_compact_summary(manifest)
 
-    assert [item.name for item in manifest.tools] == ["ui_get_snapshot"]
-    assert [item.name for item in manifest.skills] == ["Page Skill"]
+    assert [item.name for item in manifest.tools] == ["web_search"]
+    assert [item.name for item in manifest.skills] == ["Research Skill"]
     assert manifest.boundaries["selection_semantics"] == "turn_selected_subset"
     assert manifest.boundaries["selection_live"] is True
     assert manifest.boundaries["live_turn_bound"] is True
-    assert summary["selected_skill_names"] == ["Page Skill"]
-    assert summary["page_context_attached"] is False
-    assert summary["page_operation_names"] == []
+    assert summary["selected_skill_names"] == ["Research Skill"]
+    assert summary.get("page_context_attached", False) is False
+    assert summary.get("page_operation_names", []) == []
     assert "page_ops" not in summary["tool_families"]
     assert "page_ops" not in summary["continuation_capable_families"]
     assert summary["selection_semantics"] == "turn_selected_subset"
@@ -224,7 +186,7 @@ def test_build_manifest_projects_live_subset_from_projected_bundle() -> None:
     assert summary["live_turn_bound"] is True
     assert resolve_live_turn_selected_skill_names(
         runtime_capability_summary=summary
-    ) == ["Page Skill"]
+    ) == ["Research Skill"]
 
 
 def test_build_manifest_marks_capability_reporting_inventory_as_non_live() -> None:
@@ -233,13 +195,10 @@ def test_build_manifest_marks_capability_reporting_inventory_as_non_live() -> No
     )
     assert inventory_bundle.selected_skill_names == []
     assert inventory_bundle.inventory_selected_tool_names == [
-        "ui_get_snapshot",
-        "ui_click",
         "web_search",
         "fetch_url",
     ]
     assert inventory_bundle.inventory_selected_skill_names == [
-        "Page Skill",
         "Research Skill",
     ]
 
@@ -253,8 +212,6 @@ def test_build_manifest_marks_capability_reporting_inventory_as_non_live() -> No
     summary = AIRuntimeInventoryService.build_compact_summary(manifest)
 
     assert [item.name for item in manifest.tools] == [
-        "ui_get_snapshot",
-        "ui_click",
         "web_search",
         "fetch_url",
     ]
@@ -265,8 +222,8 @@ def test_build_manifest_marks_capability_reporting_inventory_as_non_live() -> No
     assert manifest.boundaries["selection_live"] is False
     assert manifest.boundaries["live_turn_bound"] is False
     assert summary["selected_skill_names"] == []
-    assert summary["page_context_attached"] is False
-    assert summary["page_operation_names"] == []
+    assert summary.get("page_context_attached", False) is False
+    assert summary.get("page_operation_names", []) == []
     assert "page_ops" not in summary["tool_families"]
     assert "page_ops" not in summary["continuation_capable_families"]
     assert summary["selection_semantics"] == "capability_reporting_inventory"
@@ -305,14 +262,14 @@ def test_shape_manifest_payload_rewrites_live_manifest_as_inventory_snapshot() -
         tools=list(inventory_bundle.tools),
     )
 
-    assert payload["summary"]["selected_skill_names"] == ["Page Skill"]
+    assert payload["summary"]["selected_skill_names"] == ["Research Skill"]
     assert payload["summary"]["selection_semantics"] == "inventory_snapshot"
     assert payload["summary"]["selection_live"] is False
     assert payload["summary"]["live_turn_bound"] is False
     assert payload["boundaries"]["selection_semantics"] == "inventory_snapshot"
     assert payload["boundaries"]["selection_live"] is False
     assert payload["boundaries"]["live_turn_bound"] is False
-    assert [item["name"] for item in payload["skills"]] == ["Page Skill"]
+    assert [item["name"] for item in payload["skills"]] == ["Research Skill"]
     assert resolve_live_turn_selected_skill_names(
         runtime_capability_summary=payload["summary"]
     ) == []

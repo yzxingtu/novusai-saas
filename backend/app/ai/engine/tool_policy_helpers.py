@@ -38,27 +38,6 @@ from .tool_policy_semantics import (
 from .tool_policy_trust_helpers import apply_execution_trust_policy
 
 
-def first_page_intent_kind(*args, **kwargs) -> None:
-    del args, kwargs
-    return None
-
-
-def looks_like_generic_page_summary_request(*args, **kwargs) -> bool:
-    del args, kwargs
-    return False
-
-
-def restrict_page_tools_for_generic_summary(
-    *,
-    selected_tools,
-    all_tools,
-    user_text,
-    input_variables=None,
-):
-    del all_tools, user_text, input_variables
-    return selected_tools, False
-
-
 __all__ = [
     "allowed_tool_names_for_families",
     "allowed_tool_names_for_family",
@@ -72,11 +51,9 @@ __all__ = [
     "family_capability_terms",
     "filter_tools_for_policy",
     "first_incomplete_requested_family",
-    "first_page_intent_kind",
     "looks_like_explicit_time_request",
     "looks_like_explicit_web_research_request",
     "looks_like_generic_follow_up",
-    "looks_like_generic_page_summary_request",
     "looks_like_tool_planning_leak",
     "mark_multi_family_progress",
     "messages_have_blocking_pending_interaction",
@@ -84,7 +61,6 @@ __all__ = [
     "response_denies_family_capability",
     "response_has_native_web_search_evidence",
     "restore_explicit_family_tools",
-    "restrict_page_tools_for_generic_summary",
     "restrict_tools_to_names",
     "tool_family_for_name",
     "tool_semantic_family",

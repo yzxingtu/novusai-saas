@@ -10,7 +10,6 @@ import { usePanelShellComputedUI } from './use-panel-shell-computed-ui';
 import { usePanelShellHeaderBindings } from './use-panel-shell-header-bindings';
 import { usePanelShellLifecycle } from './use-panel-shell-lifecycle';
 import { usePanelShellRuntimeVisuals } from './use-panel-shell-runtime-visuals';
-import { usePanelShellScreenshot } from './use-panel-shell-screenshot';
 import { usePanelWidth } from './use-panel-width';
 
 export function useAIChatSlidePanelShellBindings(
@@ -85,28 +84,14 @@ export function useAIChatSlidePanelShellBindings(
     uploading: options.uploading,
   });
 
-  const { capturing, handleScreenshot } = usePanelShellScreenshot({
-    apiPrefix: options.apiPrefix,
-    pendingAttachments: options.pendingAttachments,
-    supportsVision: options.supportsVision,
-    uploadUrl: options.uploadUrl,
-  });
-
   const {
     mentionEmptyHint,
     resolvedAttachmentAccept,
-    screenshotDisabled,
-    showScreenshotButton,
   } = usePanelShellComputedUI({
     agentKBBindings: options.agentKBBindings,
-    agents: options.agents,
     agentsLoading: options.agentsLoading,
-    capturing,
     chatAcceptAttribute: options.chatAcceptAttribute,
     mentionCandidates: options.mentionCandidates,
-    sending: options.sending,
-    showAttachments: options.showAttachments,
-    supportsVision: options.supportsVision,
   });
 
   const overlayBindings = usePanelShellRuntimeVisuals({
@@ -146,7 +131,6 @@ export function useAIChatSlidePanelShellBindings(
     ),
     boundKnowledgeBases: composerBoundKnowledgeBases,
     cancelEditTitle: options.cancelEditTitle,
-    captureScreenshot: handleScreenshot,
     chatMessages: options.chatMessages,
     characterCount: computed(() => options.inputMessage.value.length),
     commitEditTitle: options.commitEditTitle,
@@ -158,7 +142,6 @@ export function useAIChatSlidePanelShellBindings(
     conversationsCount: computed(() => options.conversations.value.length),
     conversationsLoading: options.conversationsLoading,
     copyMessage: options.copyMessage,
-    countdownNow: options.countdownNow,
     editAndResend: options.editAndResend,
     editingConversationId: options.editingConversationId,
     editingTitle: options.editingTitle,
@@ -166,7 +149,6 @@ export function useAIChatSlidePanelShellBindings(
     effectiveWelcomeMessage: options.effectiveWelcomeMessage,
     exportMenuItems: options.exportMenuItems,
     fileSelect: options.handleFileSelect,
-    getPendingOpsForMessage: options.getPendingOpsForMessage,
     groupedConversations: options.groupedConversations,
     handleDragOver: options.handleDragOver,
     handleDrop: options.handleDrop,
@@ -192,11 +174,8 @@ export function useAIChatSlidePanelShellBindings(
     rejectConsent: options.rejectConsent,
     removeAttachment: options.removePendingAttachment,
     removeSelectedKnowledgeBase: options.removeSelectedKnowledgeBase,
-    resolvePendingAction: options.resolvePendingAction,
     retryLastMessage: options.retryLastMessage,
     routing: options.routing,
-    screenshotDisabled,
-    screenshotLoading: capturing,
     scrollToBottom: options.scrollToBottom,
     scrollToTop: options.scrollToTop,
     selectedAgent: options.selectedAgent,
@@ -207,14 +186,12 @@ export function useAIChatSlidePanelShellBindings(
     shiftEnterHint: $t('common.globalAiChat.shiftEnterHint'),
     showAttachments: options.showAttachments,
     showHistory: options.showHistory,
-    showScreenshotButton,
     showScrollToBottom: options.showScrollToBottom,
     showScrollToTop: options.showScrollToTop,
     startEditTitle: options.startEditTitle,
     stopGeneration: options.stopGeneration,
     streaming: options.streaming,
     totalTokensUsed: options.totalTokensUsed,
-    unassociatedPendingOps: options.unassociatedPendingOps,
   });
 
   const {

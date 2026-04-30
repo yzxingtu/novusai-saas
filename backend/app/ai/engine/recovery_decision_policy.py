@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from .types import ExecutionBudget, IntentPlan, ProviderFailureKind, RecoveryDecision
 
 _BUDGET_EXIT_REASONS: frozenset[str] = frozenset(
@@ -27,81 +25,6 @@ _TERMINAL_FAILURE_KINDS: frozenset[ProviderFailureKind] = frozenset(
         "server_interrupt",
     }
 )
-
-
-def _page_workflow_snapshot(
-    intent: IntentPlan | None,
-    *,
-    allowed_tool_names: list[str] | None = None,
-) -> dict[str, Any] | None:
-    if intent is None or str(intent.family or "").strip() != "page_ops":
-        return None
-    metadata = dict(intent.metadata or {})
-    workflow_stage = str(metadata.get("page_workflow_stage") or "").strip()
-    workflow_phase = str(metadata.get("page_workflow_phase") or "").strip()
-    workflow_goal = str(metadata.get("page_workflow_goal") or "").strip()
-    workflow_state = (
-        dict(metadata.get("page_workflow_state") or {})
-        if isinstance(metadata.get("page_workflow_state"), dict)
-        else {}
-    )
-    workflow_completion = (
-        dict(metadata.get("page_workflow_completion") or {})
-        if isinstance(metadata.get("page_workflow_completion"), dict)
-        else {}
-    )
-    workflow_progress = (
-        dict(metadata.get("page_workflow_progress") or {})
-        if isinstance(metadata.get("page_workflow_progress"), dict)
-        else {}
-    )
-    if not (
-        workflow_stage
-        or workflow_phase
-        or workflow_goal
-        or workflow_state
-        or workflow_completion
-        or workflow_progress
-    ):
-        return None
-    workflow_kind = (
-        str(metadata.get("page_workflow_kind") or "page_workflow").strip()
-        or "page_workflow"
-    )
-    canonical_intent_kind = workflow_kind
-    snapshot = {
-        "intent_id": intent.intent_id,
-        "intent_kind": canonical_intent_kind,
-        "workflow_kind": workflow_kind,
-        "stage": workflow_stage,
-        "phase": workflow_phase,
-        "goal": workflow_goal,
-        "allowed_tool_names": list(
-            allowed_tool_names
-            if allowed_tool_names is not None
-            else list(intent.allowed_tool_names or [])
-        ),
-        "preferred_tool_names": list(intent.preferred_tool_names or []),
-        "state": workflow_state,
-        "completion": workflow_completion,
-        "progress": workflow_progress,
-    }
-    return snapshot
-
-
-def _attach_page_workflow_metadata(
-    metadata: dict[str, Any],
-    *,
-    intent: IntentPlan | None,
-    allowed_tool_names: list[str] | None = None,
-) -> dict[str, Any]:
-    snapshot = _page_workflow_snapshot(
-        intent,
-        allowed_tool_names=allowed_tool_names,
-    )
-    if snapshot is not None:
-        metadata["page_workflow"] = snapshot
-    return metadata
 
 
 def is_budget_exit_reason(reason: str) -> bool:
@@ -144,10 +67,6 @@ def decide(
         metadata: dict[str, Any] = {}
         if payload:
             metadata["pending_consent"] = payload
-        metadata = _attach_page_workflow_metadata(
-            metadata,
-            intent=pending_intent,
-        )
         return RecoveryDecision(
             action="pause_for_consent",
             target_intent_id=pending_intent.intent_id,
@@ -167,10 +86,7 @@ def decide(
             unfinished_intent_ids=[intent.intent_id for intent in unfinished],
             reason=budget_exit_reason,
             provider_failure_kind="budget_exit",
-            metadata=_attach_page_workflow_metadata(
-                {},
-                intent=target_intent,
-            ),
+            metadata={},
         )
     if provider_failure_kind == "budget_exit":
         target_intent = unfinished[0] if unfinished else None
@@ -180,10 +96,7 @@ def decide(
             unfinished_intent_ids=[intent.intent_id for intent in unfinished],
             reason="budget_exit",
             provider_failure_kind=provider_failure_kind,
-            metadata=_attach_page_workflow_metadata(
-                {},
-                intent=target_intent,
-            ),
+            metadata={},
         )
     if not unfinished and provider_failure_kind == "none":
         return None
@@ -199,10 +112,7 @@ def decide(
                 unfinished_intent_ids=[intent.intent_id for intent in unfinished],
                 reason="terminal_failure",
                 provider_failure_kind=provider_failure_kind,
-                metadata=_attach_page_workflow_metadata(
-                    {},
-                    intent=target,
-                ),
+                metadata={},
             )
         retry_count = int(
             (budget.retries_by_intent.get(target.intent_id, 0) if budget is not None else 0)
@@ -215,10 +125,7 @@ def decide(
                 unfinished_intent_ids=[intent.intent_id for intent in unfinished],
                 reason="retry_budget_exhausted",
                 provider_failure_kind=provider_failure_kind,
-                metadata=_attach_page_workflow_metadata(
-                    {},
-                    intent=target,
-                ),
+                metadata={},
             )
         allowed_tool_names: list[str] = []
         seen: set[str] = set()
@@ -240,13 +147,7 @@ def decide(
             unfinished_intent_ids=[intent.intent_id for intent in unfinished],
             reason="unfinished_intent_retry",
             provider_failure_kind=provider_failure_kind,
-            metadata=_attach_page_workflow_metadata(
-                {},
-                intent=target,
-                allowed_tool_names=(
-                    allowed_tool_names or list(target.allowed_tool_names)
-                ),
-            ),
+            metadata={},
         )
     if provider_failure_kind != "none":
         return RecoveryDecision(

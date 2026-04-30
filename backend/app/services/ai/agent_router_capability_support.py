@@ -10,7 +10,7 @@ from app.ai.tools.semantic_defaults import tool_family_from_name
 from app.models.ai.agent import Agent
 from app.models.ai.agent_skill_grant import AgentSkillGrant
 
-BASELINE_RUNTIME_FAMILIES = frozenset({"time_ops"})
+BASELINE_RUNTIME_FAMILIES = frozenset({"time_ops", "web_research"})
 
 
 def grant_skill_name_if_active(grant: AgentSkillGrant | Any) -> str | None:
@@ -121,9 +121,7 @@ def _grant_preview_families(grant: AgentSkillGrant | Any) -> list[str]:
         family = tool_family_from_name(tool_name)
         if family != "none":
             families.append(family)
-    return _stable_unique(
-        [family for family in families if str(family or "").strip() != "page_ops"]
-    )
+    return _stable_unique(families)
 
 
 def agent_skill_names(agent: Agent | None) -> set[str]:
@@ -162,11 +160,6 @@ async def agent_can_handle_images(db: Any, agent: Agent | None) -> bool:
     )
 
 
-def agent_supports_page_operations(agent: Agent | None) -> bool:
-    del agent
-    return False
-
-
 def agent_supports_families(agent: Agent | None, families: list[str]) -> bool:
     if agent is None or not families:
         return False
@@ -192,6 +185,5 @@ __all__ = [
     "agent_skill_names",
     "agent_supports_families",
     "agent_supports_images",
-    "agent_supports_page_operations",
     "grant_skill_name_if_active",
 ]

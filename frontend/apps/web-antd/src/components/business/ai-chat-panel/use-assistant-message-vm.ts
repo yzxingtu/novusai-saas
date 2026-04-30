@@ -1,4 +1,3 @@
-import type { PendingToolActionForDisplay } from './pending-tool-action';
 import type {
   AgentItem,
   AgentKnowledgeBaseBindingsByAgentId,
@@ -40,7 +39,6 @@ export interface UseAssistantMessageVmOptions {
   >;
   kernelState?: MaybeRefOrGetter<null | TurnFlowState | undefined>;
   msg: MaybeRefOrGetter<ChatMessage>;
-  pendingOps?: MaybeRefOrGetter<PendingToolActionForDisplay[] | undefined>;
   selectedAgent?: MaybeRefOrGetter<AgentItem | null | undefined>;
 }
 
@@ -59,15 +57,12 @@ export function useAssistantMessageViewModel(
   );
   const currentKernelState = computed(() => toValue(options.kernelState) ?? null);
   const currentMessage = computed(() => toValue(options.msg));
-  const currentPendingOps = computed(() => toValue(options.pendingOps) ?? []);
   const currentSelectedAgent = computed(
     () => toValue(options.selectedAgent) ?? null,
   );
 
   const resolvedKernelState = computed(
-    () =>
-      currentKernelState.value ??
-      buildTurnFlowState(currentMessage.value, currentPendingOps.value),
+    () => currentKernelState.value ?? buildTurnFlowState(currentMessage.value),
   );
 
   const hasKernelSections = computed(

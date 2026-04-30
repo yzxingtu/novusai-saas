@@ -76,113 +76,6 @@ class TurnDiagnostics:
         return text or None
 
     @staticmethod
-    def _page_workflow_payload(value: Any) -> dict[str, Any] | None:
-        if not isinstance(value, Mapping):
-            return None
-        payload = {
-            "intent_id": TurnDiagnostics._as_text(value.get("intent_id")),
-            "intent_kind": TurnDiagnostics._as_text(value.get("intent_kind")),
-            "stage": TurnDiagnostics._as_text(value.get("stage")),
-            "phase": TurnDiagnostics._as_text(value.get("phase")),
-            "goal": TurnDiagnostics._as_text(value.get("goal")),
-            "allowed_tool_names": [
-                str(name or "").strip()
-                for name in list(value.get("allowed_tool_names") or [])
-                if str(name or "").strip()
-            ],
-            "preferred_tool_names": [
-                str(name or "").strip()
-                for name in list(value.get("preferred_tool_names") or [])
-                if str(name or "").strip()
-            ],
-            "state": TurnDiagnostics._as_dict(value.get("state")),
-            "completion": TurnDiagnostics._as_dict(value.get("completion")),
-            "progress": TurnDiagnostics._as_dict(value.get("progress")),
-        }
-        if not any(
-            (
-                payload["intent_id"],
-                payload["intent_kind"],
-                payload["stage"],
-                payload["phase"],
-                payload["goal"],
-                payload["allowed_tool_names"],
-                payload["preferred_tool_names"],
-                payload["state"],
-                payload["completion"],
-                payload["progress"],
-            )
-        ):
-            return None
-        return payload
-
-    @staticmethod
-    def _intent_page_workflow(intent: IntentPlan | Mapping[str, Any]) -> dict[str, Any] | None:
-        if isinstance(intent, IntentPlan):
-            metadata = dict(intent.metadata or {})
-            intent_id = intent.intent_id
-            intent_kind = intent.kind
-            allowed_tool_names = list(intent.allowed_tool_names or [])
-            preferred_tool_names = list(intent.preferred_tool_names or [])
-        elif isinstance(intent, Mapping):
-            metadata = TurnDiagnostics._as_dict(intent.get("metadata"))
-            intent_id = str(intent.get("intent_id") or "").strip()
-            intent_kind = str(intent.get("kind") or "").strip()
-            allowed_tool_names = [
-                str(name or "").strip()
-                for name in list(intent.get("allowed_tool_names") or [])
-                if str(name or "").strip()
-            ]
-            preferred_tool_names = [
-                str(name or "").strip()
-                for name in list(intent.get("preferred_tool_names") or [])
-                if str(name or "").strip()
-            ]
-        else:
-            return None
-        workflow_payload = {
-            "intent_id": intent_id or None,
-            "intent_kind": intent_kind or None,
-            "stage": TurnDiagnostics._as_text(metadata.get("page_workflow_stage")),
-            "phase": TurnDiagnostics._as_text(metadata.get("page_workflow_phase")),
-            "goal": TurnDiagnostics._as_text(metadata.get("page_workflow_goal")),
-            "allowed_tool_names": allowed_tool_names,
-            "preferred_tool_names": preferred_tool_names,
-            "state": TurnDiagnostics._as_dict(metadata.get("page_workflow_state")),
-            "completion": TurnDiagnostics._as_dict(
-                metadata.get("page_workflow_completion")
-            ),
-            "progress": TurnDiagnostics._as_dict(metadata.get("page_workflow_progress")),
-        }
-        return TurnDiagnostics._page_workflow_payload(workflow_payload)
-
-    @staticmethod
-    def _active_page_workflow(
-        intents: list[IntentPlan],
-        recovery_history: list[RecoveryDecision] | None = None,
-    ) -> dict[str, Any] | None:
-        for intent in intents:
-            if intent.status in {"completed", "failed", "skipped"}:
-                continue
-            workflow = TurnDiagnostics._intent_page_workflow(intent)
-            if workflow is not None:
-                return workflow
-        for decision in reversed(recovery_history or []):
-            payload = (
-                decision.to_dict()
-                if isinstance(decision, RecoveryDecision)
-                else dict(decision)
-                if isinstance(decision, Mapping)
-                else {}
-            )
-            workflow = TurnDiagnostics._page_workflow_payload(
-                TurnDiagnostics._as_dict(payload.get("metadata")).get("page_workflow")
-            )
-            if workflow is not None:
-                return workflow
-        return None
-
-    @staticmethod
     def _path_reason(
         *,
         execution_path: str | None,
@@ -262,7 +155,6 @@ class TurnDiagnostics:
             "skills_injected": bool(raw.get("skills_injected", False)),
             "kb_injected": bool(raw.get("kb_injected", False)),
             "memory_injected": bool(raw.get("memory_injected", False)),
-            "page_injected": bool(raw.get("page_injected", False)),
             "bypass_reason": bypass_reason,
         }
 
@@ -372,11 +264,6 @@ class TurnDiagnostics:
                     payload.get("provider_failure_kind") or "none"
                 ),
             }
-            workflow = TurnDiagnostics._page_workflow_payload(
-                TurnDiagnostics._as_dict(payload.get("metadata")).get("page_workflow")
-            )
-            if workflow is not None:
-                item["page_workflow"] = workflow
             chain.append(item)
         return chain
 
@@ -414,10 +301,6 @@ class TurnDiagnostics:
         )
         retry_events = TurnDiagnostics.serialize_recovery(recovery_history)
         recovery_chain = TurnDiagnostics.build_recovery_chain(recovery_history)
-        active_page_workflow = TurnDiagnostics._active_page_workflow(
-            intents,
-            recovery_history=recovery_history,
-        )
         prep_diagnostics = TurnDiagnostics._as_dict(preparation_diagnostics)
         tool_planner = TurnDiagnostics._as_dict(prep_diagnostics.get("tool_planner"))
         continuation_source = TurnDiagnostics._as_text(
@@ -527,9 +410,6 @@ class TurnDiagnostics:
             "current_state": current_state,
             "state_history": list(state_history or []),
         }
-        if active_page_workflow is not None:
-            payload["active_page_workflow"] = active_page_workflow
-            payload["recovery"]["active_page_workflow"] = active_page_workflow
         if budget_snapshot is not None:
             budget_usage = (
                 TurnDiagnostics._as_dict(budget_snapshot.get("usage"))

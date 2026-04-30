@@ -1,7 +1,6 @@
 <script lang="ts" setup>
 import type { TurnFlowState } from './TurnFlowState';
 
-import type { PendingToolActionForDisplay } from '#/components/business/ai-chat-panel/pending-tool-action';
 import type { ChatMessage } from '#/types/ai-chat';
 
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
@@ -27,15 +26,11 @@ import {
 const props = withDefaults(
   defineProps<{
     compact?: boolean;
-    countdownNow?: number;
     msg: ChatMessage;
-    pendingOps?: PendingToolActionForDisplay[];
     state?: null | TurnFlowState;
   }>(),
   {
     compact: false,
-    countdownNow: undefined,
-    pendingOps: () => [],
     state: null,
   },
 );
@@ -51,7 +46,7 @@ const emit = defineEmits<{
 const KERNEL_AUTO_COLLAPSE_DELAY_MS = 220;
 
 const resolvedState = computed(
-  () => props.state ?? buildTurnFlowState(props.msg, props.pendingOps),
+  () => props.state ?? buildTurnFlowState(props.msg),
 );
 const preparedDigestBody = computed(() => {
   if (resolvedState.value.timeline.length > 0) {
@@ -528,9 +523,7 @@ function handleReject() {
             </div>
             <TurnTimeline
               :compact="compact"
-              :countdown-now="countdownNow"
               :msg="msg"
-              :pending-ops="pendingOps"
               :state="resolvedState"
               @copy="(content) => emit('copy', content)"
             />

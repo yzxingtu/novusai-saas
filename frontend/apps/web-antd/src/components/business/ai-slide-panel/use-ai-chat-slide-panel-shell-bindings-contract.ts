@@ -2,8 +2,6 @@ import type { ItemType } from 'ant-design-vue/es/menu';
 
 import type { ComputedRef, Ref } from 'vue';
 
-import type { PendingOpDisplayItem } from './use-pending-tool-actions';
-
 import type {
   ChatKBBindingInfo,
   ConversationTimelineItem,
@@ -38,7 +36,6 @@ export interface UseAIChatSlidePanelShellBindingsOptions {
   chatAcceptAttribute: string;
   chatMessages: Ref<ChatMessage[]>;
   cleanup: () => void;
-  clearResolvedToolActions?: (() => void) | undefined;
   clearingMemory: Ref<boolean>;
   commitEditTitle: () => void;
   confirmAction: (index: number) => void;
@@ -48,7 +45,6 @@ export interface UseAIChatSlidePanelShellBindingsOptions {
   conversations: Ref<ConversationItem[]>;
   conversationsLoading: Ref<boolean>;
   copyMessage: (content: string) => Promise<void>;
-  countdownNow: Ref<number>;
   editAndResend: (index: number) => void;
   editingConversationId: Ref<null | number>;
   editingTitle: Ref<string>;
@@ -57,7 +53,6 @@ export interface UseAIChatSlidePanelShellBindingsOptions {
   ensureAgentVarsLoaded: (agentId: number) => void;
   exportMenuItems: ComputedRef<ItemType[]>;
   forceRerouteNextTurn: Ref<boolean>;
-  getPendingOpsForMessage: (msg: ChatMessage) => PendingOpDisplayItem[];
   groupedConversations: ComputedRef<
     Array<{ items: ConversationItem[]; label: string }>
   >;
@@ -110,7 +105,6 @@ export interface UseAIChatSlidePanelShellBindingsOptions {
   rejectConsent: (index: number) => void;
   removePendingAttachment: (index: number) => void;
   removeSelectedKnowledgeBase: (id: number) => void;
-  resolvePendingAction: (invokeId: string, allowed: boolean) => void;
   retryLastMessage: (index: number) => void;
   routeNotice: Ref<null | string>;
   routing: Ref<boolean>;
@@ -145,7 +139,6 @@ export interface UseAIChatSlidePanelShellBindingsOptions {
   timelineLoading: Ref<boolean>;
   timelineRefreshing: Ref<boolean>;
   totalTokensUsed: ComputedRef<number>;
-  unassociatedPendingOps: ComputedRef<PendingOpDisplayItem[]>;
   uploadUrl: Ref<string>;
   uploading: Ref<boolean>;
 }

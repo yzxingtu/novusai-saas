@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from .turn_research_continuation import (
     build_web_research_continuation_context,
-    has_page_context,
-    page_operation_names_from_input_variables,
 )
 from .turn_research_evidence import (
     collect_web_research_evidence,
@@ -38,10 +36,8 @@ __all__ = [
     "extract_recent_research_instruction_texts",
     "extract_recent_successful_tool_names",
     "extract_recent_web_queries",
-    "has_page_context",
     "is_title_only_fetch_response",
     "looks_like_explicit_title_request",
     "needs_fetch_url_before_summary",
     "normalize_web_research_contract_text",
-    "page_operation_names_from_input_variables",
 ]

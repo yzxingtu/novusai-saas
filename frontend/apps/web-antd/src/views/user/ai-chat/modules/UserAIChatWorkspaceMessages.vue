@@ -32,10 +32,6 @@ const setMessagesContainerRef = (element: HTMLDivElement | null) => {
   messagesContainer.value = element as HTMLElement | null;
 };
 
-function getPendingOpsForMessage() {
-  return [];
-}
-
 </script>
 
 <template>
@@ -51,7 +47,6 @@ function getPendingOpsForMessage() {
     :effective-welcome-message="effectiveWelcomeMessage"
     :ensure-agent-knowledge-bases="loadAgentKBBindings"
     :ensure-agent-skills="loadAgentSkillBindings"
-    :get-pending-ops-for-message="getPendingOpsForMessage"
     :register-container="setMessagesContainerRef"
     :selected-agent="selectedAgent"
     :sending="sending"

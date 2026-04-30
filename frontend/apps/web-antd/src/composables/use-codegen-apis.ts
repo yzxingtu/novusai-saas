@@ -1,10 +1,8 @@
 /**
- * 代码生成器用 API / Codegen APIs
+ * Codegen select APIs.
  *
- * UserSelect、DeptSelect 等组件使用的 API。
- * 根据当前 URL（admin/tenant）自动选择对应端点。
- *
- * APIs for UserSelect, DeptSelect etc. Auto-selects endpoint by current URL (admin/tenant).
+ * UserSelect and DeptSelect generated fields use these helpers. They are not
+ * related to AI page awareness and must stay available for generated pages.
  */
 import {
   getNodeMembersApi as getAdminNodeMembersApi,
@@ -27,12 +25,6 @@ function getApiPrefix(): 'admin' | 'tenant' {
   return path.includes('/tenant') ? 'tenant' : 'admin';
 }
 
-/**
- * 用户下拉 API / User select API
- *
- * Admin: GET /admin/organization/{org_node_id}/members?include_descendants=true (平台管理员成员聚合)
- * Tenant: GET /tenant/users (企业用户)
- */
 export async function getUserSelectApi(params?: { search?: string }) {
   const prefix = getApiPrefix();
   try {
@@ -68,13 +60,14 @@ export async function getUserSelectApi(params?: { search?: string }) {
       }
 
       return {
-        items: [...userMap.values()].map((u) => ({
-          id: u.id,
-          value: u.id,
-          label: u.nickname || u.username || String(u.id),
+        items: [...userMap.values()].map((user) => ({
+          id: user.id,
+          value: user.id,
+          label: user.nickname || user.username || String(user.id),
         })),
       };
     }
+
     const res = await getTenantUserListApi({
       page: 1,
       page_size: 500,
@@ -82,13 +75,10 @@ export async function getUserSelectApi(params?: { search?: string }) {
     } as Record<string, unknown>);
     return {
       items: (res.items || []).map(
-        (u: { id: number; nickname?: string; username?: string }) => ({
-          id: u.id,
-          value: u.id,
-          label:
-            (u as { nickname?: string }).nickname ||
-            (u as { username?: string }).username ||
-            String(u.id),
+        (user: { id: number; nickname?: string; username?: string }) => ({
+          id: user.id,
+          value: user.id,
+          label: user.nickname || user.username || String(user.id),
         }),
       ),
     };
@@ -100,12 +90,6 @@ export async function getUserSelectApi(params?: { search?: string }) {
   }
 }
 
-/**
- * 部门/组织树 API / Dept/Org tree API
- *
- * Admin: GET /admin/organization (平台组织架构根节点)
- * Tenant: GET /tenant/organization (企业组织架构根节点)
- */
 export async function getDeptTreeApi() {
   const prefix = getApiPrefix();
   try {
@@ -114,10 +98,10 @@ export async function getDeptTreeApi() {
         ? await getAdminOrgRootsApi()
         : await getTenantOrgRootsApi();
     return {
-      items: (roots || []).map((n: { id: number; name?: string }) => ({
-        id: n.id,
-        value: n.id,
-        label: (n as { name?: string }).name || String(n.id),
+      items: (roots || []).map((node: { id: number; name?: string }) => ({
+        id: node.id,
+        value: node.id,
+        label: node.name || String(node.id),
       })),
     };
   } catch (error) {

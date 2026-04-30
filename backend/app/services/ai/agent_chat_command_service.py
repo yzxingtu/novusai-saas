@@ -31,6 +31,7 @@ from app.enums.agent import AgentExecutionModeEnum
 from app.enums.common import UserRoleEnum
 from app.exceptions import BusinessException
 from app.schemas.ai.agent_chat import AgentChatResponse, InteractionMode
+from app.schemas.ai.retired_page_awareness import retired_page_awareness_input_keys
 from app.services.ai.agent_chat_command_ephemeral_support import (
     execute_ephemeral_stream_chat,
 )
@@ -57,8 +58,14 @@ def _normalize_chat_variables(
     variables: dict[str, Any] | None,
 ) -> dict[str, Any] | None:
     normalized_variables = dict(variables or {})
-    normalized_variables.pop("page_context", None)
-    normalized_variables.pop("page_session_id", None)
+    retired_keys = retired_page_awareness_input_keys(normalized_variables)
+    if retired_keys:
+        raise BusinessException(
+            message=_(
+                "agent_chat.error.retired_page_awareness_fields",
+                fields=", ".join(retired_keys),
+            )
+        )
     return normalized_variables or None
 
 

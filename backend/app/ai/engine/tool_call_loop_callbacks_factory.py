@@ -19,7 +19,7 @@ def build_tool_call_loop_callbacks(
     *,
     policy: ToolCallLoopPolicy,
     ordered_requested_families_from_intents: Callable[..., list[str]],
-    truncate_tool_calls_after_navigation: Callable[
+    keep_tool_calls_for_round: Callable[
         [list[dict[str, Any]]],
         tuple[list[dict[str, Any]], bool],
     ],
@@ -32,10 +32,9 @@ def build_tool_call_loop_callbacks(
 ) -> ToolCallLoopCallbacks:
     return ToolCallLoopCallbacks(
         ordered_requested_families_from_intents=ordered_requested_families_from_intents,
-        truncate_tool_calls_after_navigation=truncate_tool_calls_after_navigation,
+        keep_tool_calls_for_round=keep_tool_calls_for_round,
         mark_multi_family_progress=mark_multi_family_progress,
         budget_exit_response=budget_exit_response,
-        build_page_no_progress_recovery=policy.build_page_no_progress_recovery,
         messages_have_blocking_pending_interaction=policy.messages_have_blocking_pending_interaction,
         first_incomplete_requested_family=policy.first_incomplete_requested_family,
         allowed_tool_names_for_family=policy.allowed_tool_names_for_family,

@@ -14,7 +14,6 @@ DEFAULT_CONTEXT_BUDGET_LIMITS: dict[str, int] = {
     "long_term_memory": 800,
     "kb_rag": 2000,
     "web_search": 1500,
-    "page_context": 600,
     "capability_manifest": 300,
 }
 

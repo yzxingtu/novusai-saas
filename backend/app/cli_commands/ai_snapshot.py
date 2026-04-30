@@ -794,32 +794,6 @@ async def _load_ai_conversation_snapshot(
             ).strip()
             or None
         )
-        last_page_key = (
-            str(
-                turn_record.get("last_page_key")
-                or assistant_metadata.get("last_page_key")
-                or assistant_context_diagnostics.get("last_page_key")
-                or assistant_last_run_summary.get("last_page_key")
-                or detail_context_diagnostics.get("last_page_key")
-                or detail_last_run_summary.get("last_page_key")
-                or latest_call_log_diagnostics.get("last_page_key")
-                or ""
-            ).strip()
-            or None
-        )
-        last_page_op = (
-            str(
-                turn_record.get("last_page_op")
-                or assistant_metadata.get("last_page_op")
-                or assistant_context_diagnostics.get("last_page_op")
-                or assistant_last_run_summary.get("last_page_op")
-                or detail_context_diagnostics.get("last_page_op")
-                or detail_last_run_summary.get("last_page_op")
-                or latest_call_log_diagnostics.get("last_page_op")
-                or ""
-            ).strip()
-            or None
-        )
         interrupted_stage = (
             str(
                 turn_record.get("interrupted_stage")
@@ -941,8 +915,6 @@ async def _load_ai_conversation_snapshot(
                             "contract_breach_type"
                         ),
                         "last_tool_name": row_diagnostics.get("last_tool_name"),
-                        "last_page_key": row_diagnostics.get("last_page_key"),
-                        "last_page_op": row_diagnostics.get("last_page_op"),
                         "interrupted_stage": row_diagnostics.get("interrupted_stage"),
                         "tool_loop_progress": row_diagnostics.get("tool_loop_progress"),
                         "turn_record": row_diagnostics.get("turn_record"),
@@ -1006,8 +978,6 @@ async def _load_ai_conversation_snapshot(
                 "sync_rescue": sync_rescue,
                 "should_record_call_log": should_record_call_log,
                 "last_tool_name": last_tool_name,
-                "last_page_key": last_page_key,
-                "last_page_op": last_page_op,
                 "interrupted_stage": interrupted_stage,
                 "tool_loop_progress": tool_loop_progress,
                 "turn_record": turn_record or None,
@@ -1483,13 +1453,6 @@ def _hydrate_ai_conversation_snapshot(snapshot: dict) -> dict:
             if parsed is not None
         ),
         None,
-    )
-    diagnostics["last_page_key"] = _first_string(
-        diagnostics.get("last_page_key"),
-        assistant_metadata.get("last_page_key"),
-        assistant_context_diagnostics.get("last_page_key"),
-        assistant_last_run_summary.get("last_page_key"),
-        latest_call_log_diagnostics.get("last_page_key"),
     )
     diagnostics["source"] = _first_string(
         diagnostics.get("source"),

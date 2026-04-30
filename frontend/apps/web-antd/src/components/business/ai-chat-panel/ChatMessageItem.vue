@@ -1,5 +1,4 @@
 <script lang="ts" setup>
-import type { PendingToolActionForDisplay } from './pending-tool-action';
 import type {
   AgentKnowledgeBaseBindingsByAgentId,
   AgentKnowledgeBaseBindingSummary,
@@ -19,7 +18,6 @@ const props = withDefaults(
     agents?: AgentItem[];
     apiPrefix?: string;
     compact?: boolean;
-    countdownNow?: number;
     forceShowDiagnostics?: boolean;
     agentKnowledgeBases?: AgentKnowledgeBaseBindingSummary[] | null;
     agentKnowledgeBaseMap?: AgentKnowledgeBaseBindingsByAgentId | null;
@@ -27,21 +25,18 @@ const props = withDefaults(
     index: number;
     kernelState?: null | TurnFlowState;
     msg: ChatMessage;
-    pendingOps?: PendingToolActionForDisplay[];
     selectedAgent?: AgentItem | null;
   }>(),
   {
     apiPrefix: '',
     agents: () => [],
     compact: false,
-    countdownNow: undefined,
     forceShowDiagnostics: false,
     agentKnowledgeBases: null,
     agentKnowledgeBaseMap: null,
     agentSkillMap: null,
     kernelState: null,
     selectedAgent: null,
-    pendingOps: () => [],
   },
 );
 

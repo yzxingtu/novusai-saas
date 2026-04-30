@@ -27,9 +27,6 @@ from app.ai.types import ChatChunk, ChatMessage, ChatResponse
 _SYNC_RESCUE_MAX_ATTEMPTS = 1
 _SYNC_RESCUE_RETRY_BASE_DELAY_SECONDS = 0.5
 _SYNC_RESCUE_REASONING_EFFORT = "low"
-_PAGE_UI_TIMEOUT_SECONDS = 12.0
-_PAGE_UI_CLIENT_MAX_RETRIES = 0
-_RUNTIME_CLIENT_MAX_RETRIES_OVERRIDE_KEY = "_runtime_client_max_retries_override"
 
 
 class ConversationQueryEngine:
@@ -65,63 +62,6 @@ class ConversationQueryEngine:
         if progress_kind == "web_search_in_progress":
             return "web_research"
         return None
-
-    @staticmethod
-    def _extract_tool_name(tool: Any) -> str:
-        if isinstance(tool, str):
-            return str(tool).strip()
-        if isinstance(tool, dict):
-            function_block = tool.get("function") or {}
-            return str(function_block.get("name") or tool.get("name") or "").strip()
-        return str(getattr(tool, "name", "") or "").strip()
-
-    @classmethod
-    def _command_uses_page_ui_tools(cls, command: TurnCommand) -> bool:
-        tools = list(command.tools or [])
-        if not tools:
-            return False
-        tool_names = [cls._extract_tool_name(tool) for tool in tools]
-        normalized_names = [name for name in tool_names if name]
-        return bool(normalized_names) and all(
-            name.startswith("ui_") for name in normalized_names
-        )
-
-    @classmethod
-    def _should_attempt_page_timeout_sync_rescue(
-        cls,
-        *,
-        command: TurnCommand,
-        observed: ObservedStream,
-        block_reason: str | None,
-    ) -> bool:
-        return (
-            block_reason == "provider_timeout"
-            and observed.chunk_count == 0
-            and cls._command_uses_page_ui_tools(command)
-        )
-
-    @classmethod
-    def _apply_runtime_execution_guards(cls, command: TurnCommand) -> TurnCommand:
-        extra_kwargs = dict(command.extra_kwargs or {})
-        changed = False
-
-        if extra_kwargs.get(_RUNTIME_CLIENT_MAX_RETRIES_OVERRIDE_KEY) is None:
-            extra_kwargs[_RUNTIME_CLIENT_MAX_RETRIES_OVERRIDE_KEY] = (
-                _PAGE_UI_CLIENT_MAX_RETRIES
-            )
-            changed = True
-
-        if (
-            cls._command_uses_page_ui_tools(command)
-            and extra_kwargs.get("timeout") is None
-            and extra_kwargs.get("timeout_seconds") is None
-        ):
-            extra_kwargs["timeout_seconds"] = _PAGE_UI_TIMEOUT_SECONDS
-            changed = True
-
-        if not changed:
-            return command
-        return replace(command, extra_kwargs=extra_kwargs)
 
     def _record_progress_kinds(
         self,
@@ -323,7 +263,7 @@ class ConversationQueryEngine:
             context_sources=context_sources,
             extra_kwargs=extra_kwargs,
         )
-        command = self._apply_runtime_execution_guards(session.command)
+        command = session.command
         self.turn_record = session.turn_record
         last_error: Exception | None = None
         for index, protocol in enumerate(session.plan.protocol_chain):
@@ -435,7 +375,7 @@ class ConversationQueryEngine:
             context_sources=context_sources,
             extra_kwargs=extra_kwargs,
         )
-        command = self._apply_runtime_execution_guards(session.command)
+        command = session.command
         self.turn_record = session.turn_record
         emitted_chunk_count = 0
 
@@ -476,32 +416,6 @@ class ConversationQueryEngine:
                     )
                     raise stream_exc.cause from stream_exc
                 if block_reason:
-                    if self._should_attempt_page_timeout_sync_rescue(
-                        command=command,
-                        observed=stream_exc.observed,
-                        block_reason=block_reason,
-                    ):
-                        session.turn_record.metadata["sync_rescue_attempted"] = True
-                        try:
-                            rescue_chunk = await self._attempt_sync_rescue_chunk(
-                                protocol_path=protocol,
-                                command=command,
-                                session=session,
-                                emitted_chunk_count=emitted_chunk_count,
-                                rescue_source="stream_timeout_before_first_chunk",
-                            )
-                        except Exception as rescue_exc:  # noqa: BLE001
-                            rescue_block_reason = (
-                                self.recovery_policy.fallback_block_reason(rescue_exc)
-                            )
-                            if rescue_block_reason:
-                                session.mark_failed(block_reason=rescue_block_reason)
-                            else:
-                                session.mark_failed()
-                            raise rescue_exc from stream_exc.cause
-                        if rescue_chunk is not None:
-                            yield rescue_chunk
-                            return
                     session.mark_failed(block_reason=block_reason)
                     raise stream_exc.cause from stream_exc
                 if session.append_fallback(

@@ -2,7 +2,11 @@ from app.ai.tools.optimizer import optimize_tools
 from app.ai.tools.types import ToolDefinition
 
 
-def test_optimize_tools_prefers_web_research_over_extra_ui_page_tools() -> None:
+def test_optimize_tools_filters_retired_page_tools_from_web_research() -> None:
+    """
+    Test type: structural
+    Scope: retired page tools cannot survive optimizer selection.
+    """
     tools = [
         ToolDefinition(name="ui_get_snapshot", description="Read current page snapshot"),
         ToolDefinition(name="ui_read_region", description="Read region"),
@@ -25,17 +29,14 @@ def test_optimize_tools_prefers_web_research_over_extra_ui_page_tools() -> None:
     )
 
     selected_names = [tool.name for tool in result.tools]
-    assert "web_search" in selected_names
-    assert "fetch_url" in selected_names
-    assert "ui_get_snapshot" in selected_names
-    assert "ui_click" in selected_names
-    assert all(
-        name.startswith("ui_") or name in {"web_search", "fetch_url"}
-        for name in selected_names
-    )
+    assert selected_names == ["web_search", "fetch_url"]
 
 
 def test_optimize_tools_uses_semantic_metadata_for_custom_web_research_tools() -> None:
+    """
+    Test type: structural
+    Scope: page_ops semantic-family tools are not selected for web research.
+    """
     tools = [
         ToolDefinition(
             name="external_lookup",
@@ -70,6 +71,10 @@ def test_optimize_tools_uses_semantic_metadata_for_custom_web_research_tools() -
 
 
 def test_optimize_tools_prefers_semantic_web_tools_without_name_aliases() -> None:
+    """
+    Test type: structural
+    Scope: retired page tool names are filtered before semantic web-tool selection.
+    """
     tools = [
         ToolDefinition(name="ui_get_snapshot", description="Read page context"),
         ToolDefinition(name="ui_read_region", description="Read current area"),
@@ -97,5 +102,4 @@ def test_optimize_tools_prefers_semantic_web_tools_without_name_aliases() -> Non
     )
 
     selected_names = [tool.name for tool in result.tools]
-    assert "public_lookup" in selected_names
-    assert "page_fetcher" in selected_names
+    assert selected_names == ["public_lookup", "page_fetcher"]

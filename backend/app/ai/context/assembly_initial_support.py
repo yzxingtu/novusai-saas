@@ -117,7 +117,6 @@ def build_capability_injection_decision(
         "skills_injected": False,
         "kb_injected": False,
         "memory_injected": False,
-        "page_injected": False,
         "bypass_reason": (
             "all_shortcircuit"
             if bool(intent_flags.get("all_shortcircuit", False))

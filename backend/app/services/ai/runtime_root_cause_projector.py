@@ -16,7 +16,6 @@ from app.services.ai.conversation_turn_flow_projector import (
     ConversationTurnFlowProjector,
 )
 from app.services.ai.turn_failure_normalizer import (
-    extract_page_workflow_context,
     resolve_failure_projection,
 )
 
@@ -457,9 +456,7 @@ class RuntimeRootCauseProjector:
             if isinstance(diagnostics.get("tool_planner"), dict)
             else {}
         )
-        planner_intent = str(tool_planner.get("intent") or "").strip()
         continuation_source = str(diagnostics.get("continuation_source") or "").strip()
-        page_workflow = extract_page_workflow_context(diagnostics)
         provider_events = list(diagnostics.get("provider_events") or [])
         retry_events = list(diagnostics.get("retry_events") or [])
         selected_tools = list(diagnostics.get("selected_tool_names") or [])
@@ -538,22 +535,6 @@ class RuntimeRootCauseProjector:
                 "Fix explicit time/weather/web intent detection before allowing direct_reply short-circuit.",
                 0.93,
             )
-        if failure_kind == "incomplete_promissory_reply":
-            return (
-                "post_processing",
-                "incomplete_promissory_reply",
-                "The assistant stopped at a promissory legacy page-operation preamble after page awareness had already been retired.",
-                "Do not recover page-operation turns. Route the request through explicit backend APIs, exports, or permissioned skill-pack tools instead.",
-                0.96,
-            )
-        if continuation_source == "page_ops" and planner_intent == "direct_reply":
-            return (
-                "post_processing",
-                "retired_page_continuation",
-                "A legacy page continuation signal was observed after page awareness retirement.",
-                "Keep page_ops unavailable in live routing and replace any needed data access with explicit backend/API/export/skill-tool contracts.",
-                0.94,
-            )
         if (
             call_log is not None
             and str(call_log.status or "") == CallStatusEnum.SUCCESS.value
@@ -578,19 +559,6 @@ class RuntimeRootCauseProjector:
                 "untrusted_final_output_source",
                 "The turn finished with a non-trusted final output source, so the result cannot be treated as a canonical assistant answer.",
                 "Inspect final output salvage and enforce assistant-only final output sources before marking this turn as successful.",
-                0.9,
-            )
-        if (
-            (continuation_source == "page_ops" or page_workflow.get("is_page_ops"))
-            and conversation_outcome in {"failed", "partial"}
-            and not bool(page_workflow.get("summary_like"))
-            and not selected_tools
-        ):
-            return (
-                "post_processing",
-                "retired_page_continuation",
-                "The runtime observed a legacy page continuation, but page_ops is retired for live AI dialogue.",
-                "Do not restore page continuation recovery. Remove the stale source or replace it with an explicit backend/API/export/skill-tool contract.",
                 0.9,
             )
         if (
@@ -704,13 +672,13 @@ class RuntimeRootCauseProjector:
             )
         if any(
             token in lower_error
-            for token in ("context", "knowledge base", "memory", "page_context")
+            for token in ("context", "knowledge base", "memory")
         ):
             return (
                 "context_assembly",
                 failure_kind or "context_assembly_failed",
                 "The turn failed while assembling runtime context.",
-                "Inspect context assembly diagnostics, including KB, memory, and page-context inputs.",
+                "Inspect context assembly diagnostics, including KB, memory, and runtime context contributors.",
                 0.76,
             )
         if has_budget_exit_signal:
@@ -758,7 +726,6 @@ class RuntimeRootCauseProjector:
             conversation_turn=conversation_turn,
             call_log=call_log,
         )
-        page_workflow = extract_page_workflow_context(diagnostics)
         normalized_projection = resolve_failure_projection(
             diagnostics=diagnostics,
             turn_flow=turn_flow,
@@ -778,7 +745,6 @@ class RuntimeRootCauseProjector:
         append("conversation_outcome", diagnostics.get("conversation_outcome"))
         append("termination_reason", diagnostics.get("termination_reason"))
         append("tool_planner", diagnostics.get("tool_planner"))
-        append("page_workflow", page_workflow)
         append("active_intent_id", diagnostics.get("active_intent_id"))
         append("continuation_source", diagnostics.get("continuation_source"))
         append("failure_kind", diagnostics.get("failure_kind"))

@@ -344,8 +344,8 @@ def test_skill_resolve_result_keeps_inventory_truth_separate_from_live_activatio
         ],
         turn_activation=TurnSkillActivation(
             applied=True,
-            activated_tool_names=["ui_get_snapshot"],
-            activated_skill_names=["Plugin Page Skill"],
+            activated_tool_names=["web_search", "ui_get_snapshot"],
+            activated_skill_names=["Plugin Research Skill", "Plugin Page Skill"],
             reason="runtime_policy",
         ),
     )
@@ -358,8 +358,11 @@ def test_skill_resolve_result_keeps_inventory_truth_separate_from_live_activatio
         "Plugin Research Skill",
         "Plugin Page Skill",
     ]
-    assert result.selected_tool_names == ["ui_get_snapshot"]
-    assert result.selected_skill_names == ["Plugin Page Skill"]
+    assert result.selected_tool_names == ["web_search"]
+    assert result.selected_skill_names == [
+        "Plugin Research Skill",
+        "Plugin Page Skill",
+    ]
 
 
 def test_selected_skill_names_skips_page_runtime_builtin_capability_truth() -> None:
@@ -430,6 +433,16 @@ async def test_resolver_does_not_materialize_platform_builtins_as_installable_sk
         config={
             "tools": [
                 {"name": "ui_get_snapshot", "description": "Read current page"},
+                {"name": "pageop_click", "description": "Legacy page op"},
+                {"name": "get_page_context", "description": "Legacy page context"},
+                {
+                    "name": "invoke_page_operation",
+                    "description": "Legacy page operation",
+                },
+                {
+                    "name": "list_page_operations",
+                    "description": "Legacy page operations",
+                },
                 {"name": "editor_ops", "description": "Edit rich text"},
                 {"name": "web_search", "description": "Search the web"},
                 {"name": "fetch_url", "description": "Fetch a URL"},
@@ -537,7 +550,7 @@ def test_build_params_from_schema_keeps_array_items_schema() -> None:
     assert params[0].items == {"type": "integer"}
 
 
-def test_apply_turn_skill_activation_tracks_explicit_tool_mentions() -> None:
+def test_apply_turn_skill_activation_ignores_explicit_retired_page_tool_mentions() -> None:
     result = SkillResolveResult(
         tools=[
             SimpleNamespace(
@@ -579,14 +592,8 @@ def test_apply_turn_skill_activation_tracks_explicit_tool_mentions() -> None:
 
     assert result.turn_activation is not None
     assert result.turn_activation.reason == "explicit_tool_mention"
-    assert result.turn_activation.activated_tool_names == [
-        "get_current_weather",
-        "ui_get_snapshot",
-    ]
-    assert result.turn_activation.activated_skill_names == [
-        "Weather Skill",
-        "Plugin Page Skill",
-    ]
+    assert result.turn_activation.activated_tool_names == ["get_current_weather"]
+    assert result.turn_activation.activated_skill_names == ["Weather Skill"]
 
 
 def test_apply_turn_skill_activation_ignores_retired_page_runtime_policy() -> (

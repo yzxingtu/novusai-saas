@@ -53,7 +53,7 @@ def _build_skill_result() -> SkillResolveResult:
     )
 
 
-def _build_plugin_page_web_skill_result() -> SkillResolveResult:
+def _build_plugin_research_skill_result() -> SkillResolveResult:
     return SkillResolveResult(
         tools=[
             ToolDefinition(
@@ -74,24 +74,6 @@ def _build_plugin_page_web_skill_result() -> SkillResolveResult:
                 source_package_name="plugin.research",
                 source_plugin="plugin.research",
             ),
-            ToolDefinition(
-                name="ui_get_snapshot",
-                description="Get UI snapshot",
-                source_skill_id=12,
-                source_skill_name="Plugin Page Skill",
-                source_skill_type="plugin",
-                source_package_name="plugin.page",
-                source_plugin="plugin.page",
-            ),
-            ToolDefinition(
-                name="ui_click",
-                description="Click UI element",
-                source_skill_id=12,
-                source_skill_name="Plugin Page Skill",
-                source_skill_type="plugin",
-                source_package_name="plugin.page",
-                source_plugin="plugin.page",
-            ),
         ]
     )
 
@@ -103,36 +85,11 @@ def _build_structured_skill_result() -> SkillResolveResult:
             ToolDefinition(name="get_weather_forecast", description="Forecast"),
             ToolDefinition(name="web_search", description="Search the web"),
             ToolDefinition(name="fetch_url", description="Fetch the url"),
-            ToolDefinition(name="ui_get_snapshot", description="Get UI snapshot"),
-            ToolDefinition(name="ui_read_region", description="Read UI region"),
-            ToolDefinition(name="ui_read_table", description="Read UI table"),
-            ToolDefinition(
-                name="ui_list_interactables",
-                description="List interactable UI elements",
-            ),
-            ToolDefinition(name="ui_click", description="Click UI element"),
-            ToolDefinition(name="ui_open_surface", description="Open UI surface"),
-            ToolDefinition(name="ui_get_form_state", description="Read active form"),
-            ToolDefinition(name="ui_fill_form", description="Fill active form"),
-            ToolDefinition(name="ui_submit_form", description="Submit active form"),
         ]
     )
 
 
 def _build_intent_plan(*kinds: str) -> list[IntentPlan]:
-    page_goal_by_kind = {
-        "page_read": "page_summary",
-        "page_summary": "page_summary",
-        "page_screenshot": "page_screenshot",
-        "page_search": "search",
-        "page_form_read": "form_read",
-        "page_form_write": "form_write",
-        "page_editor_read": "editor_read",
-        "page_editor_write": "editor_write",
-        "page_navigation": "navigation",
-        "page_pagination": "pagination",
-        "page_row_detail": "row_detail",
-    }
     family_by_kind = {
         "web_research": "web_research",
         "weather_query": "weather",
@@ -141,40 +98,18 @@ def _build_intent_plan(*kinds: str) -> list[IntentPlan]:
     return [
         IntentPlan(
             intent_id=f"intent-{index}",
-            kind=(
-                "page_workflow"
-                if str(kind).strip() in page_goal_by_kind or str(kind).strip() == "page_workflow"
-                else kind
-            ),
+            kind=kind,
             family=(
-                "page_ops"
-                if str(kind).strip() in page_goal_by_kind or str(kind).strip() == "page_workflow"
-                else ("memory" if kind.startswith("memory_") else family_by_kind.get(kind, "none"))
+                "memory" if kind.startswith("memory_") else family_by_kind.get(kind, "none")
             ),
             order=index,
             user_visible_label=kind,
             source_text="test intent",
             shortcircuit=kind.startswith("memory_"),
-            metadata=(
-                {
-                    "page_workflow_kind": "page_workflow",
-                    "page_workflow_goal": page_goal_by_kind.get(str(kind).strip(), "page_summary"),
-                }
-                if str(kind).strip() in page_goal_by_kind or str(kind).strip() == "page_workflow"
-                else {}
-            ),
+            metadata={},
         )
         for index, kind in enumerate(kinds, start=1)
     ]
-
-
-def _assert_single_page_workflow_intent(
-    prep: Any,
-    *,
-    goal: str,
-) -> None:
-    assert [intent.kind for intent in prep.intent_plan] == ["page_workflow"]
-    assert prep.intent_plan[0].metadata["page_workflow_goal"] == goal
 
 
 @pytest.fixture(autouse=True)
@@ -688,7 +623,7 @@ async def test_prepare_execution_clears_page_continuation_for_long_no_tool_direc
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_keeps_page_continuation_runtime_facts_and_diagnostics() -> (
+async def test_prepare_execution_does_not_restore_retired_page_continuation() -> (
     None
 ):
     engine = ConversationEngine(
@@ -755,40 +690,19 @@ async def test_prepare_execution_keeps_page_continuation_runtime_facts_and_diagn
         )
 
     assert prep.continuation_context is not None
-    assert prep.continuation_context.active is True
-    assert prep.continuation_context.family == "page_ops"
-    assert prep.continuation_context.tool_families == [
-        "weather",
-        "web_research",
-        "page_ops",
-    ]
-    assert "ui_get_snapshot" in prep.continuation_context.page_operation_names
-    assert prep.continuation_context.page_context_attached is True
-    assert prep.continuation_context.web_research_pair_complete is True
-    assert prep.continuation_context.continuation_capable_families == [
-        "page_ops",
-        "web_research",
-    ]
-    assert prep.continuation_context.last_tool_name == "ui_get_snapshot"
-    assert prep.continuation_context.last_page_key == "admin.runtime.records"
-    assert prep.continuation_context.research_target_text == "admin.runtime.records"
-    _assert_single_page_workflow_intent(prep, goal="page_summary")
-    assert [tool.name for tool in prep.tools] == [
-        "ui_get_snapshot",
-        "ui_read_region",
-        "ui_read_table",
-    ]
-    assert prep.diagnostics["candidate_tool_names"] == [
-        "ui_get_snapshot",
-        "ui_read_region",
-        "ui_read_table",
-    ]
-    assert prep.diagnostics["active_intent_id"] == "intent-1"
-    assert prep.diagnostics["continuation_source"] == "page_ops"
+    assert prep.continuation_context.active is False
+    assert prep.continuation_context.family is None
+    assert prep.continuation_context.origin == "none"
+    assert getattr(prep.continuation_context, "page_operation_names", []) == []
+    assert getattr(prep.continuation_context, "page_context_attached", False) is False
+    assert prep.tools == []
+    assert prep.tool_use_policy == ToolUsePolicy()
+    assert prep.diagnostics["candidate_tool_names"] == []
+    assert prep.diagnostics.get("continuation_source") is None
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_selects_page_ops_for_local_page_content_request() -> (
+async def test_prepare_execution_ignores_page_context_for_local_page_content_request() -> (
     None
 ):
     engine = ConversationEngine(
@@ -850,21 +764,13 @@ async def test_prepare_execution_selects_page_ops_for_local_page_content_request
             skill_result=skill_result,
         )
 
-    assert [tool.name for tool in prep.tools] == [
-        "ui_get_snapshot",
-        "ui_read_region",
-    ]
-    assert prep.tool_use_policy == ToolUsePolicy(
-        family="page_ops",
-        mode="required",
-        allowed_tool_names=["ui_get_snapshot", "ui_read_region"],
-        retry_on_contract_breach=True,
-        reason="intent:page_workflow",
-    )
+    assert prep.tools == []
+    assert prep.tool_use_policy == ToolUsePolicy()
+    assert prep.diagnostics["candidate_tool_names"] == []
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_selects_page_ops_for_page_capability_request() -> None:
+async def test_prepare_execution_ignores_page_capability_request() -> None:
     engine = ConversationEngine(
         db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
     )
@@ -923,15 +829,13 @@ async def test_prepare_execution_selects_page_ops_for_page_capability_request() 
             skill_result=skill_result,
         )
 
-    assert prep.tool_use_policy.family == "page_ops"
-    assert "ui_fill_form" in prep.tool_use_policy.allowed_tool_names
-    assert "ui_submit_form" in prep.tool_use_policy.allowed_tool_names
-    assert "ui_open_surface" in prep.tool_use_policy.allowed_tool_names
-    assert "ui_get_snapshot" not in prep.tool_use_policy.allowed_tool_names
+    assert prep.tool_use_policy == ToolUsePolicy()
+    assert prep.tools == []
+    assert prep.diagnostics["candidate_tool_names"] == []
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_prefers_form_discovery_when_no_active_form_exists() -> (
+async def test_prepare_execution_does_not_discover_forms_from_page_context() -> (
     None
 ):
     engine = ConversationEngine(
@@ -980,32 +884,9 @@ async def test_prepare_execution_prefers_form_discovery_when_no_active_form_exis
             skill_result=_build_structured_skill_result(),
         )
 
-    _assert_single_page_workflow_intent(prep, goal="form_write")
-    assert prep.tool_use_policy.family == "page_ops"
-    assert prep.tool_use_policy.allowed_tool_names == [
-        "ui_list_interactables",
-        "ui_open_surface",
-        "ui_click",
-        "ui_get_form_state",
-        "ui_fill_form",
-        "ui_submit_form",
-    ]
-    assert prep.intent_plan[0].metadata["page_workflow_stage"] == (
-        "discover_form_before_write"
-    )
-    assert prep.intent_plan[0].metadata["page_workflow_phase"] == "discover"
-    assert prep.intent_plan[0].completion_signals == [
-        "ui_fill_form",
-        "ui_submit_form",
-    ]
-    assert [tool.name for tool in prep.tools] == [
-        "ui_list_interactables",
-        "ui_open_surface",
-        "ui_click",
-        "ui_get_form_state",
-        "ui_fill_form",
-        "ui_submit_form",
-    ]
+    assert prep.tools == []
+    assert prep.tool_use_policy == ToolUsePolicy()
+    assert prep.diagnostics["candidate_tool_names"] == []
 
 
 @pytest.mark.asyncio
@@ -1118,7 +999,7 @@ async def test_prepare_execution_keeps_weather_tools_for_mixed_weather_and_healt
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_allows_page_and_weather_tools_for_mixed_request() -> (
+async def test_prepare_execution_keeps_weather_only_for_mixed_page_and_weather_request() -> (
     None
 ):
     engine = ConversationEngine(
@@ -1172,37 +1053,22 @@ async def test_prepare_execution_allows_page_and_weather_tools_for_mixed_request
             skill_result=skill_result,
         )
 
-    assert prep.tool_use_policy.family == "page_ops"
-    assert prep.tool_use_policy.allowed_tool_names == [
-        "ui_get_snapshot",
-        "ui_read_region",
-        "ui_read_table",
-        "get_current_weather",
-    ]
-    assert [tool.name for tool in prep.tools] == [
-        "ui_get_snapshot",
-        "ui_read_region",
-        "ui_read_table",
-        "get_current_weather",
-    ]
+    assert prep.tool_use_policy.family == "weather"
+    assert prep.tool_use_policy.allowed_tool_names == ["get_current_weather"]
+    assert [tool.name for tool in prep.tools] == ["get_current_weather"]
     assert prep.execution_path == "fast"
-    assert [intent.kind for intent in prep.intent_plan] == [
-        "page_workflow",
-        "weather_query",
-    ]
-    assert prep.intent_plan[0].metadata["page_workflow_goal"] == "page_summary"
+    assert [intent.kind for intent in prep.intent_plan] == ["weather_query"]
     assert prep.diagnostics["capability_injection_decision"] == {
         "all_shortcircuit": True,
         "skills_injected": False,
         "kb_injected": False,
         "memory_injected": False,
-        "page_injected": True,
         "bypass_reason": "all_shortcircuit",
     }
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_allows_page_and_weather_tools_for_mixed_request_with_health_phrase() -> (
+async def test_prepare_execution_keeps_weather_only_for_mixed_page_health_phrase() -> (
     None
 ):
     engine = ConversationEngine(
@@ -1258,23 +1124,13 @@ async def test_prepare_execution_allows_page_and_weather_tools_for_mixed_request
             skill_result=skill_result,
         )
 
-    assert prep.tool_use_policy.family == "page_ops"
-    assert prep.tool_use_policy.allowed_tool_names == [
-        "ui_get_snapshot",
-        "ui_read_region",
-        "ui_read_table",
-        "get_current_weather",
-    ]
-    assert [tool.name for tool in prep.tools] == [
-        "ui_get_snapshot",
-        "ui_read_region",
-        "ui_read_table",
-        "get_current_weather",
-    ]
+    assert prep.tool_use_policy.family == "weather"
+    assert prep.tool_use_policy.allowed_tool_names == ["get_current_weather"]
+    assert [tool.name for tool in prep.tools] == ["get_current_weather"]
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_restores_secondary_family_when_optimizer_drops_it() -> (
+async def test_prepare_execution_does_not_restore_retired_page_family_from_optimizer() -> (
     None
 ):
     engine = ConversationEngine(
@@ -1344,19 +1200,9 @@ async def test_prepare_execution_restores_secondary_family_when_optimizer_drops_
             skill_result=skill_result,
         )
 
-    assert prep.tool_use_policy.family == "page_ops"
-    assert prep.tool_use_policy.allowed_tool_names == [
-        "ui_get_snapshot",
-        "ui_read_region",
-        "ui_read_table",
-        "get_current_weather",
-    ]
-    assert [tool.name for tool in prep.tools] == [
-        "ui_get_snapshot",
-        "ui_read_region",
-        "ui_read_table",
-        "get_current_weather",
-    ]
+    assert prep.tool_use_policy.family == "weather"
+    assert prep.tool_use_policy.allowed_tool_names == ["get_current_weather"]
+    assert [tool.name for tool in prep.tools] == ["get_current_weather"]
 
 
 @pytest.mark.asyncio
@@ -1584,7 +1430,6 @@ async def test_prepare_execution_prefers_current_time_tool_for_time_question() -
         "skills_injected": False,
         "kb_injected": False,
         "memory_injected": False,
-        "page_injected": False,
         "bypass_reason": "all_shortcircuit",
     }
 
@@ -2396,7 +2241,7 @@ async def test_prepare_execution_combined_kb_request_does_not_emit_retired_data_
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_assembles_pageaware_kb_memory_and_plugin_skill_capabilities() -> (
+async def test_prepare_execution_assembles_kb_memory_and_plugin_skill_without_page_context() -> (
     None
 ):
     engine = ConversationEngine(
@@ -2413,7 +2258,7 @@ async def test_prepare_execution_assembles_pageaware_kb_memory_and_plugin_skill_
         user_id=7,
         long_term_memory_enabled=True,
         messages=[
-            ChatMessage(role="user", content="请联网结合当前页面和知识库给我总结"),
+            ChatMessage(role="user", content="请联网结合知识库给我总结"),
         ],
         input_variables={
             "page_context": {
@@ -2490,7 +2335,7 @@ async def test_prepare_execution_assembles_pageaware_kb_memory_and_plugin_skill_
             return_value=_build_intent_plan(
                 "memory_recall",
                 "knowledge_query",
-                "page_summary",
+                "web_research",
             ),
         ),
         patch("app.ai.routing.router.ModelRouter", new=_FakeRouter),
@@ -2502,21 +2347,21 @@ async def test_prepare_execution_assembles_pageaware_kb_memory_and_plugin_skill_
         prep = await engine._prepare_execution(
             agent,
             request,
-            skill_result=_build_plugin_page_web_skill_result(),
+            skill_result=_build_plugin_research_skill_result(),
         )
 
     assert prep.capability_bundle is not None
-    assert prep.capability_bundle.selected_skill_names == ["Plugin Page Skill"]
+    assert prep.capability_bundle.selected_skill_names == ["Plugin Research Skill"]
     context_source_kinds = {
         source.kind for source in prep.capability_bundle.context_sources
     }
     assert context_source_kinds >= {
         "skill",
-        "page_context",
         "knowledge_base",
         "long_term_memory",
     }
-    assert prep.diagnostics["selected_skill_names"] == ["Plugin Page Skill"]
+    assert "page_context" not in context_source_kinds
+    assert prep.diagnostics["selected_skill_names"] == ["Plugin Research Skill"]
     assert prep.diagnostics["selected_tool_names"]
     assert prep.rag_source_kinds == ["formal_kb"]
     assert prep.memory_recalled is True
@@ -2967,25 +2812,19 @@ async def test_prepare_execution_builds_deep_structured_plan_for_666_style_turn(
     assert [intent.family for intent in prep.intent_plan] == [
         "weather",
         "web_research",
-        "page_ops",
     ]
     assert [intent.kind for intent in prep.intent_plan] == [
         "weather_query",
         "web_research",
-        "page_workflow",
     ]
-    assert prep.intent_plan[2].metadata["page_workflow_goal"] == "page_summary"
-    assert prep.execution_path == "deep"
+    assert prep.execution_path == "normal"
     assert prep.execution_budget is not None
-    assert prep.execution_budget.max_candidate_tools == 8
+    assert prep.execution_budget.max_candidate_tools == 7
     assert prep.execution_budget.candidate_tools_count == len(prep.tools)
     assert [tool.name for tool in prep.tools] == [
         "get_current_weather",
         "web_search",
         "fetch_url",
-        "ui_get_snapshot",
-        "ui_read_region",
-        "ui_read_table",
     ]
     assert prep.active_intent_id == "intent-1"
     assert prep.tool_use_policy.family == "weather"
@@ -3029,13 +2868,12 @@ async def test_prepare_execution_current_weather_only_avoids_forecast_tool() -> 
         "skills_injected": False,
         "kb_injected": False,
         "memory_injected": False,
-        "page_injected": False,
         "bypass_reason": "all_shortcircuit",
     }
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_page_summary_turn_keeps_page_only_candidates() -> None:
+async def test_prepare_execution_page_summary_turn_uses_no_page_tools() -> None:
     engine = ConversationEngine(
         db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
     )
@@ -3069,34 +2907,21 @@ async def test_prepare_execution_page_summary_turn_keeps_page_only_candidates() 
         )
 
     assert prep.execution_path == "fast"
-    _assert_single_page_workflow_intent(prep, goal="page_summary")
-    assert [tool.name for tool in prep.tools] == [
-        "ui_get_snapshot",
-        "ui_read_region",
-        "ui_read_table",
-    ]
-    assert prep.intent_plan[0].allowed_tool_names == [
-        "ui_get_snapshot",
-        "ui_read_region",
-        "ui_read_table",
-    ]
-    assert prep.tool_use_policy.allowed_tool_names == [
-        "ui_get_snapshot",
-        "ui_read_region",
-        "ui_read_table",
-    ]
+    assert [intent.kind for intent in prep.intent_plan] == ["direct_reply"]
+    assert prep.tools == []
+    assert prep.intent_plan[0].allowed_tool_names == []
+    assert prep.tool_use_policy == ToolUsePolicy()
     assert prep.diagnostics["capability_injection_decision"] == {
         "all_shortcircuit": True,
         "skills_injected": False,
         "kb_injected": False,
         "memory_injected": False,
-        "page_injected": True,
         "bypass_reason": "all_shortcircuit",
     }
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_page_search_turn_keeps_full_workflow_candidates_without_budget_exit() -> (
+async def test_prepare_execution_record_search_turn_uses_web_search_not_page_tools() -> (
     None
 ):
     engine = ConversationEngine(
@@ -3130,21 +2955,19 @@ async def test_prepare_execution_page_search_turn_keeps_full_workflow_candidates
             skill_result=_build_structured_skill_result(),
         )
 
-    assert prep.execution_path == "fast"
-    _assert_single_page_workflow_intent(prep, goal="search")
+    assert prep.execution_path == "normal"
     assert [tool.name for tool in prep.tools] == [
-        "ui_click",
-        "ui_fill_form",
-        "ui_submit_form",
+        "web_search",
+        "fetch_url",
     ]
     assert prep.execution_budget is not None
-    assert prep.execution_budget.max_candidate_tools == 3
+    assert prep.execution_budget.max_candidate_tools == 7
     assert prep.execution_budget.candidate_tools_count == len(prep.tools)
     assert prep.execution_budget.first_exceeded_reason() is None
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_page_search_with_weather_keyword_stays_page_only() -> (
+async def test_prepare_execution_record_search_with_weather_keyword_uses_weather_only() -> (
     None
 ):
     engine = ConversationEngine(
@@ -3179,10 +3002,8 @@ async def test_prepare_execution_page_search_with_weather_keyword_stays_page_onl
         )
 
     assert prep.execution_path == "fast"
-    _assert_single_page_workflow_intent(prep, goal="search")
-    assert {"web_search", "fetch_url"} & {
-        tool.name for tool in prep.tools
-    } == set()
+    assert [intent.kind for intent in prep.intent_plan] == ["weather_query"]
+    assert [tool.name for tool in prep.tools] == ["get_current_weather"]
     assert prep.execution_budget is not None
     assert prep.execution_budget.max_candidate_tools == 3
     assert prep.execution_budget.first_exceeded_reason() is None
@@ -3213,7 +3034,7 @@ async def test_prepare_execution_no_tool_turn_keeps_inventory_truth_out_of_live_
         prep = await engine._prepare_execution(
             _build_agent(),
             request,
-            skill_result=_build_plugin_page_web_skill_result(),
+            skill_result=_build_plugin_research_skill_result(),
         )
 
     assert prep.tools == []
@@ -3226,17 +3047,14 @@ async def test_prepare_execution_no_tool_turn_keeps_inventory_truth_out_of_live_
         "selected_tool_names": [],
         "skill_count": 0,
         "selected_skill_names": [],
-        "inventory_tool_count": 4,
+        "inventory_tool_count": 2,
         "inventory_selected_tool_names": [
             "web_search",
             "fetch_url",
-            "ui_get_snapshot",
-            "ui_click",
         ],
-        "inventory_skill_count": 2,
+        "inventory_skill_count": 1,
         "inventory_selected_skill_names": [
             "Plugin Research Skill",
-            "Plugin Page Skill",
         ],
     }
     assert prep.diagnostics["runtime_capability_summary"]["selected_skill_names"] == []
@@ -3250,7 +3068,7 @@ async def test_prepare_execution_no_tool_turn_keeps_inventory_truth_out_of_live_
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_projects_selected_skill_names_to_live_tools() -> None:
+async def test_prepare_execution_does_not_project_retired_page_skills_to_live_tools() -> None:
     engine = ConversationEngine(
         db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
     )
@@ -3277,40 +3095,16 @@ async def test_prepare_execution_projects_selected_skill_names_to_live_tools() -
         prep = await engine._prepare_execution(
             _build_agent(),
             request,
-            skill_result=_build_plugin_page_web_skill_result(),
+            skill_result=_build_plugin_research_skill_result(),
         )
 
     assert prep.capability_bundle is not None
-    assert [tool.name for tool in prep.tools] == ["ui_get_snapshot"]
-    assert prep.capability_bundle.selected_skill_names == ["Plugin Page Skill"]
-    assert prep.diagnostics["selected_skill_names"] == ["Plugin Page Skill"]
-    assert prep.diagnostics["turn_skill_activation"] == {
-        "applied": True,
-        "reason": "runtime_policy",
-        "tool_count": 1,
-        "selected_tool_names": ["ui_get_snapshot"],
-        "skill_count": 1,
-        "selected_skill_names": ["Plugin Page Skill"],
-        "inventory_tool_count": 4,
-        "inventory_selected_tool_names": [
-            "web_search",
-            "fetch_url",
-            "ui_get_snapshot",
-            "ui_click",
-        ],
-        "inventory_skill_count": 2,
-        "inventory_selected_skill_names": [
-            "Plugin Research Skill",
-            "Plugin Page Skill",
-        ],
-    }
-    assert prep.diagnostics["runtime_capability_summary"]["selected_skill_names"] == [
-        "Plugin Page Skill"
-    ]
-    assert (
-        prep.diagnostics["runtime_capability_summary"]["turn_skill_activation_reason"]
-        == "runtime_policy"
-    )
+    assert prep.tools == []
+    assert prep.capability_bundle.selected_skill_names == []
+    assert prep.diagnostics["selected_skill_names"] == []
+    assert prep.diagnostics["turn_skill_activation"]["selected_tool_names"] == []
+    assert prep.diagnostics["turn_skill_activation"]["selected_skill_names"] == []
+    assert prep.diagnostics["runtime_capability_summary"]["selected_skill_names"] == []
     assert (
         prep.diagnostics["runtime_capability_summary"]["selection_semantics"]
         == "turn_selected_subset"
@@ -3335,11 +3129,11 @@ async def test_prepare_execution_projects_selected_skill_names_to_live_tools() -
         item["name"]
         for item in prep.diagnostics["runtime_capability_manifest"]["skills"]
         if item["status"] == "available"
-    ] == ["Plugin Page Skill"]
+    ] == []
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_page_screenshot_keeps_capture_screenshot_tool() -> (
+async def test_prepare_execution_page_screenshot_request_uses_no_page_tools() -> (
     None
 ):
     engine = ConversationEngine(
@@ -3374,13 +3168,13 @@ async def test_prepare_execution_page_screenshot_keeps_capture_screenshot_tool()
             skill_result=_build_structured_skill_result(),
         )
 
-    _assert_single_page_workflow_intent(prep, goal="page_screenshot")
-    assert [tool.name for tool in prep.tools] == ["ui_get_snapshot"]
-    assert prep.tool_use_policy.allowed_tool_names == ["ui_get_snapshot"]
+    assert [intent.kind for intent in prep.intent_plan] == ["direct_reply"]
+    assert prep.tools == []
+    assert prep.tool_use_policy == ToolUsePolicy()
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_editor_write_keeps_editor_mutation_tools() -> None:
+async def test_prepare_execution_editor_write_request_uses_no_page_tools() -> None:
     engine = ConversationEngine(
         db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
     )
@@ -3421,17 +3215,9 @@ async def test_prepare_execution_editor_write_keeps_editor_mutation_tools() -> N
             skill_result=_build_structured_skill_result(),
         )
 
-    _assert_single_page_workflow_intent(prep, goal="editor_write")
-    assert prep.tool_use_policy.allowed_tool_names == [
-        "ui_open_surface",
-        "ui_fill_form",
-        "ui_submit_form",
-    ]
-    assert prep.intent_plan[0].metadata["page_workflow_stage"] == (
-        "submit_active_editor"
-    )
-    assert prep.intent_plan[0].metadata["page_workflow_phase"] == "submit"
-    assert prep.intent_plan[0].completion_signals == ["ui_submit_form"]
+    assert [intent.kind for intent in prep.intent_plan] == ["direct_reply"]
+    assert prep.tools == []
+    assert prep.tool_use_policy == ToolUsePolicy()
 
 
 

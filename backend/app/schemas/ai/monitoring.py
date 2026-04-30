@@ -87,8 +87,6 @@ class MonitoringCallTraceItem(BaseSchema):
     leaked_tool_names: list[str] = Field(default_factory=list)
     recovered_via_retry: bool | None = None
     last_tool_name: str | None = None
-    last_page_key: str | None = None
-    last_page_op: str | None = None
     interrupted_stage: str | None = None
     tool_loop_progress: dict[str, Any] | None = None
     turn_record: dict[str, Any] | None = None

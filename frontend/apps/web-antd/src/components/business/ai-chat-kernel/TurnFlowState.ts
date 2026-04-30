@@ -2,7 +2,6 @@ import type {
   TurnFlowForDisplay,
   TurnFlowStageForDisplay,
 } from '#/components/business/ai-chat-panel/chat-message-turn-flow';
-import type { PendingToolActionForDisplay } from '#/components/business/ai-chat-panel/pending-tool-action';
 import type {
   DisplayReferenceLink,
   TurnAnswerCard,
@@ -71,19 +70,11 @@ function toFallbackReference(
   };
 }
 
-function buildPendingActionState(
-  msg: ChatMessage,
-  pendingOps: PendingToolActionForDisplay[],
-): KernelPendingActionState | undefined {
+function buildPendingActionState(msg: ChatMessage): KernelPendingActionState | undefined {
   if (msg.pendingConfirmation) {
-    const unresolvedPendingOp = pendingOps.find(
-      (item) => item.resolved !== true,
-    );
     return {
       action: msg.pendingConfirmation.action,
       kind: 'confirmation',
-      operationDescription: unresolvedPendingOp?.operationDescription,
-      operationLabel: unresolvedPendingOp?.operationLabel,
       preview: msg.pendingConfirmation.preview,
       resolved: msg.pendingConfirmation.resolved,
       table: msg.pendingConfirmation.table,
@@ -106,10 +97,7 @@ function buildPendingActionState(
   return undefined;
 }
 
-export function buildTurnFlowState(
-  msg: ChatMessage,
-  pendingOps: PendingToolActionForDisplay[] = [],
-): TurnFlowState {
+export function buildTurnFlowState(msg: ChatMessage): TurnFlowState {
   const flow = getTurnFlowForDisplay(msg);
   const preparedMessageContent = prepareMessageContent(msg);
   const references = preparedMessageContent.references;
@@ -130,7 +118,7 @@ export function buildTurnFlowState(
       0,
       references.length - effectiveSelectedEvidence.length,
     ),
-    pendingAction: buildPendingActionState(msg, pendingOps),
+    pendingAction: buildPendingActionState(msg),
     references,
     selectedEvidence: effectiveSelectedEvidence,
     timeline: flow.timeline,

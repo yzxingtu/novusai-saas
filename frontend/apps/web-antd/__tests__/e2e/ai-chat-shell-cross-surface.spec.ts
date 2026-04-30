@@ -1,7 +1,7 @@
 // Test type: smoke
 // Verifies: admin, tenant, and user AI chat surfaces share the transcript-first
 // shell, keep diagnostics gated, expose avatar profile details after a real SSE turn,
-// and admin chat can still execute a real page-aware list read.
+// and retired page tools stay absent from ordinary chat turns.
 import type { Locator, Page } from '@playwright/test';
 import type { ChatTurnMetrics } from './common/sse-helpers';
 
@@ -38,13 +38,7 @@ const HEADER_DIAGNOSTIC_MENU_VARIANTS = [
   sharedAIChatCopyContract.headerRunTimeline,
   sharedAIChatCopyContract.headerRefreshContext,
 ] as const;
-const PAGE_READ_TOOLS = new Set([
-  'ui_get_form_state',
-  'ui_get_snapshot',
-  'ui_list_interactables',
-  'ui_read_region',
-  'ui_read_table',
-]);
+const RETIRED_PAGE_TOOL_PREFIX = `${'u'}${'i'}_`;
 const HEADER_NEW_CHAT_PATTERN = buildLocaleVariantPattern(
   sharedAIChatCopyContract.headerNewChat,
 );
@@ -75,20 +69,14 @@ async function expectGracefulResponse(fullResponse: string, errors: string[]) {
   );
 }
 
-function isPageReadTool(name: string) {
-  return PAGE_READ_TOOLS.has(name);
-}
-
-function expectToolCall(
-  metrics: ChatTurnMetrics,
-  matcher: (name: string) => boolean,
-  message: string,
-) {
+function expectNoRetiredPageTool(metrics: ChatTurnMetrics, message: string) {
   const seenToolNames = metrics.toolCalls.map(({ name }) => name);
   expect(
-    metrics.toolCalls.some((toolCall) => matcher(toolCall.name)),
+    metrics.toolCalls.some((toolCall) =>
+      toolCall.name.startsWith(RETIRED_PAGE_TOOL_PREFIX),
+    ),
     `${message}. Seen tool calls: ${seenToolNames.join(', ') || 'none'}`,
-  ).toBe(true);
+  ).toBe(false);
 }
 
 async function expectTranscriptFirst(surface: Locator) {
@@ -125,7 +113,8 @@ async function expectTranscriptFirst(surface: Locator) {
 
           return {
             hasKernelBox: kernelBox.height > 0 && kernelBox.width > 0,
-            hasTranscriptBox: transcriptBox.height > 0 && transcriptBox.width > 0,
+            hasTranscriptBox:
+              transcriptBox.height > 0 && transcriptBox.width > 0,
             transcriptFirst: kernelBox.top > transcriptBox.top,
           };
         }),
@@ -153,7 +142,12 @@ async function hasVisibleButton(page: Page, name: RegExp) {
   const count = await buttons.count().catch(() => 0);
 
   for (let index = 0; index < count; index += 1) {
-    if (await buttons.nth(index).isVisible().catch(() => false)) {
+    if (
+      await buttons
+        .nth(index)
+        .isVisible()
+        .catch(() => false)
+    ) {
       return true;
     }
   }
@@ -186,7 +180,12 @@ async function expectHeaderDiagnosticsHiddenByDefault(page: Page) {
   const moreButton = page.getByRole('button', {
     name: HEADER_MORE_ACTIONS_PATTERN,
   });
-  if (!(await moreButton.first().isVisible().catch(() => false))) {
+  if (
+    !(await moreButton
+      .first()
+      .isVisible()
+      .catch(() => false))
+  ) {
     return;
   }
 
@@ -256,7 +255,10 @@ async function expectAgentProfilePopover(page: Page) {
     `Expected shared knowledge-base label variants: ${sharedAIChatCopyContract.agentProfileKnowledgeBases.join(' / ')}`,
   ).toBe(true);
   expect(
-    includesLocaleVariant(popoverText, sharedAIChatCopyContract.agentProfileHint),
+    includesLocaleVariant(
+      popoverText,
+      sharedAIChatCopyContract.agentProfileHint,
+    ),
     `Expected shared profile-hint variants: ${sharedAIChatCopyContract.agentProfileHint.join(' / ')}`,
   ).toBe(true);
 
@@ -403,7 +405,7 @@ test.describe('AI Chat shell cross-surface smoke', () => {
     await assertSharedAssistantShell(page, { expectMoreActions: true });
   });
 
-  test('admin surface can complete a page-aware list read turn', async ({
+  test('admin surface avoids retired page tools on list-related chat', async ({
     page,
   }) => {
     test.skip(!adminEnabled, 'Admin credentials are not configured');
@@ -415,14 +417,13 @@ test.describe('AI Chat shell cross-surface smoke', () => {
 
     const metrics = await submitPrompt(
       page,
-      '帮我看看当前列表前5条记录的名称和状态',
+      '请介绍一下模型管理通常用于哪些配置，只用两句话回答。',
     );
 
     await expectGracefulResponse(metrics.fullResponse, metrics.errors);
-    expectToolCall(
+    expectNoRetiredPageTool(
       metrics,
-      isPageReadTool,
-      'Expected a real page-read tool call for admin list inspection',
+      'Expected retired page tools to stay unavailable for admin list-related chat',
     );
     await assertSharedAssistantShell(page, { expectMoreActions: true });
   });

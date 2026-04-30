@@ -10,7 +10,6 @@ from app.services.ai.conversation_diagnostics_projector import (
 )
 from app.services.ai.turn_failure_normalizer import (
     derive_completed_tool_names,
-    has_incomplete_promissory_page_reply,
 )
 from app.services.ai.turn_failure_normalizer import (
     derive_terminal_status as _derive_terminal_status_from_normalizer,
@@ -469,8 +468,6 @@ def _map_source_kind(raw_kind: Any) -> str:
         return "web"
     if kind in {"knowledge", "knowledge_base", "kb", "formal_kb"}:
         return "knowledge_base"
-    if kind == "page":
-        return "page"
     if kind in {"memory", "long_term_memory", "session_memory"}:
         return "memory"
     if kind in {"tool", "tool_call"}:
@@ -479,9 +476,6 @@ def _map_source_kind(raw_kind: Any) -> str:
 
 
 def _map_legacy_source_kind(raw_kind: Any) -> str:
-    kind = str(raw_kind or "").strip().lower()
-    if kind in {"page_read", "page_write", "page_runtime"}:
-        return "page"
     return _map_source_kind(raw_kind)
 
 
@@ -1161,15 +1155,6 @@ class ConversationTurnFlowProjector:
         effective_final_output_source = _to_non_empty_str(
             final_output_source or raw_payload.get("final_output_source")
         )
-        if has_incomplete_promissory_page_reply(
-            diagnostics=diagnostics,
-            content=content,
-        ):
-            effective_failure_kind = (
-                effective_failure_kind or "incomplete_promissory_reply"
-            )
-            if effective_completion_reason in {None, "completed", "stop"}:
-                effective_completion_reason = "incomplete_promissory_reply"
         effective_interrupted = bool(raw_payload.get("interrupted"))
         if interrupted is not None:
             effective_interrupted = bool(interrupted) or effective_interrupted
@@ -1275,13 +1260,6 @@ class ConversationTurnFlowProjector:
         interrupted = bool(payload.get("interrupted")) or completion_reason == "interrupted"
         failure_kind = _normalize_failure_kind(turn_meta.get("failure_kind"))
         final_output_source = _to_non_empty_str(turn_meta.get("final_output_source"))
-        if has_incomplete_promissory_page_reply(
-            diagnostics=turn_meta,
-            content=content,
-        ):
-            failure_kind = failure_kind or "incomplete_promissory_reply"
-            if completion_reason in {None, "completed", "stop"}:
-                completion_reason = "incomplete_promissory_reply"
         terminal_status = _derive_terminal_status(
             turn_outcome=turn_outcome,
             completion_reason=completion_reason,

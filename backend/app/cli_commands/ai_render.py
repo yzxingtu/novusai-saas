@@ -87,8 +87,6 @@ def _build_ai_conversation_compact_diagnostics(snapshot: dict) -> dict:
         "tool_leak_detected": bool(diagnostics.get("tool_leak_detected")),
         "recovered_via_retry": diagnostics.get("recovered_via_retry"),
         "last_tool_name": diagnostics.get("last_tool_name"),
-        "last_page_key": diagnostics.get("last_page_key"),
-        "last_page_op": diagnostics.get("last_page_op"),
         "interrupted_stage": diagnostics.get("interrupted_stage"),
         "turn_event_count": len(diagnostics.get("turn_events") or []),
     }
@@ -267,8 +265,6 @@ def _render_ai_conversation_text(
         diagnostics.get("should_record_call_log")
     )
     last_tool_name = str(diagnostics.get("last_tool_name") or "").strip() or None
-    last_page_key = str(diagnostics.get("last_page_key") or "").strip() or None
-    last_page_op = str(diagnostics.get("last_page_op") or "").strip() or None
     interrupted_stage = str(diagnostics.get("interrupted_stage") or "").strip() or None
     tool_loop_progress = (
         dict(diagnostics.get("tool_loop_progress") or {})
@@ -302,14 +298,8 @@ def _render_ai_conversation_text(
         lines.append(f"Turn sync rescue: {sync_rescue}")
     if should_record_call_log is not None:
         lines.append(f"Turn should_record_call_log: {should_record_call_log}")
-    if last_tool_name or last_page_key or last_page_op:
-        lines.append(
-            "Turn last step: tool={} page_key={} page_op={}".format(
-                last_tool_name or "-",
-                last_page_key or "-",
-                last_page_op or "-",
-            )
-        )
+    if last_tool_name:
+        lines.append(f"Turn last step: tool={last_tool_name}")
     if interrupted_stage:
         lines.append(f"Turn interrupted stage: {interrupted_stage}")
     if tool_loop_progress:
@@ -446,17 +436,9 @@ def _render_ai_conversation_text(
             call_log_sync_rescue = _normalize_cli_bool(item.get("sync_rescue"))
             if call_log_sync_rescue is not None:
                 lines.append(f"  sync_rescue: {call_log_sync_rescue}")
-            if (
-                item.get("last_tool_name")
-                or item.get("last_page_key")
-                or item.get("last_page_op")
-            ):
+            if item.get("last_tool_name"):
                 lines.append(
-                    "  last_step: tool={} page_key={} page_op={}".format(
-                        item.get("last_tool_name") or "-",
-                        item.get("last_page_key") or "-",
-                        item.get("last_page_op") or "-",
-                    )
+                    "  last_step: tool={}".format(item.get("last_tool_name"))
                 )
             if item.get("interrupted_stage"):
                 lines.append(

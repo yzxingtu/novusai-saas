@@ -2467,7 +2467,7 @@ describe('useAIChat interrupted stream recovery', () => {
         pendingConfirmation: {
           action: 'query',
           table: 'ai_call_logs',
-          toolName: 'ui_get_snapshot',
+          toolName: 'query_records',
         },
       },
       {
@@ -2496,7 +2496,7 @@ describe('useAIChat interrupted stream recovery', () => {
         kind: 'pending_confirmation',
         rejected: false,
         table: 'ai_call_logs',
-        tool_name: 'ui_get_snapshot',
+        tool_name: 'query_records',
       },
     ]);
     expect(confirmBody?.message).toBe('');
@@ -2556,9 +2556,9 @@ describe('useAIChat interrupted stream recovery', () => {
       {
         clientKey: 'assistant-confirm-message',
         role: 'assistant',
-        content: '需要继续打开表面',
+        content: '需要继续查询资料',
         pendingConfirmation: {
-          toolName: 'ui_open_surface',
+          toolName: 'web_search',
         },
       },
     ];
@@ -2574,7 +2574,7 @@ describe('useAIChat interrupted stream recovery', () => {
       {
         kind: 'pending_confirmation',
         rejected: false,
-        tool_name: 'ui_open_surface',
+        tool_name: 'web_search',
       },
     ]);
   });
@@ -2602,7 +2602,7 @@ describe('useAIChat interrupted stream recovery', () => {
       {
         kind: 'pending_confirmation',
         rejected: false,
-        tool_name: 'ui_open_surface',
+        tool_name: 'web_search',
       },
     ] as AIInteractionUpdate[]);
 
@@ -2623,7 +2623,7 @@ describe('useAIChat interrupted stream recovery', () => {
       {
         kind: 'pending_confirmation',
         rejected: false,
-        tool_name: 'ui_open_surface',
+        tool_name: 'web_search',
       },
     ]);
     expect(aiPanelStoreMocks.restoreInteractionUpdates).not.toHaveBeenCalled();

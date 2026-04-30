@@ -311,12 +311,6 @@ def _normalize_cli_call_log_row(raw_value: object) -> dict:
     payload["last_tool_name"] = _normalize_cli_optional_string(
         payload.get("last_tool_name")
     )
-    payload["last_page_key"] = _normalize_cli_optional_string(
-        payload.get("last_page_key")
-    )
-    payload["last_page_op"] = _normalize_cli_optional_string(
-        payload.get("last_page_op")
-    )
     payload["interrupted_stage"] = _normalize_cli_optional_string(
         payload.get("interrupted_stage")
     )
@@ -566,12 +560,6 @@ def _extract_turn_diagnostics_from_call_log_metadata(metadata: object) -> dict:
         ),
         "last_tool_name": _normalize_cli_optional_string(
             turn_record.get("last_tool_name") or diagnostics.get("last_tool_name")
-        ),
-        "last_page_key": _normalize_cli_optional_string(
-            turn_record.get("last_page_key") or diagnostics.get("last_page_key")
-        ),
-        "last_page_op": _normalize_cli_optional_string(
-            turn_record.get("last_page_op") or diagnostics.get("last_page_op")
         ),
         "interrupted_stage": _normalize_cli_optional_string(
             turn_record.get("interrupted_stage") or diagnostics.get("interrupted_stage")

@@ -155,48 +155,6 @@ _RAIL_TICKET_TERMS = (
     "列车票",
     "高铁",
 )
-_PAGE_SUMMARY_TERMS = (
-    "本页面",
-    "当前页面",
-    "页面里有什么",
-    "页面上有什么",
-    "页面都有什么",
-    "阅读页面",
-    "读一下页面",
-    "看看页面",
-    "页面有什么内容",
-)
-_PAGE_DETAIL_OPERATION_TERMS = (
-    "创建",
-    "新增",
-    "添加",
-    "绑定",
-    "授权",
-    "编辑",
-    "修改",
-    "删除",
-    "提交",
-    "填写",
-    "表单",
-    "搜索",
-    "筛选",
-    "刷新",
-    "截图",
-    "截屏",
-    "可见行",
-    "可见记录",
-    "列表明细",
-    "表格明细",
-    "ui_click",
-    "ui_open_surface",
-    "ui_read_region",
-    "ui_read_table",
-    "bind",
-    "grant",
-    "ui_fill_form",
-    "ui_submit_form",
-    "ui_get_form_",
-)
 _WEB_SEARCH_PREFIXES = ("search results for:",)
 _FETCH_URL_PREFIXES = ("content from http://", "content from https://")
 
@@ -253,14 +211,6 @@ def mentions_weather(text: str | None) -> bool:
 
 def mentions_rail_ticket(text: str | None) -> bool:
     return contains_any_phrase(text, _RAIL_TICKET_TERMS)
-
-
-def mentions_page_summary(text: str | None) -> bool:
-    return contains_any_phrase(text, _PAGE_SUMMARY_TERMS)
-
-
-def mentions_page_detail_operation(text: str | None) -> bool:
-    return contains_any_phrase(text, _PAGE_DETAIL_OPERATION_TERMS)
 
 
 def strip_model_function_call_markup(text: str | None) -> str:
@@ -371,8 +321,6 @@ __all__ = [
     "has_tool_planning_leak_phrase",
     "is_confirmation_reply",
     "is_rejection_reply",
-    "mentions_page_detail_operation",
-    "mentions_page_summary",
     "mentions_rail_ticket",
     "mentions_weather",
     "normalize_match_text",

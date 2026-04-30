@@ -86,10 +86,6 @@ def build_context_diagnostics(
         payload["recovered_via_retry"] = turn_meta["recovered_via_retry"]
     if turn_meta.get("last_tool_name"):
         payload["last_tool_name"] = turn_meta["last_tool_name"]
-    if turn_meta.get("last_page_key"):
-        payload["last_page_key"] = turn_meta["last_page_key"]
-    if turn_meta.get("last_page_op"):
-        payload["last_page_op"] = turn_meta["last_page_op"]
     if turn_meta.get("interrupted_stage"):
         payload["interrupted_stage"] = turn_meta["interrupted_stage"]
     if turn_meta.get("tool_loop_progress"):
@@ -154,10 +150,6 @@ def build_last_run_summary(
         payload["recovered_via_retry"] = turn_meta["recovered_via_retry"]
     if turn_meta.get("last_tool_name"):
         payload["last_tool_name"] = turn_meta["last_tool_name"]
-    if turn_meta.get("last_page_key"):
-        payload["last_page_key"] = turn_meta["last_page_key"]
-    if turn_meta.get("last_page_op"):
-        payload["last_page_op"] = turn_meta["last_page_op"]
     if turn_meta.get("interrupted_stage"):
         payload["interrupted_stage"] = turn_meta["interrupted_stage"]
     if turn_meta.get("tool_loop_progress"):

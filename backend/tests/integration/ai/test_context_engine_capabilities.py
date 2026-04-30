@@ -81,7 +81,7 @@ def _build_skill_result(*descriptors: CapabilityDescriptor) -> SkillResolveResul
     return SkillResolveResult(capability_descriptors=list(descriptors))
 
 
-def _build_plugin_page_web_skill_result() -> SkillResolveResult:
+def _build_plugin_research_skill_result() -> SkillResolveResult:
     return SkillResolveResult(
         tools=[
             ToolDefinition(
@@ -102,50 +102,16 @@ def _build_plugin_page_web_skill_result() -> SkillResolveResult:
                 source_package_name="plugin.research",
                 source_plugin="plugin.research",
             ),
-            ToolDefinition(
-                name="ui_get_snapshot",
-                description="Get UI snapshot",
-                source_skill_id=12,
-                source_skill_name="Plugin Page Skill",
-                source_skill_type="plugin",
-                source_package_name="plugin.page",
-                source_plugin="plugin.page",
-            ),
-            ToolDefinition(
-                name="ui_click",
-                description="Click UI element",
-                source_skill_id=12,
-                source_skill_name="Plugin Page Skill",
-                source_skill_type="plugin",
-                source_package_name="plugin.page",
-                source_plugin="plugin.page",
-            ),
         ]
     )
 
 
 def _build_intent_plan(*kinds: str) -> list[IntentPlan]:
-    workflow_goals = {
-        "page_summary": "page_summary",
-        "page_read": "page_summary",
-        "page_screenshot": "page_screenshot",
-        "page_navigation": "navigation",
-        "page_search": "search",
-        "page_pagination": "pagination",
-        "page_row_detail": "row_detail",
-        "page_form_read": "form_read",
-        "page_form_write": "form_write",
-        "page_editor_read": "editor_read",
-        "page_editor_write": "editor_write",
-    }
-
     def _family_for_kind(kind: str) -> str:
         if kind == "web_research":
             return "web_research"
         if kind == "knowledge_query":
             return "knowledge"
-        if kind.startswith("page_") or kind == "page_read":
-            return "page_ops"
         return "none"
 
     return [
@@ -157,14 +123,7 @@ def _build_intent_plan(*kinds: str) -> list[IntentPlan]:
             user_visible_label=kind,
             source_text="test intent",
             shortcircuit=False,
-            metadata=(
-                {
-                    "page_workflow_kind": "page_workflow",
-                    "page_workflow_goal": workflow_goals[kind],
-                }
-                if kind in workflow_goals
-                else {}
-            ),
+            metadata={},
         )
         for index, kind in enumerate(kinds, start=1)
     ]
@@ -268,8 +227,11 @@ async def test_context_engine_tracks_skill_capabilities_without_prompt_injection
     assert assembly.diagnostics["dynamic_capability_awareness_enabled"] is True
     assert assembly.diagnostics["dynamic_capability_awareness_categories"] == ["skills"]
     assert assembly.capability_bundle is not None
-    assert assembly.capability_bundle.selected_skill_names == ["web_search"]
-    assert assembly.diagnostics["selected_skill_names"] == ["web_search"]
+    assert assembly.capability_bundle.selected_skill_names == []
+    assert assembly.diagnostics["selected_skill_names"] == []
+    assert assembly.diagnostics["turn_skill_activation"][
+        "inventory_selected_skill_names"
+    ] == ["web_search"]
     assert (
         assembly.diagnostics["runtime_capability_manifest"]["manifest_version"]
         == "runtime-capability-manifest/v1"
@@ -281,7 +243,11 @@ async def test_context_engine_tracks_skill_capabilities_without_prompt_injection
 
 
 @pytest.mark.asyncio
-async def test_context_engine_activates_page_skills_for_page_turns() -> None:
+async def test_context_engine_ignores_retired_page_context_for_page_turns() -> None:
+    """
+    Test type: structural
+    Scope: stale page_context no longer activates page skills or ui_* tools.
+    """
     assembly = await _assemble_context(
         request=_build_request(
             messages=[ChatMessage(role="user", content="帮我看一下当前页面")],
@@ -292,73 +258,18 @@ async def test_context_engine_activates_page_skills_for_page_turns() -> None:
                 }
             },
         ),
-        skill_result=_build_plugin_page_web_skill_result(),
+        skill_result=_build_plugin_research_skill_result(),
         settings=TenantCapabilityAwarenessSettings(),
         intent_plan=_build_intent_plan("page_summary"),
     )
 
     assert assembly.capability_bundle is not None
-    assert assembly.capability_bundle.selected_skill_names == ["Plugin Page Skill"]
-    assert assembly.diagnostics["selected_skill_names"] == ["Plugin Page Skill"]
-    assert assembly.diagnostics["turn_skill_activation"] == {
-        "applied": True,
-        "reason": "runtime_policy",
-        "tool_count": 2,
-        "selected_tool_names": ["ui_get_snapshot", "ui_click"],
-        "skill_count": 1,
-        "selected_skill_names": ["Plugin Page Skill"],
-        "inventory_tool_count": 4,
-        "inventory_selected_tool_names": [
-            "web_search",
-            "fetch_url",
-            "ui_get_snapshot",
-            "ui_click",
-        ],
-        "inventory_skill_count": 2,
-        "inventory_selected_skill_names": [
-            "Plugin Research Skill",
-            "Plugin Page Skill",
-        ],
-    }
-    assert assembly.diagnostics["runtime_capability_summary"][
-        "selected_skill_names"
-    ] == ["Plugin Page Skill"]
-    assert (
-        assembly.diagnostics["runtime_capability_summary"][
-            "turn_skill_activation_applied"
-        ]
-        is True
+    assert assembly.capability_bundle.selected_skill_names == []
+    assert assembly.diagnostics["selected_skill_names"] == []
+    assert not any(
+        tool.name.startswith("ui_") for tool in assembly.capability_bundle.tools
     )
-    assert (
-        assembly.diagnostics["runtime_capability_summary"][
-            "turn_skill_activation_reason"
-        ]
-        == "runtime_policy"
-    )
-    assert (
-        assembly.diagnostics["runtime_capability_summary"]["selection_semantics"]
-        == "turn_selected_subset"
-    )
-    assert assembly.diagnostics["runtime_capability_summary"]["selection_live"] is True
-    assert assembly.diagnostics["runtime_capability_summary"]["live_turn_bound"] is True
-    assert (
-        assembly.diagnostics["runtime_capability_manifest"]["boundaries"][
-            "selection_semantics"
-        ]
-        == "turn_selected_subset"
-    )
-    assert (
-        assembly.diagnostics["runtime_capability_manifest"]["boundaries"][
-            "selection_live"
-        ]
-        is True
-    )
-    assert (
-        assembly.diagnostics["runtime_capability_manifest"]["boundaries"][
-            "live_turn_bound"
-        ]
-        is True
-    )
+    assert "page_context" not in assembly.diagnostics["context_source_kinds"]
 
 
 @pytest.mark.asyncio
@@ -369,42 +280,33 @@ async def test_context_engine_capability_reporting_keeps_broader_skill_inventory
         request=_build_request(
             messages=[ChatMessage(role="user", content="你能做什么")],
         ),
-        skill_result=_build_plugin_page_web_skill_result(),
+        skill_result=_build_plugin_research_skill_result(),
         settings=TenantCapabilityAwarenessSettings(),
         intent_plan=_build_intent_plan("assistant_response"),
     )
 
     assert assembly.capability_bundle is not None
-    assert set(assembly.capability_bundle.selected_skill_names) == {
-        "Plugin Research Skill",
-        "Plugin Page Skill",
-    }
+    assert assembly.capability_bundle.selected_skill_names == []
     assert assembly.diagnostics["turn_skill_activation"] == {
         "applied": True,
         "reason": "capability_reporting_query",
-        "tool_count": 4,
+        "tool_count": 2,
         "selected_tool_names": [
             "web_search",
             "fetch_url",
-            "ui_get_snapshot",
-            "ui_click",
         ],
-        "skill_count": 2,
+        "skill_count": 1,
         "selected_skill_names": [
             "Plugin Research Skill",
-            "Plugin Page Skill",
         ],
-        "inventory_tool_count": 4,
+        "inventory_tool_count": 2,
         "inventory_selected_tool_names": [
             "web_search",
             "fetch_url",
-            "ui_get_snapshot",
-            "ui_click",
         ],
-        "inventory_skill_count": 2,
+        "inventory_skill_count": 1,
         "inventory_selected_skill_names": [
             "Plugin Research Skill",
-            "Plugin Page Skill",
         ],
     }
     assert (
@@ -619,14 +521,21 @@ async def test_context_engine_tracks_skill_and_knowledge_base_capabilities_in_di
         "skills",
         "knowledge_bases",
     }
-    assert assembly.diagnostics["selected_skill_names"] == ["web_search"]
+    assert assembly.diagnostics["selected_skill_names"] == []
+    assert assembly.diagnostics["turn_skill_activation"][
+        "inventory_selected_skill_names"
+    ] == ["web_search"]
     assert "knowledge_base" in assembly.diagnostics["context_source_kinds"]
 
 
 @pytest.mark.asyncio
-async def test_context_engine_tracks_page_context_capabilities_without_prompt_injection() -> (
+async def test_context_engine_ignores_stale_page_context_capabilities() -> (
     None
 ):
+    """
+    Test type: structural
+    Scope: stale page_context does not create runtime context sources.
+    """
     request = _build_request(
         input_variables={
             "page_context": {
@@ -636,9 +545,6 @@ async def test_context_engine_tracks_page_context_capabilities_without_prompt_in
                 "active_form_summary": {
                     "mode": "create",
                     "stage": "ready",
-                },
-                "suggested_tools": {
-                    "primary": ["ui_get_snapshot", "ui_read_region", "ui_fill_form"],
                 },
             }
         }
@@ -678,41 +584,21 @@ async def test_context_engine_tracks_page_context_capabilities_without_prompt_in
     assert set(assembly.diagnostics["dynamic_capability_awareness_categories"]) == {
         "skills",
         "knowledge_bases",
-        "page_context",
     }
     assert assembly.capability_bundle is not None
     assert {source.kind for source in assembly.capability_bundle.context_sources} >= {
         "skill",
         "knowledge_base",
-        "page_context",
     }
-    assert assembly.diagnostics["selected_skill_names"] == ["web_search"]
-    assert "page_context" in assembly.diagnostics["context_source_kinds"]
+    assert "page_context" not in {
+        source.kind for source in assembly.capability_bundle.context_sources
+    }
+    assert assembly.diagnostics["selected_skill_names"] == []
+    assert assembly.diagnostics["turn_skill_activation"][
+        "inventory_selected_skill_names"
+    ] == ["web_search"]
+    assert "page_context" not in assembly.diagnostics["context_source_kinds"]
     assert "knowledge_base" in assembly.diagnostics["context_source_kinds"]
-
-
-@pytest.mark.asyncio
-async def test_context_engine_injects_locale_hint_from_page_context() -> None:
-    request = _build_request(
-        input_variables={
-            "page_context": {
-                "page_key": "tenant.dashboard",
-                "locale": "zh_CN",
-                "page_title": "仪表盘",
-            }
-        }
-    )
-
-    assembly = await _assemble_context(
-        request=request,
-        skill_result=None,
-        settings=TenantCapabilityAwarenessSettings(),
-        intent_plan=_build_intent_plan("page_read"),
-    )
-
-    additions = " ".join(assembly.system_prompt_additions or [])
-    assert "zh_CN" in additions or "zh-CN" in additions
-    assert "Chinese" in additions
 
 
 @pytest.mark.asyncio

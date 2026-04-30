@@ -17,6 +17,9 @@ from pydantic import (
 )
 
 from app.core.i18n import _
+from app.schemas.ai.retired_page_awareness import (
+    ensure_no_retired_page_awareness_input,
+)
 
 InteractionMode = Literal["confirm", "trusted_auto"]
 
@@ -102,6 +105,7 @@ class AgentChatRequest(BaseModel):
             raise ValueError("message, messages, or interaction_updates required")
         if msgs and any(not (m or "").strip() for m in msgs):
             raise ValueError("messages must not contain empty strings")
+        ensure_no_retired_page_awareness_input(self.variables)
         return self
 
     conversation_id: int | None = Field(

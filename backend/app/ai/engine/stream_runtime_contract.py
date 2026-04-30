@@ -19,7 +19,7 @@ from .types import ExecutionRequest, ToolUsePolicy
 
 @dataclass(slots=True)
 class StreamRuntimeContract:
-    truncate_tool_calls_after_navigation: Callable[
+    keep_tool_calls_for_round: Callable[
         [list[dict[str, Any]]],
         tuple[list[dict[str, Any]], bool],
     ]
@@ -140,7 +140,7 @@ def _build_contract_from_hook_source(
     hook_source: StreamRuntimeHookSource,
 ) -> StreamRuntimeContract:
     return StreamRuntimeContract(
-        truncate_tool_calls_after_navigation=hook_source.truncate_tool_calls_after_navigation,
+        keep_tool_calls_for_round=hook_source.keep_tool_calls_for_round,
         should_retry_tool_contract_breach=hook_source.should_retry_tool_contract_breach,
         should_retry_web_research_contract_breach=(
             hook_source.should_retry_web_research_contract_breach

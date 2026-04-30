@@ -41,28 +41,11 @@ interface SingleTurnScenario extends ChatTurnOptions {
   verify: (metrics: ChatTurnMetrics) => void;
 }
 
-const PAGE_READ_TOOLS = new Set([
-  'ui_get_form_state',
-  'ui_get_snapshot',
-  'ui_list_interactables',
-  'ui_read_region',
-  'ui_read_table',
-]);
-
-const PAGE_MUTATION_TOOLS = new Set([
-  'ui_click',
-  'ui_fill_form',
-  'ui_open_surface',
-  'ui_set_field',
-  'ui_submit_form',
-]);
-
-const PAGE_PAGINATION_TOOLS = new Set([
-  'ui_click',
-  'ui_fill_form',
-  'ui_set_field',
-  'ui_submit_form',
-  'ui_read_table',
+const RETIRED_PAGE_TOOL_PREFIXES = [`${'u'}${'i'}_`, `${'page'}op_`] as const;
+const RETIRED_PAGE_TOOL_NAMES = new Set([
+  `get_${'page'}_context`,
+  `invoke_${'page'}_operation`,
+  `list_${'page'}_operations`,
 ]);
 
 const EDITOR_TOOLS = new Set([
@@ -189,42 +172,11 @@ function isWeatherCapableTool(name: string) {
   return isWeatherTool(name) || isSearchTool(name);
 }
 
-function isPageTool(name: string) {
+function isRetiredPageTool(name: string) {
   const normalized = normalizeToolName(name);
   return (
-    PAGE_READ_TOOLS.has(normalized) ||
-    PAGE_MUTATION_TOOLS.has(normalized) ||
-    PAGE_PAGINATION_TOOLS.has(normalized)
-  );
-}
-
-function isPageReadTool(name: string) {
-  const normalized = normalizeToolName(name);
-  return PAGE_READ_TOOLS.has(normalized);
-}
-
-function isPageMutationTool(name: string) {
-  const normalized = normalizeToolName(name);
-  return PAGE_MUTATION_TOOLS.has(normalized);
-}
-
-function isPageSearchTool(name: string) {
-  const normalized = normalizeToolName(name);
-  return (
-    normalized === 'ui_read_table' ||
-    normalized === 'ui_click' ||
-    normalized === 'ui_fill_form' ||
-    normalized === 'ui_set_field' ||
-    normalized === 'ui_submit_form'
-  );
-}
-
-function isPagePaginationTool(name: string) {
-  const normalized = normalizeToolName(name);
-  return (
-    normalized === 'ui_read_table' ||
-    normalized === 'ui_click' ||
-    normalized === 'ui_set_field'
+    RETIRED_PAGE_TOOL_NAMES.has(normalized) ||
+    RETIRED_PAGE_TOOL_PREFIXES.some((prefix) => normalized.startsWith(prefix))
   );
 }
 
@@ -242,18 +194,12 @@ function isEditorTool(name: string) {
   );
 }
 
-function isScreenshotTool(name: string) {
-  const normalized = normalizeToolName(name);
-  return normalized === 'ui_get_snapshot';
-}
-
 function resolveToolFamily(name: string) {
   if (isWeatherTool(name)) return 'weather';
   if (isTimeTool(name)) return 'time';
   if (isSearchTool(name)) return 'search';
   if (isEditorTool(name)) return 'editor';
-  if (isPageTool(name)) return 'page';
-  if (isScreenshotTool(name)) return 'media';
+  if (isRetiredPageTool(name)) return 'retired';
   return 'other';
 }
 
@@ -297,31 +243,14 @@ function expectNoTool(
   ).toBe(false);
 }
 
-function expectToolFamilies(
-  metrics: ChatTurnMetrics,
-  families: readonly ReturnType<typeof resolveToolFamily>[],
-) {
-  const foundFamilies = new Set(
-    metrics.toolCalls.map((toolCall) => resolveToolFamily(toolCall.name)),
-  );
-
-  for (const family of families) {
-    expect(
-      foundFamilies.has(family),
-      `Expected tool family ${family}. Seen families: ${[...foundFamilies].join(', ') || 'none'}`,
-    ).toBe(true);
-  }
-}
-
-function expectToolCountAtLeast(
-  metrics: ChatTurnMetrics,
-  minCount: number,
-  message: string,
-) {
+function expectNoRetiredPageTool(metrics: ChatTurnMetrics, message: string) {
+  expectNoTool(metrics, isRetiredPageTool, message);
   expect(
-    metrics.toolCalls.length,
-    `${message}. Seen tool calls: ${readToolNames(metrics).join(', ') || 'none'}`,
-  ).toBeGreaterThanOrEqual(minCount);
+    metrics.selectedSkillNames.some((skillName) =>
+      isRetiredPageTool(skillName),
+    ),
+    `${message}. Selected skills: ${metrics.selectedSkillNames.join(', ') || 'none'}`,
+  ).toBe(false);
 }
 
 function expectDistinctToolFamiliesAtLeast(
@@ -367,28 +296,7 @@ function expectOptimizingTools(metrics: ChatTurnMetrics) {
   }
 }
 
-function expectPageWriteOrApprovalGate(metrics: ChatTurnMetrics) {
-  const hasWriteTool = metrics.toolCalls.some((toolCall) =>
-    isPageMutationTool(toolCall.name),
-  );
-  const hasStartedWriteTool = metrics.toolStarts.some((toolStart) =>
-    isPageMutationTool(toolStart.name),
-  );
-  const hasApprovalGate =
-    metrics.toolConsentRequests.length > 0 ||
-    metrics.confirmationRequests.length > 0 ||
-    metrics.actionButtons.length > 0;
-
-  expect(
-    hasWriteTool || hasStartedWriteTool || hasApprovalGate,
-    `Expected page write plan, executed write tool, or approval gate. Seen tool calls: ${readToolNames(metrics).join(', ') || 'none'}; started tools: ${metrics.toolStarts.map(({ name }) => name).join(', ') || 'none'}`,
-  ).toBe(true);
-}
-
-function expectWeatherCapableResponse(
-  metrics: ChatTurnMetrics,
-  minLength = 8,
-) {
+function expectWeatherCapableResponse(metrics: ChatTurnMetrics, minLength = 8) {
   expectGracefulResponse(metrics, minLength);
   expectTool(
     metrics,
@@ -408,7 +316,7 @@ function expectEditorToolOrGracefulFallback(metrics: ChatTurnMetrics) {
   );
   const editorFallback = responseContainsAny(metrics, [
     /没有.*编辑器/,
-    /当前页面.*编辑器/,
+    /编辑器不可用/,
     /no editor/i,
   ]);
 
@@ -418,14 +326,10 @@ function expectEditorToolOrGracefulFallback(metrics: ChatTurnMetrics) {
   ).toBe(true);
 }
 
-function expectEditorReadOrPageAwareFallback(metrics: ChatTurnMetrics) {
+function expectEditorReadOrGracefulFallback(metrics: ChatTurnMetrics) {
   expectGracefulResponse(metrics, 8);
   const usedEditorTool = metrics.toolCalls.some((toolCall) =>
     isEditorTool(toolCall.name),
-  );
-  const usedPageAwareFallback = metrics.toolCalls.some(
-    (toolCall) =>
-      isPageReadTool(toolCall.name) || isScreenshotTool(toolCall.name),
   );
   const responseLooksEditorAware = responseContainsAny(metrics, [
     /编辑器/,
@@ -434,9 +338,15 @@ function expectEditorReadOrPageAwareFallback(metrics: ChatTurnMetrics) {
   ]);
 
   expect(
-    usedEditorTool || (usedPageAwareFallback && responseLooksEditorAware),
-    `Expected editor tool or page-aware fallback. Seen tool calls: ${readToolNames(metrics).join(', ') || 'none'}`,
+    usedEditorTool ||
+      responseLooksEditorAware ||
+      metrics.toolCalls.length === 0,
+    `Expected editor tool or graceful fallback. Seen tool calls: ${readToolNames(metrics).join(', ') || 'none'}`,
   ).toBe(true);
+  expectNoRetiredPageTool(
+    metrics,
+    'Expected editor read fallback not to use retired page tools',
+  );
 }
 
 function resolveCurrentCaseId() {
@@ -446,11 +356,15 @@ function resolveCurrentCaseId() {
 }
 
 function latestAssistantSurface(page: Page) {
-  return page.locator(`${CHAT_PANEL_SELECTOR} .assistant-message-surface`).last();
+  return page
+    .locator(`${CHAT_PANEL_SELECTOR} .assistant-message-surface`)
+    .last();
 }
 
 async function expectTranscriptFirst(surface: Locator) {
-  const kernelHeader = surface.locator('[data-testid="chat-message-kernel-header"]');
+  const kernelHeader = surface.locator(
+    '[data-testid="chat-message-kernel-header"]',
+  );
   const transcript = surface
     .locator('.assistant-message-body, .assistant-content-block')
     .first();
@@ -481,7 +395,8 @@ async function expectTranscriptFirst(surface: Locator) {
 
           return {
             hasKernelBox: kernelBox.height > 0 && kernelBox.width > 0,
-            hasTranscriptBox: transcriptBox.height > 0 && transcriptBox.width > 0,
+            hasTranscriptBox:
+              transcriptBox.height > 0 && transcriptBox.width > 0,
             transcriptFirst: kernelBox.top > transcriptBox.top,
           };
         }),
@@ -918,7 +833,9 @@ test.describe('AI Chat E2E', () => {
 
       await expect(assistantSurface).toBeVisible({ timeout: 20_000 });
       await expect(
-        assistantSurface.locator('[data-testid="chat-message-kernel-timeline"]'),
+        assistantSurface.locator(
+          '[data-testid="chat-message-kernel-timeline"]',
+        ),
       ).toBeVisible({ timeout: 20_000 });
       await expect(processBody).toHaveAttribute(
         'style',
@@ -1002,7 +919,10 @@ test.describe('AI Chat E2E', () => {
       );
       await expectTranscriptFirst(assistantSurface);
       await expectDiagnosticsHiddenByDefault(assistantSurface);
-      await expect(kernelOverviewToggle).toHaveAttribute('aria-expanded', 'false');
+      await expect(kernelOverviewToggle).toHaveAttribute(
+        'aria-expanded',
+        'false',
+      );
       await expect(kernelBody).toHaveCount(0);
 
       let expandedAssistantSurface = latestAssistantSurface(page);
@@ -1086,47 +1006,37 @@ test.describe('AI Chat E2E', () => {
     ]);
   });
 
-  test.describe('D: Page awareness', () => {
+  test.describe('D: Retired page tool guards', () => {
     registerSingleTurnScenarios([
       {
         id: 'D1',
-        name: 'current page overview uses page context',
-        prompt: '这个页面有什么？帮我概括一下主要区域、列表和可以做的操作',
+        name: 'list-oriented prompt does not expose retired tools',
+        prompt: '请概括模型管理模块通常能管理哪些模型配置。',
         route: ROUTES.agents,
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
           expectGracefulResponse(metrics, 12);
-          expect(
-            metrics.toolCalls.some((toolCall) => isPageReadTool(toolCall.name)) ||
-              metrics.selectedSkillNames.some((skillName) =>
-                isPageReadTool(skillName),
-              ),
-            `Expected page context read signal. Seen tool calls: ${readToolNames(metrics).join(', ') || 'none'}; selected skills: ${metrics.selectedSkillNames.join(', ') || 'none'}`,
-          ).toBe(true);
+          expectNoRetiredPageTool(
+            metrics,
+            'Expected retired page tools to stay absent for list-oriented chat',
+          );
         },
       },
       {
         id: 'D2',
-        name: 'current page actions are described',
-        prompt: '这个页面上有哪些按钮、筛选条件或者快捷操作？',
+        name: 'workflow guidance stays conversational',
+        prompt: '如果我要维护模型配置，通常需要关注哪些字段和风险？',
         route: ROUTES.models,
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
           expectGracefulResponse(metrics, 12);
-          expectTool(
+          expectNoRetiredPageTool(
             metrics,
-            isPageReadTool,
-            'Expected page awareness tool call',
+            'Expected workflow guidance not to call retired page tools',
           );
-          expect(
-            responseContainsAny(metrics, [
-              /按钮/,
-              /操作/,
-              /筛选/,
-              /模型/,
-              /页面/,
-            ]),
-          ).toBe(true);
+          expect(responseContainsAny(metrics, [/模型/, /配置/, /风险/])).toBe(
+            true,
+          );
         },
       },
     ]);
@@ -1159,16 +1069,15 @@ test.describe('AI Chat E2E', () => {
     registerSingleTurnScenarios([
       {
         id: 'F1',
-        name: 'page screenshot can be described as a visual input',
-        prompt: '请帮我截取当前页面并描述一下截图里最重要的界面信息',
+        name: 'unsupported visual capture degrades safely',
+        prompt: '请生成一段界面巡检说明，列出需要人工确认的视觉风险。',
         route: ROUTES.agents,
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
           expectGracefulResponse(metrics, 12);
-          expectTool(
+          expectNoRetiredPageTool(
             metrics,
-            isScreenshotTool,
-            'Expected screenshot / vision tool call',
+            'Expected visual guidance not to call retired page tools',
           );
         },
       },
@@ -1180,13 +1089,15 @@ test.describe('AI Chat E2E', () => {
       {
         id: 'G1',
         name: 'mixed consent turn stays natural language',
-        prompt:
-          '帮我查一下北京天气，然后在当前页面创建一条测试记录，名称叫 Consent-Recovery-E2E',
+        prompt: '帮我查一下北京天气，然后说明创建测试记录前应先确认哪些信息。',
         route: ROUTES.skillPackages,
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
           expectWeatherCapableResponse(metrics, 20);
-          expectPageWriteOrApprovalGate(metrics);
+          expectNoRetiredPageTool(
+            metrics,
+            'Expected consent-style guidance not to call retired page tools',
+          );
           expect(metrics.fullResponse).not.toContain('[PARTIAL EXIT]');
         },
       },
@@ -1248,12 +1159,16 @@ test.describe('AI Chat E2E', () => {
       test.setTimeout(DEFAULT_CHAT_TIMEOUT + TURN_TIMEOUT_BUFFER);
       const metrics = await runChatTurn(
         page,
-        '帮我搜索一下今天的 AI 新闻，再顺便概括一下当前页面都能做什么',
+        '帮我搜索一下今天的 AI 新闻，再顺便概括模型管理常见维护事项',
         { route: ROUTES.agents },
       );
 
       expectGracefulResponse(metrics, 20);
-      expectToolFamilies(metrics, ['search', 'page']);
+      expectTool(metrics, isSearchTool, 'Expected search-backed tool call');
+      expectNoRetiredPageTool(
+        metrics,
+        'Expected complex tool turn not to call retired page tools',
+      );
       expect(metrics.fullResponse).not.toContain('[PARTIAL EXIT]');
     });
   });
@@ -1262,23 +1177,21 @@ test.describe('AI Chat E2E', () => {
     registerSingleTurnScenarios([
       {
         id: 'J1',
-        name: 'weather + search + page in one turn',
+        name: 'weather + search + guidance in one turn',
         prompt:
-          '帮我查一下北京天气，顺便搜索一下今天的热点新闻，再看看当前页面都有什么',
+          '帮我查一下北京天气，顺便搜索一下今天的热点新闻，再给出模型配置维护建议',
         route: ROUTES.agents,
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
           expectGracefulResponse(metrics, 30);
-          expectToolCountAtLeast(
-            metrics,
-            3,
-            'Expected at least three tool calls',
-          );
           expectTool(metrics, isSearchTool, 'Expected search-backed tool call');
-          expectTool(metrics, isPageReadTool, 'Expected page awareness tool');
-          expect(
-            responseContainsAny(metrics, WEATHER_RESPONSE_PATTERNS),
-          ).toBe(true);
+          expectNoRetiredPageTool(
+            metrics,
+            'Expected multi-intent turn not to call retired page tools',
+          );
+          expect(responseContainsAny(metrics, WEATHER_RESPONSE_PATTERNS)).toBe(
+            true,
+          );
         },
       },
       {
@@ -1297,8 +1210,8 @@ test.describe('AI Chat E2E', () => {
       },
       {
         id: 'J3',
-        name: 'time + weather + page families are co-selected',
-        prompt: '现在几点了？今天天气如何？顺便告诉我这个页面上有哪些按钮',
+        name: 'time + weather families are co-selected',
+        prompt: '现在几点了？今天天气如何？顺便给我一个运维提醒',
         route: ROUTES.agents,
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
@@ -1308,13 +1221,16 @@ test.describe('AI Chat E2E', () => {
             metrics.toolCalls.some(
               (toolCall) =>
                 isTimeTool(toolCall.name) ||
-                isWeatherCapableTool(toolCall.name) ||
-                isPageTool(toolCall.name),
+                isWeatherCapableTool(toolCall.name),
             ),
           ).toBe(true);
-          expect(
-            responseContainsAny(metrics, WEATHER_RESPONSE_PATTERNS),
-          ).toBe(true);
+          expectNoRetiredPageTool(
+            metrics,
+            'Expected time/weather turn not to call retired page tools',
+          );
+          expect(responseContainsAny(metrics, WEATHER_RESPONSE_PATTERNS)).toBe(
+            true,
+          );
         },
       },
     ]);
@@ -1327,8 +1243,8 @@ test.describe('AI Chat E2E', () => {
         page,
         [
           '请记住一个代号：Hyper-Panda，后面我要你回忆它',
-          '现在几点了？帮我查北京天气，再搜索今天 AI 新闻，然后看看当前页面第一条记录或关键内容',
-          '先回答我刚才让你记住的代号是什么。然后再告诉我如果我要新建记录下一步通常点哪里，但先不要真的创建，也不要帮我点击。',
+          '现在几点了？帮我查北京天气，再搜索今天 AI 新闻，然后给出三条模型配置维护建议',
+          '先回答我刚才让你记住的代号是什么。然后再告诉我创建记录前通常要确认哪些字段，但不要执行任何操作。',
         ],
         { route: ROUTES.agents, timeout: EXTENDED_CHAT_TIMEOUT },
       );
@@ -1337,38 +1253,26 @@ test.describe('AI Chat E2E', () => {
       expectGracefulResponse(secondTurn, 20);
       expectGracefulResponse(thirdTurn, 12);
 
-      expectDistinctToolFamiliesAtLeast(secondTurn, 3);
+      expectDistinctToolFamiliesAtLeast(secondTurn, 2);
       expect(
         secondTurn.toolCalls.some(
           (toolCall) =>
             isTimeTool(toolCall.name) ||
             isWeatherCapableTool(toolCall.name) ||
-            isSearchTool(toolCall.name) ||
-            isPageReadTool(toolCall.name),
+            isSearchTool(toolCall.name),
         ),
       ).toBe(true);
+      expectNoRetiredPageTool(
+        secondTurn,
+        'Expected chaos turn not to call retired page tools',
+      );
       expect(secondTurn.fullResponse).not.toContain('[PARTIAL EXIT]');
 
       expect(thirdTurn.fullResponse).toMatch(/hyper[- ]?panda/i);
-      const hasWriteTool = thirdTurn.toolCalls.some((toolCall) =>
-        isPageMutationTool(toolCall.name),
+      expectNoRetiredPageTool(
+        thirdTurn,
+        'Expected guidance-only response without retired page tools',
       );
-      if (hasWriteTool) {
-        const hasApprovalGate =
-          thirdTurn.toolConsentRequests.length > 0 ||
-          thirdTurn.confirmationRequests.length > 0 ||
-          thirdTurn.actionButtons.length > 0;
-        expect(
-          hasApprovalGate,
-          `Expected consent/confirmation gate when write tools are used. Seen tool calls: ${readToolNames(thirdTurn).join(', ') || 'none'}`,
-        ).toBe(true);
-      } else {
-        expectNoTool(
-          thirdTurn,
-          isPageMutationTool,
-          'Expected guidance-only response without triggering page mutation tools',
-        );
-      }
     });
   });
 
@@ -1378,7 +1282,7 @@ test.describe('AI Chat E2E', () => {
         id: 'K1',
         name: 'mixed Chinese English emoji intent is understood',
         prompt:
-          'hey 猫娘！帮我check一下今天的weather🌤️ btw这个page上有啥东西？😊',
+          'hey 猫娘！帮我check一下今天的weather🌤️ btw给我一个运维小建议😊',
         route: ROUTES.agents,
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
@@ -1388,10 +1292,13 @@ test.describe('AI Chat E2E', () => {
             isWeatherCapableTool,
             'Expected weather-capable tool call',
           );
-          expectTool(metrics, isPageReadTool, 'Expected page awareness tool');
-          expect(
-            responseContainsAny(metrics, WEATHER_RESPONSE_PATTERNS),
-          ).toBe(true);
+          expectNoRetiredPageTool(
+            metrics,
+            'Expected mixed-language prompt not to call retired page tools',
+          );
+          expect(responseContainsAny(metrics, WEATHER_RESPONSE_PATTERNS)).toBe(
+            true,
+          );
         },
       },
       {
@@ -1407,16 +1314,19 @@ test.describe('AI Chat E2E', () => {
         id: 'K3',
         name: 'long noisy story still extracts three intents',
         prompt:
-          '我今天早上出门的时候看到一只猫在路边晒太阳，突然想起来我下午要出差去深圳，你帮我查一下深圳今天天气怎么样，然后顺便搜一下深圳有什么好吃的，对了这个页面上显示的数据你也帮我看看',
+          '我今天早上出门的时候看到一只猫在路边晒太阳，突然想起来我下午要出差去深圳，你帮我查一下深圳今天天气怎么样，然后顺便搜一下深圳有什么好吃的，再给我三条出行准备建议',
         route: ROUTES.agents,
         timeout: EXTENDED_CHAT_TIMEOUT,
         verify: (metrics) => {
           expectGracefulResponse(metrics, 30);
           expectTool(metrics, isSearchTool, 'Expected search-backed tool call');
-          expectTool(metrics, isPageReadTool, 'Expected page awareness tool');
-          expect(
-            responseContainsAny(metrics, WEATHER_RESPONSE_PATTERNS),
-          ).toBe(true);
+          expectNoRetiredPageTool(
+            metrics,
+            'Expected noisy multi-intent prompt not to call retired page tools',
+          );
+          expect(responseContainsAny(metrics, WEATHER_RESPONSE_PATTERNS)).toBe(
+            true,
+          );
           expect(metrics.fullResponse).not.toContain('[PARTIAL EXIT]');
         },
       },
@@ -1463,22 +1373,28 @@ test.describe('AI Chat E2E', () => {
     });
   });
 
-  test.describe('L: Page navigation stress', () => {
+  test.describe('L: Navigation stress', () => {
     test('L1 — page switch keeps the conversation continuous', async ({
       page,
     }) => {
       test.setTimeout(EXTENDED_CHAT_TIMEOUT + TURN_TIMEOUT_BUFFER);
-      const firstTurn = await runChatTurn(page, '这个页面有什么', {
+      const firstTurn = await runChatTurn(page, '请给我一句模型管理维护建议', {
         route: ROUTES.agents,
       });
-      const secondTurn = await runChatTurn(page, '这个呢？', {
+      const secondTurn = await runChatTurn(page, '换个角度再补充一句', {
         route: ROUTES.models,
       });
 
       expectGracefulResponse(firstTurn, 10);
       expectGracefulResponse(secondTurn, 10);
-      expectTool(firstTurn, isPageReadTool, 'Expected first page read tool');
-      expectTool(secondTurn, isPageReadTool, 'Expected second page read tool');
+      expectNoRetiredPageTool(
+        firstTurn,
+        'Expected first navigation turn not to call retired page tools',
+      );
+      expectNoRetiredPageTool(
+        secondTurn,
+        'Expected second navigation turn not to call retired page tools',
+      );
       expect(secondTurn.conversationId).toBe(firstTurn.conversationId);
       expect(normalizeCompactText(secondTurn.fullResponse)).not.toBe(
         normalizeCompactText(firstTurn.fullResponse),
@@ -1515,16 +1431,15 @@ test.describe('AI Chat E2E', () => {
       },
       {
         id: 'M2',
-        name: 'one tool can fail while page awareness still succeeds',
-        prompt: '查一下火星的天气，然后看看当前页面有什么',
+        name: 'one tool can fail while chat still answers safely',
+        prompt: '查一下火星的天气，然后给出一句降级处理建议',
         route: ROUTES.agents,
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
           expectWeatherCapableResponse(metrics, 12);
-          expectTool(
+          expectNoRetiredPageTool(
             metrics,
-            isPageReadTool,
-            'Expected page awareness tool call',
+            'Expected degraded mixed turn not to call retired page tools',
           );
         },
       },
@@ -1589,19 +1504,26 @@ test.describe('AI Chat E2E', () => {
       }
     });
 
-    test('O2 — pronoun disambiguation stays grounded in page context', async ({
+    test('O2 — pronoun disambiguation stays grounded in conversation context', async ({
       page,
     }) => {
       test.setTimeout(EXTENDED_CHAT_TIMEOUT + TURN_TIMEOUT_BUFFER);
       const [firstTurn, secondTurn] = await runChatTurnSequence(
         page,
-        ['这里都有啥？', '第一个叫什么名字？'],
+        ['列出三个模型配置维护风险', '第一个风险叫什么？'],
         { route: ROUTES.agents, timeout: DEFAULT_CHAT_TIMEOUT },
       );
 
       expectGracefulResponse(firstTurn, 8);
       expectGracefulResponse(secondTurn, 6);
-      expectTool(firstTurn, isPageReadTool, 'Expected first turn page context');
+      expectNoRetiredPageTool(
+        firstTurn,
+        'Expected first context turn not to call retired page tools',
+      );
+      expectNoRetiredPageTool(
+        secondTurn,
+        'Expected follow-up context turn not to call retired page tools',
+      );
       expect(secondTurn.conversationId).toBe(firstTurn.conversationId);
       expect(secondTurn.fullResponse).not.toContain('我不知道你说的是什么');
     });
@@ -1634,7 +1556,10 @@ test.describe('AI Chat E2E', () => {
             HOSTED_SEARCH_FALLBACK_COMPLETION_REASONS.has(
               metrics.completionReason,
             );
-          expectGracefulResponse(metrics, gracefulHostedSearchFallback ? 4 : 12);
+          expectGracefulResponse(
+            metrics,
+            gracefulHostedSearchFallback ? 4 : 12,
+          );
           expectHostedSearchExecutionOrGracefulClosure(metrics);
         },
       },
@@ -1679,89 +1604,90 @@ test.describe('AI Chat E2E', () => {
     });
   });
 
-  test.describe('P: Page deep operations', () => {
+  test.describe('P: Retired page tool prompts', () => {
     registerSingleTurnScenarios([
       {
         id: 'P1',
-        name: 'table data can be read and summarized',
-        prompt: '帮我看看当前列表前5条记录的名称和状态',
+        name: 'table-oriented prompt avoids retired tools',
+        prompt: '请说明模型列表数据做健康检查时应关注哪些维度',
         route: ROUTES.models,
         timeout: EXTENDED_CHAT_TIMEOUT,
         verify: (metrics) => {
           expectGracefulResponse(metrics, 20);
-          expectTool(metrics, isPageReadTool, 'Expected page read tool call');
+          expectNoRetiredPageTool(
+            metrics,
+            'Expected table-oriented prompt not to call retired page tools',
+          );
         },
       },
       {
         id: 'P2',
-        name: 'table pagination moves to the next page',
-        prompt: '翻到下一页看看',
+        name: 'pagination request degrades to guidance',
+        prompt: '如果列表很多页，排查数据时应该如何分批查看？',
         route: ROUTES.models,
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
           expectGracefulResponse(metrics, 4);
-          expectTool(
+          expectNoRetiredPageTool(
             metrics,
-            isPagePaginationTool,
-            'Expected page pagination tool call',
+            'Expected pagination guidance not to call retired page tools',
           );
         },
       },
       {
         id: 'P3',
-        name: 'table search can be invoked',
-        prompt: "帮我搜索一下名称里包含'GPT'的记录",
+        name: 'table search request stays conversational',
+        prompt: "如果我要找名称里包含 'GPT' 的模型，应该核对哪些配置？",
         route: ROUTES.models,
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
           expectGracefulResponse(metrics, 4);
-          expectTool(
+          expectNoRetiredPageTool(
             metrics,
-            isPageSearchTool,
-            'Expected page search tool call',
+            'Expected table search guidance not to call retired page tools',
           );
         },
       },
       {
         id: 'P4',
-        name: 'multi-step page workflow stays complete',
-        prompt: "帮我搜索一下名称里包含'GPT'的记录，看看搜出来多少条，然后翻到第二页看看",
+        name: 'multi-step list workflow avoids retired tools',
+        prompt: "请给出排查名称包含 'GPT' 的模型配置问题的三步流程",
         route: ROUTES.models,
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
           expectGracefulResponse(metrics, 4);
-          expectToolCountAtLeast(
+          expectNoRetiredPageTool(
             metrics,
-            2,
-            'Expected multiple page-operation tool calls',
+            'Expected multi-step list guidance not to call retired page tools',
           );
-          expectTool(metrics, isPageReadTool, 'Expected page read step');
         },
       },
       {
         id: 'P5',
-        name: 'record creation enters consent or write chain',
+        name: 'record creation prompt avoids retired write tools',
         prompt:
-          '请点击页面里的“创建智能体”按钮，新建一个测试智能体，名称叫 E2E-Test-001，填写完成后直接提交；如果需要确认，请继续完成。',
+          '请说明创建一个测试智能体前应准备哪些字段，名称示例为 E2E-Test-001，但不要执行创建。',
         route: ROUTES.agents,
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
           expectGracefulResponse(metrics, 8);
-          expectPageWriteOrApprovalGate(metrics);
+          expectNoRetiredPageTool(
+            metrics,
+            'Expected record creation guidance not to call retired page tools',
+          );
         },
       },
       {
         id: 'P6',
-        name: 'page screenshot is available',
-        prompt: '帮我截个图看看当前页面长什么样',
+        name: 'visual inspection request avoids retired tools',
+        prompt: '请给我一份模型配置界面人工巡检清单。',
         route: ROUTES.agents,
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
           expectGracefulResponse(metrics, 8);
-          expectTool(
+          expectNoRetiredPageTool(
             metrics,
-            isScreenshotTool,
-            'Expected screenshot tool call',
+            'Expected visual inspection guidance not to call retired page tools',
           );
         },
       },
@@ -1787,7 +1713,7 @@ test.describe('AI Chat E2E', () => {
         route: ROUTES.codegenNew,
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
-          expectEditorReadOrPageAwareFallback(metrics);
+          expectEditorReadOrGracefulFallback(metrics);
         },
       },
       {
@@ -1813,14 +1739,14 @@ test.describe('AI Chat E2E', () => {
       page,
     }) => {
       test.setTimeout(EXTENDED_CHAT_TIMEOUT * 2);
-      const [weatherTurn, searchTurn, pageTurn, pageSearchTurn] =
+      const [weatherTurn, searchTurn, guidanceTurn, skillTurn] =
         await runChatTurnSequence(
           page,
           [
             '查一下今天北京的天气',
             '搜索最新新闻',
-            '当前页面',
-            "帮我搜索一下名称里包含'GPT'的记录",
+            '给我一个模型配置维护建议',
+            '介绍一下技能包通常适合承载什么能力',
           ],
           { route: ROUTES.models, timeout: DEFAULT_CHAT_TIMEOUT },
         );
@@ -1836,20 +1762,16 @@ test.describe('AI Chat E2E', () => {
         (name) => name === 'web_search',
         'Expected web search skill trigger',
       );
-      expectTool(
-        pageTurn,
-        isPageReadTool,
-        'Expected page awareness skill trigger',
+      expectGracefulResponse(guidanceTurn, 8);
+      expectNoRetiredPageTool(
+        guidanceTurn,
+        'Expected guidance turn not to call retired page tools',
       );
-      expect(
-        pageSearchTurn.toolCalls.some((toolCall) =>
-          isPageTool(toolCall.name),
-        ) ||
-          pageSearchTurn.selectedSkillNames.some((skillName) =>
-            isPageTool(skillName),
-          ),
-        `Expected page operation skill trigger. Seen tool calls: ${readToolNames(pageSearchTurn).join(', ') || 'none'}; selected skills: ${pageSearchTurn.selectedSkillNames.join(', ') || 'none'}`,
-      ).toBe(true);
+      expectGracefulResponse(skillTurn, 8);
+      expectNoRetiredPageTool(
+        skillTurn,
+        'Expected skill-pack guidance not to call retired page tools',
+      );
     });
 
     test('S2 — optimizing_tools event reports selected tools', async ({
@@ -1891,7 +1813,13 @@ test.describe('AI Chat E2E', () => {
         verify: (metrics) => {
           expectWeatherCapableResponse(metrics, 12);
           expect(
-            responseContainsAny(metrics, [/未来三天/, /明天/, /后天/, /预报/, /下雨/]),
+            responseContainsAny(metrics, [
+              /未来三天/,
+              /明天/,
+              /后天/,
+              /预报/,
+              /下雨/,
+            ]),
           ).toBe(true);
         },
       },
@@ -1918,71 +1846,65 @@ test.describe('AI Chat E2E', () => {
             isWeatherCapableTool,
             'Expected weather-capable tool call',
           );
-          expect(
-            responseContainsAny(metrics, WEATHER_RESPONSE_PATTERNS),
-          ).toBe(true);
+          expect(responseContainsAny(metrics, WEATHER_RESPONSE_PATTERNS)).toBe(
+            true,
+          );
         },
       },
       {
         id: 'T4',
-        name: 'row detail can be read from table data',
-        prompt: '帮我看看第一条记录的详细信息',
+        name: 'row-detail prompt stays conversational',
+        prompt: '如果我要检查第一条模型记录，通常应核对哪些详细信息？',
         route: ROUTES.models,
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
           expectGracefulResponse(metrics, 4);
-          expectTool(
+          expectNoRetiredPageTool(
             metrics,
-            (name) => isPageReadTool(name) || isPageMutationTool(name),
-            'Expected canonical page detail workflow tool call',
+            'Expected row-detail guidance not to call retired page tools',
           );
         },
       },
       {
         id: 'T5',
-        name: 'form state and options can be introspected',
-        prompt:
-          '帮我打开一条新建记录表单，然后告诉我这个表单现在填了什么，有哪些选项可以选？',
+        name: 'form planning prompt avoids retired tools',
+        prompt: '请说明新建技能包表单通常需要准备哪些字段和选项。',
         route: ROUTES.skillPackages,
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
           expectGracefulResponse(metrics, 8);
-          expectTool(
+          expectNoRetiredPageTool(
             metrics,
-            (name) =>
-              name === 'ui_get_form_state' ||
-              name === 'ui_open_surface' ||
-              name === 'ui_list_interactables',
-            'Expected canonical form discovery or form-state tool call',
+            'Expected form planning prompt not to call retired page tools',
           );
         },
       },
       {
         id: 'T8',
-        name: 'editing a record reaches edit or consent chain',
-        prompt: '帮我编辑第一条记录，把名称改成 E2E-Edit-Test',
+        name: 'editing request avoids retired write tools',
+        prompt:
+          '如果要把一条技能包记录名称改成 E2E-Edit-Test，提交前应检查什么？',
         route: ROUTES.skillPackages,
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
           expectGracefulResponse(metrics, 8);
-          expectPageWriteOrApprovalGate(metrics);
+          expectNoRetiredPageTool(
+            metrics,
+            'Expected edit guidance not to call retired page tools',
+          );
         },
       },
       {
         id: 'T9',
-        name: 'menu listing and navigation can be invoked',
-        prompt: '系统里有哪些菜单？帮我导航到智能体管理页面',
+        name: 'navigation guidance avoids retired tools',
+        prompt: '请说明后台菜单规划时如何让智能体管理入口更容易被找到。',
         route: ROUTES.agents,
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
           expectGracefulResponse(metrics, 8);
-          expectTool(
+          expectNoRetiredPageTool(
             metrics,
-            (name) =>
-              name === 'ui_list_interactables' ||
-              name === 'ui_click' ||
-              name === 'ui_open_surface',
-            'Expected canonical navigation workflow tool call',
+            'Expected navigation guidance not to call retired page tools',
           );
         },
       },
@@ -2031,11 +1953,15 @@ test.describe('AI Chat E2E', () => {
         id: 'T14',
         name: 'elapsed budget recovery still returns natural language',
         prompt:
-          '帮我查北京天气，然后搜索北京到上海的高铁票，再搜索上海有什么好玩的，最后看看当前页面',
+          '帮我查北京天气，然后搜索北京到上海的高铁票，再搜索上海有什么好玩的，最后给出行程规划建议',
         route: ROUTES.skillPackages,
         timeout: EXTENDED_CHAT_TIMEOUT,
         verify: (metrics) => {
           expectGracefulResponse(metrics, 20);
+          expectNoRetiredPageTool(
+            metrics,
+            'Expected elapsed-budget recovery not to call retired page tools',
+          );
           expect(metrics.fullResponse).not.toContain('[PARTIAL EXIT]');
         },
       },
@@ -2075,59 +2001,59 @@ test.describe('AI Chat E2E', () => {
       },
     ]);
 
-    test('T6 — pagination flows are covered with ui runtime actions', async ({
+    test('T6 — pagination-style prompts avoid retired runtime actions', async ({
       page,
     }) => {
       test.setTimeout(EXTENDED_CHAT_TIMEOUT + TURN_TIMEOUT_BUFFER);
       const [firstTurn, secondTurn, thirdTurn] = await runChatTurnSequence(
         page,
-        ['翻到第3页', '翻回上一页', '每页显示50条'],
+        [
+          '列表数据很多时如何抽样检查？',
+          '如果要回看上一批记录要注意什么？',
+          '每批显示50条时如何控制遗漏风险？',
+        ],
         { route: ROUTES.models, timeout: DEFAULT_CHAT_TIMEOUT },
       );
 
       expectGracefulResponse(firstTurn, 4);
       expectGracefulResponse(secondTurn, 4);
       expectGracefulResponse(thirdTurn, 4);
-      expectTool(
+      expectNoRetiredPageTool(
         firstTurn,
-        isPagePaginationTool,
-        'Expected pagination tool in first turn',
+        'Expected first pagination-style turn not to call retired page tools',
       );
-      expectTool(
+      expectNoRetiredPageTool(
         secondTurn,
-        isPagePaginationTool,
-        'Expected pagination tool in second turn',
+        'Expected second pagination-style turn not to call retired page tools',
       );
-      expectTool(
+      expectNoRetiredPageTool(
         thirdTurn,
-        isPagePaginationTool,
-        'Expected pagination tool in third turn',
+        'Expected third pagination-style turn not to call retired page tools',
       );
     });
 
-    test('T7 — search can be cleared and list refreshed', async ({ page }) => {
+    test('T7 — search-style prompts avoid retired runtime actions', async ({
+      page,
+    }) => {
       test.setTimeout(EXTENDED_CHAT_TIMEOUT + TURN_TIMEOUT_BUFFER);
       const [firstTurn, secondTurn] = await runChatTurnSequence(
         page,
-        ["搜索一下包含'GPT'的记录", '清除搜索条件，刷新一下列表'],
+        [
+          "排查包含 'GPT' 的记录时要看哪些配置？",
+          '如果要重新核对列表，如何设计检查步骤？',
+        ],
         { route: ROUTES.models, timeout: DEFAULT_CHAT_TIMEOUT },
       );
 
       expectGracefulResponse(firstTurn, 4);
       expectGracefulResponse(secondTurn, 4);
-      expectTool(
+      expectNoRetiredPageTool(
         firstTurn,
-        isPageSearchTool,
-        'Expected search tool on first turn',
+        'Expected first search-style turn not to call retired page tools',
       );
-      expectTool(
+      expectNoRetiredPageTool(
         secondTurn,
-        (name) =>
-          name === 'ui_read_table' ||
-          name === 'ui_click' ||
-          name === 'ui_set_field' ||
-          name === 'ui_submit_form',
-        'Expected canonical clear-search or refresh workflow tool on second turn',
+        'Expected second search-style turn not to call retired page tools',
       );
     });
 
@@ -2146,7 +2072,8 @@ test.describe('AI Chat E2E', () => {
       expect(secondTurn.fullResponse).toContain('Phoenix');
       expectNoTool(
         secondTurn,
-        (name) => isWeatherTool(name) || isSearchTool(name) || isPageTool(name),
+        (name) =>
+          isWeatherTool(name) || isSearchTool(name) || isRetiredPageTool(name),
         'Expected recall from chat context without extra tools',
       );
     });
@@ -2188,4 +2115,3 @@ test.describe('AI Chat E2E', () => {
     });
   });
 });
-

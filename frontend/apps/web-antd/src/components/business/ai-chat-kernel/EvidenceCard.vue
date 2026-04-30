@@ -390,9 +390,6 @@ function getEvidenceIcon(kind: string) {
   if (kind === 'web') {
     return 'lucide:globe';
   }
-  if (kind === 'page') {
-    return 'lucide:monitor';
-  }
   if (kind === 'memory') {
     return 'lucide:brain';
   }

@@ -67,14 +67,6 @@ def intent_completion_contract(
                 "action_signals": [],
                 "verify_signals": [],
             }
-    if family == "page_ops":
-        return {
-            "mode": "retired",
-            "completion_signals": [],
-            "action_signals": [],
-            "verify_signals": [],
-            "retired_reason": "page_awareness_retired",
-        }
     return {
         "mode": "any_of",
         "completion_signals": list(allowed_tool_names or preferred_tool_names),
@@ -94,9 +86,21 @@ def deserialize_intent_plan(raw_intent_plan: Any) -> list[IntentPlan]:
         if not isinstance(raw_intent, dict):
             continue
         try:
-            intent_plan.append(IntentPlan(**raw_intent))
+            item = IntentPlan(**raw_intent)
         except TypeError:
             continue
+        if item.family == "page_ops":
+            item.family = "none"
+            item.requires_tools = False
+            item.status = "completed"
+            item.allowed_tool_names = []
+            item.preferred_tool_names = []
+            item.completion_signals = []
+            item.metadata = {
+                **dict(item.metadata or {}),
+                "retired_reason": "page_awareness_retired",
+            }
+        intent_plan.append(item)
     return intent_plan
 
 
@@ -164,15 +168,6 @@ def intent_completion_matches(
         intent_metadata=intent_metadata,
     )
     completion_signals = list(contract.get("completion_signals") or [])
-    mode = str(contract.get("mode") or "any_of").strip()
-    if family == "page_ops":
-        return []
-    if family != "page_ops" or mode == "any_of":
-        return _ordered_matching_tool_names(
-            completion_signals,
-            completed_tool_names,
-        )
-
     return _ordered_matching_tool_names(
         completion_signals,
         completed_tool_names,
@@ -214,18 +209,11 @@ def intent_completion_progress(
         verify_signals,
         completed_tool_names,
     )
-    workflow_stage = str((intent_metadata or {}).get("page_workflow_stage") or "").strip()
-    workflow_phase = str((intent_metadata or {}).get("page_workflow_phase") or "").strip()
-    workflow_goal = str((intent_metadata or {}).get("page_workflow_goal") or "").strip()
     mode = str(contract.get("mode") or "any_of").strip()
-    retired_page_ops = family == "page_ops"
-    continuation_required = False if retired_page_ops else not bool(completion_matches)
-    status = "retired" if retired_page_ops else ("completed" if completion_matches else "pending")
+    continuation_required = not bool(completion_matches)
+    status = "completed" if completion_matches else "pending"
     return {
         "mode": mode,
-        "workflow_stage": workflow_stage,
-        "workflow_phase": workflow_phase,
-        "workflow_goal": workflow_goal,
         "completion_signals": completion_signals,
         "action_signals": action_signals,
         "verify_signals": verify_signals,

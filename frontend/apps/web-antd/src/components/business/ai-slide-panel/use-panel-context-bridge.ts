@@ -30,7 +30,6 @@ interface UsePanelContextBridgeOptions {
     persist: boolean,
   ) => void;
   clearMentionedAgent: () => void;
-  clearResolvedToolActions: () => void;
   chatMessages: Ref<ArrayLike<unknown>>;
   consumePendingAgentId: () => null | number;
   ensureAgentVarsLoaded: (agentId: number) => void;
@@ -305,7 +304,6 @@ export function usePanelContextBridge(options: UsePanelContextBridgeOptions) {
       return;
     }
 
-    options.clearResolvedToolActions();
     const pendingAgentId = consumeQueuedPendingAgentId();
     options.forceRerouteNextTurn.value = false;
     openingPanelContext.value = true;
@@ -349,7 +347,6 @@ export function usePanelContextBridge(options: UsePanelContextBridgeOptions) {
       return;
     }
 
-    options.clearResolvedToolActions();
     await options.loadAgents();
     await options.loadConversations();
     await applyExternalContext();

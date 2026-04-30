@@ -7,9 +7,7 @@ from typing import Any
 from app.ai.types import ChatMessage
 
 from .base_helpers import (
-    parse_tool_arguments,
     tool_call_name,
-    tool_call_operation_name,
 )
 
 
@@ -167,8 +165,6 @@ def extract_recent_research_instruction_texts(
 def extract_latest_turn_runtime_facts(messages: list[ChatMessage]) -> dict[str, Any]:
     facts: dict[str, Any] = {
         "last_tool_name": "",
-        "last_page_key": "",
-        "last_page_op": "",
         "active_intent_kind": None,
     }
 
@@ -220,29 +216,13 @@ def extract_latest_turn_runtime_facts(messages: list[ChatMessage]) -> dict[str, 
                     break
         if not facts["last_tool_name"]:
             facts["last_tool_name"] = _candidate_text(candidates, "last_tool_name")
-        if not facts["last_page_key"]:
-            facts["last_page_key"] = _candidate_text(candidates, "last_page_key")
-        if not facts["last_page_op"]:
-            facts["last_page_op"] = _candidate_text(candidates, "last_page_op")
 
         for tool_call in reversed(message.tool_calls or []):
             if tool_call.get("success") is not True:
                 continue
             if not facts["last_tool_name"]:
                 facts["last_tool_name"] = tool_call_name(tool_call)
-            if not facts["last_page_op"]:
-                facts["last_page_op"] = tool_call_operation_name(tool_call)
-            if not facts["last_page_key"]:
-                arguments = parse_tool_arguments(
-                    (tool_call.get("function") or {}).get("arguments")
-                )
-                facts["last_page_key"] = str(arguments.get("page_key") or "").strip()
-            if (
-                facts["last_tool_name"]
-                and facts["last_page_op"]
-                and facts["last_page_key"]
-                and facts["active_intent_kind"]
-            ):
+            if facts["last_tool_name"] and facts["active_intent_kind"]:
                 return facts
         if facts["last_tool_name"] and facts["active_intent_kind"]:
             return facts

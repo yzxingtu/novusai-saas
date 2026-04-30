@@ -26,6 +26,7 @@ from app.ai.tools.security import (
     OutputSanitizer,
     ToolSecurityError,
 )
+from app.ai.tools.semantic_defaults import is_retired_page_tool_name
 from app.ai.tools.types import ExecutionContext, ToolDefinition, ToolResult
 from app.core.i18n import _
 from app.core.logging import LogManager
@@ -40,25 +41,6 @@ if TYPE_CHECKING:
     from app.models.ai.agent import Agent
 
 logger = LogManager.get_logger("ai.tool.sandbox")
-
-_RETIRED_PAGE_TOOL_NAMES = frozenset(
-    {
-        "editor_ops",
-        "get_page_context",
-        "invoke_page_operation",
-        "list_page_operations",
-    }
-)
-
-
-def _is_retired_page_tool_name(name: str) -> bool:
-    normalized = str(name or "").strip()
-    return (
-        normalized.startswith("ui_")
-        or normalized.startswith("pageop_")
-        or normalized in _RETIRED_PAGE_TOOL_NAMES
-    )
-
 
 @dataclass
 class SandboxConfig:
@@ -221,7 +203,7 @@ class ToolSandbox:
         event_bus = get_event_bus()
         hook_registry = get_hook_registry()
 
-        if _is_retired_page_tool_name(name):
+        if is_retired_page_tool_name(name):
             return ToolResult(
                 tool_call_id=tool_call_id,
                 name=name,

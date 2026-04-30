@@ -66,76 +66,6 @@ def _collect_completed_output_parts(
     return completed_results, completed_labels
 
 
-def _active_unfinished_page_workflow(
-    intents: list[IntentPlan],
-) -> dict[str, str] | None:
-    for intent in intents:
-        if intent.family != "page_ops" or intent.status in {
-            "completed",
-            "failed",
-            "skipped",
-        }:
-            continue
-        metadata = dict(intent.metadata or {})
-        progress = (
-            dict(metadata.get("page_workflow_progress") or {})
-            if isinstance(metadata.get("page_workflow_progress"), dict)
-            else {}
-        )
-        if not progress and not any(
-            str(metadata.get(key) or "").strip()
-            for key in (
-                "page_workflow_stage",
-                "page_workflow_phase",
-                "page_workflow_goal",
-            )
-        ):
-            continue
-        return {
-            "label": str(intent.user_visible_label or "").strip(),
-            "kind": str(metadata.get("page_workflow_kind") or "page_workflow").strip()
-            or "page_workflow",
-            "phase": str(metadata.get("page_workflow_phase") or "").strip(),
-            "goal": str(metadata.get("page_workflow_goal") or "").strip(),
-            "status": str(progress.get("status") or "").strip(),
-        }
-    return None
-
-
-def _page_workflow_pending_phrase(workflow: dict[str, str] | None) -> str:
-    if workflow is None:
-        return ""
-    status = str(workflow.get("status") or "").strip()
-    goal = str(workflow.get("goal") or "").strip()
-    phase = str(workflow.get("phase") or "").strip()
-
-    if status == "discover_pending":
-        return _("还停在定位页面入口这一步")
-    if status == "action_pending":
-        if goal == "navigation":
-            return _("还停在页面跳转这一步")
-        if goal == "pagination":
-            return _("还停在翻页这一步")
-        if goal == "row_detail":
-            return _("还停在打开详情这一步")
-        return _("还停在页面操作这一步")
-    if status == "verify_pending":
-        if goal == "navigation":
-            return _("还需要确认页面是否已经切换成功")
-        if goal == "row_detail":
-            return _("还需要继续核验详情内容")
-        return _("还需要继续核验页面结果")
-    if status == "read_pending" or phase == "read":
-        return _("还需要继续读取页面内容")
-    if status == "write_pending" or phase == "write":
-        return _("还需要继续填写页面内容")
-    if status == "submit_pending" or phase == "submit":
-        return _("还需要继续提交页面变更")
-    if status == "awaiting_consent":
-        return _("正在等待你的确认")
-    return _("还没有完成")
-
-
 def _should_surface_unfinished_partial_result(
     intent: IntentPlan,
     *,
@@ -164,48 +94,7 @@ def build_recovery_message(
         for intent in intents
         if intent.intent_id in decision.unfinished_intent_ids
     ]
-    target_intent = next(
-        (intent for intent in intents if intent.intent_id == decision.target_intent_id),
-        None,
-    )
     breach_guidance = "Only finish the remaining intent(s) listed below.\n"
-    if (
-        target_intent is not None
-        and str(target_intent.family or "").strip() == "page_ops"
-    ):
-        metadata = dict(target_intent.metadata or {})
-        workflow_phase = str(metadata.get("page_workflow_phase") or "").strip()
-        workflow_goal = str(metadata.get("page_workflow_goal") or "").strip()
-        completion = (
-            dict(metadata.get("page_workflow_completion") or {})
-            if isinstance(metadata.get("page_workflow_completion"), dict)
-            else {}
-        )
-        verify_signals = [
-            str(name or "").strip()
-            for name in list(completion.get("verify_signals") or [])
-            if str(name or "").strip()
-        ]
-        action_signals = [
-            str(name or "").strip()
-            for name in list(completion.get("action_signals") or [])
-            if str(name or "").strip()
-        ]
-        lines = ["Continue the same page workflow only."]
-        if workflow_phase:
-            lines.append(f"Workflow phase: {workflow_phase}.")
-        if workflow_goal:
-            lines.append(f"Workflow goal: {workflow_goal}.")
-        if action_signals:
-            lines.append(f"Action signals: {', '.join(action_signals)}.")
-        if verify_signals:
-            lines.append(f"Verify signals: {', '.join(verify_signals)}.")
-        if decision.allowed_tool_names:
-            lines.append(
-                f"Allowed tools for this recovery: {', '.join(decision.allowed_tool_names)}."
-            )
-        lines.append("Only finish the remaining intent(s) listed below.")
-        breach_guidance = "\n".join(lines).strip() + "\n"
     return ChatMessage(
         role="system",
         content=render_prompt_contract(
@@ -294,7 +183,6 @@ def build_partial_output(
     unfinished_results: list[str] = []
     unfinished_labels: list[str] = []
     retry_budget_exhausted = reason == "retry_budget_exhausted"
-    active_page_workflow = _active_unfinished_page_workflow(intents)
 
     for intent in intents:
         if intent.status == "completed":
@@ -343,85 +231,40 @@ def build_partial_output(
 
     unfinished_summary = "、".join(unfinished_labels)
     if unfinished_summary:
-        page_pending_phrase = (
-            _page_workflow_pending_phrase(active_page_workflow)
-            if active_page_workflow is not None and len(unfinished_labels) == 1
-            else ""
-        )
         if provider_failure_kind == "tool_timeout":
-            if page_pending_phrase:
-                parts.append(
-                    _("{unfinished}{pending}，你可以稍后再问。").format(
-                        unfinished=unfinished_summary,
-                        pending=page_pending_phrase,
-                    )
+            parts.append(
+                _("{unfinished}暂时超时了，你可以稍后再问。").format(
+                    unfinished=unfinished_summary
                 )
-            else:
-                parts.append(
-                    _("{unfinished}暂时超时了，你可以稍后再问。").format(
-                        unfinished=unfinished_summary
-                    )
-                )
+            )
         elif (
             provider_failure_kind == "budget_exit"
             or is_budget_exit_reason(reason)
             or retry_budget_exhausted
         ):
-            if page_pending_phrase:
-                parts.append(
-                    _("{unfinished}{pending}，我先把目前能确认的内容给你。").format(
-                        unfinished=unfinished_summary,
-                        pending=page_pending_phrase,
-                    )
-                )
-            else:
-                parts.append(
-                    _(
-                        "{unfinished}还需要继续核验，我先把目前能确认的内容给你。"
-                    ).format(unfinished=unfinished_summary)
-                )
+            parts.append(
+                _(
+                    "{unfinished}还需要继续核验，我先把目前能确认的内容给你。"
+                ).format(unfinished=unfinished_summary)
+            )
         elif is_terminal_failure_kind(provider_failure_kind):
-            if page_pending_phrase:
-                parts.append(
-                    _("{unfinished}{pending}，但这轮被系统中断了，请稍后再试。").format(
-                        unfinished=unfinished_summary,
-                        pending=page_pending_phrase,
-                    )
+            parts.append(
+                _("{unfinished}被系统中断了，请稍后再试。").format(
+                    unfinished=unfinished_summary
                 )
-            else:
-                parts.append(
-                    _("{unfinished}被系统中断了，请稍后再试。").format(
-                        unfinished=unfinished_summary
-                    )
-                )
+            )
         elif provider_failure_kind != "none":
-            if page_pending_phrase:
-                parts.append(
-                    _("{unfinished}{pending}，但这轮被暂时中断了，请稍后再试。").format(
-                        unfinished=unfinished_summary,
-                        pending=page_pending_phrase,
-                    )
+            parts.append(
+                _("{unfinished}被暂时中断了，请稍后再试。").format(
+                    unfinished=unfinished_summary
                 )
-            else:
-                parts.append(
-                    _("{unfinished}被暂时中断了，请稍后再试。").format(
-                        unfinished=unfinished_summary
-                    )
-                )
+            )
         else:
-            if page_pending_phrase:
-                parts.append(
-                    _("{unfinished}{pending}。如果你愿意，我可以继续。").format(
-                        unfinished=unfinished_summary,
-                        pending=page_pending_phrase,
-                    )
+            parts.append(
+                _("{unfinished}还没有完成。如果你愿意，我可以继续。").format(
+                    unfinished=unfinished_summary
                 )
-            else:
-                parts.append(
-                    _("{unfinished}还没有完成。如果你愿意，我可以继续。").format(
-                        unfinished=unfinished_summary
-                    )
-                )
+            )
     if parts:
         return " ".join(part.strip() for part in parts if part.strip())
     if (

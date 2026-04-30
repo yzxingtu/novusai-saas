@@ -12,7 +12,7 @@ from .base_helpers import (
     tool_call_name,
     tool_call_operation_name,
     truncate_preview,
-    truncate_tool_calls_after_navigation,
+    keep_tool_calls_for_round,
 )
 from .base_prompt_contract_support import BasePromptContractSupportMixin
 from .base_prompt_llm_support import BasePromptLLMSupportMixin
@@ -34,9 +34,7 @@ class BaseEnginePromptSupport(
     _parse_tool_arguments = staticmethod(parse_tool_arguments)
     _tool_call_operation_name = staticmethod(tool_call_operation_name)
     _tool_call_name = staticmethod(tool_call_name)
-    _truncate_tool_calls_after_navigation = staticmethod(
-        truncate_tool_calls_after_navigation
-    )
+    _keep_tool_calls_for_round = staticmethod(keep_tool_calls_for_round)
     _truncate_preview = staticmethod(truncate_preview)
     _stable_unique_text_list = staticmethod(stable_unique_text_list)
     _messages_to_dicts = staticmethod(messages_to_dicts)

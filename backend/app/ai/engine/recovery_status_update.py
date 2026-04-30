@@ -60,7 +60,7 @@ def update_intent_statuses(
             preferred_tool_names=list(clone.preferred_tool_names or []),
             intent_metadata=clone.metadata,
         )
-        if clone.family == "page_ops" or normalized_completion_signals:
+        if normalized_completion_signals:
             clone.completion_signals = list(normalized_completion_signals)
         completion_matches = resolve_intent_completion_matches(
             clone.family,
@@ -78,11 +78,6 @@ def update_intent_statuses(
             preferred_tool_names=list(clone.preferred_tool_names or []),
             intent_metadata=clone.metadata,
         )
-        if clone.family == "page_ops":
-            clone.metadata["page_workflow_progress"] = dict(completion_progress)
-            clone.metadata["page_workflow_continuation_required"] = bool(
-                completion_progress.get("continuation_required")
-            )
         completion_signals = set(clone.completion_signals or clone.allowed_tool_names)
         if clone.family == "none" or not clone.requires_tools:
             clone.status = "completed"
@@ -142,16 +137,6 @@ def update_intent_statuses(
             clone.cached_result = None
             clone.completed_by_tool_names = []
             clone.metadata["pending_consent"] = dict(pending_payload)
-            if clone.family == "page_ops":
-                progress = (
-                    dict(clone.metadata.get("page_workflow_progress") or {})
-                    if isinstance(clone.metadata.get("page_workflow_progress"), dict)
-                    else {}
-                )
-                progress["status"] = "awaiting_consent"
-                progress["continuation_required"] = True
-                clone.metadata["page_workflow_progress"] = progress
-                clone.metadata["page_workflow_continuation_required"] = True
             pending_consent_assigned = True
 
         updated.append(clone)

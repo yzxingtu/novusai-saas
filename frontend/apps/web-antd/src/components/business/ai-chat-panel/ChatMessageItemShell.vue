@@ -1,5 +1,4 @@
 <script lang="ts" setup>
-import type { PendingToolActionForDisplay } from './pending-tool-action';
 import type {
   AgentKnowledgeBaseBindingsByAgentId,
   AgentKnowledgeBaseBindingSummary,
@@ -19,8 +18,6 @@ const props = withDefaults(
     agents?: AgentItem[];
     apiPrefix?: string;
     compact?: boolean;
-    /** Current timestamp for 60s countdown display (fallback: local now) / 用于 60s 倒计时的当前时间戳 */
-    countdownNow?: number;
     forceShowDiagnostics?: boolean;
     agentKnowledgeBases?: AgentKnowledgeBaseBindingSummary[] | null;
     agentKnowledgeBaseMap?: AgentKnowledgeBaseBindingsByAgentId | null;
@@ -28,22 +25,18 @@ const props = withDefaults(
     index: number;
     kernelState?: null | TurnFlowState;
     msg: ChatMessage;
-    /** Pending tool actions for this message (filtered by toolCallId) / 本消息关联的待确认工具动作 */
-    pendingOps?: PendingToolActionForDisplay[];
     selectedAgent?: AgentItem | null;
   }>(),
   {
     apiPrefix: '',
     agents: () => [],
     compact: false,
-    countdownNow: undefined,
     forceShowDiagnostics: false,
     agentKnowledgeBases: null,
     agentKnowledgeBaseMap: null,
     agentSkillMap: null,
     kernelState: null,
     selectedAgent: null,
-    pendingOps: () => [],
   },
 );
 

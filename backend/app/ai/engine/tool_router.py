@@ -103,13 +103,6 @@ class ToolRouter:
                 )
                 continue
 
-            if intent.family == "page_ops":
-                # Page-awareness/page-operation routing is retired for the new
-                # system. Even manually supplied legacy intents must not regain
-                # tool candidates through router fallback.
-                register(intent, [], [])
-                continue
-
             if intent.kind == "knowledge_query":
                 register(intent, [])
 

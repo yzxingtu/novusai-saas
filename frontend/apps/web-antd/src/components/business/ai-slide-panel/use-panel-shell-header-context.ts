@@ -22,7 +22,6 @@ interface UsePanelShellHeaderContextOptions {
   apiPrefix: Ref<string>;
   chatMessages: Ref<ChatMessage[]>;
   clearConversationMemory: () => boolean | Promise<boolean>;
-  clearResolvedToolActions: () => void;
   consumePendingAgentId: () => null | number;
   conversations: Ref<Array<{ agent_name?: null | string; id: number }>>;
   ensureAgentVarsLoaded: (agentId: number) => void;
@@ -115,7 +114,6 @@ export function usePanelShellHeaderContext(
     allAgentsVariables: options.allAgentsVariables,
     applyVariables: options.applyVariables,
     clearMentionedAgent: () => {},
-    clearResolvedToolActions: options.clearResolvedToolActions,
     chatMessages: options.chatMessages,
     consumePendingAgentId: options.consumePendingAgentId,
     ensureAgentVarsLoaded: options.ensureAgentVarsLoaded,

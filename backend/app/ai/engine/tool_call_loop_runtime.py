@@ -60,16 +60,12 @@ class ToolCallLoopRuntime:
 @dataclass(slots=True)
 class ToolCallLoopCallbacks:
     ordered_requested_families_from_intents: Callable[..., list[str]]
-    truncate_tool_calls_after_navigation: Callable[
+    keep_tool_calls_for_round: Callable[
         [list[dict[str, Any]]],
         tuple[list[dict[str, Any]], bool],
     ]
     mark_multi_family_progress: Callable[..., None]
     budget_exit_response: Callable[[int], ChatResponse]
-    build_page_no_progress_recovery: Callable[
-        ...,
-        tuple[list[str], dict[str, Any]],
-    ]
     messages_have_blocking_pending_interaction: Callable[
         [list[ChatMessage]],
         bool,
@@ -117,32 +113,19 @@ def _budget_exit_tuple(
     )
 
 
-def _truncate_round_tool_calls(
+def _prepare_round_tool_calls(
     *,
     session: ToolLoopSession,
     tool_calls: list[dict[str, Any]],
-    truncate_tool_calls_after_navigation: Callable[
+    keep_tool_calls_for_round: Callable[
         [list[dict[str, Any]]],
         tuple[list[dict[str, Any]], bool],
     ],
 ) -> list[dict[str, Any]]:
-    truncated_tool_calls, truncated_after_navigation = (
-        truncate_tool_calls_after_navigation(tool_calls)
-    )
-    if truncated_after_navigation:
-        session.current_response.tool_calls = truncated_tool_calls
-        logger.info(
-            "Truncated assistant tool call batch after navigation op to avoid stale page follow-up calls: {}",
-            [
-                str(
-                    (tool_call.get("function") or {}).get("name")
-                    or tool_call.get("name")
-                    or ""
-                )
-                for tool_call in truncated_tool_calls
-            ],
-        )
-    return truncated_tool_calls
+    prepared_tool_calls, changed = keep_tool_calls_for_round(tool_calls)
+    if changed:
+        session.current_response.tool_calls = prepared_tool_calls
+    return prepared_tool_calls
 
 
 def _append_assistant_tool_call_message(
@@ -219,7 +202,6 @@ async def _execute_round(
         round_tool_results=round_state.round_tool_results,
         all_tools=session.all_tools_full,
         input_variables=runtime.request.input_variables,
-        build_page_no_progress_recovery=callbacks.build_page_no_progress_recovery,
         messages_have_blocking_pending_interaction=callbacks.messages_have_blocking_pending_interaction,
         first_incomplete_requested_family=callbacks.first_incomplete_requested_family,
         allowed_tool_names_for_family=callbacks.allowed_tool_names_for_family,
@@ -342,10 +324,10 @@ async def run_tool_call_loop(
                 session=session,
                 budget_exit_response=callbacks.budget_exit_response,
             )
-        tool_calls = _truncate_round_tool_calls(
+        tool_calls = _prepare_round_tool_calls(
             session=session,
             tool_calls=tool_calls,
-            truncate_tool_calls_after_navigation=callbacks.truncate_tool_calls_after_navigation,
+            keep_tool_calls_for_round=callbacks.keep_tool_calls_for_round,
         )
         _append_assistant_tool_call_message(
             processor=processor,

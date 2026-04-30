@@ -23,6 +23,7 @@ from app.ai.text_semantics import (
 )
 from app.ai.tools.semantic_defaults import (
     FAMILY_EXPLICIT_REQUEST_HINTS,
+    is_retired_page_tool_name,
     tool_semantic_family,
     tool_semantic_tags,
 )
@@ -434,6 +435,12 @@ def optimize_tools(
     Returns:
         OptimizeResult
     """
+    tools = [
+        tool
+        for tool in tools
+        if not is_retired_page_tool_name(tool.name)
+        and str(getattr(tool, "semantic_family", "") or "").strip() != "page_ops"
+    ]
     total = len(tools)
     query_text = user_query.lower()
     query_tokens = _tokenize(user_query)

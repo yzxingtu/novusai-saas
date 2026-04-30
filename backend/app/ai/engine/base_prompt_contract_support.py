@@ -30,17 +30,9 @@ from .tool_contract_retry_helpers import (
 )
 
 
-def _build_page_no_progress_recovery_default_impl(*args, **kwargs):
-    del args, kwargs
-    return [], {}
-
-
 class BasePromptContractSupportMixin:
     """Binds contract diagnostics and recovery helpers onto BaseEngine."""
 
-    _build_page_no_progress_recovery = staticmethod(
-        _build_page_no_progress_recovery_default_impl
-    )
     _build_post_tool_retry_policy = staticmethod(_build_post_tool_retry_policy_impl)
     _analyze_post_tool_contract_breach = staticmethod(
         _analyze_post_tool_contract_breach_impl

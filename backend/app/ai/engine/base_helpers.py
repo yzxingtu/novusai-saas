@@ -38,12 +38,9 @@ def tool_call_operation_name(tool_call: dict[str, Any]) -> str:
     return tool_call_name(tool_call)
 
 
-def truncate_tool_calls_after_navigation(
+def keep_tool_calls_for_round(
     tool_calls: list[dict[str, Any]],
-    *,
-    navigation_operation_names: set[str],
 ) -> tuple[list[dict[str, Any]], bool]:
-    del navigation_operation_names
     return tool_calls, False
 
 

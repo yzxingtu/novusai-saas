@@ -13,7 +13,6 @@ import { usePanelHistory } from './use-panel-history';
 import { usePanelSendMessage } from './use-panel-send-message';
 import { usePanelShellActions } from './use-panel-shell-actions';
 import { usePanelShellContext } from './use-panel-shell-context';
-import { usePendingToolActions } from './use-pending-tool-actions';
 
 export interface AIChatSlidePanelShellProps {
   apiPrefix: string;
@@ -144,12 +143,6 @@ export function useAIChatSlidePanelShell(
     loadAgentSkillBindings,
   } = chat;
 
-  const { countdownNow, getPendingOpsForMessage, unassociatedPendingOps } =
-    usePendingToolActions({
-      chatMessages,
-      pendingToolActions: toRef(aiPanelStore, 'pendingToolActions'),
-    });
-
   const exportMenuItems = computed(() => [
     {
       key: 'md',
@@ -180,7 +173,6 @@ export function useAIChatSlidePanelShell(
     apiPrefix,
     chatMessages,
     clearConversationMemory,
-    clearResolvedToolActions: () => aiPanelStore.clearResolvedToolActions?.(),
     consumePendingAgentId: () => aiPanelStore.consumePendingAgentId() ?? null,
     conversations,
     ensureAgentVarsLoaded,
@@ -269,7 +261,6 @@ export function useAIChatSlidePanelShell(
   }
 
   const history = usePanelHistory({
-    clearResolvedToolActions: aiPanelStore.clearResolvedToolActions,
     clearRoutingIntent,
     conversations,
     deleteConversation,
@@ -313,7 +304,6 @@ export function useAIChatSlidePanelShell(
     chatAcceptAttribute,
     chatMessages,
     cleanup,
-    clearResolvedToolActions: aiPanelStore.clearResolvedToolActions,
     clearingMemory,
     commitEditTitle: history.commitEditTitle,
     confirmAction,
@@ -323,7 +313,6 @@ export function useAIChatSlidePanelShell(
     conversations,
     conversationsLoading,
     copyMessage,
-    countdownNow,
     editAndResend,
     editingConversationId: history.editingConversationId,
     editingTitle: history.editingTitle,
@@ -332,7 +321,6 @@ export function useAIChatSlidePanelShell(
     ensureAgentVarsLoaded,
     exportMenuItems,
     forceRerouteNextTurn,
-    getPendingOpsForMessage,
     groupedConversations: history.groupedConversations,
     handleClose: shellActions.handleClose,
     handleDragOver,
@@ -381,8 +369,6 @@ export function useAIChatSlidePanelShell(
     rejectConsent,
     removePendingAttachment,
     removeSelectedKnowledgeBase,
-    resolvePendingAction: (invokeId: string, allowed: boolean) =>
-      aiPanelStore.resolveToolAction(invokeId, allowed),
     retryLastMessage,
     routeNotice,
     routing,
@@ -411,7 +397,6 @@ export function useAIChatSlidePanelShell(
     timelineLoading,
     timelineRefreshing,
     totalTokensUsed,
-    unassociatedPendingOps,
     uploadUrl,
     uploading,
   });

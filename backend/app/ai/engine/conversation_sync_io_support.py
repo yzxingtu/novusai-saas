@@ -91,8 +91,8 @@ async def handle_sync_tool_calls(
     _ = agent, selected_skill_names, context_sources
     active_runtime_contract = runtime_contract or build_stream_runtime_contract(engine)
     tool_calls = list(response.tool_calls or response.message.tool_calls or [])
-    tool_calls, _truncated_after_navigation = (
-        active_runtime_contract.truncate_tool_calls_after_navigation(tool_calls)
+    tool_calls, _unchanged = active_runtime_contract.keep_tool_calls_for_round(
+        tool_calls
     )
 
     state = get_current_execution_state_machine()

@@ -6,32 +6,14 @@
  */
 import type { AIPageMode } from '@vben/types';
 
-import { computed, ref, watchEffect } from 'vue';
+import { computed } from 'vue';
 import { useRoute } from 'vue-router';
 
 import { useAIPermission } from './use-ai-permission';
 
-export interface AIRouteSecurityPolicy {
-  confirmActionKinds?: string[];
-  disabledActionKinds?: string[];
-  enabled?: boolean;
-}
-
 type RouteAIMeta = {
   mode?: AIPageMode | string;
 };
-
-export interface CurrentPageAIExecutionPolicy {
-  mode: AIPageMode;
-}
-
-export const currentPageAIExecutionPolicy = ref<CurrentPageAIExecutionPolicy>({
-  mode: 'enabled',
-});
-
-export const currentRouteAISecurityPolicy = ref<AIRouteSecurityPolicy>({
-  enabled: true,
-});
 
 function normalizeAIMode(mode: unknown): AIPageMode {
   return String(mode ?? '')
@@ -57,17 +39,6 @@ export function useCurrentPageAIPolicy() {
     aiEnabled.value ? 'enabled' : 'disabled',
   );
 
-  watchEffect(() => {
-    currentPageAIExecutionPolicy.value = {
-      mode: effectiveMode.value,
-    };
-    currentRouteAISecurityPolicy.value = {
-      enabled: aiEnabled.value,
-      confirmActionKinds: [],
-      disabledActionKinds: [],
-    };
-  });
-
   return {
     aiEnabled,
     canChat,
@@ -77,6 +48,5 @@ export function useCurrentPageAIPolicy() {
     pageDisabled,
     pageMode,
     resource,
-    routeSecurityPolicy: computed(() => currentRouteAISecurityPolicy.value),
   };
 }

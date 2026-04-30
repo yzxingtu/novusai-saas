@@ -62,8 +62,6 @@ def _map_legacy_rag_kind(raw_kind: Any) -> str:
     kind = str(raw_kind or "").strip().lower()
     if kind in {"web", "web_search"}:
         return "web"
-    if kind in {"page", "page_read", "page_write", "page_runtime"}:
-        return "page"
     if kind in {"memory", "long_term_memory", "session_memory"}:
         return "memory"
     if kind in {"tool", "tool_call"}:
@@ -544,20 +542,6 @@ def extract_turn_diagnostics_from_metadata(
         context_diagnostics.get("last_tool_name"),
         last_run_summary.get("last_tool_name"),
     )
-    last_page_key = _pick_string(
-        (turn_record or {}).get("last_page_key"),
-        metadata.get("last_page_key"),
-        turn_record_diagnostics.get("last_page_key"),
-        context_diagnostics.get("last_page_key"),
-        last_run_summary.get("last_page_key"),
-    )
-    last_page_op = _pick_string(
-        (turn_record or {}).get("last_page_op"),
-        metadata.get("last_page_op"),
-        turn_record_diagnostics.get("last_page_op"),
-        context_diagnostics.get("last_page_op"),
-        last_run_summary.get("last_page_op"),
-    )
     interrupted_stage = _pick_string(
         (turn_record or {}).get("interrupted_stage"),
         metadata.get("interrupted_stage"),
@@ -826,8 +810,6 @@ def extract_turn_diagnostics_from_metadata(
         "failure_kind": failure_kind,
         "provider_events": provider_events,
         "last_tool_name": last_tool_name,
-        "last_page_key": last_page_key,
-        "last_page_op": last_page_op,
         "interrupted_stage": interrupted_stage,
         "tool_loop_progress": tool_loop_progress,
         "sync_rescue": sync_rescue,

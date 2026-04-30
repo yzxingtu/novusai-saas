@@ -36,7 +36,6 @@ function formatContextSourceKindLabel(kind: string): string {
   switch (kind) {
     case 'knowledge_base':
     case 'memory':
-    case 'page':
     case 'tool':
     case 'web': {
       return $t(`common.globalAiChat.turnEvidenceKind.${kind}`);

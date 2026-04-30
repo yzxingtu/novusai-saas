@@ -13,7 +13,6 @@ class ExecutionDecisionTypeEnum(LabeledStrEnum):
 class ExecutionDecisionSubjectEnum(LabeledStrEnum):
     TOOL_CALL = ("tool_call", "")
     DATA_ACTION = ("data_action", "")
-    PAGE_OPERATION = ("page_operation", "")
 
 
 class ExecutionDecisionStatusEnum(LabeledStrEnum):

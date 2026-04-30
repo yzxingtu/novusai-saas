@@ -50,6 +50,11 @@
   impersonation, translated response assembly, or other business flows. Move
   those seams into `*_workflow_service.py`, `*_query_service.py`, or a shared
   serializer module outside the controller file.
+- AI dialogue backend paths must not accept, normalize, project, or preserve
+  page-awareness fields such as `page_context`, `page_session_id`, `page_data`,
+  `ui_*`, or `pageop_*`. When AI needs business data for analysis, expose it
+  through explicit read-model/query APIs, report/export artifacts, or
+  permissioned skill-pack tools instead of DOM/page perception compatibility.
 - Treat `app/api/**` as transport-only. Any new `db.execute(...)`,
   `session.execute(...)`, raw `select(...)` assembly, or controller-local query
   helper is a design violation by default and must be moved into

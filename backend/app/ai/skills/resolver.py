@@ -126,7 +126,11 @@ class SkillResolveResult:
     def selected_tool_names(self) -> list[str]:
         activation = self.turn_activation
         if activation is not None and activation.applied:
-            return list(activation.activated_tool_names or [])
+            return [
+                name
+                for name in list(activation.activated_tool_names or [])
+                if not is_retired_page_tool_name(name)
+            ]
         return self.inventory_selected_tool_names
 
 

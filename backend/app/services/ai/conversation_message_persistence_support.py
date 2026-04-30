@@ -155,8 +155,6 @@ def build_turn_persistence_context(
         "unfinished_intents",
         "leaked_tool_names",
         "last_tool_name",
-        "last_page_key",
-        "last_page_op",
         "interrupted_stage",
         "tool_loop_progress",
     ):
@@ -232,8 +230,6 @@ def build_turn_persistence_context(
         "unfinished_intents",
         "leaked_tool_names",
         "last_tool_name",
-        "last_page_key",
-        "last_page_op",
         "interrupted_stage",
         "tool_loop_progress",
     ):

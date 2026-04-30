@@ -37,7 +37,6 @@ const TURN_FLOW_STAGE_STATUS_SET = new Set<TurnFlowStageStatus>([
 const TURN_FLOW_EVIDENCE_KIND_SET = new Set<TurnFlowEvidenceKind>([
   'knowledge_base',
   'memory',
-  'page',
   'tool',
   'web',
 ]);

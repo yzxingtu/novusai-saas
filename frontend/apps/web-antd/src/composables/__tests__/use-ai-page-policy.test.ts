@@ -44,7 +44,7 @@ describe('useCurrentPageAIPolicy', () => {
     vi.clearAllMocks();
   });
 
-  it('keeps AI enabled by default and records an enabled global policy', async () => {
+  it('keeps AI enabled by default', async () => {
     const scope = effectScope();
     const module = await import('../use-ai-page-policy');
 
@@ -56,14 +56,6 @@ describe('useCurrentPageAIPolicy', () => {
 
     expect(policy.aiEnabled.value).toBe(true);
     expect(policy.effectiveMode.value).toBe('enabled');
-    expect(module.currentPageAIExecutionPolicy.value).toEqual({
-      mode: 'enabled',
-    });
-    expect(module.currentRouteAISecurityPolicy.value).toEqual({
-      enabled: true,
-      confirmActionKinds: [],
-      disabledActionKinds: [],
-    });
 
     scope.stop();
   });
@@ -86,9 +78,6 @@ describe('useCurrentPageAIPolicy', () => {
     expect(policy.aiEnabled.value).toBe(false);
     expect(policy.pageDisabled.value).toBe(true);
     expect(policy.effectiveMode.value).toBe('disabled');
-    expect(module.currentPageAIExecutionPolicy.value).toEqual({
-      mode: 'disabled',
-    });
 
     scope.stop();
   });
@@ -106,7 +95,6 @@ describe('useCurrentPageAIPolicy', () => {
 
     expect(policy.aiEnabled.value).toBe(false);
     expect(policy.effectiveMode.value).toBe('disabled');
-    expect(module.currentRouteAISecurityPolicy.value.enabled).toBe(false);
 
     scope.stop();
   });

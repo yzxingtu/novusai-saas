@@ -41,12 +41,12 @@ describe('chat-message-turn-flow display helpers', () => {
             }),
             status: 'running',
             toolCallId: 'tool-call-1',
-            toolName: 'ui_query_records',
+            toolName: 'query_records',
           },
         ],
         timeline: [
           {
-            detailLines: ['**Inspect** current filters', 'Call ui_query_records'],
+            detailLines: ['**Inspect** current filters', 'Call query_records'],
             id: 'thinking-stage-1',
             status: 'running',
             type: 'thinking',
@@ -56,7 +56,7 @@ describe('chat-message-turn-flow display helpers', () => {
     };
 
     expect(getThinkingContentForDisplay(message)).toBe(
-      '**Inspect** current filters\n\nCall ui_query_records',
+      '**Inspect** current filters\n\nCall query_records',
     );
 
     expect(getTurnFlowForDisplay(message).timeline).toEqual([
@@ -72,7 +72,7 @@ describe('chat-message-turn-flow display helpers', () => {
       expect.objectContaining({
         arguments: { status: 'active' },
         id: 'tool-call-1',
-        name: 'ui_query_records',
+        name: 'query_records',
         output: JSON.stringify({
           rows: [{ name: 'Acme Supplier' }],
         }),

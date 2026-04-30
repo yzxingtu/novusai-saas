@@ -10,7 +10,6 @@ interface StarterAgentLike {
 }
 
 interface PanelStoreLike {
-  clearResolvedToolActions?: () => void;
   close: () => void;
   docked: boolean;
   minimize: () => void;
@@ -34,7 +33,6 @@ export function usePanelShellActions(options: UsePanelShellActionsOptions) {
   const panelRef = ref<HTMLElement | null>(null);
 
   function handleClose() {
-    aiPanelStore.clearResolvedToolActions?.();
     aiPanelStore.close();
   }
 

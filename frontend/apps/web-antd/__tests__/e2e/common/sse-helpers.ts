@@ -220,7 +220,6 @@ function withTimeout<T>(
 function detectRedundantSteps(toolCalls: ToolCallAudit[]) {
   const redundant: string[] = [];
   const seen = new Set<string>();
-  let sawFillForm = false;
 
   for (const toolCall of toolCalls) {
     const normalizedArgs = JSON.stringify(toolCall.arguments ?? {});
@@ -230,14 +229,6 @@ function detectRedundantSteps(toolCalls: ToolCallAudit[]) {
       redundant.push(`REDUNDANT:${toolCall.name}`);
     } else {
       seen.add(key);
-    }
-
-    if (toolCall.name === 'ui_fill_form') {
-      sawFillForm = true;
-    }
-
-    if (toolCall.name === 'ui_submit_form' && !sawFillForm) {
-      redundant.push('WRONG_ORDER:ui_submit_form_before_ui_fill_form');
     }
   }
 
@@ -286,9 +277,11 @@ async function fetchPersistedConversationSnapshot(
 ) {
   const pageUrl = new URL(page.url());
   const apiPrefix = resolveApiPrefixFromPath(pageUrl.pathname);
-  const response = await page.context().request.get(
-    `${pageUrl.origin}${apiPrefix}/ai/agent-chat/conversations/${conversationId}${suffix}`,
-  );
+  const response = await page
+    .context()
+    .request.get(
+      `${pageUrl.origin}${apiPrefix}/ai/agent-chat/conversations/${conversationId}${suffix}`,
+    );
   if (!response.ok()) {
     return null;
   }
@@ -423,7 +416,8 @@ function installChatStreamCapture() {
             record.done = true;
           })
           .catch((error: unknown) => {
-            record.error = error instanceof Error ? error.message : String(error);
+            record.error =
+              error instanceof Error ? error.message : String(error);
             record.lastUpdatedAt = Date.now();
             record.done = true;
           });
@@ -448,7 +442,8 @@ function installChatStreamCapture() {
               }
             }
           } catch (error: unknown) {
-            record.error = error instanceof Error ? error.message : String(error);
+            record.error =
+              error instanceof Error ? error.message : String(error);
             record.lastUpdatedAt = Date.now();
             record.done = true;
           }
@@ -763,9 +758,7 @@ export async function interceptChatSSE(
         page,
         conversationId,
       ).catch(() => null);
-      const persistedMessages = Array.isArray(
-        persistedSnapshot?.message_list,
-      )
+      const persistedMessages = Array.isArray(persistedSnapshot?.message_list)
         ? persistedSnapshot.message_list.filter(isJsonRecord)
         : [];
       for (
@@ -876,8 +869,12 @@ export async function interceptChatSSE(
               continue;
             }
             const contentCandidates = [
-              surface.querySelector('.assistant-message-body .assistant-content-block .markdown-render'),
-              surface.querySelector('.assistant-message-body .assistant-content-block'),
+              surface.querySelector(
+                '.assistant-message-body .assistant-content-block .markdown-render',
+              ),
+              surface.querySelector(
+                '.assistant-message-body .assistant-content-block',
+              ),
               surface.querySelector('.assistant-message-body'),
               surface.querySelector('.assistant-message-top'),
             ];

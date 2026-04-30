@@ -256,7 +256,6 @@ class DefaultContextCapabilityBridge(ContextCapabilityBridge):
                 or "session_memory" in context_source_kinds
                 or "long_term_memory" in context_source_kinds
             )
-            decision["page_injected"] = False
         except Exception as exc:
             diagnostics["capability_bundle_error"] = str(exc)
             logger.warning(

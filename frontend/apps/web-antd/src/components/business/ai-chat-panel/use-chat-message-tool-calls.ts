@@ -1,4 +1,3 @@
-import type { PendingToolActionForDisplay } from './pending-tool-action';
 import type { ToolDisplayItem } from './tool-call-utils';
 import type { ChatMessage, ToolCallEvent } from './types';
 
@@ -12,20 +11,17 @@ import {
   buildToolDisplayItems,
   getToolDisplayState as resolveToolDisplayState,
   getToolGroupSummary,
-  hasPendingOpArgs,
   shouldToolExpandByDefault,
 } from './chat-message-tool-call-display-helpers';
 
 interface UseChatMessageToolCallsProps {
   index: number;
   msg: ChatMessage;
-  pendingOps?: PendingToolActionForDisplay[];
 }
 
 export function useChatMessageToolCalls(props: UseChatMessageToolCallsProps) {
   const toolExpandedMap = ref<Record<number, boolean>>({});
   const toolRawExpandedMap = ref<Record<number, boolean>>({});
-  const pendingOpExpandedMap = ref<Record<string, boolean>>({});
 
   function isToolExpanded(
     tc: Pick<ToolCallEvent, 'status' | 'summaryPayload'>,
@@ -63,17 +59,6 @@ export function useChatMessageToolCalls(props: UseChatMessageToolCallsProps) {
     };
   }
 
-  function isPendingOpExpanded(invokeId: string) {
-    return Boolean(pendingOpExpandedMap.value[invokeId]);
-  }
-
-  function togglePendingOpExpand(invokeId: string) {
-    pendingOpExpandedMap.value = {
-      ...pendingOpExpandedMap.value,
-      [invokeId]: !pendingOpExpandedMap.value[invokeId],
-    };
-  }
-
   const toolCallsForDisplay = computed(
     () => getToolCallsForDisplay(props.msg) ?? [],
   );
@@ -89,7 +74,7 @@ export function useChatMessageToolCalls(props: UseChatMessageToolCallsProps) {
   function getToolDisplayState(
     tc: Pick<ToolCallEvent, 'id' | 'name' | 'status'>,
   ): 'executing' | 'waiting_confirm' {
-    return resolveToolDisplayState(tc, props.pendingOps);
+    return resolveToolDisplayState(tc);
   }
 
   /** Ticking now for "still running" countdown (8s+) */
@@ -159,13 +144,10 @@ export function useChatMessageToolCalls(props: UseChatMessageToolCallsProps) {
 
   return {
     getToolDisplayState,
-    hasPendingOpArgs,
-    isPendingOpExpanded,
     isToolExpanded,
     isToolGroupExpanded,
     isToolRawExpanded,
     now,
-    togglePendingOpExpand,
     toggleToolExpand,
     toggleToolGroupExpand,
     toggleToolRawExpand,

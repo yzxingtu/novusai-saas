@@ -2,8 +2,6 @@ import type { ItemType } from 'ant-design-vue/es/menu';
 
 import type { ComputedRef, Ref } from 'vue';
 
-import type { PendingOpDisplayItem } from './use-pending-tool-actions';
-
 import type { ChatKBBindingInfo } from '#/api/shared/ai-chat';
 import type {
   AgentKnowledgeBaseBindingsByAgentId,
@@ -66,7 +64,6 @@ interface UsePanelShellBodyBindingsOptions {
   attachDisabled: ComputedRef<boolean>;
   boundKnowledgeBases: ComputedRef<ComposerKnowledgeBaseChip[]>;
   cancelEditTitle: () => void;
-  captureScreenshot: () => Promise<void>;
   chatMessages: Ref<ChatMessage[]>;
   characterCount: ComputedRef<number>;
   commitEditTitle: () => void;
@@ -78,7 +75,6 @@ interface UsePanelShellBodyBindingsOptions {
   conversationsCount: ComputedRef<number>;
   conversationsLoading: Ref<boolean>;
   copyMessage: (content: string) => Promise<void>;
-  countdownNow: Ref<number>;
   editAndResend: (index: number) => void;
   editingConversationId: Ref<null | number>;
   editingTitle: Ref<string>;
@@ -86,7 +82,6 @@ interface UsePanelShellBodyBindingsOptions {
   effectiveWelcomeMessage: Ref<string>;
   exportMenuItems: ComputedRef<ItemType[]>;
   fileSelect: (event: Event) => void;
-  getPendingOpsForMessage: (msg: ChatMessage) => PendingOpDisplayItem[];
   groupedConversations: ComputedRef<HistoryConversationGroup[]>;
   handleDragOver: (event: DragEvent) => void;
   handleDrop: (event: DragEvent) => void;
@@ -115,11 +110,8 @@ interface UsePanelShellBodyBindingsOptions {
   rejectConsent: (index: number) => void;
   removeAttachment: (index: number) => void;
   removeSelectedKnowledgeBase: (id: number) => void;
-  resolvePendingAction: (invokeId: string, allowed: boolean) => void;
   retryLastMessage: (index: number) => void;
   routing: Ref<boolean>;
-  screenshotDisabled: ComputedRef<boolean>;
-  screenshotLoading: Ref<boolean>;
   scrollToBottom: (force?: boolean) => void;
   scrollToTop: () => void;
   selectedAgent: Ref<AgentItem | null>;
@@ -130,14 +122,12 @@ interface UsePanelShellBodyBindingsOptions {
   shiftEnterHint: string;
   showAttachments: Ref<boolean>;
   showHistory: Ref<boolean>;
-  showScreenshotButton: ComputedRef<boolean>;
   showScrollToBottom: Ref<boolean>;
   showScrollToTop: Ref<boolean>;
   startEditTitle: (conversation: HistoryConversationItem) => void;
   stopGeneration: () => void;
   streaming: Ref<boolean>;
   totalTokensUsed: Ref<number>;
-  unassociatedPendingOps: ComputedRef<PendingOpDisplayItem[]>;
 }
 
 export function usePanelShellBodyBindings(
@@ -162,13 +152,11 @@ export function usePanelShellBodyBindings(
     conversationSearch: options.conversationSearch.value,
     conversationsCount: options.conversationsCount.value,
     conversationsLoading: options.conversationsLoading.value,
-    countdownNow: options.countdownNow.value,
     editingConversationId: options.editingConversationId.value,
     editingTitle: options.editingTitle.value,
     effectiveSuggestedQuestions: options.effectiveSuggestedQuestions.value,
     effectiveWelcomeMessage: options.effectiveWelcomeMessage.value,
     exportMenuItems: options.exportMenuItems.value,
-    getPendingOpsForMessage: options.getPendingOpsForMessage,
     groupedConversations: options.groupedConversations.value,
     inputMessage: options.inputMessage.value,
     ensureAgentKnowledgeBases: options.ensureAgentKnowledgeBases,
@@ -180,8 +168,6 @@ export function usePanelShellBodyBindings(
     mentionOpen: options.mentionOpen.value,
     registerContainer: options.registerMessagesContainer,
     routing: options.routing.value,
-    screenshotDisabled: options.screenshotDisabled.value,
-    screenshotLoading: options.screenshotLoading.value,
     selectedAgent: options.selectedAgent.value,
     selectedKnowledgeBases: options.selectedKnowledgeBases.value,
     sendDisabled: options.sendDisabled.value,
@@ -190,12 +176,10 @@ export function usePanelShellBodyBindings(
     shiftEnterHint: options.shiftEnterHint,
     showAttachments: options.showAttachments.value,
     showHistory: options.showHistory.value,
-    showScreenshotButton: options.showScreenshotButton.value,
     showScrollToBottom: options.showScrollToBottom.value,
     showScrollToTop: options.showScrollToTop.value,
     streaming: options.streaming.value,
     totalTokensUsed: options.totalTokensUsed.value,
-    unassociatedPendingOps: options.unassociatedPendingOps.value,
   }));
 
   async function onCopyMessage(content: string) {
@@ -216,7 +200,6 @@ export function usePanelShellBodyBindings(
     actionClick: options.actionClick,
     askSuggested: options.askSuggested,
     cancelEditTitle: options.cancelEditTitle,
-    captureScreenshot: options.captureScreenshot,
     commitEditTitle: options.commitEditTitle,
     confirm: options.confirmAction,
     consentConfirm: options.confirmConsent,
@@ -235,7 +218,6 @@ export function usePanelShellBodyBindings(
     reject: options.rejectAction,
     removeAttachment: options.removeAttachment,
     removeSelectedKnowledgeBase: options.removeSelectedKnowledgeBase,
-    resolvePendingAction: options.resolvePendingAction,
     retry: options.retryLastMessage,
     scroll: options.handleMessagesScroll,
     scrollToBottom: () => options.scrollToBottom(true),

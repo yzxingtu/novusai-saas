@@ -8,12 +8,16 @@ Defines batch execution request and response data structures.
 from datetime import datetime
 
 from pydantic import Field
+from pydantic import model_validator
 
 from app.core.base_schema import (
     BaseCreateSchema,
     TenantResponseSchema,
 )
 from app.core.i18n import _
+from app.schemas.ai.retired_page_awareness import (
+    ensure_no_retired_page_awareness_input,
+)
 
 
 class BatchRunCreate(BaseCreateSchema):
@@ -28,6 +32,12 @@ class BatchRunCreate(BaseCreateSchema):
     max_workers: int = Field(
         5, ge=1, le=20, description=_("enum.batch_run.max_workers")
     )
+
+    @model_validator(mode="after")
+    def reject_retired_page_awareness_inputs(self) -> "BatchRunCreate":
+        for item in self.items:
+            ensure_no_retired_page_awareness_input(item)
+        return self
 
 
 class BatchRunResponse(TenantResponseSchema):

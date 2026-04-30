@@ -41,9 +41,6 @@ from .tool_policy_helpers import (
     first_incomplete_requested_family as _first_incomplete_requested_family_impl,
 )
 from .tool_policy_helpers import (
-    first_page_intent_kind as _first_page_intent_kind_impl,
-)
-from .tool_policy_helpers import (
     looks_like_explicit_time_request as _looks_like_explicit_time_request_impl,
 )
 from .tool_policy_helpers import (
@@ -51,9 +48,6 @@ from .tool_policy_helpers import (
 )
 from .tool_policy_helpers import (
     looks_like_generic_follow_up as _looks_like_generic_follow_up_impl,
-)
-from .tool_policy_helpers import (
-    looks_like_generic_page_summary_request as _looks_like_generic_page_summary_request_impl,
 )
 from .tool_policy_helpers import (
     looks_like_tool_planning_leak as _looks_like_tool_planning_leak_impl,
@@ -75,9 +69,6 @@ from .tool_policy_helpers import (
 )
 from .tool_policy_helpers import (
     restore_explicit_family_tools as _restore_explicit_family_tools_impl,
-)
-from .tool_policy_helpers import (
-    restrict_page_tools_for_generic_summary as _restrict_page_tools_for_generic_summary_impl,
 )
 from .tool_policy_helpers import (
     restrict_tools_to_names as _restrict_tools_to_names_impl,
@@ -133,13 +124,6 @@ class BasePromptToolPolicySupportMixin:
     _ensure_web_research_tool_pair = staticmethod(_ensure_web_research_tool_pair_impl)
     _looks_like_explicit_web_research_request = staticmethod(
         _looks_like_explicit_web_research_request_impl
-    )
-    _first_page_intent_kind = staticmethod(_first_page_intent_kind_impl)
-    _looks_like_generic_page_summary_request = staticmethod(
-        _looks_like_generic_page_summary_request_impl
-    )
-    _restrict_page_tools_for_generic_summary = staticmethod(
-        _restrict_page_tools_for_generic_summary_impl
     )
     _looks_like_explicit_time_request = staticmethod(
         _looks_like_explicit_time_request_impl

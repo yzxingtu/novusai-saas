@@ -46,14 +46,11 @@ const props = withDefaults(
     mentionMixedHint?: string;
     mentionOpen?: boolean;
     modelValue?: string;
-    screenshotDisabled?: boolean;
-    screenshotLoading?: boolean;
     selectedKnowledgeBases?: ComposerKnowledgeBaseChip[];
     sendDisabled?: boolean;
     sendState?: ComposerSendState;
     shiftEnterHint?: string;
     showAttachments?: boolean;
-    showScreenshotButton?: boolean;
   }>(),
   {
     attachDisabled: false,
@@ -70,19 +67,15 @@ const props = withDefaults(
     mentionMixedHint: '',
     mentionOpen: false,
     modelValue: '',
-    screenshotDisabled: false,
-    screenshotLoading: false,
     sendDisabled: false,
     selectedKnowledgeBases: () => [],
     sendState: 'idle',
     shiftEnterHint: '',
     showAttachments: true,
-    showScreenshotButton: false,
   },
 );
 
 const emit = defineEmits<{
-  (e: 'captureScreenshot'): void;
   (e: 'dragover', event: DragEvent): void;
   (e: 'drop', event: DragEvent): void;
   (e: 'fileSelect', event: Event): void;
@@ -312,23 +305,6 @@ function onSendClick() {
             @click="openFilePicker"
           >
             <IconifyIcon icon="lucide:paperclip" class="size-3.5" />
-          </button>
-        </Tooltip>
-        <Tooltip
-          v-if="showScreenshotButton"
-          :title="
-            screenshotLoading
-              ? $t('common.globalAiChat.screenshotCapturing')
-              : $t('common.globalAiChat.screenshot')
-          "
-        >
-          <button
-            class="flex size-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-40"
-            :disabled="screenshotDisabled"
-            @click="emit('captureScreenshot')"
-          >
-            <Spin v-if="screenshotLoading" size="small" />
-            <IconifyIcon v-else icon="lucide:camera" class="size-3.5" />
           </button>
         </Tooltip>
         <input

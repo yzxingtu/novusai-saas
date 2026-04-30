@@ -212,14 +212,6 @@ class ExecutionStateMachine:
                         "family": intent.family,
                         "status": intent.status,
                         "shortcircuit": bool(intent.shortcircuit),
-                        **(
-                            {"page_workflow": workflow}
-                            if (
-                                workflow := TurnDiagnostics._intent_page_workflow(intent)
-                            )
-                            is not None
-                            else {}
-                        ),
                     }
                     for intent in self.intent_plan
                 ],
@@ -229,21 +221,6 @@ class ExecutionStateMachine:
         self.emit_event("turn.capability_gated", capability_injection)
         self.emit_event("turn.tools_filtered", tool_filtering)
         self._emit_budget_checked(force=True)
-
-    def _latest_recovery_page_workflow(
-        self,
-        *,
-        action: str | None = None,
-    ) -> dict[str, Any] | None:
-        for decision in reversed(self.recovery_history):
-            if action is not None and str(decision.action or "").strip() != action:
-                continue
-            workflow = TurnDiagnostics._page_workflow_payload(
-                TurnDiagnostics._as_dict(decision.metadata).get("page_workflow")
-            )
-            if workflow is not None:
-                return workflow
-        return TurnDiagnostics._active_page_workflow(self.intent_plan)
 
     def cache_for_kind(
         self,
@@ -277,11 +254,7 @@ class ExecutionStateMachine:
         if not changed or previous_state == state:
             return
         if state == "awaiting_consent":
-            event_data: dict[str, Any] = {}
-            workflow = self._latest_recovery_page_workflow(action="pause_for_consent")
-            if workflow is not None:
-                event_data["page_workflow"] = workflow
-            self.emit_event("turn.consent_paused", event_data)
+            self.emit_event("turn.consent_paused", {})
         elif state == "partial_exit":
             partial_reason = next(
                 (
@@ -296,9 +269,6 @@ class ExecutionStateMachine:
                 "reason": partial_reason or self.budget_exit_reason(),
                 "provider_failure_kind": self.provider_failure_kind,
             }
-            workflow = self._latest_recovery_page_workflow(action="return_partial")
-            if workflow is not None:
-                event_data["page_workflow"] = workflow
             self.emit_event("turn.partial_exit", event_data)
         elif state == "completed":
             self.emit_event("turn.completed", {})
@@ -381,18 +351,6 @@ class ExecutionStateMachine:
                 "target_intent_id": decision.target_intent_id,
                 "reason": decision.reason,
                 "provider_failure_kind": decision.provider_failure_kind,
-                **(
-                    {"page_workflow": workflow}
-                    if (
-                        workflow := TurnDiagnostics._page_workflow_payload(
-                            TurnDiagnostics._as_dict(decision.metadata).get(
-                                "page_workflow"
-                            )
-                        )
-                    )
-                    is not None
-                    else {}
-                ),
             },
         )
         if self.budget is not None and decision.target_intent_id:

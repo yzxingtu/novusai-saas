@@ -63,8 +63,6 @@ class MonitoringCallTraceProjector:
             leaked_tool_names=trace_diagnostics.get("leaked_tool_names") or [],
             recovered_via_retry=trace_diagnostics.get("recovered_via_retry"),
             last_tool_name=trace_diagnostics.get("last_tool_name"),
-            last_page_key=trace_diagnostics.get("last_page_key"),
-            last_page_op=trace_diagnostics.get("last_page_op"),
             interrupted_stage=trace_diagnostics.get("interrupted_stage"),
             tool_loop_progress=trace_diagnostics.get("tool_loop_progress"),
             turn_record=trace_diagnostics.get("turn_record"),

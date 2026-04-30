@@ -538,12 +538,6 @@ class MonitoringReadModelProjector:
             "last_tool_name": ConversationDiagnosticsProjector.to_non_empty_str(
                 turn_record.get("last_tool_name") or diagnostics.get("last_tool_name")
             ),
-            "last_page_key": ConversationDiagnosticsProjector.to_non_empty_str(
-                turn_record.get("last_page_key") or diagnostics.get("last_page_key")
-            ),
-            "last_page_op": ConversationDiagnosticsProjector.to_non_empty_str(
-                turn_record.get("last_page_op") or diagnostics.get("last_page_op")
-            ),
             "interrupted_stage": ConversationDiagnosticsProjector.to_non_empty_str(
                 turn_record.get("interrupted_stage")
                 or diagnostics.get("interrupted_stage")

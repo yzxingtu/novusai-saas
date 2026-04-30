@@ -11,10 +11,13 @@ from app.ai.engine.system_prompt_intent_helpers import is_capability_reporting_q
 from app.ai.runtime.types import (
     capability_pack_descriptor_is_live,
     tool_is_auto_injected_runtime_builtin,
-    tool_is_page_runtime_builtin,
+    tool_is_retired_ui_builtin,
 )
 from app.ai.text_semantics_terms import extract_textual_tool_call_names
-from app.ai.tools.semantic_defaults import tool_family_from_name
+from app.ai.tools.semantic_defaults import (
+    is_retired_page_tool_name,
+    tool_family_from_name,
+)
 
 _WEB_RESEARCH_TOOL_NAMES = {"web_search", "fetch_url"}
 
@@ -58,7 +61,7 @@ def _turn_activation(skill_result: Any) -> TurnSkillActivation | None:
 
 
 def _tool_has_skill_owner(tool: Any) -> bool:
-    if tool_is_auto_injected_runtime_builtin(tool) or tool_is_page_runtime_builtin(
+    if tool_is_auto_injected_runtime_builtin(tool) or tool_is_retired_ui_builtin(
         tool
     ):
         return False
@@ -74,7 +77,7 @@ def _skill_name_has_live_execution(skill_result: Any, skill_name: str) -> bool:
         return False
 
     for tool in list(getattr(skill_result, "tools", []) or []):
-        if tool_is_auto_injected_runtime_builtin(tool) or tool_is_page_runtime_builtin(
+        if tool_is_auto_injected_runtime_builtin(tool) or tool_is_retired_ui_builtin(
             tool
         ):
             continue
@@ -150,7 +153,7 @@ def _explicit_skill_mentions(skill_result: Any, user_text: str) -> list[str]:
                 )
 
     for tool in tools:
-        if tool_is_auto_injected_runtime_builtin(tool) or tool_is_page_runtime_builtin(
+        if tool_is_auto_injected_runtime_builtin(tool) or tool_is_retired_ui_builtin(
             tool
         ):
             continue
@@ -280,7 +283,7 @@ def _skill_names_for_runtime_policy(
             selected.append(descriptor_name)
 
     for tool in list(getattr(skill_result, "tools", []) or []):
-        if tool_is_auto_injected_runtime_builtin(tool) or tool_is_page_runtime_builtin(
+        if tool_is_auto_injected_runtime_builtin(tool) or tool_is_retired_ui_builtin(
             tool
         ):
             continue
@@ -414,7 +417,11 @@ def apply_turn_skill_activation(
             intent_flags=dict(intent_flags or {}),
         )
     )
-    activated_tool_names = _stable_unique(activated_tool_names)
+    activated_tool_names = [
+        name
+        for name in _stable_unique(activated_tool_names)
+        if not is_retired_page_tool_name(name)
+    ]
     runtime_policy_skill_names = _skill_names_for_runtime_policy(
         skill_result,
         intent_flags=dict(intent_flags or {}),
@@ -428,7 +435,7 @@ def apply_turn_skill_activation(
             getattr(tool, "source_skill_name", None)
             for tool in list(skill_result.tools or [])
             if not tool_is_auto_injected_runtime_builtin(tool)
-            if not tool_is_page_runtime_builtin(tool)
+            if not tool_is_retired_ui_builtin(tool)
             if str(getattr(tool, "name", "") or "").strip() in set(activated_tool_names)
         ]
     )

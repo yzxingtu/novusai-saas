@@ -12,7 +12,6 @@ Provides:
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from typing import Any
 
 # Per-family short phrases used for tool optimization and capability-term expansion.
@@ -63,6 +62,9 @@ FAMILY_EXPLICIT_REQUEST_HINTS: dict[str, tuple[str, ...]] = {
 
 RETIRED_PAGE_TOOL_ORDER: tuple[str, ...] = (
     "editor_ops",
+    "get_page_context",
+    "invoke_page_operation",
+    "list_page_operations",
     "ui_get_snapshot",
     "ui_read_region",
     "ui_read_table",
@@ -75,74 +77,18 @@ RETIRED_PAGE_TOOL_ORDER: tuple[str, ...] = (
     "ui_submit_form",
 )
 RETIRED_PAGE_TOOL_NAMES: frozenset[str] = frozenset(RETIRED_PAGE_TOOL_ORDER)
-READONLY_RETIRED_PAGE_TOOL_NAMES: frozenset[str] = frozenset(
-    {
-        "ui_get_snapshot",
-        "ui_read_region",
-        "ui_read_table",
-        "ui_list_interactables",
-        "ui_get_form_state",
-    }
-)
-SAFE_WRITE_RETIRED_PAGE_TOOL_NAMES: frozenset[str] = frozenset(
-    {
-        "ui_click",
-        "ui_open_surface",
-        "ui_set_field",
-        "ui_fill_form",
-    }
-)
-DANGEROUS_RETIRED_PAGE_TOOL_NAMES: frozenset[str] = frozenset({"ui_submit_form"})
-
-
 # ---------------------------------------------------------------------------
 # Unified family resolver
 # ---------------------------------------------------------------------------
 
 
-def _has_page_context(input_variables: dict[str, Any] | None) -> bool:
-    del input_variables
-    # Page-awareness/page-operation routing is retired from AI dialogue.
-    # Legacy payloads may still deserialize for compatibility, but they must
-    # never reactivate page semantics.
-    return False
-
-
 def is_retired_page_tool_name(name: str) -> bool:
     normalized = str(name or "").strip()
-    return normalized.startswith("ui_") or normalized in RETIRED_PAGE_TOOL_NAMES
-
-
-def is_ui_page_tool_name(name: str) -> bool:
-    return is_retired_page_tool_name(name)
-
-
-def page_context_payload(input_variables: dict[str, Any] | None) -> dict[str, Any] | None:
-    del input_variables
-    return None
-
-
-def page_context_has_active_form(page_context: Mapping[str, Any] | None) -> bool:
-    del page_context
-    return False
-
-
-def page_context_has_runtime_state(page_context: Mapping[str, Any] | None) -> bool:
-    del page_context
-    return False
-
-
-def page_context_available_ui_tools(
-    page_context: Mapping[str, Any] | None,
-    *,
-    available_tool_names: set[str] | None = None,
-    include_secondary: bool = True,
-) -> list[str]:
-    del page_context, available_tool_names, include_secondary
-    # Page-awareness is retired from AI dialogue. This compatibility helper must
-    # not infer ui_* tools from any payload, even if legacy clients still send
-    # page_context.
-    return []
+    return (
+        normalized.startswith("ui_")
+        or normalized.startswith("pageop_")
+        or normalized in RETIRED_PAGE_TOOL_NAMES
+    )
 
 
 def tool_family_from_name(

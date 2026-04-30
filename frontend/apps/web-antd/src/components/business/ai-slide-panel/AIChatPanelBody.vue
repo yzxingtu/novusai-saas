@@ -1,8 +1,6 @@
 <script lang="ts" setup>
 import type { ItemType } from 'ant-design-vue/es/menu';
 
-import type { PendingOpDisplayItem } from './use-pending-tool-actions';
-
 import type {
   AgentItem,
   AgentKnowledgeBaseBindingsByAgentId,
@@ -71,7 +69,6 @@ const props = withDefaults(
     conversationsCount?: number;
     conversationSearch?: string;
     conversationsLoading?: boolean;
-    countdownNow?: number;
     editingConversationId?: null | number;
     editingTitle?: string;
     effectiveSuggestedQuestions?: string[];
@@ -80,7 +77,6 @@ const props = withDefaults(
     ensureAgentSkills?: (agentId: number) => Promise<unknown> | void;
     exportMenuItems?: ItemType[];
     forceShowDiagnostics?: boolean;
-    getPendingOpsForMessage: (msg: ChatMessage) => PendingOpDisplayItem[];
     groupedConversations?: HistoryConversationGroup[];
     inputMessage?: string;
     mentionCandidates?: ComposerMentionCandidateItem[];
@@ -90,8 +86,6 @@ const props = withDefaults(
     mentionOpen?: boolean;
     registerContainer?: (element: HTMLDivElement | null) => void;
     routing?: boolean;
-    screenshotDisabled?: boolean;
-    screenshotLoading?: boolean;
     selectedAgent?: AgentItem | null;
     selectedKnowledgeBases?: ComposerKnowledgeBaseChip[];
     sendDisabled?: boolean;
@@ -100,12 +94,10 @@ const props = withDefaults(
     shiftEnterHint?: string;
     showAttachments?: boolean;
     showHistory?: boolean;
-    showScreenshotButton?: boolean;
     showScrollToBottom?: boolean;
     showScrollToTop?: boolean;
     streaming?: boolean;
     totalTokensUsed?: number;
-    unassociatedPendingOps?: PendingOpDisplayItem[];
   }>(),
   {
     activeConversationId: null,
@@ -124,7 +116,6 @@ const props = withDefaults(
     conversationSearch: '',
     conversationsCount: 0,
     conversationsLoading: false,
-    countdownNow: 0,
     editingConversationId: null,
     editingTitle: '',
     effectiveSuggestedQuestions: () => [],
@@ -142,8 +133,6 @@ const props = withDefaults(
     mentionOpen: false,
     registerContainer: undefined,
     routing: false,
-    screenshotDisabled: false,
-    screenshotLoading: false,
     selectedAgent: null,
     selectedKnowledgeBases: () => [],
     sendDisabled: false,
@@ -154,10 +143,8 @@ const props = withDefaults(
     showHistory: false,
     showScrollToBottom: false,
     showScrollToTop: false,
-    showScreenshotButton: false,
     streaming: false,
     totalTokensUsed: 0,
-    unassociatedPendingOps: () => [],
   },
 );
 
@@ -176,7 +163,6 @@ const emit = defineEmits<{
   (e: 'openUrl', url: string): void;
   (e: 'regenerate', index: number): void;
   (e: 'reject', index: number): void;
-  (e: 'resolvePendingAction', invokeId: string, allowed: boolean): void;
   (e: 'retry', index: number): void;
   (e: 'registerContainer', element: HTMLDivElement | null): void;
   (e: 'scroll'): void;
@@ -200,7 +186,6 @@ const emit = defineEmits<{
   (e: 'paste', event: ClipboardEvent): void;
   (e: 'removeAttachment', index: number): void;
   (e: 'removeSelectedKnowledgeBase', id: number): void;
-  (e: 'captureScreenshot'): void;
 }>();
 
 const panelBodyRoot = ref<HTMLDivElement | null>(null);
@@ -245,11 +230,9 @@ watch(
         :agents="agents"
         :chat-messages="chatMessages"
         :compact="compactMessages"
-        :countdown-now="countdownNow"
         :effective-suggested-questions="effectiveSuggestedQuestions"
         :effective-welcome-message="effectiveWelcomeMessage"
         :force-show-diagnostics="forceShowDiagnostics"
-        :get-pending-ops-for-message="getPendingOpsForMessage"
         :ensure-agent-knowledge-bases="ensureAgentKnowledgeBases"
         :ensure-agent-skills="ensureAgentSkills"
         :register-container="(element) => emit('registerContainer', element)"
@@ -259,7 +242,6 @@ watch(
         :show-scroll-to-bottom="showScrollToBottom"
         :show-scroll-to-top="showScrollToTop"
         :streaming="streaming"
-        :unassociated-pending-ops="unassociatedPendingOps"
         @ask-suggested="emit('askSuggested', $event)"
         @copy="emit('copy', $event)"
         @confirm="emit('confirm', $event)"
@@ -271,9 +253,6 @@ watch(
         @regenerate="emit('regenerate', $event)"
         @edit="emit('edit', $event)"
         @retry="emit('retry', $event)"
-        @resolve-pending-action="
-          (invokeId, allowed) => emit('resolvePendingAction', invokeId, allowed)
-        "
         @scroll="emit('scroll')"
         @scroll-to-top="emit('scrollToTop')"
         @scroll-to-bottom="emit('scrollToBottom')"
@@ -298,9 +277,6 @@ watch(
         :attachment-accept="attachmentAccept"
         :attachments="attachments"
         :attachment-limit-hint="attachmentLimitHint"
-        :show-screenshot-button="showScreenshotButton"
-        :screenshot-disabled="screenshotDisabled"
-        :screenshot-loading="screenshotLoading"
         :mention-open="mentionOpen"
         :mention-loading="mentionLoading"
         :mention-mixed-hint="mentionMixedHint"
@@ -315,7 +291,6 @@ watch(
         @file-select="emit('fileSelect', $event)"
         @keydown="emit('keydown', $event)"
         @paste="emit('paste', $event)"
-        @capture-screenshot="emit('captureScreenshot')"
         @remove-attachment="emit('removeAttachment', $event)"
         @remove-selected-knowledge-base="
           emit('removeSelectedKnowledgeBase', $event)

@@ -47,8 +47,6 @@ def allowed_tool_names_for_family(
     tools: list[ToolDefinition],
     input_variables: dict[str, Any] | None = None,
 ) -> list[str]:
-    if family == "page_ops":
-        return []
     if family == "none":
         return [tool.name for tool in tools]
 
@@ -126,11 +124,7 @@ def ensure_explicit_family_coverage(
     ordered_families: list[str] = []
     for family in explicit_requested_families:
         normalized = str(family or "").strip()
-        if (
-            not normalized
-            or normalized in {"none", "page_ops"}
-            or normalized in ordered_families
-        ):
+        if not normalized or normalized == "none" or normalized in ordered_families:
             continue
         ordered_families.append(normalized)
     if len(ordered_families) <= 1:
@@ -214,7 +208,7 @@ def ordered_requested_families_from_intents(*, intents: list[IntentPlan]) -> lis
     ordered: list[str] = []
     for intent in intents:
         family = str(intent.family or "").strip()
-        if not family or family in {"none", "page_ops"} or family in ordered:
+        if not family or family == "none" or family in ordered:
             continue
         ordered.append(family)
     return ordered

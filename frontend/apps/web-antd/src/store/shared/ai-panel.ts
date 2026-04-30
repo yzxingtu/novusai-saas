@@ -12,22 +12,6 @@ import { defineStore } from 'pinia';
 /** Panel display mode / 面板显示模式 */
 export type AIPanelMode = 'full' | 'panel';
 
-export interface PendingToolAction {
-  invokeId: string;
-  pageKey: string;
-  operationName: string;
-  operationLabel: string;
-  operationDescription: string;
-  params: Record<string, unknown>;
-  resolved: boolean;
-  allowed?: boolean;
-  resolve: (allowed: boolean) => void;
-  /** Timestamp when confirmation was requested (for 60s countdown) / 请求确认的时间戳（用于 60s 倒计时） */
-  startedAt: number;
-  /** Tool call ID for inlining confirmation card under the message / 工具调用 ID，用于在对应消息内联显示确认卡片 */
-  toolCallId?: string;
-}
-
 export interface AIInteractionUpdate {
   action?: string;
   auto_approved?: boolean;
@@ -238,82 +222,9 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
     }
   }
 
-  // ==================== Tool Action Confirmation / 工具动作确认 ====================
+  // ==================== Interaction confirmation / 交互确认 ====================
 
-  const pendingToolActions = ref<PendingToolAction[]>([]);
   const pendingInteractionUpdates = ref<AIInteractionUpdate[]>([]);
-  const RESOLVED_TOOL_ACTION_TTL_MS = 1500;
-  const toolActionCleanupTimers = new Map<string, ReturnType<typeof setTimeout>>();
-
-  function clearToolActionCleanupTimer(invokeId: string) {
-    const timerId = toolActionCleanupTimers.get(invokeId);
-    if (timerId !== undefined) {
-      clearTimeout(timerId);
-      toolActionCleanupTimers.delete(invokeId);
-    }
-  }
-
-  function removeToolAction(invokeId: string) {
-    clearToolActionCleanupTimer(invokeId);
-    pendingToolActions.value = pendingToolActions.value.filter(
-      (op) => op.invokeId !== invokeId,
-    );
-  }
-
-  function scheduleResolvedToolActionCleanup(invokeId: string) {
-    clearToolActionCleanupTimer(invokeId);
-    const timerId = setTimeout(() => {
-      removeToolAction(invokeId);
-    }, RESOLVED_TOOL_ACTION_TTL_MS);
-    toolActionCleanupTimers.set(invokeId, timerId);
-  }
-
-  function requestToolActionConfirmation(op: {
-    invokeId: string;
-    operationDescription: string;
-    operationLabel: string;
-    operationName: string;
-    pageKey: string;
-    params: Record<string, unknown>;
-    toolCallId?: string;
-  }): Promise<boolean> {
-    clearResolvedToolActions();
-    const existing = pendingToolActions.value.find(
-      (item) => item.invokeId === op.invokeId,
-    );
-    if (existing && !existing.resolved) {
-      existing.resolved = true;
-      existing.allowed = false;
-      existing.resolve(false);
-    }
-    removeToolAction(op.invokeId);
-    return new Promise<boolean>((resolvePromise) => {
-      pendingToolActions.value.push({
-        ...op,
-        resolved: false,
-        resolve: resolvePromise,
-        startedAt: Date.now(),
-      });
-    });
-  }
-
-  function resolveToolAction(invokeId: string, allowed: boolean) {
-    const op = pendingToolActions.value.find((o) => o.invokeId === invokeId);
-    if (!op || op.resolved) return;
-    op.resolved = true;
-    op.allowed = allowed;
-    op.resolve(allowed);
-    scheduleResolvedToolActionCleanup(invokeId);
-  }
-
-  function clearResolvedToolActions() {
-    for (const op of pendingToolActions.value) {
-      if (op.resolved) {
-        clearToolActionCleanupTimer(op.invokeId);
-      }
-    }
-    pendingToolActions.value = pendingToolActions.value.filter((o) => !o.resolved);
-  }
 
   function queueInteractionUpdate(update: AIInteractionUpdate) {
     pendingInteractionUpdates.value.push({ ...update });
@@ -373,10 +284,6 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
     pendingMessage.value = null;
     pendingConversationId.value = null;
     hasUnread.value = false;
-    for (const invokeId of toolActionCleanupTimers.keys()) {
-      clearToolActionCleanupTimer(invokeId);
-    }
-    pendingToolActions.value = [];
     pendingInteractionUpdates.value = [];
     toolCallHandlers.clear();
   }
@@ -426,14 +333,10 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
     consumePendingConversationId,
     consumePendingAgentId,
     markUnread,
-    // Tool action confirmation / 工具动作确认
-    pendingToolActions,
-    requestToolActionConfirmation,
-    resolveToolAction,
+    // Interaction confirmation / 交互确认
     queueInteractionUpdate,
     consumeInteractionUpdates,
     restoreInteractionUpdates,
-    clearResolvedToolActions,
 
     // Tool calls / 工具调用
     registerToolCallHandler,

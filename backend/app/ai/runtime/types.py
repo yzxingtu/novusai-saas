@@ -7,6 +7,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field, replace
 from typing import Any, Literal
 
+from app.ai.tools.semantic_defaults import is_retired_page_tool_name
 from app.ai.tools.types import ToolDefinition
 
 CapabilityKind = Literal[
@@ -42,7 +43,7 @@ def is_skill_descriptor_kind(kind: str | None) -> bool:
     return normalized == "capability_pack"
 
 
-_PAGE_RUNTIME_CAPABILITY_NAMES = frozenset(
+_RETIRED_UI_CAPABILITY_NAMES = frozenset(
     {
         "editor_ops",
         "page_context",
@@ -57,7 +58,7 @@ _PAGE_RUNTIME_CAPABILITY_NAMES = frozenset(
         "ui_action",
     }
 )
-_PAGE_RUNTIME_CAPABILITY_SOURCES = frozenset(
+_RETIRED_UI_CAPABILITY_SOURCES = frozenset(
     {
         "page_runtime",
         "request.page_context",
@@ -79,9 +80,12 @@ def _normalized_runtime_capability_token(value: Any) -> str:
     )
 
 
-def is_page_runtime_capability_name(value: Any) -> bool:
+def is_retired_ui_capability_name(value: Any) -> bool:
     normalized = _normalized_runtime_capability_token(value)
-    return normalized.startswith("ui_") or normalized in _PAGE_RUNTIME_CAPABILITY_NAMES
+    return (
+        is_retired_page_tool_name(normalized)
+        or normalized in _RETIRED_UI_CAPABILITY_NAMES
+    )
 
 
 def _stable_unique_names(values: list[Any] | None) -> list[str]:
@@ -358,15 +362,15 @@ def capability_pack_descriptor_is_live(descriptor: Any) -> bool:
     name = str(getattr(descriptor, "name", "") or "").strip()
     if not is_skill_descriptor_kind(kind) or not name:
         return False
-    if is_page_runtime_capability_name(name):
+    if is_retired_ui_capability_name(name):
         return False
 
     metadata = getattr(descriptor, "metadata", {}) or {}
     if not isinstance(metadata, dict):
         source = str(getattr(descriptor, "source", "") or "").strip()
-        return source not in _PAGE_RUNTIME_CAPABILITY_SOURCES
+        return source not in _RETIRED_UI_CAPABILITY_SOURCES
     source = str(getattr(descriptor, "source", "") or "").strip()
-    if source in _PAGE_RUNTIME_CAPABILITY_SOURCES:
+    if source in _RETIRED_UI_CAPABILITY_SOURCES:
         return False
     if metadata.get("has_execution_tools") is False:
         return False
@@ -380,12 +384,12 @@ def tool_is_auto_injected_runtime_builtin(tool: Any) -> bool:
     return isinstance(config, dict) and config.get("auto_injected") is True
 
 
-def tool_is_page_runtime_builtin(tool: Any) -> bool:
+def tool_is_retired_ui_builtin(tool: Any) -> bool:
     tool_name = str(getattr(tool, "name", "") or "").strip()
     skill_name = str(getattr(tool, "source_skill_name", "") or "").strip()
     if skill_name:
-        return is_page_runtime_capability_name(skill_name)
-    if not is_page_runtime_capability_name(tool_name):
+        return is_retired_ui_capability_name(skill_name)
+    if not is_retired_ui_capability_name(tool_name):
         return False
     return not any(
         str(getattr(tool, attr, "") or "").strip()
@@ -408,7 +412,7 @@ def collect_selected_skill_names(
             names.append(skill_name)
 
     for tool in tools or []:
-        if tool_is_auto_injected_runtime_builtin(tool) or tool_is_page_runtime_builtin(
+        if tool_is_auto_injected_runtime_builtin(tool) or tool_is_retired_ui_builtin(
             tool
         ):
             continue

@@ -28,7 +28,6 @@ def resolve_capability_injection_decision(
     decision.setdefault("skills_injected", False)
     decision.setdefault("kb_injected", False)
     decision.setdefault("memory_injected", False)
-    decision.setdefault("page_injected", False)
     decision.setdefault(
         "bypass_reason",
         "all_shortcircuit" if bool(intent_flags.get("all_shortcircuit")) else None,
@@ -66,5 +65,4 @@ def resolve_capability_injection_decision(
             )
         )
     )
-    decision["page_injected"] = False
     return decision

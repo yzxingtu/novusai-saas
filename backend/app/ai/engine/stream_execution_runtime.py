@@ -263,8 +263,8 @@ class StreamIOAdapter:
     ) -> ToolBatchResult:
         request_proxy = self._request_with_defaults()
         tool_calls = list(response.tool_calls or response.message.tool_calls or [])
-        tool_calls, _truncated_after_navigation = (
-            self.handler.runtime_contract.truncate_tool_calls_after_navigation(tool_calls)
+        tool_calls, _unchanged = self.handler.runtime_contract.keep_tool_calls_for_round(
+            tool_calls
         )
         starting_total_tokens = int(kwargs.get("starting_total_tokens") or 0)
         starting_completion_tokens = int(

@@ -376,8 +376,6 @@ class ConversationRuntimeProjectionService:
             "leaked_tool_names": turn_meta.get("leaked_tool_names") or [],
             "recovered_via_retry": turn_meta.get("recovered_via_retry"),
             "last_tool_name": turn_meta.get("last_tool_name"),
-            "last_page_key": turn_meta.get("last_page_key"),
-            "last_page_op": turn_meta.get("last_page_op"),
             "interrupted_stage": turn_meta.get("interrupted_stage"),
             "tool_loop_progress": turn_meta.get("tool_loop_progress") or {},
             "sync_rescue": turn_meta.get("sync_rescue"),

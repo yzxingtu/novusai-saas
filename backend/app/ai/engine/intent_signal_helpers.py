@@ -69,28 +69,15 @@ def _last_user_text(messages: list[ChatMessage]) -> str:
     return ""
 
 
-def _has_page_context(input_variables: dict[str, Any] | None) -> bool:
-    del input_variables
-    return False
-
-
-def _page_operation_names(input_variables: dict[str, Any] | None) -> set[str]:
-    del input_variables
-    return set()
-
-
 def _tool_families(
     tools: list[ToolDefinition],
     input_variables: dict[str, Any] | None,
 ) -> set[str]:
-    families = {
+    return {
         tool_semantic_family(tool, input_variables)
         for tool in tools
         if tool_semantic_family(tool, input_variables) != "none"
     }
-    if _page_operation_names(input_variables):
-        families.add("page_ops")
-    return families
 
 
 def _continuation_families(continuation_context: Any | None) -> set[str]:
@@ -103,16 +90,16 @@ def _continuation_families(continuation_context: Any | None) -> set[str]:
             "continuation_capable_families",
             [],
         )
-        if str(family or "").strip()
+        if str(family or "").strip() and str(family or "").strip() != "page_ops"
     }
     active_family = str(getattr(continuation_context, "family", "") or "").strip()
-    if active_family:
+    if active_family and active_family != "page_ops":
         families.add(active_family)
     tool_families = getattr(continuation_context, "tool_families", []) or []
     families.update(
         str(family or "").strip()
         for family in tool_families
-        if str(family or "").strip()
+        if str(family or "").strip() and str(family or "").strip() != "page_ops"
     )
     return families
 
@@ -184,9 +171,7 @@ __all__ = [
     "_IntentSignal",
     "_continuation_families",
     "_first_position",
-    "_has_page_context",
     "_last_user_text",
-    "_page_operation_names",
     "_semantic_profile_position",
     "_semantic_tokens",
     "_tool_families",

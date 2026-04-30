@@ -1,5 +1,4 @@
 <script lang="ts" setup>
-import type { PendingToolActionForDisplay } from './pending-tool-action';
 import type {
   AgentItem,
   AgentKnowledgeBaseBindingsByAgentId,
@@ -37,28 +36,22 @@ const props = withDefaults(
     agentSkillMap?: AgentSkillBindingsByAgentId | null;
     apiPrefix?: string;
     compact?: boolean;
-    /** Current timestamp for 60s countdown display (fallback: local now) / 用于 60s 倒计时的当前时间戳 */
-    countdownNow?: number;
     forceShowDiagnostics?: boolean;
     index: number;
     kernelState?: null | TurnFlowState;
     msg: ChatMessage;
-    /** Pending tool actions for this message (filtered by toolCallId) / 本消息关联的待确认工具动作 */
-    pendingOps?: PendingToolActionForDisplay[];
     selectedAgent?: AgentItem | null;
   }>(),
   {
     apiPrefix: '',
     agents: () => [],
     compact: false,
-    countdownNow: undefined,
     forceShowDiagnostics: false,
     agentKnowledgeBases: null,
     agentKnowledgeBaseMap: null,
     agentSkillMap: null,
     kernelState: null,
     selectedAgent: null,
-    pendingOps: () => [],
   },
 );
 
@@ -92,7 +85,6 @@ const {
   agentSkillMap: toRef(props, 'agentSkillMap'),
   kernelState: toRef(props, 'kernelState'),
   msg: toRef(props, 'msg'),
-  pendingOps: toRef(props, 'pendingOps'),
   selectedAgent: toRef(props, 'selectedAgent'),
 });
 const showTurnDiagnostics = computed(() =>
@@ -136,9 +128,7 @@ const showKernelSection = computed(
               <ChatMessageKernel
                 v-if="showKernelSection"
                 :compact="compact"
-                :countdown-now="countdownNow"
                 :msg="msg"
-                :pending-ops="pendingOps"
                 :state="resolvedKernelState"
                 @copy="(content) => emit('copy', content)"
                 @confirm="emit('confirm', props.index)"

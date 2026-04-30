@@ -2,7 +2,6 @@
 import type { TurnFlowState } from './TurnFlowState';
 
 import type { TurnFlowStageForDisplay } from '#/components/business/ai-chat-panel/chat-message-turn-flow';
-import type { PendingToolActionForDisplay } from '#/components/business/ai-chat-panel/pending-tool-action';
 import type { ChatMessage } from '#/types/ai-chat';
 
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
@@ -40,17 +39,13 @@ import {
 const props = withDefaults(
   defineProps<{
     compact?: boolean;
-    countdownNow?: number;
     index?: number;
     msg: ChatMessage;
-    pendingOps?: PendingToolActionForDisplay[];
     state: TurnFlowState;
   }>(),
   {
     compact: false,
-    countdownNow: undefined,
     index: 0,
-    pendingOps: () => [],
   },
 );
 
@@ -653,11 +648,9 @@ onBeforeUnmount(() => {
                       <ChatMessageToolCalls
                         v-else-if="hasToolExecutionBody(stage)"
                         :compact="compact"
-                        :countdown-now="countdownNow"
                         embedded
                         :index="0"
                         :msg="msg"
-                        :pending-ops="pendingOps"
                         @copy="(content) => emit('copy', content)"
                       />
 

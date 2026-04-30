@@ -844,63 +844,6 @@
       "codegen_config_version": "配置版本"
     }
   },
-  "aiRuntime": {
-    "actionExecutionFailed": "UI 操作执行失败。",
-    "unsupportedActionType": "不支持的操作类型：{actionType}。",
-    "unsupportedUiAction": "不支持的 UI 操作：{actionType}。",
-    "uiClickRequiresTargetLocator": "缺少 target_locator，无法执行点击操作。",
-    "uiOpenSurfaceRequiresLocator": "缺少 target_locator 或 surface.title/surface.locator，无法打开界面。",
-    "targetDisabled": "目标“{target}”已禁用。",
-    "targetBlockedByPolicy": "目标“{target}”被 AI 安全策略拦截。",
-    "targetRequiresConfirmation": "目标“{target}”需要确认后才能执行。",
-    "clickedTarget": "已点击“{target}”。",
-    "clickActionExecuted": "点击操作已执行。",
-    "noNewRequestedSurfaceDetected": "点击“{locator}”后未检测到新的{kind}。",
-    "noNewSurfaceDetected": "点击“{locator}”后未检测到新的界面。",
-    "surfaceOpenedSuccessfully": "界面已成功打开。",
-    "locatorEmpty": "定位器为空。请提供稳定的定位器，例如 id:、testid:、ai-id:、text: 或 css: 选择器。",
-    "locatorNoExactMatch": "未找到与定位器“{locator}”完全匹配的目标。",
-    "locatorAmbiguous": "定位器“{locator}”匹配到多个目标，请提供更具体的定位器（如 id、testid、ai-id 或精确文本）。",
-    "locatorNotFound": "未找到与定位器“{locator}”匹配的可交互目标。",
-    "noActiveFormSessionFound": "未找到活动中的表单会话。",
-    "noActiveFormAvailable": "当前没有可用的表单。",
-    "formApiUnavailable": "表单 API 当前不可用。",
-    "currentFormNotReady": "当前表单尚未就绪。",
-    "noWritableFieldsProvided": "未提供可写字段。",
-    "noWritableFieldsUpdated": "没有任何可写字段被更新。",
-    "formFieldsUpdatedPartial": "表单字段已部分更新。",
-    "formFieldsUpdated": "表单字段已更新。",
-    "regionLocatorNotFound": "未找到区域定位器“{locator}”。",
-    "tableLocatorNotFound": "未找到表格定位器“{locator}”。",
-    "formStateLoaded": "表单状态已加载。",
-    "formSubmitUnavailable": "表单提交 API 当前不可用。",
-    "currentFormCannotSubmit": "当前表单无法提交。",
-    "formSubmissionRequiresConfirmation": "提交表单前需要确认。",
-    "formSubmissionTriggered": "已触发表单提交。",
-    "snapshotFailed": "获取页面快照失败。",
-    "readRegionFailed": "读取页面区域失败。",
-    "readTableFailed": "读取表格失败。",
-    "listInteractablesFailed": "读取可交互控件失败。",
-    "surfaceKind": {
-      "page": "页面",
-      "drawer": "抽屉",
-      "modal": "弹窗",
-      "dropdown": "下拉层",
-      "popover": "浮层"
-    },
-    "surfaceTitle": {
-      "page": "页面",
-      "drawer": "抽屉 {index}",
-      "modal": "弹窗 {index}",
-      "dropdown": "下拉层 {index}",
-      "popover": "浮层 {index}"
-    },
-    "suggestedTools": {
-      "activeFormDetected": "检测到活动表单。",
-      "tableDetected": "检测到表格内容。",
-      "interactablesDetected": "检测到可交互控件。"
-    }
-  },
   "maintenance": {
     "title": "系统维护中",
     "defaultMessage": "系统正在维护中，请稍后再试。",

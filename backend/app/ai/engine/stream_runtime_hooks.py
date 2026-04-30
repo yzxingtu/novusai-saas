@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 from app.ai.tools.types import ToolResult
 from app.ai.types import ChatMessage, ChatResponse
 
-from .base_helpers import truncate_tool_calls_after_navigation
+from .base_helpers import keep_tool_calls_for_round
 from .execution_state_machine import ExecutionStateMachine
 from .tool_contract_retry_helpers import (
     analyze_post_tool_contract_breach as _analyze_post_tool_contract_breach_impl,
@@ -40,7 +40,7 @@ async def _await_if_needed(value: Any) -> Any:
 class StreamRuntimeHookSource(Protocol):
     """Public collaborator surface consumed by StreamExecutionHandler."""
 
-    def truncate_tool_calls_after_navigation(
+    def keep_tool_calls_for_round(
         self,
         tool_calls: list[dict[str, Any]],
     ) -> tuple[list[dict[str, Any]], bool]: ...
@@ -142,14 +142,11 @@ class DefaultStreamRuntimeHooks:
     finalize_partial_fallback: Callable[..., Awaitable[tuple[str, int, int]]]
     finalize_completed_fallback: Callable[..., Awaitable[tuple[str, int, int]]]
 
-    def truncate_tool_calls_after_navigation(
+    def keep_tool_calls_for_round(
         self,
         tool_calls: list[dict[str, Any]],
     ) -> tuple[list[dict[str, Any]], bool]:
-        return truncate_tool_calls_after_navigation(
-            tool_calls,
-            navigation_operation_names=set(),
-        )
+        return keep_tool_calls_for_round(tool_calls)
 
     def should_retry_tool_contract_breach(
         self,
@@ -285,11 +282,11 @@ class BaseEngineStreamRuntimeHooks:
     finalize_partial_fallback: Callable[..., Awaitable[tuple[str, int, int]]]
     finalize_completed_fallback: Callable[..., Awaitable[tuple[str, int, int]]]
 
-    def truncate_tool_calls_after_navigation(
+    def keep_tool_calls_for_round(
         self,
         tool_calls: list[dict[str, Any]],
     ) -> tuple[list[dict[str, Any]], bool]:
-        return self.engine._truncate_tool_calls_after_navigation(tool_calls)
+        return self.engine._keep_tool_calls_for_round(tool_calls)
 
     def should_retry_tool_contract_breach(
         self,

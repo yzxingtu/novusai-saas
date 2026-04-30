@@ -24,23 +24,6 @@ from .turn_research_extraction import (
 from .types import ResearchContinuationContext
 
 
-def has_page_context(input_variables: dict[str, Any] | None) -> bool:
-    del input_variables
-    return False
-
-
-def page_operation_names_from_input_variables(
-    input_variables: dict[str, Any] | None,
-) -> list[str]:
-    del input_variables
-    return []
-
-
-def looks_like_page_follow_up(text: str) -> bool:
-    del text
-    return False
-
-
 def build_web_research_continuation_context(
     messages: list[ChatMessage],
     all_tools: list[ToolDefinition],

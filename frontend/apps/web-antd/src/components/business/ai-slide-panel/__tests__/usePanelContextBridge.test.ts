@@ -52,7 +52,6 @@ describe('usePanelContextBridge', () => {
     const visible = ref(true);
 
     const applyVariables = vi.fn();
-    const clearResolvedToolActions = vi.fn();
     const consumePendingAgentId = vi.fn(() => {
       const nextId = storePendingAgentId.value;
       storePendingAgentId.value = undefined;
@@ -83,7 +82,6 @@ describe('usePanelContextBridge', () => {
             applyVariables,
             chatMessages,
             clearMentionedAgent: vi.fn(),
-            clearResolvedToolActions,
             consumePendingAgentId,
             ensureAgentVarsLoaded,
             forceRerouteNextTurn,
@@ -114,7 +112,6 @@ describe('usePanelContextBridge', () => {
 
     await flushBridge();
 
-    expect(clearResolvedToolActions).toHaveBeenCalled();
     expect(consumePendingAgentId).toHaveBeenCalledTimes(1);
     expect(loadAgents).toHaveBeenCalledWith(2);
     expect(startNewConversation).toHaveBeenCalledWith(true);
@@ -160,7 +157,6 @@ describe('usePanelContextBridge', () => {
             applyVariables: vi.fn(),
             chatMessages,
             clearMentionedAgent: vi.fn(),
-            clearResolvedToolActions: vi.fn(),
             consumePendingAgentId: vi.fn(() => null),
             ensureAgentVarsLoaded: vi.fn(),
             forceRerouteNextTurn,

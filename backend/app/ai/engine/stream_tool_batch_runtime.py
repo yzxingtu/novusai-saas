@@ -8,7 +8,6 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from app.ai.tools.semantic_defaults import is_ui_page_tool_name
 from app.ai.tools.types import ToolDefinition, ToolResult
 from app.ai.types import ChatMessage, ChatResponse
 from app.ai.web_search.types import STATUS_NO_RESULTS
@@ -34,7 +33,6 @@ class StreamToolBatchRuntimeInput:
     starting_total_tokens: int
     starting_completion_tokens: int
     reasoning_content: str | None
-    page_op_abort_threshold: int = 3
 
 
 @dataclass(slots=True)
@@ -55,7 +53,6 @@ class StreamToolBatchRuntimeOutcome:
     output_override: str | None = None
     effective_tool_calls: list[dict[str, Any]] = field(default_factory=list)
     paused_for_confirmation: bool = False
-    page_op_aborted: bool = False
 
 
 @dataclass(slots=True)
@@ -66,9 +63,6 @@ class _StreamToolBatchState:
     follow_up_messages: list[ChatMessage] = field(default_factory=list)
     round_has_confirmation: bool = False
     round_stopped_early: bool = False
-    page_op_failures: int = 0
-    page_op_aborted: bool = False
-    output_override: str | None = None
 
 
 def _tool_call_processor_cls():
@@ -146,17 +140,6 @@ def _prepare_parallel_readonly_batch(
             )
         )
     return prepared
-
-
-def _build_page_abort_output(
-    response: ChatResponse,
-    translation_key: str,
-) -> str:
-    prefix = str(response.message.content or "").strip()
-    suffix = _(translation_key)
-    if prefix:
-        return f"{prefix}\n\n{suffix}"
-    return suffix
 
 
 def _is_no_result_web_search(result: ToolResult) -> bool:
@@ -280,20 +263,6 @@ async def _apply_single_result(
             processor.build_confirmation_event(confirmation_payload, func_name)
         )
 
-    is_page_op = is_ui_page_tool_name(func_name) if func_name else False
-    if is_page_op:
-        if result.success:
-            state.page_op_failures = 0
-        else:
-            state.page_op_failures += 1
-            if state.page_op_failures >= runtime.page_op_abort_threshold:
-                state.page_op_aborted = True
-                state.output_override = _build_page_abort_output(
-                    runtime.response,
-                    "page_operation.error.multiple_failures_sequence",
-                )
-                return True
-
     tool_result_budget_reason = callbacks.budget_exit_reason()
     if tool_result_budget_reason:
         callbacks.register_budget_exit(tool_result_budget_reason)
@@ -382,7 +351,7 @@ async def _run_sequential_batch(
                 tool_call_id=tc_id,
                 name=func_name or "unknown",
                 success=False,
-                error=_("page_operation.error.json_parse_failed"),
+                error=_("tool.error.arguments_json_parse_failed"),
                 error_type=parse_error,
             )
             processor.annotate_tool_call(
@@ -413,17 +382,6 @@ async def _run_sequential_batch(
                 )
             )
             runtime.messages.append(processor.build_tool_message(err_result, tc_id))
-            is_page_op = is_ui_page_tool_name(func_name) if func_name else False
-            if is_page_op:
-                state.page_op_failures += 1
-                if state.page_op_failures >= runtime.page_op_abort_threshold:
-                    state.page_op_aborted = True
-                    state.round_stopped_early = True
-                    state.output_override = _build_page_abort_output(
-                        runtime.response,
-                        "page_operation.error.multiple_failures_parse",
-                    )
-                    break
             continue
 
         skill_info = processor.get_skill_info(func_name)
@@ -573,27 +531,8 @@ async def run_stream_tool_batch(
     if (
         state.follow_up_messages
         and not state.round_has_confirmation
-        and not state.page_op_aborted
     ):
         runtime.messages.extend(state.follow_up_messages)
-
-    if state.page_op_aborted:
-        if state.output_override:
-            await callbacks.emit_chunk(state.output_override)
-        text_response = callbacks.build_text_round_response(
-            content=state.output_override or "",
-            reasoning_content=runtime.reasoning_content or "",
-            total_tokens=runtime.starting_total_tokens,
-        )
-        return StreamToolBatchRuntimeOutcome(
-            response=text_response,
-            tool_results=state.round_tool_results,
-            total_tokens=runtime.starting_total_tokens,
-            completion_tokens_used=runtime.starting_completion_tokens,
-            output_override=state.output_override,
-            effective_tool_calls=effective_tool_calls,
-            page_op_aborted=True,
-        )
 
     if state.round_has_confirmation:
         consent_response = ChatResponse(

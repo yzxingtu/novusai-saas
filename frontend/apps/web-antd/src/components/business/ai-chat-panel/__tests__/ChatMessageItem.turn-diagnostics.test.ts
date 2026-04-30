@@ -67,12 +67,6 @@ vi.mock('ant-design-vue', () => {
   };
 });
 
-vi.mock('#/store', () => ({
-  useAIPanelStore: () => ({
-    resolveToolAction: vi.fn(),
-  }),
-}));
-
 vi.mock('#/store/shared/public-config', () => ({
   usePublicConfigStore: () => mockPublicConfigStore,
 }));
@@ -125,7 +119,7 @@ describe('chatMessageItem turn diagnostics', () => {
 
   it('hides turn diagnostics chips for successful assistant turns', () => {
     const wrapper = mountMessage({
-      selectedSkillNames: ['runtime.ui_runtime', 'runtime.route'],
+      selectedSkillNames: ['runtime.search', 'runtime.route'],
       selectedToolNames: ['query_records'],
       terminationReason: 'completed',
       turnOutcome: 'success',
@@ -133,7 +127,7 @@ describe('chatMessageItem turn diagnostics', () => {
 
     const rendered = wrapper.text();
     expect(rendered).not.toContain('selected_skills');
-    expect(rendered).not.toContain('runtime.ui_runtime');
+    expect(rendered).not.toContain('runtime.search');
     expect(rendered).not.toContain('selected_tools');
     expect(rendered).not.toContain('query_records');
     expect(rendered).not.toContain('turn_outcome');
@@ -143,8 +137,8 @@ describe('chatMessageItem turn diagnostics', () => {
   it('hides turn diagnostics chips for benign partial assistant turns', () => {
     const wrapper = mountMessage({
       partial: true,
-      selectedSkillNames: ['runtime.ui_runtime'],
-      selectedToolNames: ['ui_submit_form'],
+      selectedSkillNames: ['runtime.search'],
+      selectedToolNames: ['web_search'],
       terminationReason: 'interrupted',
       turnOutcome: 'partial',
     });
@@ -160,7 +154,7 @@ describe('chatMessageItem turn diagnostics', () => {
     expect(rendered).not.toContain(
       'common.globalAiChat.diagnosticSelectedSkillsLabel',
     );
-    expect(rendered).not.toContain('runtime.ui_runtime');
+    expect(rendered).not.toContain('runtime.search');
   });
 
   it('hides failed-turn diagnostics by default', () => {

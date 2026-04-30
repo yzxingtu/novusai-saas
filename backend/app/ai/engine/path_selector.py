@@ -12,11 +12,7 @@ class PathSelector:
             return "fast"
         if all(intent.shortcircuit for intent in intents):
             return "fast"
-        actionable = [
-            intent
-            for intent in intents
-            if intent.family not in {"none", "page_ops"}
-        ]
+        actionable = [intent for intent in intents if intent.family != "none"]
         families = {intent.family for intent in actionable}
         if len(actionable) <= 1 and len(families) <= 1:
             first = actionable[0] if actionable else intents[0]

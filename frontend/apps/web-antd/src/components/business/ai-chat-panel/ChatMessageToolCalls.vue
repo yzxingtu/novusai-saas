@@ -1,5 +1,4 @@
 <script lang="ts" setup>
-import type { PendingToolActionForDisplay } from './pending-tool-action';
 import type { ToolDisplayItem } from './tool-call-utils';
 import type { ChatMessage } from './types';
 
@@ -10,27 +9,21 @@ import {
   formatToolStatusLabel,
 } from '#/components/business/ai-chat-panel/display-formatters';
 import { $t } from '#/locales';
-import { useAIPanelStore } from '#/store';
 
 import ToolCallDetails from './ToolCallDetails.vue';
-import ToolCallPendingActionCard from './ToolCallPendingActionCard.vue';
 import { getToolActionErrorHintKey } from './toolActionErrorHints';
 import { useChatMessageToolCalls } from './use-chat-message-tool-calls';
 
 const props = withDefaults(
   defineProps<{
     compact?: boolean;
-    countdownNow?: number;
     embedded?: boolean;
     index: number;
     msg: ChatMessage;
-    pendingOps?: PendingToolActionForDisplay[];
   }>(),
   {
     compact: false,
-    countdownNow: undefined,
     embedded: false,
-    pendingOps: () => [],
   },
 );
 
@@ -38,18 +31,14 @@ const emit = defineEmits<{
   copy: [content: string];
 }>();
 
-const aiPanelStore = useAIPanelStore();
 const DEFAULT_VISIBLE_TARGET_BADGES = 2;
 const EMBEDDED_VISIBLE_TARGET_BADGES = 1;
 
 const {
   getToolDisplayState,
-  hasPendingOpArgs,
-  isPendingOpExpanded,
   isToolGroupExpanded,
   isToolRawExpanded,
   now,
-  togglePendingOpExpand,
   toggleToolExpand,
   toggleToolGroupExpand,
   toggleToolRawExpand,
@@ -643,25 +632,6 @@ function getEmbeddedToolHint(toolItem: ToolDisplayItem): string {
                   </div>
                 </template>
               </div>
-
-              <!-- Inline confirmation card (for this tool call) / 内联确认卡片（对应本工具调用） -->
-              <ToolCallPendingActionCard
-                v-for="op in (pendingOps || []).filter(
-                  (o) => o.toolCallId === toolItem.tc.id,
-                )"
-                :key="op.invokeId"
-                :compact="compact"
-                :countdown-now="countdownNow"
-                :expanded="isPendingOpExpanded(op.invokeId)"
-                :has-args="hasPendingOpArgs(op.params)"
-                :now="now"
-                :op="op"
-                @resolve="
-                  (allowed) =>
-                    aiPanelStore.resolveToolAction(op.invokeId, allowed)
-                "
-                @toggle-args="togglePendingOpExpand(op.invokeId)"
-              />
 
               <!-- Still running hint (8s+) - outside details so always visible / 执行超 8s 的提示 -->
               <p

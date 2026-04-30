@@ -1,6 +1,4 @@
 <script lang="ts" setup>
-import type { PendingOpDisplayItem } from './use-pending-tool-actions';
-
 import type { TurnFlowState } from '#/components/business/ai-chat-kernel/TurnFlowState';
 import type {
   AgentKnowledgeBaseBindingsByAgentId,
@@ -28,11 +26,9 @@ const props = withDefaults(
     apiPrefix: string;
     chatMessages?: ChatMessage[];
     compact?: boolean;
-    countdownNow?: number;
     effectiveSuggestedQuestions?: string[];
     effectiveWelcomeMessage?: string;
     forceShowDiagnostics?: boolean;
-    getPendingOpsForMessage: (msg: ChatMessage) => PendingOpDisplayItem[];
     ensureAgentKnowledgeBases?: (agentId: number) => Promise<unknown> | void;
     ensureAgentSkills?: (agentId: number) => Promise<unknown> | void;
     registerContainer?: (element: HTMLDivElement | null) => void;
@@ -42,7 +38,6 @@ const props = withDefaults(
     showScrollToBottom?: boolean;
     showScrollToTop?: boolean;
     streaming?: boolean;
-    unassociatedPendingOps?: PendingOpDisplayItem[];
   }>(),
   {
     agents: () => [],
@@ -51,7 +46,6 @@ const props = withDefaults(
     agentSkillMap: null,
     chatMessages: () => [],
     compact: true,
-    countdownNow: 0,
     effectiveSuggestedQuestions: () => [],
     effectiveWelcomeMessage: '',
     forceShowDiagnostics: false,
@@ -64,7 +58,6 @@ const props = withDefaults(
     showScrollToBottom: false,
     showScrollToTop: false,
     streaming: false,
-    unassociatedPendingOps: () => [],
   },
 );
 
@@ -79,7 +72,6 @@ const emit = defineEmits<{
   (e: 'openUrl', url: string): void;
   (e: 'regenerate', index: number): void;
   (e: 'reject', index: number): void;
-  (e: 'resolvePendingAction', invokeId: string, allowed: boolean): void;
   (e: 'retry', index: number): void;
   (e: 'scroll'): void;
   (e: 'scrollToBottom'): void;
@@ -145,12 +137,10 @@ const normalizedChatMessages = computed(() =>
 
 const messageRenderEntries = computed(() =>
   normalizedChatMessages.value.map((message) => {
-    const pendingOps = props.getPendingOpsForMessage(message);
     return {
-      kernelState: buildTurnFlowState(message, pendingOps) as TurnFlowState,
+      kernelState: buildTurnFlowState(message) as TurnFlowState,
       key: resolveMessageRenderKey(message),
       message,
-      pendingOps,
     };
   }),
 );
@@ -332,9 +322,7 @@ watch(
             :agent-knowledge-base-map="agentKnowledgeBaseMap"
             :agent-skill-map="agentSkillMap"
             :selected-agent="selectedAgent"
-            :pending-ops="entry.pendingOps"
             :kernel-state="entry.kernelState"
-            :countdown-now="countdownNow"
             :force-show-diagnostics="forceShowDiagnostics"
             :compact="compact"
             @copy="emit('copy', $event)"
@@ -350,103 +338,6 @@ watch(
             @edit="emit('edit', $event)"
             @retry="emit('retry', $event)"
           />
-        </div>
-
-        <div
-          v-for="op in unassociatedPendingOps"
-          :key="op.invokeId"
-          class="overflow-hidden rounded-[14px] border"
-          :class="
-            op.resolved
-              ? 'border-border/20 bg-accent/10'
-              : 'border-warning/30 bg-warning/5'
-          "
-        >
-          <div
-            v-if="op.resolved"
-            class="flex items-center gap-1.5 px-2.5 py-1.5 text-[10.5px]"
-          >
-            <IconifyIcon
-              :icon="op.allowed ? 'lucide:check-circle' : 'lucide:x-circle'"
-              class="size-3 shrink-0"
-              :class="op.allowed ? 'text-green-600' : 'text-red-500'"
-            />
-            <span class="truncate text-muted-foreground">
-              <span class="font-medium text-foreground/60">{{
-                op.operationLabel
-              }}</span>
-              <span
-                v-if="op.operationDescription"
-                class="ml-1 text-muted-foreground/60"
-                >{{ op.operationDescription }}</span
-              >
-            </span>
-            <span
-              class="ml-auto shrink-0 rounded-full px-1.5 py-px text-[10px] font-medium"
-              :class="
-                op.allowed
-                  ? 'bg-green-50 text-green-600 dark:bg-green-950/30'
-                  : 'bg-red-50 text-red-600 dark:bg-red-950/30'
-              "
-            >
-              {{
-                op.allowed
-                  ? $t('shared.toolAction.confirmOk')
-                  : $t('shared.toolAction.confirmCancel')
-              }}
-            </span>
-          </div>
-
-          <template v-else>
-            <div class="flex items-center gap-1.5 px-2.5 py-1.5">
-              <IconifyIcon
-                icon="lucide:shield-alert"
-                class="size-3 shrink-0 text-warning"
-              />
-              <div class="min-w-0 flex-1">
-                <div
-                  class="truncate text-[10.5px] font-medium text-foreground/80"
-                >
-                  {{ op.operationLabel }}
-                </div>
-                <div
-                  v-if="op.operationDescription"
-                  class="truncate text-[9.5px] text-muted-foreground/60"
-                >
-                  {{ op.operationDescription }}
-                </div>
-                <div class="mt-0.5 text-[9.5px] text-muted-foreground/50">
-                  {{
-                    $t('shared.toolAction.confirmCountdown', {
-                      seconds: Math.max(
-                        0,
-                        60 -
-                          Math.floor(
-                            (countdownNow - (op.startedAt || 0)) / 1000,
-                          ),
-                      ),
-                    })
-                  }}
-                </div>
-              </div>
-              <div class="flex shrink-0 items-center gap-1">
-                <button
-                  class="inline-flex items-center gap-0.5 rounded-full bg-primary px-2 py-0.5 text-[10px] font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
-                  @click="emit('resolvePendingAction', op.invokeId, true)"
-                >
-                  <IconifyIcon icon="lucide:check" class="size-3" />
-                  {{ $t('shared.toolAction.confirmOk') }}
-                </button>
-                <button
-                  class="inline-flex items-center gap-0.5 rounded-full border border-border/60 px-2 py-0.5 text-[10px] text-muted-foreground transition-colors hover:border-destructive/40 hover:text-destructive"
-                  @click="emit('resolvePendingAction', op.invokeId, false)"
-                >
-                  <IconifyIcon icon="lucide:x" class="size-3" />
-                  {{ $t('shared.toolAction.confirmCancel') }}
-                </button>
-              </div>
-            </div>
-          </template>
         </div>
 
         <Transition name="fade">

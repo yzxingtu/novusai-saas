@@ -152,7 +152,6 @@ export interface TurnFlowStage {
 export type TurnFlowEvidenceKind =
   | 'knowledge_base'
   | 'memory'
-  | 'page'
   | 'tool'
   | 'web';
 

@@ -21,12 +21,6 @@ vi.mock('@vben/icons', () => ({
   }),
 }));
 
-vi.mock('#/store', () => ({
-  useAIPanelStore: () => ({
-    resolveToolAction: vi.fn(),
-  }),
-}));
-
 function createStreamingMessage(status: 'running' | 'success'): ChatMessage {
   return {
     clientKey: 'assistant-streaming-tool-calls',
@@ -50,7 +44,7 @@ function createStreamingMessage(status: 'running' | 'success'): ChatMessage {
           }),
           status,
           toolCallId: 'tool-call-1',
-          toolName: 'ui_update_record',
+          toolName: 'web_search',
         },
       ],
       timeline: [],

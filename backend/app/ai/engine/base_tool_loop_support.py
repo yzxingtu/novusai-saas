@@ -96,7 +96,6 @@ class BaseToolLoopSupport:
             starting_completion_tokens=starting_completion_tokens,
         )
         policy = ToolCallLoopPolicy(
-            build_page_no_progress_recovery=self._build_page_no_progress_recovery,
             messages_have_blocking_pending_interaction=self._messages_have_blocking_pending_interaction,
             first_incomplete_requested_family=self._first_incomplete_requested_family,
             allowed_tool_names_for_family=self._allowed_tool_names_for_family,
@@ -108,7 +107,7 @@ class BaseToolLoopSupport:
         callbacks = build_tool_call_loop_callbacks(
             policy=policy,
             ordered_requested_families_from_intents=self._ordered_requested_families_from_intents,
-            truncate_tool_calls_after_navigation=self._truncate_tool_calls_after_navigation,
+            keep_tool_calls_for_round=self._keep_tool_calls_for_round,
             mark_multi_family_progress=self._mark_multi_family_progress,
             budget_exit_response=self._budget_exit_response,
             call_followup_llm=_call_followup_llm,

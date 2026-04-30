@@ -17,13 +17,6 @@ from app.schemas.ai.batch_run import BatchRunCreate, BatchRunResponse
 router = APIRouter()
 
 
-def _sanitize_batch_input_variables(item_data: dict) -> dict:
-    sanitized = dict(item_data or {})
-    sanitized.pop("page_context", None)
-    sanitized.pop("page_session_id", None)
-    return sanitized
-
-
 @router.post("/{agent_id}/batch", summary="提交批处理任务", status_code=202)
 @action_create("action.agent.batch_submit")
 async def submit_batch(
@@ -55,7 +48,7 @@ async def submit_batch(
     items = [
         BatchItem(
             item_id=str(idx),
-            input_variables=_sanitize_batch_input_variables(item_data),
+            input_variables=dict(item_data or {}),
         )
         for idx, item_data in enumerate(data.items)
     ]

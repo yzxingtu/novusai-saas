@@ -9,11 +9,11 @@ import type {
 } from '../types';
 
 /**
- * ChatMessageItem component tests: waiting_confirm, executing, 8s hint, error_type mapping.
- * ChatMessageItem 组件测试：待确认、执行中、8s 提示、error_type 映射。
+ * ChatMessageItem component tests: executing, 8s hint, error_type mapping.
+ * ChatMessageItem 组件测试：执行中、8s 提示、error_type 映射。
  */
 import { mount } from '@vue/test-utils';
-import { defineComponent, ref } from 'vue';
+import { defineComponent } from 'vue';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -23,29 +23,6 @@ import ChatMessageFooter from '../ChatMessageFooter.vue';
 import ChatMessageItem from '../ChatMessageItem.vue';
 import ChatMessageThinkingBlock from '../ChatMessageThinkingBlock.vue';
 import ChatMessageToolCalls from '../ChatMessageToolCalls.vue';
-
-interface PendingToolActionTest {
-  invokeId: string;
-  operationLabel: string;
-  operationDescription: string;
-  params: Record<string, unknown>;
-  resolved: boolean;
-  allowed?: boolean;
-  startedAt: number;
-  toolCallId?: string;
-}
-
-const pendingToolActionsValue = ref<PendingToolActionTest[]>([]);
-const resolveToolAction = vi.fn();
-
-vi.mock('#/store', () => ({
-  useAIPanelStore: () => ({
-    get pendingToolActions() {
-      return pendingToolActionsValue.value;
-    },
-    resolveToolAction,
-  }),
-}));
 
 vi.mock('#/locales', () => ({
   $t: (key: string) => key,
@@ -154,20 +131,6 @@ function createTurnFlow(
   };
 }
 
-function createPendingOp(
-  overrides: Partial<PendingToolActionTest> = {},
-): PendingToolActionTest {
-  return {
-    invokeId: 'inv-1',
-    operationLabel: 'Op',
-    operationDescription: '',
-    params: {},
-    resolved: false,
-    startedAt: Date.now(),
-    ...overrides,
-  };
-}
-
 async function expandKernelOverviewIfCollapsed(wrapper: {
   find: (selector: string) => {
     attributes: (name?: string) => Record<string, string> | string | undefined;
@@ -209,7 +172,6 @@ async function expandDigestIfCollapsed(wrapper: {
 
 describe('chatMessageItem', () => {
   beforeEach(() => {
-    pendingToolActionsValue.value = [];
     vi.useRealTimers();
   });
 
@@ -217,32 +179,7 @@ describe('chatMessageItem', () => {
     vi.useRealTimers();
   });
 
-  it('shows toolWaitingConfirm when a tool action is pending confirmation', async () => {
-    pendingToolActionsValue.value = [createPendingOp()];
-    const wrapper = mount(ChatMessageItem, {
-      props: {
-        msg: createAssistantMsg([
-          { name: 'submit_form_tool', status: 'running' },
-        ]),
-        pendingOps: [createPendingOp({ invokeId: 'i1' })],
-        index: 0,
-        compact: true,
-      },
-      global: {
-        stubs: {
-          AgentProfilePopover: true,
-          MarkdownRender: true,
-          IconifyIcon: true,
-        },
-      },
-    });
-
-    await wrapper.vm.$nextTick();
-    expect(wrapper.text()).toContain('common.globalAiChat.toolWaitingConfirm');
-  });
-
-  it('shows toolExecuting when running tool without pending op', async () => {
-    pendingToolActionsValue.value = [];
+  it('shows toolExecuting when running tool without pending action', async () => {
     const wrapper = mount(ChatMessageItem, {
       props: {
         msg: createAssistantMsg([
@@ -355,38 +292,6 @@ describe('chatMessageItem', () => {
     );
   });
 
-  it('shows waiting_confirm when pendingOps has matching toolCallId', async () => {
-    pendingToolActionsValue.value = [
-      createPendingOp({
-        invokeId: 'inv_1',
-        operationLabel: 'Replace content',
-        operationDescription: '...',
-        toolCallId: 'tc_123',
-      }),
-    ];
-    const wrapper = mount(ChatMessageItem, {
-      props: {
-        msg: createAssistantMsg([
-            { id: 'tc_123', name: 'editor_set_content', status: 'running' },
-        ]),
-        pendingOps: pendingToolActionsValue.value,
-        index: 0,
-        compact: true,
-      },
-      global: {
-        stubs: {
-          AgentProfilePopover: true,
-          MarkdownRender: true,
-          IconifyIcon: true,
-        },
-      },
-    });
-
-    await wrapper.vm.$nextTick();
-    expect(wrapper.text()).toContain('common.globalAiChat.toolWaitingConfirm');
-    expect(wrapper.text()).toContain('Replace content');
-  });
-
   it('shows toolStatusOk when a tool completes successfully', async () => {
     const wrapper = mount(ChatMessageItem, {
       props: {
@@ -413,36 +318,6 @@ describe('chatMessageItem', () => {
     await expandKernelOverviewIfCollapsed(wrapper);
     expect(wrapper.text()).toContain('common.globalAiChat.toolStatusOk');
     expect(wrapper.text()).not.toContain('common.globalAiChat.toolStatusErr');
-  });
-
-  it('shows toolExecuting when pendingOps has non-matching toolCallId', async () => {
-    pendingToolActionsValue.value = [
-      createPendingOp({
-        invokeId: 'inv_1',
-        operationLabel: 'Replace',
-        toolCallId: 'tc_other',
-      }),
-    ];
-    const wrapper = mount(ChatMessageItem, {
-      props: {
-        msg: createAssistantMsg([
-          { id: 'tc_123', name: 'editor_update_content', status: 'running' },
-        ]),
-        pendingOps: pendingToolActionsValue.value,
-        index: 0,
-        compact: true,
-      },
-      global: {
-        stubs: {
-          AgentProfilePopover: true,
-          MarkdownRender: true,
-          IconifyIcon: true,
-        },
-      },
-    });
-
-    await wrapper.vm.$nextTick();
-    expect(wrapper.text()).toContain('common.globalAiChat.toolExecuting');
   });
 
   it('shows toolActionExecFailedHint for unknown error_type fallback', async () => {

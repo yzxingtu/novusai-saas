@@ -263,16 +263,6 @@ class CallLogProjectionMixin(CallLogSupport):
             or incoming.get("last_tool_name")
             or req.get("last_tool_name")
         )
-        last_page_key = cls._to_non_empty_str(
-            (turn_record or {}).get("last_page_key")
-            or incoming.get("last_page_key")
-            or req.get("last_page_key")
-        )
-        last_page_op = cls._to_non_empty_str(
-            (turn_record or {}).get("last_page_op")
-            or incoming.get("last_page_op")
-            or req.get("last_page_op")
-        )
         interrupted_stage = cls._to_non_empty_str(
             (turn_record or {}).get("interrupted_stage")
             or incoming.get("interrupted_stage")
@@ -380,10 +370,6 @@ class CallLogProjectionMixin(CallLogSupport):
             diagnostics["should_record_call_log"] = should_record_call_log
         if last_tool_name:
             diagnostics["last_tool_name"] = last_tool_name
-        if last_page_key:
-            diagnostics["last_page_key"] = last_page_key
-        if last_page_op:
-            diagnostics["last_page_op"] = last_page_op
         if interrupted_stage:
             diagnostics["interrupted_stage"] = interrupted_stage
         if active_intent_id:

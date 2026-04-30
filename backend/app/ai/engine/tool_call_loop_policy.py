@@ -6,18 +6,12 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
-
 from app.ai.tools.types import ToolDefinition
 from app.ai.types import ChatMessage
 
 
 @dataclass(frozen=True, slots=True)
 class ToolCallLoopPolicy:
-    build_page_no_progress_recovery: Callable[
-        ...,
-        tuple[list[str], dict[str, Any]],
-    ]
     messages_have_blocking_pending_interaction: Callable[[list[ChatMessage]], bool]
     first_incomplete_requested_family: Callable[[list[str], set[str]], str | None]
     allowed_tool_names_for_family: Callable[

@@ -170,27 +170,6 @@ def build_round_policy(
     )
 
 
-def _target_page_recovery_intent(
-    intent_plan: list[Any],
-    *,
-    intent_kind: str,
-    workflow_goal: str = "",
-) -> Any | None:
-    del intent_plan, intent_kind, workflow_goal
-    return None
-
-
-def project_page_recovery_into_runtime_intent_plan(
-    *,
-    intent_plan: list[Any] | None = None,
-    input_variables: dict[str, Any] | None,
-    recovery_diagnostics: dict[str, Any],
-    recovery_tool_names: list[str],
-) -> None:
-    del intent_plan, input_variables, recovery_diagnostics, recovery_tool_names
-    return
-
-
 def append_ordered_progress_hint(
     *,
     session: ToolLoopSession,
@@ -217,10 +196,6 @@ def apply_round_recovery_and_focus(
     round_tool_results: list[ToolResult],
     all_tools: list[ToolDefinition] | None,
     input_variables: dict[str, Any] | None,
-    build_page_no_progress_recovery: Callable[
-        ...,
-        tuple[list[str], dict[str, Any]],
-    ],
     messages_have_blocking_pending_interaction: Callable[[list[ChatMessage]], bool],
     first_incomplete_requested_family: Callable[[list[str], set[str]], str | None],
     allowed_tool_names_for_family: Callable[
@@ -229,27 +204,8 @@ def apply_round_recovery_and_focus(
     ],
     conversation_id: int | None,
 ) -> None:
+    _ = tool_calls, round_tool_results, conversation_id
     resolved_all_tools = list(all_tools or session.all_tools_full)
-    recovery_tool_names, recovery_diagnostics = build_page_no_progress_recovery(
-        messages=messages,
-        tool_calls=tool_calls,
-        tool_results=round_tool_results,
-        tools=resolved_all_tools,
-        input_variables=input_variables,
-    )
-    if recovery_tool_names:
-        session.forced_tool_names = recovery_tool_names
-        project_page_recovery_into_runtime_intent_plan(
-            input_variables=input_variables,
-            recovery_diagnostics=recovery_diagnostics,
-            recovery_tool_names=recovery_tool_names,
-        )
-        logger.info(
-            "Activated page-workflow recovery subset after no-progress page round: conversation_id={} diagnostics={}",
-            conversation_id,
-            recovery_diagnostics,
-        )
-        return
     if len(session.ordered_requested_families) > 1:
         if messages_have_blocking_pending_interaction(messages):
             return
@@ -277,7 +233,6 @@ __all__ = [
     "apply_round_recovery_and_focus",
     "build_round_policy",
     "build_tool_loop_session",
-    "project_page_recovery_into_runtime_intent_plan",
     "prepare_round_tools_for_followup",
     "sync_sandbox_runtime_model_info",
 ]
