@@ -383,6 +383,66 @@ async def test_build_responses_stream_request_omits_previous_response_id_for_too
 
 
 @pytest.mark.asyncio
+async def test_build_responses_stream_request_strips_runtime_previous_response_id() -> (
+    None
+):
+    adapter = _BuilderAdapterStub()
+
+    request = await build_responses_request(
+        adapter=adapter,
+        messages=[
+            ChatMessage(role="system", content="You are helpful."),
+            ChatMessage(role="user", content="查一下北京天气"),
+            ChatMessage(
+                role="assistant",
+                content="",
+                tool_calls=[
+                    {
+                        "id": "call_weather_1",
+                        "type": "function",
+                        "function": {
+                            "name": "get_current_weather",
+                            "arguments": '{"city":"北京"}',
+                        },
+                    }
+                ],
+                metadata={
+                    "protocol_path": "responses",
+                    "responses_response_id": "resp_tool_round_1",
+                },
+            ),
+            ChatMessage(
+                role="tool",
+                content='{"temperature":"12°C","condition":"晴"}',
+                tool_call_id="call_weather_1",
+            ),
+        ],
+        model="gpt-5.4-xhigh",
+        tools=[
+            {
+                "type": "function",
+                "function": {
+                    "name": "get_current_weather",
+                    "parameters": {},
+                },
+            }
+        ],
+        tool_choice="required",
+        stream=True,
+        kwargs={"previous_response_id": "resp_from_runtime_kwargs"},
+        reasoning_summary_model_prefixes=("gpt-5",),
+    )
+
+    assert request["stream"] is True
+    assert "previous_response_id" not in request
+    assert [message.role for message in adapter.converted_messages] == [
+        "user",
+        "assistant",
+        "tool",
+    ]
+
+
+@pytest.mark.asyncio
 async def test_build_responses_stream_follow_up_round_without_tools_keeps_structured_history() -> (
     None
 ):

@@ -17,6 +17,82 @@ class ResponsesInputAdapterProtocol(Protocol):
     ) -> str | None: ...
 
 
+def _as_non_empty_str(value: Any) -> str:
+    return str(value or "").strip()
+
+
+def _is_responses_item_id(value: str) -> bool:
+    return value.startswith("fc_")
+
+
+def _is_responses_call_id(value: str) -> bool:
+    return value.startswith("call_")
+
+
+def _synthesize_call_id(
+    *,
+    assistant_index: int,
+    tool_index: int,
+    tool_name: str,
+) -> str:
+    safe_name = (
+        "".join(ch if ch.isalnum() or ch == "_" else "_" for ch in tool_name)
+        or "tool"
+    )
+    return f"call_{assistant_index + 1}_{tool_index + 1}_{safe_name}"
+
+
+def _peek_following_tool_call_ids(
+    messages: list[ChatMessage],
+    assistant_index: int,
+) -> list[str]:
+    ids: list[str] = []
+    for msg in messages[assistant_index + 1 :]:
+        if msg.role != "tool":
+            break
+        tool_call_id = _as_non_empty_str(msg.tool_call_id)
+        if tool_call_id:
+            ids.append(tool_call_id)
+    return ids
+
+
+def _resolve_function_call_identity(
+    *,
+    assistant_index: int,
+    tool_call: dict[str, Any],
+    tool_index: int,
+    following_tool_call_ids: list[str],
+) -> tuple[str, str | None]:
+    function = tool_call.get("function") or {}
+    tool_name = _as_non_empty_str(function.get("name"))
+    item_id = _as_non_empty_str(tool_call.get("id"))
+    explicit_call_id = _as_non_empty_str(
+        tool_call.get("call_id") or tool_call.get("tool_call_id")
+    )
+    if explicit_call_id:
+        return explicit_call_id, item_id if _is_responses_item_id(item_id) else None
+
+    if item_id and not _is_responses_item_id(item_id):
+        return item_id, None
+
+    candidate_tool_call_id = (
+        following_tool_call_ids[tool_index]
+        if tool_index < len(following_tool_call_ids)
+        else ""
+    )
+    if _is_responses_call_id(candidate_tool_call_id):
+        return candidate_tool_call_id, item_id if _is_responses_item_id(item_id) else None
+
+    return (
+        _synthesize_call_id(
+            assistant_index=assistant_index,
+            tool_index=tool_index,
+            tool_name=tool_name,
+        ),
+        item_id if _is_responses_item_id(item_id) else None,
+    )
+
+
 async def build_responses_message_content(
     *,
     adapter: ResponsesInputAdapterProtocol,
@@ -121,32 +197,59 @@ async def convert_messages_to_responses_input(
     supports_video: bool = False,
 ) -> list[dict[str, Any]]:
     converted: list[dict[str, Any]] = []
+    pending_call_ids: list[dict[str, str | None]] = []
 
-    for msg in messages:
+    def pop_pending_tool_call(tool_call_id: str) -> str | None:
+        if not pending_call_ids:
+            return None
+        if not tool_call_id:
+            return str(pending_call_ids.pop(0)["call_id"] or "")
+        for index, pending in enumerate(pending_call_ids):
+            if tool_call_id in {pending.get("call_id"), pending.get("item_id")}:
+                pending_call_ids.pop(index)
+                return str(pending.get("call_id") or "")
+        if _is_responses_call_id(tool_call_id):
+            return tool_call_id
+        return None
+
+    for message_index, msg in enumerate(messages):
         if msg.role == "tool":
+            call_id = pop_pending_tool_call(_as_non_empty_str(msg.tool_call_id))
+            if not call_id:
+                continue
             converted.append(
                 {
                     "type": "function_call_output",
-                    "call_id": msg.tool_call_id or "",
+                    "call_id": call_id,
                     "output": msg.content or "",
                 }
             )
             continue
 
         if msg.role == "assistant" and msg.tool_calls:
-            for tool_call in msg.tool_calls:
+            following_tool_call_ids = _peek_following_tool_call_ids(
+                messages,
+                message_index,
+            )
+            for tool_index, tool_call in enumerate(msg.tool_calls):
                 function = tool_call.get("function") or {}
-                tc_id = tool_call.get("call_id") or tool_call.get("id") or ""
-                converted.append(
-                    {
-                        "type": "function_call",
-                        "call_id": tc_id,
-                        "id": tool_call.get("id") or tc_id,
-                        "name": function.get("name", ""),
-                        "arguments": function.get("arguments", "{}") or "{}",
-                        "status": "completed",
-                    }
+                call_id, item_id = _resolve_function_call_identity(
+                    assistant_index=message_index,
+                    tool_call=tool_call,
+                    tool_index=tool_index,
+                    following_tool_call_ids=following_tool_call_ids,
                 )
+                payload = {
+                    "type": "function_call",
+                    "call_id": call_id,
+                    "name": function.get("name", ""),
+                    "arguments": function.get("arguments", "{}") or "{}",
+                    "status": "completed",
+                }
+                if item_id:
+                    payload["id"] = item_id
+                converted.append(payload)
+                pending_call_ids.append({"call_id": call_id, "item_id": item_id})
             if not (msg.content or "").strip():
                 continue
 

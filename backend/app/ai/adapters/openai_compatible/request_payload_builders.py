@@ -240,6 +240,7 @@ async def build_responses_request(
     explicit_reasoning = runtime_kwargs.pop("reasoning", None)
     effective_request = runtime_kwargs.pop("_effective_model_request", None)
     model_config = runtime_kwargs.pop("model_config", None)
+    runtime_kwargs.pop("previous_response_id", None)
     if effective_request is None:
         effective_request = adapter.resolve_effective_model_request(
             model=model,

@@ -2930,6 +2930,55 @@ async def test_convert_messages_to_responses_input_keeps_item_id_separate_from_c
 
 
 @pytest.mark.asyncio
+async def test_convert_messages_to_responses_input_uses_following_call_id_when_item_id_is_fc() -> None:
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={"wire_api": "responses"},
+    )
+
+    converted = await adapter._convert_messages_to_responses_input(
+        [
+            ChatMessage(
+                role="assistant",
+                content="",
+                tool_calls=[
+                    {
+                        "id": "fc_weather_123",
+                        "type": "function",
+                        "function": {
+                            "name": "get_current_weather",
+                            "arguments": '{"city":"郑州"}',
+                        },
+                    }
+                ],
+            ),
+            ChatMessage(
+                role="tool",
+                content="Current weather for 郑州市: Light rain",
+                tool_call_id="call_weather_123",
+            ),
+        ]
+    )
+
+    assert converted == [
+        {
+            "type": "function_call",
+            "call_id": "call_weather_123",
+            "id": "fc_weather_123",
+            "name": "get_current_weather",
+            "arguments": '{"city":"郑州"}',
+            "status": "completed",
+        },
+        {
+            "type": "function_call_output",
+            "call_id": "call_weather_123",
+            "output": "Current weather for 郑州市: Light rain",
+        },
+    ]
+
+
+@pytest.mark.asyncio
 async def test_convert_messages_to_responses_input_synthesizes_missing_call_id_roundtrip() -> (
     None
 ):
