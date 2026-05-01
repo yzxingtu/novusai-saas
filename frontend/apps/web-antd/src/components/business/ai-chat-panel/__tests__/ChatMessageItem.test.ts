@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 // Test type: behavioral
 // Verifies: assistant chat messages render canonical turnFlow process UX,
-// inline thinking/tool content, and final-answer transitions without stale process artifacts.
+// hidden thinking content, tool content, and final-answer transitions without stale process artifacts.
 import type {
   AgentItem,
   ChatMessage,
@@ -350,7 +350,7 @@ describe('chatMessageItem', () => {
     );
   });
 
-  it('renders streamed thinking content inline inside the turn transcript', async () => {
+  it('hides streamed thinking detail content while keeping compact process status', async () => {
     const wrapper = mount(ChatMessageItem, {
       props: {
         msg: {
@@ -388,7 +388,10 @@ describe('chatMessageItem', () => {
     expect(wrapper.find('[data-testid="thinking-toggle"]').exists()).toBe(
       false,
     );
-    expect(wrapper.text()).toContain('先检查上下文，再决定下一步。');
+    expect(wrapper.text()).toContain(
+      'common.globalAiChat.turnStageSummary.thinking',
+    );
+    expect(wrapper.text()).not.toContain('先检查上下文，再决定下一步。');
   });
 
   it('renders a compact thinking trigger after streaming completes and expands on demand in default mode', async () => {
@@ -711,6 +714,71 @@ describe('chatMessageItem', () => {
     expect(wrapper.get('.assistant-message-surface').text()).not.toContain(
       '猫娘智能体',
     );
+  });
+
+  it('keeps active turn skills out of the assistant message body and leaves grants in the avatar profile', async () => {
+    const wrapper = mount(ChatMessageItem, {
+      props: {
+        agents: [
+          {
+            id: 2,
+            tenant_id: 1,
+            name: '技能智能体',
+            description: null,
+            avatar: null,
+            status: 'published',
+            skills: [
+              {
+                id: 10,
+                name: '默认技能',
+                package_name: '默认工具包',
+                skill_id: 100,
+                skill_name: '默认技能',
+              },
+            ],
+          },
+        ],
+        msg: {
+          ...createAssistantMsg([
+            {
+              id: 'tc-search',
+              name: 'web_search',
+              skillName: '联网搜索',
+              status: 'success',
+            },
+          ]),
+          agent_id: 2,
+          content: '已完成检索。',
+        },
+        index: 0,
+        compact: true,
+      },
+      global: {
+        stubs: {
+          IconifyIcon: true,
+          MarkdownRender: true,
+          APopover: PopoverContentStub,
+          Popover: PopoverContentStub,
+        },
+      },
+    });
+
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.find('[data-testid="assistant-skill-strip"]').exists()).toBe(
+      false,
+    );
+    expect(
+      wrapper.findAll('[data-testid="assistant-skill-chip"]'),
+    ).toHaveLength(0);
+    expect(wrapper.get('.assistant-message-surface').text()).not.toContain(
+      '联网搜索',
+    );
+    expect(
+      wrapper
+        .findAll('[data-testid="agent-profile-skill-entry-chip"]')
+        .map((chip) => chip.text()),
+    ).toEqual(['默认技能']);
   });
 
   it('renders i18n empty states when the assistant avatar profile has no bound skills or knowledge bases', async () => {
@@ -1102,10 +1170,10 @@ describe('chatMessageItem', () => {
       'SELECT t.name, COUNT(acl.id) AS total_calls FROM ai_call_logs acl JOIN tenants t ON t.id = acl.tenant_id WHERE acl.created_at >= CURRENT_DATE GROUP BY t.name',
     ]);
 
-    expect(wrapper.text()).toContain('common.globalAiChat.rawResult');
+    expect(wrapper.text()).not.toContain('common.globalAiChat.rawResult');
   });
 
-  it('renders structured args and returned payload details before the raw result toggle in default mode', async () => {
+  it('renders structured args and returned payload details without the raw result toggle in default mode', async () => {
     const wrapper = mount(ChatMessageToolCalls, {
       props: {
         msg: createAssistantMsg([
@@ -1181,7 +1249,7 @@ describe('chatMessageItem', () => {
     expect(outputFields[1]?.text()).toContain('total: 12');
     expect(outputFields[1]?.text()).toContain('Contoso');
     expect(outputFields[1]?.text()).toContain('total: 9');
-    expect(wrapper.text()).toContain('common.globalAiChat.rawResult');
+    expect(wrapper.text()).not.toContain('common.globalAiChat.rawResult');
   });
 
   it('renders structured web search results directly from summary payload in default mode', async () => {
@@ -2545,13 +2613,16 @@ describe('chatMessageItem', () => {
     await wrapper.vm.$nextTick();
 
     expect(
-      wrapper
-        .get('[data-testid="chat-message-kernel-overview-toggle"]')
-        .attributes(),
-    ).toMatchObject({
-      'aria-expanded': 'false',
-    });
-    expect(wrapper.find('[data-testid="turn-process-body"]').exists()).toBe(
+      wrapper.find('[data-testid="chat-message-kernel-header"]').exists(),
+    ).toBe(true);
+    expect(
+      wrapper.find('[data-testid="chat-message-kernel-overview-toggle"]').exists(),
+    ).toBe(false);
+    expect(
+      wrapper.get('[data-testid="turn-process-body"]').attributes('style') ??
+        '',
+    ).toContain('grid-template-rows: 0fr');
+    expect(wrapper.find('[data-testid="turn-stage-body-0"]').exists()).toBe(
       false,
     );
   });

@@ -102,34 +102,10 @@ function readMetricNumber(
   return undefined;
 }
 
-function stripMarkdownSummary(content: string, maxLength = 120) {
-  const plain = content
-    .replaceAll(/[`*_>#-]/g, ' ')
-    .replaceAll(/\s+/g, ' ')
-    .trim();
-  if (!plain) {
-    return undefined;
-  }
-  if (plain.length <= maxLength) {
-    return plain;
-  }
-  return `${plain.slice(0, maxLength - 1)}…`;
-}
-
 function toDisplayStage(stage: TurnFlowStage): TurnFlowStageForDisplay {
   const clonedStage = cloneStage(stage);
   clonedStage.summary = normalizeMeaningfulStageCopy(clonedStage.summary);
   clonedStage.title = normalizeMeaningfulStageCopy(clonedStage.title);
-  if (
-    clonedStage.type === 'thinking' &&
-    !clonedStage.summary &&
-    clonedStage.detailLines?.[0]
-  ) {
-    const derivedSummary = stripMarkdownSummary(clonedStage.detailLines[0]);
-    if (derivedSummary) {
-      clonedStage.summary = derivedSummary;
-    }
-  }
   return clonedStage;
 }
 
@@ -502,7 +478,71 @@ export function getToolCallsForDisplay(
       ...(item.snippet ? { summary: item.snippet } : {}),
       ...(item.summaryPayload ? { summaryPayload: item.summaryPayload } : {}),
     }));
-  return toolCalls.length > 0 ? toolCalls : undefined;
+  const deduped = dedupeToolCallsForDisplay(toolCalls);
+  return deduped.length > 0 ? deduped : undefined;
+}
+
+function normalizeToolCallText(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function getToolCallDisplayKey(toolCall: ToolCallEvent): string {
+  const id = normalizeToolCallText(toolCall.id);
+  if (id) {
+    return `id:${id}`;
+  }
+  const output = normalizeToolCallText(toolCall.output);
+  const summary = normalizeToolCallText(toolCall.summary);
+  const args = toolCall.arguments ? JSON.stringify(toolCall.arguments) : '';
+  return [
+    'shape',
+    toolCall.name,
+    toolCall.status,
+    args,
+    output || summary,
+  ].join('\u001F');
+}
+
+function preferDisplayValue<T>(current: T | undefined, incoming: T | undefined) {
+  return current === undefined || current === null ? incoming : current;
+}
+
+function mergeToolCallForDisplay(
+  current: ToolCallEvent,
+  incoming: ToolCallEvent,
+): ToolCallEvent {
+  return {
+    ...incoming,
+    ...current,
+    arguments: preferDisplayValue(current.arguments, incoming.arguments),
+    displayName: preferDisplayValue(current.displayName, incoming.displayName),
+    durationMs: preferDisplayValue(current.durationMs, incoming.durationMs),
+    error: preferDisplayValue(current.error, incoming.error),
+    errorType: preferDisplayValue(current.errorType, incoming.errorType),
+    output: preferDisplayValue(current.output, incoming.output),
+    resultLink: preferDisplayValue(current.resultLink, incoming.resultLink),
+    skillName: preferDisplayValue(current.skillName, incoming.skillName),
+    skillType: preferDisplayValue(current.skillType, incoming.skillType),
+    startedAt: preferDisplayValue(current.startedAt, incoming.startedAt),
+    summary: preferDisplayValue(current.summary, incoming.summary),
+    summaryPayload: preferDisplayValue(
+      current.summaryPayload,
+      incoming.summaryPayload,
+    ),
+  };
+}
+
+function dedupeToolCallsForDisplay(toolCalls: ToolCallEvent[]): ToolCallEvent[] {
+  const byKey = new Map<string, ToolCallEvent>();
+  for (const toolCall of toolCalls) {
+    const key = getToolCallDisplayKey(toolCall);
+    const existing = byKey.get(key);
+    byKey.set(
+      key,
+      existing ? mergeToolCallForDisplay(existing, toolCall) : toolCall,
+    );
+  }
+  return [...byKey.values()];
 }
 
 export function getRagSourcesForDisplay(

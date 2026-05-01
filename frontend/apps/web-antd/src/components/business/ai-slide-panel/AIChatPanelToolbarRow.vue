@@ -50,10 +50,11 @@ const emit = defineEmits<{
 <template>
   <div
     data-testid="ai-panel-toolbar-row"
-    class="ai-panel-toolbar-row flex w-full shrink-0 items-center justify-end px-1 pb-0.5 pt-0.5 sm:px-1.5"
+    class="ai-panel-toolbar-row flex w-full shrink-0 items-center justify-end px-2 py-1"
   >
     <AIChatPanelUtilityActions
       :can-force-reroute="canForceReroute"
+      compact
       :force-reroute-next-turn="forceRerouteNextTurn"
       :has-header-variable-values="hasHeaderVariableValues"
       :header-memory-has-attention="headerMemoryHasAttention"

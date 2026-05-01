@@ -13,13 +13,11 @@ import {
 
 const props = defineProps<{
   compact: boolean;
-  rawExpanded: boolean;
   toolItem: ToolDisplayItem;
 }>();
 
 const emit = defineEmits<{
   copy: [content: string];
-  toggleRaw: [];
 }>();
 
 const detailView = computed(() => buildToolCallDetailsViewModel(props.toolItem));
@@ -317,51 +315,6 @@ const detailView = computed(() => buildToolCallDetailsViewModel(props.toolItem))
         class="text-muted-foreground/56 mt-1.5 text-[9px]"
       >
         +{{ detailView.outputPreview?.overflowCount }}
-      </div>
-    </section>
-
-    <section
-      v-if="detailView.rawOutput"
-      class="tool-detail-section overflow-hidden px-0 py-0 text-muted-foreground"
-    >
-      <button
-        type="button"
-        class="hover:bg-accent/16 flex w-full items-center gap-1 px-2 py-1.5 text-left transition-colors"
-        :title="
-          $t(
-            props.rawExpanded
-              ? 'common.globalAiChat.rawResultCollapse'
-              : 'common.globalAiChat.rawResultExpand',
-          )
-        "
-        @click="emit('toggleRaw')"
-      >
-        <IconifyIcon icon="lucide:braces" class="size-3 shrink-0" />
-        <span class="tool-detail-label flex-1">
-          {{ $t('common.globalAiChat.rawResult') }}
-        </span>
-        <IconifyIcon
-          icon="lucide:chevron-down"
-          class="size-2.5 transition-transform duration-200"
-          :style="{
-            transform: props.rawExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
-          }"
-        />
-      </button>
-      <div
-        class="grid transition-[grid-template-rows,opacity] duration-200 ease-out"
-        :style="{
-          gridTemplateRows: props.rawExpanded ? '1fr' : '0fr',
-          opacity: props.rawExpanded ? 1 : 0,
-        }"
-      >
-        <div class="border-border/12 min-h-0 overflow-hidden border-t">
-          <pre
-            class="text-foreground/78 overflow-y-auto whitespace-pre-wrap break-all bg-background/72 px-2 py-1.5 font-mono leading-4"
-            :class="[compact ? 'max-h-32 text-[10px]' : 'max-h-40 text-[11px]']"
-            >{{ detailView.rawOutput }}</pre
-          >
-        </div>
       </div>
     </section>
 

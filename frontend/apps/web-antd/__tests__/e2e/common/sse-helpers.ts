@@ -856,7 +856,9 @@ export async function interceptChatSSE(
     if (!fullResponse.trim()) {
       const domFallback = await page
         .evaluate(() => {
-          const panel = document.querySelector('[data-ai-panel]');
+          const panel = document.querySelector(
+            '[data-testid="ai-chat-slide-panel"]',
+          );
           if (!panel) {
             return '';
           }

@@ -298,12 +298,6 @@ function toggleExpand() {
       >
         {{ $t('common.globalAiChat.generationInterrupted') }}
       </span>
-      <span
-        v-else-if="msg.partial && !msg.streaming"
-        class="ml-1 text-muted-foreground/70"
-      >
-        {{ $t('common.globalAiChat.generationIncomplete') }}
-      </span>
       <div
         v-if="canCollapse && !expanded"
         class="via-card/92 pointer-events-none absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-card to-transparent"

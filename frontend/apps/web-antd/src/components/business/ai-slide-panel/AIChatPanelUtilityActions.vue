@@ -247,11 +247,7 @@ const effectiveHeaderMoreMenuItems = computed(
 <style scoped>
 .ai-panel-utility-chip {
   border-color: hsl(var(--border) / 0.18);
-  background: linear-gradient(
-    180deg,
-    hsl(var(--background) / 0.94) 0%,
-    hsl(var(--background) / 0.86) 100%
-  );
-  box-shadow: 0 12px 22px -30px hsl(var(--foreground) / 0.14);
+  background: hsl(var(--background) / 0.74);
+  box-shadow: none;
 }
 </style>

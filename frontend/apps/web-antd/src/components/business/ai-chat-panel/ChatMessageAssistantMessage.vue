@@ -122,9 +122,9 @@ const showKernelSection = computed(
         <div class="assistant-message-surface">
           <div
             class="assistant-message-body"
-            :class="compact ? 'px-3 py-3' : 'px-4 py-4'"
+            :class="compact ? 'px-3 py-2.5' : 'px-3.5 py-3.5'"
           >
-            <div class="space-y-2.5">
+            <div class="assistant-message-flow space-y-1.5">
               <ChatMessageKernel
                 v-if="showKernelSection"
                 :compact="compact"
@@ -297,55 +297,23 @@ const showKernelSection = computed(
 }
 
 .assistant-avatar-rail {
-  position: sticky;
-  top: 0.45rem;
+  position: static;
 }
 
 .assistant-message-surface {
   position: relative;
   min-width: 0;
   width: 100%;
-  overflow: hidden;
-  border: 1px solid hsl(var(--border) / 0.1);
-  border-radius: 20px;
-  background:
-    radial-gradient(
-      circle at top left,
-      hsl(var(--primary) / 0.1),
-      transparent 22%
-    ),
-    radial-gradient(
-      circle at bottom right,
-      hsl(var(--primary) / 0.05),
-      transparent 24%
-    ),
-    linear-gradient(
-      180deg,
-      hsl(var(--background) / 0.996) 0%,
-      hsl(var(--background) / 0.985) 100%
-    );
-  box-shadow:
-    0 24px 48px -44px hsl(var(--foreground) / 0.18),
-    0 10px 24px -26px hsl(var(--foreground) / 0.08);
-}
-
-.assistant-message-surface::before {
-  position: absolute;
-  top: 0;
-  left: 1.25rem;
-  right: 1.25rem;
-  height: 1px;
-  content: '';
-  background: linear-gradient(
-    90deg,
-    transparent,
-    hsl(var(--primary) / 0.62),
-    transparent
-  );
+  border-left: 1px solid hsl(var(--border) / 0.24);
+  background: transparent;
 }
 
 .assistant-message-body {
   background: transparent;
+}
+
+.assistant-message-flow {
+  min-width: 0;
 }
 
 .assistant-message-support {
@@ -360,9 +328,6 @@ const showKernelSection = computed(
 }
 
 .assistant-message-surface :deep(.chat-message-kernel-shell) {
-  border-color: hsl(var(--border) / 0.08);
-  border-radius: 16px;
-  background: hsl(var(--background) / 0.72);
-  box-shadow: inset 0 1px 0 hsl(var(--background) / 0.52);
+  border-radius: 12px;
 }
 </style>

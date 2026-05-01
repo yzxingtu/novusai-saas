@@ -45,7 +45,6 @@ export interface AssistantTurnMergeState {
   turnRagSources?: RagSource[];
   turnRecordPayload: null | TurnRecordPayload;
   turnRecordRaw: null | Record<string, unknown>;
-  turnRouteSource: null | string;
   turnSelectedSkillNames: string[];
   turnSelectedToolNames: string[];
   turnTerminationReason?: string;
@@ -78,7 +77,6 @@ export function createInitialAssistantTurnState(
     turnFlow: undefined,
     turnRecordPayload: null,
     turnRecordRaw: null,
-    turnRouteSource: null,
     turnSelectedSkillNames: [],
     turnSelectedToolNames: [],
   };

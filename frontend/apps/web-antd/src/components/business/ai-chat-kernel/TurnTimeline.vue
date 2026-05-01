@@ -11,22 +11,20 @@ import { IconifyIcon } from '@vben/icons';
 import {
   getOptimizingToolsForDisplay,
   getRagSourcesForDisplay,
-  getThinkingContentForDisplay,
   getToolCallsForDisplay,
 } from '#/components/business/ai-chat-panel/chat-message-turn-flow';
-import ChatMessageThinkingBlock from '#/components/business/ai-chat-panel/ChatMessageThinkingBlock.vue';
 import ChatMessageToolCalls from '#/components/business/ai-chat-panel/ChatMessageToolCalls.vue';
 import {
   normalizeMergedTextPart,
   normalizeOptionalString,
 } from '#/components/business/ai-chat-panel/use-ai-chat-message-normalizers';
-import { MarkdownRender } from '#/components/business/markdown-render';
 import { $t } from '#/locales';
 
 import {
   getMeaningfulStageSummary,
   getMeaningfulStageTitle,
   getProcessHeadlineForStage,
+  isTechnicalProcessErrorCopy,
   isNoopSkippedStage,
   getStageStatusLabel,
   getStageSummary,
@@ -39,12 +37,14 @@ import {
 const props = withDefaults(
   defineProps<{
     compact?: boolean;
+    inline?: boolean;
     index?: number;
     msg: ChatMessage;
     state: TurnFlowState;
   }>(),
   {
     compact: false,
+    inline: false,
     index: 0,
   },
 );
@@ -64,14 +64,44 @@ let processAutoCollapseTimer:
 const displayOptimizingTools = computed(() =>
   getOptimizingToolsForDisplay(props.msg),
 );
-const displayThinkingContent = computed(() =>
-  getThinkingContentForDisplay(props.msg),
-);
 const displayToolCalls = computed(
   () => getToolCallsForDisplay(props.msg) ?? [],
 );
 const displayRagSources = computed(
   () => getRagSourcesForDisplay(props.msg) ?? [],
+);
+
+function hasReadableAnswerText(msg: ChatMessage) {
+  return Boolean(
+    normalizeOptionalString(normalizeMergedTextPart(msg.content) || msg.content),
+  );
+}
+
+function isRecoverableProcessFailure(
+  msg: ChatMessage,
+  state: TurnFlowState,
+) {
+  if (!hasReadableAnswerText(msg) || msg.error || msg.streaming) {
+    return false;
+  }
+  const messageRecord = msg as unknown as Record<string, unknown>;
+  const candidates = [
+    state.flow.failureKind,
+    state.flow.completionReason,
+    state.flow.errorSurface?.errorType,
+    state.flow.errorSurface?.message,
+    state.flow.errorSurface?.summary,
+    messageRecord.failure_kind,
+    messageRecord.failureKind,
+    msg.completionReason,
+    msg.terminationReason,
+  ];
+  return candidates.some((candidate) => isTechnicalProcessErrorCopy(candidate));
+}
+
+const hasFinalAnswerText = computed(() => hasReadableAnswerText(props.msg));
+const hasRecoverableProcessFailure = computed(() =>
+  isRecoverableProcessFailure(props.msg, props.state),
 );
 
 function normalizeIdentityPart(value: unknown): string | undefined {
@@ -177,30 +207,6 @@ function getFilteredStageDetailLines(stage: TurnFlowStageForDisplay) {
     });
 }
 
-function getThinkingDetailText(stage: TurnFlowStageForDisplay) {
-  return getFilteredStageDetailLines(stage).join('\n\n');
-}
-
-function getThinkingBodyContent(stage: TurnFlowStageForDisplay) {
-  if (stage.type !== 'thinking') {
-    return undefined;
-  }
-  const detailText = getThinkingDetailText(stage);
-  if (detailText) {
-    return detailText;
-  }
-  if (
-    stage.id === lastThinkingStageId.value &&
-    normalizeOptionalString(displayThinkingContent.value)
-  ) {
-    return displayThinkingContent.value;
-  }
-  return getMeaningfulStageSummary(stage);
-}
-
-const lastThinkingStageId = computed(
-  () => timeline.value.findLast((stage) => stage.type === 'thinking')?.id,
-);
 const lastToolSelectionStageId = computed(
   () => timeline.value.findLast((stage) => stage.type === 'tool_selection')?.id,
 );
@@ -212,30 +218,8 @@ const lastRetrievalStageId = computed(
 );
 
 function hasThinkingBody(stage: TurnFlowStageForDisplay) {
-  if (stage.type !== 'thinking') {
-    return false;
-  }
-  const bodyContent = normalizeOptionalString(getThinkingBodyContent(stage));
-  if (!bodyContent) {
-    return false;
-  }
-  const summary = getMeaningfulStageSummary(stage);
-  if (!summary || bodyContent !== summary) {
-    return true;
-  }
-  return (
-    stage.id === lastThinkingStageId.value &&
-    (isLiveMessage.value || stage.status === 'running')
-  );
-}
-
-function isEmbeddedThinkingStage(stage: TurnFlowStageForDisplay) {
-  return (
-    stage.type === 'thinking' &&
-    stage.id === lastThinkingStageId.value &&
-    Boolean(normalizeOptionalString(displayThinkingContent.value)) &&
-    hasThinkingBody(stage)
-  );
+  void stage;
+  return false;
 }
 
 function hasToolSelectionBody(stage: TurnFlowStageForDisplay) {
@@ -272,11 +256,16 @@ function hasStageBody(stage: TurnFlowStageForDisplay) {
   );
 }
 
-function shouldHideCompletedAnswerAssembly(stage: TurnFlowStageForDisplay) {
+function shouldHideAnswerAssemblyStage(stage: TurnFlowStageForDisplay) {
+  const hasAnswerSurface = Boolean(
+    props.state.answerCard || hasFinalAnswerText.value,
+  );
   return (
     stage.type === 'answer_assembly' &&
-    stage.status === 'completed' &&
-    Boolean(props.state.answerCard || normalizeMergedTextPart(props.msg.content))
+    !isLiveMessage.value &&
+    hasAnswerSurface &&
+    (stage.status === 'completed' ||
+      (stage.status === 'error' && hasRecoverableProcessFailure.value))
   );
 }
 
@@ -310,14 +299,17 @@ function shouldRenderStage(stage: TurnFlowStageForDisplay) {
   if (stage.type === 'completed') {
     return false;
   }
-  if (shouldHideCompletedAnswerAssembly(stage)) {
+  if (stage.type === 'failed' && hasRecoverableProcessFailure.value) {
+    return false;
+  }
+  if (shouldHideAnswerAssemblyStage(stage)) {
     return false;
   }
   if (stage.type === 'thinking') {
     return Boolean(
-      normalizeOptionalString(stage.summary) ||
-        normalizeOptionalString(stage.title) ||
-        hasThinkingBody(stage),
+      isLiveMessage.value ||
+        normalizeOptionalString(getMeaningfulStageSummary(stage)) ||
+        normalizeOptionalString(getMeaningfulStageTitle(stage)),
     );
   }
   return !shouldHideMeaninglessStage(stage);
@@ -394,6 +386,7 @@ const processStatusClass = computed(() => {
   }
   return 'turn-process-status-completed';
 });
+const showProcessBody = computed(() => props.inline || isProcessExpanded.value);
 
 function syncProcessExpanded(nextExpanded: boolean) {
   if (isProcessExpanded.value === nextExpanded) {
@@ -465,9 +458,11 @@ onBeforeUnmount(() => {
   <div
     v-if="visibleTimeline.length > 0"
     data-testid="chat-message-kernel-timeline"
-    class="min-w-0"
+    class="turn-process-root min-w-0"
+    :class="inline ? 'turn-process-inline' : ''"
   >
     <button
+      v-if="!inline"
       type="button"
       :aria-expanded="isProcessExpanded"
       data-testid="turn-process-toggle"
@@ -534,8 +529,8 @@ onBeforeUnmount(() => {
       data-testid="turn-process-body"
       class="grid overflow-hidden transition-[grid-template-rows,opacity] duration-200 ease-out"
       :style="{
-        gridTemplateRows: isProcessExpanded ? '1fr' : '0fr',
-        opacity: isProcessExpanded ? 1 : 0,
+        gridTemplateRows: showProcessBody ? '1fr' : '0fr',
+        opacity: showProcessBody ? 1 : 0,
       }"
     >
       <div class="min-h-0 overflow-hidden">
@@ -596,12 +591,12 @@ onBeforeUnmount(() => {
               </p>
 
               <div
-                v-if="hasStageBody(stage)"
+                v-if="hasStageBody(stage) && showProcessBody"
                 class="grid transition-[grid-template-rows,opacity] duration-200 ease-out"
                 :data-testid="`turn-stage-body-${stageIndex}`"
                 :style="{
-                  gridTemplateRows: isProcessExpanded ? '1fr' : '0fr',
-                  opacity: isProcessExpanded ? 1 : 0,
+                  gridTemplateRows: showProcessBody ? '1fr' : '0fr',
+                  opacity: showProcessBody ? 1 : 0,
                 }"
               >
                 <div class="min-h-0 overflow-hidden">
@@ -610,26 +605,8 @@ onBeforeUnmount(() => {
                       class="turn-stage-detail-surface min-w-0 rounded-[14px] border"
                       :class="compact ? 'px-2.5 py-2' : 'px-2.5 py-2.5'"
                     >
-                      <ChatMessageThinkingBlock
-                        v-if="isEmbeddedThinkingStage(stage)"
-                        :compact="compact"
-                        embedded
-                        :index="0"
-                        :msg="msg"
-                      />
-
                       <div
-                        v-else-if="hasThinkingBody(stage)"
-                        class="turn-stage-inline-markdown min-w-0"
-                      >
-                        <MarkdownRender
-                          :content="getThinkingBodyContent(stage) ?? ''"
-                          :streaming="false"
-                        />
-                      </div>
-
-                      <div
-                        v-else-if="hasToolSelectionBody(stage)"
+                        v-if="hasToolSelectionBody(stage)"
                         class="inline-flex max-w-full items-center gap-1.5 rounded-[12px] bg-muted/[0.05] px-2.5 py-2 text-muted-foreground/72"
                         :class="compact ? 'text-[9.75px]' : 'text-[10px]'"
                       >
@@ -708,7 +685,10 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .turn-process-toggle {
+  min-height: 1.8rem;
   border: 1px solid transparent;
+  border-top-color: hsl(var(--border) / 0.14);
+  border-bottom-color: hsl(var(--border) / 0.08);
   background: transparent;
   transition:
     background-color 160ms ease,
@@ -723,8 +703,8 @@ onBeforeUnmount(() => {
 
 .turn-process-pill {
   color: hsl(var(--primary) / 0.74);
-  border: 1px solid hsl(var(--primary) / 0.12);
-  background: hsl(var(--primary) / 0.06);
+  border: 1px solid hsl(var(--border) / 0.12);
+  background: hsl(var(--background) / 0.72);
   border-radius: 9999px;
   padding: 0.2rem 0.45rem;
   font-size: 0.52rem;
@@ -735,7 +715,7 @@ onBeforeUnmount(() => {
 
 .turn-process-copy {
   color: hsl(var(--foreground) / 0.72);
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
 }
 
 .turn-process-count {
@@ -792,7 +772,11 @@ onBeforeUnmount(() => {
 }
 
 .turn-process-track {
-  border-color: hsl(var(--border) / 0.14);
+  border-color: hsl(var(--border) / 0.16);
+}
+
+.turn-process-inline .turn-process-track {
+  margin-top: 0;
 }
 
 .turn-process-status-icon {
@@ -808,14 +792,14 @@ onBeforeUnmount(() => {
 }
 
 .turn-stage-card {
-  padding: 0.52rem 0.68rem 0.5rem;
-  border-color: hsl(var(--border) / 0.08);
-  background:
-    linear-gradient(
-      180deg,
-      hsl(var(--background) / 0.82) 0%,
-      hsl(var(--background) / 0.68) 100%
-    );
+  padding: 0.28rem 0.42rem 0.32rem;
+  border-color: transparent;
+  background: transparent;
+  transition: background-color 140ms ease;
+}
+
+.turn-stage-card:hover {
+  background: hsl(var(--muted) / 0.08);
 }
 
 .turn-stage-status {
@@ -853,9 +837,11 @@ onBeforeUnmount(() => {
 }
 
 .turn-stage-detail-surface {
-  border-color: hsl(var(--border) / 0.1);
-  background: hsl(var(--background) / 0.82);
-  box-shadow: inset 0 1px 0 hsl(var(--background) / 0.55);
+  border-color: hsl(var(--border) / 0.12);
+  border-left-color: hsl(var(--primary) / 0.2);
+  border-radius: 10px;
+  background: hsl(var(--muted) / 0.08);
+  box-shadow: none;
 }
 
 .turn-stage-inline-markdown {

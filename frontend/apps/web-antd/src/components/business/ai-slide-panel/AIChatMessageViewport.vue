@@ -1,10 +1,10 @@
 <script lang="ts" setup>
 import type { TurnFlowState } from '#/components/business/ai-chat-kernel/TurnFlowState';
 import type {
+  AgentItem,
   AgentKnowledgeBaseBindingsByAgentId,
   AgentKnowledgeBaseBindingSummary,
   AgentSkillBindingsByAgentId,
-  AgentItem,
   ChatMessage,
 } from '#/types/ai-chat';
 
@@ -19,18 +19,18 @@ import { $t } from '#/locales';
 
 const props = withDefaults(
   defineProps<{
-    agents?: AgentItem[];
-    agentKnowledgeBases?: AgentKnowledgeBaseBindingSummary[] | null;
     agentKnowledgeBaseMap?: AgentKnowledgeBaseBindingsByAgentId | null;
+    agentKnowledgeBases?: AgentKnowledgeBaseBindingSummary[] | null;
+    agents?: AgentItem[];
     agentSkillMap?: AgentSkillBindingsByAgentId | null;
     apiPrefix: string;
     chatMessages?: ChatMessage[];
     compact?: boolean;
     effectiveSuggestedQuestions?: string[];
     effectiveWelcomeMessage?: string;
-    forceShowDiagnostics?: boolean;
     ensureAgentKnowledgeBases?: (agentId: number) => Promise<unknown> | void;
     ensureAgentSkills?: (agentId: number) => Promise<unknown> | void;
+    forceShowDiagnostics?: boolean;
     registerContainer?: (element: HTMLDivElement | null) => void;
     routing?: boolean;
     selectedAgent?: AgentItem | null;
@@ -161,6 +161,24 @@ const messageListClass = computed(() =>
   props.compact ? 'space-y-2' : 'space-y-3',
 );
 
+const emptyStateTitle = computed(() => {
+  const agentName = props.selectedAgent?.name?.trim();
+  if (agentName) {
+    return $t('common.globalAiChat.welcomeAgentReady', { agent: agentName });
+  }
+  return $t('common.globalAiChat.welcomeReady');
+});
+
+const emptyStateDescription = computed(
+  () =>
+    props.effectiveWelcomeMessage ||
+    $t('common.globalAiChat.welcomeEmptyDescription'),
+);
+
+const visibleSuggestedQuestions = computed(() =>
+  props.effectiveSuggestedQuestions.slice(0, 4),
+);
+
 const visibleAssistantAgentIds = computed(() => {
   const ids = new Set<number>();
   for (const message of normalizedChatMessages.value) {
@@ -253,56 +271,44 @@ watch(
     <div :class="contentShellClass">
       <div
         v-if="chatMessages.length === 0 && !sending && !routing"
-        class="flex justify-center pt-2 sm:pt-3"
+        class="flex justify-center pt-7 sm:pt-9"
       >
-        <div
-          class="ai-chat-empty-card w-full max-w-[21.5rem] rounded-[22px] border px-3.5 py-3.5 text-left"
-        >
-          <div class="flex items-start gap-3">
+        <div class="ai-chat-empty-state w-full max-w-[27rem] px-3 text-left">
+          <div class="flex items-start gap-3.5">
             <div
-              class="ai-chat-empty-orb flex size-9 shrink-0 items-center justify-center rounded-[15px] text-primary ring-1"
+              class="ai-chat-empty-mark flex size-8 shrink-0 items-center justify-center rounded-lg text-primary"
             >
               <IconifyIcon icon="lucide:sparkles" class="size-4" />
             </div>
             <div class="min-w-0 flex-1">
-              <div
-                class="border-primary/14 text-primary/84 inline-flex items-center rounded-full border bg-primary/[0.06] px-2 py-0.5 text-[8.5px] font-semibold uppercase tracking-[0.14em]"
-              >
-                {{ $t('common.globalAiChat.turnAnswerCardTitle') }}
+              <div class="text-[15px] font-semibold leading-6 text-foreground">
+                {{ emptyStateTitle }}
               </div>
-              <div
-                class="text-foreground/84 mt-2 text-[10px] font-semibold leading-5"
+              <p
+                class="text-muted-foreground/72 mt-1.5 line-clamp-3 text-[12.5px] leading-5"
               >
-                {{
-                  effectiveWelcomeMessage ||
-                  $t('common.globalAiChat.welcomeDesc')
-                }}
-              </div>
-              <div
-                class="text-muted-foreground/54 mt-1 text-[8.75px] leading-4"
-              >
-                {{ $t('common.globalAiChat.welcomeFirstTime') }}
-              </div>
+                {{ emptyStateDescription }}
+              </p>
             </div>
           </div>
           <div
-            v-if="effectiveSuggestedQuestions.length > 0"
-            class="mt-3 grid gap-1.5"
+            v-if="visibleSuggestedQuestions.length > 0"
+            class="mt-5 grid gap-2 sm:grid-cols-2"
           >
             <button
-              v-for="(question, questionIndex) in effectiveSuggestedQuestions"
+              v-for="(question, questionIndex) in visibleSuggestedQuestions"
               :key="questionIndex"
-              class="group/sq border-border/14 bg-background/76 flex items-center gap-2 rounded-[14px] border px-2.5 py-1.5 text-left text-[9px] text-foreground/80 transition-colors hover:border-primary/20 hover:bg-primary/[0.04]"
+              class="ai-chat-empty-question group/sq text-foreground/82 hover:border-primary/24 flex min-h-9 items-center gap-2 rounded-lg border px-2.5 py-1.5 text-left text-[12px] transition-colors hover:bg-primary/[0.035]"
               @click="emit('askSuggested', question)"
             >
               <IconifyIcon
                 icon="lucide:message-circle"
-                class="text-primary/58 size-3 shrink-0 transition-colors group-hover/sq:text-primary"
+                class="text-primary/62 size-3.5 shrink-0 transition-colors group-hover/sq:text-primary"
               />
               <span class="truncate">{{ question }}</span>
               <IconifyIcon
                 icon="lucide:arrow-right"
-                class="ml-auto size-3 shrink-0 text-muted-foreground/30 transition-transform group-hover/sq:translate-x-0.5 group-hover/sq:text-primary/60"
+                class="text-muted-foreground/32 group-hover/sq:text-primary/66 ml-auto size-3.5 shrink-0 transition-transform group-hover/sq:translate-x-0.5"
               />
             </button>
           </div>
@@ -421,39 +427,22 @@ watch(
 
 <style scoped>
 .transcript-scroll {
-  background:
-    radial-gradient(
-      circle at top,
-      hsl(var(--primary) / 0.024),
-      transparent 24%
-    ),
-    linear-gradient(
-      180deg,
-      hsl(var(--background) / 0.985) 0%,
-      hsl(var(--background)) 100%
-    );
+  background: hsl(var(--background));
 }
 
-.ai-chat-empty-card {
-  background: linear-gradient(
-    180deg,
-    hsl(var(--card) / 0.975) 0%,
-    hsl(var(--background) / 0.985) 100%
-  );
-  border-color: hsl(var(--border) / 0.2);
-  box-shadow:
-    0 18px 30px -34px hsl(var(--foreground) / 0.1),
-    0 1px 0 hsl(var(--primary) / 0.04) inset;
+.ai-chat-empty-state {
+  color: hsl(var(--foreground));
 }
 
-.ai-chat-empty-orb {
-  background: linear-gradient(
-    180deg,
-    hsl(var(--background)) 0%,
-    hsl(var(--muted) / 0.24) 100%
-  );
-  border-color: hsl(var(--border) / 0.22);
-  box-shadow: 0 10px 18px -24px hsl(var(--foreground) / 0.08);
+.ai-chat-empty-mark {
+  background: hsl(var(--primary) / 0.075);
+  border: 1px solid hsl(var(--primary) / 0.12);
+}
+
+.ai-chat-empty-question {
+  background: hsl(var(--background) / 0.82);
+  border-color: hsl(var(--border) / 0.24);
+  box-shadow: 0 8px 20px -24px hsl(var(--foreground) / 0.16);
 }
 
 .routing-card {

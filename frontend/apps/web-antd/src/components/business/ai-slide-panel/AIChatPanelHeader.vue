@@ -35,7 +35,7 @@ const emit = defineEmits<{
 
 <template>
   <div
-    class="ai-panel-header border-border/12 flex shrink-0 items-center justify-between gap-2 border-b px-2.5 py-1.5"
+    class="ai-panel-header border-border/16 flex shrink-0 items-center justify-between gap-2 border-b px-3 py-2"
   >
     <div class="flex min-w-0 flex-1 items-center gap-2">
       <div class="ai-panel-header-mark shrink-0">
@@ -46,7 +46,7 @@ const emit = defineEmits<{
       <div class="min-w-0 flex-1 leading-none">
         <div class="flex min-w-0 items-center gap-1.5">
           <span
-            class="text-foreground/82 truncate text-[11px] font-semibold tracking-[0.01em]"
+            class="text-foreground/88 truncate text-[12px] font-semibold"
           >
             {{ panelTitle }}
           </span>
@@ -101,7 +101,7 @@ const emit = defineEmits<{
         >
           <button
             type="button"
-            class="flex size-5 items-center justify-center rounded-[9px] transition-colors hover:bg-muted/60"
+            class="flex size-6 items-center justify-center rounded-[9px] transition-colors hover:bg-muted/60"
             :class="
               docked
                 ? 'bg-primary/8 text-primary shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.12)]'
@@ -114,18 +114,18 @@ const emit = defineEmits<{
           >
             <IconifyIcon
               :icon="docked ? 'lucide:lock' : 'lucide:lock-open'"
-              class="size-[0.8rem]"
+              class="size-3.5"
             />
           </button>
         </Tooltip>
         <Tooltip :title="$t('common.aiPanel.minimize')">
           <button
             type="button"
-            class="text-muted-foreground/62 hover:text-foreground/82 flex size-5 items-center justify-center rounded-[9px] transition-colors hover:bg-muted/60"
+            class="text-muted-foreground/62 hover:text-foreground/82 flex size-6 items-center justify-center rounded-[9px] transition-colors hover:bg-muted/60"
             :aria-label="$t('common.aiPanel.minimize')"
             @click="emit('minimize')"
           >
-            <IconifyIcon icon="lucide:minus" class="size-[0.8rem]" />
+            <IconifyIcon icon="lucide:minus" class="size-3.5" />
           </button>
         </Tooltip>
         <Tooltip
@@ -137,7 +137,7 @@ const emit = defineEmits<{
         >
           <button
             type="button"
-            class="hover:text-foreground/74 flex size-5 items-center justify-center rounded-[9px] text-muted-foreground/50 transition-colors hover:bg-muted/60"
+            class="hover:text-foreground/74 flex size-6 items-center justify-center rounded-[9px] text-muted-foreground/50 transition-colors hover:bg-muted/60"
             :aria-label="
               mode === 'full'
                 ? $t('common.aiPanel.exitFullscreen')
@@ -149,18 +149,18 @@ const emit = defineEmits<{
               :icon="
                 mode === 'full' ? 'lucide:minimize-2' : 'lucide:maximize-2'
               "
-              class="size-[0.8rem]"
+              class="size-3.5"
             />
           </button>
         </Tooltip>
         <Tooltip :title="$t('common.aiPanel.close')">
           <button
             type="button"
-            class="text-muted-foreground/62 flex size-5 items-center justify-center rounded-[9px] transition-colors hover:bg-muted/60 hover:text-destructive"
+            class="text-muted-foreground/62 flex size-6 items-center justify-center rounded-[9px] transition-colors hover:bg-muted/60 hover:text-destructive"
             :aria-label="$t('common.aiPanel.close')"
             @click="emit('close')"
           >
-            <IconifyIcon icon="lucide:x" class="size-[0.8rem]" />
+            <IconifyIcon icon="lucide:x" class="size-3.5" />
           </button>
         </Tooltip>
       </div>
@@ -170,8 +170,9 @@ const emit = defineEmits<{
 
 <style scoped>
 .ai-panel-header {
-  background: hsl(var(--background) / 0.985);
-  backdrop-filter: blur(12px);
+  background: hsl(var(--background) / 0.96);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 1px 0 hsl(var(--background) / 0.8) inset;
 }
 
 .ai-panel-header-mark {
@@ -187,15 +188,15 @@ const emit = defineEmits<{
   align-items: center;
   justify-content: center;
   border: 1px solid hsl(var(--border) / 0.28);
-  border-radius: 999px;
+  border-radius: 10px;
   color: hsl(var(--primary));
-  background: hsl(var(--muted) / 0.2);
+  background: hsl(var(--muted) / 0.18);
 }
 
 .ai-panel-header-actions {
-  border: 1px solid hsl(var(--border) / 0.16);
-  background: hsl(var(--background) / 0.76);
-  box-shadow: 0 8px 18px -20px hsl(var(--foreground) / 0.12);
+  border: 1px solid hsl(var(--border) / 0.14);
+  background: hsl(var(--background) / 0.7);
+  box-shadow: none;
 }
 
 .ai-panel-route-note {

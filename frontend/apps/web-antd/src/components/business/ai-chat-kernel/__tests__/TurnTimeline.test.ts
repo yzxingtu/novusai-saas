@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 // Test type: behavioral
 // Verifies: the transcript-first process timeline uses a single process toggle,
-// auto-collapses on completion, and hides noop stages while preserving live content.
+// auto-collapses on completion, hides thinking bodies, and suppresses noop stages.
 import type { ChatMessage } from '#/types/ai-chat';
 
 import { mount } from '@vue/test-utils';
@@ -301,10 +301,12 @@ describe('turnTimeline', () => {
       wrapper.get('[data-testid="turn-process-body"]').attributes('style') ??
         '',
     ).toContain('grid-template-rows: 1fr');
-    expect(
-      wrapper.get('[data-testid="turn-stage-body-0"]').attributes('style') ??
-        '',
-    ).toContain('grid-template-rows: 1fr');
+    expect(wrapper.find('[data-testid="turn-stage-body-0"]').exists()).toBe(
+      false,
+    );
+    expect(wrapper.find('[data-testid="stub-thinking-block"]').exists()).toBe(
+      false,
+    );
   });
 
   it('normalizes generic backend English stage titles into localized stage copy', async () => {
@@ -359,7 +361,7 @@ describe('turnTimeline', () => {
     expect(wrapper.text()).not.toContain('!');
   });
 
-  it('passes embedded mode to timeline thinking bodies so no nested process toggle is needed', async () => {
+  it('does not render timeline thinking detail bodies even when backend sends detail lines', async () => {
     const wrapper = mountTimeline(
       createAssistantMessage({
         streaming: true,
@@ -379,12 +381,17 @@ describe('turnTimeline', () => {
 
     await wrapper.vm.$nextTick();
 
-    expect(wrapper.get('[data-testid="stub-thinking-block"]').attributes()).toMatchObject({
-      'data-embedded': 'true',
-    });
+    expect(wrapper.text()).toContain('正在思考');
+    expect(wrapper.text()).not.toContain('先分析当前用户问题，再整理下一步动作');
+    expect(wrapper.find('[data-testid="stub-thinking-block"]').exists()).toBe(
+      false,
+    );
+    expect(wrapper.find('[data-testid="turn-stage-body-0"]').exists()).toBe(
+      false,
+    );
   });
 
-  it('uses the embedded thinking renderer only for the latest thinking stage body', async () => {
+  it('renders multiple thinking stages as compact rows without thinking renderers', async () => {
     const wrapper = mountTimeline(
       createAssistantMessage({
         streaming: true,
@@ -411,9 +418,14 @@ describe('turnTimeline', () => {
 
     await wrapper.vm.$nextTick();
 
+    expect(wrapper.text()).toContain('第一步');
+    expect(wrapper.text()).toContain('第二步');
+    expect(wrapper.text()).not.toContain('先梳理用户约束');
+    expect(wrapper.text()).not.toContain('再整理答案结构');
     expect(wrapper.findAll('[data-testid="stub-thinking-block"]')).toHaveLength(
-      1,
+      0,
     );
+    expect(wrapper.findAll('[data-testid^="turn-stage-body-"]')).toHaveLength(0);
   });
 
   it('shows tool call fallback content for canonical tool execution stages without detail lines', async () => {

@@ -191,10 +191,10 @@ const forwardUserListeners = {
 
 :deep(.thinking-chip) {
   width: fit-content;
-  background: hsl(var(--background) / 94%);
-  border: 1px solid hsl(var(--border) / 22%);
-  border-radius: 999px;
-  box-shadow: 0 10px 24px -28px hsl(var(--foreground) / 35%);
+  background: hsl(var(--muted) / 8%);
+  border: 1px solid hsl(var(--border) / 16%);
+  border-radius: 12px;
+  box-shadow: none;
 }
 
 :deep(.thinking-chip-icon) {
@@ -208,10 +208,10 @@ const forwardUserListeners = {
 
 :deep(.thinking-sheet-card) {
   position: relative;
-  background: hsl(var(--background) / 90%);
-  border: 1px solid hsl(var(--border) / 16%);
-  border-radius: 14px;
-  box-shadow: 0 12px 28px -32px hsl(var(--foreground) / 28%);
+  background: hsl(var(--muted) / 8%);
+  border: 1px solid hsl(var(--border) / 12%);
+  border-radius: 10px;
+  box-shadow: none;
 }
 
 :deep(.thinking-sheet-card)::before {

@@ -352,13 +352,7 @@ watch(
 
 <style scoped>
 .ai-chat-panel-body {
-  background:
-    radial-gradient(circle at top, hsl(var(--primary) / 0.03), transparent 24%),
-    linear-gradient(
-      180deg,
-      hsl(var(--background) / 0.985) 0%,
-      hsl(var(--background)) 100%
-    );
+  background: hsl(var(--background));
 }
 
 .ai-chat-history-overlay-pane {

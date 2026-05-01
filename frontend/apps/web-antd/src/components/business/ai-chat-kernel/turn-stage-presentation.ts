@@ -56,7 +56,7 @@ const GENERIC_STAGE_COPY_BY_TYPE: Record<
     'retrieval',
     'source retrieval',
   ],
-  thinking: ['analysis', 'reasoning', 'thinking'],
+  thinking: ['analysis', 'planning response', 'reasoning', 'thinking'],
   tool_execution: [
     'executing tools',
     'no tools executed',
@@ -98,6 +98,13 @@ const GENERIC_STAGE_COPY_PATTERNS: Record<
 
 const TRANSCRIPT_COPY_MEANINGFUL_CHAR_RE = /[\p{L}\p{N}]/u;
 const TRANSCRIPT_COPY_SYMBOL_ONLY_RE = /^[\p{P}\p{S}\s]+$/u;
+const TECHNICAL_PROCESS_ERROR_PATTERNS = [
+  /previous_response_id is only supported/i,
+  /no tool call found for function call output with call_id/i,
+  /^provider_(error|failure_after_partial_progress|timeout|unavailable)$/i,
+  /^stream_execution_error$/i,
+  /^tool_round_failed$/i,
+];
 
 export function normalizeMeaningfulTranscriptCopy(
   value: unknown,
@@ -162,9 +169,37 @@ function isGenericBackendStageCopy(
   );
 }
 
+export function isTechnicalProcessErrorCopy(value: unknown): boolean {
+  const normalized = normalizeOptionalString(value);
+  if (!normalized) {
+    return false;
+  }
+  return TECHNICAL_PROCESS_ERROR_PATTERNS.some((pattern) =>
+    pattern.test(normalized),
+  );
+}
+
+export function getSafeErrorSurfaceMessage(
+  errorSurface?: null | StageErrorSurfaceLike,
+): string | undefined {
+  const candidates = [errorSurface?.message, errorSurface?.summary];
+  for (const candidate of candidates) {
+    const normalized = normalizeOptionalString(candidate);
+    if (!normalized || isTechnicalProcessErrorCopy(normalized)) {
+      continue;
+    }
+    return normalized;
+  }
+  return undefined;
+}
+
 export function getMeaningfulStageTitle(stage: TurnFlowStageForDisplay) {
   const title = normalizeMeaningfulTranscriptCopy(stage.title);
-  if (!title || isGenericBackendStageCopy(stage, title)) {
+  if (
+    !title ||
+    isGenericBackendStageCopy(stage, title) ||
+    isTechnicalProcessErrorCopy(title)
+  ) {
     return undefined;
   }
   return title;
@@ -172,7 +207,11 @@ export function getMeaningfulStageTitle(stage: TurnFlowStageForDisplay) {
 
 export function getMeaningfulStageSummary(stage: TurnFlowStageForDisplay) {
   const summary = normalizeMeaningfulTranscriptCopy(stage.summary);
-  if (!summary || isGenericBackendStageCopy(stage, summary)) {
+  if (
+    !summary ||
+    isGenericBackendStageCopy(stage, summary) ||
+    isTechnicalProcessErrorCopy(summary)
+  ) {
     return undefined;
   }
   return summary === getMeaningfulStageTitle(stage) ? undefined : summary;
@@ -398,13 +437,7 @@ export function getStageSummary(
   }
 
   if (stage.type === 'failed') {
-    const errorSurface = options.errorSurface;
-    const errorMessage =
-      (typeof errorSurface?.message === 'string' &&
-        errorSurface.message.trim()) ||
-      (typeof errorSurface?.summary === 'string' &&
-        errorSurface.summary.trim()) ||
-      undefined;
+    const errorMessage = getSafeErrorSurfaceMessage(options.errorSurface);
     if (errorMessage) {
       return errorMessage;
     }

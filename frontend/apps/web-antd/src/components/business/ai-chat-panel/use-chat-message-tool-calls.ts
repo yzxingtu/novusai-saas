@@ -5,14 +5,12 @@ import { computed, onUnmounted, ref, watch } from 'vue';
 
 import { getToolCallsForDisplay } from './chat-message-turn-flow';
 import {
-  hasToolCardDetails,
-} from './tool-call-utils';
-import {
   buildToolDisplayItems,
   getToolDisplayState as resolveToolDisplayState,
   getToolGroupSummary,
   shouldToolExpandByDefault,
 } from './chat-message-tool-call-display-helpers';
+import { hasToolCardDetails } from './tool-call-utils';
 
 interface UseChatMessageToolCallsProps {
   index: number;
@@ -21,7 +19,6 @@ interface UseChatMessageToolCallsProps {
 
 export function useChatMessageToolCalls(props: UseChatMessageToolCallsProps) {
   const toolExpandedMap = ref<Record<number, boolean>>({});
-  const toolRawExpandedMap = ref<Record<number, boolean>>({});
 
   function isToolExpanded(
     tc: Pick<ToolCallEvent, 'status' | 'summaryPayload'>,
@@ -45,17 +42,6 @@ export function useChatMessageToolCalls(props: UseChatMessageToolCallsProps) {
     toolExpandedMap.value = {
       ...toolExpandedMap.value,
       [idx]: !isToolExpanded(tc, idx),
-    };
-  }
-
-  function isToolRawExpanded(idx: number) {
-    return Boolean(toolRawExpandedMap.value[idx]);
-  }
-
-  function toggleToolRawExpand(idx: number) {
-    toolRawExpandedMap.value = {
-      ...toolRawExpandedMap.value,
-      [idx]: !toolRawExpandedMap.value[idx],
     };
   }
 
@@ -146,11 +132,9 @@ export function useChatMessageToolCalls(props: UseChatMessageToolCallsProps) {
     getToolDisplayState,
     isToolExpanded,
     isToolGroupExpanded,
-    isToolRawExpanded,
     now,
     toggleToolExpand,
     toggleToolGroupExpand,
-    toggleToolRawExpand,
     toolCallsForDisplay,
     toolDisplayItems,
     toolGroupSummary,

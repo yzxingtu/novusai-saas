@@ -465,13 +465,9 @@ const summaryStats = computed(() => {
 .agent-profile-avatar {
   position: relative;
   overflow: hidden;
-  background: linear-gradient(
-    180deg,
-    hsl(var(--background) / 0.98),
-    hsl(var(--muted) / 0.16)
-  );
-  border: 1px solid hsl(var(--border) / 0.32);
-  box-shadow: 0 10px 18px -28px hsl(var(--foreground) / 0.08);
+  background: hsl(var(--background) / 0.88);
+  border: 1px solid hsl(var(--border) / 0.24);
+  box-shadow: none;
   transition:
     transform 160ms ease,
     box-shadow 160ms ease,
@@ -486,7 +482,6 @@ const summaryStats = computed(() => {
 .assistant-agent-avatar:hover,
 .assistant-agent-avatar:focus-visible {
   transform: translateY(-1px);
-  box-shadow: 0 12px 22px -30px hsl(var(--foreground) / 0.1);
   border-color: hsl(var(--primary) / 0.2);
 }
 
@@ -494,7 +489,7 @@ const summaryStats = computed(() => {
   outline: none;
   box-shadow:
     0 0 0 3px hsl(var(--primary) / 0.14),
-    0 12px 22px -30px hsl(var(--foreground) / 0.1);
+    0 8px 18px -24px hsl(var(--foreground) / 0.1);
 }
 
 .agent-profile-popover {

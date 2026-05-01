@@ -104,7 +104,7 @@ function onUserAttachmentImageError(event: Event, att: ChatAttachment) {
       </div>
       <div
         v-if="msg.content"
-        class="user-message-bubble whitespace-pre-wrap rounded-[18px] rounded-br-[12px] border px-4 py-3 text-primary-foreground"
+        class="user-message-bubble whitespace-pre-wrap rounded-[15px] rounded-br-[8px] border px-3.5 py-2.5 text-primary-foreground"
         :class="
           compact
             ? 'text-[13.5px] leading-[1.74]'
@@ -151,14 +151,9 @@ function onUserAttachmentImageError(event: Event, att: ChatAttachment) {
 
 <style scoped>
 .user-message-bubble {
-  background: linear-gradient(
-    135deg,
-    hsl(var(--primary) / 0.9) 0%,
-    hsl(var(--primary) / 0.84) 60%,
-    hsl(var(--primary) / 0.8) 100%
-  );
-  border-color: hsl(var(--primary) / 0.14);
-  box-shadow: 0 14px 24px -26px hsl(var(--primary) / 0.2);
+  background: hsl(var(--primary) / 0.88);
+  border-color: hsl(var(--primary) / 0.16);
+  box-shadow: 0 10px 18px -24px hsl(var(--primary) / 0.18);
 }
 
 .user-attachment {

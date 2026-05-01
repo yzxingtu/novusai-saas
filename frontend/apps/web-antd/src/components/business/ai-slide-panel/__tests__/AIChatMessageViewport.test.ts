@@ -50,7 +50,8 @@ describe('aiChatMessageViewport', () => {
       },
     });
 
-    expect(wrapper.find('.ai-chat-empty-card').exists()).toBe(true);
+    expect(wrapper.find('.ai-chat-empty-state').exists()).toBe(true);
+    expect(wrapper.text()).toContain('common.globalAiChat.welcomeReady');
     expect(wrapper.text()).toContain('欢迎开始新的对话');
 
     await wrapper.get('button').trigger('click');
@@ -368,10 +369,13 @@ describe('aiChatMessageViewport', () => {
     expect(scrollControls).toHaveLength(2);
     expect(scrollToTopButton.element.tagName).toBe('BUTTON');
     expect(scrollToBottomButton).toBeTruthy();
-    expect(scrollToBottomButton?.element.tagName).toBe('BUTTON');
+    if (!scrollToBottomButton) {
+      throw new Error('Expected scroll-to-bottom button to render');
+    }
+    expect(scrollToBottomButton.element.tagName).toBe('BUTTON');
 
     await scrollToTopButton.trigger('click');
-    await scrollToBottomButton!.trigger('click');
+    await scrollToBottomButton.trigger('click');
 
     expect(wrapper.emitted('scrollToTop')).toHaveLength(1);
     expect(wrapper.emitted('scrollToBottom')).toHaveLength(1);

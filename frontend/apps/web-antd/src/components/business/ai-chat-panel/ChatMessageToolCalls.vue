@@ -37,11 +37,9 @@ const EMBEDDED_VISIBLE_TARGET_BADGES = 1;
 const {
   getToolDisplayState,
   isToolGroupExpanded,
-  isToolRawExpanded,
   now,
   toggleToolExpand,
   toggleToolGroupExpand,
-  toggleToolRawExpand,
   toolCallsForDisplay,
   toolDisplayItems,
   toolGroupSummary,
@@ -470,10 +468,8 @@ function getEmbeddedToolHint(toolItem: ToolDisplayItem): string {
                       <div class="border-border/18 border-l">
                         <ToolCallDetails
                           :compact="compact"
-                          :raw-expanded="isToolRawExpanded(toolItem.index)"
                           :tool-item="toolItem"
                           @copy="emit('copy', $event)"
-                          @toggle-raw="toggleToolRawExpand(toolItem.index)"
                         />
                       </div>
                     </div>
@@ -622,10 +618,8 @@ function getEmbeddedToolHint(toolItem: ToolDisplayItem): string {
                       <div class="bg-background/78 rounded-[12px]">
                         <ToolCallDetails
                           :compact="compact"
-                          :raw-expanded="isToolRawExpanded(toolItem.index)"
                           :tool-item="toolItem"
                           @copy="emit('copy', $event)"
-                          @toggle-raw="toggleToolRawExpand(toolItem.index)"
                         />
                       </div>
                     </div>
@@ -656,28 +650,18 @@ function getEmbeddedToolHint(toolItem: ToolDisplayItem): string {
 <style scoped>
 .tool-group-toggle {
   border-color: hsl(var(--border) / 0.12);
-  background:
-    linear-gradient(
-      180deg,
-      hsl(var(--background) / 0.96) 0%,
-      hsl(var(--muted) / 0.08) 100%
-    );
-  box-shadow: 0 16px 28px -36px hsl(var(--foreground) / 0.1);
+  background: hsl(var(--muted) / 0.08);
+  box-shadow: none;
 }
 
 .tool-group-toggle:hover {
-  border-color: hsl(var(--primary) / 0.16);
-  background:
-    linear-gradient(
-      180deg,
-      hsl(var(--background) / 0.98) 0%,
-      hsl(var(--primary) / 0.05) 100%
-    );
+  border-color: hsl(var(--border) / 0.2);
+  background: hsl(var(--muted) / 0.14);
 }
 
 .tool-group-icon {
-  border: 1px solid hsl(var(--border) / 0.14);
-  background: hsl(var(--primary) / 0.08);
+  border: 1px solid hsl(var(--border) / 0.12);
+  background: hsl(var(--background) / 0.72);
 }
 
 .tool-group-count {
@@ -686,14 +670,9 @@ function getEmbeddedToolHint(toolItem: ToolDisplayItem): string {
 }
 
 .tool-call-card {
-  background:
-    linear-gradient(
-      180deg,
-      hsl(var(--background) / 0.94) 0%,
-      hsl(var(--background) / 0.88) 100%
-    );
-  border-color: hsl(var(--border) / 0.12);
-  box-shadow: 0 14px 24px -36px hsl(var(--foreground) / 0.1);
+  background: hsl(var(--background) / 0.62);
+  border-color: hsl(var(--border) / 0.1);
+  box-shadow: none;
 }
 
 .tool-call-inline {

@@ -318,31 +318,20 @@ onUnmounted(clearAllThinkingAutoCollapseTimers);
 
 <style scoped>
 .thinking-chip {
-  border-color: hsl(var(--border) / 0.12);
-  background:
-    linear-gradient(
-      180deg,
-      hsl(var(--background) / 0.82) 0%,
-      hsl(var(--muted) / 0.12) 100%
-    );
-  box-shadow:
-    0 14px 26px -34px hsl(var(--foreground) / 0.14),
-    0 1px 0 hsl(var(--background) / 0.7) inset;
+  border-color: hsl(var(--border) / 0.14);
+  background: hsl(var(--muted) / 0.08);
+  box-shadow: none;
 }
 
 .thinking-sheet-card {
-  background: linear-gradient(
-    180deg,
-    hsl(var(--background) / 0.92),
-    hsl(var(--muted) / 0.08)
-  );
-  box-shadow: 0 14px 28px -36px hsl(var(--foreground) / 0.12);
+  background: hsl(var(--muted) / 0.08);
+  box-shadow: none;
 }
 
 .thinking-inline-body {
   min-width: 0;
   position: relative;
-  box-shadow: 0 12px 22px -34px hsl(var(--foreground) / 0.1);
+  box-shadow: none;
 }
 
 .thinking-inline-body::before {

@@ -19,7 +19,9 @@ import EvidenceCard from './EvidenceCard.vue';
 import { buildTurnFlowState } from './TurnFlowState';
 import TurnTimeline from './TurnTimeline.vue';
 import {
+  getSafeErrorSurfaceMessage,
   getProcessHeadlineForStage,
+  isTechnicalProcessErrorCopy,
   isNoopSkippedStage,
 } from './turn-stage-presentation';
 
@@ -81,11 +83,19 @@ const visibleKernelTimeline = computed(() =>
       return false;
     }
     if (
+      stage.type === 'failed' &&
+      isRecoverableProcessFailure(props.msg, resolvedState.value.flow)
+    ) {
+      return false;
+    }
+    if (
       stage.type === 'answer_assembly' &&
-      stage.status === 'completed' &&
+      (stage.status === 'completed' ||
+        (stage.status === 'error' &&
+          isRecoverableProcessFailure(props.msg, resolvedState.value.flow))) &&
       Boolean(
         resolvedState.value.answerCard ||
-          normalizeMergedTextPart(props.msg.content),
+          hasReadableAnswerText(props.msg),
       )
     ) {
       return false;
@@ -97,16 +107,19 @@ const hasTimeline = computed(() => visibleKernelTimeline.value.length > 0);
 const hasRunningTimelineStage = computed(() =>
   visibleKernelTimeline.value.some((stage) => stage.status === 'running'),
 );
+const hasFinalAnswerText = computed(() => hasReadableAnswerText(props.msg));
+const hasRecoverableProcessFailure = computed(() =>
+  isRecoverableProcessFailure(props.msg, resolvedState.value.flow),
+);
 const hasKernelFailure = computed(
   () =>
-    Boolean(resolvedState.value.flow.errorSurface?.message) ||
-    Boolean(resolvedState.value.flow.errorSurface?.summary) ||
-    Boolean(props.msg.error) ||
-    props.msg.requestFailedRetry === true,
+    !hasRecoverableProcessFailure.value &&
+    (Boolean(resolvedState.value.flow.errorSurface?.message) ||
+      Boolean(resolvedState.value.flow.errorSurface?.summary) ||
+      Boolean(props.msg.error) ||
+      props.msg.requestFailedRetry === true),
 );
-const hasDigestContent = computed(
-  () => hasTimeline.value || hasDigestCard.value,
-);
+const hasDigestContent = computed(() => hasDigestCard.value);
 const kernelBodyLayout = computed(() =>
   !props.compact && hasDigestCard.value && hasTimeline.value
     ? 'split'
@@ -121,6 +134,34 @@ const canCollapseKernel = computed(
 
 function normalizeText(value: unknown) {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+function hasReadableAnswerText(msg: ChatMessage) {
+  return Boolean(
+    normalizeText(normalizeMergedTextPart(msg.content) || msg.content),
+  );
+}
+
+function isRecoverableProcessFailure(
+  msg: ChatMessage,
+  flow: TurnFlowState['flow'],
+) {
+  if (!hasReadableAnswerText(msg) || msg.error || msg.streaming) {
+    return false;
+  }
+  const messageRecord = msg as unknown as Record<string, unknown>;
+  const candidates = [
+    flow.failureKind,
+    flow.completionReason,
+    flow.errorSurface?.errorType,
+    flow.errorSurface?.message,
+    flow.errorSurface?.summary,
+    messageRecord.failure_kind,
+    messageRecord.failureKind,
+    msg.completionReason,
+    msg.terminationReason,
+  ];
+  return candidates.some((candidate) => isTechnicalProcessErrorCopy(candidate));
 }
 
 function normalizeIdentityPart(value: unknown): string | undefined {
@@ -222,9 +263,9 @@ const digestOverviewLabelKey = computed(() =>
 const visibleProcessStages = computed(() => visibleKernelTimeline.value);
 const processStageCount = computed(() => visibleProcessStages.value.length);
 const processPreviewText = computed(() => {
-  const errorMessage =
-    normalizeText(resolvedState.value.flow.errorSurface?.message) ||
-    normalizeText(resolvedState.value.flow.errorSurface?.summary);
+  const errorMessage = normalizeText(
+    getSafeErrorSurfaceMessage(resolvedState.value.flow.errorSurface),
+  );
   if (errorMessage) {
     return truncatePreview(errorMessage, 64);
   }
@@ -250,9 +291,20 @@ const processPreviewText = computed(() => {
 
   return '';
 });
+const preferProcessOverview = computed(
+  () => hasTimeline.value && hasFinalAnswerText.value && !props.msg.streaming,
+);
+const showProcessSubcopy = computed(
+  () =>
+    !preferProcessOverview.value &&
+    Boolean(digestPreviewText.value) &&
+    Boolean(processPreviewText.value),
+);
 const kernelHeadline = computed(
   () =>
-    digestPreviewText.value ||
+    (preferProcessOverview.value
+      ? processPreviewText.value || $t('common.globalAiChat.turnTimeline')
+      : digestPreviewText.value) ||
     processPreviewText.value ||
     $t('common.globalAiChat.processing'),
 );
@@ -376,15 +428,15 @@ function handleReject() {
 <template>
   <div class="space-y-1.5">
     <div
-      v-if="hasDigestContent"
+      v-if="hasDigestCard"
       data-testid="chat-message-kernel-header"
-      class="chat-message-kernel-shell overflow-hidden rounded-[18px] border"
+      class="chat-message-kernel-shell overflow-hidden rounded-[12px] border"
     >
       <button
         type="button"
         data-testid="chat-message-kernel-overview-toggle"
-        class="chat-message-kernel-overview flex w-full min-w-0 items-start justify-between gap-3 text-left"
-        :class="compact ? 'px-2.5 py-2.5' : 'px-3.5 py-3'"
+        class="chat-message-kernel-overview flex w-full min-w-0 items-start justify-between gap-2 text-left"
+        :class="compact ? 'px-2 py-1.5' : 'px-2.5 py-2'"
         :aria-expanded="isKernelExpanded"
         @click="toggleKernelExpanded"
       >
@@ -402,17 +454,17 @@ function handleReject() {
           </div>
 
           <div
-            class="kernel-overview-headline mt-1.5 min-w-0"
+            class="kernel-overview-headline mt-1 min-w-0 truncate"
             :class="
               compact
-                ? 'text-[10.5px] leading-[1.1rem]'
-                : 'text-[11px] leading-[1.18rem]'
+                ? 'text-[10px] leading-[1rem]'
+                : 'text-[10.5px] leading-[1.08rem]'
             "
           >
             {{ kernelHeadline }}
           </div>
 
-          <div class="mt-2 flex min-w-0 flex-wrap items-center gap-1.5">
+          <div class="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
             <span
               v-if="processStageCount > 0"
               class="kernel-overview-meta-chip shrink-0"
@@ -434,7 +486,7 @@ function handleReject() {
               }}
             </span>
             <span
-              v-if="digestPreviewText && processPreviewText"
+              v-if="showProcessSubcopy"
               class="kernel-overview-subcopy truncate"
             >
               {{ processPreviewText }}
@@ -523,6 +575,7 @@ function handleReject() {
             </div>
             <TurnTimeline
               :compact="compact"
+              inline
               :msg="msg"
               :state="resolvedState"
               @copy="(content) => emit('copy', content)"
@@ -530,6 +583,19 @@ function handleReject() {
           </div>
         </div>
       </Transition>
+    </div>
+
+    <div
+      v-else-if="hasTimeline"
+      data-testid="chat-message-kernel-header"
+      class="chat-message-kernel-standalone"
+    >
+      <TurnTimeline
+        :compact="compact"
+        :msg="msg"
+        :state="resolvedState"
+        @copy="(content) => emit('copy', content)"
+      />
     </div>
 
     <ActionConsentGate
@@ -546,65 +612,56 @@ function handleReject() {
 .chat-message-kernel-shell {
   position: relative;
   border-color: hsl(var(--border) / 0.1);
-  background:
-    radial-gradient(
-      circle at top right,
-      hsl(var(--primary) / 0.08),
-      transparent 22%
-    ),
-    linear-gradient(
-      180deg,
-      hsl(var(--background) / 0.988) 0%,
-      hsl(var(--background) / 0.972) 100%
-    );
-  box-shadow: 0 18px 42px -38px hsl(var(--foreground) / 0.12);
+  background: hsl(var(--muted) / 0.045);
+  box-shadow: none;
+}
+
+.chat-message-kernel-standalone {
+  min-width: 0;
+  padding: 0.05rem 0;
 }
 
 .chat-message-kernel-overview {
   transition:
     background-color 160ms ease,
-    border-color 160ms ease,
-    transform 180ms ease;
+    border-color 160ms ease;
 }
 
 .chat-message-kernel-overview:hover {
-  background: hsl(var(--muted) / 0.14);
-  transform: translateY(-1px);
+  background: hsl(var(--muted) / 0.1);
 }
 
 .kernel-overview-pill {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  padding: 0.22rem 0.5rem;
+  padding: 0;
   border-radius: 9999px;
-  border: 1px solid hsl(var(--border) / 0.1);
-  background: hsl(var(--background) / 0.7);
-  color: hsl(var(--muted-foreground) / 0.64);
-  font-size: 0.52rem;
+  border: 0;
+  background: transparent;
+  color: hsl(var(--muted-foreground) / 0.62);
+  font-size: 0.58rem;
   font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .kernel-overview-pill-primary {
-  border-color: hsl(var(--primary) / 0.14);
-  background: hsl(var(--primary) / 0.08);
-  color: hsl(var(--primary) / 0.82);
+  color: hsl(var(--primary) / 0.78);
 }
 
 .kernel-overview-headline {
-  color: hsl(var(--foreground) / 0.82);
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  color: hsl(var(--foreground) / 0.76);
+  font-weight: 500;
+  letter-spacing: 0;
 }
 
 .kernel-overview-meta-chip {
-  color: hsl(var(--muted-foreground) / 0.6);
-  border: 1px solid hsl(var(--border) / 0.08);
-  background: hsl(var(--muted) / 0.16);
+  color: hsl(var(--muted-foreground) / 0.56);
+  border: 0;
+  background: transparent;
   border-radius: 9999px;
-  padding: 0.16rem 0.42rem;
+  padding: 0;
   font-size: 0.55rem;
   line-height: 0.8rem;
 }
@@ -621,7 +678,7 @@ function handleReject() {
   max-width: 9rem;
   align-items: center;
   gap: 0.35rem;
-  padding: 0.32rem 0.56rem;
+  padding: 0.22rem 0.46rem;
   border-radius: 9999px;
   border: 1px solid hsl(var(--border) / 0.1);
   font-size: 0.58rem;
@@ -657,8 +714,8 @@ function handleReject() {
 
 .kernel-overview-chevron {
   color: hsl(var(--muted-foreground) / 0.46);
-  border: 1px solid hsl(var(--border) / 0.1);
-  background: hsl(var(--background) / 0.76);
+  border: 0;
+  background: transparent;
 }
 
 .kernel-section-caption {
@@ -672,7 +729,7 @@ function handleReject() {
 .kernel-body-layout-split {
   display: grid;
   grid-template-columns: minmax(0, 1.02fr) minmax(0, 0.98fr);
-  gap: 0.85rem;
+  gap: 0.65rem;
   align-items: start;
 }
 
@@ -681,18 +738,11 @@ function handleReject() {
 }
 
 .kernel-detail-panel-raised {
-  padding: 0.72rem 0.78rem 0.78rem;
+  padding: 0.62rem 0.68rem 0.68rem;
   border: 1px solid hsl(var(--border) / 0.08);
-  border-radius: 15px;
-  background:
-    linear-gradient(
-      180deg,
-      hsl(var(--background) / 0.88) 0%,
-      hsl(var(--background) / 0.78) 100%
-    );
-  box-shadow:
-    inset 0 1px 0 hsl(var(--background) / 0.58),
-    0 14px 26px -32px hsl(var(--foreground) / 0.16);
+  border-radius: 12px;
+  background: hsl(var(--background) / 0.72);
+  box-shadow: none;
 }
 
 .chat-message-kernel-body-enter-active,
