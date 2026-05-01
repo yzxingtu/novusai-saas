@@ -13,6 +13,11 @@ import pytest
 
 from app.enums.common import UserRoleEnum
 from app.exceptions import BusinessException
+from app.services.ai.agent_router_capability_support import (
+    agent_needs_function_calling,
+    agent_supports_families,
+    grant_skill_name_if_active,
+)
 from app.services.ai.agent_router_policy import requested_tool_families
 from app.services.ai.agent_router_service import (
     ROUTED_BY_CONVERSATION,
@@ -93,53 +98,42 @@ def _make_conversation(
     return conversation
 
 
-def _thin_page_context(
-    page_key: str,
-    *,
-    primary_tools: list[str] | None = None,
-    reason: str = "router-test",
-) -> dict[str, object]:
-    return {
-        "page_key": page_key,
-        "ui_epoch": 1,
-        "suggested_tools": {
-            "primary": primary_tools
-            or [
-                "ui_get_snapshot",
-                "ui_read_region",
-                "ui_list_interactables",
-                "ui_click",
-            ],
-            "secondary": ["ui_open_surface"],
-            "reason": reason,
-        },
-    }
+def test_grant_skill_name_if_active_filters_retired_page_tool_names() -> None:
+    assert grant_skill_name_if_active(_make_skill_grant("ui_get_snapshot")) is None
+    assert grant_skill_name_if_active(_make_skill_grant("pageop_click")) is None
+    retired_package = _make_skill_grant("neutral-page-skill")
+    retired_package.skill.package.name = "页面感知交互"
+    assert grant_skill_name_if_active(retired_package) is None
+    retired_config = _make_descriptor_grant(
+        skill_name="neutral-page-skill",
+        skill_config={"preview_semantic_families": ["PAGE-OPS"]},
+    )
+    assert grant_skill_name_if_active(retired_config) is None
+    assert grant_skill_name_if_active(_make_skill_grant("web_search")) == "web_search"
 
 
-def test_agent_supports_page_operations_ignores_inactive_packages() -> None:
+def test_agent_needs_function_calling_ignores_retired_page_and_inactive_packages() -> None:
     agent = _make_agent(
         agent_id=59,
-        name="Page Agent",
+        name="Retired UI Agent",
         supports_vision=False,
         skill_names=["ui_get_snapshot", "ui_click"],
     )
-    for grant in agent.skill_grants:
-        grant.skill.package.is_active = False
 
-    assert AgentRouterService._agent_supports_page_operations(agent) is False
+    assert agent_needs_function_calling(agent) is False
 
-
-def test_agent_needs_function_calling_ignores_inactive_packages() -> None:
-    agent = _make_agent(
+    live_agent = _make_agent(
         agent_id=60,
         name="Tool Agent",
         supports_vision=False,
-        skill_names=["ui_click"],
+        skill_names=["web_search"],
     )
-    for grant in agent.skill_grants:
+    assert agent_needs_function_calling(live_agent) is True
+
+    for grant in live_agent.skill_grants:
         grant.skill.package.is_active = False
 
-    assert AgentRouterService._agent_needs_function_calling(agent) is False
+    assert agent_needs_function_calling(live_agent) is False
 
 
 def test_agent_supports_families_uses_skill_preview_metadata() -> None:
@@ -162,11 +156,11 @@ def test_agent_supports_families_uses_skill_preview_metadata() -> None:
         ),
     ]
 
-    assert AgentRouterService._agent_supports_families(
+    assert agent_supports_families(
         agent,
         ["weather", "web_research"],
     )
-    assert not AgentRouterService._agent_supports_families(agent, ["page_ops"])
+    assert not agent_supports_families(agent, ["page_ops"])
 
 
 def test_agent_supports_families_treats_time_as_runtime_baseline() -> None:
@@ -182,17 +176,14 @@ def test_agent_supports_families_treats_time_as_runtime_baseline() -> None:
         ),
     ]
 
-    assert AgentRouterService._agent_supports_families(
+    assert agent_supports_families(
         agent,
         ["weather", "time_ops"],
     )
 
 
 def test_requested_tool_families_leaves_colloquial_here_question_unrouted() -> None:
-    families = requested_tool_families(
-        "这里都有啥？",
-        _thin_page_context("admin.ai.agents"),
-    )
+    families = requested_tool_families("这里都有啥？")
 
     assert families == []
 
@@ -208,30 +199,20 @@ def test_requested_tool_families_leaves_colloquial_here_question_unrouted() -> N
 def test_requested_tool_families_ignores_retired_page_pagination_messages(
     message: str,
 ) -> None:
-    families = requested_tool_families(
-        message,
-        _thin_page_context("admin.runtime.records"),
-    )
+    families = requested_tool_families(message)
 
     assert families == []
 
 
 def test_requested_tool_families_treats_page_search_keywords_as_non_page() -> None:
-    families = requested_tool_families(
-        "帮我搜索一下包含'天气'的记录",
-        _thin_page_context("admin.runtime.records"),
-    )
+    families = requested_tool_families("帮我搜索一下包含'天气'的记录")
 
     assert families == ["weather", "web_research"]
 
 
 def test_requested_tool_families_does_not_add_retired_page_summary_family() -> None:
     families = requested_tool_families(
-        "帮我搜索一下今天的 AI 新闻，再顺便概括一下当前页面都能做什么",
-        _thin_page_context(
-            "admin.ai.quotas",
-            primary_tools=["ui_get_snapshot", "ui_read_region", "ui_read_table"],
-        ),
+        "帮我搜索一下今天的 AI 新闻，再顺便概括一下当前页面都能做什么"
     )
 
     assert families == ["web_research"]
@@ -248,24 +229,9 @@ def test_requested_tool_families_does_not_add_retired_page_summary_family() -> N
 def test_requested_tool_families_ignores_retired_page_detail_and_form_messages(
     message: str,
 ) -> None:
-    families = requested_tool_families(
-        message,
-        _thin_page_context("admin.ai.skill-packages"),
-    )
+    families = requested_tool_families(message)
 
     assert families == []
-
-
-def _semantic_agents_menu_entry() -> dict[str, object]:
-    return {
-        "title": "智能体管理",
-        "page_key": "admin.ai.agents",
-        "path": "/admin/ai/agents",
-        "description": "创建、编辑和管理 AI 智能体",
-        "keywords": ["智能体", "agent", "AI助手", "assistant"],
-        "capabilities": ["create_agent", "edit_agent"],
-        "category": "ai",
-    }
 
 
 @pytest.mark.asyncio
@@ -496,7 +462,6 @@ async def test_route_does_not_directly_select_page_operation_agent(mock_db):
     result = await service.route(
         tenant_id=1,
         message="请帮我操作当前页面并打开表单",
-        page_context=_thin_page_context("admin.ai.quotas"),
         user_role=UserRoleEnum.TENANT_ADMIN.value,
         user_role_id=1,
         user_id=10,
@@ -541,18 +506,6 @@ async def test_route_ignores_admin_cross_page_navigation_intent(mock_db):
     result = await service.route(
         tenant_id=None,
         message="我想添加一个智能体",
-        page_context={
-            **_thin_page_context(
-                "admin.dashboard",
-                primary_tools=[
-                    "ui_get_snapshot",
-                    "ui_list_interactables",
-                    "ui_click",
-                    "ui_open_surface",
-                ],
-            ),
-            "page_data": {"navigation_catalog": [_semantic_agents_menu_entry()]},
-        },
         user_role=UserRoleEnum.PLATFORM_ADMIN.value,
         user_role_id=1,
         user_id=1,
@@ -595,18 +548,6 @@ async def test_route_ignores_tenant_cross_page_navigation_intent(mock_db):
     result = await service.route(
         tenant_id=1,
         message="帮我添加一个智能体",
-        page_context={
-            **_thin_page_context(
-                "tenant.dashboard",
-                primary_tools=[
-                    "ui_get_snapshot",
-                    "ui_list_interactables",
-                    "ui_click",
-                    "ui_open_surface",
-                ],
-            ),
-            "page_data": {"navigation_catalog": [_semantic_agents_menu_entry()]},
-        },
         user_role=UserRoleEnum.TENANT_ADMIN.value,
         user_role_id=1,
         user_id=10,
@@ -650,18 +591,6 @@ async def test_route_ignores_semantic_agent_navigation_phrase(mock_db):
     result = await service.route(
         tenant_id=None,
         message="我想创建一个 agent",
-        page_context={
-            **_thin_page_context(
-                "admin.system.organization",
-                primary_tools=[
-                    "ui_get_snapshot",
-                    "ui_list_interactables",
-                    "ui_click",
-                    "ui_open_surface",
-                ],
-            ),
-            "page_data": {"navigation_catalog": [_semantic_agents_menu_entry()]},
-        },
         user_role=UserRoleEnum.PLATFORM_ADMIN.value,
         user_role_id=1,
         user_id=1,
@@ -705,18 +634,6 @@ async def test_route_ignores_semantic_ai_assistant_navigation_phrase(mock_db):
     result = await service.route(
         tenant_id=None,
         message="帮我新增 AI 助手",
-        page_context={
-            **_thin_page_context(
-                "admin.system.organization",
-                primary_tools=[
-                    "ui_get_snapshot",
-                    "ui_list_interactables",
-                    "ui_click",
-                    "ui_open_surface",
-                ],
-            ),
-            "page_data": {"navigation_catalog": [_semantic_agents_menu_entry()]},
-        },
         user_role=UserRoleEnum.PLATFORM_ADMIN.value,
         user_role_id=1,
         user_id=1,
@@ -759,7 +676,6 @@ async def test_route_does_not_force_page_operation_pool_for_page_analysis_reques
     result = await service.route(
         tenant_id=1,
         message="请解释一下当前页面的配额和限速差异",
-        page_context=_thin_page_context("admin.ai.quotas"),
         user_role=UserRoleEnum.TENANT_ADMIN.value,
         user_role_id=1,
         user_id=10,
@@ -802,7 +718,6 @@ async def test_route_keeps_full_candidate_pool_for_mixed_weather_and_page_write_
     result = await service.route(
         tenant_id=1,
         message="帮我查一下北京天气，然后在当前页面创建一条测试记录",
-        page_context=_thin_page_context("admin.ai.quotas"),
         user_role=UserRoleEnum.TENANT_ADMIN.value,
         user_role_id=1,
         user_id=10,
@@ -845,10 +760,6 @@ async def test_route_keeps_full_candidate_pool_for_mixed_web_and_page_request(
     result = await service.route(
         tenant_id=1,
         message="帮我搜索一下今天的 AI 新闻，再顺便概括一下当前页面都能做什么",
-        page_context=_thin_page_context(
-            "admin.ai.quotas",
-            primary_tools=["ui_get_snapshot", "ui_read_region", "ui_read_table"],
-        ),
         user_role=UserRoleEnum.TENANT_ADMIN.value,
         user_role_id=1,
         user_id=10,
@@ -898,10 +809,6 @@ async def test_route_prefers_candidate_covering_all_requested_families_for_mixed
     result = await service.route(
         tenant_id=1,
         message="帮我查一下北京天气，顺便搜索一下今天的热点新闻，再看看当前页面都有什么",
-        page_context=_thin_page_context(
-            "admin.ai.agents",
-            primary_tools=["ui_get_snapshot", "ui_read_region", "ui_read_table"],
-        ),
         user_role=UserRoleEnum.TENANT_ADMIN.value,
         user_role_id=1,
         user_id=10,
@@ -984,7 +891,6 @@ async def test_route_does_not_use_page_operation_candidate_pool_for_fallback(moc
     result = await service.route(
         tenant_id=1,
         message="请帮我在这个页面编辑一条限速规则",
-        page_context=_thin_page_context("admin.ai.quotas"),
         user_role=UserRoleEnum.TENANT_ADMIN.value,
         user_role_id=1,
         user_id=10,
@@ -1124,10 +1030,6 @@ async def test_route_does_not_prefer_vision_page_agent_for_screenshot_request(mo
     result = await service.route(
         tenant_id=1,
         message="请帮我给当前页面截图",
-        page_context=_thin_page_context(
-            "admin.ai.quotas",
-            primary_tools=["ui_get_snapshot", "ui_read_region", "ui_click"],
-        ),
         user_role=UserRoleEnum.TENANT_ADMIN.value,
         user_role_id=1,
         user_id=10,
@@ -1164,10 +1066,6 @@ async def test_route_does_not_treat_screenshot_request_as_page_vision_gate(mock_
     result = await service.route(
         tenant_id=1,
         message="请帮我把当前页面截图发出来",
-        page_context=_thin_page_context(
-            "admin.ai.quotas",
-            primary_tools=["ui_get_snapshot", "ui_read_region", "ui_click"],
-        ),
         user_role=UserRoleEnum.TENANT_ADMIN.value,
         user_role_id=1,
         user_id=10,

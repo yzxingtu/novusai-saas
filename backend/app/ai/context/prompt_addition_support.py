@@ -15,7 +15,6 @@ from app.ai.context.decision_helpers import (
 )
 from app.ai.page_locale import (
     page_language_name,
-    resolve_page_locale,
     resolve_visible_reply_locale,
 )
 from app.ai.prompt_contracts import render_prompt_contract
@@ -114,15 +113,6 @@ def build_web_research_date_anchor(
     )
 
 
-def build_page_locale_hint(request: Any) -> str:
-    page_locale = resolve_page_locale(getattr(request, "input_variables", None))
-    return render_prompt_contract(
-        "page_locale_thinking",
-        page_locale=page_locale,
-        page_language=page_language_name(page_locale),
-    )
-
-
 def build_visible_output_locale_hint(request: Any) -> str:
     reply_locale = resolve_visible_reply_locale(
         getattr(request, "messages", None),
@@ -139,6 +129,5 @@ __all__ = [
     "build_memory_recall_block",
     "build_profile_snapshot_block",
     "build_web_research_date_anchor",
-    "build_page_locale_hint",
     "build_visible_output_locale_hint",
 ]

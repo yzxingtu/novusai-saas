@@ -62,7 +62,6 @@ class PromptContractName(StrEnum):
     AGENT_ROUTER_SELECTION = "agent_router_selection"
 
     # --- Capability output locale / 能力输出语言 ---
-    PAGE_LOCALE_THINKING = "page_locale_thinking"
     VISIBLE_OUTPUT_LOCALE = "visible_output_locale"
 
     # --- Contract leak recovery / 契约泄漏恢复 ---
@@ -181,11 +180,6 @@ _PROMPT_CONTRACTS: dict[str, PromptContractSpec] = {
         description="Prompt for selecting the best router agent candidate.",
     ),
     # --- Capability output locale / 能力输出语言 ---
-    PromptContractName.PAGE_LOCALE_THINKING.value: PromptContractSpec(
-        name=PromptContractName.PAGE_LOCALE_THINKING,
-        template_name="page_locale_thinking.md",
-        description="Page-locale guidance for visible thinking and final answer language.",
-    ),
     PromptContractName.VISIBLE_OUTPUT_LOCALE.value: PromptContractSpec(
         name=PromptContractName.VISIBLE_OUTPUT_LOCALE,
         template_name="visible_output_locale.md",

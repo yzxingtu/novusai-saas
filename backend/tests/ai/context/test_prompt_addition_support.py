@@ -1,3 +1,9 @@
+"""
+Test type: behavioral
+Scope: context prompt-addition helper output without invoking LLM/provider calls.
+Mock strategy: only clocks are monkeypatched; helper logic and prompt rendering run real.
+"""
+
 from datetime import datetime, timezone
 from types import SimpleNamespace
 from zoneinfo import ZoneInfo
@@ -106,13 +112,22 @@ def test_build_web_research_date_anchor_requires_signal() -> None:
     assert anchor == ""
 
 
-def test_build_locale_hints_use_request_context() -> None:
-    request = SimpleNamespace(input_variables={"page_context": {"locale": "en-US"}})
-    page_hint = support.build_page_locale_hint(request)
+def test_build_visible_locale_hint_uses_non_page_request_context() -> None:
+    request = SimpleNamespace(
+        messages=[],
+        input_variables={
+            "locale": "zh-CN",
+            "page_context": {"locale": "en-US"},
+        },
+    )
+    visible_hint = support.build_visible_output_locale_hint(request)
 
-    assert "en" in page_hint
-    assert "English" in page_hint
+    assert "zh_CN" in visible_hint
+    assert "中文(Chinese)" in visible_hint
+    assert "English" not in visible_hint
 
+
+def test_build_visible_locale_hint_prefers_user_message_language() -> None:
     request = SimpleNamespace(
         messages=[ChatMessage(role="user", content="你好")],
         input_variables={},
