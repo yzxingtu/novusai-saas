@@ -33,6 +33,8 @@ class AdminResponse(BaseSchema):
     avatar: str | None = Field(None, description="头像附件 ID（兼容旧 URL 值）")
     is_active: bool = Field(..., description="是否激活")
     ai_enabled: bool = Field(True, description="是否允许使用 AI 对话")
+    effective_ai_enabled: bool = Field(True, description="当前账号实际是否可用 AI")
+    ai_unavailable_reason: str | None = Field(None, description="AI 不可用原因代码")
     is_super: bool = Field(..., description="是否超级管理员")
     role_id: int | None = Field(None, description="角色 ID")
     role_name: str | None = Field(None, description="角色名称")
@@ -51,6 +53,10 @@ class AdminResponse(BaseSchema):
             avatar=admin.avatar,
             is_active=admin.is_active,
             ai_enabled=getattr(admin, "ai_enabled", True),
+            effective_ai_enabled=getattr(admin, "effective_ai_enabled", None)
+            if getattr(admin, "effective_ai_enabled", None) is not None
+            else getattr(admin, "ai_enabled", True),
+            ai_unavailable_reason=getattr(admin, "ai_unavailable_reason", None),
             is_super=admin.is_super,
             role_id=admin.role_id,
             role_name=admin.role.name if admin.role else None,

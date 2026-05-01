@@ -47,3 +47,20 @@
   - `backend/tests/regressions/test_bug_2026_05_02_ai_account_003_admin_org_member_update.py`
   - `frontend/apps/web-antd/src/views/admin/tenant/list/modules/__tests__/TenantAdminForm.test.ts`
   - `frontend/apps/web-antd/src/components/business/member-panel/modules/__tests__/AdminFormDrawer.test.ts`
+
+## BUG-2026-05-02-AI-ACCOUNT-004
+
+- reporter: user
+- report_date: 2026-05-02
+- status: fixed_with_green_test
+- reproduction: create or edit an organization member from an account that can manage ordinary members but is not the target node leader or an ancestor leader; then inspect the member AI switch and effective AI state.
+- current_wrong_behavior: ordinary organization management can still initialize or submit the member `ai_enabled` switch, and effective AI state does not reflect upstream leader disablement consistently across list/detail surfaces.
+- expected_behavior: only the target node leader or an ancestor leader may submit a member AI switch; create without that leader scope initializes the account switch disabled; effective AI availability is dynamically disabled when an upstream leader is AI-disabled and is returned consistently to frontend list/detail consumers.
+- required_evidence:
+  - Behavioral route contract test proving create defaults to AI disabled without leader scope and explicit switch submission is rejected without leader scope.
+  - Behavioral guard test proving upstream leader-disabled accounts are blocked before AI runtime and preserve `leader_ai_disabled`.
+  - Frontend payload tests proving create/update omit `ai_enabled` when the selected node is not manageable.
+- evidence:
+  - `backend/tests/regressions/test_bug_2026_05_02_ai_account_003_admin_org_member_update.py`
+  - `backend/tests/test_ai_chat_availability_guard_contract.py`
+  - `frontend/apps/web-antd/src/components/business/member-panel/modules/__tests__/AdminFormDrawer.test.ts`

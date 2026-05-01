@@ -20,6 +20,7 @@ from app.schemas.system import (
     AdminResponse,
     AdminUpdateProfileRequest,
 )
+from app.services.ai.account_ai_access_service import AccountAIAccessService
 from app.services.common import AuthService
 
 router = APIRouter(prefix="/auth", tags=["平台管理员认证"])
@@ -130,15 +131,19 @@ async def admin_logout(
 @router.get("/me", summary="获取当前管理员信息")
 @auth_only
 async def get_current_admin_info(
+    db: DbSession,
     current_admin: ActiveAdmin,
 ):
     """
     获取当前登录管理员的详细信息 / Get current logged-in admin details
     """
-    return success(
-        data=AdminResponse.model_validate(current_admin, from_attributes=True),
-        message=_("common.success"),
-    )
+    ai_profile = await AccountAIAccessService(
+        db
+    ).get_platform_admin_ai_availability_profile(current_admin)
+    resp = AdminResponse.model_validate(current_admin, from_attributes=True)
+    resp.effective_ai_enabled = bool(ai_profile["effective_ai_enabled"])
+    resp.ai_unavailable_reason = ai_profile["ai_unavailable_reason"]
+    return success(data=resp, message=_("common.success"))
 
 
 @router.put("/password", summary="修改密码")

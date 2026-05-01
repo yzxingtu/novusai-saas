@@ -75,6 +75,9 @@ class TenantOrgNodeDetailResponse(TenantOrgNodeResponse):
         False,
         description="Whether current tenant admin can assign permissions on the node",
     )
+    can_manage_member_ai: bool = Field(
+        False, description="Whether current operator can manage member AI switches"
+    )
 
 
 class TenantOrgNodeCreateRequest(BaseSchema):
@@ -218,6 +221,15 @@ class TenantOrgNodeMemberResponse(BaseSchema):
     email: str = Field(..., description="Email")
     is_active: bool = Field(True, description="Whether the tenant admin is active")
     ai_enabled: bool = Field(True, description="Whether AI chat is enabled")
+    effective_ai_enabled: bool = Field(
+        True, description="Whether AI chat is effectively enabled"
+    )
+    ai_unavailable_reason: str | None = Field(
+        None, description="AI unavailable reason code"
+    )
+    can_manage_ai: bool = Field(
+        False, description="Whether current operator can manage AI switch"
+    )
     is_leader: bool = Field(
         False, description="Whether the tenant admin is the node leader"
     )

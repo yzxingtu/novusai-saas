@@ -49,6 +49,7 @@ from app.schemas.system.admin_org_node import (
     AdminOrgNodeUpdateMemberRequest,
     AdminOrgNodeUpdateRequest,
 )
+from app.services.ai.account_ai_access_service import AccountAIAccessService
 from app.services.system.admin_org_authority_service import AdminOrgAuthorityService
 from app.services.system.admin_org_node_service import AdminOrgNodeService
 
@@ -65,7 +66,9 @@ def _serialize_leader(leader) -> AdminOrgNodeLeaderResponse | None:
     )
 
 
-def _serialize_org_node(org_node) -> AdminOrgNodeResponse:
+def _serialize_org_node(
+    org_node, *, can_manage_member_ai: bool = False
+) -> AdminOrgNodeResponse:
     return AdminOrgNodeResponse(
         id=org_node.id,
         code=org_node.code,
@@ -85,6 +88,7 @@ def _serialize_org_node(org_node) -> AdminOrgNodeResponse:
         leader=_serialize_leader(getattr(org_node, "leader", None)),
         member_count=getattr(org_node, "member_count", 0),
         permissions_count=getattr(org_node, "permissions_count", 0),
+        can_manage_member_ai=can_manage_member_ai,
         data_scope=getattr(org_node, "scope_mode", None) or "dept_children",
         custom_dept_ids=getattr(org_node, "custom_org_node_ids", None),
         created_at=org_node.created_at,
@@ -92,22 +96,32 @@ def _serialize_org_node(org_node) -> AdminOrgNodeResponse:
     )
 
 
-def _serialize_org_node_detail(org_node) -> AdminOrgNodeDetailResponse:
+def _serialize_org_node_detail(
+    org_node, *, can_manage_member_ai: bool = False
+) -> AdminOrgNodeDetailResponse:
     permissions = [
         permission
         for permission in getattr(org_node, "permissions", [])
         if permission.is_enabled and not permission.is_deleted
     ]
     return AdminOrgNodeDetailResponse(
-        **_serialize_org_node(org_node).model_dump(),
+        **_serialize_org_node(
+            org_node, can_manage_member_ai=can_manage_member_ai
+        ).model_dump(),
         permission_ids=[permission.id for permission in permissions],
         permission_codes=[permission.code for permission in permissions],
     )
 
 
-def _serialize_member(member) -> AdminOrgNodeMemberResponse:
+def _serialize_member(
+    member,
+    *,
+    ai_profile: dict | None = None,
+    can_manage_ai: bool = False,
+) -> AdminOrgNodeMemberResponse:
     org_relation = getattr(member, "org_node", None)
     permission_role = getattr(member, "role", None)
+    account_ai_enabled = getattr(member, "ai_enabled", True)
     is_leader = (
         org_relation is not None
         and getattr(org_relation, "leader_id", None) == member.id
@@ -119,7 +133,16 @@ def _serialize_member(member) -> AdminOrgNodeMemberResponse:
         avatar=member.avatar,
         email=member.email,
         is_active=member.is_active,
-        ai_enabled=getattr(member, "ai_enabled", True),
+        ai_enabled=account_ai_enabled,
+        effective_ai_enabled=(
+            bool(ai_profile["effective_ai_enabled"])
+            if ai_profile
+            else bool(account_ai_enabled)
+        ),
+        ai_unavailable_reason=(
+            ai_profile.get("ai_unavailable_reason") if ai_profile else None
+        ),
+        can_manage_ai=can_manage_ai,
         is_leader=is_leader,
         joined_at=member.created_at,
         role_id=getattr(member, "role_id", None),
@@ -191,6 +214,40 @@ class AdminOrganizationController(GlobalController):
                 detail=_("role.no_permission_to_manage"),
             )
 
+    async def _require_manage_member_ai(
+        self, db: DbSession, admin: ActiveAdmin, org_node_id: int | None
+    ) -> None:
+        if not await AdminOrgAuthorityService(db, admin).can_manage_member_ai_for_node(
+            org_node_id
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=_("role.no_permission_to_manage"),
+            )
+
+    async def _serialize_members_for_operator(
+        self,
+        db: DbSession,
+        admin: ActiveAdmin,
+        members,
+    ) -> list[AdminOrgNodeMemberResponse]:
+        authority = AdminOrgAuthorityService(db, admin)
+        ai_access = AccountAIAccessService(db)
+        payload: list[AdminOrgNodeMemberResponse] = []
+        for member in members:
+            payload.append(
+                _serialize_member(
+                    member,
+                    ai_profile=await ai_access.get_platform_admin_ai_availability_profile(
+                        member
+                    ),
+                    can_manage_ai=await authority.can_manage_member_ai_for_node(
+                        getattr(member, "org_node_id", None)
+                    ),
+                )
+            )
+        return payload
+
     def _register_routes(self) -> None:
         router = self.router
 
@@ -201,11 +258,15 @@ class AdminOrganizationController(GlobalController):
         ):
             service = AdminOrgNodeService(db)
             authority = AdminOrgAuthorityService(db, current_admin)
+            ai_manageable_ids = await authority.get_member_ai_manageable_org_node_ids()
             if current_admin.is_super:
                 return success(
                     data=serialize_organization_tree(
                         await service.get_visible_org_tree(),
-                        lambda node: _serialize_org_node(node).model_dump(),
+                        lambda node: _serialize_org_node(
+                            node,
+                            can_manage_member_ai=node.id in ai_manageable_ids,
+                        ).model_dump(),
                     ),
                     message=_("common.success"),
                 )
@@ -214,7 +275,10 @@ class AdminOrganizationController(GlobalController):
             return success(
                 data=serialize_organization_tree(
                     await service.get_visible_org_tree(scope_ids),
-                    lambda node: _serialize_org_node(node).model_dump(),
+                    lambda node: _serialize_org_node(
+                        node,
+                        can_manage_member_ai=node.id in ai_manageable_ids,
+                    ).model_dump(),
                 ),
                 message=_("common.success"),
             )
@@ -226,17 +290,30 @@ class AdminOrganizationController(GlobalController):
         ):
             service = AdminOrgNodeService(db)
             authority = AdminOrgAuthorityService(db, current_admin)
+            ai_manageable_ids = await authority.get_member_ai_manageable_org_node_ids()
             if current_admin.is_super:
                 nodes = await service.get_visible_root_nodes()
                 return success(
-                    data=[_serialize_org_node(node) for node in nodes],
+                    data=[
+                        _serialize_org_node(
+                            node,
+                            can_manage_member_ai=node.id in ai_manageable_ids,
+                        )
+                        for node in nodes
+                    ],
                     message=_("common.success"),
                 )
 
             scope_ids = await authority.get_visible_org_node_ids()
             items = await service.get_visible_root_nodes(scope_ids)
             return success(
-                data=[_serialize_org_node(node) for node in items],
+                data=[
+                    _serialize_org_node(
+                        node,
+                        can_manage_member_ai=node.id in ai_manageable_ids,
+                    )
+                    for node in items
+                ],
                 message=_("common.success"),
             )
 
@@ -276,8 +353,15 @@ class AdminOrganizationController(GlobalController):
         ):
             await self._require_view(db, current_admin, org_node_id)
             org_node = await AdminOrgNodeService(db).get_org_node_detail(org_node_id)
+            authority = AdminOrgAuthorityService(db, current_admin)
             return success(
-                data=_serialize_org_node_detail(org_node), message=_("common.success")
+                data=_serialize_org_node_detail(
+                    org_node,
+                    can_manage_member_ai=await authority.can_manage_member_ai_for_node(
+                        org_node_id
+                    ),
+                ),
+                message=_("common.success"),
             )
 
         @router.get("/{org_node_id}/children", summary="获取组织子节点")
@@ -289,9 +373,17 @@ class AdminOrganizationController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             await self._require_view(db, current_admin, org_node_id)
+            authority = AdminOrgAuthorityService(db, current_admin)
+            ai_manageable_ids = await authority.get_member_ai_manageable_org_node_ids()
             nodes = await AdminOrgNodeService(db).get_organization_children(org_node_id)
             return success(
-                data=[_serialize_org_node(node) for node in nodes],
+                data=[
+                    _serialize_org_node(
+                        node,
+                        can_manage_member_ai=node.id in ai_manageable_ids,
+                    )
+                    for node in nodes
+                ],
                 message=_("common.success"),
             )
 
@@ -442,7 +534,9 @@ class AdminOrganizationController(GlobalController):
             )
             return success(
                 data=PageResponse.create(
-                    items=[_serialize_member(member) for member in members],
+                    items=await self._serialize_members_for_operator(
+                        db, current_admin, members
+                    ),
                     total=total,
                     page=page,
                     page_size=page_size,
@@ -460,10 +554,19 @@ class AdminOrganizationController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             await self._require_manage(db, current_admin, org_node_id)
-            await resolve_authorized_ai_enabled_override(
+            authority = AdminOrgAuthorityService(db, current_admin)
+            can_manage_member_ai = await authority.can_manage_member_ai_for_node(
+                org_node_id
+            )
+            ai_override = await resolve_authorized_ai_enabled_override(
                 request=request,
                 data=data,
                 permission_code=ORGANIZATION_MANAGE_MEMBER_AI_PERMISSION,
+            )
+            if ai_override is not None:
+                await self._require_manage_member_ai(db, current_admin, org_node_id)
+            initial_ai_enabled = (
+                ai_override if ai_override is not None else can_manage_member_ai
             )
             admin = await commit_or_raise_http(
                 db,
@@ -475,11 +578,16 @@ class AdminOrganizationController(GlobalController):
                     phone=data.phone,
                     nickname=data.nickname,
                     is_active=data.is_active,
-                    ai_enabled=data.ai_enabled,
+                    ai_enabled=initial_ai_enabled,
                 ),
             )
             return success(
-                data=_serialize_member(admin), message=_("role.member_created")
+                data=(
+                    await self._serialize_members_for_operator(
+                        db, current_admin, [admin]
+                    )
+                )[0],
+                message=_("role.member_created"),
             )
 
         @router.put("/{org_node_id}/members/{admin_id}", summary="更新组织节点成员")
@@ -495,11 +603,15 @@ class AdminOrganizationController(GlobalController):
             await self._require_manage(db, current_admin, org_node_id)
             if data.org_node_id is not None:
                 await self._require_manage(db, current_admin, data.org_node_id)
-            await resolve_authorized_ai_enabled_override(
+            ai_override = await resolve_authorized_ai_enabled_override(
                 request=request,
                 data=data,
                 permission_code=ORGANIZATION_MANAGE_MEMBER_AI_PERMISSION,
             )
+            if ai_override is not None:
+                await self._require_manage_member_ai(
+                    db, current_admin, data.org_node_id or org_node_id
+                )
             admin = await commit_or_raise_http(
                 db,
                 AdminOrgNodeService(db).update_member(
@@ -516,7 +628,12 @@ class AdminOrganizationController(GlobalController):
                 ),
             )
             return success(
-                data=_serialize_member(admin), message=_("role.member_updated")
+                data=(
+                    await self._serialize_members_for_operator(
+                        db, current_admin, [admin]
+                    )
+                )[0],
+                message=_("role.member_updated"),
             )
 
         @router.put(

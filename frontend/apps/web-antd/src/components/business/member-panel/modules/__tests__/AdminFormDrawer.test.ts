@@ -9,7 +9,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AdminFormDrawer from '../AdminFormDrawer.vue';
 
 const mocks = vi.hoisted(() => ({
-  canManageAi: false,
+  hasManageAiPermission: false,
   createMemberApi: vi.fn(),
   currentDrawerData: undefined as Record<string, unknown> | undefined,
   formValues: {} as Record<string, unknown>,
@@ -25,7 +25,8 @@ vi.mock('#/locales', () => ({
 vi.mock('#/utils', () => ({
   useAccess: () => ({
     hasAccessByCodes: (codes: string[]) =>
-      codes.includes('organization:manage_member_ai') && mocks.canManageAi,
+      codes.includes('organization:manage_member_ai') &&
+      mocks.hasManageAiPermission,
   }),
 }));
 
@@ -137,11 +138,15 @@ vi.mock('ant-design-vue', () => ({
   }),
 }));
 
-async function openCreateAndSubmit(canManageAi: boolean) {
-  mocks.canManageAi = canManageAi;
+async function openCreateAndSubmit(options: {
+  hasManageAiPermission: boolean;
+  nodeCanManageAi: boolean;
+}) {
+  mocks.hasManageAiPermission = options.hasManageAiPermission;
   const wrapper = mount(AdminFormDrawer, {
     props: {
       apiPrefix: 'admin',
+      canManageAi: options.nodeCanManageAi,
       nodeId: 5,
       nodeName: 'Ops',
     },
@@ -169,11 +174,59 @@ async function openCreateAndSubmit(canManageAi: boolean) {
   await flushPromises();
 }
 
+async function openEditAndSubmit(options: {
+  hasManageAiPermission: boolean;
+  recordCanManageAi: boolean;
+  selectedOrgNodeId: number;
+}) {
+  mocks.hasManageAiPermission = options.hasManageAiPermission;
+  const wrapper = mount(AdminFormDrawer, {
+    props: {
+      apiPrefix: 'admin',
+      canManageAi: true,
+      nodeId: 5,
+      nodeName: 'Ops',
+    },
+  });
+
+  (
+    wrapper.vm as typeof wrapper.vm & {
+      openEdit: (record: Record<string, unknown>) => void;
+    }
+  ).openEdit({
+    aiEnabled: false,
+    avatar: '27',
+    canManageAi: options.recordCanManageAi,
+    email: 'ops@example.com',
+    id: 33,
+    isActive: true,
+    nickname: 'Ops',
+    orgNodeId: 5,
+    orgNodeName: 'Ops',
+    username: 'ops_admin',
+  });
+  await flushPromises();
+
+  Object.assign(mocks.formValues, {
+    ai_enabled: false,
+    email: 'ops@example.com',
+    is_active: true,
+    nickname: 'Ops',
+    org_node_id: options.selectedOrgNodeId,
+    phone: null,
+  });
+
+  await mocks.onConfirm?.();
+  await flushPromises();
+}
+
 describe('AdminFormDrawer AI switch permission', () => {
   beforeEach(() => {
-    mocks.canManageAi = false;
+    mocks.hasManageAiPermission = false;
     mocks.createMemberApi.mockReset();
     mocks.createMemberApi.mockResolvedValue({});
+    mocks.updateMemberApi.mockReset();
+    mocks.updateMemberApi.mockResolvedValue({});
     mocks.currentDrawerData = undefined;
     mocks.onConfirm = undefined;
     mocks.onOpenChange = undefined;
@@ -183,7 +236,10 @@ describe('AdminFormDrawer AI switch permission', () => {
   });
 
   it('omits ai_enabled when current admin lacks organization:manage_member_ai', async () => {
-    await openCreateAndSubmit(false);
+    await openCreateAndSubmit({
+      hasManageAiPermission: false,
+      nodeCanManageAi: true,
+    });
 
     expect(mocks.createMemberApi).toHaveBeenCalledWith(
       5,
@@ -203,8 +259,35 @@ describe('AdminFormDrawer AI switch permission', () => {
     );
   });
 
-  it('submits ai_enabled=false when current admin has organization:manage_member_ai', async () => {
-    await openCreateAndSubmit(true);
+  it('omits ai_enabled when current admin has permission but is not responsible for the node', async () => {
+    await openCreateAndSubmit({
+      hasManageAiPermission: true,
+      nodeCanManageAi: false,
+    });
+
+    expect(mocks.createMemberApi).toHaveBeenCalledWith(
+      5,
+      {
+        email: 'ops@example.com',
+        is_active: true,
+        nickname: 'Ops',
+        org_node_id: 5,
+        password: 'secret123',
+        phone: null,
+        username: 'ops_admin',
+      },
+      {
+        showSuccessMessage: true,
+        successMessage: 'ui.actionMessage.createSuccess',
+      },
+    );
+  });
+
+  it('submits ai_enabled=false when current admin has permission and node responsibility', async () => {
+    await openCreateAndSubmit({
+      hasManageAiPermission: true,
+      nodeCanManageAi: true,
+    });
 
     expect(mocks.createMemberApi).toHaveBeenCalledWith(
       5,
@@ -221,6 +304,57 @@ describe('AdminFormDrawer AI switch permission', () => {
       {
         showSuccessMessage: true,
         successMessage: 'ui.actionMessage.createSuccess',
+      },
+    );
+  });
+
+  it('submits ai_enabled=false on edit when the selected node is still manageable', async () => {
+    await openEditAndSubmit({
+      hasManageAiPermission: true,
+      recordCanManageAi: true,
+      selectedOrgNodeId: 5,
+    });
+
+    expect(mocks.updateMemberApi).toHaveBeenCalledWith(
+      5,
+      33,
+      {
+        ai_enabled: false,
+        avatar: '27',
+        email: 'ops@example.com',
+        is_active: true,
+        nickname: 'Ops',
+        org_node_id: 5,
+        phone: null,
+      },
+      {
+        showSuccessMessage: true,
+        successMessage: 'ui.actionMessage.updateSuccess',
+      },
+    );
+  });
+
+  it('omits ai_enabled on edit when moving the member to another node', async () => {
+    await openEditAndSubmit({
+      hasManageAiPermission: true,
+      recordCanManageAi: true,
+      selectedOrgNodeId: 9,
+    });
+
+    expect(mocks.updateMemberApi).toHaveBeenCalledWith(
+      5,
+      33,
+      {
+        avatar: '27',
+        email: 'ops@example.com',
+        is_active: true,
+        nickname: 'Ops',
+        org_node_id: 9,
+        phone: null,
+      },
+      {
+        showSuccessMessage: true,
+        successMessage: 'ui.actionMessage.updateSuccess',
       },
     );
   });

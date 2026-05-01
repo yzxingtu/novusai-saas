@@ -824,6 +824,7 @@
             "quota_duplicate_active": "Only one active quota rule is allowed for the same tenant, model scope, and period",
             "rate_limit_duplicate_active": "Only one active rate-limit rule is allowed for the same tenant and model",
             "account_ai_disabled": "AI chat is disabled for this account",
+            "leader_ai_disabled": "AI chat is disabled by an upstream organization leader",
             "tenant_plan_ai_disabled": "AI chat is disabled by the tenant plan",
             "fallback_self_reference": "Fallback model cannot reference itself",
             "embedding_empty_result": "Embedding returned empty result",

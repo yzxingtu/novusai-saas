@@ -350,7 +350,7 @@ function mapAdminIdentityDetail(
   detail: AdminIdentityDetail,
 ): Partial<IdentityDetail> {
   return {
-    aiEnabled: detail.ai_enabled ?? true,
+    aiEnabled: detail.effective_ai_enabled ?? detail.ai_enabled ?? true,
     avatar: detail.avatar,
     createdAt: detail.created_at,
     displayName: detail.display_name ?? undefined,
@@ -377,7 +377,7 @@ function mapTenantAdminIdentityDetail(
   detail: AdminTenantAdminIdentityDetail | TenantAdminIdentityDetail,
 ): Partial<IdentityDetail> {
   return {
-    aiEnabled: detail.ai_enabled ?? true,
+    aiEnabled: detail.effective_ai_enabled ?? detail.ai_enabled ?? true,
     avatar: detail.avatar,
     createdAt: detail.created_at,
     displayName: detail.display_name ?? undefined,

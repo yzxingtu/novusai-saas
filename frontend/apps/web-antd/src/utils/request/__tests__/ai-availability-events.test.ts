@@ -35,6 +35,13 @@ describe('ai availability request events', () => {
   it('recognizes tenant-plan AI denial without matching unrelated 403 payloads', () => {
     expect(
       isAIAccessDeniedPayload({
+        code: 4032,
+        feature: 'ai_chat',
+        reason: 'leader_ai_disabled',
+      }),
+    ).toBe(true);
+    expect(
+      isAIAccessDeniedPayload({
         code: 4033,
         feature: 'ai_chat',
         reason: 'tenant_plan_ai_disabled',

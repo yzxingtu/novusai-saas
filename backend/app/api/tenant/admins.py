@@ -7,11 +7,12 @@ Provides tenant admin remote identity select endpoint.
 
 from fastapi import APIRouter, Query
 
+from app.api.common.identity import serialize_tenant_admin_identity_detail
 from app.core.deps import ActiveTenantAdmin, DbSession
 from app.core.i18n import _
 from app.core.response import success
-from app.api.common.identity import serialize_tenant_admin_identity_detail
 from app.rbac.decorators import auth_only
+from app.services.ai.account_ai_access_service import AccountAIAccessService
 from app.services.tenant.tenant_admin_service import TenantAdminService
 
 router = APIRouter(prefix="/admins", tags=["Tenant Admin Identity"])
@@ -54,8 +55,11 @@ async def get_tenant_admin_detail(
         db,
         current_admin.tenant_id,
     ).get_identity_detail(admin_id)
+    ai_profile = await AccountAIAccessService(
+        db
+    ).get_tenant_admin_ai_availability_profile(admin)
     return success(
-        data=serialize_tenant_admin_identity_detail(admin),
+        data=serialize_tenant_admin_identity_detail(admin, ai_profile=ai_profile),
         message=_("common.success"),
     )
 

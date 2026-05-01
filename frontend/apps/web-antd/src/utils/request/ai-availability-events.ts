@@ -4,6 +4,7 @@ export const AI_AVAILABILITY_INVALIDATED_EVENT =
 const AI_ACCESS_DENIED_CODES = new Set([4032, 4033, '4032', '4033']);
 const AI_ACCESS_DENIED_REASONS = new Set([
   'account_ai_disabled',
+  'leader_ai_disabled',
   'tenant_plan_ai_disabled',
 ]);
 

@@ -821,6 +821,7 @@
             "quota_duplicate_active": "同一企业、同一模型范围、同一周期只允许存在一条启用中的配额规则",
             "rate_limit_duplicate_active": "同一企业、同一模型只允许存在一条启用中的速率限制规则",
             "account_ai_disabled": "当前账号已关闭 AI 对话权限",
+            "leader_ai_disabled": "上级负责人已关闭 AI 对话权限",
             "tenant_plan_ai_disabled": "当前企业套餐未启用 AI 对话",
             "fallback_self_reference": "备用模型不能指向自身",
             "embedding_empty_result": "Embedding 返回空结果",

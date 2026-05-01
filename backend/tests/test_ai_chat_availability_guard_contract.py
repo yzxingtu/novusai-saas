@@ -28,6 +28,40 @@ from app.exceptions import AppException
 from app.services.ai.account_ai_access_service import AccountAIAccessService
 
 
+class _ScalarsResult:
+    def __init__(self, values):
+        self._values = values
+
+    def all(self):
+        return self._values
+
+
+class _DBExecuteResult:
+    def __init__(self, *, scalar=None, scalars=None):
+        self._scalar = scalar
+        self._scalars = list(scalars or [])
+
+    def scalar_one_or_none(self):
+        return self._scalar
+
+    def scalars(self):
+        return _ScalarsResult(self._scalars)
+
+
+class _QueuedDB:
+    def __init__(self, *, get_result=None, execute_results=None):
+        self._get_result = get_result
+        self._execute_results = list(execute_results or [])
+
+    async def get(self, *_args):
+        return self._get_result
+
+    async def execute(self, *_args):
+        if not self._execute_results:
+            raise AssertionError("Unexpected execute call")
+        return self._execute_results.pop(0)
+
+
 def _load_module(relative_path: str, module_name: str):
     module_path = Path(__file__).resolve().parent.parent / relative_path
     spec = importlib.util.spec_from_file_location(module_name, module_path)
@@ -40,8 +74,7 @@ def _load_module(relative_path: str, module_name: str):
 
 def _safe_module_name(prefix: str, method: str, path: str) -> str:
     return (
-        f"{prefix}_{method}_{path}"
-        .replace("/", "_")
+        f"{prefix}_{method}_{path}".replace("/", "_")
         .replace("-", "_")
         .replace("{", "_")
         .replace("}", "_")
@@ -135,7 +168,9 @@ def test_admin_ai_chat_rejects_account_disabled_before_chat_surfaces(
     monkeypatch.setattr(
         admin_module,
         "PermissionService",
-        lambda _db: SimpleNamespace(get_admin_permissions=AsyncMock(return_value=["*"])),
+        lambda _db: SimpleNamespace(
+            get_admin_permissions=AsyncMock(return_value=["*"])
+        ),
     )
     monkeypatch.setattr(admin_module, "AgentChatService", SentinelAgentChatService)
     monkeypatch.setattr(
@@ -205,7 +240,9 @@ _TENANT_DISABLED_ROUTE_CASES = (
 @pytest.mark.parametrize(
     ("method", "path", "json_body"),
     _TENANT_DISABLED_ROUTE_CASES,
-    ids=[f"{method.upper()} {path}" for method, path, _ in _TENANT_DISABLED_ROUTE_CASES],
+    ids=[
+        f"{method.upper()} {path}" for method, path, _ in _TENANT_DISABLED_ROUTE_CASES
+    ],
 )
 def test_tenant_owner_ai_chat_rejects_account_disabled_before_agent_services(
     method,
@@ -299,9 +336,7 @@ def test_tenant_owner_ai_chat_rejects_account_disabled_before_agent_services(
         )
 
     app.dependency_overrides[get_db] = override_db
-    app.dependency_overrides[get_current_active_tenant_admin] = (
-        override_tenant_admin
-    )
+    app.dependency_overrides[get_current_active_tenant_admin] = override_tenant_admin
 
     with TestClient(app, raise_server_exceptions=False) as client:
         request_fn = getattr(client, method)
@@ -382,9 +417,7 @@ def test_tenant_ai_chat_rejects_tenant_plan_disabled_before_agent_services(
         )
 
     app.dependency_overrides[get_db] = override_db
-    app.dependency_overrides[get_current_active_tenant_admin] = (
-        override_tenant_admin
-    )
+    app.dependency_overrides[get_current_active_tenant_admin] = override_tenant_admin
 
     with TestClient(app, raise_server_exceptions=False) as client:
         response = client.post("/ai/agent-chat/42/chat", json=_chat_payload())
@@ -398,7 +431,11 @@ def test_tenant_ai_chat_rejects_tenant_plan_disabled_before_agent_services(
 
 
 @pytest.mark.asyncio
-async def test_tenant_ai_guard_matches_auth_profile_for_legacy_plan_feature_default() -> None:
+async def test_tenant_ai_guard_matches_auth_profile_for_legacy_plan_feature_default() -> (
+    None
+):
+    feature_calls: list[tuple[str, bool]] = []
+
     class _Result:
         def scalar_one_or_none(self):
             return SimpleNamespace(
@@ -406,7 +443,9 @@ async def test_tenant_ai_guard_matches_auth_profile_for_legacy_plan_feature_defa
                 plan_id=9,
                 quota={},
                 tenant_plan=SimpleNamespace(
-                    get_feature=lambda _key, default=False: default
+                    get_feature=lambda key, default=False: (
+                        feature_calls.append((key, default)) or default
+                    )
                 ),
             )
 
@@ -418,3 +457,72 @@ async def test_tenant_ai_guard_matches_auth_profile_for_legacy_plan_feature_defa
     )
 
     await AccountAIAccessService(db).require_tenant_admin_ai_access(tenant_admin)
+    assert feature_calls == [("ai_enabled", True)]
+    assert db.execute.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_platform_admin_effective_ai_disabled_when_ancestor_leader_is_disabled() -> (
+    None
+):
+    db = _QueuedDB(
+        get_result=SimpleNamespace(id=3, is_deleted=False, path="/1/2/3/"),
+        execute_results=[_DBExecuteResult(scalars=[True, False])],
+    )
+    admin = SimpleNamespace(
+        ai_enabled=True,
+        id=33,
+        is_deleted=False,
+        org_node_id=3,
+    )
+
+    profile = await AccountAIAccessService(
+        db  # type: ignore[arg-type]
+    ).get_platform_admin_ai_availability_profile(admin)
+
+    assert profile["account_ai_enabled"] is True
+    assert profile["leader_ai_enabled"] is False
+    assert profile["effective_ai_enabled"] is False
+    assert profile["ai_unavailable_reason"] == "leader_ai_disabled"
+
+
+@pytest.mark.asyncio
+async def test_tenant_admin_guard_rejects_when_leader_chain_disables_ai() -> None:
+    db = _QueuedDB(
+        get_result=SimpleNamespace(
+            id=12,
+            is_deleted=False,
+            path="/10/11/12/",
+            tenant_id=5,
+        ),
+        execute_results=[
+            _DBExecuteResult(scalars=[False]),
+            _DBExecuteResult(
+                scalar=SimpleNamespace(
+                    id=5,
+                    is_deleted=False,
+                    plan_id=9,
+                    quota={},
+                    tenant_plan=SimpleNamespace(
+                        get_feature=lambda _key, default=False: default
+                    ),
+                )
+            ),
+        ],
+    )
+    tenant_admin = SimpleNamespace(
+        ai_enabled=True,
+        id=44,
+        is_deleted=False,
+        org_node_id=12,
+        tenant_id=5,
+    )
+
+    with pytest.raises(AppException) as exc_info:
+        await AccountAIAccessService(
+            db  # type: ignore[arg-type]
+        ).require_tenant_admin_ai_access(tenant_admin)
+
+    assert exc_info.value.status_code == 403
+    assert exc_info.value.code == 4032
+    assert exc_info.value.extra["reason"] == "leader_ai_disabled"

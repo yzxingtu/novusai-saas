@@ -49,6 +49,7 @@ from app.schemas.tenant.tenant_org_node import (
     TenantOrgNodeUpdateMemberRequest,
     TenantOrgNodeUpdateRequest,
 )
+from app.services.ai.account_ai_access_service import AccountAIAccessService
 from app.services.tenant.tenant_org_authority_service import TenantOrgAuthorityService
 from app.services.tenant.tenant_org_node_service import TenantOrgNodeService
 
@@ -65,7 +66,9 @@ def _serialize_leader(leader) -> TenantOrgNodeLeaderResponse | None:
     )
 
 
-def _serialize_org_node(org_node) -> TenantOrgNodeResponse:
+def _serialize_org_node(
+    org_node, *, can_manage_member_ai: bool = False
+) -> TenantOrgNodeResponse:
     return TenantOrgNodeResponse(
         id=org_node.id,
         tenant_id=org_node.tenant_id,
@@ -87,6 +90,7 @@ def _serialize_org_node(org_node) -> TenantOrgNodeResponse:
         leader_name=getattr(org_node, "leader_name", None),
         member_count=getattr(org_node, "member_count", 0),
         permissions_count=getattr(org_node, "permissions_count", 0),
+        can_manage_member_ai=can_manage_member_ai,
         data_scope=getattr(org_node, "scope_mode", None) or "dept_children",
         custom_dept_ids=getattr(org_node, "custom_org_node_ids", None),
         created_at=org_node.created_at,
@@ -98,6 +102,7 @@ def _serialize_org_node_detail(
     org_node,
     *,
     can_assign_permissions: bool,
+    can_manage_member_ai: bool = False,
 ) -> TenantOrgNodeDetailResponse:
     permissions = [
         permission
@@ -105,16 +110,24 @@ def _serialize_org_node_detail(
         if permission.is_enabled and not permission.is_deleted
     ]
     return TenantOrgNodeDetailResponse(
-        **_serialize_org_node(org_node).model_dump(),
+        **_serialize_org_node(
+            org_node, can_manage_member_ai=can_manage_member_ai
+        ).model_dump(),
         permission_ids=[permission.id for permission in permissions],
         permission_codes=[permission.code for permission in permissions],
         can_assign_permissions=can_assign_permissions,
     )
 
 
-def _serialize_member(member) -> TenantOrgNodeMemberResponse:
+def _serialize_member(
+    member,
+    *,
+    ai_profile: dict | None = None,
+    can_manage_ai: bool = False,
+) -> TenantOrgNodeMemberResponse:
     org_relation = getattr(member, "org_node", None)
     permission_role = getattr(member, "role", None)
+    account_ai_enabled = getattr(member, "ai_enabled", True)
     is_leader = (
         org_relation is not None
         and getattr(org_relation, "leader_id", None) == member.id
@@ -126,7 +139,16 @@ def _serialize_member(member) -> TenantOrgNodeMemberResponse:
         avatar=member.avatar,
         email=member.email,
         is_active=member.is_active,
-        ai_enabled=getattr(member, "ai_enabled", True),
+        ai_enabled=account_ai_enabled,
+        effective_ai_enabled=(
+            bool(ai_profile["effective_ai_enabled"])
+            if ai_profile
+            else bool(account_ai_enabled)
+        ),
+        ai_unavailable_reason=(
+            ai_profile.get("ai_unavailable_reason") if ai_profile else None
+        ),
+        can_manage_ai=can_manage_ai,
         is_leader=is_leader,
         joined_at=member.created_at,
         org_node_id=getattr(member, "org_node_id", None),
@@ -198,6 +220,40 @@ class TenantOrganizationController(TenantController):
                 detail=_("role.no_permission_to_manage"),
             )
 
+    async def _require_manage_member_ai(
+        self, db: DbSession, tenant_admin: ActiveTenantAdmin, org_node_id: int | None
+    ) -> None:
+        if not await TenantOrgAuthorityService(
+            db, tenant_admin
+        ).can_manage_member_ai_for_node(org_node_id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=_("role.no_permission_to_manage"),
+            )
+
+    async def _serialize_members_for_operator(
+        self,
+        db: DbSession,
+        tenant_admin: ActiveTenantAdmin,
+        members,
+    ) -> list[TenantOrgNodeMemberResponse]:
+        authority = TenantOrgAuthorityService(db, tenant_admin)
+        ai_access = AccountAIAccessService(db)
+        payload: list[TenantOrgNodeMemberResponse] = []
+        for member in members:
+            payload.append(
+                _serialize_member(
+                    member,
+                    ai_profile=await ai_access.get_tenant_admin_ai_availability_profile(
+                        member
+                    ),
+                    can_manage_ai=await authority.can_manage_member_ai_for_node(
+                        getattr(member, "org_node_id", None)
+                    ),
+                )
+            )
+        return payload
+
     def _register_routes(self) -> None:
         router = self.router
 
@@ -208,11 +264,15 @@ class TenantOrganizationController(TenantController):
         ):
             service = TenantOrgNodeService(db, current_admin.tenant_id)
             authority = TenantOrgAuthorityService(db, current_admin)
+            ai_manageable_ids = await authority.get_member_ai_manageable_org_node_ids()
             if current_admin.is_owner:
                 return success(
                     data=serialize_organization_tree(
                         await service.get_visible_org_tree(),
-                        lambda node: _serialize_org_node(node).model_dump(),
+                        lambda node: _serialize_org_node(
+                            node,
+                            can_manage_member_ai=node.id in ai_manageable_ids,
+                        ).model_dump(),
                     ),
                     message=_("common.success"),
                 )
@@ -221,7 +281,10 @@ class TenantOrganizationController(TenantController):
             return success(
                 data=serialize_organization_tree(
                     await service.get_visible_org_tree(scope_ids),
-                    lambda node: _serialize_org_node(node).model_dump(),
+                    lambda node: _serialize_org_node(
+                        node,
+                        can_manage_member_ai=node.id in ai_manageable_ids,
+                    ).model_dump(),
                 ),
                 message=_("common.success"),
             )
@@ -233,17 +296,30 @@ class TenantOrganizationController(TenantController):
         ):
             service = TenantOrgNodeService(db, current_admin.tenant_id)
             authority = TenantOrgAuthorityService(db, current_admin)
+            ai_manageable_ids = await authority.get_member_ai_manageable_org_node_ids()
             if current_admin.is_owner:
                 nodes = await service.get_visible_root_nodes()
                 return success(
-                    data=[_serialize_org_node(node) for node in nodes],
+                    data=[
+                        _serialize_org_node(
+                            node,
+                            can_manage_member_ai=node.id in ai_manageable_ids,
+                        )
+                        for node in nodes
+                    ],
                     message=_("common.success"),
                 )
 
             scope_ids = await authority.get_visible_org_node_ids()
             items = await service.get_visible_root_nodes(scope_ids)
             return success(
-                data=[_serialize_org_node(node) for node in items],
+                data=[
+                    _serialize_org_node(
+                        node,
+                        can_manage_member_ai=node.id in ai_manageable_ids,
+                    )
+                    for node in items
+                ],
                 message=_("common.success"),
             )
 
@@ -295,6 +371,9 @@ class TenantOrganizationController(TenantController):
                     can_assign_permissions=await authority.can_assign_permissions_for_node(
                         org_node_id
                     ),
+                    can_manage_member_ai=await authority.can_manage_member_ai_for_node(
+                        org_node_id
+                    ),
                 ),
                 message=_("common.success"),
             )
@@ -308,11 +387,19 @@ class TenantOrganizationController(TenantController):
             current_admin: ActiveTenantAdmin,
         ):
             await self._require_view(db, current_admin, org_node_id)
+            authority = TenantOrgAuthorityService(db, current_admin)
+            ai_manageable_ids = await authority.get_member_ai_manageable_org_node_ids()
             nodes = await TenantOrgNodeService(
                 db, current_admin.tenant_id
             ).get_organization_children(org_node_id)
             return success(
-                data=[_serialize_org_node(node) for node in nodes],
+                data=[
+                    _serialize_org_node(
+                        node,
+                        can_manage_member_ai=node.id in ai_manageable_ids,
+                    )
+                    for node in nodes
+                ],
                 message=_("common.success"),
             )
 
@@ -487,7 +574,9 @@ class TenantOrganizationController(TenantController):
             )
             return success(
                 data=PageResponse.create(
-                    items=[_serialize_member(member) for member in members],
+                    items=await self._serialize_members_for_operator(
+                        db, current_admin, members
+                    ),
                     total=total,
                     page=page,
                     page_size=page_size,
@@ -505,10 +594,19 @@ class TenantOrganizationController(TenantController):
             current_admin: ActiveTenantAdmin,
         ):
             await self._require_manage(db, current_admin, org_node_id)
-            await resolve_authorized_ai_enabled_override(
+            authority = TenantOrgAuthorityService(db, current_admin)
+            can_manage_member_ai = await authority.can_manage_member_ai_for_node(
+                org_node_id
+            )
+            ai_override = await resolve_authorized_ai_enabled_override(
                 request=request,
                 data=data,
                 permission_code=ORGANIZATION_MANAGE_MEMBER_AI_PERMISSION,
+            )
+            if ai_override is not None:
+                await self._require_manage_member_ai(db, current_admin, org_node_id)
+            initial_ai_enabled = (
+                ai_override if ai_override is not None else can_manage_member_ai
             )
             admin = await commit_or_raise_http(
                 db,
@@ -520,12 +618,17 @@ class TenantOrganizationController(TenantController):
                     phone=data.phone,
                     nickname=data.nickname,
                     is_active=data.is_active,
-                    ai_enabled=data.ai_enabled,
+                    ai_enabled=initial_ai_enabled,
                     role_id=data.role_id,
                 ),
             )
             return success(
-                data=_serialize_member(admin), message=_("role.member_created")
+                data=(
+                    await self._serialize_members_for_operator(
+                        db, current_admin, [admin]
+                    )
+                )[0],
+                message=_("role.member_created"),
             )
 
         @router.put("/{org_node_id}/members/{admin_id}", summary="更新组织节点成员")
@@ -541,11 +644,15 @@ class TenantOrganizationController(TenantController):
             await self._require_manage(db, current_admin, org_node_id)
             if data.org_node_id is not None:
                 await self._require_manage(db, current_admin, data.org_node_id)
-            await resolve_authorized_ai_enabled_override(
+            ai_override = await resolve_authorized_ai_enabled_override(
                 request=request,
                 data=data,
                 permission_code=ORGANIZATION_MANAGE_MEMBER_AI_PERMISSION,
             )
+            if ai_override is not None:
+                await self._require_manage_member_ai(
+                    db, current_admin, data.org_node_id or org_node_id
+                )
             update_permission_role = "role_id" in data.model_fields_set
             admin = await commit_or_raise_http(
                 db,
@@ -565,7 +672,12 @@ class TenantOrganizationController(TenantController):
                 ),
             )
             return success(
-                data=_serialize_member(admin), message=_("role.member_updated")
+                data=(
+                    await self._serialize_members_for_operator(
+                        db, current_admin, [admin]
+                    )
+                )[0],
+                message=_("role.member_updated"),
             )
 
         @router.put(

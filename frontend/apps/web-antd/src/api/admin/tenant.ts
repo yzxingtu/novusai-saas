@@ -422,9 +422,11 @@ export interface TenantAdminIdentitySelectExtra {
 export interface TenantAdminIdentityDetail {
   avatar?: null | string;
   ai_enabled?: boolean;
+  ai_unavailable_reason?: null | string;
   created_at?: null | string;
   display_name?: null | string;
   display_role_name?: null | string;
+  effective_ai_enabled?: boolean;
   email?: null | string;
   id: number;
   is_active?: boolean;

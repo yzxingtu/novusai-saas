@@ -199,6 +199,7 @@ async function loadSelectedNodeDetail(nodeId: number) {
       isActive: detail.isActive,
       leader: detail.leader,
       leaderId: detail.leaderId,
+      canManageMemberAi: detail.canManageMemberAi,
       memberCount: detail.memberCount,
       permissionsCount: detail.permissionsCount,
       sortOrder: detail.sortOrder,
@@ -681,6 +682,7 @@ onMounted(async () => {
                   :node-id="selectedNode.id"
                   :node-name="selectedNode.name"
                   :allow-members="activeNode?.allowMembers"
+                  :can-manage-ai="activeNode?.canManageMemberAi"
                   :leader-id="activeNode?.leaderId"
                   :org-tree-api="getTenantOrganizationTreeApi"
                   api-prefix="tenant"

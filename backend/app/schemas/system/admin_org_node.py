@@ -46,6 +46,9 @@ class AdminOrgNodeResponse(BaseSchema):
     leader: AdminOrgNodeLeaderResponse | None = Field(None, description="Leader info")
     member_count: int = Field(0, description="Direct member count")
     permissions_count: int = Field(0, description="Direct permission count")
+    can_manage_member_ai: bool = Field(
+        False, description="Whether current operator can manage member AI switches"
+    )
     data_scope: str = Field(
         DataScope.DEPT_AND_CHILDREN.value,
         description="Organization data scope",
@@ -212,6 +215,15 @@ class AdminOrgNodeMemberResponse(BaseSchema):
     email: str = Field(..., description="Email")
     is_active: bool = Field(True, description="Whether the admin is active")
     ai_enabled: bool = Field(True, description="Whether AI chat is enabled")
+    effective_ai_enabled: bool = Field(
+        True, description="Whether AI chat is effectively enabled"
+    )
+    ai_unavailable_reason: str | None = Field(
+        None, description="AI unavailable reason code"
+    )
+    can_manage_ai: bool = Field(
+        False, description="Whether current operator can manage AI switch"
+    )
     is_leader: bool = Field(False, description="Whether the admin is the node leader")
     joined_at: datetime | None = Field(None, description="Joined at")
     role_id: int | None = Field(None, description="Permission role ID")

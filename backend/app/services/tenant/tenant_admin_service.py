@@ -133,9 +133,6 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
             )
 
         # 检查管理员数配额 / Check admin count quota
-        from sqlalchemy.orm import selectinload
-
-        from app.models.tenant.tenant import Tenant
         from app.services.tenant.quota_service import QuotaService
 
         tenant_obj = (
@@ -427,43 +424,11 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
         Build tenant-admin AI availability flags for auth/profile payloads.
         / 构建企业管理员认证资料中的 AI 可用性标记。
         """
-        from app.services.tenant.quota_service import QuotaService
+        from app.services.ai.account_ai_access_service import AccountAIAccessService
 
-        account_ai_enabled = bool(getattr(tenant_admin, "ai_enabled", True))
-        result = await self.db.execute(
-            select(Tenant)
-            .options(selectinload(Tenant.tenant_plan))
-            .where(
-                Tenant.id == tenant_admin.tenant_id,
-                Tenant.is_deleted.is_(False),
-            )
-        )
-        tenant = result.scalar_one_or_none()
-
-        tenant_ai_enabled = False
-        reason: str | None = None
-        if tenant is None:
-            reason = "tenant_unavailable"
-        else:
-            has_plan = tenant.plan_id is not None
-            tenant_ai_enabled = QuotaService(self.db, tenant).get_feature(
-                "ai_enabled",
-                has_plan,
-            )
-            if not tenant_ai_enabled:
-                reason = "tenant_plan_ai_disabled"
-            elif not account_ai_enabled:
-                reason = "account_ai_disabled"
-
-        effective_ai_enabled = account_ai_enabled and tenant_ai_enabled
-        if effective_ai_enabled:
-            reason = None
-
-        return {
-            "tenant_ai_enabled": tenant_ai_enabled,
-            "effective_ai_enabled": effective_ai_enabled,
-            "ai_unavailable_reason": reason,
-        }
+        return await AccountAIAccessService(
+            self.db
+        ).get_tenant_admin_ai_availability_profile(tenant_admin)
 
     async def _get_tenant_root_node(self) -> TenantOrgNode | None:
         """

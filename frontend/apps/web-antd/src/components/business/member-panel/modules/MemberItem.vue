@@ -55,7 +55,7 @@ const showRoleBadge = computed(
 );
 
 const identityModel = computed<IdentityDisplayModel>(() => ({
-  aiEnabled: props.member.aiEnabled,
+  aiEnabled: props.member.effectiveAiEnabled ?? props.member.aiEnabled,
   avatar: props.member.avatar ?? null,
   displayName: props.member.nickname || props.member.username,
   id: props.member.id,
@@ -74,7 +74,7 @@ const memberPrimaryMeta = computed(() => {
 });
 
 const identityMeta = computed<IdentityDetailMeta>(() => ({
-  aiEnabled: props.member.aiEnabled,
+  aiEnabled: props.member.effectiveAiEnabled ?? props.member.aiEnabled,
   createdAt: props.member.createdAt,
   email: props.member.email,
   orgNodeName: props.member.orgNodeName,
@@ -131,7 +131,7 @@ function handleForceLogout() {
           >
             <span class="truncate">{{ memberPrimaryMeta }}</span>
             <Tag
-              v-if="member.aiEnabled === false"
+              v-if="member.effectiveAiEnabled === false"
               class="!me-0 text-[11px]"
             >
               {{ $t('shared.identity.field.aiDisabled') }}

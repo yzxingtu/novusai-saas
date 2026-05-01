@@ -34,12 +34,15 @@ const props = withDefaults(
     nodeId?: null | number;
     /** Node name (for display) / 节点名称 */
     nodeName?: string;
+    /** Whether current operator can manage AI switches in current node / 当前操作者是否可管理当前节点 AI 开关 */
+    canManageAi?: boolean;
     /** Org tree API (select node in edit mode) / 组织树 API */
     orgTreeApi?: OrgTreeApi;
   }>(),
   {
     nodeId: null,
     nodeName: '',
+    canManageAi: false,
     apiPrefix: 'admin',
     orgTreeApi: undefined,
   },
@@ -48,7 +51,13 @@ const emits = defineEmits<{ success: [] }>();
 const avatarValue = ref('');
 const avatarUploading = ref(false);
 const { hasAccessByCodes } = useAccess();
-const canManageMemberAi = hasAccessByCodes(['organization:manage_member_ai']);
+const currentRecordCanManageAi = ref(false);
+const sourceRecordCanManageAi = ref(false);
+const canManageMemberAi = computed(
+  () =>
+    currentRecordCanManageAi.value &&
+    hasAccessByCodes(['organization:manage_member_ai']),
+);
 
 const avatarSrc = computed(() => {
   const val = avatarValue.value;
@@ -123,6 +132,60 @@ interface MemberFormValues {
   username?: string;
 }
 
+function normalizeNodeId(value: unknown): null | number {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function canManageAiForSelectedNode(selectedOrgNodeId: null | number): boolean {
+  const boundOrgNodeId = sourceOrgNodeId.value ?? props.nodeId ?? null;
+  return (
+    canManageMemberAi.value &&
+    typeof selectedOrgNodeId === 'number' &&
+    selectedOrgNodeId === boundOrgNodeId
+  );
+}
+
+function updateAISwitchSchema(canManage: boolean) {
+  (
+    formApi as unknown as {
+      updateSchema?: (
+        schema: Array<{
+          componentProps?: Record<string, unknown>;
+          fieldName: string;
+          help?: string;
+        }>,
+      ) => Promise<void> | void;
+    }
+  ).updateSchema?.([
+    {
+      componentProps: {
+        checkedChildren: $t('shared.common.enabled'),
+        disabled: !canManage,
+        unCheckedChildren: $t('shared.common.disabled'),
+      },
+      fieldName: 'ai_enabled',
+      help: canManage ? undefined : $t('shared.memberPanel.aiReadonlyHelp'),
+    },
+  ]);
+}
+
+function handleOrgNodeChange(value: unknown) {
+  const selectedOrgNodeId = normalizeNodeId(value);
+  const boundOrgNodeId = sourceOrgNodeId.value ?? props.nodeId ?? null;
+  currentRecordCanManageAi.value =
+    sourceRecordCanManageAi.value &&
+    typeof selectedOrgNodeId === 'number' &&
+    selectedOrgNodeId === boundOrgNodeId;
+  updateAISwitchSchema(canManageMemberAi.value);
+}
+
 async function loadRoleOptions(
   currentMember?: MemberPanelMember,
 ): Promise<MemberRoleOption[]> {
@@ -167,6 +230,7 @@ const [Drawer, drawerApi] = useVbenDrawer({
     const values = (await formApi.getValues()) as MemberFormValues;
     const selectedOrgNodeId =
       values.org_node_id ?? sourceOrgNodeId.value ?? props.nodeId ?? null;
+    const canSubmitMemberAi = canManageAiForSelectedNode(selectedOrgNodeId);
 
     // Build request body / 构造请求体
     const baseData = {
@@ -174,7 +238,9 @@ const [Drawer, drawerApi] = useVbenDrawer({
       phone: values.phone || null,
       nickname: values.nickname || null,
       is_active: values.is_active ?? true,
-      ...(canManageMemberAi ? { ai_enabled: values.ai_enabled ?? true } : {}),
+      ...(canSubmitMemberAi
+        ? { ai_enabled: values.ai_enabled ?? true }
+        : {}),
       ...(isEdit.value && avatarValue.value
         ? { avatar: avatarValue.value }
         : {}),
@@ -272,6 +338,10 @@ const [Drawer, drawerApi] = useVbenDrawer({
     recordId.value = data?.id;
     lockOrgNode.value = !isEdit.value && Boolean(data?.lockOrgNode);
     sourceOrgNodeId.value = data?.orgNodeId ?? props.nodeId ?? null;
+    sourceRecordCanManageAi.value = isEdit.value
+      ? Boolean(data?.canManageAi)
+      : Boolean(props.canManageAi);
+    currentRecordCanManageAi.value = sourceRecordCanManageAi.value;
 
     await formApi.resetForm();
 
@@ -290,9 +360,10 @@ const [Drawer, drawerApi] = useVbenDrawer({
         nodeName: data?.orgNodeName ?? props.nodeName,
         nodeId: data?.orgNodeId ?? props.nodeId,
         orgTreeApi: props.orgTreeApi,
+        onOrgNodeChange: handleOrgNodeChange,
         roleOptions,
         lockOrgNode: lockOrgNode.value,
-        canManageAi: canManageMemberAi,
+        canManageAi: canManageMemberAi.value,
       }),
     });
 

@@ -19,6 +19,7 @@ from app.rbac.decorators import (
     auth_only,
     permission_resource,
 )
+from app.services.ai.account_ai_access_service import AccountAIAccessService
 from app.services.common import AuthService
 from app.services.system.admin_service import AdminService
 
@@ -71,8 +72,11 @@ class AdminUserController(GlobalController):
             获取平台管理员详情 / Get platform admin detail.
             """
             admin = await AdminService(db).get_identity_detail(user_id)
+            ai_profile = await AccountAIAccessService(
+                db
+            ).get_platform_admin_ai_availability_profile(admin)
             return success(
-                data=serialize_admin_identity_detail(admin),
+                data=serialize_admin_identity_detail(admin, ai_profile=ai_profile),
                 message=_("common.success"),
             )
 

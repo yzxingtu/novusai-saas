@@ -11,8 +11,10 @@ const API_PREFIX = '/admin/users';
 
 export interface AdminIdentitySelectExtra {
   ai_enabled?: boolean;
+  ai_unavailable_reason?: null | string;
   avatar?: null | string;
   display_name?: null | string;
+  effective_ai_enabled?: boolean;
   display_role_name?: null | string;
   is_active?: boolean;
   is_leader?: boolean;
@@ -27,9 +29,11 @@ export interface AdminIdentitySelectExtra {
 
 export interface AdminIdentityDetail {
   ai_enabled?: boolean;
+  ai_unavailable_reason?: null | string;
   avatar?: null | string;
   created_at?: null | string;
   display_name?: null | string;
+  effective_ai_enabled?: boolean;
   display_role_name?: null | string;
   email?: null | string;
   id: number;

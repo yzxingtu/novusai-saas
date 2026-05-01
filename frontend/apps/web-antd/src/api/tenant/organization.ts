@@ -47,6 +47,7 @@ export interface TenantOrgNodeInfoRaw {
   permission_ids?: number[];
   permission_codes?: string[];
   can_assign_permissions?: boolean;
+  can_manage_member_ai?: boolean;
   data_scope?: null | TenantLeaderScopeType;
   custom_dept_ids?: null | number[];
   scope_target_count?: number;
@@ -75,6 +76,7 @@ export interface TenantOrgNodeInfo {
   permissionIds?: number[];
   permissionCodes?: string[];
   canAssignPermissions?: boolean;
+  canManageMemberAi?: boolean;
   dataScope?: null | TenantLeaderScopeType;
   customDeptIds?: null | number[];
   scopeTargetCount?: number;
@@ -92,6 +94,9 @@ export interface TenantOrgMemberRaw {
   email?: string;
   avatar?: string;
   ai_enabled?: boolean;
+  effective_ai_enabled?: boolean;
+  ai_unavailable_reason?: null | string;
+  can_manage_ai?: boolean;
   is_active: boolean;
   is_leader: boolean;
   joined_at: string;
@@ -112,6 +117,9 @@ export interface TenantOrgMember {
   email?: string;
   avatar?: string;
   aiEnabled: boolean;
+  effectiveAiEnabled: boolean;
+  aiUnavailableReason?: null | string;
+  canManageAi?: boolean;
   isActive: boolean;
   isLeader: boolean;
   joinedAt: string;
@@ -231,6 +239,7 @@ function transformOrgNode(raw: TenantOrgNodeInfoRaw): TenantOrgNodeInfo {
     permissionIds: raw.permission_ids,
     permissionCodes: raw.permission_codes,
     canAssignPermissions: raw.can_assign_permissions,
+    canManageMemberAi: raw.can_manage_member_ai,
     dataScope: raw.data_scope,
     customDeptIds: raw.custom_dept_ids,
     scopeTargetCount:
@@ -252,6 +261,9 @@ function transformOrgMember(raw: TenantOrgMemberRaw): TenantOrgMember {
     email: raw.email,
     avatar: raw.avatar,
     aiEnabled: raw.ai_enabled ?? true,
+    effectiveAiEnabled: raw.effective_ai_enabled ?? raw.ai_enabled ?? true,
+    aiUnavailableReason: raw.ai_unavailable_reason ?? null,
+    canManageAi: raw.can_manage_ai ?? false,
     isActive: raw.is_active,
     isLeader: raw.is_leader,
     joinedAt: raw.joined_at,

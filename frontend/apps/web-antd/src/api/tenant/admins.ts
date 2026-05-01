@@ -7,8 +7,10 @@ const API_PREFIX = '/tenant/admins';
 
 export interface TenantAdminIdentitySelectExtra {
   ai_enabled?: boolean;
+  ai_unavailable_reason?: null | string;
   avatar?: null | string;
   display_name?: null | string;
+  effective_ai_enabled?: boolean;
   display_role_name?: null | string;
   is_active?: boolean;
   is_leader?: boolean;
@@ -23,9 +25,11 @@ export interface TenantAdminIdentitySelectExtra {
 
 export interface TenantAdminIdentityDetail {
   ai_enabled?: boolean;
+  ai_unavailable_reason?: null | string;
   avatar?: null | string;
   created_at?: null | string;
   display_name?: null | string;
+  effective_ai_enabled?: boolean;
   display_role_name?: null | string;
   email?: null | string;
   id: number;

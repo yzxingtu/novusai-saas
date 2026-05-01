@@ -15,6 +15,8 @@ export interface MemberPanelProps {
   nodeName?: string;
   /** Whether adding members is allowed / 是否允许添加成员 */
   allowMembers?: boolean;
+  /** Whether current operator can manage AI switches in this node / 当前操作者是否可管理该节点 AI 开关 */
+  canManageAi?: boolean;
   /** Leader ID / 负责人 ID */
   leaderId?: null | number;
   /** API prefix (admin or tenant) / API 前缀（admin 或 tenant） */
