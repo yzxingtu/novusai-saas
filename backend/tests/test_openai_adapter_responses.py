@@ -2326,6 +2326,40 @@ async def test_stream_chat_responses_output_text_done_estimates_usage_when_retri
 
 
 @pytest.mark.asyncio
+async def test_responses_usage_retrieve_404_is_debug_not_warning(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.ai.adapters.openai_compatible.support import usage_support
+
+    debug_calls: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
+    warning_calls: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
+    monkeypatch.setattr(
+        usage_support,
+        "logger",
+        SimpleNamespace(
+            debug=lambda *args, **kwargs: debug_calls.append((args, kwargs)),
+            warning=lambda *args, **kwargs: warning_calls.append((args, kwargs)),
+        ),
+    )
+    client = SimpleNamespace(
+        responses=SimpleNamespace(
+            retrieve=AsyncMock(side_effect=RuntimeError("404 page not found")),
+        ),
+    )
+
+    result = await usage_support.retrieve_responses_usage(
+        client=client,
+        response_id="resp_missing",
+        extract_usage_tokens=lambda _usage: (1, 2, 3),
+    )
+
+    assert result == (None, None, None)
+    assert warning_calls == []
+    assert len(debug_calls) == 1
+    assert debug_calls[0][0][1] == "resp_missing"
+
+
+@pytest.mark.asyncio
 async def test_stream_chat_responses_done_event_text_when_no_prior_deltas() -> None:
     class _FakeResponsesStream:
         def __init__(self, events):
@@ -2884,7 +2918,9 @@ async def test_convert_messages_to_responses_input_preserves_tool_roundtrip() ->
 
 
 @pytest.mark.asyncio
-async def test_convert_messages_to_responses_input_keeps_item_id_separate_from_call_id() -> None:
+async def test_convert_messages_to_responses_input_keeps_item_id_separate_from_call_id() -> (
+    None
+):
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
@@ -2930,7 +2966,9 @@ async def test_convert_messages_to_responses_input_keeps_item_id_separate_from_c
 
 
 @pytest.mark.asyncio
-async def test_convert_messages_to_responses_input_uses_following_call_id_when_item_id_is_fc() -> None:
+async def test_convert_messages_to_responses_input_uses_following_call_id_when_item_id_is_fc() -> (
+    None
+):
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",

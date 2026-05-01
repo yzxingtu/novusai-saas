@@ -770,6 +770,7 @@ def create_application() -> FastAPI:
     @app.api_route(
         "/plugin-public-assets/{public_endpoint}/{plugin_name}/{file_path:path}",
         methods=["GET", "HEAD"],
+        include_in_schema=False,
     )
     async def serve_public_captcha_plugin_asset(
         public_endpoint: str,
@@ -859,6 +860,7 @@ def create_application() -> FastAPI:
     @app.api_route(
         "/plugin-assets/{plugin_name}/{file_path:path}",
         methods=["GET", "HEAD"],
+        include_in_schema=False,
     )
     async def serve_plugin_asset(
         plugin_name: str,
@@ -945,6 +947,7 @@ def create_application() -> FastAPI:
     @app.api_route(
         "/plugin-icons/{plugin_name}/{file_path:path}",
         methods=["GET", "HEAD"],
+        include_in_schema=False,
     )
     async def serve_plugin_icon(
         plugin_name: str,

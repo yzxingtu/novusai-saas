@@ -382,6 +382,7 @@ async def _dispatch_plugin_api(
 @plugin_api_router.api_route(
     "/plugins/{plugin_name}/api/{path:path}",
     methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
+    include_in_schema=False,
 )
 @auth_only
 async def admin_plugin_api(
@@ -406,6 +407,7 @@ async def admin_plugin_api(
 @plugin_tenant_api_router.api_route(
     "/plugins/{plugin_name}/api/{path:path}",
     methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
+    include_in_schema=False,
 )
 @auth_only
 async def tenant_plugin_api(
@@ -430,6 +432,7 @@ async def tenant_plugin_api(
 @plugin_public_api_router.api_route(
     "/plugins/{plugin_name}/api/{path:path}",
     methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
+    include_in_schema=False,
 )
 @public
 async def public_plugin_api(

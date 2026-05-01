@@ -14,6 +14,20 @@ logger = LogManager.get_logger("ai")
 RESPONSES_USAGE_RETRIEVE_TIMEOUT_SECONDS = 2.0
 
 
+def _is_responses_usage_retrieve_unavailable(exc: Exception) -> bool:
+    """Return true when a compatible gateway does not expose Responses retrieve."""
+    status_code = getattr(exc, "status_code", None)
+    response = getattr(exc, "response", None)
+    if status_code is None and response is not None:
+        status_code = getattr(response, "status_code", None)
+    message = str(exc).lower()
+    return (
+        status_code == 404
+        or "404 page not found" in message
+        or ("404" in message and "not found" in message)
+    )
+
+
 def _build_usage_retrieve_client(client: Any) -> Any:
     """Prefer a no-retry, short-timeout client for post-stream usage backfill."""
     with_options = getattr(client, "with_options", None)
@@ -44,12 +58,20 @@ async def retrieve_responses_usage(
     try:
         response = await retrieve(response_id)
     except Exception as exc:  # noqa: BLE001
-        logger.warning(
-            "Responses usage retrieve failed: response_id={} timeout_seconds={} error={}",
-            response_id,
-            RESPONSES_USAGE_RETRIEVE_TIMEOUT_SECONDS,
-            str(exc),
-        )
+        if _is_responses_usage_retrieve_unavailable(exc):
+            logger.debug(
+                "Responses usage retrieve unavailable: response_id={} timeout_seconds={} error={}",
+                response_id,
+                RESPONSES_USAGE_RETRIEVE_TIMEOUT_SECONDS,
+                str(exc),
+            )
+        else:
+            logger.warning(
+                "Responses usage retrieve failed: response_id={} timeout_seconds={} error={}",
+                response_id,
+                RESPONSES_USAGE_RETRIEVE_TIMEOUT_SECONDS,
+                str(exc),
+            )
         return (None, None, None)
 
     return extract_usage_tokens(getattr(response, "usage", None))
