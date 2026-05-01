@@ -74,7 +74,7 @@ def upgrade() -> None:
         'ai_api_keys',
         sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
         sa.Column('provider_id', sa.Integer(), nullable=False),
-        sa.Column('tenant_id', sa.Integer(), nullable=True),
+        sa.Column('owner_tenant_id', sa.Integer(), nullable=True),
         sa.Column('name', sa.String(length=100), nullable=False),
         sa.Column('encrypted_key', sa.String(length=500), nullable=False),
         sa.Column('is_active', sa.Boolean(), nullable=False, server_default='true'),
@@ -86,12 +86,12 @@ def upgrade() -> None:
         sa.Column('updated_at', sa.DateTime(), nullable=False, server_default=sa.text('now()')),
         sa.Column('is_deleted', sa.Boolean(), nullable=False, server_default='false'),
         sa.ForeignKeyConstraint(['provider_id'], ['ai_providers.id'], name='fk_ai_api_keys_provider_id', ondelete='CASCADE'),
-        sa.ForeignKeyConstraint(['tenant_id'], ['tenants.id'], name='fk_ai_api_keys_tenant_id', ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['owner_tenant_id'], ['tenants.id'], name='fk_ai_api_keys_owner_tenant_id', ondelete='CASCADE'),
         sa.PrimaryKeyConstraint('id')
     )
     op.create_index('ix_ai_api_keys_id', 'ai_api_keys', ['id'])
     op.create_index('ix_ai_api_keys_provider_id', 'ai_api_keys', ['provider_id'])
-    op.create_index('ix_ai_api_keys_tenant_id', 'ai_api_keys', ['tenant_id'])
+    op.create_index('ix_ai_api_keys_owner_tenant_id', 'ai_api_keys', ['owner_tenant_id'])
     op.create_index('ix_ai_api_keys_is_active', 'ai_api_keys', ['is_active'])
     
     # 创建 ai_call_logs 表
@@ -150,7 +150,7 @@ def downgrade() -> None:
     op.drop_table('ai_call_logs')
     
     op.drop_index('ix_ai_api_keys_is_active', table_name='ai_api_keys')
-    op.drop_index('ix_ai_api_keys_tenant_id', table_name='ai_api_keys')
+    op.drop_index('ix_ai_api_keys_owner_tenant_id', table_name='ai_api_keys')
     op.drop_index('ix_ai_api_keys_provider_id', table_name='ai_api_keys')
     op.drop_index('ix_ai_api_keys_id', table_name='ai_api_keys')
     op.drop_table('ai_api_keys')

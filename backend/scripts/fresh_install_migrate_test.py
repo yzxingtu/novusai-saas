@@ -94,14 +94,28 @@ def _verify_schema(url: str) -> list[str]:
             "skill_scripts",
             "knowledge_base_tenant_access",
             "ephemeral_documents",
+            "ai_usage_stats",
+            "ai_table_policies",
+            "ai_table_policy_overrides",
         )
         for table in retired_tables:
             if has_table(table):
                 issues.append(f"旧表 {table} 仍存在（fresh schema 不应创建）")
 
         retired_columns = {
-            "agents": ("tool_bindings", "knowledge_base_ids", "target_audience"),
+            "agents": (
+                "tenant_id",
+                "owner_type",
+                "distribution_mode",
+                "tool_bindings",
+                "knowledge_base_ids",
+                "target_audience",
+            ),
             "agent_versions": ("tool_bindings", "knowledge_base_ids"),
+            "knowledge_bases": ("tenant_id", "visibility"),
+            "ai_api_keys": ("tenant_id",),
+            "ai_call_logs": ("agent_distribution_mode",),
+            "skills": ("script_content", "script_language"),
             "skill_packages": ("bind_mode", "target_audience"),
             "plugins": (
                 "plugin_type",
@@ -124,23 +138,33 @@ def _verify_schema(url: str) -> list[str]:
                     issues.append(f"旧列 {table}.{column} 仍存在（fresh schema 不应创建）")
 
         if has_table("agents"):
-            for col in ("owner_type", "distribution_mode"):
-                if has_column("agents", col):
-                    issues.append(f"agents.{col} 仍存在（预期已删除）")
             if not has_column("agents", "owner_tenant_id"):
                 issues.append("agents 缺少 owner_tenant_id")
 
         if has_table("knowledge_bases"):
-            if has_column("knowledge_bases", "visibility"):
-                issues.append("knowledge_bases.visibility 仍存在（预期已删除）")
             if not has_column("knowledge_bases", "owner_tenant_id"):
                 issues.append("knowledge_bases 缺少 owner_tenant_id")
 
         if has_table("ai_api_keys"):
-            if has_column("ai_api_keys", "tenant_id"):
-                issues.append("ai_api_keys.tenant_id 仍存在（预期已删除）")
             if not has_column("ai_api_keys", "owner_tenant_id"):
                 issues.append("ai_api_keys 缺少 owner_tenant_id")
+
+        if has_table("skills"):
+            n = conn.execute(
+                text("SELECT COUNT(*) FROM skills WHERE type = 'data_intelligence'")
+            ).scalar_one()
+            if int(n or 0) > 0:
+                issues.append("旧 data_intelligence 技能仍存在（fresh schema 不应创建）")
+
+        if has_table("skill_packages"):
+            n = conn.execute(
+                text(
+                    "SELECT COUNT(*) FROM skill_packages "
+                    "WHERE name IN ('系统数据智能技能包', '平台数据管理')"
+                )
+            ).scalar_one()
+            if int(n or 0) > 0:
+                issues.append("旧数据智能技能包仍存在（fresh schema 不应创建）")
 
         rows = conn.execute(text("SELECT version_num FROM alembic_version")).fetchall()
         if not rows:

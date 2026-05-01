@@ -42,7 +42,7 @@ def upgrade() -> None:
     result = conn.execute(text(
         "UPDATE agents "
         "SET name = :new_name, description = :new_desc, updated_at = NOW() "
-        "WHERE name = :old_name AND tenant_id IS NULL AND is_system = true AND is_deleted = false"
+        "WHERE name = :old_name AND owner_tenant_id IS NULL AND is_system = true AND is_deleted = false"
     ), {
         "new_name": NEW_ROUTER_NAME,
         "new_desc": NEW_ROUTER_DESC,
@@ -71,7 +71,7 @@ def downgrade() -> None:
         "SET name = :old_name, "
         "    description = 'System router agent — analyzes user messages and routes to the best agent', "
         "    updated_at = NOW() "
-        "WHERE name = :new_name AND tenant_id IS NULL AND is_system = true AND is_deleted = false"
+        "WHERE name = :new_name AND owner_tenant_id IS NULL AND is_system = true AND is_deleted = false"
     ), {
         "old_name": OLD_ROUTER_NAME,
         "new_name": NEW_ROUTER_NAME,

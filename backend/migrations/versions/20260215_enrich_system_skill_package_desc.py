@@ -42,14 +42,6 @@ PACKAGE_UPDATES = [
             "不可删除或禁用。"
         ),
     },
-    {
-        "name": "系统数据智能技能包",
-        "description": (
-            "系统内置的数据智能能力包。通过自然语言查询和操作数据库（Text-to-SQL），"
-            "自动使用所有已配置的表策略。适用于平台管理员进行数据分析和管理操作。"
-            "不可删除或禁用。"
-        ),
-    },
 ]
 
 SKILL_UPDATES = [
@@ -68,14 +60,6 @@ SKILL_UPDATES = [
             "用于知识库文档的索引构建和相似度检索。"
         ),
     },
-    {
-        "name": "平台数据管理",
-        "description": (
-            "数据智能技能：自动使用所有已配置的表策略，"
-            "支持自然语言查询（Text-to-SQL）和 CRUD 操作，"
-            "为平台管理员提供便捷的数据管理能力。"
-        ),
-    },
 ]
 
 # Original descriptions for downgrade
@@ -88,10 +72,6 @@ PACKAGE_ORIGINALS = [
         "name": "系统向量化技能包",
         "description": "系统内置的文本向量化能力，供系统 Embedding Agent 使用",
     },
-    {
-        "name": "系统数据智能技能包",
-        "description": "系统内置的数据智能技能包，提供自然语言查询和操作数据库的能力",
-    },
 ]
 
 SKILL_ORIGINALS = [
@@ -102,13 +82,6 @@ SKILL_ORIGINALS = [
     {
         "name": "llm_embedding",
         "description": "调用 Embedding 模型将文本转换为向量",
-    },
-    {
-        "name": "平台数据管理",
-        "description": (
-            "平台管理员的数据操作技能。自动使用所有已配置的表策略，"
-            "支持自然语言查询和 CRUD 操作。"
-        ),
     },
 ]
 

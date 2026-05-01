@@ -50,7 +50,7 @@ def _find_chat_model(conn):
     # Fallback: use model_id from an existing published agent (e.g. 智能助手)
     row = conn.execute(text(
         "SELECT model_id FROM agents "
-        "WHERE tenant_id IS NULL AND is_deleted = false AND status = 'published' "
+        "WHERE owner_tenant_id IS NULL AND is_deleted = false AND status = 'published' "
         "ORDER BY id LIMIT 1"
     )).fetchone()
     return row[0] if row else None
@@ -61,7 +61,7 @@ def upgrade() -> None:
 
     existing = conn.execute(text(
         "SELECT id FROM agents "
-        "WHERE name = :name AND tenant_id IS NULL AND is_deleted = false"
+        "WHERE name = :name AND owner_tenant_id IS NULL AND is_deleted = false"
     ), {"name": AGENT_NAME}).fetchone()
 
     if existing:
@@ -77,7 +77,7 @@ def upgrade() -> None:
             return
         result = conn.execute(text(
             "INSERT INTO agents "
-            "(tenant_id, name, description, scope, system_prompt, model_id, "
+            "(owner_tenant_id, name, description, scope, system_prompt, model_id, "
             " temperature, execution_mode, status, visibility, memory_enabled, is_system, "
             " created_at, updated_at, is_deleted) "
             "VALUES "
@@ -111,6 +111,6 @@ def downgrade() -> None:
     ), {"code": FEATURE_CODE})
     conn.execute(text(
         "DELETE FROM agents "
-        "WHERE name = :name AND tenant_id IS NULL AND is_system = true"
+        "WHERE name = :name AND owner_tenant_id IS NULL AND is_system = true"
     ), {"name": AGENT_NAME})
     print("[SEED] Unbound system.ai_writing and removed NovusDoc Writer agent.")

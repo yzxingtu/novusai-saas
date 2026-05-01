@@ -72,6 +72,25 @@ def test_api_route_rejects_invalid_path_parameter_name() -> None:
         PluginManifest.model_validate(payload)
 
 
+@pytest.mark.parametrize("handler", ["api..docs.get_doc", "api.docs.", ".api.docs"])
+def test_api_route_rejects_invalid_handler_path_segments(handler: str) -> None:
+    payload = _base_manifest()
+    payload["extensions"] = {
+        "api": {
+            "tenant_routes": [
+                {
+                    "method": "GET",
+                    "path": "docs/{doc_id}",
+                    "handler": handler,
+                }
+            ]
+        }
+    }
+
+    with pytest.raises(ValidationError, match="api.handler"):
+        PluginManifest.model_validate(payload)
+
+
 def test_webhook_rejects_invalid_method() -> None:
     payload = _base_manifest()
     payload["extensions"] = {

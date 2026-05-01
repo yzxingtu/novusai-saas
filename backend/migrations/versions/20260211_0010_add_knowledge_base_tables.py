@@ -40,7 +40,7 @@ def upgrade() -> None:
         sa.Column('total_chunks', sa.Integer(), nullable=False, server_default='0', comment='分块总数'),
         sa.Column('total_size_bytes', sa.Integer(), nullable=False, server_default='0', comment='原始文件总大小'),
         sa.Column('status', sa.String(length=20), nullable=False, server_default='active', comment='状态'),
-        sa.Column('tenant_id', sa.Integer(), nullable=False, comment='企业ID'),
+        sa.Column('owner_tenant_id', sa.Integer(), nullable=True, comment='归属企业ID（平台级知识库为 NULL）'),
         sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
         sa.Column('created_at', sa.DateTime(), nullable=False, comment='创建时间'),
         sa.Column('updated_at', sa.DateTime(), nullable=False, comment='更新时间'),
@@ -52,9 +52,9 @@ def upgrade() -> None:
     op.create_index(op.f('ix_knowledge_bases_name'), 'knowledge_bases', ['name'], unique=False)
     op.create_index(op.f('ix_knowledge_bases_embedding_model_id'), 'knowledge_bases', ['embedding_model_id'], unique=False)
     op.create_index(op.f('ix_knowledge_bases_status'), 'knowledge_bases', ['status'], unique=False)
-    op.create_index(op.f('ix_knowledge_bases_tenant_id'), 'knowledge_bases', ['tenant_id'], unique=False)
+    op.create_index(op.f('ix_knowledge_bases_owner_tenant_id'), 'knowledge_bases', ['owner_tenant_id'], unique=False)
     op.create_index(op.f('ix_knowledge_bases_is_deleted'), 'knowledge_bases', ['is_deleted'], unique=False)
-    op.create_index('ix_kb_tenant_status', 'knowledge_bases', ['tenant_id', 'status'], unique=False)
+    op.create_index('ix_kb_owner_status', 'knowledge_bases', ['owner_tenant_id', 'status'], unique=False)
 
     # 3. 创建 knowledge_documents 表
     op.create_table('knowledge_documents',

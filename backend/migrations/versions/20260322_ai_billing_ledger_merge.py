@@ -90,63 +90,6 @@ def upgrade() -> None:
             unique=False,
         )
 
-    # ── agents: owner_type + distribution_mode ─────────────────────────────
-    acols = _column_names(bind, "agents")
-    if "owner_type" not in acols:
-        op.add_column(
-            "agents",
-            sa.Column(
-                "owner_type",
-                sa.String(length=20),
-                nullable=False,
-                server_default="tenant",
-            ),
-        )
-    if "distribution_mode" not in acols:
-        op.add_column(
-            "agents",
-            sa.Column(
-                "distribution_mode",
-                sa.String(length=20),
-                nullable=False,
-                server_default="owner_only",
-            ),
-        )
-
-    if "scope" in acols:
-        op.execute(
-            text(
-                """
-                UPDATE agents SET owner_type = CASE
-                    WHEN tenant_id IS NULL THEN 'platform'
-                    ELSE 'tenant'
-                END
-                """
-            ),
-        )
-        op.execute(
-            text(
-                """
-                UPDATE agents SET distribution_mode = CASE scope
-                    WHEN 'admin_only' THEN 'internal'
-                    WHEN 'admin' THEN 'internal'
-                    WHEN 'all_tenants' THEN 'all_tenants'
-                    WHEN 'tenant' THEN 'all_tenants'
-                    WHEN 'global_shared' THEN 'all_tenants'
-                    WHEN 'selected_tenants' THEN 'selected_tenants'
-                    WHEN 'admin_and_selected_tenants' THEN 'selected_tenants'
-                    WHEN 'tenant_user' THEN 'all_tenants'
-                    WHEN 'global' THEN 'all_tenants'
-                    ELSE 'owner_only'
-                END
-                WHERE scope IS NOT NULL
-                """
-            ),
-        )
-
-    op.execute(text("ALTER TABLE agents ALTER COLUMN owner_type DROP DEFAULT"))
-    op.execute(text("ALTER TABLE agents ALTER COLUMN distribution_mode DROP DEFAULT"))
-
     # ── ai_call_logs: billing + publication + display snapshots ─────────────
     lcols = _column_names(bind, "ai_call_logs")
     ledger_cols: list[tuple[str, sa.Column]] = [
@@ -160,8 +103,8 @@ def upgrade() -> None:
             sa.Column("agent_owner_tenant_id", sa.Integer(), nullable=True),
         ),
         (
-            "agent_distribution_mode",
-            sa.Column("agent_distribution_mode", sa.String(20), nullable=True),
+            "agent_resource_scope",
+            sa.Column("agent_resource_scope", sa.String(40), nullable=True),
         ),
         (
             "tenant_publication_id",
@@ -238,10 +181,6 @@ def upgrade() -> None:
             """
         ),
     )
-
-    # ── drop legacy aggregate table ─────────────────────────────────────────
-    if _table_exists(bind, "ai_usage_stats"):
-        op.drop_table("ai_usage_stats")
 
 
 def downgrade() -> None:

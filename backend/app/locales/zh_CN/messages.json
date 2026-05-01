@@ -549,8 +549,6 @@
             "is_active": "启用状态",
             "sort_order": "排序",
             "timeout": "超时时间",
-            "script_content": "脚本内容",
-            "script_language": "脚本语言",
             "toolkit_content": "Toolkit 源码",
             "toolkit_meta": "Toolkit 元数据",
             "is_system": "系统技能"

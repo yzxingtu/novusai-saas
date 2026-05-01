@@ -549,8 +549,6 @@
             "is_active": "Status",
             "sort_order": "Sort Order",
             "timeout": "Timeout",
-            "script_content": "Script Content",
-            "script_language": "Script Language",
             "toolkit_content": "Toolkit Source Code",
             "toolkit_meta": "Toolkit Metadata",
             "is_system": "System Skill"

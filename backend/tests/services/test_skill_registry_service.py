@@ -22,11 +22,11 @@ async def test_skill_registry_list_packages_marks_installed_state(mock_db) -> No
                 "version": "1.2.0",
             },
             {
-                "slug": "page-tools",
-                "display_name": "Page Tools",
+                "slug": "workflow-tools",
+                "display_name": "Workflow Tools",
                 "downloads": 10,
                 "rating": 4.2,
-                "tags": ["page"],
+                "tags": ["workflow"],
                 "version": "0.3.0",
             },
         ]

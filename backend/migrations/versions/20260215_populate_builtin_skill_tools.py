@@ -71,17 +71,7 @@ BUILTIN_SKILL_ORIGINAL_CONFIGS = {
 # Package descriptions that were missed
 # ---------------------------------------------------------------------------
 
-PACKAGE_DESC_FIXES = [
-    {
-        "name": "系统数据智能技能包",
-        "description": (
-            "系统内置的数据智能能力包。通过自然语言查询和操作数据库（Text-to-SQL），"
-            "自动使用所有已配置的表策略。适用于平台管理员进行数据分析和管理操作。"
-            "不可删除或禁用。"
-        ),
-        "original": "系统内置的数据智能技能包，提供自然语言查询和操作数据库的能力",
-    },
-]
+PACKAGE_DESC_FIXES: list[dict[str, str]] = []
 
 
 def upgrade() -> None:

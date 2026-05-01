@@ -69,7 +69,7 @@ def upgrade() -> None:
     # ---------- 1. Create Router system agent ----------
     existing = conn.execute(text(
         "SELECT id FROM agents "
-        "WHERE name = :name AND tenant_id IS NULL AND is_deleted = false"
+        "WHERE name = :name AND owner_tenant_id IS NULL AND is_deleted = false"
     ), {"name": ROUTER_AGENT_NAME}).fetchone()
 
     if existing:
@@ -85,7 +85,7 @@ def upgrade() -> None:
         else:
             result = conn.execute(text(
                 "INSERT INTO agents "
-                "(tenant_id, name, description, scope, system_prompt, model_id, "
+                "(owner_tenant_id, name, description, scope, system_prompt, model_id, "
                 " temperature, execution_mode, status, visibility, memory_enabled, is_system, "
                 " created_at, updated_at, is_deleted) "
                 "VALUES "
@@ -148,7 +148,7 @@ def downgrade() -> None:
     # Remove Router agent (match by execution_mode, not name, since name may vary)
     conn.execute(text(
         "DELETE FROM agents "
-        "WHERE execution_mode = 'router' AND tenant_id IS NULL AND is_system = true"
+        "WHERE execution_mode = 'router' AND owner_tenant_id IS NULL AND is_system = true"
     ))
 
     print("[SEED] Router agent + default_chat assignment removed.")

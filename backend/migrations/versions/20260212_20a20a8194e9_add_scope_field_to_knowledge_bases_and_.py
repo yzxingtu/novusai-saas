@@ -1,4 +1,4 @@
-"""add scope field to knowledge_bases and agents, make tenant_id nullable
+"""add scope field to knowledge_bases and agents.
 
 Revision ID: 20a20a8194e9
 Revises: 745cc30a4c44
@@ -20,37 +20,29 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade database schema."""
-    # 1. knowledge_bases: add scope, make tenant_id nullable
+    # 1. knowledge_bases: add scope.
     op.add_column('knowledge_bases', sa.Column(
         'scope', sa.String(length=20), nullable=False,
         server_default='tenant', comment='资源作用域: tenant/global/admin_only',
     ))
-    op.alter_column('knowledge_bases', 'tenant_id',
-               existing_type=sa.INTEGER(), nullable=True)
     op.create_index(op.f('ix_knowledge_bases_scope'), 'knowledge_bases', ['scope'], unique=False)
 
-    # 2. agents: add scope, make tenant_id nullable
+    # 2. agents: add scope.
     op.add_column('agents', sa.Column(
         'scope', sa.String(length=20), nullable=False,
         server_default='tenant', comment='资源作用域: tenant/global/admin_only',
     ))
-    op.alter_column('agents', 'tenant_id',
-               existing_type=sa.INTEGER(), nullable=True)
     op.create_index(op.f('ix_agents_scope'), 'agents', ['scope'], unique=False)
     # ### end Alembic commands ###
 
 
 def downgrade() -> None:
     """Downgrade database schema."""
-    # 1. agents: drop scope, restore tenant_id NOT NULL
+    # 1. agents: drop scope
     op.drop_index(op.f('ix_agents_scope'), table_name='agents')
     op.drop_column('agents', 'scope')
-    op.alter_column('agents', 'tenant_id',
-               existing_type=sa.INTEGER(), nullable=False)
 
-    # 2. knowledge_bases: drop scope, restore tenant_id NOT NULL
+    # 2. knowledge_bases: drop scope
     op.drop_index(op.f('ix_knowledge_bases_scope'), table_name='knowledge_bases')
     op.drop_column('knowledge_bases', 'scope')
-    op.alter_column('knowledge_bases', 'tenant_id',
-               existing_type=sa.INTEGER(), nullable=False)
     # ### end Alembic commands ###

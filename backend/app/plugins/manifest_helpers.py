@@ -23,10 +23,12 @@ _SOCKETIO_SEGMENT_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
 _PLUGIN_NAME_PATTERN = re.compile(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$")
 _DB_TABLE_PREFIX_PATTERN = re.compile(r"^[a-z][a-z0-9_]{2,62}_$")
 # Handler path: dot-separated Python module path, e.g. "api.handlers.handle_current"
-# Allows letters, digits, underscores and dots; forbids .. / \ and other path traversal chars
+# Requires valid dot-separated Python identifiers; forbids empty segments and path traversal chars
 # / Handler 路径：点分隔的 Python 模块路径
-# 允许字母、数字、下划线和点；禁止 .. / \ 等路径遍历字符
-_HANDLER_PATH_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_.]*$")
+# 要求合法 Python 标识符分段；禁止空分段和路径遍历字符
+_HANDLER_PATH_PATTERN = re.compile(
+    r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$"
+)
 
 
 def _validate_handler_path(v: str, field_name: str = "handler") -> str:

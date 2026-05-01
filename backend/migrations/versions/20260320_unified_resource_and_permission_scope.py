@@ -3,9 +3,7 @@
 Revision ID: 20260320_urps
 Revises: 20260320_tapks
 
-无 downgrade。若库被错误 stamp 到本 revision 但未实际执行，后续
-20260321_akso（upgrade 内 _repair_20260320_urps_skipped）与
-20260324_pt_otid_repair 提供幂等补跑；仍建议从备份恢复或空库 replay。
+无 downgrade。新安装只保留当前 resource scope / owner_tenant_id 结构。
 """
 from __future__ import annotations
 
@@ -20,6 +18,16 @@ depends_on = None
 
 def _exec(sql: str) -> None:
     op.execute(sa.text(sql))
+
+
+def _table_exists(table: str) -> bool:
+    return table in sa.inspect(op.get_bind()).get_table_names()
+
+
+def _column_names(table: str) -> set[str]:
+    if not _table_exists(table):
+        return set()
+    return {c["name"] for c in sa.inspect(op.get_bind()).get_columns(table)}
 
 
 # Whitelist table names only (no dynamic identifiers) / 仅白名单表名
@@ -49,6 +57,8 @@ _LEGACY_SCOPE_PAIRS: tuple[tuple[str, str], ...] = (
 
 
 def _remap_legacy_resource_scopes(table: str) -> None:
+    if "scope" not in _column_names(table):
+        return
     sql = _TABLE_LEGACY_SCOPE_SQL.get(table)
     if not sql:
         raise ValueError(f"legacy scope remap: unknown table {table!r}")
@@ -90,59 +100,8 @@ def upgrade() -> None:
     ):
         _remap_legacy_resource_scopes(table)
 
-    # ── Agents: derive scope from distribution_mode, then remap old strings ─
-    _exec(
-        "UPDATE agents SET scope = 'admin_only' WHERE distribution_mode = 'internal'"
-    )
-    _exec(
-        "UPDATE agents SET scope = 'all_tenants' WHERE distribution_mode = 'all_tenants'"
-    )
-    _exec(
-        "UPDATE agents SET scope = 'selected_tenants' "
-        "WHERE distribution_mode IN ('assigned_tenants', 'owner_only')"
-    )
+    # ── Agents: current fresh schema stores scope + owner_tenant_id directly. ─
     _remap_legacy_resource_scopes("agents")
-
-    _exec(
-        """
-        INSERT INTO resource_tenant_assignments
-          (resource_type, resource_id, tenant_id, is_active, is_deleted, created_at, updated_at)
-        SELECT 'agent', a.id, a.tenant_id, true, false, NOW(), NOW()
-        FROM agents a
-        WHERE a.distribution_mode = 'owner_only'
-          AND a.tenant_id IS NOT NULL
-          AND NOT EXISTS (
-            SELECT 1 FROM resource_tenant_assignments r
-            WHERE r.resource_type = 'agent' AND r.resource_id = a.id
-              AND r.tenant_id = a.tenant_id AND r.is_deleted = false
-          )
-        """
-    )
-
-    op.drop_column("agents", "distribution_mode")
-    op.drop_column("agents", "owner_type")
-
-    op.alter_column(
-        "agents",
-        "tenant_id",
-        new_column_name="owner_tenant_id",
-        existing_type=sa.Integer(),
-        existing_nullable=True,
-    )
-    op.alter_column(
-        "knowledge_bases",
-        "tenant_id",
-        new_column_name="owner_tenant_id",
-        existing_type=sa.Integer(),
-        existing_nullable=True,
-    )
-    op.alter_column(
-        "ai_api_keys",
-        "tenant_id",
-        new_column_name="owner_tenant_id",
-        existing_type=sa.Integer(),
-        existing_nullable=True,
-    )
 
 
 def downgrade() -> None:

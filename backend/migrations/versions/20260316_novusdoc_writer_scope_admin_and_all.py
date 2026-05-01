@@ -49,7 +49,7 @@ def _find_model_id(conn):
         return row[0]
     row = conn.execute(text(
         "SELECT model_id FROM agents "
-        "WHERE tenant_id IS NULL AND is_deleted = false AND status = 'published' "
+        "WHERE owner_tenant_id IS NULL AND is_deleted = false AND status = 'published' "
         "ORDER BY id LIMIT 1"
     )).fetchone()
     return row[0] if row else None
@@ -68,14 +68,14 @@ def upgrade() -> None:
     # 2) 删除作用域不为 global_shared 的 NovusDoc Writer（或不存在则跳过）
     conn.execute(text(
         "DELETE FROM agents "
-        "WHERE name = :name AND tenant_id IS NULL AND is_system = true "
+        "WHERE name = :name AND owner_tenant_id IS NULL AND is_system = true "
         "AND (scope IS NULL OR scope != :scope)"
     ), {"name": AGENT_NAME, "scope": SCOPE_TARGET})
 
     # 3) 若不存在则创建（scope=global_shared）
     existing = conn.execute(text(
         "SELECT id FROM agents "
-        "WHERE name = :name AND tenant_id IS NULL AND is_deleted = false"
+        "WHERE name = :name AND owner_tenant_id IS NULL AND is_deleted = false"
     ), {"name": AGENT_NAME}).fetchone()
 
     if existing:
@@ -96,7 +96,7 @@ def upgrade() -> None:
             return
         result = conn.execute(text(
             "INSERT INTO agents "
-            "(tenant_id, name, description, scope, system_prompt, model_id, "
+            "(owner_tenant_id, name, description, scope, system_prompt, model_id, "
             " temperature, execution_mode, status, visibility, memory_enabled, is_system, "
             " created_at, updated_at, is_deleted) "
             "VALUES "

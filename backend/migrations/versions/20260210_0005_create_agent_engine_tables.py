@@ -31,7 +31,7 @@ def upgrade() -> None:
     op.create_table(
         'agents',
         sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
-        sa.Column('tenant_id', sa.Integer(), nullable=False),
+        sa.Column('owner_tenant_id', sa.Integer(), nullable=True),
         sa.Column('is_deleted', sa.Boolean(), nullable=False, server_default='false'),
         sa.Column('created_at', sa.DateTime(), server_default=sa.func.now(), nullable=False),
         sa.Column('updated_at', sa.DateTime(), server_default=sa.func.now(), nullable=False),
@@ -57,12 +57,12 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint('id'),
     )
 
-    op.create_index('ix_agents_tenant_id', 'agents', ['tenant_id'])
+    op.create_index('ix_agents_owner_tenant_id', 'agents', ['owner_tenant_id'])
     op.create_index('ix_agents_name', 'agents', ['name'])
     op.create_index('ix_agents_model_id', 'agents', ['model_id'])
     op.create_index('ix_agents_status', 'agents', ['status'])
     op.create_index('ix_agents_is_deleted', 'agents', ['is_deleted'])
-    op.create_index('ix_agents_tenant_status', 'agents', ['tenant_id', 'status'])
+    op.create_index('ix_agents_owner_tenant_status', 'agents', ['owner_tenant_id', 'status'])
 
     # ========== 2. agent_conversations 表 ==========
     op.create_table(

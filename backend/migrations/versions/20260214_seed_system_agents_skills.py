@@ -189,7 +189,7 @@ def upgrade() -> None:
     for agent in SYSTEM_AGENTS:
         existing = conn.execute(text(
             "SELECT id FROM agents "
-            "WHERE name = :name AND tenant_id IS NULL AND is_deleted = false"
+            "WHERE name = :name AND owner_tenant_id IS NULL AND is_deleted = false"
         ), {"name": agent["name"]}).fetchone()
 
         if existing:
@@ -207,7 +207,7 @@ def upgrade() -> None:
 
         result = conn.execute(text(
             "INSERT INTO agents "
-            "(tenant_id, name, description, scope, system_prompt, model_id, "
+            "(owner_tenant_id, name, description, scope, system_prompt, model_id, "
             " temperature, execution_mode, status, visibility, is_system, "
             " created_at, updated_at, is_deleted) "
             "VALUES "
@@ -239,7 +239,7 @@ def downgrade() -> None:
     # Remove agents
     for agent in SYSTEM_AGENTS:
         conn.execute(text(
-            "DELETE FROM agents WHERE name = :name AND tenant_id IS NULL AND is_system = true"
+            "DELETE FROM agents WHERE name = :name AND owner_tenant_id IS NULL AND is_system = true"
         ), {"name": agent["name"]})
 
     # Remove skills
