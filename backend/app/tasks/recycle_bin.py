@@ -21,10 +21,10 @@ from app.api.shared.recycle_bin_registry import (
 )
 from app.core.base_model import utc_now
 from app.core.config import settings
-from app.core.database import async_session_factory
 from app.core.i18n import _
 from app.core.logging import LogManager
 from app.enums.common import RecycleStageEnum
+from app.tasks.async_db import task_async_session as _task_async_session
 from app.tasks.base import BaseTask, register_task
 
 logger = LogManager.get_logger("task")
@@ -248,7 +248,7 @@ async def _run_cleanup(
     total_promoted = 0
     total_deleted = 0
 
-    async with async_session_factory() as db:
+    async with _task_async_session() as db:
         for side in _SIDE_ORDER:
             for module_code in get_module_codes_for_side(side):
                 module_promoted = 0

@@ -45,7 +45,7 @@ async def test_run_cleanup_promotes_module_stage_then_deletes_global_stage(
 
     monkeypatch.setattr(
         recycle_bin_task,
-        "async_session_factory",
+        "_task_async_session",
         lambda: _AsyncSessionContext(db),
     )
     monkeypatch.setattr(
