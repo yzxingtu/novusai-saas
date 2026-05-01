@@ -7,6 +7,8 @@
  */
 import type { UserInfo } from '@vben/types';
 
+import type { AIAvailabilityInfo, BaseUserInfo } from '#/api';
+
 import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
@@ -31,6 +33,19 @@ const userStore = useUserStore();
 const status = ref<'error' | 'loading' | 'success'>('loading');
 /** Error message / 错误信息 */
 const errorMessage = ref('');
+
+function getAIAvailabilityInfo(
+  userInfo: BaseUserInfo | null | undefined,
+): AIAvailabilityInfo {
+  const aiChatEnabled = userInfo?.aiChatEnabled ?? userInfo?.aiEnabled;
+  return {
+    accountAIEnabled: userInfo?.accountAIEnabled,
+    aiChatEnabled,
+    aiEnabled: aiChatEnabled,
+    aiUnavailableReason: userInfo?.aiUnavailableReason,
+    tenantPlanAIEnabled: userInfo?.tenantPlanAIEnabled,
+  };
+}
 
 /** Get token param from URL / 从 URL 获取 token 参数 */
 const impersonateToken = computed(() => {
@@ -71,7 +86,7 @@ async function doImpersonateLogin() {
     const userInfo = await tenantApi.getTenantAdminInfoApi();
 
     // Convert to vben UserInfo format / 转换为 vben UserInfo 格式
-    const vbenUserInfo: UserInfo = {
+    const vbenUserInfo: AIAvailabilityInfo & UserInfo = {
       avatar: toAvatarDisplayUrl(userInfo?.avatar),
       desc: '',
       homePath: HOME_PATHS.tenant,
@@ -80,6 +95,7 @@ async function doImpersonateLogin() {
       token: result.accessToken,
       userId: String(userInfo?.id || ''),
       username: userInfo?.username || '',
+      ...getAIAvailabilityInfo(userInfo),
     };
 
     userStore.setUserInfo(vbenUserInfo);

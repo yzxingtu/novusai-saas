@@ -720,6 +720,9 @@
     "searchResults": "Search Results",
     "resultsCount": "{count} results",
     "sendToAI": "Send to AI",
+    "menuSearchPlaceholder": "Search menus or pages, press Enter to open",
+    "searchOnlyHint": "Menu search only",
+    "aiDisabledHint": "AI chat is disabled for this account. Menu search is still available.",
     "navigateTo": "Navigate"
   },
   "aiPanel": {

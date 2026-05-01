@@ -428,6 +428,7 @@ class AdminOrgNodeService(
         phone: str | None = None,
         nickname: str | None = None,
         is_active: bool = True,
+        ai_enabled: bool = True,
     ) -> Admin:
         org_node = await self.repo.get_by_id(org_node_id)
         if not org_node:
@@ -445,6 +446,7 @@ class AdminOrgNodeService(
             phone=phone,
             nickname=nickname,
             is_active=is_active,
+            ai_enabled=ai_enabled,
             is_super=False,
             org_node_id=org_node_id,
         )
@@ -459,6 +461,8 @@ class AdminOrgNodeService(
         nickname: str | None = None,
         avatar: str | None = None,
         is_active: bool | None = None,
+        ai_enabled: bool | None = None,
+        update_ai_enabled: bool = False,
         new_org_node_id: int | None = None,
     ) -> Admin:
         _, admin = await self._require_member_in_scope(org_node_id, admin_id)
@@ -474,6 +478,8 @@ class AdminOrgNodeService(
             update_data["avatar"] = avatar
         if is_active is not None:
             update_data["is_active"] = is_active
+        if update_ai_enabled and ai_enabled is not None:
+            update_data["ai_enabled"] = bool(ai_enabled)
         if new_org_node_id is not None:
             target_org_node = await self.repo.get_by_id(new_org_node_id)
             if not target_org_node:

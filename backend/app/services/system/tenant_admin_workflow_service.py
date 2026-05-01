@@ -36,6 +36,7 @@ def _serialize_tenant_admin(tenant_admin: Any) -> dict[str, Any]:
         "is_owner": tenant_admin.is_owner,
         "is_leader": is_leader,
         "is_active": tenant_admin.is_active,
+        "ai_enabled": getattr(tenant_admin, "ai_enabled", True),
         "user_type": "tenant_admin",
         "role_name": permission_role.name if permission_role else None,
         "role_id": tenant_admin.role_id,
@@ -53,7 +54,9 @@ def _serialize_tenant_admin(tenant_admin: Any) -> dict[str, Any]:
 def _serialize_tenant_admin_detail(tenant_admin: Any) -> dict[str, Any]:
     org_node = getattr(tenant_admin, "org_node", None)
     role = getattr(tenant_admin, "role", None)
-    is_leader = bool(org_node and getattr(org_node, "leader_id", None) == tenant_admin.id)
+    is_leader = bool(
+        org_node and getattr(org_node, "leader_id", None) == tenant_admin.id
+    )
     role_id = getattr(role, "id", None)
     role_name = getattr(role, "name", None)
     org_node_id = getattr(org_node, "id", None)
@@ -72,6 +75,7 @@ def _serialize_tenant_admin_detail(tenant_admin: Any) -> dict[str, Any]:
         "nickname": tenant_admin.nickname,
         "avatar": tenant_admin.avatar,
         "is_active": tenant_admin.is_active,
+        "ai_enabled": getattr(tenant_admin, "ai_enabled", True),
         "is_owner": bool(tenant_admin.is_owner),
         "is_leader": is_leader,
         "user_type": "tenant_admin",
@@ -171,12 +175,16 @@ class TenantAdminWorkflowService:
         await self._verify_tenant(tenant_id)
         service = self._get_tenant_admin_service(tenant_id)
         try:
+            ai_enabled = getattr(data, "ai_enabled", True)
+            if ai_enabled is None:
+                ai_enabled = True
             new_admin = await service.create_admin(
                 username=data.username,
                 email=data.email,
                 password=data.password,
                 nickname=data.nickname,
                 is_active=True,
+                ai_enabled=ai_enabled,
                 is_owner=False,
                 role_id=data.role_id,
                 org_node_id=data.org_node_id,
@@ -197,11 +205,7 @@ class TenantAdminWorkflowService:
         service = self._get_tenant_admin_service(tenant_id)
         tenant_admin = await service.get_identity_detail(admin_id)
 
-        if (
-            data.is_active is not None
-            and tenant_admin.is_owner
-            and not data.is_active
-        ):
+        if data.is_active is not None and tenant_admin.is_owner and not data.is_active:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=_("tenant_admin.cannot_disable_owner"),
@@ -211,6 +215,8 @@ class TenantAdminWorkflowService:
             exclude_unset=True,
             exclude={"password"},
         )
+        if update_data.get("ai_enabled") is None:
+            update_data.pop("ai_enabled", None)
         if data.password is None and not update_data:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,

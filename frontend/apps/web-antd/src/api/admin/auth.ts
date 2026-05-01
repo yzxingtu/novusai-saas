@@ -4,6 +4,8 @@
  */
 import type {
   AdminUserInfo,
+  AIAvailabilityInfo,
+  AIAvailabilityRawFields,
   ChangePasswordParams,
   LoginParams,
   LoginResult,
@@ -101,7 +103,7 @@ export async function adminLogoutApi() {
 /**
  * Raw admin user info format from backend / 后端返回的管理员信息原始格式
  */
-interface AdminUserInfoRaw {
+interface AdminUserInfoRaw extends AIAvailabilityRawFields {
   id: number;
   username: string;
   email?: string;
@@ -115,6 +117,25 @@ interface AdminUserInfoRaw {
   created_at?: string;
   /** Permission code list / 权限码列表 */
   permissions?: string[];
+}
+
+function mapAdminAIAvailability(
+  raw: AIAvailabilityRawFields,
+): AIAvailabilityInfo {
+  const accountAIEnabled = raw.ai_enabled ?? true;
+  const tenantPlanAIEnabled = true;
+  const aiChatEnabled =
+    raw.effective_ai_enabled ??
+    raw.ai_chat_enabled ??
+    (accountAIEnabled && tenantPlanAIEnabled);
+
+  return {
+    accountAIEnabled,
+    aiChatEnabled,
+    aiEnabled: aiChatEnabled,
+    aiUnavailableReason: raw.ai_unavailable_reason ?? undefined,
+    tenantPlanAIEnabled,
+  };
 }
 
 /**
@@ -134,6 +155,7 @@ export async function getAdminInfoApi(
     realName: raw.nickname || raw.username,
     email: raw.email,
     avatar: raw.avatar,
+    ...mapAdminAIAvailability(raw),
     isSuperAdmin: raw.is_super,
     roles: raw.is_super ? ['super_admin'] : [],
     // Super admin has all permissions; regular admin uses backend permission codes / 超级管理员拥有所有权限，普通管理员使用后端返回的权限码

@@ -50,6 +50,7 @@ import {
   normalizeSseTransportError,
   toErrorWithAppError,
 } from './app-error';
+import { notifyAIAccessDenied } from './ai-availability-events';
 import { getEndpointByUrl } from './endpoint';
 import { isAuthError } from './error-codes';
 import { ensureTraceIdHeader } from './trace';
@@ -452,6 +453,7 @@ export class RequestClient {
         } catch {
           // non-JSON body
         }
+        notifyAIAccessDenied(responseBody);
         const normalized = normalizeHttpError(
           {
             response: {

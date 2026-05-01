@@ -1,4 +1,6 @@
 // @vitest-environment happy-dom
+// Test type: behavioral
+// Verifies: CommandBar shell behavior, menu search, and AI action gating.
 
 /* eslint-disable vue/one-component-per-file */
 import { flushPromises, mount } from '@vue/test-utils';
@@ -70,6 +72,10 @@ vi.mock('ant-design-vue', () => {
   const TextArea = defineComponent({
     name: 'TextAreaStub',
     props: {
+      placeholder: {
+        default: '',
+        type: String,
+      },
       value: {
         default: '',
         type: String,
@@ -79,6 +85,7 @@ vi.mock('ant-design-vue', () => {
     template: `
       <textarea
         data-testid="cmd-input"
+        :placeholder="placeholder"
         :value="value"
         @input="$emit('update:value', $event.target.value)"
         @keydown="$emit('keydown', $event)"
@@ -167,7 +174,6 @@ function createPinnedAgentStore() {
 }
 
 function requireElement<T>(value: null | T | undefined, message: string): T {
-  expect(value).toBeTruthy();
   if (value === null || value === undefined) {
     throw new Error(message);
   }
@@ -427,9 +433,70 @@ describe('commandBar', () => {
     );
     await flushPromises();
 
-    expect(
+    const input = requireElement(
       document.body.querySelector('[data-testid="cmd-input"]'),
-    ).toBeTruthy();
+      'Expected command bar textarea after uppercase Ctrl+K hotkey',
+    );
+    expect(input.getAttribute('placeholder')).toBe(
+      'common.globalAiChat.inputPlaceholder',
+    );
+    expect(document.body.textContent).toContain('Cat Agent');
+
+    wrapper.unmount();
+  });
+
+  it('opens menu search with canChat=false without loading or opening AI chat', async () => {
+    const wrapper = mount(CommandBar, {
+      attachTo: document.body,
+      props: {
+        apiPrefix: '/tenant',
+        canChat: false,
+        menus: [
+          {
+            name: 'Dashboard',
+            path: '/tenant/dashboard',
+          },
+        ],
+      },
+    });
+
+    await (
+      wrapper.vm as typeof wrapper.vm & { show: () => Promise<void> }
+    ).show();
+    await flushPromises();
+
+    const textarea = document.body.querySelector(
+      '[data-testid="cmd-input"]',
+    ) as HTMLTextAreaElement | null;
+    const resolvedTextarea = requireElement(
+      textarea,
+      'Expected command bar textarea when canChat=false',
+    );
+
+    resolvedTextarea.value = 'Dashboard';
+    resolvedTextarea.dispatchEvent(new Event('input'));
+    await flushPromises();
+
+    expect(document.body.textContent).toContain('Dashboard');
+
+    resolvedTextarea.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: 'Enter',
+        bubbles: true,
+      }),
+    );
+    await flushPromises();
+
+    expect(mocks.routerPush).toHaveBeenCalledWith({
+      path: '/tenant/dashboard',
+      replace: true,
+    });
+    expect(mocks.getChatAgentsApi).not.toHaveBeenCalled();
+    expect(mocks.getGlobalConversationsApi).not.toHaveBeenCalled();
+    expect(aiPanelStore.queueMessage).not.toHaveBeenCalled();
+    expect(aiPanelStore.open).not.toHaveBeenCalled();
+    expect(aiPanelStore.openWithContext).not.toHaveBeenCalled();
+    expect(wrapper.emitted('submit')).toBeUndefined();
 
     wrapper.unmount();
   });

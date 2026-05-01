@@ -3,6 +3,8 @@
  * Backend: /tenant/auth/* / 对接后端 /tenant/auth/* 接口
  */
 import type {
+  AIAvailabilityInfo,
+  AIAvailabilityRawFields,
   ChangePasswordParams,
   LoginParams,
   LoginResult,
@@ -111,7 +113,7 @@ export async function tenantLogoutApi() {
 /**
  * Tenant admin info raw format from backend / 后端返回的企业管理员信息原始格式
  */
-interface TenantAdminInfoRaw {
+interface TenantAdminInfoRaw extends AIAvailabilityRawFields {
   id: number;
   username: string;
   email?: string;
@@ -132,6 +134,26 @@ interface TenantAdminInfoRaw {
   plan_name?: string;
 }
 
+function mapTenantAIAvailability(
+  raw: AIAvailabilityRawFields,
+): AIAvailabilityInfo {
+  const accountAIEnabled = raw.ai_enabled ?? true;
+  const tenantPlanAIEnabled =
+    raw.tenant_ai_enabled ?? raw.tenant_plan_ai_enabled ?? true;
+  const aiChatEnabled =
+    raw.effective_ai_enabled ??
+    raw.ai_chat_enabled ??
+    (accountAIEnabled && tenantPlanAIEnabled);
+
+  return {
+    accountAIEnabled,
+    aiChatEnabled,
+    aiEnabled: aiChatEnabled,
+    aiUnavailableReason: raw.ai_unavailable_reason ?? undefined,
+    tenantPlanAIEnabled,
+  };
+}
+
 /**
  * Get current tenant admin info / 获取当前企业管理员信息
  * Convert backend snake_case to frontend camelCase / 将后端格式转换为前端格式
@@ -149,6 +171,7 @@ export async function getTenantAdminInfoApi(
     realName: raw.nickname || raw.username,
     email: raw.email,
     avatar: raw.avatar,
+    ...mapTenantAIAvailability(raw),
     tenantId: raw.tenant_id || 0,
     tenantName: raw.tenant_name,
     roles: [],

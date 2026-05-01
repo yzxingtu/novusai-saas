@@ -38,6 +38,7 @@ from app.schemas.ai.agent_chat import (
     UpdateConversationTitleRequest,
 )
 from app.schemas.common.query import FilterRule
+from app.services.ai.account_ai_access_service import AccountAIAccessService
 from app.services.ai.agent_chat_service import AgentChatService
 from app.services.ai.conversation_service import ConversationService
 
@@ -87,6 +88,9 @@ class AdminAgentChatController(GlobalController):
         # 对话执行 / Chat Execution
         # ========================================
 
+        async def _ensure_ai_chat_enabled(db: DbSession, admin: ActiveAdmin) -> None:
+            await AccountAIAccessService(db).require_platform_admin_ai_access(admin)
+
         @router.post("/{agent_id}/chat", summary="Send chat message (non-streaming)")
         @action_create("action.admin_agent_chat.chat")
         async def chat(
@@ -104,6 +108,7 @@ class AdminAgentChatController(GlobalController):
 
             权限 / Permission: admin_agent_chat:chat
             """
+            await _ensure_ai_chat_enabled(db, admin)
             perm_service = PermissionService(db)
             user_perms = await perm_service.get_admin_permissions(admin)
             service = AgentChatService(db, PLATFORM_TENANT_ID)
@@ -158,6 +163,7 @@ class AdminAgentChatController(GlobalController):
 
             权限 / Permission: admin_agent_chat:stream
             """
+            await _ensure_ai_chat_enabled(db, admin)
             perm_service = PermissionService(db)
             user_perms = await perm_service.get_admin_permissions(admin)
             service = AgentChatService(db, PLATFORM_TENANT_ID)
@@ -215,6 +221,7 @@ class AdminAgentChatController(GlobalController):
 
             权限 / Permission: admin_agent_chat:route
             """
+            await _ensure_ai_chat_enabled(db, admin)
             return await handle_route(
                 db,
                 tenant_id=PLATFORM_TENANT_ID,
@@ -252,6 +259,7 @@ class AdminAgentChatController(GlobalController):
 
             权限 / Permission: admin_agent_chat:conversations
             """
+            await _ensure_ai_chat_enabled(db, admin)
             service = ConversationService(db, PLATFORM_TENANT_ID)
             items, total = await service.query_list(
                 spec=query,
@@ -280,6 +288,7 @@ class AdminAgentChatController(GlobalController):
 
             权限 / Permission: admin_agent_chat:conversation_detail
             """
+            await _ensure_ai_chat_enabled(db, admin)
             (
                 service,
                 _,
@@ -311,6 +320,7 @@ class AdminAgentChatController(GlobalController):
 
             权限 / Permission: admin_agent_chat:delete_conversation
             """
+            await _ensure_ai_chat_enabled(db, admin)
             (
                 service,
                 _,
@@ -340,6 +350,7 @@ class AdminAgentChatController(GlobalController):
             admin: ActiveAdmin,
         ):
             """更新对话标题 / Update conversation title"""
+            await _ensure_ai_chat_enabled(db, admin)
             (
                 service,
                 _,
@@ -371,6 +382,7 @@ class AdminAgentChatController(GlobalController):
             """
             获取指定对话的记忆状态 / Get memory state for a specific conversation.
             """
+            await _ensure_ai_chat_enabled(db, admin)
             (
                 service,
                 _,
@@ -400,6 +412,7 @@ class AdminAgentChatController(GlobalController):
             """
             清除指定对话的记忆状态 / Clear memory state for a specific conversation.
             """
+            await _ensure_ai_chat_enabled(db, admin)
             (
                 service,
                 _,
@@ -427,6 +440,7 @@ class AdminAgentChatController(GlobalController):
             conversation_id: int,
             admin: ActiveAdmin,
         ):
+            await _ensure_ai_chat_enabled(db, admin)
             (
                 service,
                 _,
@@ -454,6 +468,7 @@ class AdminAgentChatController(GlobalController):
             conversation_id: int,
             admin: ActiveAdmin,
         ):
+            await _ensure_ai_chat_enabled(db, admin)
             (
                 service,
                 _,

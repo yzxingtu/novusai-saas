@@ -6,6 +6,7 @@ import { requestClient } from '#/utils/request';
 const API_PREFIX = '/tenant/admins';
 
 export interface TenantAdminIdentitySelectExtra {
+  ai_enabled?: boolean;
   avatar?: null | string;
   display_name?: null | string;
   display_role_name?: null | string;
@@ -21,6 +22,7 @@ export interface TenantAdminIdentitySelectExtra {
 }
 
 export interface TenantAdminIdentityDetail {
+  ai_enabled?: boolean;
   avatar?: null | string;
   created_at?: null | string;
   display_name?: null | string;

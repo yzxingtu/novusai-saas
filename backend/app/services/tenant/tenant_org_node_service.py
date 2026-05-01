@@ -476,6 +476,7 @@ class TenantOrgNodeService(
         phone: str | None = None,
         nickname: str | None = None,
         is_active: bool = True,
+        ai_enabled: bool = True,
         role_id: int | None = None,
     ) -> TenantAdmin:
         org_node = await self.repo.get_by_id(org_node_id)
@@ -495,6 +496,7 @@ class TenantOrgNodeService(
             phone=phone,
             nickname=nickname,
             is_active=is_active,
+            ai_enabled=ai_enabled,
             is_owner=False,
             role_id=role_id,
             org_node_id=org_node_id,
@@ -510,6 +512,8 @@ class TenantOrgNodeService(
         nickname: str | None = None,
         avatar: str | None = None,
         is_active: bool | None = None,
+        ai_enabled: bool | None = None,
+        update_ai_enabled: bool = False,
         new_org_node_id: int | None = None,
         role_id: int | None = None,
         update_permission_role: bool = False,
@@ -540,6 +544,8 @@ class TenantOrgNodeService(
             update_data["avatar"] = avatar
         if is_active is not None:
             update_data["is_active"] = is_active
+        if update_ai_enabled and ai_enabled is not None:
+            update_data["ai_enabled"] = bool(ai_enabled)
         if new_org_node_id is not None:
             target_org_node = await self.repo.get_by_id(new_org_node_id)
             if not target_org_node:

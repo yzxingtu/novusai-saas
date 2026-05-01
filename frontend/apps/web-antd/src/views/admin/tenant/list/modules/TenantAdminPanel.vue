@@ -18,6 +18,7 @@ import {
   Popconfirm,
   Spin,
   Switch,
+  Tag,
   Tooltip,
 } from 'ant-design-vue';
 
@@ -167,6 +168,7 @@ function getAdminIdentityModel(admin: TenantAdminItem) {
 
 function buildAdminMeta(admin: TenantAdminItem): IdentityDetailMeta {
   return {
+    aiEnabled: admin.ai_enabled,
     email: admin.email,
     lastLoginAt: admin.last_login_at,
     orgNodeName: admin.org_node_name,
@@ -247,6 +249,12 @@ onMounted(() => {
                     <span v-if="admin.email" class="truncate">
                       {{ admin.email }}
                     </span>
+                    <Tag
+                      v-if="admin.ai_enabled === false"
+                      class="!me-0 text-[11px]"
+                    >
+                      {{ $t('shared.identity.field.aiDisabled') }}
+                    </Tag>
                     <span v-if="admin.last_login_at">
                       · {{ $t('admin.tenant.adminPanel.lastLogin') }}
                       {{ formatRelativeTime(admin.last_login_at) }}

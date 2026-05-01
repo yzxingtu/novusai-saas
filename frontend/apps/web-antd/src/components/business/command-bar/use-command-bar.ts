@@ -123,6 +123,7 @@ export function useCommandBar(options: UseCommandBarOptions) {
 
   /** Filtered agent list by @mention query / @mention 过滤后的智能体列表 */
   const filteredAgents = computed(() => {
+    if (!unref(options.canChat)) return [];
     const query = mentionQuery.value.toLowerCase();
     if (!query) return agents.value;
     return agents.value.filter(
@@ -133,6 +134,7 @@ export function useCommandBar(options: UseCommandBarOptions) {
   });
 
   const selectedAgent = computed(() => {
+    if (!unref(options.canChat)) return null;
     const pinnedAgentId = aiPanelStore.pinnedAgentId;
     if (!pinnedAgentId) return null;
     return agents.value.find((agent) => agent.id === pinnedAgentId) ?? null;
@@ -152,10 +154,14 @@ export function useCommandBar(options: UseCommandBarOptions) {
    * Show Command Bar / 显示 Command Bar
    */
   async function show() {
-    if (!unref(options.canChat)) return;
     open.value = true;
     mode.value = 'input';
     mentionQuery.value = '';
+    if (!unref(options.canChat)) {
+      recentConversations.value = [];
+      recentLoading.value = false;
+      return;
+    }
     void loadRecentConversations();
     if (
       aiPanelStore.pinnedAgentId &&
@@ -227,6 +233,12 @@ export function useCommandBar(options: UseCommandBarOptions) {
    * Load agent list / 加载智能体列表
    */
   async function loadAgents(force = false) {
+    if (!unref(options.canChat)) {
+      agents.value = [];
+      agentsLoadedAt.value = 0;
+      agentsLoading.value = false;
+      return;
+    }
     if (agentsLoading.value) return;
     const isCacheFresh =
       agents.value.length > 0 &&
@@ -260,6 +272,11 @@ export function useCommandBar(options: UseCommandBarOptions) {
    * Load recent conversation list / 加载最近对话列表
    */
   async function loadRecentConversations() {
+    if (!unref(options.canChat)) {
+      recentConversations.value = [];
+      recentLoading.value = false;
+      return;
+    }
     recentLoading.value = true;
     try {
       const prefix = unref(options.apiPrefix);
@@ -276,6 +293,7 @@ export function useCommandBar(options: UseCommandBarOptions) {
    * Update conversation title / 更新对话标题
    */
   async function updateConversationTitle(convId: number, title: string) {
+    if (!unref(options.canChat)) return;
     try {
       const prefix = unref(options.apiPrefix);
       await updateChatConversationTitleApi(prefix, convId, title);
@@ -293,6 +311,7 @@ export function useCommandBar(options: UseCommandBarOptions) {
    * Triggered when user types @ / 当用户输入 @ 时触发
    */
   function enterMentionMode() {
+    if (!unref(options.canChat)) return;
     mode.value = 'mention';
     mentionQuery.value = '';
     void loadAgents();
@@ -305,6 +324,7 @@ export function useCommandBar(options: UseCommandBarOptions) {
    * @param agent AgentItem
    */
   function selectMentionAgent(agent: AgentItem) {
+    if (!unref(options.canChat)) return;
     aiPanelStore.togglePin(agent.id, agent.name);
     mode.value = 'input';
     mentionQuery.value = '';
@@ -330,6 +350,13 @@ export function useCommandBar(options: UseCommandBarOptions) {
    */
   function onInputChange(value: string) {
     inputText.value = value;
+
+    if (!unref(options.canChat)) {
+      if (mode.value === 'mention') {
+        exitMentionMode();
+      }
+      return;
+    }
 
     if (mode.value === 'mention') {
       // ---- Agent Loading / Agent 加载 ----
@@ -360,6 +387,8 @@ export function useCommandBar(options: UseCommandBarOptions) {
    * @returns Submitted message text (empty string means only open panel, no message) / 提交的消息文本（空字符串表示仅打开面板，不发消息）
    */
   function submit(): string {
+    if (!unref(options.canChat)) return '';
+
     const message = inputText.value.trim();
 
     // Close Command Bar / 关闭 Command Bar
@@ -383,7 +412,23 @@ export function useCommandBar(options: UseCommandBarOptions) {
     agents.value = [];
     agentsLoadedAt.value = 0;
     agentsLoading.value = false;
+    recentConversations.value = [];
+    recentLoading.value = false;
   }
+
+  watch(
+    () => unref(options.canChat),
+    (canChat) => {
+      if (canChat) return;
+      mode.value = 'input';
+      mentionQuery.value = '';
+      agents.value = [];
+      agentsLoadedAt.value = 0;
+      agentsLoading.value = false;
+      recentConversations.value = [];
+      recentLoading.value = false;
+    },
+  );
 
   return {
     // State / 状态

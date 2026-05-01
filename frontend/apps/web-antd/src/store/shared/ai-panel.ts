@@ -40,6 +40,9 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
   /** Panel current width (for layout sync, updates on drag) / 面板当前宽度 */
   const panelWidth = ref(460);
 
+  /** Whether AI chat surface may be opened / AI 对话面板是否允许打开 */
+  const chatAvailable = ref(true);
+
   // ==================== Conversation state / 对话状态 ====================
 
   /** Active conversation ID (null = new conversation) / 活跃对话 ID */
@@ -72,10 +75,30 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
 
   // ==================== Panel actions / 面板操作 ====================
 
-  function open() {
+  function clearPendingContext() {
+    pendingAgentId.value = undefined;
+    pendingMessage.value = null;
+    pendingConversationId.value = null;
+  }
+
+  function setChatAvailable(available: boolean) {
+    chatAvailable.value = available;
+    if (!available) {
+      close();
+      clearPendingContext();
+      pendingInteractionUpdates.value = [];
+    }
+  }
+
+  function open(): boolean {
+    if (!chatAvailable.value) {
+      clearPendingContext();
+      return false;
+    }
     visible.value = true;
     minimized.value = false;
     hasUnread.value = false;
+    return true;
   }
 
   function close() {
@@ -96,10 +119,15 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
     minimized.value = activeConversationId.value !== null;
   }
 
-  function restore() {
+  function restore(): boolean {
+    if (!chatAvailable.value) {
+      clearPendingContext();
+      return false;
+    }
     visible.value = true;
     minimized.value = false;
     hasUnread.value = false;
+    return true;
   }
 
   function setFullMode() {
@@ -158,14 +186,23 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
    * Open panel from external page and preselect agent
    * 从外部页面打开面板并预选智能体
    */
-  function openWithAgent(agentId: number) {
+  function openWithAgent(agentId: number): boolean {
+    if (!chatAvailable.value) {
+      clearPendingContext();
+      return false;
+    }
     pendingAgentId.value = agentId;
-    open();
+    return open();
   }
 
-  function queueMessage(message: null | string | undefined) {
+  function queueMessage(message: null | string | undefined): boolean {
+    if (!chatAvailable.value) {
+      pendingMessage.value = null;
+      return false;
+    }
     const normalized = message?.trim();
     pendingMessage.value = normalized || null;
+    return Boolean(pendingMessage.value);
   }
 
   function consumePendingMessage(): null | string {
@@ -174,11 +211,18 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
     return message;
   }
 
-  function queueConversationRestore(conversationId: null | number | undefined) {
+  function queueConversationRestore(
+    conversationId: null | number | undefined,
+  ): boolean {
+    if (!chatAvailable.value) {
+      pendingConversationId.value = null;
+      return false;
+    }
     pendingConversationId.value =
       typeof conversationId === 'number' && Number.isFinite(conversationId)
         ? conversationId
         : null;
+    return pendingConversationId.value !== null;
   }
 
   function consumePendingConversationId(): null | number {
@@ -191,7 +235,12 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
     agentId?: number;
     conversationId?: null | number;
     message?: null | string;
-  }) {
+  }): boolean {
+    if (!chatAvailable.value) {
+      close();
+      clearPendingContext();
+      return false;
+    }
     if (
       typeof options?.agentId === 'number' &&
       Number.isFinite(options.agentId)
@@ -204,7 +253,7 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
     if (options?.conversationId !== undefined) {
       queueConversationRestore(options.conversationId);
     }
-    open();
+    return open();
   }
 
   /**
@@ -217,6 +266,9 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
   }
 
   function markUnread() {
+    if (!chatAvailable.value) {
+      return;
+    }
     if (!visible.value) {
       hasUnread.value = true;
     }
@@ -227,6 +279,9 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
   const pendingInteractionUpdates = ref<AIInteractionUpdate[]>([]);
 
   function queueInteractionUpdate(update: AIInteractionUpdate) {
+    if (!chatAvailable.value) {
+      return;
+    }
     pendingInteractionUpdates.value.push({ ...update });
   }
 
@@ -237,7 +292,7 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
   }
 
   function restoreInteractionUpdates(updates: AIInteractionUpdate[]) {
-    if (updates.length === 0) return;
+    if (!chatAvailable.value || updates.length === 0) return;
     pendingInteractionUpdates.value = [
       ...updates.map((item) => ({ ...item })),
       ...pendingInteractionUpdates.value,
@@ -252,6 +307,7 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
     minimized.value = false;
     docked.value = true;
     panelWidth.value = 460;
+    chatAvailable.value = true;
     activeConversationId.value = null;
     activeAgentId.value = null;
     pinnedAgentId.value = null;
@@ -270,6 +326,7 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
     minimized,
     docked,
     panelWidth,
+    chatAvailable,
     activeConversationId,
     activeAgentId,
     pinnedAgentId,
@@ -289,6 +346,7 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
     setPanelMode,
     toggleMode,
     toggleDock,
+    setChatAvailable,
 
     // Conversation / 会话
     setConversation,
@@ -300,6 +358,7 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
     togglePin,
 
     // External / 外部
+    clearPendingContext,
     openWithAgent,
     openWithContext,
     queueMessage,

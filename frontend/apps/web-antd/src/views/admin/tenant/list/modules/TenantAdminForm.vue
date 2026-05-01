@@ -7,10 +7,19 @@ import type { TenantAdminItem } from '#/api/admin/tenant';
 
 import { ref } from 'vue';
 
-import { Button, Drawer, Form, FormItem, Input, message } from 'ant-design-vue';
+import {
+  Button,
+  Drawer,
+  Form,
+  FormItem,
+  Input,
+  message,
+  Switch,
+} from 'ant-design-vue';
 
 import { createTenantAdminApi, updateTenantAdminApi } from '#/api/admin/tenant';
 import { $t } from '#/locales';
+import { useAccess } from '#/utils';
 import { showRequestError } from '#/utils/error-helpers';
 
 defineOptions({ name: 'TenantAdminForm' });
@@ -21,6 +30,8 @@ const visible = ref(false);
 const loading = ref(false);
 const tenantId = ref(0);
 const tenantName = ref('');
+const { hasAccessByCodes } = useAccess();
+const canManageAi = hasAccessByCodes(['tenant_admin:manage_ai']);
 
 const editingAdmin = ref<null | TenantAdminItem>(null);
 const isEdit = ref(false);
@@ -30,6 +41,7 @@ const form = ref({
   email: '',
   password: '',
   nickname: '',
+  ai_enabled: true,
 });
 
 /** 打开表单（创建或编辑） / Open form (create or edit) */
@@ -44,11 +56,18 @@ function open(tId: number, tName: string, admin?: TenantAdminItem) {
       email: admin.email,
       password: '',
       nickname: admin.nickname || '',
+      ai_enabled: admin.ai_enabled ?? true,
     };
   } else {
     isEdit.value = false;
     editingAdmin.value = null;
-    form.value = { username: '', email: '', password: '', nickname: '' };
+    form.value = {
+      username: '',
+      email: '',
+      password: '',
+      nickname: '',
+      ai_enabled: true,
+    };
   }
   visible.value = true;
 }
@@ -79,6 +98,7 @@ async function handleSubmit() {
         email: form.value.email,
         nickname: form.value.nickname || undefined,
         password: form.value.password || undefined,
+        ...(canManageAi ? { ai_enabled: form.value.ai_enabled } : {}),
       });
       message.success($t('common.saveSuccess'));
     } else {
@@ -87,6 +107,7 @@ async function handleSubmit() {
         email: form.value.email,
         password: form.value.password,
         nickname: form.value.nickname || undefined,
+        ...(canManageAi ? { ai_enabled: form.value.ai_enabled } : {}),
       });
       message.success($t('tenant_admin.created'));
     }
@@ -147,6 +168,19 @@ defineExpose({ open });
           v-model:value="form.nickname"
           :placeholder="$t('admin.tenant.adminPanel.nicknamePlaceholder')"
           :max-length="100"
+        />
+      </FormItem>
+      <FormItem
+        :label="$t('admin.tenant.adminPanel.aiConversation')"
+        :extra="
+          canManageAi ? undefined : $t('admin.tenant.adminPanel.aiReadonlyHelp')
+        "
+      >
+        <Switch
+          v-model:checked="form.ai_enabled"
+          :checked-children="$t('shared.common.enabled')"
+          :un-checked-children="$t('shared.common.disabled')"
+          :disabled="!canManageAi"
         />
       </FormItem>
     </Form>

@@ -127,9 +127,11 @@ function getIdentity(option: IdentityOptionLike | undefined) {
     'user_type_label',
   );
   const isActive = resolveBooleanExtra(extra, 'isActive', 'is_active');
+  const aiEnabled = resolveBooleanExtra(extra, 'aiEnabled', 'ai_enabled');
   const isLeader = resolveBooleanExtra(extra, 'isLeader', 'is_leader');
   const isOwner = resolveBooleanExtra(extra, 'isOwner', 'is_owner');
   return createIdentityDisplayModel({
+    aiEnabled,
     avatar: resolved.avatar || null,
     displayName: resolved.displayName,
     id: resolved.value ?? option.value ?? option.label ?? '-',

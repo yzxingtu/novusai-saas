@@ -27,7 +27,6 @@ class TenantAdmin(TenantModel):
 
     __tablename__ = "tenant_admins"
 
-
     __table_args__ = (
         UniqueConstraint(
             "tenant_id", "username", name="uq_tenant_admin_tenant_username"
@@ -61,6 +60,7 @@ class TenantAdmin(TenantModel):
         "email": "email",
         "phone": "phone",
         "is_active": "is_active",
+        "ai_enabled": "ai_enabled",
         "is_owner": "is_owner",
         "nickname": "nickname",
         "role_id": "role_id",
@@ -75,6 +75,7 @@ class TenantAdmin(TenantModel):
         "email",
         "nickname",
         "is_active",
+        "ai_enabled",
         "is_owner",
         "role_id",
         "created_at",
@@ -119,6 +120,13 @@ class TenantAdmin(TenantModel):
         Boolean,
         default=True,
         comment="是否激活 / Active",
+    )
+    ai_enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        server_default="true",
+        nullable=False,
+        comment="是否允许使用 AI 对话 / AI chat enabled",
     )
     is_owner: Mapped[bool] = mapped_column(
         Boolean,

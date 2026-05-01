@@ -11,11 +11,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.core.base_service import GlobalService
+from app.core.i18n import _
 from app.core.identity import (
     build_identity_select_extra,
     resolve_identity_display_name,
 )
-from app.core.i18n import _
 from app.core.security import get_password_hash, verify_password
 from app.enums import ErrorCode
 from app.exceptions import BusinessException, NotFoundException
@@ -85,6 +85,7 @@ class AdminService(GlobalService[Admin, AdminRepository]):
         phone: str | None = None,
         nickname: str | None = None,
         is_active: bool = True,
+        ai_enabled: bool = True,
         is_super: bool = False,
         role_id: int | None = None,
         org_node_id: int | None = None,
@@ -140,6 +141,7 @@ class AdminService(GlobalService[Admin, AdminRepository]):
             "phone": phone,
             "nickname": nickname,
             "is_active": is_active,
+            "ai_enabled": ai_enabled,
             "is_super": is_super,
             "role_id": role_id,
             "org_node_id": org_node_id,
@@ -204,6 +206,8 @@ class AdminService(GlobalService[Admin, AdminRepository]):
         data.pop("password", None)
         data.pop("password_hash", None)
         data.pop("username", None)  # 用户名不允许修改 / policy guard
+        if data.get("ai_enabled") is None:
+            data.pop("ai_enabled", None)
 
         result = await self.update(admin_id, data)
         if not result:
@@ -403,5 +407,6 @@ class AdminService(GlobalService[Admin, AdminRepository]):
             ),
             disabled=not admin.is_active,
         )
+
 
 __all__ = ["AdminService"]

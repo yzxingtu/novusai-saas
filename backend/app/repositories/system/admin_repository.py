@@ -29,6 +29,7 @@ class AdminRepository(BaseRepository[Admin]):
             "email",
             "phone",
             "is_active",
+            "ai_enabled",
             "is_super",
             "nickname",
             "role_id",

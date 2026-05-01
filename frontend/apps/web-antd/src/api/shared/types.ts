@@ -82,7 +82,30 @@ export interface ChangePasswordParams {
 }
 
 /** Base user info / 用户基本信息 */
-export interface BaseUserInfo {
+export interface AIAvailabilityInfo {
+  /** Account-level AI switch / 账号级 AI 开关 */
+  accountAIEnabled?: boolean;
+  /** Effective AI chat availability / AI 对话最终可用性 */
+  aiChatEnabled?: boolean;
+  /** Compatibility alias for aiChatEnabled / aiChatEnabled 兼容别名 */
+  aiEnabled?: boolean;
+  /** Stable unavailable reason from backend / 后端返回的不可用原因 */
+  aiUnavailableReason?: string;
+  /** Tenant plan AI feature switch / 企业套餐 AI 功能开关 */
+  tenantPlanAIEnabled?: boolean;
+}
+
+export interface AIAvailabilityRawFields {
+  ai_chat_enabled?: boolean | null;
+  ai_enabled?: boolean | null;
+  ai_unavailable_reason?: null | string;
+  effective_ai_enabled?: boolean | null;
+  tenant_ai_enabled?: boolean | null;
+  tenant_plan_ai_enabled?: boolean | null;
+}
+
+/** Base user info / 用户基本信息 */
+export interface BaseUserInfo extends AIAvailabilityInfo {
   id: number | string;
   username: string;
   realName: string;

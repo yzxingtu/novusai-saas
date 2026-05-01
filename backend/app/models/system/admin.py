@@ -50,6 +50,7 @@ class Admin(BaseModel):
         "email": "email",
         "phone": "phone",
         "is_active": "is_active",
+        "ai_enabled": "ai_enabled",
         "is_super": "is_super",
         "nickname": "nickname",
         "role_id": "role_id",
@@ -64,6 +65,7 @@ class Admin(BaseModel):
         "email",
         "nickname",
         "is_active",
+        "ai_enabled",
         "created_at",
         "updated_at",
         "last_login_at",
@@ -93,6 +95,13 @@ class Admin(BaseModel):
 
     # 管理员状态 / Admin status flags
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, comment="是否激活")
+    ai_enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        server_default="true",
+        nullable=False,
+        comment="是否允许使用 AI 对话 / AI chat enabled",
+    )
     is_super: Mapped[bool] = mapped_column(
         Boolean, default=False, comment="是否超级管理员（最高权限）"
     )

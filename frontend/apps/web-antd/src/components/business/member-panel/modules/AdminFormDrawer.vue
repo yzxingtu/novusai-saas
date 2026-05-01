@@ -21,6 +21,7 @@ import { Avatar, message, Spin, Upload } from 'ant-design-vue';
 import { useVbenForm } from '#/adapter/form';
 import { adminApi as admin, tenantApi as tenant } from '#/api';
 import { $t } from '#/locales';
+import { useAccess } from '#/utils';
 import { toAttachmentImageUrl } from '#/utils/image';
 
 import { getAdminFormDefaults, useAdminFormSchema } from '../data';
@@ -46,6 +47,8 @@ const props = withDefaults(
 const emits = defineEmits<{ success: [] }>();
 const avatarValue = ref('');
 const avatarUploading = ref(false);
+const { hasAccessByCodes } = useAccess();
+const canManageMemberAi = hasAccessByCodes(['organization:manage_member_ai']);
 
 const avatarSrc = computed(() => {
   const val = avatarValue.value;
@@ -109,6 +112,7 @@ const sourceOrgNodeId = ref<null | number>(null);
 const lockOrgNode = ref(false);
 
 interface MemberFormValues {
+  ai_enabled?: boolean;
   email?: string;
   is_active?: boolean;
   nickname?: null | string;
@@ -170,6 +174,7 @@ const [Drawer, drawerApi] = useVbenDrawer({
       phone: values.phone || null,
       nickname: values.nickname || null,
       is_active: values.is_active ?? true,
+      ...(canManageMemberAi ? { ai_enabled: values.ai_enabled ?? true } : {}),
       ...(isEdit.value && avatarValue.value
         ? { avatar: avatarValue.value }
         : {}),
@@ -287,6 +292,7 @@ const [Drawer, drawerApi] = useVbenDrawer({
         orgTreeApi: props.orgTreeApi,
         roleOptions,
         lockOrgNode: lockOrgNode.value,
+        canManageAi: canManageMemberAi,
       }),
     });
 
@@ -300,6 +306,7 @@ const [Drawer, drawerApi] = useVbenDrawer({
         email: data.email,
         nickname: data.nickname,
         is_active: data.isActive,
+        ai_enabled: data.aiEnabled,
         org_node_id: data.orgNodeId ?? props.nodeId,
         ...(props.apiPrefix === 'tenant' ? { role_id: data.roleId } : {}),
         org_node_display:

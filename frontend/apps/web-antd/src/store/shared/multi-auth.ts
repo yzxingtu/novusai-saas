@@ -10,6 +10,7 @@
 import type { UserInfo } from '@vben/types';
 
 import type {
+  AIAvailabilityInfo,
   ApiEndpoint,
   BaseUserInfo,
   LoginByCodeParams,
@@ -39,6 +40,8 @@ import { clearPersistedTabbarStorage } from '#/utils/tabbar-storage';
 
 import { TokenStorage } from './token-storage';
 import { useUserPreferenceStore } from './user-preference';
+
+type MultiAuthUserInfo = AIAvailabilityInfo & UserInfo;
 
 export const useMultiAuthStore = defineStore('multi-auth', () => {
   const accessStore = useAccessStore();
@@ -75,6 +78,37 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
     );
 
     return redirect || fallbackHome;
+  }
+
+  function getAIAvailabilityInfo(
+    userInfo: BaseUserInfo | null | undefined,
+  ): AIAvailabilityInfo {
+    const aiChatEnabled = userInfo?.aiChatEnabled ?? userInfo?.aiEnabled;
+    return {
+      accountAIEnabled: userInfo?.accountAIEnabled,
+      aiChatEnabled,
+      aiEnabled: aiChatEnabled,
+      aiUnavailableReason: userInfo?.aiUnavailableReason,
+      tenantPlanAIEnabled: userInfo?.tenantPlanAIEnabled,
+    };
+  }
+
+  function buildVbenUserInfo(
+    userInfo: BaseUserInfo | null | undefined,
+    endpoint: ApiEndpoint,
+    token: string,
+  ): MultiAuthUserInfo {
+    return {
+      avatar: toAvatarDisplayUrl(userInfo?.avatar),
+      desc: '',
+      homePath: normalizeEndpointNavigationPath(userInfo?.homePath, endpoint),
+      realName: userInfo?.realName || '',
+      roles: userInfo?.roles || [],
+      token,
+      userId: String(userInfo?.id || ''),
+      username: userInfo?.username || '',
+      ...getAIAvailabilityInfo(userInfo),
+    };
   }
 
   /**
@@ -148,16 +182,7 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
       preferenceStore.loadPreferences(endpoint).catch(() => {});
     }
 
-    const vbenUserInfo: UserInfo = {
-      avatar: toAvatarDisplayUrl(userInfo?.avatar),
-      desc: '',
-      homePath: normalizeEndpointNavigationPath(userInfo?.homePath, endpoint),
-      realName: userInfo?.realName || '',
-      roles: userInfo?.roles || [],
-      token: accessToken,
-      userId: String(userInfo?.id || ''),
-      username: userInfo?.username || '',
-    };
+    const vbenUserInfo = buildVbenUserInfo(userInfo, endpoint, accessToken);
 
     userStore.setUserInfo(vbenUserInfo);
 
@@ -421,16 +446,11 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
     }
 
     // Convert to Vben UserInfo format / 转换为 vben UserInfo 格式
-    const vbenUserInfo: UserInfo = {
-      avatar: toAvatarDisplayUrl(normalizedUserInfo?.avatar),
-      desc: '',
-      homePath: endpointHomePath,
-      realName: normalizedUserInfo?.realName || '',
-      roles: normalizedUserInfo?.roles || [],
-      token: accessStore.accessToken || '',
-      userId: String(normalizedUserInfo?.id || ''),
-      username: normalizedUserInfo?.username || '',
-    };
+    const vbenUserInfo = buildVbenUserInfo(
+      normalizedUserInfo,
+      ep,
+      accessStore.accessToken || '',
+    );
 
     userStore.setUserInfo(vbenUserInfo);
 

@@ -12,6 +12,7 @@ import {
 } from '#/components/business/identity-display';
 
 export interface IdentityDetailMeta {
+  aiEnabled?: boolean;
   approvalStatus?: null | string;
   createdAt?: null | string;
   email?: null | string;
@@ -54,6 +55,7 @@ export function createIdentityDetailRequest(
   const meta = payload.meta;
   return {
     fallback: mergeIdentityDetailFallbacks(payload.model, {
+      aiEnabled: meta?.aiEnabled,
       approvalStatus: meta?.approvalStatus,
       createdAt: meta?.createdAt,
       email: meta?.email,

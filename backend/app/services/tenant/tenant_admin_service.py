@@ -20,6 +20,7 @@ from app.core.security import get_password_hash, verify_password
 from app.enums import ErrorCode
 from app.exceptions import BusinessException, NotFoundException
 from app.models.org import TenantOrgNode
+from app.models.tenant.tenant import Tenant
 from app.models.tenant.tenant_admin import TenantAdmin
 from app.repositories.tenant.tenant_admin_repository import TenantAdminRepository
 from app.repositories.tenant.tenant_permission_role_repository import (
@@ -85,6 +86,7 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
         phone: str | None = None,
         nickname: str | None = None,
         is_active: bool = True,
+        ai_enabled: bool = True,
         is_owner: bool = False,
         role_id: int | None = None,
         org_node_id: int | None = None,
@@ -171,6 +173,7 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
             "phone": phone,
             "nickname": nickname,
             "is_active": is_active,
+            "ai_enabled": ai_enabled,
             "is_owner": is_owner,
             "role_id": role_id,
             "org_node_id": org_node_id,
@@ -243,6 +246,8 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
         data.pop("password_hash", None)
         data.pop("username", None)  # 用户名不允许修改 / policy guard
         data.pop("tenant_id", None)  # 企业 ID 不允许修改
+        if data.get("ai_enabled") is None:
+            data.pop("ai_enabled", None)
 
         result = await self.update(admin_id, data)
         if not result:
@@ -414,6 +419,52 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
             raise NotFoundException(message=_("tenant_admin.not_found"))
         return admin
 
+    async def get_ai_availability_profile(
+        self,
+        tenant_admin: TenantAdmin,
+    ) -> dict[str, Any]:
+        """
+        Build tenant-admin AI availability flags for auth/profile payloads.
+        / 构建企业管理员认证资料中的 AI 可用性标记。
+        """
+        from app.services.tenant.quota_service import QuotaService
+
+        account_ai_enabled = bool(getattr(tenant_admin, "ai_enabled", True))
+        result = await self.db.execute(
+            select(Tenant)
+            .options(selectinload(Tenant.tenant_plan))
+            .where(
+                Tenant.id == tenant_admin.tenant_id,
+                Tenant.is_deleted.is_(False),
+            )
+        )
+        tenant = result.scalar_one_or_none()
+
+        tenant_ai_enabled = False
+        reason: str | None = None
+        if tenant is None:
+            reason = "tenant_unavailable"
+        else:
+            has_plan = tenant.plan_id is not None
+            tenant_ai_enabled = QuotaService(self.db, tenant).get_feature(
+                "ai_enabled",
+                has_plan,
+            )
+            if not tenant_ai_enabled:
+                reason = "tenant_plan_ai_disabled"
+            elif not account_ai_enabled:
+                reason = "account_ai_disabled"
+
+        effective_ai_enabled = account_ai_enabled and tenant_ai_enabled
+        if effective_ai_enabled:
+            reason = None
+
+        return {
+            "tenant_ai_enabled": tenant_ai_enabled,
+            "effective_ai_enabled": effective_ai_enabled,
+            "ai_unavailable_reason": reason,
+        }
+
     async def _get_tenant_root_node(self) -> TenantOrgNode | None:
         """
         获取企业的组织架构根节点 / Get tenant org root node.
@@ -481,5 +532,6 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
             ),
             disabled=not admin.is_active,
         )
+
 
 __all__ = ["TenantAdminService"]

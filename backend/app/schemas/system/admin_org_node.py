@@ -173,6 +173,7 @@ class AdminOrgNodeCreateMemberRequest(BaseSchema):
     phone: str | None = Field(None, description="Phone")
     nickname: str | None = Field(None, description="Nickname")
     is_active: bool = Field(True, description="Whether the admin is active")
+    ai_enabled: bool = Field(True, description="Whether AI chat is enabled")
 
 
 class AdminOrgNodeUpdateMemberRequest(BaseSchema):
@@ -183,6 +184,7 @@ class AdminOrgNodeUpdateMemberRequest(BaseSchema):
     nickname: str | None = Field(None, description="Nickname")
     avatar: str | None = Field(None, description="Avatar")
     is_active: bool | None = Field(None, description="Whether the admin is active")
+    ai_enabled: bool | None = Field(None, description="Whether AI chat is enabled")
     org_node_id: int | None = Field(None, description="New organization node ID")
 
 
@@ -209,6 +211,7 @@ class AdminOrgNodeMemberResponse(BaseSchema):
     avatar: str | None = Field(None, description="Avatar")
     email: str = Field(..., description="Email")
     is_active: bool = Field(True, description="Whether the admin is active")
+    ai_enabled: bool = Field(True, description="Whether AI chat is enabled")
     is_leader: bool = Field(False, description="Whether the admin is the node leader")
     joined_at: datetime | None = Field(None, description="Joined at")
     role_id: int | None = Field(None, description="Permission role ID")

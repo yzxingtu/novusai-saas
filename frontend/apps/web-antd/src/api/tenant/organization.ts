@@ -91,6 +91,7 @@ export interface TenantOrgMemberRaw {
   nickname?: string;
   email?: string;
   avatar?: string;
+  ai_enabled?: boolean;
   is_active: boolean;
   is_leader: boolean;
   joined_at: string;
@@ -110,6 +111,7 @@ export interface TenantOrgMember {
   nickname?: string;
   email?: string;
   avatar?: string;
+  aiEnabled: boolean;
   isActive: boolean;
   isLeader: boolean;
   joinedAt: string;
@@ -153,6 +155,7 @@ export interface TenantCreateMemberRequest {
   phone?: null | string;
   nickname?: null | string;
   is_active?: boolean;
+  ai_enabled?: boolean;
   is_super?: boolean;
   org_node_id?: null | number;
   role_id?: null | number;
@@ -164,6 +167,7 @@ export interface TenantUpdateMemberRequest {
   nickname?: null | string;
   avatar?: null | string;
   is_active?: boolean | null;
+  ai_enabled?: boolean | null;
   is_super?: boolean | null;
   org_node_id?: null | number;
   role_id?: null | number;
@@ -247,6 +251,7 @@ function transformOrgMember(raw: TenantOrgMemberRaw): TenantOrgMember {
     nickname: raw.nickname,
     email: raw.email,
     avatar: raw.avatar,
+    aiEnabled: raw.ai_enabled ?? true,
     isActive: raw.is_active,
     isLeader: raw.is_leader,
     joinedAt: raw.joined_at,

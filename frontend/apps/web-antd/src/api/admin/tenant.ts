@@ -391,6 +391,7 @@ export interface TenantAdminItem {
   email: string;
   nickname: null | string;
   avatar: null | string;
+  ai_enabled: boolean;
   is_owner: boolean;
   is_active: boolean;
   org_node_id?: null | number;
@@ -404,6 +405,7 @@ export interface TenantAdminItem {
 
 export interface TenantAdminIdentitySelectExtra {
   avatar?: null | string;
+  ai_enabled?: boolean;
   display_name?: null | string;
   display_role_name?: null | string;
   is_active?: boolean;
@@ -419,6 +421,7 @@ export interface TenantAdminIdentitySelectExtra {
 
 export interface TenantAdminIdentityDetail {
   avatar?: null | string;
+  ai_enabled?: boolean;
   created_at?: null | string;
   display_name?: null | string;
   display_role_name?: null | string;
@@ -448,8 +451,17 @@ export interface TenantAdminCreateRequest {
   username: string;
   email: string;
   password: string;
+  ai_enabled?: boolean;
   nickname?: string;
   role_id?: number;
+}
+
+/** Update tenant admin request / 更新企业管理员请求 */
+export interface TenantAdminUpdateRequest {
+  ai_enabled?: boolean;
+  email?: string;
+  nickname?: string;
+  password?: string;
 }
 
 /**
@@ -458,9 +470,13 @@ export interface TenantAdminCreateRequest {
 export async function getTenantAdminsApi(
   tenantId: number,
 ): Promise<TenantAdminItem[]> {
-  return requestClient.get<TenantAdminItem[]>(
+  const items = await requestClient.get<TenantAdminItem[]>(
     `${API_PREFIX}/${tenantId}/admins`,
   );
+  return items.map((item) => ({
+    ...item,
+    ai_enabled: item.ai_enabled ?? true,
+  }));
 }
 
 /**
@@ -487,10 +503,14 @@ export async function getTenantAdminDetailApi(
   adminId: number,
   options?: ApiRequestOptions,
 ): Promise<TenantAdminIdentityDetail> {
-  return requestClient.get<TenantAdminIdentityDetail>(
+  const detail = await requestClient.get<TenantAdminIdentityDetail>(
     `${API_PREFIX}/${tenantId}/admins/${adminId}`,
     options,
   );
+  return {
+    ...detail,
+    ai_enabled: detail.ai_enabled ?? true,
+  };
 }
 
 /**
@@ -509,7 +529,7 @@ export async function createTenantAdminApi(
 export async function updateTenantAdminApi(
   tenantId: number,
   adminId: number,
-  data: { email?: string; nickname?: string; password?: string },
+  data: TenantAdminUpdateRequest,
 ): Promise<Record<string, unknown>> {
   return requestClient.put(`${API_PREFIX}/${tenantId}/admins/${adminId}`, data);
 }

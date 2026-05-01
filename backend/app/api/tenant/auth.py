@@ -28,6 +28,7 @@ from app.schemas.tenant import (
     TenantAdminUpdateProfileRequest,
 )
 from app.services.common import AuthService
+from app.services.tenant.tenant_admin_service import TenantAdminService
 
 
 # 审计日志辅助类 / Audit log helper class
@@ -174,11 +175,20 @@ async def get_current_tenant_admin_info(
     Response includes has_plan field for frontend to determine whether to show "no plan assigned" prompt.
     """
     auth_service = AuthService(db)
-    profile_flags = await auth_service.tenant_admin_auth.get_profile_flags(current_admin)
+    profile_flags = await auth_service.tenant_admin_auth.get_profile_flags(
+        current_admin
+    )
+    ai_profile = await TenantAdminService(
+        db,
+        current_admin.tenant_id,
+    ).get_ai_availability_profile(current_admin)
 
     resp = TenantAdminResponse.model_validate(current_admin, from_attributes=True)
     resp.has_plan = bool(profile_flags["has_plan"])
     resp.plan_name = profile_flags["plan_name"]
+    resp.tenant_ai_enabled = bool(ai_profile["tenant_ai_enabled"])
+    resp.effective_ai_enabled = bool(ai_profile["effective_ai_enabled"])
+    resp.ai_unavailable_reason = ai_profile["ai_unavailable_reason"]
     return success(data=resp, message=_("common.success"))
 
 
@@ -228,6 +238,16 @@ async def update_profile(
     )
     await db.commit()
     resp = TenantAdminResponse.model_validate(tenant_admin, from_attributes=True)
+    profile_flags = await auth_service.tenant_admin_auth.get_profile_flags(tenant_admin)
+    ai_profile = await TenantAdminService(
+        db,
+        tenant_admin.tenant_id,
+    ).get_ai_availability_profile(tenant_admin)
+    resp.has_plan = bool(profile_flags["has_plan"])
+    resp.plan_name = profile_flags["plan_name"]
+    resp.tenant_ai_enabled = bool(ai_profile["tenant_ai_enabled"])
+    resp.effective_ai_enabled = bool(ai_profile["effective_ai_enabled"])
+    resp.ai_unavailable_reason = ai_profile["ai_unavailable_reason"]
     return success(data=resp, message=_("auth.profile_updated"))
 
 

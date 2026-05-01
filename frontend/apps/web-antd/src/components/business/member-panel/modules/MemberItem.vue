@@ -8,7 +8,7 @@ import { computed } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
-import { Button, Popconfirm, Tooltip } from 'ant-design-vue';
+import { Button, Popconfirm, Tag, Tooltip } from 'ant-design-vue';
 
 import { IdentityDisplay } from '#/components/business/identity-display';
 import { $t } from '#/locales';
@@ -55,6 +55,7 @@ const showRoleBadge = computed(
 );
 
 const identityModel = computed<IdentityDisplayModel>(() => ({
+  aiEnabled: props.member.aiEnabled,
   avatar: props.member.avatar ?? null,
   displayName: props.member.nickname || props.member.username,
   id: props.member.id,
@@ -73,6 +74,7 @@ const memberPrimaryMeta = computed(() => {
 });
 
 const identityMeta = computed<IdentityDetailMeta>(() => ({
+  aiEnabled: props.member.aiEnabled,
   createdAt: props.member.createdAt,
   email: props.member.email,
   orgNodeName: props.member.orgNodeName,
@@ -128,6 +130,12 @@ function handleForceLogout() {
             class="flex items-center gap-2 truncate text-xs text-gray-500 dark:text-gray-400"
           >
             <span class="truncate">{{ memberPrimaryMeta }}</span>
+            <Tag
+              v-if="member.aiEnabled === false"
+              class="!me-0 text-[11px]"
+            >
+              {{ $t('shared.identity.field.aiDisabled') }}
+            </Tag>
             <Tooltip
               v-if="member.createdAt"
               :title="
@@ -149,32 +157,36 @@ function handleForceLogout() {
     <!-- Action buttons / 操作按钮 -->
     <div v-if="showActions && !disabled" class="flex flex-shrink-0 gap-1">
       <!-- Edit member / 编辑成员 -->
-      <Tooltip :title="$t('shared.memberPanel.item.edit')">
-        <Button
-          type="text"
-          size="small"
-          class="hover:!text-primary"
-          @click="handleEdit"
-        >
-          <template #icon>
-            <IconifyIcon icon="lucide:pencil" />
-          </template>
-        </Button>
-      </Tooltip>
+      <span v-access:code="['organization:update_member']">
+        <Tooltip :title="$t('shared.memberPanel.item.edit')">
+          <Button
+            type="text"
+            size="small"
+            class="hover:!text-primary"
+            @click="handleEdit"
+          >
+            <template #icon>
+              <IconifyIcon icon="lucide:pencil" />
+            </template>
+          </Button>
+        </Tooltip>
+      </span>
 
       <!-- Reset password / 重置密码 -->
-      <Tooltip :title="$t('shared.memberPanel.item.resetPassword')">
-        <Button
-          type="text"
-          size="small"
-          class="hover:!text-primary"
-          @click="handleResetPassword"
-        >
-          <template #icon>
-            <IconifyIcon icon="lucide:key-round" />
-          </template>
-        </Button>
-      </Tooltip>
+      <span v-access:code="['organization:reset_password']">
+        <Tooltip :title="$t('shared.memberPanel.item.resetPassword')">
+          <Button
+            type="text"
+            size="small"
+            class="hover:!text-primary"
+            @click="handleResetPassword"
+          >
+            <template #icon>
+              <IconifyIcon icon="lucide:key-round" />
+            </template>
+          </Button>
+        </Tooltip>
+      </span>
 
       <!-- Force logout / 强制下线（仅在线时显示，需权限） -->
       <span
@@ -206,39 +218,42 @@ function handleForceLogout() {
       </span>
 
       <!-- Set/cancel leader / 设置/取消负责人 -->
-      <Tooltip
-        v-if="isLeader"
-        :title="$t('shared.memberPanel.item.cancelLeader')"
-      >
-        <Popconfirm
-          :title="$t('shared.memberPanel.item.cancelLeaderConfirm')"
-          :ok-text="$t('shared.common.confirm')"
-          :cancel-text="$t('shared.common.cancel')"
-          @confirm="handleCancelLeader"
-        >
+      <template v-if="isLeader">
+        <span v-access:code="['organization:set_leader']">
+          <Tooltip :title="$t('shared.memberPanel.item.cancelLeader')">
+            <Popconfirm
+              :title="$t('shared.memberPanel.item.cancelLeaderConfirm')"
+              :ok-text="$t('shared.common.confirm')"
+              :cancel-text="$t('shared.common.cancel')"
+              @confirm="handleCancelLeader"
+            >
+              <Button
+                type="text"
+                size="small"
+                class="!text-warning hover:!bg-warning/10"
+              >
+                <template #icon>
+                  <IconifyIcon icon="lucide:user-round-minus" />
+                </template>
+              </Button>
+            </Popconfirm>
+          </Tooltip>
+        </span>
+      </template>
+      <span v-else v-access:code="['organization:set_leader']">
+        <Tooltip :title="$t('shared.memberPanel.item.setAsLeader')">
           <Button
             type="text"
             size="small"
-            class="!text-warning hover:!bg-warning/10"
+            class="hover:!bg-warning/10 hover:!text-warning"
+            @click="handleSetLeader"
           >
             <template #icon>
-              <IconifyIcon icon="lucide:user-round-minus" />
+              <IconifyIcon icon="lucide:crown" />
             </template>
           </Button>
-        </Popconfirm>
-      </Tooltip>
-      <Tooltip v-else :title="$t('shared.memberPanel.item.setAsLeader')">
-        <Button
-          type="text"
-          size="small"
-          class="hover:!bg-warning/10 hover:!text-warning"
-          @click="handleSetLeader"
-        >
-          <template #icon>
-            <IconifyIcon icon="lucide:crown" />
-          </template>
-        </Button>
-      </Tooltip>
+        </Tooltip>
+      </span>
     </div>
   </div>
 </template>

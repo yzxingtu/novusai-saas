@@ -6,6 +6,11 @@ from __future__ import annotations
 
 from fastapi import HTTPException, Query, Request, status
 
+from app.api.shared._ai_account_guard import (
+    ORGANIZATION_MANAGE_MEMBER_AI_PERMISSION,
+    register_ai_switch_operation_permission,
+    resolve_authorized_ai_enabled_override,
+)
 from app.api.shared._organization_helpers import (
     await_or_raise_http,
     commit_or_raise_http,
@@ -114,6 +119,7 @@ def _serialize_member(member) -> AdminOrgNodeMemberResponse:
         avatar=member.avatar,
         email=member.email,
         is_active=member.is_active,
+        ai_enabled=getattr(member, "ai_enabled", True),
         is_leader=is_leader,
         joined_at=member.created_at,
         role_id=getattr(member, "role_id", None),
@@ -454,6 +460,11 @@ class AdminOrganizationController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             await self._require_manage(db, current_admin, org_node_id)
+            await resolve_authorized_ai_enabled_override(
+                request=request,
+                data=data,
+                permission_code=ORGANIZATION_MANAGE_MEMBER_AI_PERMISSION,
+            )
             admin = await commit_or_raise_http(
                 db,
                 AdminOrgNodeService(db).create_member(
@@ -464,6 +475,7 @@ class AdminOrganizationController(GlobalController):
                     phone=data.phone,
                     nickname=data.nickname,
                     is_active=data.is_active,
+                    ai_enabled=data.ai_enabled,
                 ),
             )
             return success(
@@ -483,6 +495,11 @@ class AdminOrganizationController(GlobalController):
             await self._require_manage(db, current_admin, org_node_id)
             if data.org_node_id is not None:
                 await self._require_manage(db, current_admin, data.org_node_id)
+            await resolve_authorized_ai_enabled_override(
+                request=request,
+                data=data,
+                permission_code=ORGANIZATION_MANAGE_MEMBER_AI_PERMISSION,
+            )
             admin = await commit_or_raise_http(
                 db,
                 AdminOrgNodeService(db).update_member(
@@ -493,6 +510,8 @@ class AdminOrganizationController(GlobalController):
                     nickname=data.nickname,
                     avatar=data.avatar,
                     is_active=data.is_active,
+                    ai_enabled=data.ai_enabled,
+                    update_ai_enabled="ai_enabled" in data.model_fields_set,
                     new_org_node_id=data.org_node_id,
                 ),
             )
@@ -611,6 +630,14 @@ class AdminOrganizationController(GlobalController):
             resource_name="organization",
         )
 
+
+register_ai_switch_operation_permission(
+    scope=PermissionScope.ADMIN,
+    resource="organization",
+    action="manage_member_ai",
+    name="action.organization.manage_member_ai",
+    parent_resource="organization",
+)
 
 router = AdminOrganizationController.get_router()
 

@@ -1,0 +1,35 @@
+{
+  "id": "05-02-admin-account-ai-availability",
+  "name": "05-02-admin-account-ai-availability",
+  "title": "管理员账号级 AI 可用性",
+  "description": "Add account-level AI availability for platform and tenant admins, decouple Ctrl+K command bar from AI chat, enforce backend AI chat hard guards, and add assignable AI switch management permissions.",
+  "status": "active",
+  "dev_type": "fullstack",
+  "scope": "fullstack-ai-permissions",
+  "priority": "P1",
+  "creator": "yudi",
+  "assignee": "yudi",
+  "createdAt": "2026-05-02",
+  "completedAt": null,
+  "branch": "codex/admin-account-ai-availability",
+  "base_branch": "main",
+  "worktree_path": null,
+  "execution_path": "deep",
+  "required_artifacts": [
+    "prd.md",
+    "info.md"
+  ],
+  "context_files": [
+    "implement.jsonl",
+    "check.jsonl"
+  ],
+  "verification_mode": "command",
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

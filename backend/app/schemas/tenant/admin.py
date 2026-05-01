@@ -38,11 +38,15 @@ class TenantAdminResponse(BaseSchema):
     nickname: str | None = Field(None, description="昵称")
     avatar: str | None = Field(None, description="头像附件 ID（兼容旧 URL 值）")
     is_active: bool = Field(..., description="是否激活")
+    ai_enabled: bool = Field(True, description="账号级 AI 对话开关")
     is_owner: bool = Field(..., description="是否企业所有者")
     role_id: int | None = Field(None, description="角色 ID")
     role_name: str | None = Field(None, description="角色名称")
     has_plan: bool = Field(True, description="企业是否已分配套餐")
     plan_name: str | None = Field(None, description="套餐名称")
+    tenant_ai_enabled: bool = Field(True, description="企业套餐/配额 AI 开关")
+    effective_ai_enabled: bool = Field(True, description="当前账号实际是否可用 AI")
+    ai_unavailable_reason: str | None = Field(None, description="AI 不可用原因代码")
     last_login_at: datetime | None = Field(None, description="最后登录时间")
     created_at: datetime = Field(..., description="创建时间")
 
@@ -52,8 +56,17 @@ class TenantAdminResponse(BaseSchema):
         admin,
         has_plan: bool = True,
         plan_name: str | None = None,
+        tenant_ai_enabled: bool = True,
+        effective_ai_enabled: bool | None = None,
+        ai_unavailable_reason: str | None = None,
     ) -> "TenantAdminResponse":
         """从模型创建响应，包含角色名称和套餐状态 / Build response from model with role name and plan status."""
+        account_ai_enabled = getattr(admin, "ai_enabled", True)
+        effective_ai_enabled = (
+            account_ai_enabled and tenant_ai_enabled
+            if effective_ai_enabled is None
+            else effective_ai_enabled
+        )
         return cls(
             id=admin.id,
             tenant_id=admin.tenant_id,
@@ -63,11 +76,15 @@ class TenantAdminResponse(BaseSchema):
             nickname=admin.nickname,
             avatar=admin.avatar,
             is_active=admin.is_active,
+            ai_enabled=account_ai_enabled,
             is_owner=admin.is_owner,
             role_id=admin.role_id,
             role_name=admin.role.name if admin.role else None,
             has_plan=has_plan,
             plan_name=plan_name,
+            tenant_ai_enabled=tenant_ai_enabled,
+            effective_ai_enabled=effective_ai_enabled,
+            ai_unavailable_reason=ai_unavailable_reason,
             last_login_at=admin.last_login_at,
             created_at=admin.created_at,
         )
@@ -84,6 +101,7 @@ class TenantAdminCreateRequest(BaseSchema):
     phone: str | None = Field(None, description="手机号")
     nickname: str | None = Field(None, description="昵称")
     is_active: bool = Field(True, description="是否激活")
+    ai_enabled: bool = Field(True, description="账号级 AI 对话开关")
     is_owner: bool = Field(False, description="是否企业所有者")
     role_id: int | None = Field(None, description="角色 ID")
 
@@ -96,6 +114,7 @@ class TenantAdminUpdateRequest(BaseSchema):
     nickname: str | None = Field(None, description="昵称")
     avatar: str | None = Field(None, description="头像附件 ID（兼容旧 URL 值）")
     is_active: bool | None = Field(None, description="是否激活")
+    ai_enabled: bool | None = Field(None, description="账号级 AI 对话开关")
     is_owner: bool | None = Field(None, description="是否企业所有者")
     role_id: int | None = Field(None, description="角色 ID")
 

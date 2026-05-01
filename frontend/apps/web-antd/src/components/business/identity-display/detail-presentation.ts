@@ -250,6 +250,11 @@ function buildDetailAccountRows(
       value: getIdentityStatusLabel(detail.isActive),
     },
     {
+      key: 'ai-chat',
+      label: $t('shared.identity.field.aiChat'),
+      value: getIdentityStatusLabel(detail.aiEnabled),
+    },
+    {
       key: 'approval-status',
       label: $t('shared.identity.field.approvalStatus'),
       value: detail.approvalStatus
@@ -300,7 +305,12 @@ export function buildIdentitySummaryRows(
 export function buildIdentityStatusChips(
   detail: Pick<
     IdentityDetail,
-    'isActive' | 'isLeader' | 'isOwner' | 'userType' | 'userTypeLabel'
+    | 'aiEnabled'
+    | 'isActive'
+    | 'isLeader'
+    | 'isOwner'
+    | 'userType'
+    | 'userTypeLabel'
   >,
 ): IdentityStatusChip[] {
   const chips: IdentityStatusChip[] = [];
@@ -345,6 +355,14 @@ export function buildIdentityStatusChips(
       color: 'default',
       key: 'disabled',
       label: $t('shared.common.statusDisabled'),
+    });
+  }
+
+  if (detail.aiEnabled === false) {
+    pushChip({
+      color: 'default',
+      key: 'ai-disabled',
+      label: $t('shared.identity.field.aiDisabled'),
     });
   }
 

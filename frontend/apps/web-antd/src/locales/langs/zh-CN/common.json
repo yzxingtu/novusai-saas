@@ -720,6 +720,9 @@
     "searchResults": "搜索结果",
     "resultsCount": "{count} 个结果",
     "sendToAI": "发送给 AI",
+    "menuSearchPlaceholder": "搜索菜单或页面，Enter 跳转",
+    "searchOnlyHint": "当前仅可搜索菜单",
+    "aiDisabledHint": "当前账号未启用 AI 对话，可继续搜索菜单。",
     "navigateTo": "跳转"
   },
   "aiPanel": {

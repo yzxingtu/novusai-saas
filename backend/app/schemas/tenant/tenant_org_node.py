@@ -175,6 +175,7 @@ class TenantOrgNodeCreateMemberRequest(BaseSchema):
     phone: str | None = Field(None, description="Phone")
     nickname: str | None = Field(None, description="Nickname")
     is_active: bool = Field(True, description="Whether the tenant admin is active")
+    ai_enabled: bool = Field(True, description="Whether AI chat is enabled")
     role_id: int | None = Field(None, description="Permission role ID")
 
 
@@ -188,6 +189,7 @@ class TenantOrgNodeUpdateMemberRequest(BaseSchema):
     is_active: bool | None = Field(
         None, description="Whether the tenant admin is active"
     )
+    ai_enabled: bool | None = Field(None, description="Whether AI chat is enabled")
     org_node_id: int | None = Field(None, description="New organization node ID")
     role_id: int | None = Field(None, description="Permission role ID")
 
@@ -215,6 +217,7 @@ class TenantOrgNodeMemberResponse(BaseSchema):
     avatar: str | None = Field(None, description="Avatar")
     email: str = Field(..., description="Email")
     is_active: bool = Field(True, description="Whether the tenant admin is active")
+    ai_enabled: bool = Field(True, description="Whether AI chat is enabled")
     is_leader: bool = Field(
         False, description="Whether the tenant admin is the node leader"
     )

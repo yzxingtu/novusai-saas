@@ -36,6 +36,7 @@ from app.schemas.ai.agent_chat import (
     AgentRouteRequest,
     UpdateConversationTitleRequest,
 )
+from app.services.ai.account_ai_access_service import AccountAIAccessService
 from app.services.ai.agent_chat_service import AgentChatService
 from app.services.ai.agent_service import AgentService
 from app.services.ai.conversation_service import ConversationService
@@ -95,6 +96,14 @@ class TenantAgentChatController(TenantController):
                     message=_("agent.access.error.no_permission"),
                 )
 
+        async def _ensure_ai_chat_enabled(
+            db: DbSession,
+            tenant_admin: ActiveTenantAdmin,
+        ) -> None:
+            await AccountAIAccessService(db).require_tenant_admin_ai_access(
+                tenant_admin
+            )
+
         @router.post("/{agent_id}/chat", summary="发送对话消息（非流式）")
         @action_create("action.agent_chat.chat")
         async def chat(
@@ -112,6 +121,7 @@ class TenantAgentChatController(TenantController):
 
             权限 / Permission: agent_chat:chat
             """
+            await _ensure_ai_chat_enabled(db, tenant_admin)
             await _check_agent_access(
                 db,
                 tenant_admin.tenant_id,
@@ -173,6 +183,7 @@ class TenantAgentChatController(TenantController):
 
             权限 / Permission: agent_chat:stream
             """
+            await _ensure_ai_chat_enabled(db, tenant_admin)
             await _check_agent_access(
                 db,
                 tenant_admin.tenant_id,
@@ -239,6 +250,7 @@ class TenantAgentChatController(TenantController):
 
             权限 / Permission: agent_chat:route
             """
+            await _ensure_ai_chat_enabled(db, tenant_admin)
             return await handle_route(
                 db,
                 tenant_id=tenant_admin.tenant_id,
@@ -275,6 +287,7 @@ class TenantAgentChatController(TenantController):
 
             权限 / Permission: agent_chat:conversations
             """
+            await _ensure_ai_chat_enabled(db, tenant_admin)
             service = ConversationService(db, tenant_admin.tenant_id)
             from app.schemas.common.query import FilterRule
 
@@ -313,6 +326,7 @@ class TenantAgentChatController(TenantController):
 
             权限 / Permission: agent_chat:conversation_detail
             """
+            await _ensure_ai_chat_enabled(db, tenant_admin)
             service = ConversationService(db, tenant_admin.tenant_id)
             result = await service.get_conversation_detail(
                 conversation_id,
@@ -332,6 +346,7 @@ class TenantAgentChatController(TenantController):
             conversation_id: int,
             tenant_admin: ActiveTenantAdmin,
         ):
+            await _ensure_ai_chat_enabled(db, tenant_admin)
             service = ConversationService(db, tenant_admin.tenant_id)
             await service.get_accessible_conversation(
                 conversation_id,
@@ -352,6 +367,7 @@ class TenantAgentChatController(TenantController):
             conversation_id: int,
             tenant_admin: ActiveTenantAdmin,
         ):
+            await _ensure_ai_chat_enabled(db, tenant_admin)
             service = ConversationService(db, tenant_admin.tenant_id)
             timeline = await service.get_conversation_timeline(
                 conversation_id,
@@ -376,6 +392,7 @@ class TenantAgentChatController(TenantController):
 
             权限 / Permission: agent_chat:delete_conversation
             """
+            await _ensure_ai_chat_enabled(db, tenant_admin)
             service = ConversationService(db, tenant_admin.tenant_id)
             await service.delete_accessible_conversation(
                 conversation_id,
@@ -398,6 +415,7 @@ class TenantAgentChatController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """更新对话标题 / Update conversation title"""
+            await _ensure_ai_chat_enabled(db, tenant_admin)
             service = ConversationService(db, tenant_admin.tenant_id)
             conv = await service.update_conversation_title(
                 conversation_id,
@@ -422,6 +440,7 @@ class TenantAgentChatController(TenantController):
             """
             获取当前会话的记忆状态（偏好/约束/任务/事实） / Get current conversation memory state (preferences/constraints/tasks/facts)
             """
+            await _ensure_ai_chat_enabled(db, tenant_admin)
             service = ConversationService(db, tenant_admin.tenant_id)
             state = await service.get_conversation_memory_state(
                 conversation_id,
@@ -444,6 +463,7 @@ class TenantAgentChatController(TenantController):
             """
             清空当前会话的记忆状态（仅当前企业当前用户） / Clear current conversation memory state (current tenant and user only)
             """
+            await _ensure_ai_chat_enabled(db, tenant_admin)
             service = ConversationService(db, tenant_admin.tenant_id)
             deleted_count = await service.clear_conversation_memory_state(
                 conversation_id,
@@ -467,6 +487,7 @@ class TenantAgentChatController(TenantController):
             conversation_id: int,
             tenant_admin: ActiveTenantAdmin,
         ):
+            await _ensure_ai_chat_enabled(db, tenant_admin)
             service = ConversationService(db, tenant_admin.tenant_id)
             snapshot = await service.rebuild_context_compaction_snapshot(
                 conversation_id,
@@ -475,25 +496,6 @@ class TenantAgentChatController(TenantController):
             )
             await db.commit()
             return success(data=snapshot or {})
-
-        @router.get(
-            "/conversations/{conversation_id}/timeline",
-            summary="获取会话运行时间线",
-        )
-        @action_read("action.agent_chat.conversation_detail")
-        async def get_conversation_run_timeline(
-            request: Request,
-            db: DbSession,
-            conversation_id: int,
-            tenant_admin: ActiveTenantAdmin,
-        ):
-            service = ConversationService(db, tenant_admin.tenant_id)
-            items = await service.get_conversation_timeline(
-                conversation_id,
-                user_id=tenant_admin.id,
-                owner_type=ConversationOwnerTypeEnum.TENANT_ADMIN.value,
-            )
-            return success(data=items)
 
 
 # 导出路由器 / Export router

@@ -50,6 +50,7 @@ import {
 import { useUserPreferenceStore } from '#/store/shared';
 import { usePluginSlotsStore } from '#/stores/plugin-slots';
 import { getEndpointFromPath } from '#/utils';
+import { AI_AVAILABILITY_INVALIDATED_EVENT } from '#/utils/request/ai-availability-events';
 
 import { syncLocaleNavigation } from './locale-navigation-sync';
 
@@ -77,7 +78,7 @@ const { initSnapshot, skipSync } = usePreferenceSync();
 
 // ============ AI Panel / AI 面板 ============
 
-const { aiEnabled } = useAIEntryPolicy();
+const { aiChatEnabled, commandBarEnabled } = useAIEntryPolicy();
 
 const apiPrefix = computed(() => {
   const path = router.currentRoute.value.path;
@@ -104,7 +105,7 @@ const uploadUrl = computed(() => `${apiPrefix.value}/attachments/upload`);
 
 /** AI Panel 固定时的右侧偏移量（页面禁用 AI 时归零） / AI Panel right offset */
 const aiPanelRightOffset = computed(() => {
-  if (!aiEnabled.value || !aiPanelStore.visible || !aiPanelStore.docked) {
+  if (!aiChatEnabled.value || !aiPanelStore.visible || !aiPanelStore.docked) {
     return 0;
   }
   return aiPanelStore.panelWidth;
@@ -119,11 +120,19 @@ const pendingConversationId = computed(
 );
 
 function onCommandBarSubmit(text: string) {
+  if (!aiChatEnabled.value) {
+    aiPanelStore.clearPendingContext();
+    return;
+  }
   aiPanelStore.queueMessage(text);
   aiPanelStore.open();
 }
 
 function onCommandBarSelectConversation(convId: number) {
+  if (!aiChatEnabled.value) {
+    aiPanelStore.clearPendingContext();
+    return;
+  }
   aiPanelStore.queueConversationRestore(convId);
   aiPanelStore.open();
 }
@@ -134,6 +143,38 @@ function onMessageSent() {
 
 function onConversationRestored() {
   aiPanelStore.consumePendingConversationId();
+}
+
+watch(
+  aiChatEnabled,
+  (enabled) => {
+    aiPanelStore.setChatAvailable(enabled);
+  },
+  { immediate: true },
+);
+
+let aiAvailabilityRefreshTask: null | Promise<void> = null;
+
+function refreshAIAvailabilityFromServer() {
+  if (aiAvailabilityRefreshTask) {
+    return aiAvailabilityRefreshTask;
+  }
+
+  aiAvailabilityRefreshTask = (async () => {
+    const endpoint = getEndpointFromPath(router.currentRoute.value.path);
+    if (endpoint !== 'admin' && endpoint !== 'tenant') {
+      return;
+    }
+    await multiAuthStore.fetchUserInfo(endpoint);
+  })().finally(() => {
+    aiAvailabilityRefreshTask = null;
+  });
+
+  return aiAvailabilityRefreshTask;
+}
+
+function onAIAvailabilityInvalidated() {
+  void refreshAIAvailabilityFromServer().catch(() => {});
 }
 
 /** CommandBar 组件引用 / CommandBar component ref */
@@ -197,6 +238,10 @@ watch(
 
 onMounted(async () => {
   updatePreferences({ copyright: { settingShow: false } });
+  window.addEventListener(
+    AI_AVAILABILITY_INVALIDATED_EVENT,
+    onAIAvailabilityInvalidated,
+  );
 
   socketIOStore.connect();
   // 设置通知端类型后再加载未读数（避免默认 admin 端导致 401）
@@ -218,6 +263,10 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => {
+  window.removeEventListener(
+    AI_AVAILABILITY_INVALIDATED_EVENT,
+    onAIAvailabilityInvalidated,
+  );
   clearDisconnectToast();
 });
 
@@ -501,7 +550,7 @@ watch(
     </template>
     <template #header-right-51>
       <div
-        v-if="aiEnabled"
+        v-if="commandBarEnabled"
         class="group relative mr-1 flex h-8 cursor-pointer items-center gap-2 rounded-full border px-3 py-0.5 shadow-sm transition-colors sm:mr-4"
         :class="
           aiPanelStore.hasUnread
@@ -544,16 +593,16 @@ watch(
         <ReLoginForm />
       </AuthenticationLoginExpiredModal>
       <CommandBar
-        v-if="aiEnabled"
+        v-if="commandBarEnabled"
         ref="commandBarRef"
         :api-prefix="apiPrefix"
-        :can-chat="aiEnabled"
+        :can-chat="aiChatEnabled"
         :menus="accessStore.accessMenus"
         @submit="onCommandBarSubmit"
         @select-conversation="onCommandBarSelectConversation"
       />
       <AIChatSlidePanel
-        v-if="aiEnabled"
+        v-if="aiChatEnabled"
         :api-prefix="apiPrefix"
         :upload-url="uploadUrl"
         :pending-message="pendingMessage"

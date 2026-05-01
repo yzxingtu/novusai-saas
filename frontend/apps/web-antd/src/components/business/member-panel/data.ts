@@ -32,6 +32,8 @@ export interface MemberRoleOption {
 export function useAdminFormSchema(options: {
   /** API prefix / API 前缀 */
   apiPrefix?: 'admin' | 'tenant';
+  /** Whether current operator can manage account AI availability / 是否可管理账号 AI 对话开关 */
+  canManageAi?: boolean;
   /** Whether in edit mode / 是否编辑模式 */
   isEdit?: boolean;
   /** Whether to lock assignment to the current node (create mode) / 是否在新建时锁定组织节点 */
@@ -47,6 +49,7 @@ export function useAdminFormSchema(options: {
 }): VbenFormSchema[] {
   const {
     apiPrefix = 'admin',
+    canManageAi = false,
     isEdit = false,
     nodeName,
     nodeId,
@@ -217,6 +220,18 @@ export function useAdminFormSchema(options: {
       fieldName: 'is_active',
       label: $t('admin.common.accountStatus'),
     },
+    {
+      component: 'Switch',
+      componentProps: {
+        checkedChildren: $t('shared.common.enabled'),
+        disabled: !canManageAi,
+        unCheckedChildren: $t('shared.common.disabled'),
+      },
+      defaultValue: true,
+      fieldName: 'ai_enabled',
+      label: $t('shared.memberPanel.aiConversation'),
+      help: canManageAi ? undefined : $t('shared.memberPanel.aiReadonlyHelp'),
+    },
   ];
 }
 
@@ -234,6 +249,7 @@ export function getAdminFormDefaults(
 ): Record<string, unknown> {
   return {
     is_active: true,
+    ai_enabled: true,
     org_node_display: nodeName || $t('shared.common.notAssigned'),
     org_node_id: nodeId ?? undefined,
     ...(apiPrefix === 'tenant' ? { role_id: undefined } : {}),

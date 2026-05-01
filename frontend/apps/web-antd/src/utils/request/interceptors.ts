@@ -21,6 +21,7 @@ import { h } from 'vue';
 import { Button, notification } from 'ant-design-vue';
 import axios from 'axios';
 
+import { notifyAIAccessDenied } from './ai-availability-events';
 import { isDevErrorMode } from './app-env';
 import { formatAppErrorMessage, normalizeHttpError } from './app-error';
 import { getEndpointByUrl } from './endpoint';
@@ -540,6 +541,7 @@ export function createBusinessErrorInterceptor(messageHandler: MessageHandler) {
       const responseData = error?.response?.data;
       const status = error?.response?.status;
       const appError = normalizeHttpError(error, messageHandler.t);
+      notifyAIAccessDenied(responseData);
 
       // 显示业务错误消息 / show biz error toast
       if (

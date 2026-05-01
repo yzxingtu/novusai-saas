@@ -87,6 +87,7 @@ def serialize_admin_identity_detail(admin: Any) -> dict[str, Any]:
     role = getattr(admin, "role", None)
     is_leader = bool(org_node and getattr(org_node, "leader_id", None) == admin.id)
     extra = {
+        "ai_enabled": getattr(admin, "ai_enabled", True),
         "is_super": getattr(admin, "is_super", False),
     }
     return _build_identity_payload(
@@ -116,6 +117,7 @@ def serialize_tenant_admin_identity_detail(admin: Any) -> dict[str, Any]:
     role = getattr(admin, "role", None)
     is_leader = bool(org_node and getattr(org_node, "leader_id", None) == admin.id)
     extra = {
+        "ai_enabled": getattr(admin, "ai_enabled", True),
         "permission_role_id": getattr(role, "id", None),
         "permission_role_name": getattr(role, "name", None),
     }

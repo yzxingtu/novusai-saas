@@ -10,6 +10,7 @@ export interface IdentityDisplayBadge {
 export type IdentityValue = number | string;
 
 export interface IdentityDisplayModel {
+  aiEnabled?: boolean;
   avatar?: null | string;
   badges?: readonly IdentityDisplayBadge[];
   displayName?: null | string;
@@ -46,6 +47,8 @@ export interface IdentityDisplaySource extends IdentityDisplayModel {
 }
 
 export interface IdentitySelectOptionExtra {
+  ai_enabled?: boolean;
+  aiEnabled?: boolean;
   avatar?: null | string;
   displayName?: null | string;
   nickname?: null | string;
@@ -160,6 +163,7 @@ export function resolveIdentityDisplayModel(
 ): ResolvedIdentityDisplayModel {
   return {
     ...model,
+    aiEnabled: model.aiEnabled,
     badges: (model.badges ?? []).filter((badge) => badge.label.trim()),
     displayName: firstNonEmpty(model.displayName),
     nickname: firstNonEmpty(model.nickname),
@@ -219,8 +223,12 @@ export function identityModelFromOption(
     });
   }
 
+  const extra = option.extra ?? {};
+  const rawAIEnabled = extra.aiEnabled ?? extra.ai_enabled;
+
   return createIdentityDisplayModel({
-    ...option.extra,
+    ...extra,
+    aiEnabled: typeof rawAIEnabled === 'boolean' ? rawAIEnabled : undefined,
     displayName: option.extra?.displayName || option.label,
     id: option.value,
   });
@@ -236,6 +244,7 @@ export function normalizeIdentitySelectOption(
     label: option.label || identity.displayName || `#${String(option.value)}`,
     extra: {
       ...option.extra,
+      aiEnabled: identity.aiEnabled,
       avatar: identity.avatar,
       displayName: identity.displayName,
       nickname: identity.nickname,

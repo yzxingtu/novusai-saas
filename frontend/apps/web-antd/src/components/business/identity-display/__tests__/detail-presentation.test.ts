@@ -1,3 +1,5 @@
+// Test type: structural
+// Verifies: identity detail presentation rows preserve account AI status.
 import type { IdentityDetail } from '../identity-detail';
 
 import { describe, expect, it, vi } from 'vitest';
@@ -101,5 +103,19 @@ describe('detail presentation', () => {
     expect(formatIdentityDateTime('2026-02-08T20:28:24.941275+00:00')).toBe(
       '2026-02-09 04:28:24',
     );
+  });
+
+  it('shows account-level AI chat status in account rows', () => {
+    const detail = {
+      aiEnabled: false,
+      isActive: true,
+      username: 'platform.admin',
+    } as IdentityDetail;
+
+    expect(buildIdentitySummaryRows(detail, 'detail-account')).toContainEqual({
+      key: 'ai-chat',
+      label: 'shared.identity.field.aiChat',
+      value: 'shared.common.statusDisabled',
+    });
   });
 });

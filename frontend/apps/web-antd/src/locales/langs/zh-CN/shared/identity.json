@@ -18,6 +18,8 @@
     "title": "人物详情"
   },
   "field": {
+    "aiChat": "AI 对话",
+    "aiDisabled": "AI 关闭",
     "approvalStatus": "审批状态",
     "createdAt": "创建时间",
     "email": "邮箱",

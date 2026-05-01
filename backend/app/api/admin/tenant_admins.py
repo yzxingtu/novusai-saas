@@ -10,6 +10,11 @@ Uses independent resource code tenant_admin, permissions separated from tenant r
 from fastapi import Query, Request
 from pydantic import BaseModel, Field
 
+from app.api.shared._ai_account_guard import (
+    TENANT_ADMIN_MANAGE_AI_PERMISSION,
+    register_ai_switch_operation_permission,
+    resolve_authorized_ai_enabled_override,
+)
 from app.core.base_controller import GlobalController
 from app.core.deps import ActiveAdmin, DbSession
 from app.core.i18n import _
@@ -37,6 +42,7 @@ class TenantAdminCreateRequest(BaseModel):
     email: str = Field(..., max_length=255)
     password: str = Field(..., min_length=6, max_length=100)
     nickname: str | None = Field(None, max_length=100)
+    ai_enabled: bool = Field(True)
     role_id: int | None = Field(None)
     org_node_id: int | None = Field(None)
 
@@ -46,6 +52,7 @@ class TenantAdminUpdateRequest(BaseModel):
 
     password: str | None = Field(None, min_length=6, max_length=100)
     nickname: str | None = Field(None, max_length=100)
+    ai_enabled: bool | None = Field(None)
     role_id: int | None = Field(None)
     org_node_id: int | None = Field(None)
     is_active: bool | None = Field(None)
@@ -162,6 +169,11 @@ class AdminTenantAdminController(GlobalController):
             - 自动设置 tenant_id 和 is_owner=False / Auto-set tenant_id and is_owner=False
             - 验证用户名/邮箱在该企业内唯一 / Validate username/email uniqueness within the tenant
             """
+            await resolve_authorized_ai_enabled_override(
+                request=request,
+                data=data,
+                permission_code=TENANT_ADMIN_MANAGE_AI_PERMISSION,
+            )
             workflow = TenantAdminWorkflowService(db)
             new_admin = await workflow.create_tenant_admin(
                 tenant_id=tenant_id,
@@ -187,6 +199,11 @@ class AdminTenantAdminController(GlobalController):
             至少需要一个字段有值。
             At least one field must have a value.
             """
+            await resolve_authorized_ai_enabled_override(
+                request=request,
+                data=data,
+                permission_code=TENANT_ADMIN_MANAGE_AI_PERMISSION,
+            )
             workflow = TenantAdminWorkflowService(db)
             updated_admin = await workflow.update_tenant_admin(
                 tenant_id=tenant_id,
@@ -239,6 +256,14 @@ class AdminTenantAdminController(GlobalController):
             )
             return success(message=message)
 
+
+register_ai_switch_operation_permission(
+    scope=PermissionScope.ADMIN,
+    resource="tenant_admin",
+    action="manage_ai",
+    name="action.tenant_admin.manage_ai",
+    parent_resource="tenant",
+)
 
 # 创建 router（GlobalController 自动注册路由） / Create router (GlobalController auto-registers routes)
 _controller = AdminTenantAdminController()

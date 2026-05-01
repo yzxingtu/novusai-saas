@@ -270,18 +270,23 @@ onMounted(() => {
             </template>
           </Button>
         </Tooltip>
-        <Tooltip
-          v-if="!allowMembers"
-          :title="$t('shared.memberPanel.nodeTypeNotAllowMembers')"
+        <template v-if="!allowMembers">
+          <span v-access:code="['organization:create_member']">
+            <Tooltip :title="$t('shared.memberPanel.nodeTypeNotAllowMembers')">
+              <Button type="primary" size="small" disabled>
+                <template #icon>
+                  <IconifyIcon icon="lucide:user-plus" />
+                </template>
+                {{ $t('shared.memberPanel.createMember') }}
+              </Button>
+            </Tooltip>
+          </span>
+        </template>
+        <div
+          v-else
+          v-access:code="['organization:create_member']"
+          class="flex items-center gap-2"
         >
-          <Button type="primary" size="small" disabled>
-            <template #icon>
-              <IconifyIcon icon="lucide:user-plus" />
-            </template>
-            {{ $t('shared.memberPanel.createMember') }}
-          </Button>
-        </Tooltip>
-        <div v-else class="flex items-center gap-2">
           <Tooltip :title="$t('shared.memberPanel.createTooltip')">
             <Button
               type="primary"

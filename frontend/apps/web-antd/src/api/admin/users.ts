@@ -10,6 +10,7 @@ import { requestClient } from '#/utils/request';
 const API_PREFIX = '/admin/users';
 
 export interface AdminIdentitySelectExtra {
+  ai_enabled?: boolean;
   avatar?: null | string;
   display_name?: null | string;
   display_role_name?: null | string;
@@ -25,6 +26,7 @@ export interface AdminIdentitySelectExtra {
 }
 
 export interface AdminIdentityDetail {
+  ai_enabled?: boolean;
   avatar?: null | string;
   created_at?: null | string;
   display_name?: null | string;

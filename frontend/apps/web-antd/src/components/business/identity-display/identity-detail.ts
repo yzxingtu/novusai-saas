@@ -28,6 +28,7 @@ export type IdentitySubjectType =
   | 'unknown';
 
 export interface IdentityDetail extends Omit<IdentityDisplayModel, 'id'> {
+  aiEnabled?: boolean;
   approvalStatus?: null | string;
   createdAt?: null | string;
   detailScope?: IdentityDetailScope;
@@ -148,6 +149,7 @@ export function toIdentityDetailFallback(
   const source = detail as IdentityDisplayModel & Partial<IdentityDetail>;
   return {
     ...source,
+    aiEnabled: source.aiEnabled,
     approvalStatus: toOptionalString(source.approvalStatus),
     badges: source.badges ? [...source.badges] : undefined,
     createdAt: toOptionalString(source.createdAt),
@@ -232,6 +234,7 @@ function normalizeIdentityDetail(
 
   return {
     ...displayModel,
+    aiEnabled: merged.aiEnabled,
     approvalStatus: merged.approvalStatus,
     createdAt: merged.createdAt,
     detailScope: request.scope,
@@ -347,6 +350,7 @@ function mapAdminIdentityDetail(
   detail: AdminIdentityDetail,
 ): Partial<IdentityDetail> {
   return {
+    aiEnabled: detail.ai_enabled ?? true,
     avatar: detail.avatar,
     createdAt: detail.created_at,
     displayName: detail.display_name ?? undefined,
@@ -373,6 +377,7 @@ function mapTenantAdminIdentityDetail(
   detail: AdminTenantAdminIdentityDetail | TenantAdminIdentityDetail,
 ): Partial<IdentityDetail> {
   return {
+    aiEnabled: detail.ai_enabled ?? true,
     avatar: detail.avatar,
     createdAt: detail.created_at,
     displayName: detail.display_name ?? undefined,

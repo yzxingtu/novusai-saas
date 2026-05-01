@@ -823,6 +823,8 @@
             "rate_limit_not_found": "Rate limit configuration not found",
             "quota_duplicate_active": "Only one active quota rule is allowed for the same tenant, model scope, and period",
             "rate_limit_duplicate_active": "Only one active rate-limit rule is allowed for the same tenant and model",
+            "account_ai_disabled": "AI chat is disabled for this account",
+            "tenant_plan_ai_disabled": "AI chat is disabled by the tenant plan",
             "fallback_self_reference": "Fallback model cannot reference itself",
             "embedding_empty_result": "Embedding returned empty result",
             "embedding_model_not_configured": "Embedding model not configured for this knowledge base",
@@ -1089,6 +1091,7 @@
             "reorder": "Reorder",
             "create_member": "Create Member",
             "update_member": "Update Member",
+            "manage_member_ai": "Manage member AI access",
             "reset_password": "Reset Password",
             "toggle_status": "Toggle Status",
             "update_authority": "Update Organization Authority Scope",
@@ -1131,6 +1134,7 @@
             "list": "View Tenant Admin List",
             "create": "Create Tenant Admin",
             "update": "Update Tenant Admin",
+            "manage_ai": "Manage tenant admin AI access",
             "force_logout": "Force Logout"
         },
         "tenant_settings": {

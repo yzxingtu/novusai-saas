@@ -18,6 +18,8 @@
     "title": "Identity detail"
   },
   "field": {
+    "aiChat": "AI Chat",
+    "aiDisabled": "AI Off",
     "approvalStatus": "Approval status",
     "createdAt": "Created at",
     "email": "Email",

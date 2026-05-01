@@ -114,6 +114,8 @@
     "passwordPlaceholder": "请输入密码",
     "nickname": "昵称",
     "nicknamePlaceholder": "请输入昵称（可选）",
+    "aiConversation": "AI 对话",
+    "aiReadonlyHelp": "仅拥有 AI 对话开关管理权限的账号可修改",
     "formRequired": "请填写用户名、邮箱和密码"
   },
   "resetPassword": "重置密码",

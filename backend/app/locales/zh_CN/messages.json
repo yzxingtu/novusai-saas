@@ -820,6 +820,8 @@
             "rate_limit_not_found": "速率限制配置不存在",
             "quota_duplicate_active": "同一企业、同一模型范围、同一周期只允许存在一条启用中的配额规则",
             "rate_limit_duplicate_active": "同一企业、同一模型只允许存在一条启用中的速率限制规则",
+            "account_ai_disabled": "当前账号已关闭 AI 对话权限",
+            "tenant_plan_ai_disabled": "当前企业套餐未启用 AI 对话",
             "fallback_self_reference": "备用模型不能指向自身",
             "embedding_empty_result": "Embedding 返回空结果",
             "embedding_model_not_configured": "该知识库未配置 Embedding 模型",
@@ -1083,6 +1085,7 @@
             "reorder": "重新排序",
             "create_member": "创建成员",
             "update_member": "更新成员",
+            "manage_member_ai": "管理成员 AI 开关",
             "reset_password": "重置密码",
             "toggle_status": "切换状态",
             "update_authority": "更新组织权限范围",
@@ -1125,6 +1128,7 @@
             "list": "查看企业管理员列表",
             "create": "创建企业管理员",
             "update": "编辑企业管理员",
+            "manage_ai": "管理企业管理员 AI 开关",
             "force_logout": "强制下线"
         },
         "tenant_settings": {

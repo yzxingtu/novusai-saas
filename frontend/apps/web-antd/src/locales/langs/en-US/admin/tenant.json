@@ -114,6 +114,8 @@
     "passwordPlaceholder": "Enter password",
     "nickname": "Nickname",
     "nicknamePlaceholder": "Enter nickname (optional)",
+    "aiConversation": "AI Chat",
+    "aiReadonlyHelp": "Only accounts with AI chat switch management permission can edit this",
     "formRequired": "Username, email and password are required"
   },
   "resetPassword": "Reset Password",

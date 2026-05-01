@@ -15,6 +15,8 @@
   "permissionRole": "功能权限",
   "selectPermissionRole": "请选择功能权限",
   "permissionRoleHelp": "这里仅控制菜单/API 权限，不影响组织层级与数据范围",
+  "aiConversation": "AI 对话",
+  "aiReadonlyHelp": "仅拥有 AI 对话开关管理权限的账号可修改",
   "leader": "负责人",
   "members": "成员",
   "emptySearch": "未找到匹配的成员",

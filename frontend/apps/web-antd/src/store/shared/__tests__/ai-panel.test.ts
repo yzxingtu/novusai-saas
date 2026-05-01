@@ -68,4 +68,39 @@ describe('useAIPanelStore', () => {
       },
     ]);
   });
+
+  it('rejects external AI panel context while chat is unavailable', () => {
+    const store = useAIPanelStore();
+
+    store.setChatAvailable(false);
+    const opened = store.openWithContext({
+      agentId: 8,
+      conversationId: 12,
+      message: 'send later',
+    });
+    store.queueInteractionUpdate({
+      kind: 'pending_confirmation',
+      tool_name: 'web_search',
+    });
+
+    expect(opened).toBe(false);
+    expect(store.visible).toBe(false);
+    expect(store.pendingAgentId).toBeUndefined();
+    expect(store.pendingConversationId).toBeNull();
+    expect(store.pendingMessage).toBeNull();
+    expect(store.consumeInteractionUpdates()).toEqual([]);
+
+    store.setChatAvailable(true);
+    expect(
+      store.openWithContext({
+        agentId: 8,
+        conversationId: 12,
+        message: 'send later',
+      }),
+    ).toBe(true);
+    expect(store.visible).toBe(true);
+    expect(store.consumePendingAgentId()).toBe(8);
+    expect(store.consumePendingConversationId()).toBe(12);
+    expect(store.consumePendingMessage()).toBe('send later');
+  });
 });

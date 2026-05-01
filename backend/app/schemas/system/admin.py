@@ -32,6 +32,7 @@ class AdminResponse(BaseSchema):
     nickname: str | None = Field(None, description="昵称")
     avatar: str | None = Field(None, description="头像附件 ID（兼容旧 URL 值）")
     is_active: bool = Field(..., description="是否激活")
+    ai_enabled: bool = Field(True, description="是否允许使用 AI 对话")
     is_super: bool = Field(..., description="是否超级管理员")
     role_id: int | None = Field(None, description="角色 ID")
     role_name: str | None = Field(None, description="角色名称")
@@ -49,6 +50,7 @@ class AdminResponse(BaseSchema):
             nickname=admin.nickname,
             avatar=admin.avatar,
             is_active=admin.is_active,
+            ai_enabled=getattr(admin, "ai_enabled", True),
             is_super=admin.is_super,
             role_id=admin.role_id,
             role_name=admin.role.name if admin.role else None,
@@ -66,6 +68,7 @@ class AdminCreateRequest(BaseSchema):
     phone: str | None = Field(None, description="手机号")
     nickname: str | None = Field(None, description="昵称")
     is_active: bool = Field(True, description="是否激活")
+    ai_enabled: bool = Field(True, description="是否允许使用 AI 对话")
     is_super: bool = Field(False, description="是否超级管理员")
     role_id: int | None = Field(None, description="角色 ID")
 
@@ -78,6 +81,7 @@ class AdminUpdateRequest(BaseSchema):
     nickname: str | None = Field(None, description="昵称")
     avatar: str | None = Field(None, description="头像附件 ID（兼容旧 URL 值）")
     is_active: bool | None = Field(None, description="是否激活")
+    ai_enabled: bool | None = Field(None, description="是否允许使用 AI 对话")
     is_super: bool | None = Field(None, description="是否超级管理员")
     role_id: int | None = Field(None, description="角色 ID")
 

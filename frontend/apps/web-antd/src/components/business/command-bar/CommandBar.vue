@@ -95,9 +95,11 @@ const inputRef = ref<null | {
 }>(null);
 const selectedIndex = ref(0);
 const pendingMentionSubmit = ref(false);
+const disabledSubmitAttempted = ref(false);
 
 watch(open, async (isOpen) => {
   pendingMentionSubmit.value = false;
+  disabledSubmitAttempted.value = false;
   if (isOpen) {
     selectedIndex.value = 0;
     editingConversationId.value = null;
@@ -152,19 +154,44 @@ onUnmounted(() => {
 });
 
 function handleInputChange(value: string) {
+  disabledSubmitAttempted.value = false;
   onInputChange(value);
 }
 
 const hasMenuResults = computed(() => menuSearchResults.value.length > 0);
+const inputPlaceholder = computed(() =>
+  canChatRef.value
+    ? $t('common.globalAiChat.inputPlaceholder')
+    : $t('common.commandBar.menuSearchPlaceholder'),
+);
+const inputTooltip = computed(() =>
+  canChatRef.value
+    ? `${$t('common.globalAiChat.inputPlaceholder')}，${$t('common.globalAiChat.shiftEnterHint')}`
+    : $t('common.commandBar.menuSearchPlaceholder'),
+);
+const showAiDisabledHint = computed(
+  () =>
+    !canChatRef.value &&
+    disabledSubmitAttempted.value &&
+    Boolean(inputText.value.trim()) &&
+    !hasMenuResults.value,
+);
 const showAgentStarter = computed(
   () =>
-    !!selectedAgent.value && mode.value !== 'mention' && !hasMenuResults.value,
+    canChatRef.value &&
+    !!selectedAgent.value &&
+    mode.value !== 'mention' &&
+    !hasMenuResults.value,
 );
 const showOverviewContent = computed(
-  () => showAgentStarter.value || !inputText.value.trim(),
+  () =>
+    showAgentStarter.value ||
+    !inputText.value.trim() ||
+    showAiDisabledHint.value,
 );
 const showRecentConversations = computed(
   () =>
+    canChatRef.value &&
     !inputText.value.trim() &&
     (recentConversations.value.length > 0 || recentLoading.value),
 );
@@ -268,6 +295,10 @@ function handleMenuItemClick(item: MenuNavigationSearchResult) {
 
 function handleSubmit() {
   pendingMentionSubmit.value = false;
+  if (!canChatRef.value) {
+    disabledSubmitAttempted.value = true;
+    return;
+  }
   const queuedMessage = inputText.value.trim();
   if (queuedMessage) {
     aiPanelStore.queueMessage(queuedMessage);
@@ -280,6 +311,7 @@ function handleSubmit() {
 
 function submitMentionSelection(agent: AgentItem) {
   pendingMentionSubmit.value = false;
+  if (!canChatRef.value) return;
   const message = inputText.value.replace(/^@\S*\s?/, '').trim();
   if (!message) {
     selectMentionAgent(agent);
@@ -312,6 +344,7 @@ function agentInitial(agent: AgentItem): string {
 let clickNavigateTimer: null | ReturnType<typeof setTimeout> = null;
 
 function handleConversationClick(conv: ConversationItem) {
+  if (!canChatRef.value) return;
   if (editingConversationId.value === conv.id) return;
   // Delay navigation to allow dblclick to take precedence / 延迟跳转以区分单击与双击
   if (clickNavigateTimer) clearTimeout(clickNavigateTimer);
@@ -391,7 +424,7 @@ defineExpose({
 
             <!-- Pinned Agent Badge (click to unpin) -->
             <button
-              v-if="pinnedName"
+              v-if="canChatRef && pinnedName"
               class="flex shrink-0 items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary transition-colors hover:bg-destructive/10 hover:text-destructive"
               :title="$t('common.commandBar.clickToUnpin')"
               @click="aiPanelStore.unpinAgent()"
@@ -401,13 +434,11 @@ defineExpose({
               <IconifyIcon icon="lucide:x" class="size-3" />
             </button>
 
-            <Tooltip
-              :title="`${$t('common.globalAiChat.inputPlaceholder')}，${$t('common.globalAiChat.shiftEnterHint')}`"
-            >
+            <Tooltip :title="inputTooltip">
               <Input.TextArea
                 ref="inputRef"
                 :value="inputText"
-                :placeholder="$t('common.globalAiChat.inputPlaceholder')"
+                :placeholder="inputPlaceholder"
                 :auto-size="{ minRows: 1, maxRows: 4 }"
                 class="min-w-0 flex-1 resize-none overflow-y-auto !border-0 !bg-transparent !py-1.5 !text-sm !text-foreground !shadow-none !outline-none !ring-0 placeholder:!text-muted-foreground/60"
                 @update:value="handleInputChange"
@@ -422,7 +453,7 @@ defineExpose({
                 {{ $t('common.commandBar.shortcut') }}
               </kbd>
               <button
-                v-if="inputText.trim()"
+                v-if="canChatRef && inputText.trim()"
                 class="flex items-center gap-1 rounded-lg bg-primary px-3 py-1 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
                 @click="handleSubmit"
               >
@@ -434,7 +465,7 @@ defineExpose({
 
           <!-- @mention Dropdown -->
           <div
-            v-if="mode === 'mention'"
+            v-if="canChatRef && mode === 'mention'"
             class="max-h-[300px] overflow-y-auto p-2"
           >
             <div
@@ -574,7 +605,7 @@ defineExpose({
             </div>
 
             <!-- Send to AI action -->
-            <div class="border-t border-border/30 px-3 py-2">
+            <div v-if="canChatRef" class="border-t border-border/30 px-3 py-2">
               <button
                 class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
                 @click="handleSubmit"
@@ -596,6 +627,13 @@ defineExpose({
             v-else-if="showOverviewContent"
             class="max-h-[360px] overflow-y-auto px-4 py-3"
           >
+            <div
+              v-if="showAiDisabledHint"
+              class="rounded-xl border border-border/50 bg-muted/50 px-3 py-2 text-sm text-muted-foreground"
+            >
+              {{ $t('common.commandBar.aiDisabledHint') }}
+            </div>
+
             <div
               v-if="showAgentStarter"
               class="rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/10 via-accent/20 to-transparent p-4"
@@ -669,16 +707,19 @@ defineExpose({
 
             <div
               class="flex items-center gap-4 text-xs text-muted-foreground/70"
-              :class="showAgentStarter ? 'mt-3' : ''"
+              :class="showAgentStarter || showAiDisabledHint ? 'mt-3' : ''"
             >
-              <span v-if="!showAgentStarter" class="flex items-center gap-1">
+              <span
+                v-if="canChatRef && !showAgentStarter"
+                class="flex items-center gap-1"
+              >
                 <kbd
                   class="rounded border border-border/50 bg-muted/50 px-1 py-0.5 text-[10px]"
                   >@</kbd
                 >
                 {{ $t('common.commandBar.mentionHint') }}
               </span>
-              <span class="flex items-center gap-1">
+              <span v-if="canChatRef" class="flex items-center gap-1">
                 <kbd
                   class="rounded border border-border/50 bg-muted/50 px-1 py-0.5 text-[10px]"
                   >Enter</kbd
@@ -688,6 +729,10 @@ defineExpose({
                     ? $t('common.commandBar.send')
                     : $t('common.commandBar.openOrSend')
                 }}
+              </span>
+              <span v-else class="flex items-center gap-1">
+                <IconifyIcon icon="lucide:search" class="size-3" />
+                {{ $t('common.commandBar.searchOnlyHint') }}
               </span>
               <span class="flex items-center gap-1">
                 <kbd
