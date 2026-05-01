@@ -125,7 +125,7 @@ async def _search_with_baidu_public(
                 if status == STATUS_POLICY_FILTERED
                 else "returned no results"
                 if status == STATUS_NO_RESULTS
-                else "result parser missed current page structure"
+                else "result parser missed document structure"
                 if status == STATUS_PARSE_ERROR
                 else "returned an unreadable page"
             ),

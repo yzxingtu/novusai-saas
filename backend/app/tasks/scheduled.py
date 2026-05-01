@@ -236,7 +236,7 @@ def check_plugin_trial_expirations(self: BaseTask) -> dict:
     description="Clean up expired task runs (retain 30 days) / 清理过期任务运行记录（保留 30 天）",
     max_retries=1,
 )
-def clean_expired_task_logs(self: BaseTask) -> dict:
+def clean_expired_task_runs(self: BaseTask) -> dict:
     session = None
     try:
         from app.models.system.task_run import TaskRun

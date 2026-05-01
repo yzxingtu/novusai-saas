@@ -4,7 +4,7 @@ For tenants created before the _create_default_user_role feature was added,
 create the missing default_user role and set user_default_role_id config.
 
 Revision ID: 20260307_backfill_roles
-Revises: 20260307_merge_page_pkg
+Revises: 20260307_retired_runtime_b
 Create Date: 2026-03-07 21:00:00.000000+00:00
 
 """
@@ -18,7 +18,7 @@ from alembic import op
 from sqlalchemy import text
 
 revision: str = "20260307_backfill_roles"
-down_revision: str | Sequence[str] | None = "20260307_merge_page_pkg"
+down_revision: str | Sequence[str] | None = "20260307_retired_runtime_b"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

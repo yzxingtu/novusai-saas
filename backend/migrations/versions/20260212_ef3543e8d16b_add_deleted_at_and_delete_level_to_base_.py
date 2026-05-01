@@ -39,12 +39,10 @@ TABLES = [
     'knowledge_bases',
     'knowledge_documents',
     'operation_logs',
-    'periodic_tasks',
     'permissions',
     'system_config_groups',
     'system_config_values',
     'system_configs',
-    'task_logs',
     'tenant_admin_roles',
     'tenant_admins',
     'tenant_domains',
@@ -53,7 +51,6 @@ TABLES = [
     'tenant_quotas',
     'tenant_users',
     'tenants',
-    'tool_definitions',
 ]
 
 

@@ -1,7 +1,7 @@
 """add admin account ai enabled
 
 Revision ID: 20260502_0026_admin_ai_enabled
-Revises: 20260430_0025_drop_page_skill
+Revises: 20260430_0025_retired_runtime
 Create Date: 2026-05-02
 
 """
@@ -14,7 +14,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "20260502_0026_admin_ai_enabled"
-down_revision: str | Sequence[str] | None = "20260430_0025_drop_page_skill"
+down_revision: str | Sequence[str] | None = "20260430_0025_retired_runtime"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

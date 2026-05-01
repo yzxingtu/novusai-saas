@@ -109,22 +109,6 @@ def _backfill_recycle_state(table_name: str) -> None:
     )
 
 
-def _repair_recycle_cleanup_periodic_task() -> None:
-    op.execute(
-        sa.text(
-            """
-            UPDATE periodic_tasks
-            SET
-                scope = 'admin_only',
-                kwargs = '{"module_retention_days": 30, "global_retention_days": 30}',
-                description = '每天凌晨 3 点推进模块回收站过期记录到总回收站，并清理总回收站过期记录',
-                updated_at = NOW()
-            WHERE task_path = 'app.tasks.recycle_bin.cleanup_recycle_bin'
-            """
-        )
-    )
-
-
 def upgrade() -> None:
     bind = op.get_bind()
 
@@ -156,8 +140,6 @@ def upgrade() -> None:
             op.create_index(index_name, table_name, ["recycle_stage"], unique=False)
 
         _backfill_recycle_state(table_name)
-
-    _repair_recycle_cleanup_periodic_task()
 
 
 def downgrade() -> None:

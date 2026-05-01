@@ -1,39 +1,18 @@
-"""[NO-OP downgrade] remove openai adapter plugin from plugins table (now hardcoded in core)
+"""Retired historical migration (no-op)."""
 
-Revision ID: 20260222_rm_oai
-Revises: 20260222_seed_notif
-Create Date: 2026-02-22
+from __future__ import annotations
 
-"""
-from typing import Sequence, Union
+from collections.abc import Sequence
 
-from alembic import op
-import sqlalchemy as sa
-
-revision: str = '20260222_rm_oai'
-down_revision: Union[str, None] = '20260222_seed_notif'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+revision: str = "20260222_rm_oai"
+down_revision: str | Sequence[str] | None = "20260222_seed_notif"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    # Delete tenant_plugins associations first
-    op.execute(
-        sa.text("""
-            DELETE FROM tenant_plugins
-            WHERE plugin_id IN (
-                SELECT id FROM plugins WHERE name = 'novusai-openai-adapter'
-            )
-        """)
-    )
-    # Delete the plugin record
-    op.execute(
-        sa.text("""
-            DELETE FROM plugins WHERE name = 'novusai-openai-adapter'
-        """)
-    )
+    pass
 
 
 def downgrade() -> None:
-    """Intentional no-op: OpenAI adapter is bundled in core; restoring a DB plugin row would duplicate registration paths."""
     pass

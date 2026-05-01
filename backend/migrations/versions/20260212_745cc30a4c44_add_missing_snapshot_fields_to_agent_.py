@@ -19,7 +19,6 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade database schema."""
-    op.add_column('agent_versions', sa.Column('knowledge_base_ids', sa.JSON(), nullable=True))
     op.add_column('agent_versions', sa.Column('rag_config', sa.JSON(), nullable=True))
     op.add_column('agent_versions', sa.Column('context_config', sa.JSON(), nullable=True))
     op.add_column('agent_versions', sa.Column('output_schema', sa.JSON(), nullable=True))
@@ -30,4 +29,3 @@ def downgrade() -> None:
     op.drop_column('agent_versions', 'output_schema')
     op.drop_column('agent_versions', 'context_config')
     op.drop_column('agent_versions', 'rag_config')
-    op.drop_column('agent_versions', 'knowledge_base_ids')

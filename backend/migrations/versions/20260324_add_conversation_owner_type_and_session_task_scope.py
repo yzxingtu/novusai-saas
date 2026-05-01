@@ -19,25 +19,6 @@ branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 _PLATFORM_TENANT_ID = 0
-_TASK_PATH = "app.tasks.scheduled.clean_expired_session_memories"
-
-
-def _update_session_memory_task_scope(new_scope: str, old_scope: str) -> None:
-    op.execute(
-        sa.text(
-            """
-            UPDATE periodic_tasks
-            SET scope = :new_scope, updated_at = NOW()
-            WHERE task_path = :task_path AND scope = :old_scope
-            """
-        ).bindparams(
-            new_scope=new_scope,
-            old_scope=old_scope,
-            task_path=_TASK_PATH,
-        )
-    )
-
-
 def _backfill_conversation_owner_type() -> None:
     op.execute(
         sa.text(
@@ -164,17 +145,8 @@ def upgrade() -> None:
             unique=False,
         )
 
-    _update_session_memory_task_scope(
-        new_scope="admin_only",
-        old_scope="platform",
-    )
-
 
 def downgrade() -> None:
-    _update_session_memory_task_scope(
-        new_scope="platform",
-        old_scope="admin_only",
-    )
     op.drop_index(
         "ix_agent_conv_tenant_owner_user",
         table_name="agent_conversations",

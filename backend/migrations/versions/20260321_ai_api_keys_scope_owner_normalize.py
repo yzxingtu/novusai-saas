@@ -4,7 +4,7 @@ Revision ID: 20260321_akso
 Revises: 20260320_urps
 
 含 _repair_20260320_urps_skipped：对「仅 stamp 未执行 20260320」的坏库幂等补结构/数据。
-periodic_tasks 列名修复另见 20260324_pt_otid_repair。无 downgrade。
+无 downgrade。
 """
 
 from __future__ import annotations
@@ -30,7 +30,6 @@ _TABLE_LEGACY_SCOPE_SQL: dict[str, str] = {
     ),
     "plugins": "UPDATE plugins SET scope = :new_scope WHERE scope = :old_scope",
     "ai_api_keys": "UPDATE ai_api_keys SET scope = :new_scope WHERE scope = :old_scope",
-    "periodic_tasks": "UPDATE periodic_tasks SET scope = :new_scope WHERE scope = :old_scope",
     "system_config_groups": (
         "UPDATE system_config_groups SET scope = :new_scope WHERE scope = :old_scope"
     ),
@@ -52,7 +51,6 @@ _ALTER_SCOPE_TO_VARCHAR_40: dict[str, str] = {
     "knowledge_bases": "ALTER TABLE knowledge_bases ALTER COLUMN scope TYPE VARCHAR(40)",
     "plugins": "ALTER TABLE plugins ALTER COLUMN scope TYPE VARCHAR(40)",
     "ai_api_keys": "ALTER TABLE ai_api_keys ALTER COLUMN scope TYPE VARCHAR(40)",
-    "periodic_tasks": "ALTER TABLE periodic_tasks ALTER COLUMN scope TYPE VARCHAR(40)",
     "system_config_groups": (
         "ALTER TABLE system_config_groups ALTER COLUMN scope TYPE VARCHAR(40)"
     ),
@@ -153,7 +151,6 @@ def _repair_20260320_urps_skipped() -> None:
         "knowledge_bases",
         "plugins",
         "ai_api_keys",
-        "periodic_tasks",
         "system_config_groups",
         "system_configs",
     ):
@@ -261,28 +258,6 @@ def _repair_20260320_urps_skipped() -> None:
     if _table_exists("agents") and "owner_type" in _cols("agents"):
         op.drop_column("agents", "owner_type")
 
-    # ── 3. KB tenant access → RTA (data before drop) ──
-    if _table_exists("knowledge_base_tenant_access") and rta_exists:
-        _exec(
-            """
-            INSERT INTO resource_tenant_assignments
-              (resource_type, resource_id, tenant_id, is_active, is_deleted, created_at, updated_at)
-            SELECT 'knowledge_base', kba.knowledge_base_id, kba.tenant_id, true, false, NOW(), NOW()
-            FROM knowledge_base_tenant_access kba
-            WHERE kba.is_deleted = false
-              AND NOT EXISTS (
-                SELECT 1 FROM resource_tenant_assignments r
-                WHERE r.resource_type = 'knowledge_base'
-                  AND r.resource_id = kba.knowledge_base_id
-                  AND r.tenant_id = kba.tenant_id
-                  AND r.is_deleted = false
-              )
-            """
-        )
-
-    if _table_exists("knowledge_base_tenant_access"):
-        op.drop_table("knowledge_base_tenant_access")
-
     if "visibility" in _cols("knowledge_bases"):
         op.drop_column("knowledge_bases", "visibility")
 
@@ -290,25 +265,6 @@ def _repair_20260320_urps_skipped() -> None:
     _ensure_owner_tenant_id("agents")
     _ensure_owner_tenant_id("knowledge_bases")
     _ensure_owner_tenant_id("ai_api_keys")
-    _ensure_owner_tenant_id("periodic_tasks")
-
-    # ── 5. Fix periodic_tasks unique constraint ──
-    if _table_exists("periodic_tasks"):
-        bind = op.get_bind()
-        ucs = {
-            u.get("name")
-            for u in (inspect(bind).get_unique_constraints("periodic_tasks") or [])
-        }
-        if "uq_periodic_tasks_name_tenant" in ucs:
-            op.drop_constraint(
-                "uq_periodic_tasks_name_tenant", "periodic_tasks", type_="unique"
-            )
-        if "uq_periodic_tasks_name_owner_tenant" not in ucs:
-            op.create_unique_constraint(
-                "uq_periodic_tasks_name_owner_tenant",
-                "periodic_tasks",
-                ["name", "owner_tenant_id"],
-            )
 
 
 def upgrade() -> None:

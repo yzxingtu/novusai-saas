@@ -6,7 +6,7 @@ Create Date: 2026-02-11 15:29:47.518054+00:00
 
 NOTE: Original autogenerate output contained ~600 lines of unrelated alter_column
 noise (comment/server_default changes on agent_access, agent_conversations, agents,
-batch_runs, conversation_messages, tool_definitions, etc.). Cleaned up to keep only
+batch_runs, conversation_messages, etc.). Cleaned up to keep only
 the ai_action_logs table creation.
 """
 from typing import Sequence, Union

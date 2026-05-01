@@ -15,6 +15,7 @@ import asyncio
 from contextlib import asynccontextmanager
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
 
 from app.core.config import settings
 
@@ -46,9 +47,8 @@ def _get_engine_and_factory():
 
     _cached_engine = create_async_engine(
         settings.DATABASE_URL,
-        pool_pre_ping=True,
-        pool_size=2,
-        max_overflow=0,
+        pool_pre_ping=False,
+        poolclass=NullPool,
     )
     _cached_session_factory = async_sessionmaker(
         bind=_cached_engine,

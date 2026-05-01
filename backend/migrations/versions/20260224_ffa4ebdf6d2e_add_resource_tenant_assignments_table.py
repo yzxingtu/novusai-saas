@@ -52,26 +52,7 @@ def upgrade() -> None:
                     ["resource_type", "resource_id"])
     op.create_index("ix_rta_tenant", "resource_tenant_assignments", ["tenant_id"])
 
-    # ── 1b. Add bind_mode column to skill_packages ──
-    op.add_column(
-        "skill_packages",
-        sa.Column("bind_mode", sa.String(20), nullable=False, server_default="manual",
-                  comment="绑定模式: auto=自动绑定, manual=手动绑定"),
-    )
-    op.create_index("ix_skill_packages_bind_mode", "skill_packages", ["bind_mode"])
-
-    # Set system packages to auto bind
-    op.execute(sa.text("UPDATE skill_packages SET bind_mode = 'auto' WHERE is_system = true"))
-
-    # ── 2. Migrate plugin_tenant_assignments data to new table ──
-    op.execute(sa.text("""
-        INSERT INTO resource_tenant_assignments (resource_type, resource_id, tenant_id, is_active, config, created_at, updated_at, is_deleted)
-        SELECT 'plugin', plugin_id, tenant_id, is_active, config, created_at, updated_at, is_deleted
-        FROM plugin_tenant_assignments
-        ON CONFLICT (resource_type, resource_id, tenant_id) DO NOTHING
-    """))
-
-    # ── 3. Batch UPDATE old scope values ──
+    # ── 2. Batch UPDATE old scope values ──
     # agents: admin→admin_only, tenant→all_tenants, global→global_shared
     op.execute(sa.text("UPDATE agents SET scope = 'admin_only' WHERE scope = 'admin'"))
     op.execute(sa.text("UPDATE agents SET scope = 'all_tenants' WHERE scope = 'tenant'"))
@@ -122,18 +103,11 @@ def upgrade() -> None:
     op.execute(sa.text("UPDATE system_configs SET scope = 'admin_only' WHERE scope = 'platform'"))
     op.execute(sa.text("UPDATE system_configs SET scope = 'all_tenants' WHERE scope = 'tenant'"))
 
-    # periodic_tasks: platform→admin_only, tenant→all_tenants (all_tenants stays)
-    op.execute(sa.text("UPDATE periodic_tasks SET scope = 'admin_only' WHERE scope = 'platform'"))
-    op.execute(sa.text("UPDATE periodic_tasks SET scope = 'all_tenants' WHERE scope = 'tenant'"))
 
 
 def downgrade() -> None:
     """Downgrade database schema."""
     # ── Reverse scope value UPDATEs ──
-    # periodic_tasks
-    op.execute(sa.text("UPDATE periodic_tasks SET scope = 'platform' WHERE scope = 'admin_only'"))
-    op.execute(sa.text("UPDATE periodic_tasks SET scope = 'tenant' WHERE scope = 'all_tenants'"))
-
     # system_configs
     op.execute(sa.text("UPDATE system_configs SET scope = 'platform' WHERE scope = 'admin_only'"))
     op.execute(sa.text("UPDATE system_configs SET scope = 'tenant' WHERE scope = 'all_tenants'"))
@@ -161,10 +135,6 @@ def downgrade() -> None:
     op.execute(sa.text("UPDATE agents SET scope = 'admin' WHERE scope = 'admin_only'"))
     op.execute(sa.text("UPDATE agents SET scope = 'tenant' WHERE scope = 'all_tenants'"))
     op.execute(sa.text("UPDATE agents SET scope = 'global' WHERE scope = 'global_shared'"))
-
-    # ── Drop bind_mode column from skill_packages ──
-    op.drop_index("ix_skill_packages_bind_mode", table_name="skill_packages")
-    op.drop_column("skill_packages", "bind_mode")
 
     # ── Drop resource_tenant_assignments table ──
     op.drop_index("ix_rta_tenant", table_name="resource_tenant_assignments")

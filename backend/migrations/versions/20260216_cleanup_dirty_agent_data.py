@@ -56,11 +56,6 @@ def upgrade() -> None:
             "DELETE FROM agent_conversations WHERE agent_id = :aid"
         ), {"aid": dup_id})
 
-        # Delete skill bindings
-        conn.execute(text(
-            "DELETE FROM agent_skill_bindings WHERE agent_id = :aid"
-        ), {"aid": dup_id})
-
         # Delete the agent itself
         conn.execute(text(
             "DELETE FROM agents WHERE id = :aid"

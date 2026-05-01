@@ -1,7 +1,7 @@
 """add supports_audio and supports_video to ai_models
 
 Revision ID: 20260317_0001_audio_video
-Revises: 20260316_page_op_v3
+Revises: 20260316_retired_runtime
 Create Date: 2026-03-17
 
 """
@@ -13,7 +13,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision: str = "20260317_0001_audio_video"
-down_revision: str | Sequence[str] | None = "20260316_page_op_v3"
+down_revision: str | Sequence[str] | None = "20260316_retired_runtime"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

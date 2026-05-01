@@ -83,12 +83,45 @@ def _verify_schema(url: str) -> list[str]:
             )
             return r.fetchone() is not None
 
-        # 旧表应不存在
-        if has_table("ephemeral_documents"):
-            issues.append("表 ephemeral_documents 仍存在（预期已删除）")
+        retired_tables = (
+            "periodic_tasks",
+            "task_logs",
+            "tenant_plugins",
+            "plugin_migrations",
+            "plugin_tenant_assignments",
+            "tool_definitions",
+            "agent_skill_bindings",
+            "skill_scripts",
+            "knowledge_base_tenant_access",
+            "ephemeral_documents",
+        )
+        for table in retired_tables:
+            if has_table(table):
+                issues.append(f"旧表 {table} 仍存在（fresh schema 不应创建）")
 
-        if has_table("knowledge_base_tenant_access"):
-            issues.append("表 knowledge_base_tenant_access 仍存在（预期已删除）")
+        retired_columns = {
+            "agents": ("tool_bindings", "knowledge_base_ids", "target_audience"),
+            "agent_versions": ("tool_bindings", "knowledge_base_ids"),
+            "skill_packages": ("bind_mode", "target_audience"),
+            "plugins": (
+                "plugin_type",
+                "entry_point",
+                "is_system",
+                "required_permissions",
+                "dependencies",
+                "conflicts",
+                "platform_version",
+                "default_config",
+                "version_history",
+                "readme",
+            ),
+        }
+        for table, columns in retired_columns.items():
+            if not has_table(table):
+                continue
+            for column in columns:
+                if has_column(table, column):
+                    issues.append(f"旧列 {table}.{column} 仍存在（fresh schema 不应创建）")
 
         if has_table("agents"):
             for col in ("owner_type", "distribution_mode"):
@@ -108,10 +141,6 @@ def _verify_schema(url: str) -> list[str]:
                 issues.append("ai_api_keys.tenant_id 仍存在（预期已删除）")
             if not has_column("ai_api_keys", "owner_tenant_id"):
                 issues.append("ai_api_keys 缺少 owner_tenant_id")
-
-        if has_table("periodic_tasks"):
-            if not has_column("periodic_tasks", "owner_tenant_id"):
-                issues.append("periodic_tasks 缺少 owner_tenant_id")
 
         rows = conn.execute(text("SELECT version_num FROM alembic_version")).fetchall()
         if not rows:

@@ -4,7 +4,7 @@ CRUD 代码生成器配置表。平台级资源，无企业隔离。
 CRUD codegen config table. Platform-level resource, no tenant isolation.
 
 Revision ID: 20260317_codegen
-Revises: 20260319_page_op_75
+Revises: 20260319_retired_runtime
 Create Date: 2026-03-17
 
 """
@@ -17,7 +17,7 @@ from alembic import op
 from sqlalchemy.dialects.postgresql import JSONB
 
 revision: str = "20260317_codegen"
-down_revision: str | Sequence[str] | None = "20260319_page_op_75"
+down_revision: str | Sequence[str] | None = "20260319_retired_runtime"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

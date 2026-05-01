@@ -51,8 +51,8 @@ def upgrade() -> None:
         sa.Column('updated_at', sa.DateTime(), nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow),
         sa.Column('is_deleted', sa.Boolean(), nullable=False, default=False),
         sa.PrimaryKeyConstraint('id'),
-        sa.ForeignKeyConstraint(['parent_id'], ['permissions.id'], ondelete='SET NULL'),
-        sa.UniqueConstraint('code'),
+        sa.ForeignKeyConstraint(['parent_id'], ['permissions.id']),
+        sa.UniqueConstraint('code', 'scope', name='uq_permissions_code_scope'),
     )
     op.create_index('ix_permissions_id', 'permissions', ['id'])
     op.create_index('ix_permissions_code', 'permissions', ['code'])
@@ -78,7 +78,6 @@ def upgrade() -> None:
         sa.Column('updated_at', sa.DateTime(), nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow),
         sa.Column('is_deleted', sa.Boolean(), nullable=False, default=False),
         sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('name'),
         sa.UniqueConstraint('code'),
     )
     op.create_index('ix_admin_roles_id', 'admin_roles', ['id'])

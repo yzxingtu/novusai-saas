@@ -1,164 +1,18 @@
-"""seed all periodic tasks into database
+"""Retired historical migration (no-op)."""
 
-Move all hardcoded beat_schedule entries into periodic_tasks table
-so they can be managed via admin UI.
+from __future__ import annotations
 
-Revision ID: 20260221_seed_all
-Revises: 20260221_seed_ssl
-Create Date: 2026-02-21
+from collections.abc import Sequence
 
-"""
-from typing import Sequence, Union
-
-from alembic import op
-import sqlalchemy as sa
-
-revision: str = '20260221_seed_all'
-down_revision: Union[str, None] = '20260221_seed_ssl'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
-
-# All tasks that should exist in periodic_tasks table
-# (task_path used as idempotency key via ON CONFLICT)
-TASKS = [
-    {
-        "name": "系统健康检查",
-        "task_path": "app.tasks.scheduled.system_health_check",
-        "schedule_type": "interval",
-        "cron_expression": None,
-        "interval_seconds": 300,
-        "kwargs": None,
-        "description": "每 5 分钟检查系统健康状态（数据库、Redis 连接）",
-        "is_locked": True,
-        "max_retries": 1,
-        "timeout": 60,
-    },
-    {
-        "name": "清理过期验证码",
-        "task_path": "app.tasks.scheduled.clean_expired_captchas",
-        "schedule_type": "interval",
-        "cron_expression": None,
-        "interval_seconds": 3600,
-        "kwargs": None,
-        "description": "每小时清理过期的验证码缓存",
-        "is_locked": True,
-        "max_retries": 1,
-        "timeout": 300,
-    },
-    {
-        "name": "清理过期任务日志",
-        "task_path": "app.tasks.scheduled.clean_expired_task_logs",
-        "schedule_type": "cron",
-        "cron_expression": "0 4 * * *",
-        "interval_seconds": None,
-        "kwargs": None,
-        "description": "每天凌晨 4:00 清理超过 30 天的任务日志",
-        "is_locked": True,
-        "max_retries": 1,
-        "timeout": 1800,
-    },
-    {
-        "name": "AI 供应商健康检查",
-        "task_path": "app.tasks.ai_health_check.ai_provider_health_check",
-        "schedule_type": "interval",
-        "cron_expression": None,
-        "interval_seconds": 300,
-        "kwargs": None,
-        "description": "每 5 分钟检查所有启用的 AI 供应商可用性，写入 Redis 供故障转移",
-        "is_locked": True,
-        "max_retries": 1,
-        "timeout": 120,
-    },
-    {
-        "name": "重置智能体每日配额",
-        "task_path": "app.tasks.scheduled.reset_agent_daily_quotas",
-        "schedule_type": "cron",
-        "cron_expression": "0 0 * * *",
-        "interval_seconds": None,
-        "kwargs": None,
-        "description": "每天零点重置智能体每日配额（清理无 TTL 的 Redis key）",
-        "is_locked": True,
-        "max_retries": 1,
-        "timeout": 300,
-    },
-    {
-        "name": "重置智能体每日统计",
-        "task_path": "app.tasks.scheduled.reset_agent_daily_stats",
-        "schedule_type": "cron",
-        "cron_expression": "0 0 * * *",
-        "interval_seconds": None,
-        "kwargs": None,
-        "description": "每天零点重置智能体每日统计（Redis 当日计数归零）",
-        "is_locked": True,
-        "max_retries": 1,
-        "timeout": 300,
-    },
-    {
-        "name": "清理分片上传",
-        "task_path": "app.tasks.upload_cleanup.cleanup_chunk_uploads",
-        "schedule_type": "interval",
-        "cron_expression": None,
-        "interval_seconds": 21600,
-        "kwargs": '{"retention_hours": 24}',
-        "description": "每 6 小时清理超过 24 小时的分片上传临时文件",
-        "is_locked": True,
-        "max_retries": 1,
-        "timeout": 600,
-    },
-    {
-        "name": "清理过期通知",
-        "task_path": "app.tasks.notification_cleanup.cleanup_expired_notifications",
-        "schedule_type": "cron",
-        "cron_expression": "0 3 * * *",
-        "interval_seconds": None,
-        "kwargs": None,
-        "description": "每天凌晨 3:00 根据 notification_retention_days 配置清理过期通知（物理删除）",
-        "is_locked": True,
-        "max_retries": 1,
-        "timeout": 1800,
-    },
-]
-
-
-_INSERT_SQL = sa.text("""
-    INSERT INTO periodic_tasks (
-        name, task_path, schedule_type, cron_expression,
-        interval_seconds, args, kwargs, is_active,
-        description, scope, is_locked, is_editable,
-        max_retries, retry_delay, timeout,
-        notify_on_failure, created_at, updated_at, is_deleted
-    ) VALUES (
-        :name, :task_path, :schedule_type, :cron_expression,
-        :interval_seconds, NULL, :kwargs, true,
-        :description, 'platform', :is_locked, false,
-        :max_retries, 60, :timeout,
-        false, NOW(), NOW(), false
-    )
-    ON CONFLICT DO NOTHING
-""")
+revision: str = "20260221_seed_all"
+down_revision: str | Sequence[str] | None = "20260221_seed_ssl"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    for t in TASKS:
-        op.execute(
-            _INSERT_SQL.bindparams(
-                name=t["name"],
-                task_path=t["task_path"],
-                schedule_type=t["schedule_type"],
-                cron_expression=t["cron_expression"],
-                interval_seconds=t["interval_seconds"],
-                kwargs=t["kwargs"],
-                description=t["description"],
-                is_locked=t["is_locked"],
-                max_retries=t["max_retries"],
-                timeout=t["timeout"],
-            )
-        )
+    pass
 
 
 def downgrade() -> None:
-    task_paths = [t["task_path"] for t in TASKS]
-    for tp in task_paths:
-        op.execute(
-            sa.text("DELETE FROM periodic_tasks WHERE task_path = :tp").bindparams(tp=tp)
-        )
+    pass

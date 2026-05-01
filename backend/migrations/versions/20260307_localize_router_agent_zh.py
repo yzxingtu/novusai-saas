@@ -5,7 +5,7 @@ Updates:
 2. default_chat assignment: feature_name + description → Chinese
 
 Revision ID: 20260307_router_zh
-Revises: 20260307_merge_page_pkg
+Revises: 20260307_retired_runtime_b
 Create Date: 2026-03-07 16:30:00.000000+00:00
 
 """
@@ -18,7 +18,7 @@ from alembic import op
 from sqlalchemy import text
 
 revision: str = "20260307_router_zh"
-down_revision: str | Sequence[str] | None = "20260307_merge_page_pkg"
+down_revision: str | Sequence[str] | None = "20260307_retired_runtime_b"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

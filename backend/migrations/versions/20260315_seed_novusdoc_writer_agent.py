@@ -32,9 +32,8 @@ AGENT_SYSTEM_PROMPT = (
     "and rewrite content that the user provides directly or through an authorized "
     "backend document/read-model tool. Match the document's style, tone, and "
     "language. Be concise and accurate.\n\n"
-    "Do not infer content from the current page, DOM, screenshots, page sessions, "
-    "or editor runtime state. If more document content is needed, ask the user to "
-    "provide it or use an explicit backend/API or permissioned skill-pack tool. "
+    "If more document content is needed, ask the user to provide it or use an "
+    "explicit backend/API or permissioned skill-pack tool. "
     "Do not echo HTML, JSON or raw tool output to the user; respond in natural "
     "language only."
 )

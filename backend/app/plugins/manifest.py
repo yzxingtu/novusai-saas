@@ -8,7 +8,7 @@ Parse and validate plugin.yaml files, converting YAML content into type-safe Pyt
 from pathlib import PurePosixPath
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.enums.common import ResourceScopeEnum
 from app.plugins.manifest_helpers import (
@@ -762,6 +762,8 @@ class PluginManifest(BaseModel):
     Corresponds to the complete structure of plugin.yaml.
     / 对应 plugin.yaml 文件的完整结构。
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     # ── Required / 必填 ──
     name: str = Field(..., max_length=100)

@@ -240,53 +240,8 @@ def upgrade() -> None:
     )
     op.create_index("ix_agent_skill_grants_is_deleted", "agent_skill_grants", ["is_deleted"])
 
-    op.drop_table("agent_skill_bindings")
-
 
 def downgrade() -> None:
-    op.create_table(
-        "agent_skill_bindings",
-        sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
-        sa.Column(
-            "created_at",
-            sa.DateTime(),
-            server_default=sa.text("now()"),
-            nullable=False,
-        ),
-        sa.Column(
-            "updated_at",
-            sa.DateTime(),
-            server_default=sa.text("now()"),
-            nullable=False,
-        ),
-        sa.Column("is_deleted", sa.Boolean(), nullable=False, server_default=sa.text("false")),
-        sa.Column("deleted_at", sa.DateTime(), nullable=True),
-        sa.Column("delete_level", sa.String(length=20), nullable=True),
-        sa.Column("recycle_stage", sa.String(length=20), nullable=True),
-        sa.Column("promoted_to_global_at", sa.DateTime(), nullable=True),
-        sa.Column("tenant_id", sa.Integer(), nullable=True),
-        sa.Column("agent_id", sa.Integer(), nullable=False),
-        sa.Column("package_id", sa.Integer(), nullable=False),
-        sa.Column("enabled", sa.Boolean(), nullable=False, server_default=sa.text("true")),
-        sa.Column("config_override", sa.JSON(), nullable=True),
-        sa.Column("sort_order", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("consent_mode", sa.String(length=20), nullable=False, server_default="auto"),
-        sa.Column("skill_consent_overrides", sa.JSON(), nullable=True),
-        sa.ForeignKeyConstraint(["agent_id"], ["agents.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["package_id"], ["skill_packages.id"], ondelete="CASCADE"),
-        sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("agent_id", "package_id", name="uq_agent_skill_package_binding"),
-    )
-    op.create_index("ix_agent_skill_bindings_tenant_id", "agent_skill_bindings", ["tenant_id"])
-    op.create_index("ix_agent_skill_bindings_agent_id", "agent_skill_bindings", ["agent_id"])
-    op.create_index("ix_agent_skill_bindings_package_id", "agent_skill_bindings", ["package_id"])
-    op.create_index(
-        "ix_agent_skill_bindings_agent_enabled",
-        "agent_skill_bindings",
-        ["agent_id", "enabled"],
-    )
-    op.create_index("ix_agent_skill_bindings_is_deleted", "agent_skill_bindings", ["is_deleted"])
-
     op.drop_table("agent_skill_grants")
     op.drop_table("skill_capability_bindings")
     op.drop_table("capabilities")

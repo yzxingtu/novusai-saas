@@ -5,7 +5,7 @@ the source agent and conversation.
 为 ai_call_logs 增加 agent_id / conversation_id，便于审计追踪来源智能体与会话。
 
 Revision ID: 20260321_ai_call_log_contract
-Revises: 20260321_page_op_boundary
+Revises: 20260321_retired_runtime
 Create Date: 2026-03-21 01:00:00.000000+00:00
 
 """
@@ -18,7 +18,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision: str = "20260321_ai_call_log_contract"
-down_revision: str | Sequence[str] | None = "20260321_page_op_boundary"
+down_revision: str | Sequence[str] | None = "20260321_retired_runtime"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

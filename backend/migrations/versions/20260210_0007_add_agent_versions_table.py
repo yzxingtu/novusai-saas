@@ -32,7 +32,7 @@ def upgrade() -> None:
         sa.Column('max_tokens', sa.Integer(), nullable=True),
         sa.Column('top_p', sa.Float(), nullable=True),
         sa.Column('execution_mode', sa.String(20), nullable=False),
-        sa.Column('tool_bindings', sa.JSON(), nullable=True),
+        sa.Column('skill_grant_snapshot', sa.JSON(), nullable=True),
         sa.Column('input_variables', sa.JSON(), nullable=True),
         sa.Column('welcome_message', sa.Text(), nullable=True),
         sa.Column('suggested_questions', sa.JSON(), nullable=True),

@@ -137,8 +137,7 @@ def upgrade() -> None:
     """))
     op.execute(sa.text('CREATE INDEX ix_chunk_tsv ON document_chunks USING GIN (content_tsv)'))
 
-    # 8. Agent 表新增 knowledge_base_ids + rag_config 字段
-    op.add_column('agents', sa.Column('knowledge_base_ids', postgresql.JSON(astext_type=sa.Text()), nullable=True, comment='关联知识库 ID 列表'))
+    # 8. Agent 表新增 rag_config 字段
     op.add_column('agents', sa.Column('rag_config', postgresql.JSON(astext_type=sa.Text()), nullable=True, comment='RAG 配置'))
 
 
@@ -146,7 +145,6 @@ def downgrade() -> None:
     """Downgrade database schema."""
     # 8. 移除 Agent RAG 字段
     op.drop_column('agents', 'rag_config')
-    op.drop_column('agents', 'knowledge_base_ids')
 
     # 7. 删除 tsvector 索引和列
     op.execute(sa.text('DROP INDEX IF EXISTS ix_chunk_tsv'))

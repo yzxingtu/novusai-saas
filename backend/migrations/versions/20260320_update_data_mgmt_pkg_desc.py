@@ -3,7 +3,7 @@
 平台数据管理技能包/技能描述更新，体现声明式 __ai_policy__ 机制。
 
 Revision ID: 20260320_data_mgmt_desc
-Revises: 20260319_page_op_75
+Revises: 20260319_retired_runtime
 Create Date: 2026-03-20 00:00:00.000000+00:00
 
 """
@@ -16,7 +16,7 @@ from alembic import op
 from sqlalchemy import text
 
 revision: str = "20260320_data_mgmt_desc"
-down_revision: str | Sequence[str] | None = "20260319_page_op_75"
+down_revision: str | Sequence[str] | None = "20260319_retired_runtime"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

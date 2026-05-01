@@ -1,9 +1,7 @@
 """
 Socket.IO trace/session helpers.
 
-This mixin intentionally contains no page-session or UI action behavior. It
-keeps the ordinary realtime namespaces able to propagate trace ids after the
-AI page-awareness transport was retired.
+This mixin keeps ordinary realtime namespaces able to propagate trace ids.
 """
 
 from __future__ import annotations
@@ -85,4 +83,3 @@ class SocketTraceMixin:
                 sid_sessions[sid] = updated_session
 
         return updated_session
-

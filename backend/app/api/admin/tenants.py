@@ -137,7 +137,7 @@ class AdminTenantController(GlobalController):
             service = TenantService(db)
             items, total = await service.query_list(spec, scope="admin")
             read_model_service = TenantAdminReadModelService(db)
-            page_data = await read_model_service.build_tenant_list_page(
+            tenant_list_payload = await read_model_service.build_tenant_list_page(
                 items=items,
                 total=total,
                 page=spec.page,
@@ -145,7 +145,7 @@ class AdminTenantController(GlobalController):
             )
 
             return success(
-                data=page_data,
+                data=tenant_list_payload,
                 message=_("common.success"),
             )
 

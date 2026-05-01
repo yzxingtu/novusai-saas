@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 """create agent engine base tables
 
-Creates the 5 base tables required by the AI Agent Engine:
+Creates the base tables required by the AI Agent Engine:
 - agents: 智能体主表
-- tool_definitions: 工具定义表
 - agent_conversations: 智能体对话表
 - conversation_messages: 对话消息表
 - batch_runs: 批量执行记录表
@@ -50,8 +49,7 @@ def upgrade() -> None:
         sa.Column('status', sa.String(20), nullable=False, server_default='draft'),
         sa.Column('execution_mode', sa.String(20), nullable=False, server_default='conversation'),
         sa.Column('published_version', sa.Integer(), nullable=True),
-        # 工具与变量
-        sa.Column('tool_bindings', sa.JSON(), nullable=True),
+        # 变量
         sa.Column('input_variables', sa.JSON(), nullable=True),
         # 交互配置
         sa.Column('welcome_message', sa.Text(), nullable=True),
@@ -66,39 +64,7 @@ def upgrade() -> None:
     op.create_index('ix_agents_is_deleted', 'agents', ['is_deleted'])
     op.create_index('ix_agents_tenant_status', 'agents', ['tenant_id', 'status'])
 
-    # ========== 2. tool_definitions 表 ==========
-    op.create_table(
-        'tool_definitions',
-        sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
-        sa.Column('tenant_id', sa.Integer(), nullable=False),
-        sa.Column('is_deleted', sa.Boolean(), nullable=False, server_default='false'),
-        sa.Column('created_at', sa.DateTime(), server_default=sa.func.now(), nullable=False),
-        sa.Column('updated_at', sa.DateTime(), server_default=sa.func.now(), nullable=False),
-        # 基本信息
-        sa.Column('name', sa.String(100), nullable=False),
-        sa.Column('description', sa.Text(), nullable=True),
-        sa.Column('type', sa.String(20), nullable=False, server_default='http'),
-        # Schema 定义
-        sa.Column('input_schema', sa.JSON(), nullable=True),
-        sa.Column('output_schema', sa.JSON(), nullable=True),
-        # 执行配置
-        sa.Column('config', sa.JSON(), nullable=True),
-        sa.Column('timeout', sa.Integer(), nullable=False, server_default='30'),
-        # 状态标识
-        sa.Column('is_system', sa.Boolean(), nullable=False, server_default='false'),
-        sa.Column('is_active', sa.Boolean(), nullable=False, server_default='true'),
-        sa.PrimaryKeyConstraint('id'),
-    )
-
-    op.create_index('ix_tool_defs_tenant_id', 'tool_definitions', ['tenant_id'])
-    op.create_index('ix_tool_defs_name', 'tool_definitions', ['name'])
-    op.create_index('ix_tool_defs_type', 'tool_definitions', ['type'])
-    op.create_index('ix_tool_defs_is_system', 'tool_definitions', ['is_system'])
-    op.create_index('ix_tool_defs_is_deleted', 'tool_definitions', ['is_deleted'])
-    op.create_index('ix_tool_definitions_tenant_type', 'tool_definitions', ['tenant_id', 'type'])
-    op.create_index('ix_tool_definitions_tenant_active', 'tool_definitions', ['tenant_id', 'is_active'])
-
-    # ========== 3. agent_conversations 表 ==========
+    # ========== 2. agent_conversations 表 ==========
     op.create_table(
         'agent_conversations',
         sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
@@ -131,7 +97,7 @@ def upgrade() -> None:
     op.create_index('ix_agent_conv_is_deleted', 'agent_conversations', ['is_deleted'])
     op.create_index('ix_agent_conv_tenant_agent_user', 'agent_conversations', ['tenant_id', 'agent_id', 'user_id'])
 
-    # ========== 4. conversation_messages 表 ==========
+    # ========== 3. conversation_messages 表 ==========
     op.create_table(
         'conversation_messages',
         sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
@@ -167,7 +133,7 @@ def upgrade() -> None:
     op.create_index('ix_conv_msg_conv_seq', 'conversation_messages', ['conversation_id', 'sequence'])
     op.create_index('ix_conv_msg_tenant_conv', 'conversation_messages', ['tenant_id', 'conversation_id'])
 
-    # ========== 5. batch_runs 表 ==========
+    # ========== 4. batch_runs 表 ==========
     op.create_table(
         'batch_runs',
         sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
@@ -210,5 +176,4 @@ def downgrade() -> None:
     op.drop_table('batch_runs')
     op.drop_table('conversation_messages')
     op.drop_table('agent_conversations')
-    op.drop_table('tool_definitions')
     op.drop_table('agents')

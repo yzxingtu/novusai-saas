@@ -235,6 +235,15 @@ def test_manifest_rejects_legacy_system_dependencies() -> None:
         PluginManifest.model_validate(payload)
 
 
+def test_manifest_rejects_legacy_top_level_plugin_fields() -> None:
+    payload = _base_manifest()
+    payload["tenant_plugins"] = []
+    payload["module_path"] = "legacy.module"
+
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        PluginManifest.model_validate(payload)
+
+
 def test_manifest_accepts_empty_plugin_metadata_icon() -> None:
     payload = _base_manifest()
     payload["icon"] = ""

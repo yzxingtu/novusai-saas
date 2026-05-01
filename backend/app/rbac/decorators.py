@@ -87,7 +87,7 @@ class MenuAIConfig:
     菜单声明上的 AI 元信息。
 
     These fields are emitted through `/permissions/menus` so the frontend can
-    decide AI chat entry visibility without carrying page-awareness contracts.
+    decide AI chat entry visibility from backend-owned menu semantics.
     这些字段会通过 `/permissions/menus` 下发，供前端判断 AI 对话入口显隐。
     """
 

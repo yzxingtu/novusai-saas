@@ -29,7 +29,6 @@ _TABLE_LEGACY_SCOPE_SQL: dict[str, str] = {
     ),
     "plugins": "UPDATE plugins SET scope = :new_scope WHERE scope = :old_scope",
     "ai_api_keys": "UPDATE ai_api_keys SET scope = :new_scope WHERE scope = :old_scope",
-    "periodic_tasks": "UPDATE periodic_tasks SET scope = :new_scope WHERE scope = :old_scope",
     "system_config_groups": (
         "UPDATE system_config_groups SET scope = :new_scope WHERE scope = :old_scope"
     ),
@@ -75,7 +74,6 @@ def upgrade() -> None:
         "ALTER TABLE knowledge_bases ALTER COLUMN scope TYPE VARCHAR(40)",
         "ALTER TABLE plugins ALTER COLUMN scope TYPE VARCHAR(40)",
         "ALTER TABLE ai_api_keys ALTER COLUMN scope TYPE VARCHAR(40)",
-        "ALTER TABLE periodic_tasks ALTER COLUMN scope TYPE VARCHAR(40)",
         "ALTER TABLE system_config_groups ALTER COLUMN scope TYPE VARCHAR(40)",
         "ALTER TABLE system_configs ALTER COLUMN scope TYPE VARCHAR(40)",
         "ALTER TABLE agents ALTER COLUMN scope TYPE VARCHAR(40)",
@@ -87,7 +85,6 @@ def upgrade() -> None:
         "knowledge_bases",
         "plugins",
         "ai_api_keys",
-        "periodic_tasks",
         "system_config_groups",
         "system_configs",
     ):
@@ -125,26 +122,6 @@ def upgrade() -> None:
     op.drop_column("agents", "distribution_mode")
     op.drop_column("agents", "owner_type")
 
-    _exec(
-        """
-        INSERT INTO resource_tenant_assignments
-          (resource_type, resource_id, tenant_id, is_active, is_deleted, created_at, updated_at)
-        SELECT 'knowledge_base', kba.knowledge_base_id, kba.tenant_id, true, false, NOW(), NOW()
-        FROM knowledge_base_tenant_access kba
-        WHERE kba.is_deleted = false
-          AND NOT EXISTS (
-            SELECT 1 FROM resource_tenant_assignments r
-            WHERE r.resource_type = 'knowledge_base'
-              AND r.resource_id = kba.knowledge_base_id
-              AND r.tenant_id = kba.tenant_id
-              AND r.is_deleted = false
-          )
-        """
-    )
-
-    op.drop_table("knowledge_base_tenant_access")
-    op.drop_column("knowledge_bases", "visibility")
-
     op.alter_column(
         "agents",
         "tenant_id",
@@ -165,20 +142,6 @@ def upgrade() -> None:
         new_column_name="owner_tenant_id",
         existing_type=sa.Integer(),
         existing_nullable=True,
-    )
-
-    op.drop_constraint("uq_periodic_tasks_name_tenant", "periodic_tasks", type_="unique")
-    op.alter_column(
-        "periodic_tasks",
-        "tenant_id",
-        new_column_name="owner_tenant_id",
-        existing_type=sa.Integer(),
-        existing_nullable=True,
-    )
-    op.create_unique_constraint(
-        "uq_periodic_tasks_name_owner_tenant",
-        "periodic_tasks",
-        ["name", "owner_tenant_id"],
     )
 
 

@@ -229,46 +229,12 @@ def upgrade() -> None:
         agent_id = result.fetchone()[0]
         print(f"[SEED] Created system Agent '{agent['name']}' (id={agent_id}, model_id={model_id})")
 
-        # ---------- 4. Bind skill package to agent ----------
-        skill_name = agent["skill_name"]
-        # Look up which package contains this skill
-        skill_id = skill_ids.get(skill_name)
-        if skill_id:
-            # Find the package_id for this skill
-            pkg_row = conn.execute(text(
-                "SELECT package_id FROM skills WHERE id = :skill_id"
-            ), {"skill_id": skill_id}).fetchone()
-            if pkg_row:
-                pkg_id_for_binding = pkg_row[0]
-                conn.execute(text(
-                    "INSERT INTO agent_skill_bindings "
-                    "(tenant_id, agent_id, package_id, enabled, sort_order, "
-                    " created_at, updated_at, is_deleted) "
-                    "VALUES "
-                    "(NULL, :agent_id, :package_id, true, 0, "
-                    " NOW(), NOW(), false)"
-                ), {"agent_id": agent_id, "package_id": pkg_id_for_binding})
-                print(f"[SEED] Bound package (id={pkg_id_for_binding}) to agent '{agent['name']}'")
-            else:
-                print(f"[SEED] WARNING: Skill '{skill_name}' has no package_id, skipping binding")
-        else:
-            print(f"[SEED] WARNING: Skill '{skill_name}' not found, skipping binding")
-
     print("[SEED] System agents and skills seeding done.")
 
 
 def downgrade() -> None:
     """Remove seed system agents, skills, packages, and bindings."""
     conn = op.get_bind()
-
-    # Remove bindings first (FK cascade would handle it, but be explicit)
-    for agent in SYSTEM_AGENTS:
-        conn.execute(text(
-            "DELETE FROM agent_skill_bindings "
-            "WHERE agent_id IN ("
-            "  SELECT id FROM agents WHERE name = :name AND tenant_id IS NULL"
-            ")"
-        ), {"name": agent["name"]})
 
     # Remove agents
     for agent in SYSTEM_AGENTS:
