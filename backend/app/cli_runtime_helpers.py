@@ -7,6 +7,7 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import Any
+from urllib.parse import SplitResult, urlsplit, urlunsplit
 
 
 def get_venv_python(backend_dir: Path) -> str:
@@ -21,6 +22,64 @@ def run_celery(backend_dir: Path, celery_app: str, args: list[str]) -> None:
     python_exe = get_venv_python(backend_dir)
     cmd = [python_exe, "-m", "celery", "-A", celery_app] + args
     subprocess.run(cmd, check=True)
+
+
+def redact_url(url: str) -> str:
+    """Return a CLI-safe URL with passwords hidden."""
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return url
+    if not parts.password:
+        return url
+
+    hostname = parts.hostname or ""
+    if ":" in hostname and not hostname.startswith("["):
+        hostname = f"[{hostname}]"
+    username = parts.username or ""
+    netloc = f"{username}:***@{hostname}"
+    if parts.port:
+        netloc = f"{netloc}:{parts.port}"
+
+    return urlunsplit(
+        SplitResult(
+            scheme=parts.scheme,
+            netloc=netloc,
+            path=parts.path,
+            query=parts.query,
+            fragment=parts.fragment,
+        )
+    )
+
+
+def check_celery_broker_url(
+    broker_url: str,
+    logger: Any,
+    *,
+    connect_timeout: float = 1.0,
+) -> bool:
+    """Check the configured Celery broker without importing the task app."""
+    try:
+        from kombu import Connection
+
+        with Connection(
+            broker_url,
+            connect_timeout=connect_timeout,
+            transport_options={
+                "socket_connect_timeout": connect_timeout,
+                "socket_timeout": connect_timeout,
+            },
+        ) as connection:
+            connection.ensure_connection(
+                max_retries=0,
+                interval_start=0,
+                interval_step=0,
+                interval_max=0,
+            )
+        return True
+    except Exception as e:
+        logger.debug("Celery broker URL check failed: {}", e)
+        return False
 
 
 def discover_plugin_migration_paths(backend_dir: Path) -> list[str]:
@@ -39,9 +98,9 @@ def get_alembic_config(backend_dir: Path):
     merged_paths: list[str] = []
     seen_paths: set[str] = set()
 
-    for path in (cfg.get_version_locations_list() or []) + discover_plugin_migration_paths(
-        backend_dir
-    ):
+    for path in (
+        cfg.get_version_locations_list() or []
+    ) + discover_plugin_migration_paths(backend_dir):
         normalized = os.path.normcase(os.path.abspath(path))
         if normalized in seen_paths:
             continue

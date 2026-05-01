@@ -23,6 +23,25 @@ _STATUS_OK = S._STATUS_OK
 _STATUS_FAIL = S._STATUS_FAIL
 _run_async = S._run_async
 
+
+def _celery_broker_hint() -> str:
+    broker_url = runtime_helpers.redact_url(settings.celery_broker_url)
+    return (
+        f"Celery broker is not reachable: {broker_url}\n\n"
+        "Start the local development Redis service first from the repository root:\n"
+        "  docker compose -f docker-compose.dev.yml up -d redis\n\n"
+        "Then retry your Celery command, for example:\n"
+        "  novusai celery dev\n\n"
+        "If you use a different broker, update CELERY_BROKER_URL in backend/.env."
+    )
+
+
+def _ensure_celery_broker_available() -> None:
+    if runtime_helpers.check_celery_broker_url(settings.celery_broker_url, logger):
+        return
+    raise click.ClickException(_celery_broker_hint())
+
+
 @click.command("run")
 @click.option("--host", default="0.0.0.0", help="Host to bind")
 @click.option("--port", type=int, default=8000, help="Port to listen")
@@ -76,6 +95,7 @@ def _get_venv_python() -> str:
 
 
 def _run_celery(args: list[str]) -> None:
+    _ensure_celery_broker_available()
     runtime_helpers.run_celery(_BACKEND_DIR, _CELERY_APP, args)
 
 
@@ -107,6 +127,7 @@ def beat(loglevel: str) -> None:
 def dev(loglevel: str) -> None:
     """Start Worker + Beat (development mode) / 启动 Worker + Beat（开发模式）"""
     os.chdir(_BACKEND_DIR)
+    _ensure_celery_broker_available()
     if platform.system() == "Windows":
         python_exe = _get_venv_python()
 
