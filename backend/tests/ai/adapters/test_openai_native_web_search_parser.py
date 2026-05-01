@@ -1,9 +1,16 @@
+"""
+Test type: structural
+Scope: native web-search parser facade and Responses payload extraction.
+Mocked dependencies: none; tests use dict payload fixtures.
+"""
+
 from __future__ import annotations
 
 from app.ai.adapters.openai_compatible import native_web_search_parser as facade
 from app.ai.adapters.openai_compatible.native_web_search_parser import (
     extract_native_web_search_items,
     extract_native_web_search_items_from_text,
+    extract_native_web_search_request_count,
     extract_native_web_search_usage,
 )
 from app.ai.adapters.openai_compatible.support import (
@@ -24,8 +31,14 @@ def test_native_web_search_parser_facade_exports_support_symbols() -> None:
         facade.extract_native_web_search_request_count
         is support.extract_native_web_search_request_count
     )
-    assert facade.extract_native_web_search_usage is support.extract_native_web_search_usage
-    assert facade.normalize_native_web_search_snippet is support.normalize_native_web_search_snippet
+    assert (
+        facade.extract_native_web_search_usage
+        is support.extract_native_web_search_usage
+    )
+    assert (
+        facade.normalize_native_web_search_snippet
+        is support.normalize_native_web_search_snippet
+    )
 
 
 def test_extract_native_web_search_items_supports_dict_payloads() -> None:
@@ -67,7 +80,9 @@ def test_extract_native_web_search_items_supports_dict_payloads() -> None:
     assert extract_native_web_search_usage(response) == (10, 4, 14)
 
 
-def test_extract_native_web_search_items_from_text_reports_parse_error_candidate() -> None:
+def test_extract_native_web_search_items_from_text_reports_parse_error_candidate() -> (
+    None
+):
     items, saw_unverifiable_url = extract_native_web_search_items_from_text(
         "bad source javascript:alert(1) https://example.com/path",
         provider_label="openai",
@@ -77,3 +92,15 @@ def test_extract_native_web_search_items_from_text_reports_parse_error_candidate
 
     assert saw_unverifiable_url is False
     assert [item.url for item in items] == ["https://example.com/path"]
+
+
+def test_extract_native_web_search_request_count_reads_output_calls() -> None:
+    response = {
+        "output": [
+            {"type": "message", "content": []},
+            {"type": "web_search_call", "action": {}},
+            {"type": "web_search_call", "action": {}},
+        ],
+    }
+
+    assert extract_native_web_search_request_count(response) == 2

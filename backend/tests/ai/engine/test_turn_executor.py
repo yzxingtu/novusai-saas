@@ -524,7 +524,7 @@ async def test_turn_executor_retries_web_research_with_fetch_url_after_search_on
             mode="required",
             allowed_tool_names=["web_search", "fetch_url"],
             retry_on_contract_breach=False,
-            reason="explicit_web_request",
+            reason="native_web_search_first:web_research",
         ),
     )
     state = ExecutionStateMachine.from_prepared_execution(prep)
@@ -617,7 +617,7 @@ async def test_turn_executor_allows_final_follow_up_after_fetch_candidates_exhau
             mode="required",
             allowed_tool_names=["web_search", "fetch_url"],
             retry_on_contract_breach=False,
-            reason="explicit_web_request",
+            reason="native_web_search_first:web_research",
         ),
     )
     state = ExecutionStateMachine.from_prepared_execution(prep)
@@ -1595,7 +1595,7 @@ async def test_turn_executor_native_search_marks_web_research_intent_complete() 
             mode="required",
             allowed_tool_names=["web_search", "fetch_url"],
             retry_on_contract_breach=False,
-            reason="explicit_web_request",
+            reason="native_web_search_first:web_research",
         ),
     )
     state = ExecutionStateMachine.from_prepared_execution(prep)
@@ -1639,8 +1639,16 @@ async def test_turn_executor_native_search_marks_web_research_intent_complete() 
     assert state.intent_plan[0].completed_by_tool_names == ["native_web_search"]
     # Only 1 LLM call — no recovery retry
     assert len(io.call_history) == 1
+    assert [tool.name for tool in io.call_history[0]["tools"]] == [
+        "web_search",
+        "fetch_url",
+    ]
+    assert (
+        io.call_history[0]["tool_use_policy"].reason
+        == "native_web_search_first:web_research"
+    )
+    assert io.tool_call_history == []
     # Response is the synthesis from native search
     assert "长沙暑假7月12日开始" in result.output
     assert result.partial is False
     assert result.final_output_source == "assistant"
-

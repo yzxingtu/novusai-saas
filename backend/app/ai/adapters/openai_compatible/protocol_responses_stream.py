@@ -104,6 +104,26 @@ def _extract_output_item_text(item: Any) -> str:
     return "".join(parts)
 
 
+def _has_native_web_search_evidence(response: Any) -> bool:
+    for item in _response_field(response, "output", []) or []:
+        item_type = str(_response_field(item, "type", "") or "").strip()
+        if item_type == "web_search_call":
+            return True
+        if item_type != "message":
+            continue
+        for content in _response_field(item, "content", []) or []:
+            if str(_response_field(content, "type", "") or "").strip() != "output_text":
+                continue
+            for annotation in _response_field(content, "annotations", []) or []:
+                if str(
+                    _response_field(annotation, "type", "") or ""
+                ).strip() == "url_citation" and str(
+                    _response_field(annotation, "url", "") or ""
+                ).startswith(("http://", "https://")):
+                    return True
+    return False
+
+
 def _tool_call_state_key(index: Any, call_id: str | None) -> str:
     if isinstance(index, int):
         return f"idx:{index}"
@@ -464,6 +484,10 @@ async def execute_stream_chat_via_responses(
                         "protocol_path": "responses",
                         "responses_response_id": response_id,
                         "usage_mode": usage_mode,
+                        "native_web_search_observed": bool(
+                            response is not None
+                            and _has_native_web_search_evidence(response)
+                        ),
                     },
                 )
                 logger.info(

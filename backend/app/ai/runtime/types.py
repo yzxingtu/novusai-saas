@@ -103,6 +103,14 @@ class CapabilityBundle:
             reason = str(metadata.get("turn_skill_activation_reason") or "").strip()
             if reason == "capability_reporting_query":
                 return []
+            if "selected_skill_names" in metadata and (
+                metadata.get("tool_count") or metadata.get("skill_count")
+            ):
+                return _stable_unique_names(
+                    filter_invalid_ai_runtime_references(
+                        list(metadata.get("selected_skill_names") or [])
+                    )
+                )
             if (
                 metadata.get("turn_skill_activation_applied") is False
                 or reason == "no_turn_skill_activation"
@@ -133,10 +141,12 @@ class CapabilityBundle:
             return filter_invalid_ai_runtime_references(
                 list(self.selected_skill_names_override)
             )
-        return filter_invalid_ai_runtime_references(collect_selected_skill_names(
-            descriptors=self.capability_descriptors,
-            tools=self.tools,
-        ))
+        return filter_invalid_ai_runtime_references(
+            collect_selected_skill_names(
+                descriptors=self.capability_descriptors,
+                tools=self.tools,
+            )
+        )
 
     @property
     def inventory_selected_tool_names(self) -> list[str]:
@@ -152,10 +162,12 @@ class CapabilityBundle:
             return filter_invalid_ai_runtime_references(
                 list(self.inventory_selected_skill_names_override)
             )
-        return filter_invalid_ai_runtime_references(collect_selected_skill_names(
-            descriptors=self.capability_descriptors,
-            tools=self.tools,
-        ))
+        return filter_invalid_ai_runtime_references(
+            collect_selected_skill_names(
+                descriptors=self.capability_descriptors,
+                tools=self.tools,
+            )
+        )
 
 
 def _skill_descriptor_tool_names(
@@ -218,9 +230,7 @@ def project_capability_bundle_to_tools(
 
     projected_tool_name_set = set(projected_tool_names)
     inventory_selected_tool_names = list(bundle.inventory_selected_tool_names or [])
-    inventory_selected_skill_names = list(
-        bundle.inventory_selected_skill_names or []
-    )
+    inventory_selected_skill_names = list(bundle.inventory_selected_skill_names or [])
     skill_tool_names = [
         tool_name
         for tool_name, tool in zip(

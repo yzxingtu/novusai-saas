@@ -103,6 +103,9 @@ def build_chat_completions_request(
     runtime_kwargs = dict(kwargs)
     effective_request = runtime_kwargs.pop("_effective_model_request", None)
     model_config = runtime_kwargs.pop("model_config", None)
+    runtime_kwargs.pop("_runtime_force_protocol_path", None)
+    runtime_kwargs.pop("_runtime_hosted_web_search_required", None)
+    runtime_kwargs.pop("_runtime_hosted_web_search_context_size", None)
     if effective_request is None:
         effective_request = adapter.resolve_effective_model_request(
             model=model,
@@ -188,6 +191,34 @@ def should_use_hosted_web_search_tool(
     return False
 
 
+def _hosted_web_search_tool(search_context_size: Any) -> dict[str, str]:
+    context_size = str(search_context_size or "").strip() or "medium"
+    return {"type": "web_search", "search_context_size": context_size}
+
+
+def _without_builtin_web_research_function_tools(
+    tools: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    filtered: list[dict[str, Any]] = []
+    for tool in tools:
+        if not isinstance(tool, dict):
+            filtered.append(tool)
+            continue
+        if tool.get("type") != "function":
+            filtered.append(tool)
+            continue
+        function = tool.get("function")
+        name = (
+            str(function.get("name") or "").strip()
+            if isinstance(function, dict)
+            else str(tool.get("name") or "").strip()
+        )
+        if name in {"web_search", "fetch_url"}:
+            continue
+        filtered.append(tool)
+    return filtered
+
+
 def convert_tools_for_responses(
     tools: list[dict],
     *,
@@ -240,6 +271,14 @@ async def build_responses_request(
     explicit_reasoning = runtime_kwargs.pop("reasoning", None)
     effective_request = runtime_kwargs.pop("_effective_model_request", None)
     model_config = runtime_kwargs.pop("model_config", None)
+    hosted_web_search_required = bool(
+        runtime_kwargs.pop("_runtime_hosted_web_search_required", False)
+    )
+    hosted_web_search_context_size = runtime_kwargs.pop(
+        "_runtime_hosted_web_search_context_size",
+        "medium",
+    )
+    runtime_kwargs.pop("_runtime_force_protocol_path", None)
     runtime_kwargs.pop("previous_response_id", None)
     if effective_request is None:
         effective_request = adapter.resolve_effective_model_request(
@@ -286,12 +325,29 @@ async def build_responses_request(
         request_params["max_output_tokens"] = max_tokens
     if stream:
         request_params["stream"] = True
-    if tools:
-        request_params["tools"] = convert_tools_for_responses(
+    converted_tools = (
+        convert_tools_for_responses(
             tools,
             rewrite_web_search=should_use_hosted_web_search_tool(adapter),
         )
-    if tool_choice:
+        if tools
+        else []
+    )
+    if hosted_web_search_required:
+        converted_tools = _without_builtin_web_research_function_tools(converted_tools)
+        if not any(
+            isinstance(tool, dict) and tool.get("type") == "web_search"
+            for tool in converted_tools
+        ):
+            converted_tools.insert(
+                0,
+                _hosted_web_search_tool(hosted_web_search_context_size),
+            )
+        request_params["tools"] = converted_tools
+        request_params["tool_choice"] = "required"
+    elif converted_tools:
+        request_params["tools"] = converted_tools
+    if tool_choice and not hosted_web_search_required:
         request_params["tool_choice"] = tool_choice
 
     reasoning = build_responses_reasoning_config(

@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from app.ai.tools.types import ToolDefinition
+from app.ai.web_search.request_policy import is_explicit_builtin_web_search_request
+
 from .types import ExecutionBudget, IntentPlan
 
 
@@ -34,6 +36,8 @@ class ToolRouter:
         candidate_names: list[str] = []
         intent_allowed: dict[str, list[str]] = {}
         intent_preferred: dict[str, list[str]] = {}
+        native_preferred_intent_ids: set[str] = set()
+        _ = input_variables
         lowered = user_text.lower()
 
         def register(
@@ -83,6 +87,9 @@ class ToolRouter:
                 explicit_url = str(metadata.get("explicit_url") or "").strip()
                 fetch_only = bool(metadata.get("fetch_only")) or bool(explicit_url)
                 prefer_fetch_url = fetch_only or bool(metadata.get("prefer_fetch_url"))
+                explicit_builtin_web_tool = bool(
+                    metadata.get("explicit_builtin_web_tool_request")
+                ) or is_explicit_builtin_web_search_request(user_text)
                 if fetch_only:
                     if "fetch_url" in tools_by_name:
                         register(intent, ["fetch_url"], ["fetch_url"])
@@ -95,6 +102,21 @@ class ToolRouter:
                         ["fetch_url", "web_search"],
                         ["fetch_url", "web_search"],
                     )
+                    continue
+                if not explicit_builtin_web_tool:
+                    fallback_names = [
+                        name
+                        for name in ("web_search", "fetch_url")
+                        if name in tools_by_name
+                    ]
+                    intent.metadata = {
+                        **metadata,
+                        "native_search_preferred": True,
+                        "fallback_tool_names": list(fallback_names),
+                    }
+                    native_preferred_intent_ids.add(intent.intent_id)
+                    intent_allowed[intent.intent_id] = list(fallback_names)
+                    intent_preferred[intent.intent_id] = list(fallback_names)
                     continue
                 register(
                     intent,
@@ -116,6 +138,16 @@ class ToolRouter:
             tools_by_name[name] for name in candidate_names if name in tools_by_name
         ]
         for intent_id, allowed in list(intent_allowed.items()):
+            if intent_id in native_preferred_intent_ids:
+                intent_allowed[intent_id] = [
+                    name for name in allowed if name in tools_by_name
+                ]
+                intent_preferred[intent_id] = [
+                    name
+                    for name in intent_preferred.get(intent_id, [])
+                    if name in tools_by_name
+                ]
+                continue
             intent_allowed[intent_id] = [
                 name for name in allowed if name in candidate_names
             ]

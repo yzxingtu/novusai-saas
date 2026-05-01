@@ -78,3 +78,54 @@ def test_tool_router_web_fetch_ignores_stale_page_context() -> None:
     assert decision.candidate_tool_names() == ["fetch_url"]
     assert decision.intent_allowed_tools["intent-web_research"] == ["fetch_url"]
     assert decision.intent_preferred_tools["intent-web_research"] == ["fetch_url"]
+
+
+def test_tool_router_generic_web_research_prefers_native_search() -> None:
+    intent = _intent("web_research", "web_research")
+
+    decision = ToolRouter.route(
+        intents=[intent],
+        tools=[
+            ToolDefinition(name="web_search"),
+            ToolDefinition(name="fetch_url"),
+            ToolDefinition(name="crm_lookup"),
+        ],
+        budget=_budget(),
+        input_variables={},
+        user_text="联网查一下今天的开源模型发布",
+    )
+
+    assert decision.candidate_tool_names() == []
+    assert decision.intent_allowed_tools["intent-web_research"] == [
+        "web_search",
+        "fetch_url",
+    ]
+    assert decision.intent_preferred_tools["intent-web_research"] == [
+        "web_search",
+        "fetch_url",
+    ]
+    assert intent.metadata["native_search_preferred"] is True
+    assert intent.metadata["fallback_tool_names"] == ["web_search", "fetch_url"]
+
+
+def test_tool_router_explicit_builtin_search_request_uses_web_tools() -> None:
+    intent = _intent("web_research", "web_research")
+
+    decision = ToolRouter.route(
+        intents=[intent],
+        tools=[
+            ToolDefinition(name="web_search"),
+            ToolDefinition(name="fetch_url"),
+            ToolDefinition(name="crm_lookup"),
+        ],
+        budget=_budget(),
+        input_variables={},
+        user_text="请调用 web_search 工具搜索今天的开源模型发布",
+    )
+
+    assert decision.candidate_tool_names() == ["web_search", "fetch_url"]
+    assert decision.intent_allowed_tools["intent-web_research"] == [
+        "web_search",
+        "fetch_url",
+    ]
+    assert "native_search_preferred" not in intent.metadata

@@ -987,12 +987,12 @@ test.describe('AI Chat E2E', () => {
     registerSingleTurnScenarios([
       {
         id: 'C1',
-        name: 'web_search is triggered',
+        name: 'native or fallback web search is triggered',
         prompt: '帮我搜索一下2026年中国新能源汽车销量排行',
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
           expectGracefulResponse(metrics, 20);
-          expectTool(metrics, isSearchTool, 'Expected search tool');
+          expectHostedSearchExecutionOrGracefulClosure(metrics);
         },
       },
     ]);

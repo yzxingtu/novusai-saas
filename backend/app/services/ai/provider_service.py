@@ -11,6 +11,8 @@ from urllib.parse import urlparse
 from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
 
+from app.ai.adapters.openai_compatible.capabilities import OpenAIProtocolCapabilities
+from app.ai.exceptions import ProviderError
 from app.ai.text_semantics import slugify_ascii_identifier
 from app.core.base_service import BaseService
 from app.core.config import settings
@@ -247,11 +249,22 @@ class AIProviderService(BaseService[AIProvider, AIProviderRepository]):
                 native_provider=provider_type or "unknown",
                 reason="native_denied: provider type has no native web search adapter",
             )
-        if wire_api != "responses":
+        try:
+            protocol_capabilities = OpenAIProtocolCapabilities.from_provider_config(
+                provider_config=provider_config,
+                configured_wire_api=wire_api,
+            )
+        except ProviderError:
             return AIProviderWebSearchRuntime(
                 native_supported=False,
                 native_provider=provider_type,
-                reason="native_denied: openai_compatible native web search requires wire_api=responses",
+                reason="native_denied: provider protocol_capabilities is invalid",
+            )
+        if not protocol_capabilities.supports_wire_api("responses"):
+            return AIProviderWebSearchRuntime(
+                native_supported=False,
+                native_provider=provider_type,
+                reason="native_denied: openai_compatible native web search requires Responses API support",
             )
         return AIProviderWebSearchRuntime(
             native_supported=True,

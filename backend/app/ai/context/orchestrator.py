@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.ai.memory_policy import resolve_memory_runtime_policy
+from app.ai.web_search.request_policy import is_explicit_builtin_web_search_request
 
 
 @dataclass(frozen=True)
@@ -15,6 +16,7 @@ class IntentPlanFlags:
     all_shortcircuit: bool
     has_knowledge_intent: bool
     has_web_research_intent: bool
+    has_builtin_web_tool_request: bool
     has_memory_intent: bool
     memory_context_enabled: bool
     has_memory_save_intent: bool
@@ -30,6 +32,7 @@ class IntentPlanFlags:
             "all_shortcircuit": self.all_shortcircuit,
             "has_knowledge_intent": self.has_knowledge_intent,
             "has_web_research_intent": self.has_web_research_intent,
+            "has_builtin_web_tool_request": self.has_builtin_web_tool_request,
             "has_memory_intent": self.has_memory_intent,
             "memory_context_enabled": self.memory_context_enabled,
             "has_memory_save_intent": self.has_memory_save_intent,
@@ -66,6 +69,9 @@ class ContextPipelineOrchestrator:
             str(getattr(intent, "family", "") or "").strip() == "web_research"
             for intent in normalized_plan
         )
+        has_builtin_web_tool_request = is_explicit_builtin_web_search_request(
+            ContextPipelineOrchestrator._last_user_text(request)
+        )
         has_memory_save_intent = "memory_save" in intent_kinds
         has_memory_recall_intent = "memory_recall" in intent_kinds
         memory_policy = resolve_memory_runtime_policy(request)
@@ -95,6 +101,7 @@ class ContextPipelineOrchestrator:
             all_shortcircuit=all_shortcircuit,
             has_knowledge_intent=has_knowledge_intent,
             has_web_research_intent=has_web_research_intent,
+            has_builtin_web_tool_request=has_builtin_web_tool_request,
             has_memory_intent=has_memory_intent,
             memory_context_enabled=memory_context_enabled,
             has_memory_save_intent=has_memory_save_intent,
@@ -105,6 +112,17 @@ class ContextPipelineOrchestrator:
             should_run_memory_profile=should_run_memory_profile,
             should_run_memory_vector_recall=should_run_memory_vector_recall,
         )
+
+    @staticmethod
+    def _last_user_text(request: Any | None) -> str:
+        messages = list(getattr(request, "messages", None) or [])
+        for message in reversed(messages):
+            if str(getattr(message, "role", "") or "").strip() != "user":
+                continue
+            text = str(getattr(message, "content", "") or "").strip()
+            if text:
+                return text
+        return ""
 
 
 __all__ = ["ContextPipelineOrchestrator", "IntentPlanFlags"]

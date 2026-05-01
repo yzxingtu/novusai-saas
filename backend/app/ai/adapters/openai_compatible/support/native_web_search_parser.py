@@ -149,8 +149,17 @@ def extract_native_web_search_usage(response: Any) -> tuple[int, int, int]:
 def extract_native_web_search_request_count(response: Any) -> int:
     tool_usage = native_web_search_field(response, "tool_usage")
     web_search_usage = native_web_search_field(tool_usage, "web_search")
-    request_count = coerce_int(native_web_search_field(web_search_usage, "num_requests"))
-    return int(request_count or 0)
+    request_count = coerce_int(
+        native_web_search_field(web_search_usage, "num_requests")
+    )
+    if request_count and request_count > 0:
+        return int(request_count)
+
+    output_call_count = 0
+    for item in native_web_search_field(response, "output") or []:
+        if native_web_search_field(item, "type") == "web_search_call":
+            output_call_count += 1
+    return output_call_count
 
 
 def extract_urls_from_native_web_search_text(text: str) -> list[tuple[str, int, int]]:

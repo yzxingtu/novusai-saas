@@ -71,6 +71,32 @@ def extract_responses_tool_calls(response: Any) -> list[dict] | None:
     return tool_calls or None
 
 
+def _response_field(value: Any, field_name: str, default: Any = None) -> Any:
+    if isinstance(value, dict):
+        return value.get(field_name, default)
+    return getattr(value, field_name, default)
+
+
+def _has_native_web_search_evidence(response: Any) -> bool:
+    for item in _response_field(response, "output", []) or []:
+        item_type = str(_response_field(item, "type", "") or "").strip()
+        if item_type == "web_search_call":
+            return True
+        if item_type != "message":
+            continue
+        for content in _response_field(item, "content", []) or []:
+            if str(_response_field(content, "type", "") or "").strip() != "output_text":
+                continue
+            for annotation in _response_field(content, "annotations", []) or []:
+                if str(
+                    _response_field(annotation, "type", "") or ""
+                ).strip() == "url_citation" and str(
+                    _response_field(annotation, "url", "") or ""
+                ).startswith(("http://", "https://")):
+                    return True
+    return False
+
+
 def convert_responses_chat_response(
     *,
     adapter: ResponsesAdapterProtocol,
@@ -87,6 +113,8 @@ def convert_responses_chat_response(
     metadata = {"protocol_path": "responses"}
     if response_id:
         metadata[_RESPONSES_RESPONSE_ID_METADATA_KEY] = response_id
+    if _has_native_web_search_evidence(response):
+        metadata["native_web_search_observed"] = True
     return ChatResponse(
         message=ChatMessage(
             role="assistant",

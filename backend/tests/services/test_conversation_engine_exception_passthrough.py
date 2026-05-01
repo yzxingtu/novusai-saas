@@ -73,7 +73,9 @@ from app.middleware.trace import trace_id_var
 
 @pytest.mark.asyncio
 async def test_conversation_engine_execute_reraises_business_exception() -> None:
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
     engine._prepare_execution = AsyncMock(
         return_value=PreparedExecution(
             messages=[ChatMessage(role="user", content="hello")],
@@ -115,7 +117,9 @@ async def test_conversation_engine_stream_execute_preflight_reraises_business_ex
     exc_factory,
     expected_code: int,
 ) -> None:
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
     engine._prepare_execution = AsyncMock(
         return_value=PreparedExecution(
             messages=[ChatMessage(role="user", content="hello")],
@@ -145,8 +149,12 @@ async def test_conversation_engine_stream_execute_preflight_reraises_business_ex
 
 
 @pytest.mark.asyncio
-async def test_conversation_engine_execute_hides_generic_exception_in_production() -> None:
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+async def test_conversation_engine_execute_hides_generic_exception_in_production() -> (
+    None
+):
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
     engine._prepare_execution = AsyncMock(
         side_effect=RuntimeError("secret provider stack")
     )
@@ -212,7 +220,9 @@ async def test_conversation_engine_retries_capability_denial_with_required_tool_
     )
     engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=sandbox)
     prep = PreparedExecution(
-        messages=[ChatMessage(role="user", content="联网帮我查一下 gpt 到底是什么东西")],
+        messages=[
+            ChatMessage(role="user", content="联网帮我查一下 gpt 到底是什么东西")
+        ],
         tools=[
             ToolDefinition(name="web_search", description="Search the web"),
             ToolDefinition(name="fetch_url", description="Fetch url"),
@@ -308,7 +318,9 @@ async def test_conversation_engine_retries_capability_denial_with_required_tool_
         agent_id=1,
         tenant_id=1,
         user_id=1,
-        messages=[ChatMessage(role="user", content="联网帮我查一下 gpt 到底是什么东西")],
+        messages=[
+            ChatMessage(role="user", content="联网帮我查一下 gpt 到底是什么东西")
+        ],
         input_variables={},
     )
     agent = SimpleNamespace(id=1)
@@ -320,16 +332,25 @@ async def test_conversation_engine_retries_capability_denial_with_required_tool_
     assert "GPT overview" in result.output
     assert len(engine._call_llm.await_args_list) == 2
     assert engine._call_llm.await_args_list[0].kwargs["tool_use_policy"].mode == "auto"
-    assert engine._call_llm.await_args_list[1].kwargs["tool_use_policy"].mode == "required"
-    assert engine._call_llm.await_args_list[1].kwargs["tool_use_policy"].family == "web_research"
-    assert [tool.name for tool in engine._call_llm.await_args_list[1].kwargs["tools"]] == [
+    assert (
+        engine._call_llm.await_args_list[1].kwargs["tool_use_policy"].mode == "required"
+    )
+    assert (
+        engine._call_llm.await_args_list[1].kwargs["tool_use_policy"].family
+        == "web_research"
+    )
+    assert [
+        tool.name for tool in engine._call_llm.await_args_list[1].kwargs["tools"]
+    ] == [
         "web_search",
         "fetch_url",
     ]
 
 
 @pytest.mark.asyncio
-async def test_conversation_engine_retries_summary_without_fetch_with_fetch_url() -> None:
+async def test_conversation_engine_retries_summary_without_fetch_with_fetch_url() -> (
+    None
+):
     sandbox = MagicMock()
     sandbox.execute = AsyncMock(
         side_effect=[
@@ -475,7 +496,9 @@ async def test_conversation_engine_retries_summary_without_fetch_with_fetch_url(
     assert engine._call_llm.await_args_list[1].kwargs["tool_use_policy"].reason == (
         "unfinished_intent_retry"
     )
-    assert [tool.name for tool in engine._call_llm.await_args_list[1].kwargs["tools"]] == [
+    assert [
+        tool.name for tool in engine._call_llm.await_args_list[1].kwargs["tools"]
+    ] == [
         "fetch_url",
     ]
 
@@ -716,7 +739,9 @@ async def test_conversation_engine_repairs_title_only_answer_after_fetch(
     assert "春假和秋假通常各安排 2 至 3 天" in result.output
     assert len(engine._call_llm.await_args_list) == 3
     assert engine._call_llm.await_args_list[2].kwargs["tools"] is None
-    assert engine._call_llm.await_args_list[2].kwargs["tool_use_policy"] == ToolUsePolicy(
+    assert engine._call_llm.await_args_list[2].kwargs[
+        "tool_use_policy"
+    ] == ToolUsePolicy(
         family="none",
         mode="none",
         allowed_tool_names=[],
@@ -737,7 +762,9 @@ async def test_conversation_engine_repairs_title_only_answer_after_fetch(
 
 @pytest.mark.asyncio
 async def test_conversation_engine_execute_calls_context_engine_after_turn() -> None:
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
     context_engine = AsyncMock()
     prep = PreparedExecution(
         messages=[ChatMessage(role="user", content="hello")],
@@ -770,7 +797,9 @@ async def test_conversation_engine_execute_calls_context_engine_after_turn() -> 
     context_engine.after_turn.assert_awaited_once()
 
 
-def test_contract_breach_retry_uses_semantic_capability_terms_for_custom_web_tool() -> None:
+def test_contract_breach_retry_uses_semantic_capability_terms_for_custom_web_tool() -> (
+    None
+):
     tools = [
         ToolDefinition(
             name="external_lookup",
@@ -780,22 +809,24 @@ def test_contract_breach_retry_uses_semantic_capability_terms_for_custom_web_too
         ),
     ]
 
-    should_retry, retry_policy, response_text = ConversationEngine._should_retry_tool_contract_breach(
-        response=ChatResponse(
-            message=ChatMessage(
-                role="assistant",
-                content="我现在不能联网搜索公开网页，只能基于已有知识回答。",
+    should_retry, retry_policy, response_text = (
+        ConversationEngine._should_retry_tool_contract_breach(
+            response=ChatResponse(
+                message=ChatMessage(
+                    role="assistant",
+                    content="我现在不能联网搜索公开网页，只能基于已有知识回答。",
+                ),
             ),
-        ),
-        current_policy=ToolUsePolicy(
-            family="none",
-            mode="auto",
-            allowed_tool_names=["external_lookup"],
-            retry_on_contract_breach=True,
-            reason="default_auto",
-        ),
-        tools=tools,
-        input_variables={},
+            current_policy=ToolUsePolicy(
+                family="none",
+                mode="auto",
+                allowed_tool_names=["external_lookup"],
+                retry_on_contract_breach=True,
+                reason="default_auto",
+            ),
+            tools=tools,
+            input_variables={},
+        )
     )
 
     assert should_retry is True
@@ -806,7 +837,9 @@ def test_contract_breach_retry_uses_semantic_capability_terms_for_custom_web_too
     assert retry_policy.allowed_tool_names == ["external_lookup"]
 
 
-def test_conversation_engine_detects_capability_denial_from_semantic_family_terms() -> None:
+def test_conversation_engine_detects_capability_denial_from_semantic_family_terms() -> (
+    None
+):
     response = ChatResponse(
         message=ChatMessage(
             role="assistant",
@@ -849,7 +882,9 @@ def test_conversation_engine_detects_capability_denial_from_semantic_family_term
     )
 
 
-def test_web_research_contract_retry_does_not_override_explicit_weather_policy() -> None:
+def test_web_research_contract_retry_does_not_override_explicit_weather_policy() -> (
+    None
+):
     response = ChatResponse(
         message=ChatMessage(
             role="assistant",
@@ -978,7 +1013,9 @@ def test_web_research_title_only_retry_skips_explicit_title_request() -> None:
     assert response_text == ""
 
 
-def test_analyze_post_tool_contract_breach_accepts_native_web_search_weather_answer() -> None:
+def test_analyze_post_tool_contract_breach_accepts_native_web_search_weather_answer() -> (
+    None
+):
     tools = [
         ToolDefinition(name="web_search", description="Search the web"),
         ToolDefinition(name="fetch_url", description="Fetch url"),
@@ -1041,4 +1078,66 @@ def test_analyze_post_tool_contract_breach_accepts_native_web_search_weather_ans
     assert retry_policy is None
     assert diagnostics["native_web_search_evidence"] is True
     assert diagnostics["completed_intents"] == ["weather"]
+    assert diagnostics["unfinished_intents"] == []
+
+
+def test_analyze_post_tool_contract_breach_accepts_native_web_research_answer() -> None:
+    tools = [
+        ToolDefinition(name="web_search", description="Search the web"),
+        ToolDefinition(name="fetch_url", description="Fetch url"),
+    ]
+    messages = [ChatMessage(role="user", content="联网查一下今天的开源模型发布")]
+    response = ChatResponse(
+        message=ChatMessage(
+            role="assistant",
+            content="今天有多个开源模型发布动态，其中 Example AI 发布了新模型。",
+        ),
+        raw_response={
+            "output": [
+                {
+                    "type": "web_search_call",
+                    "action": {
+                        "sources": [{"url": "https://example.com/open-model-release"}]
+                    },
+                },
+                {
+                    "type": "message",
+                    "content": [
+                        {
+                            "type": "output_text",
+                            "text": "今天有多个开源模型发布动态。",
+                            "annotations": [
+                                {
+                                    "type": "url_citation",
+                                    "url": "https://example.com/open-model-release",
+                                    "title": "Example AI",
+                                }
+                            ],
+                        }
+                    ],
+                },
+            ]
+        },
+    )
+
+    breach_type, retry_policy, diagnostics = (
+        ConversationEngine._analyze_post_tool_contract_breach(
+            messages=messages,
+            response=response,
+            current_policy=ToolUsePolicy(
+                family="web_research",
+                mode="required",
+                allowed_tool_names=["web_search", "fetch_url"],
+                retry_on_contract_breach=False,
+                reason="native_web_search_first:web_research",
+            ),
+            tools=tools,
+            input_variables={},
+        )
+    )
+
+    assert breach_type is None
+    assert retry_policy is None
+    assert diagnostics["native_web_search_evidence"] is True
+    assert diagnostics["completed_intents"] == ["web_research"]
     assert diagnostics["unfinished_intents"] == []

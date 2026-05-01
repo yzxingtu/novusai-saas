@@ -116,7 +116,9 @@ def test_validate_provider_payload_strips_legacy_public_provider_list() -> None:
     assert "public_providers" not in web_search
 
 
-def test_validate_provider_payload_drops_legacy_non_baidu_public_provider_list() -> None:
+def test_validate_provider_payload_drops_legacy_non_baidu_public_provider_list() -> (
+    None
+):
     validated = AIProviderService._validate_provider_payload(
         {
             "type": "openai_compatible",
@@ -208,7 +210,9 @@ def test_validate_provider_payload_rejects_invalid_web_search_result_cap() -> No
         )
 
 
-def test_build_web_search_runtime_summary_marks_native_ready_for_openai_compatible_responses() -> None:
+def test_build_web_search_runtime_summary_marks_native_ready_for_openai_compatible_responses() -> (
+    None
+):
     runtime = AIProviderService.build_web_search_runtime_summary(
         SimpleNamespace(
             type="openai_compatible",
@@ -228,7 +232,9 @@ def test_build_web_search_runtime_summary_marks_native_ready_for_openai_compatib
     assert "Baidu fallback" in runtime.reason
 
 
-def test_build_web_search_runtime_summary_marks_native_denied_when_wire_api_is_not_responses() -> None:
+def test_build_web_search_runtime_summary_marks_native_denied_when_wire_api_is_not_responses() -> (
+    None
+):
     runtime = AIProviderService.build_web_search_runtime_summary(
         SimpleNamespace(
             type="openai_compatible",
@@ -244,7 +250,28 @@ def test_build_web_search_runtime_summary_marks_native_denied_when_wire_api_is_n
     assert runtime.native_supported is False
     assert runtime.native_provider == "openai_compatible"
     assert runtime.reason.startswith("native_denied:")
-    assert "wire_api=responses" in runtime.reason
+    assert "Responses API support" in runtime.reason
+
+
+def test_build_web_search_runtime_summary_allows_responses_capability() -> None:
+    runtime = AIProviderService.build_web_search_runtime_summary(
+        SimpleNamespace(
+            type="openai_compatible",
+            config={
+                "wire_api": "chat_completions",
+                "protocol_capabilities": {
+                    "allowed_wire_apis": ["chat_completions", "responses"],
+                },
+                "web_search": {
+                    "enabled": True,
+                },
+            },
+        )
+    )
+
+    assert runtime.native_supported is True
+    assert runtime.native_provider == "openai_compatible"
+    assert runtime.reason.startswith("native_ready:")
 
 
 def test_provider_response_schema_declares_web_search_runtime_read_only_field() -> None:

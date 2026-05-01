@@ -62,6 +62,10 @@ def _handle_native_web_search_stream_event(
     if event_type == "response.completed":
         response = getattr(event, "response", None)
         response_usage = native_web_search_field(response, "usage") or response_usage
+        for item in native_web_search_field(response, "output") or []:
+            if native_web_search_field(item, "type") == "web_search_call":
+                saw_web_search_call = True
+                break
         if response is not None and not collected_text_parts:
             final_text = adapter._extract_responses_text(response)
             if final_text:
@@ -85,12 +89,14 @@ async def consume_native_web_search_stream(
 
     try:
         async for event in stream:
-            response_usage, saw_web_search_call = _handle_native_web_search_stream_event(
-                adapter=adapter,
-                event=event,
-                collected_text_parts=collected_text_parts,
-                response_usage=response_usage,
-                saw_web_search_call=saw_web_search_call,
+            response_usage, saw_web_search_call = (
+                _handle_native_web_search_stream_event(
+                    adapter=adapter,
+                    event=event,
+                    collected_text_parts=collected_text_parts,
+                    response_usage=response_usage,
+                    saw_web_search_call=saw_web_search_call,
+                )
             )
     except Exception as exc:  # noqa: BLE001
         logger.warning(

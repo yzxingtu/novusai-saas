@@ -67,10 +67,13 @@ def _make_adapter() -> OpenAIAdapter:
     )
 
 
-def test_supports_native_web_search_requires_responses_and_supported_model_family() -> None:
+def test_supports_native_web_search_requires_responses_and_supported_model_family() -> (
+    None
+):
     adapter = _make_adapter()
 
     assert adapter.supports_native_web_search("gpt-5.4") is True
+    assert adapter.supports_native_web_search("gpt-5.4-xhigh") is True
     assert adapter.supports_native_web_search("deepseek-chat") is False
 
     chat_adapter = OpenAIAdapter(
@@ -79,6 +82,65 @@ def test_supports_native_web_search_requires_responses_and_supported_model_famil
         provider_config={"wire_api": "chat_completions"},
     )
     assert chat_adapter.supports_native_web_search("gpt-5.4") is False
+
+    chat_primary_with_responses_allowed = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={
+            "wire_api": "chat_completions",
+            "protocol_capabilities": {
+                "allowed_wire_apis": ["chat_completions", "responses"],
+            },
+        },
+    )
+    assert (
+        chat_primary_with_responses_allowed.supports_native_web_search("gpt-5.4")
+        is True
+    )
+
+
+@pytest.mark.asyncio
+async def test_native_web_search_uses_effective_upstream_model_for_request() -> None:
+    adapter = _make_adapter()
+    response = SimpleNamespace(
+        status="completed",
+        output=[
+            SimpleNamespace(
+                type="message",
+                content=[
+                    SimpleNamespace(
+                        type="output_text",
+                        text="Example Source",
+                        annotations=[
+                            SimpleNamespace(
+                                type="url_citation",
+                                title="Example Source",
+                                url="https://example.com/article",
+                                start_index=0,
+                                end_index=14,
+                            )
+                        ],
+                    )
+                ],
+            ),
+            SimpleNamespace(type="web_search_call", action=SimpleNamespace(sources=[])),
+        ],
+    )
+    create = AsyncMock(return_value=response)
+    adapter.client = SimpleNamespace(responses=SimpleNamespace(create=create))
+
+    run = await adapter.native_web_search(
+        query="OpenAI",
+        max_results=5,
+        locale="en",
+        timeout_seconds=20,
+        model="gpt-5.4-xhigh",
+        provider_label="openai",
+    )
+
+    assert run.status == STATUS_SUCCESS
+    assert run.backend_key == "native:openai:gpt-5.4"
+    assert create.await_args.kwargs["model"] == "gpt-5.4"
 
 
 @pytest.mark.asyncio
@@ -195,7 +257,9 @@ async def test_native_web_search_applies_zero_sdk_retries_to_non_stream_request(
 
 
 @pytest.mark.asyncio
-async def test_native_web_search_returns_parse_error_when_only_unverifiable_urls_exist() -> None:
+async def test_native_web_search_returns_parse_error_when_only_unverifiable_urls_exist() -> (
+    None
+):
     adapter = _make_adapter()
     response = SimpleNamespace(
         status="completed",
@@ -235,7 +299,9 @@ async def test_native_web_search_returns_parse_error_when_only_unverifiable_urls
     )
 
     assert run.status == STATUS_PARSE_ERROR
-    assert run.failure_reason == "native web search returned no verifiable absolute URLs"
+    assert (
+        run.failure_reason == "native web search returned no verifiable absolute URLs"
+    )
 
 
 @pytest.mark.asyncio
@@ -342,7 +408,9 @@ async def test_native_web_search_renders_prompt_contract_and_attempts_stream_fal
 
 
 @pytest.mark.asyncio
-async def test_native_web_search_uses_stream_fallback_when_non_stream_returns_empty_completed_body() -> None:
+async def test_native_web_search_uses_stream_fallback_when_non_stream_returns_empty_completed_body() -> (
+    None
+):
     adapter = _make_adapter()
     empty_response = SimpleNamespace(
         status="completed",

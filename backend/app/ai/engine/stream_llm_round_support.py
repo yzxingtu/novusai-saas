@@ -65,6 +65,8 @@ async def handle_stream_chunk(
     adapter._sync_runtime_metadata(chunk_meta)
     if isinstance(chunk_meta, dict):
         state.metadata.update(chunk_meta)
+        if chunk_meta.get("native_web_search_observed"):
+            state.native_search_observed = True
     if isinstance(chunk_meta, dict) and chunk_meta.get("web_search_in_progress"):
         state.native_search_observed = True
         await adapter.handler._emit_runtime_event(

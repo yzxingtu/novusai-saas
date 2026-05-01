@@ -105,6 +105,7 @@ def intent_plan_gating_flags(
         "all_shortcircuit": bool(flags.all_shortcircuit),
         "has_knowledge_intent": bool(flags.has_knowledge_intent),
         "has_web_research_intent": bool(flags.has_web_research_intent),
+        "has_builtin_web_tool_request": bool(flags.has_builtin_web_tool_request),
         "has_memory_intent": bool(flags.has_memory_intent),
         "memory_context_enabled": bool(flags.memory_context_enabled),
         "session_memory_runtime_enabled": bool(flags.session_memory_runtime_enabled),

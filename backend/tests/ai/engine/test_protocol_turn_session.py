@@ -1,4 +1,12 @@
+"""
+Test type: structural
+Scope: protocol turn session plan and turn-record assembly.
+Mocked dependencies: local planner stub only; session mutation logic runs real.
+"""
+
 from __future__ import annotations
+
+from types import SimpleNamespace
 
 from app.ai.runtime.contracts import ProtocolExecutionPlan, ProtocolGuardContract
 from app.ai.runtime.protocol_turn_session import ProtocolTurnSession
@@ -9,6 +17,14 @@ from app.ai.types import ChatMessage, ChatResponse
 class _PlannerStub:
     def __init__(self, plan: ProtocolExecutionPlan) -> None:
         self.plan = plan
+        self.adapter = SimpleNamespace(
+            protocol_capabilities=SimpleNamespace(
+                primary_wire_api="chat_completions",
+                allowed_wire_apis=("chat_completions", "responses"),
+                allowed_cross_protocol_fallbacks={},
+                allow_adapter_cross_protocol_fallback=False,
+            ),
+        )
 
     def plan_turn(
         self,
@@ -53,6 +69,40 @@ def test_protocol_turn_session_create_initializes_turn_record() -> None:
     assert session.turn_record.protocol_path == "responses"
     assert session.turn_record.selected_tool_names == ["web_search"]
     assert session.turn_record.selected_skill_names == ["search"]
+
+
+def test_protocol_turn_session_create_honors_forced_protocol_path() -> None:
+    session = ProtocolTurnSession.create(
+        planner=_PlannerStub(
+            ProtocolExecutionPlan(
+                preferred_protocol="chat_completions",
+                protocol_chain=["chat_completions"],
+                selected_tool_names=[],
+                selected_skill_names=[],
+                context_sources=[],
+            )
+        ),
+        messages=[ChatMessage(role="user", content="联网查今天新闻")],
+        model="gpt-5.4",
+        temperature=0.7,
+        max_tokens=None,
+        top_p=1.0,
+        tools=None,
+        tool_choice=None,
+        supports_vision=True,
+        supports_audio=False,
+        supports_video=False,
+        extra_kwargs={
+            "_runtime_force_protocol_path": "responses",
+            "_runtime_hosted_web_search_required": True,
+        },
+    )
+
+    assert session.plan.preferred_protocol == "responses"
+    assert session.plan.protocol_chain == ["responses"]
+    assert session.turn_record.protocol_path == "responses"
+    assert "_runtime_force_protocol_path" not in session.command.extra_kwargs
+    assert session.command.extra_kwargs["_runtime_hosted_web_search_required"] is True
 
 
 def test_protocol_turn_session_append_fallback_uses_next_protocol() -> None:

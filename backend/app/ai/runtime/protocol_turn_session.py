@@ -42,6 +42,10 @@ class ProtocolTurnSession:
         guard_contract: ProtocolGuardContract | None = None,
     ) -> ProtocolTurnSession:
         resolved_guards = guard_contract or ProtocolGuardContract()
+        resolved_extra_kwargs = dict(extra_kwargs or {})
+        forced_protocol = resolved_extra_kwargs.pop(
+            "_runtime_force_protocol_path", None
+        )
         command = TurnCommand(
             messages=messages,
             model=model,
@@ -55,7 +59,7 @@ class ProtocolTurnSession:
             supports_video=supports_video,
             selected_skill_names=list(selected_skill_names or []),
             context_sources=list(context_sources or []),
-            extra_kwargs=dict(extra_kwargs or {}),
+            extra_kwargs=resolved_extra_kwargs,
             protocol_guards=resolved_guards,
         )
         plan = planner.plan_turn(
@@ -64,6 +68,17 @@ class ProtocolTurnSession:
             selected_skill_names=command.selected_skill_names,
             context_sources=command.context_sources,
         )
+        if forced_protocol:
+            requested_protocol = ProtocolPlanner._normalize_contract_protocol(
+                forced_protocol,
+                field_name="_runtime_force_protocol_path",
+                adapter=planner.adapter,
+            )
+            plan.preferred_protocol = requested_protocol
+            plan.protocol_chain = ProtocolPlanner.build_protocol_chain(
+                requested_protocol,
+                adapter=planner.adapter,
+            )
         plan.protocol_guards = resolved_guards
         turn_record = TurnRecord(
             protocol_path=plan.preferred_protocol,
@@ -85,7 +100,9 @@ class ProtocolTurnSession:
             return None
         return self.plan.protocol_chain[index + 1]
 
-    def append_fallback(self, index: int, *, from_protocol: ProtocolPath, reason: str) -> bool:
+    def append_fallback(
+        self, index: int, *, from_protocol: ProtocolPath, reason: str
+    ) -> bool:
         next_protocol = self.next_protocol(index)
         if next_protocol is None:
             return False

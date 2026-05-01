@@ -48,6 +48,27 @@ backend boundary instead of page perception:
 - Rich text editing should use explicit editor/domain operations or future
   skill-pack tools, not DOM scanning.
 
+## Web Search Governance
+
+- Generic current-information requests such as "联网查一下最新消息", "search
+  today's news", or other `web_research` intents must prefer provider-native
+  Responses hosted web search when the active `openai_compatible` provider
+  declares Responses support and the effective upstream model supports hosted
+  search.
+- Builtin or skill-pack web tools (`web_search`, `fetch_url`) are fallback
+  execution paths. They may be exposed on the first model round only when
+  native hosted search is unavailable, or when the user explicitly asks for the
+  builtin/tool/skill path, for example by naming `web_search`, `fetch_url`,
+  "联网搜索技能", or "search tool".
+- Native-first turns may retain builtin web tool definitions as fallback schema
+  in the runtime plan, but the OpenAI Responses payload must strip those
+  function tools when hosted search is forced and send only the provider
+  hosted `web_search` tool with required tool choice.
+- Native Responses evidence is the `web_search_call` output item,
+  `response.web_search_call.*` stream progress, or URL citations in provider
+  output. That evidence must complete `web_research` recovery intents and must
+  not trigger a second builtin search retry.
+
 ## Required Guards
 
 - API entrypoints must not accept `page_context` or `page_session_id`.

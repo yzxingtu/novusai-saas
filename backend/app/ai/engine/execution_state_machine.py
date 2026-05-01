@@ -21,11 +21,11 @@ from .types import (
     RecoveryDecision,
 )
 
-_CURRENT_EXECUTION_STATE_MACHINE: ContextVar[
-    ExecutionStateMachine | None
-] = contextvars.ContextVar(
-    "execution_state_machine.current",
-    default=None,
+_CURRENT_EXECUTION_STATE_MACHINE: ContextVar[ExecutionStateMachine | None] = (
+    contextvars.ContextVar(
+        "execution_state_machine.current",
+        default=None,
+    )
 )
 
 
@@ -41,6 +41,7 @@ def set_current_execution_state_machine(
 
 def reset_current_execution_state_machine(token: Token) -> None:
     _CURRENT_EXECUTION_STATE_MACHINE.reset(token)
+
 
 ExecutionState = Literal[
     "prepared",
@@ -65,6 +66,7 @@ class ExecutionStateMachine:
     preparation_diagnostics: dict[str, Any] = field(default_factory=dict)
     provider_events: list[dict[str, Any]] = field(default_factory=list)
     recovery_history: list[RecoveryDecision] = field(default_factory=list)
+    recovery_events: list[dict[str, Any]] = field(default_factory=list)
     provider_failure_kind: ProviderFailureKind = "none"
     readonly_tool_cache: dict[str, tuple[ToolResult, int]] = field(
         default_factory=dict,
@@ -106,7 +108,9 @@ class ExecutionStateMachine:
             elif isinstance(decision, dict):
                 normalized_recovery_history.append(RecoveryDecision(**decision))
 
-        candidate_tool_names = [tool.name for tool in (getattr(prep, "tools", []) or [])]
+        candidate_tool_names = [
+            tool.name for tool in (getattr(prep, "tools", []) or [])
+        ]
         all_tool_names = [tool.name for tool in (getattr(prep, "all_tools", []) or [])]
         if not all_tool_names:
             all_tool_names = list(candidate_tool_names)
@@ -272,12 +276,11 @@ class ExecutionStateMachine:
             self.emit_event("turn.partial_exit", event_data)
         elif state == "completed":
             self.emit_event("turn.completed", {})
-        elif state == "failed":
-            if self.provider_failure_kind != "none":
-                self.emit_event(
-                    "turn.failed",
-                    {"provider_failure_kind": self.provider_failure_kind},
-                )
+        elif state == "failed" and self.provider_failure_kind != "none":
+            self.emit_event(
+                "turn.failed",
+                {"provider_failure_kind": self.provider_failure_kind},
+            )
 
     def register_completion_tokens(self, completion_tokens: int) -> None:
         self.transition("model_call")

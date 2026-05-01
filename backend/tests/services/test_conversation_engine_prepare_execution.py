@@ -107,7 +107,9 @@ def _build_intent_plan(*kinds: str) -> list[IntentPlan]:
             intent_id=f"intent-{index}",
             kind=kind,
             family=(
-                "memory" if kind.startswith("memory_") else family_by_kind.get(kind, "none")
+                "memory"
+                if kind.startswith("memory_")
+                else family_by_kind.get(kind, "none")
             ),
             order=index,
             user_visible_label=kind,
@@ -257,7 +259,7 @@ async def test_prepare_execution_uses_current_user_text_for_optimizer_before_res
         mode="required",
         allowed_tool_names=["web_search", "fetch_url"],
         retry_on_contract_breach=True,
-        reason="intent:web_research",
+        reason="native_web_search_first:web_research",
     )
 
 
@@ -777,9 +779,7 @@ async def test_prepare_execution_ignores_page_capability_request() -> None:
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_does_not_discover_forms_from_page_context() -> (
-    None
-):
+async def test_prepare_execution_does_not_discover_forms_from_page_context() -> None:
     engine = ConversationEngine(
         db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
     )
@@ -985,7 +985,9 @@ async def test_prepare_execution_keeps_weather_only_for_mixed_page_health_phrase
         tenant_id=0,
         user_id=1,
         messages=[
-            ChatMessage(role="user", content="我有点头疼，先看看当前数据集，再查北京天气")
+            ChatMessage(
+                role="user", content="我有点头疼，先看看当前数据集，再查北京天气"
+            )
         ],
     )
     skill_result = SkillResolveResult(
@@ -1140,7 +1142,7 @@ async def test_prepare_execution_prefers_web_research_on_first_turn_even_with_pa
             "fetch_url",
         ],
         retry_on_contract_breach=True,
-        reason="intent:web_research",
+        reason="native_web_search_first:web_research",
     )
     assert [tool.name for tool in prep.tools] == [
         "web_search",
@@ -2546,9 +2548,7 @@ async def test_call_llm_runtime_errors_do_not_fallback_to_legacy() -> None:
         await engine._call_llm(
             agent=agent,
             messages=[ChatMessage(role="user", content="继续")],
-            tools=[
-                ToolDefinition(name="crm_lookup", description="Lookup CRM records")
-            ],
+            tools=[ToolDefinition(name="crm_lookup", description="Lookup CRM records")],
             selected_skill_names=["page_skill"],
             context_sources=[],
             conversation_id=9001,
@@ -2748,9 +2748,7 @@ async def test_prepare_execution_record_search_turn_uses_web_search_not_page_too
         agent_id=1,
         tenant_id=1,
         user_id=1,
-        messages=[
-            ChatMessage(role="user", content="帮我搜索一下包含'供应商'的记录")
-        ],
+        messages=[ChatMessage(role="user", content="帮我搜索一下包含'供应商'的记录")],
     )
 
     with (
@@ -2788,9 +2786,7 @@ async def test_prepare_execution_record_search_with_weather_keyword_uses_weather
         agent_id=1,
         tenant_id=1,
         user_id=1,
-        messages=[
-            ChatMessage(role="user", content="帮我搜索一下包含'天气'的记录")
-        ],
+        messages=[ChatMessage(role="user", content="帮我搜索一下包含'天气'的记录")],
     )
 
     with (
@@ -2873,7 +2869,9 @@ async def test_prepare_execution_no_tool_turn_keeps_inventory_truth_out_of_live_
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_does_not_project_invalid_runtime_tools_to_live_tools() -> None:
+async def test_prepare_execution_does_not_project_invalid_runtime_tools_to_live_tools() -> (
+    None
+):
     engine = ConversationEngine(
         db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
     )
@@ -2932,9 +2930,7 @@ async def test_prepare_execution_does_not_project_invalid_runtime_tools_to_live_
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_page_screenshot_request_uses_no_page_tools() -> (
-    None
-):
+async def test_prepare_execution_page_screenshot_request_uses_no_page_tools() -> None:
     engine = ConversationEngine(
         db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
     )
@@ -2991,4 +2987,3 @@ async def test_prepare_execution_editor_write_request_uses_no_page_tools() -> No
     assert [intent.kind for intent in prep.intent_plan] == ["direct_reply"]
     assert prep.tools == []
     assert prep.tool_use_policy == ToolUsePolicy()
-

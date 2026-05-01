@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from app.ai.adapters.openai_compatible.support.native_web_search_parser import (
     extract_native_web_search_items,
     extract_native_web_search_items_from_text,
@@ -39,6 +41,17 @@ class OpenAIAdapterNativeWebSearchMixin:
     def _supports_native_web_search_model(cls, model: str) -> bool:
         return supports_native_web_search_model(model)
 
+    def _native_web_search_effective_request(self, model: str) -> dict[str, Any]:
+        return self.resolve_effective_model_request(
+            model=model,
+            model_config=self.config.get("model_config"),
+            wire_api="responses",
+        )
+
+    def _native_web_search_upstream_model(self, model: str) -> str:
+        effective_request = self._native_web_search_effective_request(model)
+        return str(effective_request.get("upstream_model") or model).strip()
+
     async def _native_web_search_via_stream(
         self,
         *,
@@ -73,9 +86,15 @@ class OpenAIAdapterNativeWebSearchMixin:
         )
 
     def supports_native_web_search(self, model: str) -> bool:
-        return self._use_responses_api() and self._supports_native_web_search_model(
-            model
-        )
+        capabilities = getattr(self, "protocol_capabilities", None)
+        if capabilities is not None:
+            supports_responses = bool(capabilities.supports_wire_api("responses"))
+        else:
+            supports_responses = bool(self._use_responses_api())
+        if not supports_responses:
+            return False
+        upstream_model = self._native_web_search_upstream_model(model)
+        return self._supports_native_web_search_model(upstream_model)
 
     async def native_web_search(
         self,
@@ -88,10 +107,13 @@ class OpenAIAdapterNativeWebSearchMixin:
         provider_label: str | None = None,
         backend_key: str | None = None,
     ) -> SearchProviderRun:
-        effective_model = str(model or "").strip()
+        logical_model = str(model or "").strip()
+        effective_model = self._native_web_search_upstream_model(logical_model)
         effective_provider = str(provider_label or "openai_compatible")
-        effective_backend_key = backend_key or f"native:{effective_provider}:{effective_model}"
-        if not self.supports_native_web_search(effective_model):
+        effective_backend_key = (
+            backend_key or f"native:{effective_provider}:{effective_model}"
+        )
+        if not self.supports_native_web_search(logical_model):
             return SearchProviderRun(
                 provider=effective_provider,
                 provider_mode=PROVIDER_MODE_NATIVE,

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
@@ -244,15 +245,38 @@ def _build_request_extra_kwargs(
     *,
     execution_path: str | None,
     tools: list[ToolDefinition] | None,
+    tool_use_policy: ToolUsePolicy | None,
+    runtime_context: ConversationRuntimeContext | None,
     extra_kwargs: dict[str, Any] | None,
     model_request_override_builder: Any,
 ) -> dict[str, Any]:
     overrides: dict[str, Any] = {}
     if model_request_override_builder is not None:
-        override_payload = model_request_override_builder(
-            execution_path=execution_path,
-            tools=tools,
-        )
+        builder_kwargs = {
+            "execution_path": execution_path,
+            "tools": tools,
+            "tool_use_policy": tool_use_policy,
+            "runtime_context": runtime_context,
+        }
+        try:
+            signature = inspect.signature(model_request_override_builder)
+            parameters = signature.parameters
+            accepts_var_kwargs = any(
+                parameter.kind is inspect.Parameter.VAR_KEYWORD
+                for parameter in parameters.values()
+            )
+            if not accepts_var_kwargs:
+                builder_kwargs = {
+                    key: value
+                    for key, value in builder_kwargs.items()
+                    if key in parameters
+                }
+        except (TypeError, ValueError):
+            builder_kwargs = {
+                "execution_path": execution_path,
+                "tools": tools,
+            }
+        override_payload = model_request_override_builder(**builder_kwargs)
         if override_payload:
             overrides.update(override_payload)
     if extra_kwargs:
@@ -403,6 +427,8 @@ async def build_runtime_query_entrypoint_plan(
         request_extra_kwargs=_build_request_extra_kwargs(
             execution_path=execution_path,
             tools=tools,
+            tool_use_policy=effective_policy,
+            runtime_context=runtime_context,
             extra_kwargs=extra_kwargs,
             model_request_override_builder=model_request_override_builder,
         ),
@@ -429,7 +455,8 @@ async def build_runtime_stream_entrypoint_plan(
     tool_use_policy: ToolUsePolicy | None = None,
     breach_retry_result: str | None = None,
     skip_metering_preflight: bool = False,
-    runtime_preparer: Callable[..., Awaitable[ConversationRuntimeContext]] | None = None,
+    runtime_preparer: Callable[..., Awaitable[ConversationRuntimeContext]]
+    | None = None,
     adapter_registry: Any = AdapterRegistry,
     query_engine_cls: Any = ConversationQueryEngine,
     model_request_override_builder: Any = build_model_request_overrides,
@@ -525,6 +552,8 @@ async def build_runtime_stream_entrypoint_plan(
         request_extra_kwargs=_build_request_extra_kwargs(
             execution_path=execution_path,
             tools=tools,
+            tool_use_policy=effective_policy,
+            runtime_context=runtime_context,
             extra_kwargs=extra_kwargs,
             model_request_override_builder=model_request_override_builder,
         ),

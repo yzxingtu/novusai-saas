@@ -406,6 +406,19 @@ async def finalize_turn_execution(
             and not promote_budget_partial_to_completed
         )
     ):
+        recovery_event = {
+            "kind": (
+                "partial_output"
+                if decision.action == "return_partial"
+                else "pause_for_consent"
+            ),
+            "action": decision.action,
+            "target_intent_id": decision.target_intent_id,
+            "reason": decision.reason,
+        }
+        state.recovery_events.append(recovery_event)
+        decision.metadata = dict(decision.metadata or {})
+        decision.metadata["source_recovery_event_seq"] = len(state.recovery_events)
         state.recovery_history.append(decision)
     completion_reason = "completed"
     final_output_source: Literal[
@@ -645,6 +658,20 @@ class _TurnRunLoop:
             self.total_tokens += total_tokens
             self.completion_tokens_used += completion_tokens_used
         self.state.register_completion_tokens(self.completion_tokens_used)
+        self._complete_native_search_if_observed(model_round)
+
+    def _complete_native_search_if_observed(
+        self,
+        model_round: ModelRoundResult,
+    ) -> None:
+        if (
+            getattr(model_round, "native_search_observed", False)
+            and response_has_visible_content(self.response)
+            and self.state.intent_plan
+        ):
+            self.state.intent_plan = RecoveryManager.complete_native_search_intents(
+                self.state.intent_plan
+            )
 
     def _register_budget_exit_if_needed(self) -> None:
         budget_exit_reason = self.state.budget_exit_reason()
@@ -668,8 +695,8 @@ class _TurnRunLoop:
         intent.metadata = dict(getattr(intent, "metadata", {}) or {})
         intent.metadata["cached_shortcircuit_completed"] = True
         self.state.preparation_diagnostics["cached_shortcircuit"] = True
-        self.state.preparation_diagnostics["cached_shortcircuit_intent_kind"] = (
-            getattr(intent, "kind", None)
+        self.state.preparation_diagnostics["cached_shortcircuit_intent_kind"] = getattr(
+            intent, "kind", None
         )
         self.response = ChatResponse(
             message=ChatMessage(role="assistant", content=cached_result),
@@ -772,14 +799,6 @@ class _TurnRunLoop:
             tool_use_policy=self.active_policy,
         )
         self._apply_model_round(model_round, replace_totals=True)
-        if (
-            getattr(model_round, "native_search_observed", False)
-            and response_has_visible_content(self.response)
-            and self.state.intent_plan
-        ):
-            self.state.intent_plan = RecoveryManager.complete_native_search_intents(
-                self.state.intent_plan
-            )
 
     async def _run_tool_batch_or_update_intents(self) -> None:
         (
@@ -939,7 +958,9 @@ class _TurnRunLoop:
                     self.tool_results.extend(extra_tool_results)
                     self.decision = self._decide_recovery()
                     continue
-            if self.state.intent_plan and not getattr(self.response, "tool_calls", None):
+            if self.state.intent_plan and not getattr(
+                self.response, "tool_calls", None
+            ):
                 self.state.intent_plan = RecoveryManager.update_intent_statuses(
                     self.state.intent_plan,
                     messages=self.messages,

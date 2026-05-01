@@ -73,6 +73,7 @@ def prepare_protocol_execution_context(
         ProtocolGuardContract.RUNTIME_DISABLE_SYNC_RESCUE,
         guard_contract.disable_sync_rescue,
     )
+    runtime_kwargs.pop("_runtime_force_protocol_path", None)
     runtime_kwargs.pop("_runtime_force_wire_api", None)
     runtime_reasoning_effort_override = runtime_kwargs.pop(
         "_runtime_reasoning_effort_override",

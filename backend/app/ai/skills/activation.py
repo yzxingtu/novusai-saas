@@ -14,6 +14,7 @@ from app.ai.runtime.types import (
 )
 from app.ai.text_semantics_terms import extract_textual_tool_call_names
 from app.ai.tools.semantic_defaults import tool_family_from_name
+from app.ai.web_search.request_policy import is_explicit_builtin_web_search_request
 
 _WEB_RESEARCH_TOOL_NAMES = {"web_search", "fetch_url"}
 
@@ -109,6 +110,7 @@ def resolve_startup_intent_flags(request: Any) -> dict[str, bool]:
     if not user_text:
         return {
             "has_web_research_intent": False,
+            "has_builtin_web_tool_request": False,
         }
 
     from app.services.ai.agent_router_policy import requested_tool_families
@@ -116,6 +118,9 @@ def resolve_startup_intent_flags(request: Any) -> dict[str, bool]:
     requested_families = requested_tool_families(user_text)
     return {
         "has_web_research_intent": "web_research" in requested_families,
+        "has_builtin_web_tool_request": is_explicit_builtin_web_search_request(
+            user_text
+        ),
     }
 
 
@@ -284,7 +289,7 @@ def _tool_names_for_runtime_policy(
         if not tool_name:
             continue
         if (
-            intent_flags.get("has_web_research_intent")
+            intent_flags.get("has_builtin_web_tool_request")
             and tool_name in _WEB_RESEARCH_TOOL_NAMES
         ):
             selected.append(tool_name)
@@ -488,6 +493,7 @@ __all__ = [
     "execution_capability_descriptors_for_turn",
     "execution_selected_tool_names_for_turn",
     "execution_tools_for_turn",
+    "is_explicit_builtin_web_search_request",
     "TurnSkillActivation",
     "apply_turn_skill_activation",
     "resolve_startup_intent_flags",

@@ -148,7 +148,9 @@ async def test_build_responses_request_keeps_required_tool_choice() -> None:
         adapter=adapter,
         messages=[ChatMessage(role="user", content="hello")],
         model="gpt-5.4-xhigh",
-        tools=[{"type": "function", "function": {"name": "web_search", "parameters": {}}}],
+        tools=[
+            {"type": "function", "function": {"name": "web_search", "parameters": {}}}
+        ],
         tool_choice="required",
         kwargs={},
         reasoning_summary_model_prefixes=("gpt-5",),
@@ -168,7 +170,9 @@ async def test_build_responses_request_keeps_required_tool_choice() -> None:
 
 
 @pytest.mark.asyncio
-async def test_build_responses_request_hoists_system_messages_into_instructions() -> None:
+async def test_build_responses_request_hoists_system_messages_into_instructions() -> (
+    None
+):
     adapter = _BuilderAdapterStub()
 
     request = await build_responses_request(
@@ -197,16 +201,18 @@ async def test_build_responses_request_hoists_system_messages_into_instructions(
 
 
 @pytest.mark.asyncio
-async def test_build_responses_request_keeps_runtime_web_search_when_provider_search_enabled() -> None:
-    adapter = _BuilderAdapterStub(
-        provider_config={"web_search": {"enabled": True}}
-    )
+async def test_build_responses_request_keeps_runtime_web_search_when_provider_search_enabled() -> (
+    None
+):
+    adapter = _BuilderAdapterStub(provider_config={"web_search": {"enabled": True}})
 
     request = await build_responses_request(
         adapter=adapter,
         messages=[ChatMessage(role="user", content="hello")],
         model="gpt-5.4-xhigh",
-        tools=[{"type": "function", "function": {"name": "web_search", "parameters": {}}}],
+        tools=[
+            {"type": "function", "function": {"name": "web_search", "parameters": {}}}
+        ],
         tool_choice="required",
         kwargs={},
         reasoning_summary_model_prefixes=("gpt-5",),
@@ -224,7 +230,36 @@ async def test_build_responses_request_keeps_runtime_web_search_when_provider_se
 
 
 @pytest.mark.asyncio
-async def test_build_responses_request_ignores_legacy_hosted_search_rewrite_config() -> None:
+async def test_build_responses_request_injects_required_hosted_search_override() -> (
+    None
+):
+    adapter = _BuilderAdapterStub()
+
+    request = await build_responses_request(
+        adapter=adapter,
+        messages=[ChatMessage(role="user", content="联网查一下今天的新闻")],
+        model="gpt-5.4-xhigh",
+        tools=[
+            {"type": "function", "function": {"name": "web_search", "parameters": {}}},
+            {"type": "function", "function": {"name": "fetch_url", "parameters": {}}},
+        ],
+        tool_choice="required",
+        kwargs={
+            "_runtime_hosted_web_search_required": True,
+            "_runtime_hosted_web_search_context_size": "medium",
+        },
+        reasoning_summary_model_prefixes=("gpt-5",),
+    )
+
+    assert request["tool_choice"] == "required"
+    assert request["tools"] == [{"type": "web_search", "search_context_size": "medium"}]
+    assert request["reasoning"] == {"effort": "xhigh", "summary": "auto"}
+
+
+@pytest.mark.asyncio
+async def test_build_responses_request_ignores_legacy_hosted_search_rewrite_config() -> (
+    None
+):
     adapter = _BuilderAdapterStub(
         provider_config={
             "web_search": {
@@ -239,7 +274,9 @@ async def test_build_responses_request_ignores_legacy_hosted_search_rewrite_conf
         adapter=adapter,
         messages=[ChatMessage(role="user", content="hello")],
         model="gpt-5.4-xhigh",
-        tools=[{"type": "function", "function": {"name": "web_search", "parameters": {}}}],
+        tools=[
+            {"type": "function", "function": {"name": "web_search", "parameters": {}}}
+        ],
         tool_choice="required",
         kwargs={},
         reasoning_summary_model_prefixes=("gpt-5",),
@@ -274,7 +311,10 @@ async def test_build_responses_request_uses_previous_response_id_for_pure_tool_f
                     {
                         "id": "call_1",
                         "type": "function",
-                        "function": {"name": "crm_update_record", "arguments": '{"target":"x"}'},
+                        "function": {
+                            "name": "crm_update_record",
+                            "arguments": '{"target":"x"}',
+                        },
                     }
                 ],
                 metadata={
@@ -285,7 +325,12 @@ async def test_build_responses_request_uses_previous_response_id_for_pure_tool_f
             ChatMessage(role="tool", content='{"ok":true}', tool_call_id="call_1"),
         ],
         model="gpt-5.4-xhigh",
-        tools=[{"type": "function", "function": {"name": "crm_update_record", "parameters": {}}}],
+        tools=[
+            {
+                "type": "function",
+                "function": {"name": "crm_update_record", "parameters": {}},
+            }
+        ],
         tool_choice="required",
         kwargs={},
         reasoning_summary_model_prefixes=("gpt-5",),
@@ -511,15 +556,15 @@ async def test_build_responses_stream_follow_up_round_without_tools_keeps_struct
         {
             "type": "function_call_output",
             "call_id": "call_crm_lookup_1",
-            "output": (
-                '{"row_count":9,"dataset_id":"crm:admin.dashboard"}'
-            ),
+            "output": ('{"row_count":9,"dataset_id":"crm:admin.dashboard"}'),
         },
     ]
 
 
 @pytest.mark.asyncio
-async def test_build_responses_stream_follow_up_preserves_fc_item_id_when_available() -> None:
+async def test_build_responses_stream_follow_up_preserves_fc_item_id_when_available() -> (
+    None
+):
     adapter = _BuilderAdapterStub()
 
     request = await build_responses_request(
@@ -545,7 +590,12 @@ async def test_build_responses_stream_follow_up_preserves_fc_item_id_when_availa
             ChatMessage(role="tool", content='{"ok":true}', tool_call_id="call_form_1"),
         ],
         model="gpt-5.4-xhigh",
-        tools=[{"type": "function", "function": {"name": "crm_update_record", "parameters": {}}}],
+        tools=[
+            {
+                "type": "function",
+                "function": {"name": "crm_update_record", "parameters": {}},
+            }
+        ],
         tool_choice="required",
         stream=True,
         kwargs={},
@@ -585,7 +635,10 @@ async def test_build_responses_request_drops_previous_response_id_after_tool_rou
                     {
                         "id": "call_1",
                         "type": "function",
-                        "function": {"name": "crm_update_record", "arguments": '{"target":"x"}'},
+                        "function": {
+                            "name": "crm_update_record",
+                            "arguments": '{"target":"x"}',
+                        },
                     }
                 ],
                 metadata={
@@ -594,10 +647,17 @@ async def test_build_responses_request_drops_previous_response_id_after_tool_rou
                 },
             ),
             ChatMessage(role="tool", content='{"ok":true}', tool_call_id="call_1"),
-            ChatMessage(role="system", content="Only continue the unfinished page intent."),
+            ChatMessage(
+                role="system", content="Only continue the unfinished page intent."
+            ),
         ],
         model="gpt-5.4-xhigh",
-        tools=[{"type": "function", "function": {"name": "crm_update_record", "parameters": {}}}],
+        tools=[
+            {
+                "type": "function",
+                "function": {"name": "crm_update_record", "parameters": {}},
+            }
+        ],
         tool_choice="required",
         kwargs={},
         reasoning_summary_model_prefixes=("gpt-5",),

@@ -33,6 +33,9 @@ def messages_have_blocking_pending_interaction(messages: list[ChatMessage]) -> b
 def response_has_native_web_search_evidence(response: ChatResponse | None) -> bool:
     if response is None:
         return False
+    metadata = getattr(response, "metadata", None)
+    if isinstance(metadata, dict) and metadata.get("native_web_search_observed"):
+        return True
     raw_response = getattr(response, "raw_response", None)
     if not isinstance(raw_response, dict):
         return False
