@@ -4,7 +4,7 @@ import type { UseAIChatOptions } from './use-ai-chat-options';
 
 import type { MemoryState } from '#/api/shared/ai-chat';
 
-import { ref, unref } from 'vue';
+import { ref, unref, watch } from 'vue';
 
 import {
   clearChatConversationMemoryApi,
@@ -67,6 +67,13 @@ export function useAIChatMemory(deps: UseAIChatMemoryDeps) {
     memoryState.value = null;
     lastMemoryUpdated.value = false;
   }
+
+  watch([lastMemoryUpdated, activeConversationId], ([updated, convId]) => {
+    if (!updated || !convId) {
+      return;
+    }
+    void fetchConversationMemory();
+  });
 
   return {
     clearConversationMemory,

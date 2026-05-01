@@ -104,6 +104,7 @@ class AgentChatRuntimeSupport:
 
             session_memory_service_cls = SessionMemoryService
         return await _load_session_memory_context_impl(
+            db=self.db,
             tenant_id=self.tenant_id,
             request=request,
             logger=logger,

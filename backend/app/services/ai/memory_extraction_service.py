@@ -24,7 +24,8 @@ from app.repositories.ai.agent_repository import AgentRepository
 logger = LogManager.get_logger("ai.memory_extraction_service")
 
 _CHINESE_NAME_PATTERN = re.compile(
-    r"(?:我叫|叫我|我的名字是|你可以叫我|请叫我|称呼我)\s*[\"'“”‘’]?(?P<name>[\u4e00-\u9fffA-Za-z0-9_.\-·]{1,24})",
+    r"(?:我叫|叫我|我的名字是|你可以叫我|请叫我|称呼我)\s*[\"'“”‘’]?"
+    r"(?P<name>[\u4e00-\u9fffA-Za-z0-9_.\-·]{1,24}(?:\s+[\u4e00-\u9fffA-Za-z0-9_.\-·]{1,24}){0,2})",
 )
 _ENGLISH_NAME_PATTERNS = (
     re.compile(
@@ -46,6 +47,7 @@ _MEMORY_SAVE_REQUEST_TERMS = (
     "记到记忆",
     "记到长期记忆",
     "请记住",
+    "请你记住",
     "记住",
     "帮我记住",
     "帮我记一下",
@@ -66,12 +68,16 @@ _EXPLICIT_MEMORY_FACT_PATTERNS = (
         re.IGNORECASE,
     ),
     re.compile(
-        r"(?:请记住|帮我记住|帮我记一下|记住|记一下|记下来|以后记得|记得)"
+        r"(?:请你记住|请记住|帮我记住|帮我记一下|记住|记一下|记下来|以后记得|记得)"
         r"\s*[：:]?\s*(?P<fact>.+)",
         re.IGNORECASE,
     ),
 )
 _MEMORY_FACT_STOP_PATTERNS = (
+    re.compile(
+        r"\s*(?:请|请你|帮我|麻烦你)?(?:存入|存到|保存到|保存进|记到)(?:长期)?记忆(?:里|中)?[。.!！?？]*\s*$",
+        re.IGNORECASE,
+    ),
     re.compile(r"(?:只有在|如果没有|否则|只回答|only answer|otherwise).*$", re.IGNORECASE),
 )
 _PLACEHOLDER_MEMORY_FACTS = {
@@ -129,6 +135,10 @@ class MemoryExtractionService:
         text = (message or "").strip()
         if not text or len(text) < 4:
             return self._empty_delta()
+
+        explicit_delta = self._fallback_extract_turn_memory(text)
+        if self.message_requests_memory_save(text) and any(explicit_delta.values()):
+            return explicit_delta
 
         try:
             async with async_session_factory() as llm_db:
@@ -268,9 +278,17 @@ class MemoryExtractionService:
         if display_name:
             result["verified_facts"].append(f"用户名字是{display_name}")
         for fact in cls._extract_explicit_memory_facts(message):
+            fact_display_name = cls._extract_display_name(fact)
+            if fact_display_name:
+                fact = f"用户名字是{fact_display_name}"
             if fact not in result["verified_facts"]:
                 result["verified_facts"].append(fact)
         return result
+
+    @staticmethod
+    def message_requests_memory_save(message: str) -> bool:
+        lowered = (message or "").strip().lower()
+        return bool(lowered and any(term in lowered for term in _MEMORY_SAVE_REQUEST_TERMS))
 
     @classmethod
     def _extract_explicit_memory_facts(cls, message: str) -> list[str]:
@@ -337,6 +355,11 @@ class MemoryExtractionService:
         if not candidate:
             return None
         candidate = re.split(r"[\n\r\t，,。！？；;:：]", candidate, maxsplit=1)[0]
+        candidate = re.split(
+            r"\s+(?:请|请你|帮我|麻烦你)?(?:记住|存入|存到|保存到|记一下|记下来|以后记得)",
+            candidate,
+            maxsplit=1,
+        )[0]
         candidate = re.sub(r"\s+", " ", candidate).strip()
         if not candidate or len(candidate) > 32:
             return None

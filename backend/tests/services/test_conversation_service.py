@@ -1016,7 +1016,14 @@ class TestConversationAccessHelpers:
 
         result = await service.get_conversation_memory_state(10, user_id=1)
 
-        assert result == {"preferences": []}
+        assert result == {
+            "constraints": [],
+            "preferences": [],
+            "task_states": [],
+            "updated_at": 0,
+            "verified_facts": [],
+            "version": 0,
+        }
         service.get_accessible_conversation.assert_awaited_once_with(
             10,
             user_id=1,
@@ -3588,3 +3595,110 @@ async def test_conversation_detail_surfaces_extended_runtime_diagnostics(
     ] == ["crm_lookup"]
     assert detail["message_list"][0]["turn_flow"]["completion_reason"] == "budget_exit"
     assert detail["message_list"][0]["turn_flow"]["timeline"][-1]["type"] == "failed"
+
+
+@pytest.mark.asyncio
+async def test_conversation_memory_state_merges_persisted_metadata_when_session_store_empty(
+    mock_db,
+) -> None:
+    """Test type: behavioral
+    Verifies the memory panel read model includes the conversation metadata
+    mirror when Redis-backed session memory has no rows.
+    """
+    from app.services.ai.conversation_memory_state_service import (
+        CONVERSATION_MEMORY_STATE_METADATA_KEY,
+    )
+    from app.services.ai.conversation_service import ConversationService
+
+    conversation = _make_conversation(id=42, user_id=9)
+    conversation.metadata_ = {
+        CONVERSATION_MEMORY_STATE_METADATA_KEY: {
+            "preferences": [],
+            "constraints": [],
+            "task_states": [],
+            "verified_facts": ["用户名字是ix long"],
+            "version": 1,
+            "updated_at": 123,
+        }
+    }
+
+    service = ConversationService.__new__(ConversationService)
+    service.db = mock_db
+    service.tenant_id = 1
+    service.repo = AsyncMock()
+    service.get_accessible_conversation = AsyncMock(return_value=conversation)
+    service._memory_state_service = SimpleNamespace(
+        get_state=AsyncMock(
+            return_value={
+                "preferences": [],
+                "constraints": [],
+                "task_states": [],
+                "verified_facts": [],
+                "version": 0,
+                "updated_at": 0,
+            }
+        )
+    )
+
+    state = await service.get_conversation_memory_state(
+        42,
+        user_id=9,
+        owner_type="tenant_admin",
+    )
+
+    assert state["verified_facts"] == ["用户名字是ix long"]
+    assert state["version"] == 1
+    assert state["updated_at"] == 123
+
+
+@pytest.mark.asyncio
+async def test_clear_conversation_memory_state_removes_metadata_when_redis_down(
+    mock_db,
+) -> None:
+    """Test type: behavioral
+    Verifies clearing conversation memory removes the durable panel read-model
+    mirror even when Redis cleanup is degraded.
+    """
+    from app.services.ai.conversation_memory_state_service import (
+        CONVERSATION_MEMORY_STATE_METADATA_KEY,
+    )
+    from app.services.ai.conversation_service import ConversationService
+
+    conversation = _make_conversation(id=43, user_id=9)
+    conversation.metadata_ = {
+        "thread_memory_state": {"session_memory_runtime_enabled": True},
+        CONVERSATION_MEMORY_STATE_METADATA_KEY: {
+            "verified_facts": ["用户名字是ix long"],
+            "version": 1,
+            "updated_at": 123,
+        },
+    }
+
+    async def _update_conversation(conversation_id: int, payload: dict):
+        assert conversation_id == 43
+        conversation.metadata_ = payload["metadata_"]
+        return conversation
+
+    service = ConversationService.__new__(ConversationService)
+    service.db = mock_db
+    service.tenant_id = 1
+    service.repo = AsyncMock()
+    service.repo.update = AsyncMock(side_effect=_update_conversation)
+    service.get_accessible_conversation = AsyncMock(return_value=conversation)
+    service._memory_state_service = SimpleNamespace(
+        clear_state=AsyncMock(side_effect=RuntimeError("redis down"))
+    )
+    service._clear_long_term_memory_scope = AsyncMock(return_value=0)
+
+    deleted_count = await service.clear_conversation_memory_state(
+        43,
+        user_id=9,
+        owner_type="tenant_admin",
+    )
+
+    assert deleted_count == 1
+    assert CONVERSATION_MEMORY_STATE_METADATA_KEY not in conversation.metadata_
+    assert conversation.metadata_["thread_memory_state"] == {
+        "session_memory_runtime_enabled": True
+    }
+    service.repo.update.assert_awaited_once()

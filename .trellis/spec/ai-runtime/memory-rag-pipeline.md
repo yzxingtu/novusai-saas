@@ -22,6 +22,16 @@ reminder mechanism.
 - `memory_save` and `memory_recall` are distinct intents.
 - `memory_save` triggers post-turn capture. It must not trigger recall during
 context assembly.
+- `memory_save` is a deterministic local short-circuit for the visible turn:
+  intent planning should attach a compact cached acknowledgement, the shared
+  `TurnExecutor` must return it without calling the model provider, and
+  post-turn memory capture must persist from the user message even if no
+  upstream model request was made.
+- Streaming `memory_save` turns must persist explicit concrete facts before the
+  terminal `done` event is built, so `done.memory_updated=true` can drive the
+  sidebar memory refresh. Generic background memory capture may remain in the
+  post-done tail, but explicit user save requests must not depend on that
+  delayed signal.
 - `memory_recall` forces rich long-term recall in the context pipeline
   (profile snapshot plus vector recall), but it is not the only path that may
   enable memory participation.
@@ -70,6 +80,16 @@ context assembly.
 
 - Session memory is loaded by the service layer when memory is enabled and the
 conversation has a user and conversation id.
+- Session memory facts are Redis-backed for the hot path, but conversation
+  persistence must also maintain a compact metadata mirror at
+  `conversation.metadata_.conversation_memory_state`. Memory writes should
+  attempt Redis first and still update the metadata mirror when Redis degrades;
+  memory reads and prompt injection should merge Redis state with the metadata
+  mirror so the sidebar read model and the next turn do not lose explicit
+  user-saved facts.
+- Full conversation memory clear must clear both the Redis session-memory state
+  and the `conversation_memory_state` metadata mirror. Redis cleanup failure
+  must not prevent the durable metadata mirror from being removed.
 - The injected session memory block sets `session_memory_injected` on the
 request and is surfaced as a context source.
 - Session memory injection is independent of `memory_recall` intent.
@@ -179,6 +199,9 @@ is cached for reuse.
 ## Required Behavior
 
 - `memory_save` must not execute long-term vector recall.
+- `memory_save` must not call the model provider only to produce an
+  acknowledgement. The user-visible acknowledgement is local and cached, so
+  provider connection failures cannot block explicit memory persistence.
 - Generic long-term-memory turns may execute bounded vector recall without
   forcing a profile snapshot.
 - Memory extraction parser must accept plain JSON or fenced JSON responses.

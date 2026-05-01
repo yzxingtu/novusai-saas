@@ -281,7 +281,24 @@ class ConversationService(
             owner_type=owner_type,
         )
         state = await self.memory_state_service.get_state(conversation_id)
+        state = self._merge_persisted_conversation_memory_state(
+            state,
+            conversation,
+        )
         return await self._attach_long_term_memory_preview(state, conversation)
+
+    def _merge_persisted_conversation_memory_state(
+        self,
+        state: dict[str, Any],
+        conversation: AgentConversation,
+    ) -> dict[str, Any]:
+        from app.services.ai.conversation_memory_state_service import (
+            extract_persisted_conversation_memory_state,
+            merge_conversation_memory_states,
+        )
+
+        persisted_state = extract_persisted_conversation_memory_state(conversation)
+        return merge_conversation_memory_states(state, persisted_state)
 
     async def _attach_long_term_memory_preview(
         self,
@@ -353,9 +370,44 @@ class ConversationService(
             user_id=user_id,
             owner_type=owner_type,
         )
-        session_deleted = await self.memory_state_service.clear_state(conversation_id)
+        session_deleted = 0
+        try:
+            session_deleted = await self.memory_state_service.clear_state(
+                conversation_id
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "Clear session memory store degraded: conversation={} tenant={} err={}",
+                conversation_id,
+                self._get_memory_tenant_id(),
+                str(exc),
+            )
+        metadata_deleted = await self._clear_persisted_conversation_memory_state(
+            conversation
+        )
         long_term_deleted = await self._clear_long_term_memory_scope(conversation)
-        return session_deleted + long_term_deleted
+        return session_deleted + metadata_deleted + long_term_deleted
+
+    async def _clear_persisted_conversation_memory_state(
+        self,
+        conversation: AgentConversation,
+    ) -> int:
+        from app.services.ai.conversation_memory_state_service import (
+            CONVERSATION_MEMORY_STATE_METADATA_KEY,
+        )
+
+        conversation_metadata = dict(getattr(conversation, "metadata_", None) or {})
+        if CONVERSATION_MEMORY_STATE_METADATA_KEY not in conversation_metadata:
+            return 0
+        conversation_metadata.pop(CONVERSATION_MEMORY_STATE_METADATA_KEY, None)
+        conversation.metadata_ = self._normalize_json_safe_dict(
+            conversation_metadata,
+        )
+        await self.repo.update(
+            conversation.id,
+            {"metadata_": conversation.metadata_},
+        )
+        return 1
 
     async def _clear_long_term_memory_scope(
         self,

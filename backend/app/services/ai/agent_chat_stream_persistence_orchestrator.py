@@ -5,13 +5,13 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from app.ai.engine.final_output_policy import (
-    is_trusted_assistant_final_output_source,
-)
 from app.ai.engine.execution_postflight_support import (
     ExecutionPostflightDependencies,
     apply_execution_result_postflight,
     release_execution_postflight_lock,
+)
+from app.ai.engine.final_output_policy import (
+    is_trusted_assistant_final_output_source,
 )
 from app.ai.engine.types import ExecutionResult
 from app.ai.events.hooks import HookPoint
@@ -19,6 +19,7 @@ from app.ai.memory_policy import attach_memory_runtime_policy
 from app.ai.types import ChatMessage
 from app.core.i18n import _
 from app.core.logging import LogManager
+from app.services.ai.agent_chat_memory_support import message_requests_memory_save
 from app.services.ai.agent_chat_stream_persistence_error_support import (
     persist_stream_last_error_marker,
     save_error_message_to_conversation,
@@ -103,6 +104,63 @@ class AgentChatStreamPersistenceOrchestrator:
         if callable(dependencies):
             dependencies = dependencies()
         return dependencies
+
+    def _should_persist_memory_before_done(self, result: ExecutionResult) -> bool:
+        return bool(result.success) and message_requests_memory_save(self.message)
+
+    async def _persist_success_memory_update(
+        self,
+        *,
+        final_result: ExecutionResult,
+        extra: dict[str, Any],
+        runtime_deps: AgentChatStreamPersistenceDependencies | None = None,
+    ) -> bool:
+        try:
+            memory_delta = await self.persist_session_memory(
+                request=self.request,
+                message=self.message,
+                response=final_result.output or "",
+                event_id=self.memory_event_id,
+            )
+            if not memory_delta:
+                return False
+
+            if self.commit_stream_memory_writes is not None:
+                await self.commit_stream_memory_writes()
+
+            deps = runtime_deps or self._deps()
+            async with deps.session_factory() as mem_db:
+                try:
+                    mem_conv_svc = deps.conversation_service_cls(
+                        mem_db,
+                        self.tenant_id,
+                    )
+                    await mem_conv_svc.mark_memory_updated(
+                        self.conversation_id,
+                    )
+                    await mem_db.commit()
+                except Exception:
+                    await mem_db.rollback()
+                    raise
+            extra["memory_updated"] = True
+            return True
+        except Exception as mem_exc:
+            if self.rollback_stream_memory_writes is not None:
+                try:
+                    await self.rollback_stream_memory_writes()
+                except Exception:
+                    logger.warning(
+                        "Rollback stream memory writes failed: tenant={} conversation={}",
+                        self.tenant_id,
+                        self.conversation_id,
+                    )
+            logger.warning(
+                "Persist stream session memory failed: tenant={} conversation={} err={}",
+                self.tenant_id,
+                self.conversation_id,
+                str(mem_exc),
+            )
+            return False
 
     @staticmethod
     def _copy_execution_result(
@@ -255,47 +313,12 @@ class AgentChatStreamPersistenceOrchestrator:
                     str(stats_exc),
                 )
 
-            if final_result.success:
-                try:
-                    memory_delta = await self.persist_session_memory(
-                        request=self.request,
-                        message=self.message,
-                        response=final_result.output or "",
-                        event_id=self.memory_event_id,
-                    )
-                    if memory_delta:
-                        if self.commit_stream_memory_writes is not None:
-                            await self.commit_stream_memory_writes()
-                        async with runtime_deps.session_factory() as mem_db:
-                            try:
-                                mem_conv_svc = runtime_deps.conversation_service_cls(
-                                    mem_db,
-                                    self.tenant_id,
-                                )
-                                await mem_conv_svc.mark_memory_updated(
-                                    self.conversation_id,
-                                )
-                                await mem_db.commit()
-                            except Exception:
-                                await mem_db.rollback()
-                                raise
-                        extra["memory_updated"] = True
-                except Exception as mem_exc:
-                    if self.rollback_stream_memory_writes is not None:
-                        try:
-                            await self.rollback_stream_memory_writes()
-                        except Exception:
-                            logger.warning(
-                                "Rollback stream memory writes failed: tenant={} conversation={}",
-                                self.tenant_id,
-                                self.conversation_id,
-                            )
-                    logger.warning(
-                        "Persist stream session memory failed: tenant={} conversation={} err={}",
-                        self.tenant_id,
-                        self.conversation_id,
-                        str(mem_exc),
-                    )
+            if final_result.success and not extra.get("memory_updated"):
+                await self._persist_success_memory_update(
+                    final_result=final_result,
+                    extra=extra,
+                    runtime_deps=runtime_deps,
+                )
 
             if self.hook_registry.has_hooks(HookPoint.AFTER_AGENT_CHAT):
                 hook_ctx = await self.hook_registry.trigger(
@@ -523,6 +546,11 @@ class AgentChatStreamPersistenceOrchestrator:
                 )
             extra["persistence_committed"] = critical_persistence_committed
             extra["persisted_message_count"] = int(persisted_message_count or 0)
+            if self._should_persist_memory_before_done(result):
+                await self._persist_success_memory_update(
+                    final_result=result,
+                    extra=extra,
+                )
         except Exception as on_complete_exc:
             logger.error(
                 "Stream on_complete callback failed: tenant={} conversation={} err={}",

@@ -329,6 +329,16 @@ def intent_requires_clarification(intent: Any | None) -> bool:
     )
 
 
+def cached_shortcircuit_intent(state: ExecutionStateMachine) -> Any | None:
+    if active_intent(state) is not None:
+        return None
+    for intent in state.intent_plan:
+        cached_result = str(getattr(intent, "cached_result", "") or "").strip()
+        if bool(getattr(intent, "shortcircuit", False)) and cached_result:
+            return intent
+    return None
+
+
 async def finalize_turn_execution(
     *,
     state: ExecutionStateMachine,
@@ -652,6 +662,26 @@ class _TurnRunLoop:
             provider_failure_kind=self.state.provider_failure_kind,
         )
 
+    def _apply_cached_shortcircuit(self, intent: Any) -> None:
+        cached_result = str(getattr(intent, "cached_result", "") or "").strip()
+        intent.status = "completed"
+        intent.metadata = dict(getattr(intent, "metadata", {}) or {})
+        intent.metadata["cached_shortcircuit_completed"] = True
+        self.state.preparation_diagnostics["cached_shortcircuit"] = True
+        self.state.preparation_diagnostics["cached_shortcircuit_intent_kind"] = (
+            getattr(intent, "kind", None)
+        )
+        self.response = ChatResponse(
+            message=ChatMessage(role="assistant", content=cached_result),
+            total_tokens=0,
+            output_tokens=0,
+            finish_reason="stop",
+            metadata={
+                "cached_shortcircuit": True,
+                "cached_shortcircuit_intent_kind": getattr(intent, "kind", None),
+            },
+        )
+
     async def _run_missing_args_clarification(self, intent: Any) -> None:
         missing_args = intent_missing_args(intent)
         decision = RecoveryDecision(
@@ -729,6 +759,11 @@ class _TurnRunLoop:
 
         if intent_requires_clarification(self.intent):
             await self._run_missing_args_clarification(self.intent)
+            return
+
+        shortcircuit_intent = cached_shortcircuit_intent(self.state)
+        if shortcircuit_intent is not None:
+            self._apply_cached_shortcircuit(shortcircuit_intent)
             return
 
         model_round = await self.io.call_llm(

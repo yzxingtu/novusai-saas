@@ -1,4 +1,8 @@
-"""MemoryExtractionService 单元测试 / MemoryExtractionService tests."""
+"""Test type: behavioral
+Scope: MemoryExtractionService explicit-save extraction and parser fallback.
+Real dependencies: MemoryExtractionService fallback parsers and prompt parser.
+Mocked dependencies: Internal model transport and config lookup only.
+"""
 
 from __future__ import annotations
 
@@ -362,4 +366,159 @@ async def test_extract_turn_memory_fallback_accepts_plain_remember_phrasing(
         "constraints": [],
         "task_states": [],
         "verified_facts": [expected_fact],
+    }
+
+
+@pytest.mark.asyncio
+async def test_extract_turn_memory_fallback_keeps_spaced_display_name(
+    mock_db,
+):
+    """Test type: behavioral
+    Verifies mixed latin display names with spaces are stored as one fact when
+    model resolution is unavailable.
+    """
+    from app.services.ai.memory_extraction_service import MemoryExtractionService
+
+    with patch(
+        "app.services.ai.memory_extraction_service.async_session_factory",
+        return_value=_SessionManager(mock_db),
+    ), patch(
+        "app.services.ai.memory_extraction_service.ConfigService",
+    ) as mock_config_service, patch(
+        "app.services.ai.memory_extraction_service.AgentRepository.get_by_id",
+        new_callable=AsyncMock,
+        return_value=None,
+    ):
+        mock_config_service.return_value.get_platform_config = AsyncMock(
+            side_effect=["", ""],
+        )
+
+        result = await MemoryExtractionService(tenant_id=9).extract_turn_memory(
+            agent_id=9,
+            message="我叫 ix long",
+            response="记住啦。",
+        )
+
+    assert result == {
+        "preferences": [],
+        "constraints": [],
+        "task_states": [],
+        "verified_facts": ["用户名字是ix long"],
+    }
+
+
+@pytest.mark.asyncio
+async def test_extract_turn_memory_uses_local_explicit_fact_before_model_call(
+    mock_db,
+):
+    """Test type: behavioral
+    Verifies concrete explicit memory-save facts do not depend on an internal
+    model call before they can be persisted.
+    """
+    from app.services.ai.memory_extraction_service import MemoryExtractionService
+
+    with patch(
+        "app.services.ai.memory_extraction_service.async_session_factory",
+        return_value=_SessionManager(mock_db),
+    ), patch(
+        "app.services.ai.memory_extraction_service.ConfigService",
+    ) as mock_config_service, patch(
+        "app.services.ai.memory_extraction_service.InternalAIService.chat",
+        new_callable=AsyncMock,
+        return_value=_fake_response(
+            '{"preferences":[],"constraints":[],"task_states":[],"verified_facts":["wrong"]}',
+        ),
+    ) as mock_chat:
+        mock_config_service.return_value.get_platform_config = AsyncMock(
+            side_effect=["openai_compatible", "gpt-4o-mini"],
+        )
+
+        result = await MemoryExtractionService(tenant_id=1).extract_turn_memory(
+            agent_id=7,
+            message="我叫 ix long 请记住",
+            response="已记住。",
+        )
+
+    assert result == {
+        "preferences": [],
+        "constraints": [],
+        "task_states": [],
+        "verified_facts": ["用户名字是ix long"],
+    }
+    mock_chat.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_extract_turn_memory_normalizes_prefixed_name_memory_save(
+    mock_db,
+):
+    """Test type: behavioral
+    Verifies "请记住 我叫X" stores one normalized name fact instead of a
+    duplicate raw "我叫X" fact.
+    """
+    from app.services.ai.memory_extraction_service import MemoryExtractionService
+
+    with patch(
+        "app.services.ai.memory_extraction_service.async_session_factory",
+        return_value=_SessionManager(mock_db),
+    ), patch(
+        "app.services.ai.memory_extraction_service.ConfigService",
+    ) as mock_config_service, patch(
+        "app.services.ai.memory_extraction_service.InternalAIService.chat",
+        new_callable=AsyncMock,
+    ) as mock_chat:
+        mock_config_service.return_value.get_platform_config = AsyncMock(
+            side_effect=["openai_compatible", "gpt-4o-mini"],
+        )
+
+        result = await MemoryExtractionService(tenant_id=1).extract_turn_memory(
+            agent_id=59,
+            message="请记住 我叫我妻善逸",
+            response="已记住。",
+        )
+
+    assert result == {
+        "preferences": [],
+        "constraints": [],
+        "task_states": [],
+        "verified_facts": ["用户名字是我妻善逸"],
+    }
+    mock_chat.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_extract_turn_memory_fallback_strips_trailing_memory_instruction(
+    mock_db,
+):
+    """Test type: behavioral
+    Verifies explicit facts do not keep the trailing "save to memory" command
+    inside the stored memory text.
+    """
+    from app.services.ai.memory_extraction_service import MemoryExtractionService
+
+    with patch(
+        "app.services.ai.memory_extraction_service.async_session_factory",
+        return_value=_SessionManager(mock_db),
+    ), patch(
+        "app.services.ai.memory_extraction_service.ConfigService",
+    ) as mock_config_service, patch(
+        "app.services.ai.memory_extraction_service.AgentRepository.get_by_id",
+        new_callable=AsyncMock,
+        return_value=None,
+    ):
+        mock_config_service.return_value.get_platform_config = AsyncMock(
+            side_effect=["", ""],
+        )
+
+        result = await MemoryExtractionService(tenant_id=9).extract_turn_memory(
+            agent_id=9,
+            message="请你记住 我的项目代号是 Phoenix 请存入记忆里。",
+            response="好的，我会记住。",
+        )
+
+    assert result == {
+        "preferences": [],
+        "constraints": [],
+        "task_states": [],
+        "verified_facts": ["我的项目代号是 Phoenix"],
     }

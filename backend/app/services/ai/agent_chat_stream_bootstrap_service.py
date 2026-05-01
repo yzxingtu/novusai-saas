@@ -32,6 +32,20 @@ from app.exceptions import BusinessException
 logger = LogManager.get_logger("ai.agent_chat_stream_bootstrap_service")
 
 
+def _resolve_request_user_id(billing_context: dict[str, Any]) -> int | None:
+    for key in ("user_id", "actor_user_id"):
+        raw_value = billing_context.get(key)
+        if raw_value is None:
+            continue
+        try:
+            user_id = int(raw_value)
+        except (TypeError, ValueError):
+            continue
+        if user_id > 0:
+            return user_id
+    return None
+
+
 @dataclass(frozen=True)
 class StreamRequestBundle:
     """Built execution request plus stream quota metadata."""
@@ -103,7 +117,7 @@ class AgentChatStreamBootstrapService:
         request = ExecutionRequest(
             agent_id=agent_id,
             tenant_id=self.tenant_id,
-            user_id=billing_context.get("user_id"),
+            user_id=_resolve_request_user_id(billing_context),
             messages=list(all_messages),
             input_variables=variables or {},
             execution_mode=AgentExecutionModeEnum.CONVERSATION.value,

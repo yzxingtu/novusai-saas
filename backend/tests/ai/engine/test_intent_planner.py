@@ -56,6 +56,15 @@ def test_intent_planner_suppresses_web_when_user_explicitly_disables_network() -
     assert intents[0].shortcircuit is True
 
 
+def test_intent_planner_memory_save_uses_local_cached_ack() -> None:
+    intents = _plan("我叫ix long  请记住")
+
+    assert [intent.kind for intent in intents] == ["memory_save"]
+    assert intents[0].shortcircuit is True
+    assert intents[0].requires_tools is False
+    assert intents[0].cached_result == "已记住。"
+
+
 def test_intent_planner_ignores_invalid_runtime_context_for_page_summary() -> None:
     intents = _plan(
         "看看本页面的内容然后总结一下",

@@ -483,6 +483,55 @@ describe('useAIChat interrupted stream recovery', () => {
     expect(chat.chatMessages.value.at(-1)?.streaming).toBeFalsy();
   });
 
+  it('refreshes conversation memory after a stream reports memory_updated', async () => {
+    apiMocks.getChatConversationMemoryApi.mockResolvedValue({
+      constraints: [],
+      preferences: [],
+      task_states: [],
+      verified_facts: ['用户名字是ix long'],
+    });
+    apiMocks.sendChatStreamApi.mockImplementation(
+      async (
+        _prefix: string,
+        _agentId: number,
+        _body: Record<string, unknown>,
+        options: {
+          onMessage: (chunk: string) => Promise<void>;
+        },
+      ) => {
+        await options.onMessage(
+          sseEvent({ event: 'conversation', conversation_id: 42 }),
+        );
+        await options.onMessage(sseEvent({ event: 'message', delta: '已记住。' }));
+        await options.onMessage(
+          sseEvent({
+            conversation_id: 42,
+            event: 'done',
+            memory_updated: true,
+            total_tokens: 0,
+          }),
+        );
+      },
+    );
+
+    const chat = createChat();
+
+    await chat.loadAgents();
+    chat.inputMessage.value = '我叫ix long 请记住';
+    const sendPromise = chat.sendMessage();
+    await vi.advanceTimersByTimeAsync(1000);
+    await sendPromise;
+    await flushPromises();
+    await flushPromises();
+
+    expect(apiMocks.getChatConversationMemoryApi).toHaveBeenCalledWith(
+      '/tenant',
+      42,
+    );
+    expect(chat.lastMemoryUpdated.value).toBe(true);
+    expect(chat.memoryState.value?.verified_facts).toEqual(['用户名字是ix long']);
+  });
+
   it('uses updated_at as the recency signal for empty conversations', () => {
     expect(
       shouldDisplayConversationInHistory(

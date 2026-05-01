@@ -98,6 +98,9 @@ class _IntentPlannerOrchestrator:
 
             metadata: dict[str, Any] = dict(signal.metadata or {})
             allow_text_response = False
+            cached_result = None
+            if signal.kind == "memory_save":
+                cached_result = "已记住。"
             if signal.kind == "weather_query" and not IntentDomainRules.weather_query_has_city(
                 user_text.lower()
             ):
@@ -117,6 +120,7 @@ class _IntentPlannerOrchestrator:
                     allow_text_response=allow_text_response,
                     continuation=signal.continuation,
                     shortcircuit=signal.shortcircuit,
+                    cached_result=cached_result,
                     metadata=metadata,
                 )
             )
