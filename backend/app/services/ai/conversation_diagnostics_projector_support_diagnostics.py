@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.ai.json_safe import normalize_json_safe_dict
-from app.ai.tools.semantic_defaults import is_retired_page_tool_name
+from app.schemas.ai.invalid_ai_runtime_input import is_invalid_ai_runtime_tool_name
 from app.services.ai.turn_failure_normalizer import derive_budget_projection
 
 
@@ -117,7 +117,7 @@ def is_retired_page_diagnostics_reference(value: Any) -> bool:
     token = _diagnostic_token(text)
     lowered = text.lower()
     return (
-        is_retired_page_tool_name(token)
+        is_invalid_ai_runtime_tool_name(token)
         or token in _RETIRED_PAGE_DIAGNOSTIC_TOKENS
         or token.startswith("page_")
         or token.startswith("pageop_")
