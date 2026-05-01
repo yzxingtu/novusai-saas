@@ -1,3 +1,10 @@
+"""
+Test type: behavioral
+Scope: CLI conversation diagnostics rendering and compact projection with retired
+page-awareness metadata removed from live diagnostic output.
+Mock strategy: no external services; CLI projection helpers run directly.
+"""
+
 from __future__ import annotations
 
 from app.ai.engine.execution_state_machine import ExecutionStateMachine
@@ -63,7 +70,6 @@ def test_extract_turn_diagnostics_from_call_log_metadata_reads_extended_fields()
             "skills_injected": False,
             "kb_injected": False,
             "memory_injected": False,
-            "page_injected": True,
             "bypass_reason": None,
         },
         "tool_filtering": {
@@ -135,14 +141,13 @@ def test_extract_turn_diagnostics_from_call_log_metadata_reads_extended_fields()
     )
 
     assert diagnostics["execution_path"] == "deep"
-    assert diagnostics["intent_plan"][1]["intent_id"] == "intent-3"
+    assert [item["intent_id"] for item in diagnostics["intent_plan"]] == ["intent-1"]
     assert diagnostics["budget_status"] == "exited"
     assert diagnostics["budget_exit_reason"] == "tool_round_budget_exceeded"
     assert diagnostics["candidate_tool_names"] == [
         "get_current_weather",
         "web_search",
         "fetch_url",
-        "ui_get_snapshot",
     ]
     assert diagnostics["path_decision"] == {
         "path": "deep",
@@ -154,7 +159,6 @@ def test_extract_turn_diagnostics_from_call_log_metadata_reads_extended_fields()
         "skills_injected": False,
         "kb_injected": False,
         "memory_injected": False,
-        "page_injected": True,
         "bypass_reason": None,
     }
     assert diagnostics["tool_filtering"] == {
@@ -171,7 +175,7 @@ def test_extract_turn_diagnostics_from_call_log_metadata_reads_extended_fields()
             "provider_failure_kind": "provider_http_5xx",
         }
     ]
-    assert diagnostics["retry_events"][0]["retry_family"] == "page_ops"
+    assert diagnostics.get("retry_events", []) == []
     assert diagnostics["partial_exit_reason"] == "retry_budget_exhausted"
     assert diagnostics["failure_kind"] == "provider_http_5xx"
     assert diagnostics["provider_events"] == [
@@ -181,7 +185,7 @@ def test_extract_turn_diagnostics_from_call_log_metadata_reads_extended_fields()
     assert diagnostics["tool_leak_detected"] is True
     assert diagnostics["unfinished_intents"] == ["intent-3"]
     assert diagnostics["recovered_via_retry"] is False
-    assert diagnostics["last_tool_name"] == "ui_get_snapshot"
+    assert diagnostics.get("last_tool_name") is None
     assert diagnostics["tool_loop_progress"] == {"current_round": 2, "total_rounds": 3}
 
 
@@ -250,7 +254,6 @@ def test_cli_compact_diagnostics_builder_and_text_renderer_surface_key_orchestra
                 "skills_injected": False,
                 "kb_injected": False,
                 "memory_injected": False,
-                "page_injected": True,
                 "bypass_reason": None,
             },
             "tool_filtering": {
@@ -336,11 +339,14 @@ def test_cli_compact_diagnostics_builder_and_text_renderer_surface_key_orchestra
     assert compact["execution_path"] == "deep"
     assert compact["failure_kind"] == "provider_http_5xx"
     assert compact["budget_exit_reason"] == "elapsed_budget_exceeded"
-    assert compact["intent_plan"][2]["status"] == "pending"
-    assert compact["retry_events"][0]["target_intent_id"] == "intent-3"
+    assert [item["intent_id"] for item in compact["intent_plan"]] == [
+        "intent-1",
+        "intent-2",
+    ]
+    assert compact["retry_events"] == []
     assert compact["tool_planner"]["intent"] == "weather_query"
     assert compact["path_decision"]["path"] == "deep"
-    assert compact["capability_injection"]["page_injected"] is True
+    assert "page_injected" not in compact["capability_injection"]
     assert compact["tool_filtering"]["candidate_tools_count"] == 3
     assert compact["recovery_chain"][0]["target_intent"] == "intent-3"
     assert compact["provider_events"] == [
@@ -349,7 +355,9 @@ def test_cli_compact_diagnostics_builder_and_text_renderer_surface_key_orchestra
     assert "Conversation #666 diagnostics" in text
     assert "execution_path=deep" in text
     assert "selected_tools=get_current_weather, web_search, fetch_url" in text
-    assert "candidate_tools=get_current_weather, web_search, fetch_url, ui_get_snapshot" in text
+    assert "candidate_tools=get_current_weather, web_search, fetch_url" in text
+    assert "ui_get_snapshot" not in text
+    assert "page_ops" not in text
     assert "tool_planner=" in text
     assert "path_decision=" in text
     assert "capability_injection=" in text
@@ -390,7 +398,6 @@ def test_cli_compact_diagnostics_hydrates_required_fields_from_nested_turn_recor
                                     "skills_injected": False,
                                     "kb_injected": False,
                                     "memory_injected": False,
-                                    "page_injected": True,
                                     "bypass_reason": None,
                                 },
                                 "tool_filtering": {
@@ -420,7 +427,6 @@ def test_cli_compact_diagnostics_hydrates_required_fields_from_nested_turn_recor
         "skills_injected": False,
         "kb_injected": False,
         "memory_injected": False,
-        "page_injected": True,
         "bypass_reason": None,
     }
     assert compact["tool_filtering"] == {
@@ -657,7 +663,6 @@ def test_execution_state_machine_emits_canonical_turn_event_schema() -> None:
                 "skills_injected": False,
                 "kb_injected": False,
                 "memory_injected": False,
-                "page_injected": False,
                 "bypass_reason": "all_shortcircuit",
             }
         },
@@ -713,7 +718,6 @@ def test_execution_state_machine_emits_canonical_turn_event_schema() -> None:
         "skills_injected": False,
         "kb_injected": False,
         "memory_injected": False,
-        "page_injected": False,
         "bypass_reason": "all_shortcircuit",
     }
     assert payload["tool_filtering"] == {

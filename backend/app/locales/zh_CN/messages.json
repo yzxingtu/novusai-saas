@@ -2419,8 +2419,8 @@
                 "desc": "ACME/Let's Encrypt 配置、证书自动续期策略"
             },
             "platform_ai_toolkit": {
-                "name": "AI Toolkit 与页面上下文",
-                "desc": "用户上传 Toolkit 的安全策略、资源限制，以及 AI 聊天页面上下文大小限制"
+                "name": "AI Toolkit 与运行时上下文",
+                "desc": "用户上传 Toolkit 的安全策略、资源限制，以及 AI 聊天上下文预算限制"
             },
             "platform_websocket": {
                 "name": "实时通信 & 通知",
@@ -2845,7 +2845,7 @@
             },
             "enable_dynamic_capability_awareness": {
                 "name": "动态能力感知",
-                "desc": "在 AI system prompt 中注入当前技能、知识库、页面上下文与记忆能力描述"
+                "desc": "在 AI system prompt 中注入当前技能、知识库与记忆能力描述"
             },
             "capability_description_style": {
                 "name": "能力描述风格",
@@ -3187,7 +3187,7 @@
     "config.tenant.user_default_role_id.desc": "新注册用户自动分配的角色，选择「不分配角色」则用户注册后无角色",
     "config.tenant.user_default_role_id.option_none": "不分配角色",
     "config.tenant.enable_dynamic_capability_awareness.name": "动态能力感知",
-    "config.tenant.enable_dynamic_capability_awareness.desc": "在 AI system prompt 中注入当前技能、知识库、页面上下文与记忆能力描述",
+    "config.tenant.enable_dynamic_capability_awareness.desc": "在 AI system prompt 中注入当前技能、知识库与记忆能力描述",
     "config.tenant.capability_description_style.name": "能力描述风格",
     "config.tenant.capability_description_style.desc": "选择能力描述使用详细还是简洁表述",
     "config.tenant.capability_description_style.detailed": "详细",

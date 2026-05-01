@@ -2462,8 +2462,8 @@
                 "desc": "ACME/Let's Encrypt configuration, certificate auto-renewal policy"
             },
             "platform_ai_toolkit": {
-                "name": "AI Toolkit & Page Context",
-                "desc": "Security policies and resource limits for user-uploaded Toolkits, plus AI chat page-context size limits"
+                "name": "AI Toolkit & Runtime Context",
+                "desc": "Security policies and resource limits for user-uploaded Toolkits, plus AI chat context-budget limits"
             },
             "platform_websocket": {
                 "name": "Real-time & Notifications",
@@ -2940,7 +2940,7 @@
             },
             "enable_dynamic_capability_awareness": {
                 "name": "Dynamic Capability Awareness",
-                "desc": "Inject current skills, knowledge bases, page context and memory capabilities into AI system prompts"
+                "desc": "Inject current skills, knowledge bases, and memory capabilities into AI system prompts"
             },
             "capability_description_style": {
                 "name": "Capability Description Style",
@@ -3326,7 +3326,7 @@
     "config.tenant.user_default_role_id.desc": "Role automatically assigned to newly registered users. Select 'No Role' to leave users without a role",
     "config.tenant.user_default_role_id.option_none": "No Role",
     "config.tenant.enable_dynamic_capability_awareness.name": "Dynamic Capability Awareness",
-    "config.tenant.enable_dynamic_capability_awareness.desc": "Inject current skills, knowledge bases, page context and memory capabilities into AI system prompts",
+    "config.tenant.enable_dynamic_capability_awareness.desc": "Inject current skills, knowledge bases, and memory capabilities into AI system prompts",
     "config.tenant.capability_description_style.name": "Capability Description Style",
     "config.tenant.capability_description_style.desc": "Choose whether capability descriptions use detailed or concise wording",
     "config.tenant.capability_description_style.detailed": "Detailed",

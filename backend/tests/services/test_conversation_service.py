@@ -389,14 +389,14 @@ class TestGetConversationDetail:
             "metadata": {
                 "completion_reason": "interrupted",
                 "turn_record": {
-                    "selected_skill_names": ["runtime.page_context"],
+                    "selected_skill_names": ["runtime.web_research"],
                 },
             },
         }
         message.metadata_ = {
             "completion_reason": "interrupted",
             "turn_record": {
-                "selected_skill_names": ["runtime.page_context"],
+                "selected_skill_names": ["runtime.web_research"],
             },
         }
 
@@ -413,10 +413,10 @@ class TestGetConversationDetail:
         detail = await service.get_conversation_detail(1, user_id=1)
 
         assert detail["context_diagnostics"]["selected_skill_names"] == [
-            "runtime.page_context"
+            "runtime.web_research"
         ]
         assert detail["last_run_summary"]["selected_skill_names"] == [
-            "runtime.page_context"
+            "runtime.web_research"
         ]
         assert detail["context_diagnostics"]["last_interrupted"] is True
         assert detail["last_run_summary"]["interrupted"] is True
@@ -1909,14 +1909,10 @@ class TestThinkingPersistence:
             "preview": {"sql": "SELECT 1"},
             "table": "ai_call_logs",
         }
-        tool_execution_stage = next(
-            stage
+        assert not any(
+            stage["type"] == "tool_execution"
             for stage in assistant_payload["metadata_"]["turn_flow"]["timeline"]
-            if stage["type"] == "tool_execution"
         )
-        assert tool_execution_stage["status"] == "completed"
-        assert tool_execution_stage["metrics"]["tool_call_count"] == 1
-        assert tool_execution_stage["tool_call_ids"] == ["tc_data_1"]
         tool_evidence = next(
             item
             for item in assistant_payload["metadata_"]["turn_flow"]["evidence"]
@@ -2404,9 +2400,9 @@ class TestThinkingPersistence:
         assert metadata["protocol_path"] == "shadow"
         assert metadata["selected_tool_names"] == ["web_search", "fetch_url"]
         assert metadata["selected_skill_names"] == [
-            "runtime.page_context",
             "runtime.route",
         ]
+        assert metadata["turn_record"].get("context_sources") is None
         assert metadata["turn_record"]["fallback_history"][0]["recovered"] is True
         assert metadata["turn_record"]["metadata"]["shadow_diff"] == {
             "selected_tool_names": {
@@ -2416,12 +2412,10 @@ class TestThinkingPersistence:
         }
         assert metadata["context_diagnostics"]["protocol_path"] == "shadow"
         assert metadata["context_diagnostics"]["selected_skill_names"] == [
-            "runtime.page_context",
             "runtime.route",
         ]
         assert metadata["last_run_summary"]["termination_reason"] == "protocol_fallback"
         assert metadata["last_run_summary"]["selected_skill_names"] == [
-            "runtime.page_context",
             "runtime.route",
         ]
 
@@ -3200,9 +3194,8 @@ def test_extract_turn_diagnostics_reads_extended_runtime_fields_from_nested_turn
         "get_current_weather",
         "web_search",
         "fetch_url",
-        "ui_get_snapshot",
     ]
-    assert payload["retry_events"][0]["target_intent_id"] == "intent-3"
+    assert payload["retry_events"] == []
     assert payload["partial_exit_reason"] == "retry_budget_exhausted"
     assert payload["failure_kind"] == "provider_http_5xx"
     assert payload["provider_events"] == [
@@ -3217,15 +3210,14 @@ def test_extract_turn_diagnostics_reads_extended_runtime_fields_from_nested_turn
     assert payload["turn_skill_activation"] == {
         "applied": True,
         "reason": "runtime_policy",
-        "tool_count": 1,
-        "selected_tool_names": ["ui_get_snapshot"],
-        "skill_count": 1,
-        "selected_skill_names": ["runtime.page_context"],
-        "inventory_tool_count": 2,
-        "inventory_selected_tool_names": ["ui_get_snapshot", "web_search"],
-        "inventory_skill_count": 2,
+        "tool_count": 0,
+        "selected_tool_names": [],
+        "skill_count": 0,
+        "selected_skill_names": [],
+        "inventory_tool_count": 1,
+        "inventory_selected_tool_names": ["web_search"],
+        "inventory_skill_count": 1,
         "inventory_selected_skill_names": [
-            "runtime.page_context",
             "runtime.web_research",
         ],
     }
@@ -3233,7 +3225,6 @@ def test_extract_turn_diagnostics_reads_extended_runtime_fields_from_nested_turn
         "skills_injected": False,
         "kb_injected": False,
         "memory_injected": False,
-        "page_injected": True,
         "bypass_reason": None,
     }
     assert payload["tool_filtering"] == {
@@ -3250,8 +3241,8 @@ def test_extract_turn_diagnostics_reads_extended_runtime_fields_from_nested_turn
             "provider_failure_kind": "provider_http_5xx",
         }
     ]
-    assert payload["last_tool_name"] == "ui_get_snapshot"
-    assert payload["last_page_key"] == "admin.ai.dashboard"
+    assert payload["last_tool_name"] is None
+    assert "last_page_key" not in payload
     assert payload["interrupted_stage"] == "tool_loop"
     assert payload["tool_loop_progress"] == {"current_round": 2, "total_rounds": 3}
     assert payload["sync_rescue"] is True
@@ -3370,16 +3361,15 @@ async def test_persist_chat_messages_records_extended_runtime_diagnostics_fields
     last_summary = assistant_payload["metadata_"]["last_run_summary"]
 
     assert context_diag["execution_path"] == "deep"
-    assert context_diag["intent_plan"][1]["intent_id"] == "intent-3"
+    assert [item["intent_id"] for item in context_diag["intent_plan"]] == ["intent-1"]
     assert context_diag["budget_status"] == "exited"
     assert context_diag["budget_exit_reason"] == "elapsed_budget_exceeded"
     assert context_diag["candidate_tool_names"] == [
         "get_current_weather",
         "web_search",
         "fetch_url",
-        "ui_get_snapshot",
     ]
-    assert context_diag["retry_events"][0]["target_intent_id"] == "intent-3"
+    assert context_diag.get("retry_events", []) == []
     assert context_diag["partial_exit_reason"] == "elapsed_budget_exceeded"
     assert context_diag["failure_kind"] == "provider_timeout"
     assert context_diag["provider_events"] == [{"kind": "provider_timeout"}]
@@ -3387,7 +3377,7 @@ async def test_persist_chat_messages_records_extended_runtime_diagnostics_fields
     assert last_summary["execution_path"] == "deep"
     assert last_summary["budget_exit_reason"] == "elapsed_budget_exceeded"
     assert last_summary["failure_kind"] == "provider_timeout"
-    assert last_summary["retry_events"][0]["retry_family"] == "page_ops"
+    assert last_summary.get("retry_events", []) == []
 
 
 @pytest.mark.asyncio
@@ -3571,12 +3561,12 @@ async def test_conversation_detail_surfaces_extended_runtime_diagnostics(
     )
     assert detail["context_diagnostics"]["turn_skill_activation"][
         "inventory_selected_skill_names"
-    ] == ["runtime.page_context", "runtime.web_research"]
+    ] == ["runtime.web_research"]
     assert detail["last_run_summary"]["execution_path"] == "deep"
     assert detail["last_run_summary"]["budget_status"] == "exited"
     assert detail["last_run_summary"]["turn_skill_activation"][
         "selected_tool_names"
-    ] == ["ui_get_snapshot"]
+    ] == []
     assert detail["message_list"][0]["turn_flow"]["completion_reason"] == "budget_exit"
     assert detail["message_list"][0]["turn_flow"]["timeline"][-1]["type"] == "failed"
 

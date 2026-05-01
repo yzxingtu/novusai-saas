@@ -463,12 +463,14 @@ class ConversationPersistenceFacade:
         conversation: AgentConversation,
         result: ExecutionResult,
         current_agent: Agent | None = None,
+        output_schema: Any | None = None,
     ) -> None:
         await update_stats_persist(
             self,
             conversation=conversation,
             result=result,
             current_agent=current_agent,
+            output_schema=output_schema,
         )
 
     async def persist_stream_completion(

@@ -13,7 +13,6 @@ from app.ai.engine.intent_planner import IntentPlanner
 from app.ai.engine.tool_policy_helpers import (
     collect_completed_turn_intents,
     detect_requested_turn_intents,
-    first_page_intent_kind,
 )
 from app.ai.tools.types import ToolDefinition
 from app.ai.types import ChatMessage
@@ -79,7 +78,7 @@ def test_detect_requested_turn_intents_prefers_precomputed_non_page_plan(
     assert intents == ["weather", "rail_ticket_research"]
 
 
-def test_page_intent_helpers_do_not_reactivate_retired_page_awareness(
+def test_retired_page_intent_plan_does_not_reactivate_page_awareness(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     def _fail_plan_turn(*_args: object, **_kwargs: object) -> None:
@@ -109,14 +108,6 @@ def test_page_intent_helpers_do_not_reactivate_retired_page_awareness(
         },
     }
 
-    assert (
-        first_page_intent_kind(
-            user_text="Summarize the current page",
-            tools=[ToolDefinition(name="ui_get_snapshot")],
-            input_variables=input_variables,
-        )
-        is None
-    )
     assert (
         detect_requested_turn_intents(
             "Check the weather and summarize the page",

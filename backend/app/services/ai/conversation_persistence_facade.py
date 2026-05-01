@@ -104,11 +104,13 @@ async def update_stats(
     conversation: AgentConversation,
     result: ExecutionResult,
     current_agent: Agent | None = None,
+    output_schema: Any | None = None,
 ) -> None:
     await service.stats_service.update_stats(
         conversation=conversation,
         result=result,
         current_agent=current_agent,
+        output_schema=output_schema,
     )
 
 

@@ -1,4 +1,10 @@
-"""Monitoring service unit tests / AI 监控服务单元测试。"""
+"""
+Test type: behavioral
+Scope: AI monitoring read-model projection, diagnostics normalization, and scrubbed
+retired page-awareness metadata.
+Mock strategy: DB/service edges are mocked; projector and diagnostic normalization
+logic run through the real implementation.
+"""
 
 from __future__ import annotations
 
@@ -91,7 +97,7 @@ class TestCallTraceDiagnostics:
         assert diagnostics["budget_status"] == "exited"
         assert diagnostics["budget_exit_reason"] == "elapsed_budget_exceeded"
 
-    def test_extract_call_trace_diagnostics_exposes_continuation_and_contract_flags(
+    def test_extract_call_trace_diagnostics_scrubs_retired_page_continuation(
         self,
     ):
         from app.services.ai.monitoring_service import MonitoringService
@@ -121,14 +127,11 @@ class TestCallTraceDiagnostics:
             }
         )
 
-        assert diagnostics["tool_planner"] == {
-            "intent": "page_summary",
-            "family": "page_ops",
-        }
         assert diagnostics["active_intent_id"] == "intent-1"
-        assert diagnostics["continuation_source"] == "page_ops"
+        assert diagnostics["tool_planner"] is None
+        assert diagnostics["continuation_source"] is None
         assert diagnostics["conversation_outcome"] == "failed"
-        assert diagnostics["candidate_tool_names"] == ["ui_get_snapshot"]
+        assert diagnostics["candidate_tool_names"] == []
         assert diagnostics["contract_breach_type"] == (
             "assistant_claimed_tool_call_without_tool_event"
         )

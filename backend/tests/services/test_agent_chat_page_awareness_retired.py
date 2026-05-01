@@ -52,8 +52,11 @@ def test_agent_chat_request_rejects_retired_page_context_fields() -> None:
         "last_page_key",
         "last_page_op",
         "ui_click",
+        "UI_CLICK",
+        "Page_Runtime",
         "ui_custom_action",
         "pageop_click",
+        "PageOp_Click",
         "replace_content",
     ],
 )

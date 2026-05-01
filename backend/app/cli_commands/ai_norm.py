@@ -3,6 +3,11 @@
 from __future__ import annotations
 
 from app.cli_commands import state as S
+from app.services.ai.conversation_diagnostics_projector_support import (
+    is_retired_page_diagnostics_reference,
+    normalize_live_diagnostics_reference,
+    sanitize_diagnostics_payload,
+)
 from app.services.ai.turn_failure_normalizer import (
     derive_budget_projection,
     resolve_failure_projection,
@@ -43,7 +48,7 @@ def _normalize_cli_string_list(raw_value: object) -> list[str]:
         return []
     out: list[str] = []
     for item in raw_value:
-        text = _normalize_cli_optional_string(item) or ""
+        text = normalize_live_diagnostics_reference(item) or ""
         if text and text not in out:
             out.append(text)
     return out
@@ -60,12 +65,16 @@ def _normalize_cli_context_sources(raw_value: object) -> list[dict]:
         name = _normalize_cli_optional_string(item.get("name"))
         if not (kind or name):
             continue
+        if is_retired_page_diagnostics_reference(
+            kind
+        ) or is_retired_page_diagnostics_reference(name):
+            continue
         normalized.append(
             {
                 "kind": kind,
                 "name": name,
                 "active": bool(item.get("active", True)),
-                "metadata": _normalize_cli_dict(item.get("metadata")),
+                "metadata": sanitize_diagnostics_payload(item.get("metadata")) or {},
             }
         )
     return normalized
@@ -169,11 +178,17 @@ def _normalize_cli_intent_plan(raw_value: object) -> list[dict]:
         payload = _normalize_cli_dict(item)
         if not payload:
             continue
+        kind = _normalize_cli_optional_string(payload.get("kind"))
+        family = _normalize_cli_optional_string(payload.get("family"))
+        if is_retired_page_diagnostics_reference(
+            kind
+        ) or is_retired_page_diagnostics_reference(family):
+            continue
         normalized.append(
             {
                 "intent_id": _normalize_cli_optional_string(payload.get("intent_id")),
-                "kind": _normalize_cli_optional_string(payload.get("kind")),
-                "family": _normalize_cli_optional_string(payload.get("family")),
+                "kind": kind,
+                "family": family,
                 "order": int(payload.get("order") or 0) or None,
                 "user_visible_label": _normalize_cli_optional_string(
                     payload.get("user_visible_label")
@@ -201,15 +216,16 @@ def _normalize_cli_retry_events(raw_value: object) -> list[dict]:
         payload = _normalize_cli_dict(item)
         if not payload:
             continue
+        retry_family = normalize_live_diagnostics_reference(payload.get("retry_family"))
+        if payload.get("retry_family") and not retry_family:
+            continue
         normalized.append(
             {
                 "action": _normalize_cli_optional_string(payload.get("action")),
                 "target_intent_id": _normalize_cli_optional_string(
                     payload.get("target_intent_id")
                 ),
-                "retry_family": _normalize_cli_optional_string(
-                    payload.get("retry_family")
-                ),
+                "retry_family": retry_family,
                 "allowed_tool_names": _normalize_cli_string_list(
                     payload.get("allowed_tool_names")
                 ),
@@ -308,7 +324,7 @@ def _normalize_cli_call_log_row(raw_value: object) -> dict:
     payload["recovered_via_retry"] = _normalize_cli_bool(
         payload.get("recovered_via_retry")
     )
-    payload["last_tool_name"] = _normalize_cli_optional_string(
+    payload["last_tool_name"] = normalize_live_diagnostics_reference(
         payload.get("last_tool_name")
     )
     payload["interrupted_stage"] = _normalize_cli_optional_string(
@@ -346,7 +362,7 @@ def _normalize_cli_call_log_row(raw_value: object) -> dict:
     payload["failure_kind"] = _normalize_cli_optional_string(
         normalized_failure.get("failure_kind")
     ) or payload.get("failure_kind")
-    return payload
+    return sanitize_diagnostics_payload(payload) or {}
 
 
 def _extract_turn_diagnostics_from_call_log_metadata(metadata: object) -> dict:
@@ -450,7 +466,7 @@ def _extract_turn_diagnostics_from_call_log_metadata(metadata: object) -> dict:
         normalized_failure.get("failure_kind")
     ) or raw_failure_kind
 
-    return {
+    payload = {
         "turn_outcome": turn_outcome,
         "termination_reason": termination_reason,
         "protocol_path": _normalize_cli_optional_string(
@@ -558,7 +574,7 @@ def _extract_turn_diagnostics_from_call_log_metadata(metadata: object) -> dict:
             ),
             None,
         ),
-        "last_tool_name": _normalize_cli_optional_string(
+        "last_tool_name": normalize_live_diagnostics_reference(
             turn_record.get("last_tool_name") or diagnostics.get("last_tool_name")
         ),
         "interrupted_stage": _normalize_cli_optional_string(
@@ -575,3 +591,4 @@ def _extract_turn_diagnostics_from_call_log_metadata(metadata: object) -> dict:
         ),
         "turn_record": _normalize_cli_dict(turn_record) or None,
     }
+    return sanitize_diagnostics_payload(payload) or {}

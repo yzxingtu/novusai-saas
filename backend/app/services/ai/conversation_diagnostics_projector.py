@@ -15,10 +15,12 @@ from app.services.ai.conversation_diagnostics_projector_support import (
     normalize_json_dict,
     normalize_json_safe,
     normalize_json_safe_dict,
+    normalize_live_diagnostics_reference,
     normalize_provider_events,
     normalize_retry_events,
     normalize_string_list,
     normalize_turn_record_payload,
+    sanitize_diagnostics_payload,
     sanitize_tool_messages,
     to_non_empty_str,
 )
@@ -29,6 +31,10 @@ class ConversationDiagnosticsProjector:
     normalize_json_safe = staticmethod(normalize_json_safe)
     normalize_json_safe_dict = staticmethod(normalize_json_safe_dict)
     normalize_turn_record_payload = staticmethod(normalize_turn_record_payload)
+    normalize_live_diagnostics_reference = staticmethod(
+        normalize_live_diagnostics_reference
+    )
+    sanitize_diagnostics_payload = staticmethod(sanitize_diagnostics_payload)
     to_non_empty_str = staticmethod(to_non_empty_str)
     normalize_string_list = staticmethod(normalize_string_list)
     normalize_context_sources = staticmethod(normalize_context_sources)

@@ -126,7 +126,7 @@ def _build_provider_timeout_result() -> ExecutionResult:
     }
     result.messages = [
         {"role": "system", "content": "sys"},
-        {"role": "user", "content": "通过页面感知能力添加一个测试的智能体"},
+        {"role": "user", "content": "帮我添加一个测试智能体"},
         {"role": "assistant", "content": result.output},
     ]
     return result
@@ -141,7 +141,7 @@ def _build_success_result(
         output=output,
         messages=[
             {"role": "system", "content": "sys"},
-            {"role": "user", "content": "通过页面感知能力添加一个测试的智能体"},
+            {"role": "user", "content": "帮我添加一个测试智能体"},
             {"role": "assistant", "content": output},
         ],
         tool_results=[],
@@ -329,7 +329,7 @@ async def _capture_on_complete(service, mock_db):
     ):
         await service.stream_chat(
             agent_id=1,
-            message="通过页面感知能力添加一个测试的智能体",
+            message="帮我添加一个测试智能体",
             user_id=10,
             user_role=UserRoleEnum.TENANT_ADMIN.value,
         )
@@ -423,7 +423,7 @@ async def test_stream_chat_seeds_user_messages_before_stream_starts(mock_db):
     ]
     assert len(seeded_messages) == 1
     assert seeded_messages[0].role == "user"
-    assert seeded_messages[0].content == "通过页面感知能力添加一个测试的智能体"
+    assert seeded_messages[0].content == "帮我添加一个测试智能体"
 
 
 @pytest.mark.asyncio
@@ -911,7 +911,7 @@ async def test_stream_on_complete_skips_extra_error_message_when_partial_assista
     partial_result = _build_failed_result(output="partial text")
     partial_result.messages = [
         {"role": "system", "content": "sys"},
-        {"role": "user", "content": "通过页面感知能力添加一个测试的智能体"},
+        {"role": "user", "content": "帮我添加一个测试智能体"},
         {"role": "assistant", "content": "partial text"},
     ]
 
@@ -1199,7 +1199,7 @@ async def test_stream_on_complete_persists_error_message_when_sanitized_messages
     partial_result = _build_failed_result(output="partial text")
     partial_result.messages = [
         {"role": "system", "content": "sys"},
-        {"role": "user", "content": "通过页面感知能力添加一个测试的智能体"},
+        {"role": "user", "content": "帮我添加一个测试智能体"},
         {"role": "assistant", "content": "", "tool_calls": [{"id": "call_1"}]},
     ]
 
@@ -1296,7 +1296,7 @@ async def test_stream_on_complete_falls_back_to_error_message_when_persistence_r
         partial_result = _build_failed_result(output="partial text")
         partial_result.messages = [
             {"role": "system", "content": "sys"},
-            {"role": "user", "content": "通过页面感知能力添加一个测试的智能体"},
+            {"role": "user", "content": "帮我添加一个测试智能体"},
             {"role": "assistant", "content": "partial text"},
         ]
         extra = await on_complete(partial_result)
@@ -1356,7 +1356,7 @@ async def test_stream_on_complete_marks_committed_when_only_last_error_marker_pe
     partial_result = _build_failed_result(output="partial text")
     partial_result.messages = [
         {"role": "system", "content": "sys"},
-        {"role": "user", "content": "通过页面感知能力添加一个测试的智能体"},
+        {"role": "user", "content": "帮我添加一个测试智能体"},
         {"role": "assistant", "content": "partial text"},
     ]
 
@@ -1450,7 +1450,7 @@ async def test_stream_on_complete_reports_uncommitted_when_error_message_and_mar
     partial_result = _build_failed_result(output="partial text")
     partial_result.messages = [
         {"role": "system", "content": "sys"},
-        {"role": "user", "content": "通过页面感知能力添加一个测试的智能体"},
+        {"role": "user", "content": "帮我添加一个测试智能体"},
         {"role": "assistant", "content": "partial text"},
     ]
 
@@ -1556,7 +1556,7 @@ async def test_stream_on_complete_callback_exception_persists_error_marker(mock_
         failed_result = _build_failed_result(output="partial text")
         failed_result.messages = [
             {"role": "system", "content": "sys"},
-            {"role": "user", "content": "通过页面感知能力添加一个测试的智能体"},
+            {"role": "user", "content": "帮我添加一个测试智能体"},
             {"role": "assistant", "content": "partial text"},
         ]
         extra = await on_complete(failed_result)

@@ -1,6 +1,6 @@
 """Test type: behavioral
-Scope: runtime diagnostics root-cause classification and page-workflow evidence normalization
-Real dependencies: RuntimeDiagnosticsService root-cause projector and page-workflow diagnostics helpers
+Scope: runtime diagnostics root-cause classification and retired page-awareness scrubbing
+Real dependencies: RuntimeDiagnosticsService root-cause projector and diagnostics helpers
 Mocked dependencies: call-log and conversation-turn loaders only
 """
 
@@ -110,7 +110,7 @@ async def test_build_root_cause_prefers_conversation_partial_over_successful_cal
     assert report["related_ids"]["conversation_message_id"] == 77
 
 
-def test_classify_root_cause_marks_page_continuation_false_direct_reply(mock_db):
+def test_classify_root_cause_scrubs_retired_page_awareness_diagnostics(mock_db):
     from app.services.ai.runtime_diagnostics_service import RuntimeDiagnosticsService
 
     service = RuntimeDiagnosticsService(mock_db)
@@ -121,20 +121,21 @@ def test_classify_root_cause_marks_page_continuation_false_direct_reply(mock_db)
                 "conversation_outcome": "failed",
                 "continuation_source": "page_ops",
                 "tool_planner": {
-                    "intent": "direct_reply",
-                    "family": "none",
+                    "intent": "page_search",
+                    "family": "page_ops",
                 },
                 "candidate_tool_names": ["ui_get_snapshot"],
+                "selected_skill_names": ["runtime.page_context", "Research Skill"],
             },
             conversation_turn={"message_id": 91},
         )
     )
 
     assert failure_layer == "post_processing"
-    assert cause_code == "planner_false_direct_reply"
-    assert "direct_reply" in summary
+    assert cause_code == "unknown_failure"
+    assert "page_ops" not in summary
     assert first_fix is not None
-    assert confidence == 0.94
+    assert confidence == 0.6
 
 
 def test_classify_root_cause_marks_time_query_false_direct_reply(mock_db):
@@ -172,88 +173,6 @@ def test_classify_root_cause_marks_time_query_false_direct_reply(mock_db):
     assert "direct_reply" in summary
     assert first_fix is not None
     assert confidence == 0.93
-
-
-def test_classify_root_cause_marks_page_continuation_miss_from_page_workflow_metadata(
-    mock_db,
-):
-    from app.services.ai.runtime_diagnostics_service import RuntimeDiagnosticsService
-
-    service = RuntimeDiagnosticsService(mock_db)
-    failure_layer, cause_code, summary, first_fix, confidence = (
-        service._classify_root_cause(
-            call_log=_call_log(),
-            diagnostics={
-                "conversation_outcome": "failed",
-                "continuation_source": "page_ops",
-                "tool_planner": {
-                    "intent": "page_workflow",
-                    "family": "page_ops",
-                },
-                "intent_plan": [
-                    {
-                        "intent_id": "intent-1",
-                        "kind": "page_workflow",
-                        "family": "page_ops",
-                        "status": "pending",
-                        "metadata": {
-                            "page_workflow_kind": "page_workflow",
-                            "page_workflow_goal": "search",
-                            "page_workflow_phase": "read",
-                            "page_workflow_stage": "run_page_search",
-                        },
-                    }
-                ],
-                "selected_tool_names": [],
-            },
-            conversation_turn={"message_id": 115},
-        )
-    )
-
-    assert failure_layer == "post_processing"
-    assert cause_code == "page_continuation_missed"
-    assert "page_ops family" in summary
-    assert first_fix is not None
-    assert confidence == 0.9
-
-
-def test_classify_root_cause_skips_summary_like_page_workflow_missed_continuation(
-    mock_db,
-):
-    from app.services.ai.runtime_diagnostics_service import RuntimeDiagnosticsService
-
-    service = RuntimeDiagnosticsService(mock_db)
-    _failure_layer, cause_code, _summary, _first_fix, _confidence = (
-        service._classify_root_cause(
-            call_log=_call_log(),
-            diagnostics={
-                "conversation_outcome": "failed",
-                "continuation_source": "page_ops",
-                "tool_planner": {
-                    "intent": "page_workflow",
-                    "family": "page_ops",
-                },
-                "intent_plan": [
-                    {
-                        "intent_id": "intent-1",
-                        "kind": "page_workflow",
-                        "family": "page_ops",
-                        "status": "pending",
-                        "metadata": {
-                            "page_workflow_kind": "page_workflow",
-                            "page_workflow_goal": "table_summary",
-                            "page_workflow_phase": "read",
-                            "page_workflow_stage": "read_table_summary",
-                        },
-                    }
-                ],
-                "selected_tool_names": [],
-            },
-            conversation_turn={"message_id": 116},
-        )
-    )
-
-    assert cause_code != "page_continuation_missed"
 
 
 def test_classify_root_cause_blocks_success_shortcut_on_budget_exit_reason(mock_db):
@@ -561,175 +480,27 @@ async def test_build_root_cause_classifies_provider_timeout_before_first_chunk(m
 
 
 @pytest.mark.asyncio
-async def test_build_root_cause_loads_conversation_turn_for_call_log_and_flags_incomplete_page_reply(
-    mock_db,
-):
+async def test_build_root_cause_scrubs_retired_page_metadata_from_evidence(mock_db):
     from app.services.ai.runtime_diagnostics_service import RuntimeDiagnosticsService
 
     service = RuntimeDiagnosticsService(mock_db)
     call_log = _call_log(
         request_metadata={
             "turn_diagnostics": {
-                "conversation_outcome": "success",
-                "turn_outcome": "success",
+                "conversation_outcome": "failed",
                 "continuation_source": "page_ops",
                 "tool_planner": {
                     "intent": "page_search",
                     "family": "page_ops",
                 },
-                "candidate_tool_names": [
-                    "ui_read_region",
-                    "ui_list_interactables",
-                    "ui_click",
-                ],
-                "selected_tool_names": [],
-            }
-        }
-    )
-    conversation_turn = {
-        "message_id": 7659,
-        "assistant_content": "我先帮你检查一下页面上有没有可用的搜索区域或关键词“发票”的相关内容喵~",
-        "metadata": {
-            "turn_flow": {
-                "timeline": [
-                    {
-                        "id": "answer_assembly",
-                        "type": "answer_assembly",
-                        "status": "completed",
-                        "title": "答案生成",
-                        "summary": "已生成最终答复",
-                    },
-                    {
-                        "id": "terminal",
-                        "type": "completed",
-                        "status": "completed",
-                        "title": "本轮结束",
-                        "summary": "completed",
-                    },
-                ],
-                "evidence": [],
-                "answer_card": {
-                    "summary": "我先帮你检查一下页面上有没有可用的搜索区域或关键词“发票”的相关内容喵~",
-                    "sections": [],
-                    "source_chip_ids": [],
-                },
-                "completion_reason": "completed",
-            },
-            "context_diagnostics": {
-                "conversation_outcome": "success",
-                "turn_outcome": "success",
-                "continuation_source": "page_ops",
-                "tool_planner": {
-                    "intent": "page_search",
-                    "family": "page_ops",
-                },
-                "intent_plan": [
-                    {
-                        "intent_id": "intent-1",
-                        "kind": "page_search",
-                        "family": "page_ops",
-                        "status": "completed",
-                        "completed_by_tool_names": ["ui_list_interactables"],
-                    }
-                ],
-                "candidate_tool_names": [
-                    "ui_read_region",
-                    "ui_list_interactables",
-                    "ui_click",
-                ],
-                "selected_tool_names": [],
-            },
-        },
-        "diagnostics": {
-            "conversation_outcome": "success",
-            "turn_outcome": "success",
-            "continuation_source": "page_ops",
-            "tool_planner": {
-                "intent": "page_search",
-                "family": "page_ops",
-            },
-            "intent_plan": [
-                {
-                    "intent_id": "intent-1",
-                    "kind": "page_search",
-                    "family": "page_ops",
-                    "status": "completed",
-                    "completed_by_tool_names": ["ui_list_interactables"],
-                }
-            ],
-            "candidate_tool_names": [
-                "ui_read_region",
-                "ui_list_interactables",
-                "ui_click",
-            ],
-            "selected_tool_names": [],
-        },
-    }
-
-    with (
-        patch.object(
-            service,
-            "_resolve_call_log",
-            new=AsyncMock(return_value=call_log),
-        ),
-        patch.object(
-            service,
-            "_resolve_conversation_turn_for_call_log",
-            new=AsyncMock(return_value=conversation_turn),
-        ) as resolve_turn,
-    ):
-        report = await service.build_root_cause(call_log_id=3665)
-
-    resolve_turn.assert_awaited_once_with(call_log=call_log)
-    assert report["status"] == "failed"
-    assert report["failure_layer"] == "post_processing"
-    assert report["cause_code"] == "incomplete_promissory_reply"
-    assert report["related_ids"]["conversation_message_id"] == 7659
-
-
-@pytest.mark.asyncio
-async def test_build_root_cause_flags_incomplete_page_reply_from_canonical_page_workflow(
-    mock_db,
-):
-    from app.services.ai.runtime_diagnostics_service import RuntimeDiagnosticsService
-
-    service = RuntimeDiagnosticsService(mock_db)
-    call_log = _call_log(
-        request_metadata={
-            "turn_diagnostics": {
-                "conversation_outcome": "success",
-                "turn_outcome": "success",
-                "continuation_source": "page_ops",
-                "tool_planner": {
-                    "intent": "page_workflow",
-                    "family": "page_ops",
-                },
-                "intent_plan": [
-                    {
-                        "intent_id": "intent-1",
-                        "kind": "page_workflow",
-                        "family": "page_ops",
-                        "status": "completed",
-                        "completed_by_tool_names": ["ui_list_interactables"],
-                        "metadata": {
-                            "page_workflow_kind": "page_workflow",
-                            "page_workflow_goal": "search",
-                            "page_workflow_phase": "read",
-                        },
-                    }
-                ],
-                "candidate_tool_names": [
-                    "ui_read_region",
-                    "ui_list_interactables",
-                    "ui_click",
-                ],
-                "selected_tool_names": [],
+                "candidate_tool_names": ["ui_read_region", "web_search"],
+                "selected_tool_names": ["ui_get_snapshot", "fetch_url"],
             }
         }
     )
     conversation_turn = {
         "message_id": 7660,
-        "assistant_content": "我先帮你检查一下页面上有没有可用的搜索区域或关键词“发票”的相关内容喵~",
+        "assistant_content": "检索失败，请稍后重试。",
         "metadata": {
             "turn_flow": {
                 "timeline": [
@@ -750,70 +521,32 @@ async def test_build_root_cause_flags_incomplete_page_reply_from_canonical_page_
                 ],
                 "evidence": [],
                 "answer_card": {
-                    "summary": "我先帮你检查一下页面上有没有可用的搜索区域或关键词“发票”的相关内容喵~",
+                    "summary": "检索失败，请稍后重试。",
                     "sections": [],
                     "source_chip_ids": [],
                 },
-                "completion_reason": "completed",
+                "completion_reason": "error",
             },
             "context_diagnostics": {
-                "conversation_outcome": "success",
-                "turn_outcome": "success",
+                "conversation_outcome": "failed",
                 "continuation_source": "page_ops",
                 "tool_planner": {
-                    "intent": "page_workflow",
+                    "intent": "page_search",
                     "family": "page_ops",
                 },
-                "intent_plan": [
-                    {
-                        "intent_id": "intent-1",
-                        "kind": "page_workflow",
-                        "family": "page_ops",
-                        "status": "completed",
-                        "completed_by_tool_names": ["ui_list_interactables"],
-                        "metadata": {
-                            "page_workflow_kind": "page_workflow",
-                            "page_workflow_goal": "search",
-                            "page_workflow_phase": "read",
-                        },
-                    }
-                ],
-                "candidate_tool_names": [
-                    "ui_read_region",
-                    "ui_list_interactables",
-                    "ui_click",
-                ],
-                "selected_tool_names": [],
+                "candidate_tool_names": ["ui_read_region", "web_search"],
+                "selected_tool_names": ["ui_get_snapshot", "fetch_url"],
             },
         },
         "diagnostics": {
-            "conversation_outcome": "success",
-            "turn_outcome": "success",
+            "conversation_outcome": "failed",
             "continuation_source": "page_ops",
             "tool_planner": {
-                "intent": "page_workflow",
+                "intent": "page_search",
                 "family": "page_ops",
             },
-            "intent_plan": [
-                {
-                    "intent_id": "intent-1",
-                    "kind": "page_workflow",
-                    "family": "page_ops",
-                    "status": "completed",
-                    "completed_by_tool_names": ["ui_list_interactables"],
-                    "metadata": {
-                        "page_workflow_kind": "page_workflow",
-                        "page_workflow_goal": "search",
-                        "page_workflow_phase": "read",
-                    },
-                }
-            ],
-            "candidate_tool_names": [
-                "ui_read_region",
-                "ui_list_interactables",
-                "ui_click",
-            ],
-            "selected_tool_names": [],
+            "candidate_tool_names": ["ui_read_region", "web_search"],
+            "selected_tool_names": ["ui_get_snapshot", "fetch_url"],
         },
     }
 
@@ -832,7 +565,10 @@ async def test_build_root_cause_flags_incomplete_page_reply_from_canonical_page_
         report = await service.build_root_cause(call_log_id=3666)
 
     assert report["status"] == "failed"
-    assert report["failure_layer"] == "post_processing"
-    assert report["cause_code"] == "incomplete_promissory_reply"
+    assert report["failure_layer"] == "tool_execution"
+    assert report["cause_code"] == "error"
     evidence = {item["label"]: item["value"] for item in report["evidence"]}
-    assert evidence["page_workflow"]["goal"] == "search"
+    assert evidence["selected_tool_names"] == ["fetch_url"]
+    assert evidence["candidate_tool_names"] == ["web_search"]
+    assert "continuation_source" not in evidence
+    assert "tool_planner" not in evidence

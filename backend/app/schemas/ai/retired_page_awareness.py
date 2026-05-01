@@ -44,7 +44,8 @@ def retired_page_awareness_input_keys(
         text = str(key or "").strip()
         if not text:
             continue
-        if text in RETIRED_PAGE_AWARENESS_INPUT_KEYS or text.startswith(
+        normalized = text.lower()
+        if normalized in RETIRED_PAGE_AWARENESS_INPUT_KEYS or normalized.startswith(
             RETIRED_PAGE_AWARENESS_INPUT_PREFIXES
         ):
             retired_keys.append(text)

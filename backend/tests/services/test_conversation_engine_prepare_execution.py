@@ -1,3 +1,10 @@
+"""
+Test type: behavioral
+Scope: ConversationEngine prepare-execution routing and retired page-awareness guard behavior.
+Mock strategy: model router, KB loading, and optimizer edges are faked; prepare-execution
+logic and tool-policy filtering run through the real implementation.
+"""
+
 from datetime import datetime, timezone
 from types import SimpleNamespace
 from typing import Any
@@ -486,19 +493,6 @@ async def test_prepare_execution_does_not_inherit_page_ops_for_generic_follow_up
             ChatMessage(role="assistant", content="Done."),
             ChatMessage(role="user", content="继续"),
         ],
-        input_variables={
-            "page_context": {
-                "page_key": "demo.form",
-                "ui_epoch": 3,
-                "suggested_tools": {
-                    "primary": [
-                        "ui_get_snapshot",
-                        "ui_fill_form",
-                        "ui_submit_form",
-                    ],
-                },
-            },
-        },
     )
 
     captured: dict[str, object] = {}
@@ -583,20 +577,6 @@ async def test_prepare_execution_clears_page_continuation_for_long_no_tool_direc
                 ),
             ),
         ],
-        input_variables={
-            "page_context": {
-                "page_key": "admin.runtime.records",
-                "ui_epoch": 7,
-                "suggested_tools": {
-                    "primary": [
-                        "ui_get_snapshot",
-                        "ui_read_region",
-                        "ui_read_table",
-                    ],
-                    "secondary": ["ui_list_interactables"],
-                },
-            },
-        },
     )
 
     with (
@@ -660,20 +640,6 @@ async def test_prepare_execution_does_not_restore_retired_page_continuation() ->
             ChatMessage(role="assistant", content="这里是第一页摘要。"),
             ChatMessage(role="user", content="继续看"),
         ],
-        input_variables={
-            "page_context": {
-                "page_key": "admin.runtime.records",
-                "ui_epoch": 7,
-                "suggested_tools": {
-                    "primary": [
-                        "ui_get_snapshot",
-                        "ui_read_region",
-                        "ui_read_table",
-                    ],
-                    "secondary": ["ui_list_interactables"],
-                },
-            },
-        },
     )
 
     with (
@@ -713,15 +679,6 @@ async def test_prepare_execution_ignores_page_context_for_local_page_content_req
         tenant_id=0,
         user_id=1,
         messages=[ChatMessage(role="user", content="看看本页面的内容")],
-        input_variables={
-            "page_context": {
-                "page_key": "admin.runtime.records",
-                "ui_epoch": 2,
-                "suggested_tools": {
-                    "primary": ["ui_get_snapshot", "ui_read_region"],
-                },
-            },
-        },
     )
 
     captured: dict[str, object] = {}
@@ -781,27 +738,9 @@ async def test_prepare_execution_ignores_page_capability_request() -> None:
         messages=[
             ChatMessage(
                 role="user",
-                content="通过页面感知能力添加一个测试的智能体 具体里面的内容你来决定",
+                content="帮我添加一个测试智能体，具体内容你来决定",
             ),
         ],
-        input_variables={
-            "page_context": {
-                "page_key": "admin.ai.agents",
-                "active_form_session_id": "form-agent-create",
-                "active_form_summary": {
-                    "form_session_id": "form-agent-create",
-                    "entity_name": "智能体",
-                    "mode": "create",
-                    "stage": "ready_to_submit",
-                    "can_submit": True,
-                    "submit_policy": "confirm",
-                },
-                "suggested_tools": {
-                    "primary": ["ui_get_form_state", "ui_fill_form", "ui_submit_form"],
-                    "secondary": ["ui_open_surface"],
-                },
-            },
-        },
     )
 
     skill_result = SkillResolveResult(
@@ -851,24 +790,6 @@ async def test_prepare_execution_does_not_discover_forms_from_page_context() -> 
                 content="帮我添加一个测试的智能体 在本页面",
             ),
         ],
-        input_variables={
-            "page_context": {
-                "page_key": "admin.ai.agents",
-                "ui_epoch": 9,
-                "active_surface_id": "page-agents",
-                "surface_stack": [
-                    {
-                        "surface_id": "page-agents",
-                        "kind": "page",
-                        "title": "智能体管理",
-                    }
-                ],
-                "suggested_tools": {
-                    "primary": ["ui_list_interactables", "ui_open_surface"],
-                    "secondary": ["ui_click", "ui_get_snapshot"],
-                },
-            },
-        },
     )
 
     with (
@@ -950,15 +871,6 @@ async def test_prepare_execution_keeps_weather_tools_for_mixed_weather_and_healt
         tenant_id=0,
         user_id=1,
         messages=[ChatMessage(role="user", content="我有点头疼，今天北京天气怎么样")],
-        input_variables={
-            "page_context": {
-                "page_key": "admin.runtime.records",
-                "ui_epoch": 2,
-                "suggested_tools": {
-                    "primary": ["ui_get_snapshot", "ui_read_region", "ui_read_table"],
-                },
-            },
-        },
     )
     skill_result = SkillResolveResult(
         tools=[
@@ -1010,15 +922,6 @@ async def test_prepare_execution_keeps_weather_only_for_mixed_page_and_weather_r
         tenant_id=0,
         user_id=1,
         messages=[ChatMessage(role="user", content="先看看本页面，再查北京天气")],
-        input_variables={
-            "page_context": {
-                "page_key": "admin.runtime.records",
-                "ui_epoch": 2,
-                "suggested_tools": {
-                    "primary": ["ui_get_snapshot", "ui_read_region", "ui_read_table"],
-                },
-            },
-        },
     )
     skill_result = SkillResolveResult(
         tools=[
@@ -1081,15 +984,6 @@ async def test_prepare_execution_keeps_weather_only_for_mixed_page_health_phrase
         messages=[
             ChatMessage(role="user", content="我有点头疼，先看看当前页面，再查北京天气")
         ],
-        input_variables={
-            "page_context": {
-                "page_key": "admin.runtime.records",
-                "ui_epoch": 2,
-                "suggested_tools": {
-                    "primary": ["ui_get_snapshot", "ui_read_region", "ui_read_table"],
-                },
-            },
-        },
     )
     skill_result = SkillResolveResult(
         tools=[
@@ -1141,15 +1035,6 @@ async def test_prepare_execution_does_not_restore_retired_page_family_from_optim
         tenant_id=0,
         user_id=1,
         messages=[ChatMessage(role="user", content="先看看本页面，再查北京天气")],
-        input_variables={
-            "page_context": {
-                "page_key": "admin.runtime.records",
-                "ui_epoch": 2,
-                "suggested_tools": {
-                    "primary": ["ui_get_snapshot", "ui_read_region", "ui_read_table"],
-                },
-            },
-        },
     )
     skill_result = SkillResolveResult(
         tools=[
@@ -1217,21 +1102,6 @@ async def test_prepare_execution_prefers_web_research_on_first_turn_even_with_pa
         tenant_id=0,
         user_id=1,
         messages=[ChatMessage(role="user", content="联网查询一下 小猫为什么 爱吃鱼")],
-        input_variables={
-            "page_context": {
-                "page_key": "admin.runtime.records",
-                "page_title": "AI Conversations",
-                "ui_epoch": 11,
-                "suggested_tools": {
-                    "primary": [
-                        "ui_get_snapshot",
-                        "ui_read_region",
-                        "ui_read_table",
-                        "ui_click",
-                    ],
-                },
-            },
-        },
     )
     skill_result = SkillResolveResult(
         tools=[
@@ -1287,20 +1157,6 @@ async def test_prepare_execution_keeps_non_zero_selected_count_for_explicit_web_
         tenant_id=0,
         user_id=1,
         messages=[ChatMessage(role="user", content="联网查一下今天的开源模型发布")],
-        input_variables={
-            "page_context": {
-                "page_key": "admin.runtime.records",
-                "page_title": "AI Conversations",
-                "ui_epoch": 12,
-                "suggested_tools": {
-                    "primary": [
-                        "ui_get_snapshot",
-                        "ui_read_region",
-                        "ui_read_table",
-                    ],
-                },
-            },
-        },
     )
     skill_result = SkillResolveResult(
         tools=[
@@ -2260,20 +2116,6 @@ async def test_prepare_execution_assembles_kb_memory_and_plugin_skill_without_pa
         messages=[
             ChatMessage(role="user", content="请联网结合知识库给我总结"),
         ],
-        input_variables={
-            "page_context": {
-                "page_key": "admin.runtime.records",
-                "page_title": "AI Conversations",
-                "ui_epoch": 9,
-                "suggested_tools": {
-                    "primary": [
-                        "ui_get_snapshot",
-                        "ui_read_region",
-                        "ui_read_table",
-                    ],
-                },
-            },
-        },
     )
     provider = MagicMock()
     provider.profile = AsyncMock(
@@ -2583,15 +2425,6 @@ async def test_prepare_execution_does_not_bypass_risk_cap_for_page_ops() -> None
             "risk_level_cap": "read",
         },
         messages=[ChatMessage(role="user", content="继续")],
-        input_variables={
-            "page_context": {
-                "page_key": "demo.form",
-                "ui_epoch": 5,
-                "suggested_tools": {
-                    "primary": ["ui_fill_form", "ui_submit_form"],
-                },
-            },
-        },
     )
     skill_result = SkillResolveResult(
         tools=[
@@ -2784,16 +2617,6 @@ async def test_prepare_execution_builds_deep_structured_plan_for_666_style_turn(
                 content="请帮我查一下今天北京的天气，然后联网查一下长沙去北京的高铁票，再帮我阅读一下本页面都有什么内容",
             )
         ],
-        input_variables={
-            "page_context": {
-                "page_key": "admin.ai.dashboard",
-                "ui_epoch": 5,
-                "suggested_tools": {
-                    "primary": ["ui_get_snapshot", "ui_read_region", "ui_click"],
-                    "secondary": ["ui_open_surface"],
-                },
-            }
-        },
     )
 
     with (
@@ -2882,15 +2705,6 @@ async def test_prepare_execution_page_summary_turn_uses_no_page_tools() -> None:
         tenant_id=1,
         user_id=1,
         messages=[ChatMessage(role="user", content="帮我阅读一下本页面都有什么内容")],
-        input_variables={
-            "page_context": {
-                "page_key": "admin.ai.dashboard",
-                "ui_epoch": 5,
-                "suggested_tools": {
-                    "primary": ["ui_get_snapshot", "ui_read_region"],
-                },
-            }
-        },
     )
 
     with (
@@ -2934,12 +2748,6 @@ async def test_prepare_execution_record_search_turn_uses_web_search_not_page_too
         messages=[
             ChatMessage(role="user", content="帮我搜索一下包含'供应商'的记录")
         ],
-        input_variables={
-            "page_context": {
-                "page_key": "admin.runtime.records",
-                "ui_epoch": 5,
-            }
-        },
     )
 
     with (
@@ -2980,12 +2788,6 @@ async def test_prepare_execution_record_search_with_weather_keyword_uses_weather
         messages=[
             ChatMessage(role="user", content="帮我搜索一下包含'天气'的记录")
         ],
-        input_variables={
-            "page_context": {
-                "page_key": "admin.runtime.records",
-                "ui_epoch": 5,
-            }
-        },
     )
 
     with (
@@ -3077,12 +2879,6 @@ async def test_prepare_execution_does_not_project_retired_page_skills_to_live_to
         tenant_id=1,
         user_id=1,
         messages=[ChatMessage(role="user", content="帮我阅读一下本页面都有什么内容")],
-        input_variables={
-            "page_context": {
-                "page_key": "admin.ai.dashboard",
-                "ui_epoch": 5,
-            }
-        },
     )
 
     with (
@@ -3144,15 +2940,6 @@ async def test_prepare_execution_page_screenshot_request_uses_no_page_tools() ->
         tenant_id=1,
         user_id=1,
         messages=[ChatMessage(role="user", content="帮我给当前页面截图")],
-        input_variables={
-            "page_context": {
-                "page_key": "admin.ai.dashboard",
-                "ui_epoch": 5,
-                "suggested_tools": {
-                    "primary": ["ui_get_snapshot", "ui_read_region"],
-                },
-            }
-        },
     )
 
     with (
@@ -3183,23 +2970,6 @@ async def test_prepare_execution_editor_write_request_uses_no_page_tools() -> No
         tenant_id=1,
         user_id=1,
         messages=[ChatMessage(role="user", content="帮我替换当前编辑器正文并更新标题")],
-        input_variables={
-            "page_context": {
-                "page_key": "admin.ai.dashboard",
-                "active_form_session_id": "editor-form-1",
-                "active_form_summary": {
-                    "form_session_id": "editor-form-1",
-                    "entity_name": "编辑器",
-                    "mode": "edit",
-                    "stage": "ready_to_submit",
-                    "can_submit": True,
-                },
-                "suggested_tools": {
-                    "primary": ["ui_open_surface", "ui_fill_form", "ui_submit_form"],
-                    "secondary": ["ui_get_form_state"],
-                },
-            }
-        },
     )
 
     with (
@@ -3218,6 +2988,5 @@ async def test_prepare_execution_editor_write_request_uses_no_page_tools() -> No
     assert [intent.kind for intent in prep.intent_plan] == ["direct_reply"]
     assert prep.tools == []
     assert prep.tool_use_policy == ToolUsePolicy()
-
 
 

@@ -12,6 +12,9 @@ from app.ai.text_semantics import (
 )
 from app.enums.ai import CallStatusEnum
 from app.models.ai.call_log import AICallLog
+from app.services.ai.conversation_diagnostics_projector_support_diagnostics import (
+    sanitize_diagnostics_payload,
+)
 from app.services.ai.conversation_turn_flow_projector import (
     ConversationTurnFlowProjector,
 )
@@ -188,7 +191,7 @@ class RuntimeRootCauseProjector:
         for key, value in (conversation_diagnostics or {}).items():
             if key not in merged or cls.has_meaningful_value(value):
                 merged[key] = value
-        return merged
+        return sanitize_diagnostics_payload(merged) or {}
 
     @staticmethod
     def detect_claimed_tool_call_without_event(
@@ -369,6 +372,7 @@ class RuntimeRootCauseProjector:
         diagnostics: dict[str, Any],
         conversation_turn: dict[str, Any] | None,
     ) -> str:
+        diagnostics = sanitize_diagnostics_payload(diagnostics) or {}
         turn_flow = cls._resolve_turn_flow_payload(
             diagnostics=diagnostics,
             conversation_turn=conversation_turn,
@@ -414,6 +418,7 @@ class RuntimeRootCauseProjector:
         diagnostics: dict[str, Any],
         conversation_turn: dict[str, Any] | None,
     ) -> tuple[str | None, str | None, str, str | None, float | None]:
+        diagnostics = sanitize_diagnostics_payload(diagnostics) or {}
         error_message = str(
             getattr(call_log, "error_message", "") if call_log is not None else ""
         ).strip()
@@ -451,12 +456,6 @@ class RuntimeRootCauseProjector:
             or diagnostics.get("turn_outcome")
             or ""
         ).strip()
-        tool_planner = (
-            dict(diagnostics.get("tool_planner") or {})
-            if isinstance(diagnostics.get("tool_planner"), dict)
-            else {}
-        )
-        continuation_source = str(diagnostics.get("continuation_source") or "").strip()
         provider_events = list(diagnostics.get("provider_events") or [])
         retry_events = list(diagnostics.get("retry_events") or [])
         selected_tools = list(diagnostics.get("selected_tool_names") or [])
@@ -716,6 +715,7 @@ class RuntimeRootCauseProjector:
         *,
         conversation_turn: dict[str, Any] | None,
     ) -> list[dict[str, Any]]:
+        diagnostics = sanitize_diagnostics_payload(diagnostics) or {}
         evidence: list[dict[str, Any]] = []
         call_log_turn_record = RuntimeRootCauseProjector._call_log_turn_record(call_log)
         call_log_turn_record_metadata = (

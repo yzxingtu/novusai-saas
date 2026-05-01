@@ -1,4 +1,8 @@
-"""Sentinel tests for the extracted diagnostics support seam."""
+"""Test type: behavioral
+Scope: extracted diagnostics support seam and retired page-awareness scrubbing.
+Real dependencies: diagnostics extraction helpers.
+Mocked dependencies: none.
+"""
 
 from __future__ import annotations
 
@@ -59,8 +63,8 @@ def test_extract_turn_diagnostics_keeps_budget_and_retry_projection() -> None:
                                 {
                                     "action": "retry_intent",
                                     "target_intent_id": "intent-2",
-                                    "retry_family": "page_ops",
-                                    "allowed_tool_names": ["ui_get_snapshot"],
+                                    "retry_family": "web_research",
+                                    "allowed_tool_names": ["web_search"],
                                 }
                             ],
                         }
@@ -78,8 +82,8 @@ def test_extract_turn_diagnostics_keeps_budget_and_retry_projection() -> None:
         {
             "action": "retry_intent",
             "target_intent_id": "intent-2",
-            "retry_family": "page_ops",
-            "allowed_tool_names": ["ui_get_snapshot"],
+            "retry_family": "web_research",
+            "allowed_tool_names": ["web_search"],
             "completed_intent_ids": [],
             "unfinished_intent_ids": [],
             "reason": None,
@@ -105,7 +109,6 @@ def test_extract_turn_diagnostics_projects_compact_runtime_decision_fields() -> 
                             "skills_injected": False,
                             "kb_injected": False,
                             "memory_injected": False,
-                            "page_injected": True,
                             "bypass_reason": None,
                         },
                         "routing": {
@@ -132,7 +135,6 @@ def test_extract_turn_diagnostics_projects_compact_runtime_decision_fields() -> 
         "skills_injected": False,
         "kb_injected": False,
         "memory_injected": False,
-        "page_injected": True,
         "bypass_reason": None,
     }
     assert payload["tool_filtering"] == {
@@ -177,7 +179,10 @@ def test_extract_turn_diagnostics_keeps_explicit_empty_live_selection_over_inven
                 "metadata": {
                     "turn_diagnostics": {
                         "selected_tool_names": ["ui_get_snapshot", "web_search"],
-                        "selected_skill_names": ["Page Skill", "Research Skill"],
+                        "selected_skill_names": [
+                            "runtime.page_context",
+                            "Research Skill",
+                        ],
                         "turn_skill_activation": {
                             "applied": True,
                             "reason": "runtime_policy",
@@ -188,7 +193,7 @@ def test_extract_turn_diagnostics_keeps_explicit_empty_live_selection_over_inven
                                 "web_search",
                             ],
                             "inventory_selected_skill_names": [
-                                "Page Skill",
+                                "runtime.page_context",
                                 "Research Skill",
                             ],
                         },
@@ -197,11 +202,11 @@ def test_extract_turn_diagnostics_keeps_explicit_empty_live_selection_over_inven
             },
             "context_diagnostics": {
                 "selected_tool_names": ["ui_get_snapshot", "web_search"],
-                "selected_skill_names": ["Page Skill", "Research Skill"],
+                "selected_skill_names": ["runtime.page_context", "Research Skill"],
             },
             "last_run_summary": {
                 "selected_tool_names": ["ui_get_snapshot", "web_search"],
-                "selected_skill_names": ["Page Skill", "Research Skill"],
+                "selected_skill_names": ["runtime.page_context", "Research Skill"],
             },
         }
     )
@@ -209,6 +214,133 @@ def test_extract_turn_diagnostics_keeps_explicit_empty_live_selection_over_inven
     assert payload["selected_tool_names"] == []
     assert payload["selected_skill_names"] == []
     assert payload["turn_skill_activation"]["inventory_selected_tool_names"] == [
-        "ui_get_snapshot",
         "web_search",
+    ]
+    assert payload["turn_skill_activation"]["inventory_selected_skill_names"] == [
+        "Research Skill"
+    ]
+
+
+def test_extract_turn_diagnostics_scrubs_retired_page_awareness_metadata() -> None:
+    payload = extract_turn_diagnostics_from_metadata(
+        {
+            "turn_record": {
+                "selected_tool_names": ["ui_get_snapshot", "web_search"],
+                "selected_skill_names": ["runtime.page_context", "Research Skill"],
+                "metadata": {
+                    "turn_diagnostics": {
+                        "continuation_source": "page_ops",
+                        "last_tool_name": "ui_click",
+                        "routing": {
+                            "candidate_tool_names": ["pageop_click", "fetch_url"]
+                        },
+                        "context_sources": [
+                            {
+                                "kind": "page_context",
+                                "name": "admin.ai.dashboard",
+                                "metadata": {
+                                    "selected_tool_names": ["ui_click"],
+                                },
+                            },
+                            {
+                                "kind": "skill",
+                                "name": "Research Skill",
+                                "metadata": {
+                                    "selected_tool_names": [
+                                        "ui_get_snapshot",
+                                        "fetch_url",
+                                    ],
+                                    "selected_skill_names": [
+                                        "页面感知交互",
+                                        "Research Skill",
+                                    ],
+                                },
+                            },
+                        ],
+                        "tool_planner": {
+                            "intent": "page_search",
+                            "family": "page_ops",
+                            "allowed_tool_names": ["ui_get_snapshot"],
+                        },
+                        "intent_plan": [
+                            {
+                                "intent_id": "intent-page",
+                                "kind": "page_search",
+                                "family": "page_ops",
+                                "status": "completed",
+                                "completed_by_tool_names": ["ui_get_snapshot"],
+                            },
+                            {
+                                "intent_id": "intent-web",
+                                "kind": "web_research",
+                                "family": "web_research",
+                                "status": "pending",
+                                "allowed_tool_names": ["web_search"],
+                            },
+                        ],
+                        "recovery": {
+                            "retry_events": [
+                                {
+                                    "action": "retry_intent",
+                                    "target_intent_id": "intent-page",
+                                    "retry_family": "page_ops",
+                                    "allowed_tool_names": ["ui_click"],
+                                },
+                                {
+                                    "action": "retry_intent",
+                                    "target_intent_id": "intent-web",
+                                    "retry_family": "web_research",
+                                    "allowed_tool_names": ["fetch_url"],
+                                },
+                            ]
+                        },
+                    }
+                },
+            }
+        }
+    )
+
+    assert payload["selected_tool_names"] == ["web_search"]
+    assert payload["selected_skill_names"] == ["Research Skill"]
+    assert payload["candidate_tool_names"] == ["fetch_url"]
+    assert payload["continuation_source"] is None
+    assert payload["last_tool_name"] is None
+    assert payload["tool_planner"] is None
+    assert payload["context_sources"] == [
+        {
+            "kind": "skill",
+            "name": "Research Skill",
+            "active": True,
+            "metadata": {
+                "selected_tool_names": ["fetch_url"],
+                "selected_skill_names": ["Research Skill"],
+            },
+        }
+    ]
+    assert payload["intent_plan"] == [
+        {
+            "intent_id": "intent-web",
+            "kind": "web_research",
+            "family": "web_research",
+            "order": None,
+            "user_visible_label": None,
+            "source_text": None,
+            "status": "pending",
+            "allowed_tool_names": ["web_search"],
+            "completed_by_tool_names": [],
+            "failure_reason": None,
+        }
+    ]
+    assert payload["retry_events"] == [
+        {
+            "action": "retry_intent",
+            "target_intent_id": "intent-web",
+            "retry_family": "web_research",
+            "allowed_tool_names": ["fetch_url"],
+            "completed_intent_ids": [],
+            "unfinished_intent_ids": [],
+            "reason": None,
+            "provider_failure_kind": None,
+            "metadata": {},
+        }
     ]

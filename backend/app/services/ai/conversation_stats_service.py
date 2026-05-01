@@ -18,6 +18,7 @@ class ConversationStatsService:
         conversation: Any,
         result: Any,
         current_agent: Any | None = None,
+        output_schema: Any | None = None,
     ) -> None:
         new_token_count = (conversation.token_count or 0) + result.total_tokens
         new_total_tokens = (conversation.total_tokens or 0) + result.total_tokens
@@ -28,8 +29,11 @@ class ConversationStatsService:
         }
 
         agent = current_agent or conversation.agent
-        if agent and agent.output_schema and result.output:
-            extracted = self.parse_output(result.output, agent.output_schema)
+        schema = output_schema
+        if schema is None and agent:
+            schema = agent.output_schema
+        if schema and result.output:
+            extracted = self.parse_output(result.output, schema)
             if extracted:
                 metadata = dict(conversation.metadata_ or {})
                 metadata["output_variables"] = extracted

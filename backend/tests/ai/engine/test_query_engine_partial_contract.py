@@ -76,7 +76,7 @@ class _ReasoningOnlyThenErrorAdapter:
 
     async def stream_chat(self, **kwargs):
         _ = kwargs
-        yield ChatChunk(delta="", reasoning_delta="先检查页面上下文", role="assistant")
+        yield ChatChunk(delta="", reasoning_delta="先检查公开资料", role="assistant")
         raise RuntimeError("responses stream interrupted after reasoning")
 
     async def chat(self, **kwargs):
@@ -103,7 +103,7 @@ class _ReasoningOnlyThenTimeoutAdapter:
 
     async def stream_chat(self, **kwargs):
         _ = kwargs
-        yield ChatChunk(delta="", reasoning_delta="先检查页面上下文", role="assistant")
+        yield ChatChunk(delta="", reasoning_delta="先检查公开资料", role="assistant")
         raise ProviderTimeoutError(
             "provider timed out",
             provider_code="openai_compatible",
@@ -131,7 +131,7 @@ class _ReasoningOnlyThenRetryableRescueAdapter:
 
     async def stream_chat(self, **kwargs):
         _ = kwargs
-        yield ChatChunk(delta="", reasoning_delta="先检查页面上下文", role="assistant")
+        yield ChatChunk(delta="", reasoning_delta="先检查公开资料", role="assistant")
         raise RuntimeError("responses stream interrupted after reasoning")
 
     async def chat(self, **kwargs):
@@ -146,40 +146,6 @@ class _ReasoningOnlyThenRetryableRescueAdapter:
             )
         return ChatResponse(
             message=ChatMessage(role="assistant", content="rescued after retry"),
-            finish_reason="stop",
-            model="gpt-5.4",
-        )
-
-
-class _PageUITimeoutBeforeFirstChunkAdapter:
-    wire_api = "responses"
-    protocol_capabilities = SimpleNamespace(
-        primary_wire_api="responses",
-        allowed_wire_apis=("responses",),
-        allowed_cross_protocol_fallbacks={},
-        allow_adapter_cross_protocol_fallback=False,
-    )
-
-    def __init__(self) -> None:
-        self.chat_calls = 0
-        self.stream_kwargs: list[dict] = []
-        self.chat_kwargs: list[dict] = []
-
-    async def stream_chat(self, **kwargs):
-        self.stream_kwargs.append(dict(kwargs))
-        raise ProviderTimeoutError(
-            "provider timed out before first chunk",
-            provider_code="openai_compatible",
-            model_code="gpt-5.4",
-        )
-        if False:  # pragma: no cover - keep async-generator contract explicit
-            yield None
-
-    async def chat(self, **kwargs):
-        self.chat_calls += 1
-        self.chat_kwargs.append(dict(kwargs))
-        return ChatResponse(
-            message=ChatMessage(role="assistant", content="page rescued reply"),
             finish_reason="stop",
             model="gpt-5.4",
         )
@@ -291,7 +257,7 @@ async def test_runtime_query_engine_sync_rescues_reasoning_only_stream_failure_w
     )
 
     assert [chunk.reasoning_delta for chunk in chunks if chunk.reasoning_delta] == [
-        "先检查页面上下文"
+        "先检查公开资料"
     ]
     assert [chunk.delta for chunk in chunks if chunk.delta] == ["rescued reply"]
     assert adapter.chat_calls == 1
@@ -369,7 +335,7 @@ async def test_runtime_query_engine_does_not_retry_sync_rescue_after_retryable_f
 
 
 @pytest.mark.asyncio
-async def test_runtime_query_engine_applies_max_retry_override_to_non_ui_turns() -> (
+async def test_runtime_query_engine_does_not_inject_retired_page_retry_override() -> (
     None
 ):
     query_engine = ConversationQueryEngine(
@@ -404,5 +370,5 @@ async def test_runtime_query_engine_applies_max_retry_override_to_non_ui_turns()
     )
 
     assert response.message.content == "ok"
-    assert captured_extra_kwargs[0]["_runtime_client_max_retries_override"] == 0
+    assert "_runtime_client_max_retries_override" not in captured_extra_kwargs[0]
     assert "timeout_seconds" not in captured_extra_kwargs[0]

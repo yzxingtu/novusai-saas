@@ -12,12 +12,12 @@ from app.configs.service import PLATFORM_TENANT_ID
 from app.core.identity import resolve_identity_display_role_name
 from app.core.identity_snapshot import snapshot_has_key, snapshot_value
 from app.schemas.ai.monitoring import MonitoringActorInfo
+from app.services.ai.conversation_diagnostics_projector import (
+    ConversationDiagnosticsProjector,
+)
 from app.services.ai.conversation_diagnostics_projector_support import (
     normalize_turn_skill_activation_payload,
     resolve_live_selected_name_list,
-)
-from app.services.ai.conversation_diagnostics_projector import (
-    ConversationDiagnosticsProjector,
 )
 from app.services.ai.conversation_turn_flow_projector import (
     ConversationTurnFlowProjector,
@@ -173,6 +173,10 @@ class MonitoringReadModelProjector:
             or ConversationDiagnosticsProjector.normalize_json_dict(
                 turn_record_diagnostics.get("tool_planner")
             )
+            or {}
+        )
+        tool_planner = (
+            ConversationDiagnosticsProjector.sanitize_diagnostics_payload(tool_planner)
             or {}
         )
         routing = (
@@ -419,10 +423,12 @@ class MonitoringReadModelProjector:
                 or diagnostics.get("active_intent_id")
                 or turn_record_diagnostics.get("active_intent_id")
             ),
-            "continuation_source": ConversationDiagnosticsProjector.to_non_empty_str(
-                turn_record.get("continuation_source")
-                or diagnostics.get("continuation_source")
-                or turn_record_diagnostics.get("continuation_source")
+            "continuation_source": (
+                ConversationDiagnosticsProjector.normalize_live_diagnostics_reference(
+                    turn_record.get("continuation_source")
+                    or diagnostics.get("continuation_source")
+                    or turn_record_diagnostics.get("continuation_source")
+                )
             ),
             "intent_plan": ConversationDiagnosticsProjector.normalize_intent_plan(
                 turn_record.get("intent_plan")

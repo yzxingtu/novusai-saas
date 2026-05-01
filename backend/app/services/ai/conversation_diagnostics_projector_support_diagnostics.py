@@ -5,11 +5,15 @@ from __future__ import annotations
 from typing import Any
 
 from app.ai.json_safe import normalize_json_safe_dict
+from app.ai.tools.semantic_defaults import is_retired_page_tool_name
 from app.services.ai.turn_failure_normalizer import derive_budget_projection
 
 
 def _normalize_turn_record_payload(turn_record: Any) -> dict[str, Any] | None:
-    return normalize_json_safe_dict(turn_record)
+    payload = normalize_json_safe_dict(turn_record)
+    if not payload:
+        return None
+    return sanitize_diagnostics_payload(payload)
 
 
 def _to_non_empty_str(value: Any) -> str | None:
@@ -21,10 +25,208 @@ def _to_non_empty_str(value: Any) -> str | None:
     return text
 
 
+_RETIRED_PAGE_DIAGNOSTIC_TOKENS = frozenset(
+    {
+        "active_surface",
+        "current_dom",
+        "current_editor",
+        "current_page",
+        "dom_snapshot",
+        "editor_ops",
+        "last_page_key",
+        "last_page_op",
+        "page_context",
+        "page_data",
+        "page_operation",
+        "page_operations",
+        "page_ops",
+        "page_runtime",
+        "page_session",
+        "page_session_id",
+        "request_page_context",
+        "runtime_page",
+        "runtime_page_context",
+        "runtime_page_runtime",
+        "runtime_page_session",
+        "system_page_runtime",
+    }
+)
+_RETIRED_PAGE_DIAGNOSTIC_MARKERS = (
+    "页面感知交互",
+    "页面感知",
+    "页面操作",
+    "当前页面",
+    "当前 dom",
+    "page awareness",
+    "page-awareness",
+    "page_awareness",
+    "page operation",
+    "page operations",
+    "ui runtime page",
+    "ui runtime 页面交互",
+)
+_DIAGNOSTIC_NAME_LIST_KEYS = frozenset(
+    {
+        "allowed_tool_names",
+        "candidate_tool_names",
+        "completed_by_tool_names",
+        "inventory_selected_skill_names",
+        "inventory_selected_tool_names",
+        "leaked_tool_names",
+        "page_operation_names",
+        "resolved_tool_names",
+        "selected_skill_names",
+        "selected_tool_names",
+        "startup_preview_semantic_families",
+        "startup_preview_tool_names",
+        "tool_names",
+    }
+)
+_DIAGNOSTIC_CONTEXT_SOURCE_KEYS = frozenset(
+    {"context_sources", "sources", "runtime_context_sources"}
+)
+_DIAGNOSTIC_INTENT_PLAN_KEYS = frozenset({"intent_plan", "intents"})
+_DIAGNOSTIC_RETRY_EVENT_KEYS = frozenset({"retry_events"})
+_DIAGNOSTIC_SCALAR_REFERENCE_KEYS = frozenset(
+    {
+        "continuation_source",
+        "family",
+        "last_tool_name",
+        "retry_family",
+        "semantic_family",
+    }
+)
+
+
+def _diagnostic_token(value: Any) -> str:
+    return (
+        str(value or "")
+        .strip()
+        .lower()
+        .replace("-", "_")
+        .replace(" ", "_")
+        .replace(".", "_")
+        .replace(":", "_")
+    )
+
+
+def is_retired_page_diagnostics_reference(value: Any) -> bool:
+    text = str(value or "").strip()
+    if not text:
+        return False
+    token = _diagnostic_token(text)
+    lowered = text.lower()
+    return (
+        is_retired_page_tool_name(token)
+        or token in _RETIRED_PAGE_DIAGNOSTIC_TOKENS
+        or token.startswith("page_")
+        or token.startswith("pageop_")
+        or token.startswith("ui_")
+        or any(marker in lowered for marker in _RETIRED_PAGE_DIAGNOSTIC_MARKERS)
+    )
+
+
+def normalize_live_diagnostics_reference(value: Any) -> str | None:
+    text = _to_non_empty_str(value)
+    if not text or is_retired_page_diagnostics_reference(text):
+        return None
+    return text
+
+
 def _normalize_string_list(value: Any) -> list[str]:
     if not isinstance(value, list):
         return []
-    return [str(item).strip() for item in value if str(item).strip()]
+    normalized: list[str] = []
+    for item in value:
+        text = normalize_live_diagnostics_reference(item)
+        if text and text not in normalized:
+            normalized.append(text)
+    return normalized
+
+
+def _sanitize_list_payload(value: list[Any]) -> list[Any]:
+    normalized: list[Any] = []
+    for item in value:
+        if isinstance(item, dict):
+            payload = sanitize_diagnostics_payload(item)
+            if payload:
+                normalized.append(payload)
+            continue
+        if isinstance(item, list):
+            payload = _sanitize_list_payload(item)
+            if payload:
+                normalized.append(payload)
+            continue
+        if isinstance(item, str):
+            text = normalize_live_diagnostics_reference(item)
+            if text:
+                normalized.append(text)
+            continue
+        normalized.append(item)
+    return normalized
+
+
+def sanitize_diagnostics_payload(value: Any) -> dict[str, Any] | None:
+    payload = _normalize_json_dict(value)
+    if not payload:
+        return None
+
+    sanitized: dict[str, Any] = {}
+    for raw_key, raw_value in payload.items():
+        key = str(raw_key)
+        if is_retired_page_diagnostics_reference(key):
+            continue
+
+        if key in _DIAGNOSTIC_NAME_LIST_KEYS:
+            if isinstance(raw_value, list):
+                sanitized[key] = _normalize_string_list(raw_value)
+            elif isinstance(raw_value, dict):
+                nested = sanitize_diagnostics_payload(raw_value)
+                if nested:
+                    sanitized[key] = nested
+            continue
+        if key in _DIAGNOSTIC_CONTEXT_SOURCE_KEYS:
+            sources = _normalize_context_sources(raw_value)
+            if sources:
+                sanitized[key] = sources
+            continue
+        if key in _DIAGNOSTIC_INTENT_PLAN_KEYS:
+            intent_plan = _normalize_intent_plan(raw_value)
+            if intent_plan:
+                sanitized[key] = intent_plan
+            continue
+        if key in _DIAGNOSTIC_RETRY_EVENT_KEYS:
+            retry_events = _normalize_retry_events(raw_value)
+            if retry_events:
+                sanitized[key] = retry_events
+            continue
+        if key == "tool_planner":
+            tool_planner = _sanitize_tool_planner(raw_value)
+            if tool_planner:
+                sanitized[key] = tool_planner
+            continue
+        if key in _DIAGNOSTIC_SCALAR_REFERENCE_KEYS:
+            text = normalize_live_diagnostics_reference(raw_value)
+            if text:
+                sanitized[key] = text
+            continue
+
+        if isinstance(raw_value, dict):
+            nested = sanitize_diagnostics_payload(raw_value)
+            if nested:
+                sanitized[key] = nested
+            continue
+        if isinstance(raw_value, list):
+            nested_list = _sanitize_list_payload(raw_value)
+            sanitized[key] = nested_list
+            continue
+        if isinstance(raw_value, str) and is_retired_page_diagnostics_reference(
+            raw_value
+        ):
+            continue
+        sanitized[key] = raw_value
+
+    return sanitized
 
 
 def _normalize_context_sources(value: Any) -> list[dict[str, Any]]:
@@ -38,12 +240,17 @@ def _normalize_context_sources(value: Any) -> list[dict[str, Any]]:
         source_kind = _to_non_empty_str(item.get("kind"))
         if not source_name and not source_kind:
             continue
+        if is_retired_page_diagnostics_reference(
+            source_name
+        ) or is_retired_page_diagnostics_reference(source_kind):
+            continue
+        metadata = sanitize_diagnostics_payload(item.get("metadata")) or {}
         normalized.append(
             {
                 "kind": source_kind,
                 "name": source_name,
                 "active": bool(item.get("active", True)),
-                "metadata": dict(item.get("metadata") or {}),
+                "metadata": metadata,
             }
         )
     return normalized
@@ -190,15 +397,22 @@ def _normalize_intent_plan(value: Any) -> list[dict[str, Any]]:
         payload = _normalize_json_dict(item)
         if not payload:
             continue
+        raw_kind = _to_non_empty_str(payload.get("kind"))
+        raw_family = _to_non_empty_str(payload.get("family"))
+        if is_retired_page_diagnostics_reference(
+            raw_kind
+        ) or is_retired_page_diagnostics_reference(raw_family):
+            continue
         normalized.append(
             {
                 "intent_id": _to_non_empty_str(payload.get("intent_id")),
-                "kind": _to_non_empty_str(payload.get("kind")),
-                "family": _to_non_empty_str(payload.get("family")),
+                "kind": raw_kind,
+                "family": raw_family,
                 "order": int(payload.get("order") or 0) or None,
                 "user_visible_label": _to_non_empty_str(
                     payload.get("user_visible_label")
                 ),
+                "source_text": _to_non_empty_str(payload.get("source_text")),
                 "status": _to_non_empty_str(payload.get("status")),
                 "allowed_tool_names": _normalize_string_list(
                     payload.get("allowed_tool_names")
@@ -220,11 +434,15 @@ def _normalize_retry_events(value: Any) -> list[dict[str, Any]]:
         payload = _normalize_json_dict(item)
         if not payload:
             continue
+        retry_family = _to_non_empty_str(payload.get("retry_family"))
+        if is_retired_page_diagnostics_reference(retry_family):
+            continue
+        metadata = sanitize_diagnostics_payload(payload.get("metadata")) or {}
         normalized.append(
             {
                 "action": _to_non_empty_str(payload.get("action")),
                 "target_intent_id": _to_non_empty_str(payload.get("target_intent_id")),
-                "retry_family": _to_non_empty_str(payload.get("retry_family")),
+                "retry_family": retry_family,
                 "allowed_tool_names": _normalize_string_list(
                     payload.get("allowed_tool_names")
                 ),
@@ -238,10 +456,21 @@ def _normalize_retry_events(value: Any) -> list[dict[str, Any]]:
                 "provider_failure_kind": _to_non_empty_str(
                     payload.get("provider_failure_kind")
                 ),
-                "metadata": dict(payload.get("metadata") or {}),
+                "metadata": metadata,
             }
         )
     return normalized
+
+
+def _sanitize_tool_planner(value: Any) -> dict[str, Any] | None:
+    payload = _normalize_json_dict(value)
+    if not payload:
+        return None
+    if is_retired_page_diagnostics_reference(
+        payload.get("intent")
+    ) or is_retired_page_diagnostics_reference(payload.get("family")):
+        return None
+    return sanitize_diagnostics_payload(payload)
 
 
 def _normalize_provider_events(value: Any) -> list[dict[str, Any]]:
@@ -485,12 +714,14 @@ def extract_turn_diagnostics_from_metadata(
         context_diagnostics.get("contract_breach_type"),
         last_run_summary.get("contract_breach_type"),
     )
-    tool_planner = _pick_dict_payload(
-        (turn_record or {}).get("tool_planner"),
-        metadata.get("tool_planner"),
-        turn_record_diagnostics.get("tool_planner"),
-        context_diagnostics.get("tool_planner"),
-        last_run_summary.get("tool_planner"),
+    tool_planner = _sanitize_tool_planner(
+        _pick_truthy(
+            (turn_record or {}).get("tool_planner"),
+            metadata.get("tool_planner"),
+            turn_record_diagnostics.get("tool_planner"),
+            context_diagnostics.get("tool_planner"),
+            last_run_summary.get("tool_planner"),
+        )
     )
     tool_leak_detected = bool(
         _pick_truthy(
@@ -535,12 +766,14 @@ def extract_turn_diagnostics_from_metadata(
         last_run_summary,
         key="recovered_via_retry",
     )
-    last_tool_name = _pick_string(
-        (turn_record or {}).get("last_tool_name"),
-        metadata.get("last_tool_name"),
-        turn_record_diagnostics.get("last_tool_name"),
-        context_diagnostics.get("last_tool_name"),
-        last_run_summary.get("last_tool_name"),
+    last_tool_name = normalize_live_diagnostics_reference(
+        _pick_string(
+            (turn_record or {}).get("last_tool_name"),
+            metadata.get("last_tool_name"),
+            turn_record_diagnostics.get("last_tool_name"),
+            context_diagnostics.get("last_tool_name"),
+            last_run_summary.get("last_tool_name"),
+        )
     )
     interrupted_stage = _pick_string(
         (turn_record or {}).get("interrupted_stage"),
@@ -584,12 +817,14 @@ def extract_turn_diagnostics_from_metadata(
         context_diagnostics.get("active_intent_id"),
         last_run_summary.get("active_intent_id"),
     )
-    continuation_source = _pick_string(
-        (turn_record or {}).get("continuation_source"),
-        metadata.get("continuation_source"),
-        turn_record_diagnostics.get("continuation_source"),
-        context_diagnostics.get("continuation_source"),
-        last_run_summary.get("continuation_source"),
+    continuation_source = normalize_live_diagnostics_reference(
+        _pick_string(
+            (turn_record or {}).get("continuation_source"),
+            metadata.get("continuation_source"),
+            turn_record_diagnostics.get("continuation_source"),
+            context_diagnostics.get("continuation_source"),
+            last_run_summary.get("continuation_source"),
+        )
     )
     conversation_outcome = _pick_string(
         (turn_record or {}).get("conversation_outcome"),
@@ -819,6 +1054,9 @@ def extract_turn_diagnostics_from_metadata(
 
 __all__ = [
     "extract_turn_diagnostics_from_metadata",
+    "is_retired_page_diagnostics_reference",
+    "normalize_live_diagnostics_reference",
     "normalize_turn_skill_activation_payload",
     "resolve_live_selected_name_list",
+    "sanitize_diagnostics_payload",
 ]

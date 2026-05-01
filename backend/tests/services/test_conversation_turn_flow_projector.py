@@ -1,3 +1,10 @@
+"""
+Test type: behavioral
+Scope: Conversation turn-flow projection, failure states, and retired page-awareness
+diagnostic scrubbing.
+Mock strategy: no external services; projector logic runs directly.
+"""
+
 from app.services.ai.conversation_turn_flow_projector import (
     ConversationTurnFlowProjector,
 )
@@ -45,9 +52,9 @@ def test_project_from_metadata_uses_legacy_rag_sources_only_when_canonical_conte
         {
             "rag_sources": [
                 {
-                    "kind": "page_write",
-                    "title": "Legacy page operation",
-                    "source_ref": "legacy-page-op",
+                    "kind": "knowledge_base",
+                    "title": "Legacy retrieval source",
+                    "source_ref": "legacy-retrieval",
                 }
             ],
         },
@@ -56,15 +63,15 @@ def test_project_from_metadata_uses_legacy_rag_sources_only_when_canonical_conte
 
     assert turn_flow["evidence"] == [
         {
-            "id": "legacy-page-op",
-            "kind": "page",
-            "title": "Legacy page operation",
+            "id": "legacy-retrieval",
+            "kind": "knowledge_base",
+            "title": "Legacy retrieval source",
             "url": None,
             "snippet": None,
             "badge": None,
             "score": None,
             "tool_call_id": None,
-            "source_ref": "legacy-page-op",
+            "source_ref": "legacy-retrieval",
         }
     ]
 
@@ -171,7 +178,7 @@ def test_project_from_metadata_preserves_hosted_search_progress_for_timeout_hist
     assert retrieval["detail_lines"] == ["搜索未返回可展示证据"]
 
 
-def test_project_from_metadata_reclassifies_stored_completed_turn_flow_for_incomplete_page_reply() -> None:
+def test_project_from_metadata_scrubs_retired_page_metadata_without_reclassifying_turn() -> None:
     turn_flow = ConversationTurnFlowProjector.project_from_metadata(
         {
             "turn_flow": {
@@ -193,7 +200,7 @@ def test_project_from_metadata_reclassifies_stored_completed_turn_flow_for_incom
                 ],
                 "evidence": [],
                 "answer_card": {
-                    "summary": "我先帮你检查一下页面上有没有可用的搜索区域或关键词“发票”的相关内容喵~",
+                    "summary": "我先整理已有信息。",
                     "sections": [],
                     "source_chip_ids": [],
                 },
@@ -224,17 +231,17 @@ def test_project_from_metadata_reclassifies_stored_completed_turn_flow_for_incom
                 "selected_tool_names": [],
             },
         },
-        content="我先帮你检查一下页面上有没有可用的搜索区域或关键词“发票”的相关内容喵~",
+        content="我先整理已有信息。",
     )
 
-    assert turn_flow["completion_reason"] == "incomplete_promissory_reply"
-    assert turn_flow["timeline"][-1]["type"] == "failed"
-    assert turn_flow["timeline"][-1]["status"] == "error"
-    assert turn_flow["error_surface"]["error_type"] == "incomplete_promissory_reply"
+    assert turn_flow["completion_reason"] == "completed"
+    assert turn_flow["timeline"][-1]["type"] == "completed"
+    assert turn_flow["timeline"][-1]["status"] == "completed"
+    assert turn_flow["error_surface"] is None
     answer_assembly = next(
         stage for stage in turn_flow["timeline"] if stage["type"] == "answer_assembly"
     )
-    assert answer_assembly["status"] == "error"
+    assert answer_assembly["status"] == "completed"
 
 
 def test_project_from_metadata_uses_completed_tool_names_when_selected_tools_missing() -> None:
@@ -242,32 +249,31 @@ def test_project_from_metadata_uses_completed_tool_names_when_selected_tools_mis
         {
             "context_diagnostics": {
                 "tool_planner": {
-                    "intent": "page_search",
-                    "family": "page_ops",
+                    "intent": "web_research",
+                    "family": "web_research",
                 },
                 "candidate_tool_names": [
-                    "ui_read_region",
-                    "ui_list_interactables",
-                    "ui_click",
+                    "web_search",
+                    "fetch_url",
                 ],
                 "intent_plan": [
                     {
                         "intent_id": "intent-1",
-                        "kind": "page_search",
-                        "family": "page_ops",
+                        "kind": "web_research",
+                        "family": "web_research",
                         "status": "completed",
-                        "completed_by_tool_names": ["ui_list_interactables"],
+                        "completed_by_tool_names": ["fetch_url"],
                     }
                 ],
             },
         },
-        content="已定位到页面上的搜索区域。",
+        content="已整理公开资料。",
     )
 
     tool_selection = next(
         stage for stage in turn_flow["timeline"] if stage["type"] == "tool_selection"
     )
-    assert tool_selection["summary"] == "已从 3 个工具中筛选 1 个"
+    assert tool_selection["summary"] == "已从 2 个工具中筛选 1 个"
     assert tool_selection["metrics"]["selected_count"] == 1
 
 
@@ -281,17 +287,17 @@ def test_project_from_metadata_provider_timeout_after_completed_tool_keeps_tool_
                 "termination_reason": "provider_timeout",
                 "failure_kind": "provider_timeout",
                 "tool_planner": {
-                    "intent": "page_summary",
-                    "family": "page_ops",
+                    "intent": "web_research",
+                    "family": "web_research",
                 },
-                "candidate_tool_names": ["ui_get_snapshot"],
+                "candidate_tool_names": ["web_search"],
                 "intent_plan": [
                     {
                         "intent_id": "intent-1",
-                        "kind": "page_summary",
-                        "family": "page_ops",
+                        "kind": "web_research",
+                        "family": "web_research",
                         "status": "completed",
-                        "completed_by_tool_names": ["ui_get_snapshot"],
+                        "completed_by_tool_names": ["web_search"],
                     }
                 ],
                 "provider_events": [
@@ -318,8 +324,8 @@ def test_project_from_metadata_provider_timeout_after_completed_tool_keeps_tool_
 
     assert thinking["status"] == "completed"
     assert tool_selection["status"] == "completed"
-    assert tool_execution["status"] == "completed"
-    assert tool_execution["summary"] == "执行了 1 个工具调用"
+    assert tool_execution["status"] == "error"
+    assert tool_execution["summary"] == "联网搜索在等待结果返回时超时"
     assert answer_assembly["status"] == "error"
     assert turn_flow["answer_card"]["summary"] == "我先把已完成部分整理给你：这部分。"
 
@@ -387,17 +393,17 @@ def test_normalize_turn_flow_replaces_generic_missing_answer_summary_with_partia
                 "termination_reason": "provider_timeout",
                 "failure_kind": "provider_timeout",
                 "tool_planner": {
-                    "intent": "page_summary",
-                    "family": "page_ops",
+                    "intent": "web_research",
+                    "family": "web_research",
                 },
-                "candidate_tool_names": ["ui_get_snapshot"],
+                "candidate_tool_names": ["web_search"],
                 "intent_plan": [
                     {
                         "intent_id": "intent-1",
-                        "kind": "page_summary",
-                        "family": "page_ops",
+                        "kind": "web_research",
+                        "family": "web_research",
                         "status": "completed",
-                        "completed_by_tool_names": ["ui_get_snapshot"],
+                        "completed_by_tool_names": ["web_search"],
                     }
                 ],
             },

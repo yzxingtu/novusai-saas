@@ -20,7 +20,6 @@ import sys
 import textwrap
 from pathlib import Path
 
-
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -142,10 +141,10 @@ def test_retained_projection_does_not_leak_inventory_when_live_selection_is_empt
         "selected_tool_names": [],
         "skill_count": 0,
         "selected_skill_names": [],
-        "inventory_tool_count": 2,
-        "inventory_selected_tool_names": ["ui_get_snapshot", "web_search"],
-        "inventory_skill_count": 2,
-        "inventory_selected_skill_names": ["Page Skill", "Research Skill"],
+        "inventory_tool_count": 1,
+        "inventory_selected_tool_names": ["web_search"],
+        "inventory_skill_count": 1,
+        "inventory_selected_skill_names": ["Research Skill"],
     }
     assert "selected_tool_names" not in payload["context_payload"]
     assert "selected_skill_names" not in payload["context_payload"]
@@ -156,10 +155,10 @@ def test_retained_projection_does_not_leak_inventory_when_live_selection_is_empt
         "selected_tool_names": [],
         "skill_count": 0,
         "selected_skill_names": [],
-        "inventory_tool_count": 2,
-        "inventory_selected_tool_names": ["ui_get_snapshot", "web_search"],
-        "inventory_skill_count": 2,
-        "inventory_selected_skill_names": ["Page Skill", "Research Skill"],
+        "inventory_tool_count": 1,
+        "inventory_selected_tool_names": ["web_search"],
+        "inventory_skill_count": 1,
+        "inventory_selected_skill_names": ["Research Skill"],
     }
     assert "selected_tool_names" not in payload["summary_payload"]
     assert "selected_skill_names" not in payload["summary_payload"]
@@ -170,16 +169,16 @@ def test_retained_projection_does_not_leak_inventory_when_live_selection_is_empt
         "selected_tool_names": [],
         "skill_count": 0,
         "selected_skill_names": [],
-        "inventory_tool_count": 2,
-        "inventory_selected_tool_names": ["ui_get_snapshot", "web_search"],
-        "inventory_skill_count": 2,
-        "inventory_selected_skill_names": ["Page Skill", "Research Skill"],
+        "inventory_tool_count": 1,
+        "inventory_selected_tool_names": ["web_search"],
+        "inventory_skill_count": 1,
+        "inventory_selected_skill_names": ["Research Skill"],
     }
     assert payload["monitoring_payload"]["selected_tool_names"] == []
     assert payload["monitoring_payload"]["selected_skill_names"] == []
     assert payload["monitoring_payload"]["turn_record"]["metadata"][
         "turn_diagnostics"
-    ]["selected_tool_names"] == ["ui_get_snapshot", "web_search"]
+    ]["selected_tool_names"] == ["web_search"]
     assert payload["monitoring_payload"]["turn_record"]["metadata"][
         "turn_diagnostics"
-    ]["selected_skill_names"] == ["Page Skill", "Research Skill"]
+    ]["selected_skill_names"] == ["Research Skill"]

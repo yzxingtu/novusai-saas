@@ -12,8 +12,11 @@ from app.ai.tools.types import ToolResult
 from app.ai.types import ChatMessage
 from app.services.ai.conversation_diagnostics_projector_support_diagnostics import (
     extract_turn_diagnostics_from_metadata,
+    is_retired_page_diagnostics_reference,
+    normalize_live_diagnostics_reference,
     normalize_turn_skill_activation_payload,
     resolve_live_selected_name_list,
+    sanitize_diagnostics_payload,
 )
 
 
@@ -30,7 +33,10 @@ def normalize_json_safe_dict(raw: Any) -> dict[str, Any] | None:
 
 
 def normalize_turn_record_payload(turn_record: Any) -> dict[str, Any] | None:
-    return normalize_json_safe_dict(turn_record)
+    payload = normalize_json_safe_dict(turn_record)
+    if not payload:
+        return None
+    return sanitize_diagnostics_payload(payload)
 
 
 def to_non_empty_str(value: Any) -> str | None:
@@ -45,7 +51,12 @@ def to_non_empty_str(value: Any) -> str | None:
 def normalize_string_list(value: Any) -> list[str]:
     if not isinstance(value, list):
         return []
-    return [str(item).strip() for item in value if str(item).strip()]
+    normalized: list[str] = []
+    for item in value:
+        text = normalize_live_diagnostics_reference(item)
+        if text and text not in normalized:
+            normalized.append(text)
+    return normalized
 
 
 def normalize_context_sources(value: Any) -> list[dict[str, Any]]:
@@ -59,12 +70,16 @@ def normalize_context_sources(value: Any) -> list[dict[str, Any]]:
         source_kind = to_non_empty_str(item.get("kind"))
         if not source_name and not source_kind:
             continue
+        if is_retired_page_diagnostics_reference(
+            source_name
+        ) or is_retired_page_diagnostics_reference(source_kind):
+            continue
         normalized.append(
             {
                 "kind": source_kind,
                 "name": source_name,
                 "active": bool(item.get("active", True)),
-                "metadata": dict(item.get("metadata") or {}),
+                "metadata": sanitize_diagnostics_payload(item.get("metadata")) or {},
             }
         )
     return normalized
@@ -88,15 +103,22 @@ def normalize_intent_plan(value: Any) -> list[dict[str, Any]]:
         payload = normalize_json_dict(item)
         if not payload:
             continue
+        kind = to_non_empty_str(payload.get("kind"))
+        family = to_non_empty_str(payload.get("family"))
+        if is_retired_page_diagnostics_reference(
+            kind
+        ) or is_retired_page_diagnostics_reference(family):
+            continue
         normalized.append(
             {
                 "intent_id": to_non_empty_str(payload.get("intent_id")),
-                "kind": to_non_empty_str(payload.get("kind")),
-                "family": to_non_empty_str(payload.get("family")),
+                "kind": kind,
+                "family": family,
                 "order": int(payload.get("order") or 0) or None,
                 "user_visible_label": to_non_empty_str(
                     payload.get("user_visible_label")
                 ),
+                "source_text": to_non_empty_str(payload.get("source_text")),
                 "status": to_non_empty_str(payload.get("status")),
                 "allowed_tool_names": normalize_string_list(
                     payload.get("allowed_tool_names")
@@ -118,11 +140,14 @@ def normalize_retry_events(value: Any) -> list[dict[str, Any]]:
         payload = normalize_json_dict(item)
         if not payload:
             continue
+        retry_family = to_non_empty_str(payload.get("retry_family"))
+        if is_retired_page_diagnostics_reference(retry_family):
+            continue
         normalized.append(
             {
                 "action": to_non_empty_str(payload.get("action")),
                 "target_intent_id": to_non_empty_str(payload.get("target_intent_id")),
-                "retry_family": to_non_empty_str(payload.get("retry_family")),
+                "retry_family": retry_family,
                 "allowed_tool_names": normalize_string_list(
                     payload.get("allowed_tool_names")
                 ),
@@ -136,7 +161,7 @@ def normalize_retry_events(value: Any) -> list[dict[str, Any]]:
                 "provider_failure_kind": to_non_empty_str(
                     payload.get("provider_failure_kind")
                 ),
-                "metadata": dict(payload.get("metadata") or {}),
+                "metadata": sanitize_diagnostics_payload(payload.get("metadata")) or {},
             }
         )
     return normalized
@@ -293,12 +318,14 @@ __all__ = [
     "normalize_json_dict",
     "normalize_json_safe",
     "normalize_json_safe_dict",
+    "normalize_live_diagnostics_reference",
     "normalize_provider_events",
     "normalize_retry_events",
     "normalize_turn_skill_activation_payload",
     "normalize_string_list",
     "normalize_turn_record_payload",
     "resolve_live_selected_name_list",
+    "sanitize_diagnostics_payload",
     "sanitize_tool_messages",
     "to_non_empty_str",
 ]

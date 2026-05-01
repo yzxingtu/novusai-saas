@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from app.ai.tools.semantic_defaults import is_retired_page_tool_name
 from app.services.ai.conversation_diagnostics_projector import (
     ConversationDiagnosticsProjector,
 )
@@ -117,7 +118,12 @@ def _normalize_optional_float(value: Any) -> float | None:
 def _normalize_string_list(value: Any) -> list[str]:
     if not isinstance(value, list):
         return []
-    return [str(item).strip() for item in value if str(item).strip()]
+    normalized: list[str] = []
+    for item in value:
+        text = _to_non_empty_str(item)
+        if text and not is_retired_page_tool_name(text) and text not in normalized:
+            normalized.append(text)
+    return normalized
 
 
 def _normalize_line_list(value: Any) -> list[str]:
@@ -681,6 +687,9 @@ def _normalize_evidence_item(item: Any) -> dict[str, Any] | None:
     evidence_id = _to_non_empty_str(item.get("id"))
     if not evidence_id:
         return None
+    tool_name = _to_non_empty_str(item.get("tool_name") or item.get("source_ref"))
+    if tool_name and is_retired_page_tool_name(tool_name):
+        return None
     payload = {
         "id": evidence_id,
         "kind": _map_source_kind(item.get("kind")),
@@ -798,6 +807,8 @@ def _build_tool_evidence_from_tool_call(
             else {}
         ).get("name")
     )
+    if tool_name and is_retired_page_tool_name(tool_name):
+        return None
     display_name = _to_non_empty_str(call.get("display_name"))
     summary = _to_non_empty_str(call.get("summary"))
     result_link = _to_non_empty_str(call.get("result_link"))

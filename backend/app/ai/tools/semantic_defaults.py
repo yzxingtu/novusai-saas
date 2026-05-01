@@ -90,7 +90,7 @@ RETIRED_PAGE_TOOL_NAMES: frozenset[str] = frozenset(RETIRED_PAGE_TOOL_ORDER)
 
 
 def is_retired_page_tool_name(name: str) -> bool:
-    normalized = str(name or "").strip()
+    normalized = str(name or "").strip().lower()
     return (
         normalized.startswith("ui_")
         or normalized.startswith("pageop_")
@@ -102,7 +102,7 @@ def is_retired_page_tool(tool: Any) -> bool:
     """Return true when a tool belongs to retired page/editor runtime."""
     if is_retired_page_tool_name(getattr(tool, "name", "")):
         return True
-    family = str(getattr(tool, "semantic_family", "") or "").strip()
+    family = str(getattr(tool, "semantic_family", "") or "").strip().lower()
     return family == "page_ops"
 
 
@@ -129,7 +129,7 @@ def tool_semantic_family(
 ) -> str:
     """Return the semantic family, preferring the ToolDefinition attribute."""
     family = str(getattr(tool, "semantic_family", "") or "").strip()
-    if family == "page_ops":
+    if family.lower() == "page_ops":
         return "none"
     if family:
         return family
