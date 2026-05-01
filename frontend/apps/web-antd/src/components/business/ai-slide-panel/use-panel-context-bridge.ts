@@ -11,7 +11,6 @@ import { $t } from '#/locales';
 interface DeferredSendContext {
   agentId: number;
   consumeMention?: boolean;
-  routeSource?: string;
 }
 
 interface VarsModalAgentState {
@@ -49,7 +48,6 @@ interface UsePanelContextBridgeOptions {
   sendMessage: (options: {
     agentId: number;
     consumeMention?: boolean;
-    routeSource?: string;
   }) => Promise<unknown> | unknown;
   selectedAgentId: Ref<null | number>;
   showHistory: Ref<boolean>;
@@ -173,12 +171,10 @@ export function usePanelContextBridge(options: UsePanelContextBridgeOptions) {
     agentName: string;
     consumeMention?: boolean;
     requiredVars: InputVariable[];
-    routeSource?: string;
   }) {
     pendingSendContext.value = {
       agentId: payload.agentId,
       consumeMention: payload.consumeMention,
-      routeSource: payload.routeSource,
     };
     openVarsModal(payload.requiredVars, payload.agentId, payload.agentName);
   }
@@ -208,8 +204,7 @@ export function usePanelContextBridge(options: UsePanelContextBridgeOptions) {
       return;
     }
 
-    const { agentId: pendingAgentId, consumeMention, routeSource } =
-      pendingSendContext.value;
+    const { agentId: pendingAgentId, consumeMention } = pendingSendContext.value;
     pendingSendContext.value = null;
 
     if (consumeMention) {
@@ -217,7 +212,6 @@ export function usePanelContextBridge(options: UsePanelContextBridgeOptions) {
     }
     void options.sendMessage({
       agentId: pendingAgentId,
-      routeSource,
     });
   }
 

@@ -66,7 +66,6 @@ await sio.emit("notification", data, room="admins", namespace="/admin")
 - 通知推送
 - presence 变更广播
 - AI typing 状态
-- 页面操作 invoke
 
 ## Namespace 侧处理事件
 

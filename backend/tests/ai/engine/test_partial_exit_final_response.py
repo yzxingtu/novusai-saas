@@ -1003,17 +1003,17 @@ def test_recovery_manager_prefers_current_completed_tool_result_over_stale_cache
     assert updated[0].cached_result != "旧的搜索命中缓存"
 
 
-def test_recovery_manager_does_not_cache_retired_page_table_result() -> None:
+def test_recovery_manager_does_not_cache_invalid_runtime_table_result() -> None:
     intents = [
         IntentPlan(
             intent_id="intent-page-table",
             kind="page_summary",
-            family="page_ops",
+            family="data_ops",
             order=1,
             user_visible_label="page_summary",
             source_text="帮我看看这个表格里有哪些数据",
             status="pending",
-            allowed_tool_names=["ui_read_table"],
+            allowed_tool_names=["crm_list_records"],
         )
     ]
 
@@ -1023,7 +1023,7 @@ def test_recovery_manager_does_not_cache_retired_page_table_result() -> None:
         tool_results=[
             ToolResult(
                 tool_call_id="tc-page-table",
-                name="ui_read_table",
+                name="crm_list_records",
                 success=True,
                 output=(
                     '{"columns":["标题","时间","状态"],'
@@ -1040,17 +1040,17 @@ def test_recovery_manager_does_not_cache_retired_page_table_result() -> None:
     assert "cached_result" not in dict(updated[0].metadata or {})
 
 
-def test_recovery_manager_does_not_cache_retired_page_snapshot_result() -> None:
+def test_recovery_manager_does_not_cache_invalid_runtime_snapshot_result() -> None:
     intents = [
         IntentPlan(
             intent_id="intent-page-snapshot",
             kind="page_summary",
-            family="page_ops",
+            family="data_ops",
             order=1,
             user_visible_label="page_summary",
-            source_text="当前页面有什么内容？",
+            source_text="当前数据集有什么内容？",
             status="pending",
-            allowed_tool_names=["ui_get_snapshot"],
+            allowed_tool_names=["crm_lookup"],
         )
     ]
 
@@ -1060,7 +1060,7 @@ def test_recovery_manager_does_not_cache_retired_page_snapshot_result() -> None:
         tool_results=[
             ToolResult(
                 tool_call_id="tc-page-snapshot",
-                name="ui_get_snapshot",
+                name="crm_lookup",
                 success=True,
                 output=(
                     '{"ui_epoch":12,"surface_stack":[{"surface_id":"dashboard",'
@@ -1079,17 +1079,17 @@ def test_recovery_manager_does_not_cache_retired_page_snapshot_result() -> None:
     assert "cached_result" not in dict(updated[0].metadata or {})
 
 
-def test_recovery_manager_does_not_surface_retired_overlay_page_snapshot() -> None:
+def test_recovery_manager_does_not_surface_invalid_runtime_overlay_snapshot() -> None:
     intents = [
         IntentPlan(
             intent_id="intent-page-snapshot",
             kind="page_summary",
-            family="page_ops",
+            family="data_ops",
             order=1,
             user_visible_label="page_summary",
             source_text="看看这个页面有什么内容？",
             status="pending",
-            allowed_tool_names=["ui_get_snapshot"],
+            allowed_tool_names=["crm_lookup"],
         )
     ]
 
@@ -1099,7 +1099,7 @@ def test_recovery_manager_does_not_surface_retired_overlay_page_snapshot() -> No
         tool_results=[
             ToolResult(
                 tool_call_id="tc-page-snapshot-overlay",
-                name="ui_get_snapshot",
+                name="crm_lookup",
                 success=True,
                 output=(
                     '{"ui_epoch":6,"surface_stack":['
@@ -1121,17 +1121,17 @@ def test_recovery_manager_does_not_surface_retired_overlay_page_snapshot() -> No
     assert "cached_result" not in dict(updated[0].metadata or {})
 
 
-def test_recovery_manager_does_not_cache_retired_page_interactables_result() -> None:
+def test_recovery_manager_does_not_cache_invalid_runtime_interactables_result() -> None:
     intents = [
         IntentPlan(
             intent_id="intent-page-discovery",
             kind="page_summary",
-            family="page_ops",
+            family="data_ops",
             order=1,
             user_visible_label="page_summary",
-            source_text="当前页面有哪些可点击项？",
+            source_text="当前数据集有哪些可点击项？",
             status="pending",
-            allowed_tool_names=["ui_list_interactables"],
+            allowed_tool_names=["crm_list_actions"],
         )
     ]
 
@@ -1141,7 +1141,7 @@ def test_recovery_manager_does_not_cache_retired_page_interactables_result() -> 
         tool_results=[
             ToolResult(
                 tool_call_id="tc-page-discovery",
-                name="ui_list_interactables",
+                name="crm_list_actions",
                 success=True,
                 output=(
                     '{"surface_id":"tenant-list","items":['
@@ -1159,17 +1159,17 @@ def test_recovery_manager_does_not_cache_retired_page_interactables_result() -> 
     assert "cached_result" not in dict(updated[0].metadata or {})
 
 
-def test_recovery_manager_does_not_cache_retired_page_form_state_payload() -> None:
+def test_recovery_manager_does_not_cache_invalid_runtime_form_state_payload() -> None:
     intents = [
         IntentPlan(
             intent_id="intent-form-read",
             kind="page_form_read",
-            family="page_ops",
+            family="data_ops",
             order=1,
             user_visible_label="page_form_read",
             source_text="读取当前表单状态",
             status="pending",
-            allowed_tool_names=["ui_get_form_state"],
+            allowed_tool_names=["crm_get_record_state"],
         )
     ]
 
@@ -1179,7 +1179,7 @@ def test_recovery_manager_does_not_cache_retired_page_form_state_payload() -> No
         tool_results=[
             ToolResult(
                 tool_call_id="tc-form-read",
-                name="ui_get_form_state",
+                name="crm_get_record_state",
                 success=True,
                 summary_payload={
                     "data": {

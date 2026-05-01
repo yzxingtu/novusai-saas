@@ -15,7 +15,6 @@ export interface RichTextEditorProps {
   defaultValue?: JSONContent | null;
   mode?: 'compact' | 'full';
   toolbar?: boolean | string[];
-  ai?: boolean;
   upload?: boolean;
   editable?: boolean;
   placeholder?: string;
@@ -23,7 +22,6 @@ export interface RichTextEditorProps {
   maxHeight?: number | string;
   autofocus?: boolean;
   extensions?: AnyExtension[];
-  contextTitle?: string;
 }
 
 /** 命令式挂载选项 / Imperative mount options */
@@ -32,7 +30,6 @@ export interface MountOptions {
   defaultValue?: JSONContent | null;
   mode?: 'compact' | 'full';
   toolbar?: boolean | string[];
-  ai?: boolean;
   upload?: boolean;
   editable?: boolean;
   placeholder?: string;
@@ -40,7 +37,6 @@ export interface MountOptions {
   maxHeight?: number | string;
   autofocus?: boolean;
   extensions?: AnyExtension[];
-  contextTitle?: string;
   onChange?: (json: JSONContent, html: string, text: string) => void;
   onReady?: (editor: Editor) => void;
 }

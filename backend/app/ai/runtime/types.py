@@ -7,8 +7,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field, replace
 from typing import Any, Literal
 
-from app.ai.tools.semantic_defaults import is_retired_page_tool_name
 from app.ai.tools.types import ToolDefinition
+from app.schemas.ai.invalid_ai_runtime_input import filter_invalid_ai_runtime_references
 
 CapabilityKind = Literal[
     "capability_pack",
@@ -41,51 +41,6 @@ TerminationReason = Literal[
 def is_skill_descriptor_kind(kind: str | None) -> bool:
     normalized = str(kind or "").strip()
     return normalized == "capability_pack"
-
-
-_RETIRED_UI_CAPABILITY_NAMES = frozenset(
-    {
-        "editor_ops",
-        "page_context",
-        "page_runtime",
-        "runtime_page",
-        "runtime_page_context",
-        "runtime_page_runtime",
-        "runtime_ui",
-        "ui_runtime",
-        "ui_snapshot",
-        "ui_read",
-        "ui_action",
-    }
-)
-_RETIRED_UI_CAPABILITY_SOURCES = frozenset(
-    {
-        "page_runtime",
-        "request.page_context",
-        "runtime.page_runtime",
-        "system_page_runtime",
-    }
-)
-
-
-def _normalized_runtime_capability_token(value: Any) -> str:
-    return (
-        str(value or "")
-        .strip()
-        .lower()
-        .replace("-", "_")
-        .replace(" ", "_")
-        .replace(".", "_")
-        .replace(":", "_")
-    )
-
-
-def is_retired_ui_capability_name(value: Any) -> bool:
-    normalized = _normalized_runtime_capability_token(value)
-    return (
-        is_retired_page_tool_name(normalized)
-        or normalized in _RETIRED_UI_CAPABILITY_NAMES
-    )
 
 
 def _stable_unique_names(values: list[Any] | None) -> list[str]:
@@ -155,15 +110,19 @@ class CapabilityBundle:
                 return []
             if "selected_skill_names" in metadata:
                 return _stable_unique_names(
-                    list(metadata.get("selected_skill_names") or [])
+                    filter_invalid_ai_runtime_references(
+                        list(metadata.get("selected_skill_names") or [])
+                    )
                 )
         return None
 
     @property
     def selected_tool_names(self) -> list[str]:
         if self.selected_tool_names_override is not None:
-            return list(self.selected_tool_names_override)
-        return [tool.name for tool in self.tools]
+            return filter_invalid_ai_runtime_references(
+                list(self.selected_tool_names_override)
+            )
+        return filter_invalid_ai_runtime_references([tool.name for tool in self.tools])
 
     @property
     def selected_skill_names(self) -> list[str]:
@@ -171,26 +130,32 @@ class CapabilityBundle:
         if selected_skill_names is not None:
             return selected_skill_names
         if self.selected_skill_names_override is not None:
-            return list(self.selected_skill_names_override)
-        return collect_selected_skill_names(
+            return filter_invalid_ai_runtime_references(
+                list(self.selected_skill_names_override)
+            )
+        return filter_invalid_ai_runtime_references(collect_selected_skill_names(
             descriptors=self.capability_descriptors,
             tools=self.tools,
-        )
+        ))
 
     @property
     def inventory_selected_tool_names(self) -> list[str]:
         if self.inventory_selected_tool_names_override is not None:
-            return list(self.inventory_selected_tool_names_override)
-        return [tool.name for tool in self.tools]
+            return filter_invalid_ai_runtime_references(
+                list(self.inventory_selected_tool_names_override)
+            )
+        return filter_invalid_ai_runtime_references([tool.name for tool in self.tools])
 
     @property
     def inventory_selected_skill_names(self) -> list[str]:
         if self.inventory_selected_skill_names_override is not None:
-            return list(self.inventory_selected_skill_names_override)
-        return collect_selected_skill_names(
+            return filter_invalid_ai_runtime_references(
+                list(self.inventory_selected_skill_names_override)
+            )
+        return filter_invalid_ai_runtime_references(collect_selected_skill_names(
             descriptors=self.capability_descriptors,
             tools=self.tools,
-        )
+        ))
 
 
 def _skill_descriptor_tool_names(
@@ -362,16 +327,10 @@ def capability_pack_descriptor_is_live(descriptor: Any) -> bool:
     name = str(getattr(descriptor, "name", "") or "").strip()
     if not is_skill_descriptor_kind(kind) or not name:
         return False
-    if is_retired_ui_capability_name(name):
-        return False
 
     metadata = getattr(descriptor, "metadata", {}) or {}
     if not isinstance(metadata, dict):
-        source = str(getattr(descriptor, "source", "") or "").strip()
-        return source not in _RETIRED_UI_CAPABILITY_SOURCES
-    source = str(getattr(descriptor, "source", "") or "").strip()
-    if source in _RETIRED_UI_CAPABILITY_SOURCES:
-        return False
+        return True
     if metadata.get("has_execution_tools") is False:
         return False
     # Startup-available baseline builtins still carry skill-like metadata for
@@ -382,19 +341,6 @@ def capability_pack_descriptor_is_live(descriptor: Any) -> bool:
 def tool_is_auto_injected_runtime_builtin(tool: Any) -> bool:
     config = getattr(tool, "config", {}) or {}
     return isinstance(config, dict) and config.get("auto_injected") is True
-
-
-def tool_is_retired_ui_builtin(tool: Any) -> bool:
-    tool_name = str(getattr(tool, "name", "") or "").strip()
-    skill_name = str(getattr(tool, "source_skill_name", "") or "").strip()
-    if skill_name:
-        return is_retired_ui_capability_name(skill_name)
-    if not is_retired_ui_capability_name(tool_name):
-        return False
-    return not any(
-        str(getattr(tool, attr, "") or "").strip()
-        for attr in ("source_skill_id", "source_package_name", "source_plugin")
-    )
 
 
 def collect_selected_skill_names(
@@ -412,15 +358,13 @@ def collect_selected_skill_names(
             names.append(skill_name)
 
     for tool in tools or []:
-        if tool_is_auto_injected_runtime_builtin(tool) or tool_is_retired_ui_builtin(
-            tool
-        ):
+        if tool_is_auto_injected_runtime_builtin(tool):
             continue
         skill_name = str(getattr(tool, "source_skill_name", "") or "").strip()
         if skill_name and skill_name not in names:
             names.append(skill_name)
 
-    return names
+    return filter_invalid_ai_runtime_references(names)
 
 
 @dataclass

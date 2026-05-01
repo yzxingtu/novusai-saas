@@ -1,6 +1,6 @@
 /**
  * Test type: behavioral
- * Verifies: shared AI panel mode and interaction-update queue ordering after page-operation retirement.
+ * Verifies: shared AI panel mode and interaction-update queue ordering.
  * Mock strategy: Pinia store runs real; no external transport is mocked.
  *
  * AIPanel shared state tests.
@@ -22,7 +22,7 @@ describe('useAIPanelStore', () => {
     expect(store.mode).toBe('panel');
   });
 
-  it('queues and consumes interaction updates without page-operation actions', () => {
+  it('queues and consumes interaction updates independently', () => {
     const store = useAIPanelStore();
 
     store.queueInteractionUpdate({

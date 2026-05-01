@@ -34,7 +34,6 @@ export type { UseAIChatOptions } from './use-ai-chat-options';
 
 interface SendMessageOptions {
   agentId?: number;
-  routeSource?: null | string;
   silent?: boolean;
 }
 

@@ -1,6 +1,6 @@
 # AI 操作审计日志规范
 
-> 本文档覆盖 AI 工具执行、页面操作与确认流的审计日志写入、查询和前端展示规范。目标是保证 AI 行为可追踪、可过滤、可按租户隔离审计。
+> 本文档覆盖 AI 工具执行与确认流的审计日志写入、查询和前端展示规范。目标是保证 AI 行为可追踪、可过滤、可按租户隔离审计。
 
 ---
 
@@ -14,7 +14,6 @@ AI 操作审计日志用于记录：
 
 典型来源：
 
-- `page_operation_executor.py`
 - `crud_executor.py`
 - 其他新增的 AI 工具执行器
 
@@ -157,23 +156,7 @@ await write_ai_action_log(
 
 ---
 
-## 六、页面感知与 AI 操作联动
-
-如果页面注册了 Page Awareness / Page Operations：
-
-- `readonly=true` 的查询/刷新动作也应按需审计
-- 需要确认的动作在等待用户确认时写 `pending_confirm`
-- 用户拒绝后写 `rejected`
-- 执行失败写 `failed`
-
-不要做的事：
-
-- 不要把确认流只写进聊天消息而不落审计日志
-- 不要把请求上下文原样塞进 JSON 字段导致不可序列化错误
-
----
-
-## 七、RBAC 与菜单
+## 六、RBAC 与菜单
 
 资源统一为 `ai_action_log`：
 
@@ -188,7 +171,7 @@ await write_ai_action_log(
 
 ---
 
-## 八、Checklist
+## 七、Checklist
 
 - [ ] 新增 AI 工具执行器通过 `write_ai_action_log()` 写入
 - [ ] 状态值使用 `success/failed/rejected/pending_confirm`

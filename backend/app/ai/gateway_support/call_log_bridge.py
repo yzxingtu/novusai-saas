@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.ai.tools.semantic_defaults import is_retired_page_tool_name
 from app.ai.types import (
     ChatMessage,
     ChatResponse,
@@ -17,6 +16,10 @@ from app.core.logging import LogManager
 from app.core.runtime_identity import get_runtime_identity_tag
 from app.enums.log import UserTypeEnum as LogUserTypeEnum
 from app.models.ai import AIModel, AIProvider
+from app.schemas.ai.invalid_ai_runtime_input import (
+    filter_invalid_ai_runtime_references,
+    is_invalid_ai_runtime_reference,
+)
 
 logger = LogManager.get_logger("ai")
 
@@ -28,16 +31,13 @@ def _tool_name_from_payload(tool: Any) -> str:
 
 
 def _is_live_tool_payload(tool: Any) -> bool:
-    name = _tool_name_from_payload(tool)
-    return not name or not is_retired_page_tool_name(name)
+    return isinstance(tool, dict) and not is_invalid_ai_runtime_reference(
+        _tool_name_from_payload(tool)
+    )
 
 
 def _live_tool_names(tool_names: list[str] | None) -> list[str]:
-    return [
-        str(name).strip()
-        for name in (tool_names or [])
-        if str(name).strip() and not is_retired_page_tool_name(str(name).strip())
-    ]
+    return filter_invalid_ai_runtime_references(tool_names or [])
 
 
 class GatewayCallLogBridge:
@@ -88,7 +88,7 @@ class GatewayCallLogBridge:
         all_live_tool_names = _live_tool_names(all_tool_names) or selected_tool_names
         live_allowed_tool_names = _live_tool_names(allowed_tool_names)
         live_policy_family = str(tool_use_policy_family or "none").strip() or "none"
-        if live_policy_family == "page_ops":
+        if is_invalid_ai_runtime_reference(live_policy_family):
             live_policy_family = "none"
         live_policy_mode = tool_use_policy_mode or ("auto" if live_tools else "none")
         if live_policy_family == "none" and not live_allowed_tool_names:

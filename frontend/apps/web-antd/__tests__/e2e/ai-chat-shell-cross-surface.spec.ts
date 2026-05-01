@@ -1,7 +1,7 @@
 // Test type: smoke
 // Verifies: admin, tenant, and user AI chat surfaces share the transcript-first
 // shell, keep diagnostics gated, expose avatar profile details after a real SSE turn,
-// and retired page tools stay absent from ordinary chat turns.
+// and invalid runtime tools stay absent from ordinary chat turns.
 import type { Locator, Page } from '@playwright/test';
 import type { ChatTurnMetrics } from './common/sse-helpers';
 
@@ -38,7 +38,7 @@ const HEADER_DIAGNOSTIC_MENU_VARIANTS = [
   sharedAIChatCopyContract.headerRunTimeline,
   sharedAIChatCopyContract.headerRefreshContext,
 ] as const;
-const RETIRED_PAGE_TOOL_PREFIX = `${'u'}${'i'}_`;
+const BLOCKED_RUNTIME_TOOL_PREFIX = `${'u'}${'i'}_`;
 const HEADER_NEW_CHAT_PATTERN = buildLocaleVariantPattern(
   sharedAIChatCopyContract.headerNewChat,
 );
@@ -69,11 +69,11 @@ async function expectGracefulResponse(fullResponse: string, errors: string[]) {
   );
 }
 
-function expectNoRetiredPageTool(metrics: ChatTurnMetrics, message: string) {
+function expectNoBlockedRuntimeTool(metrics: ChatTurnMetrics, message: string) {
   const seenToolNames = metrics.toolCalls.map(({ name }) => name);
   expect(
     metrics.toolCalls.some((toolCall) =>
-      toolCall.name.startsWith(RETIRED_PAGE_TOOL_PREFIX),
+      toolCall.name.startsWith(BLOCKED_RUNTIME_TOOL_PREFIX),
     ),
     `${message}. Seen tool calls: ${seenToolNames.join(', ') || 'none'}`,
   ).toBe(false);
@@ -405,7 +405,7 @@ test.describe('AI Chat shell cross-surface smoke', () => {
     await assertSharedAssistantShell(page, { expectMoreActions: true });
   });
 
-  test('admin surface avoids retired page tools on list-related chat', async ({
+  test('admin surface avoids invalid runtime tools on list-related chat', async ({
     page,
   }) => {
     test.skip(!adminEnabled, 'Admin credentials are not configured');
@@ -421,9 +421,9 @@ test.describe('AI Chat shell cross-surface smoke', () => {
     );
 
     await expectGracefulResponse(metrics.fullResponse, metrics.errors);
-    expectNoRetiredPageTool(
+    expectNoBlockedRuntimeTool(
       metrics,
-      'Expected retired page tools to stay unavailable for admin list-related chat',
+      'Expected invalid runtime tools to stay unavailable for admin list-related chat',
     );
     await assertSharedAssistantShell(page, { expectMoreActions: true });
   });

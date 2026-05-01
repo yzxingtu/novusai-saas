@@ -98,27 +98,25 @@ def _make_conversation(
     return conversation
 
 
-def test_grant_skill_name_if_active_filters_retired_page_tool_names() -> None:
-    assert grant_skill_name_if_active(_make_skill_grant("ui_get_snapshot")) is None
-    assert grant_skill_name_if_active(_make_skill_grant("pageop_click")) is None
-    retired_package = _make_skill_grant("neutral-page-skill")
-    retired_package.skill.package.name = "页面感知交互"
-    assert grant_skill_name_if_active(retired_package) is None
-    retired_config = _make_descriptor_grant(
-        skill_name="neutral-page-skill",
-        skill_config={"preview_semantic_families": ["PAGE-OPS"]},
-    )
-    assert grant_skill_name_if_active(retired_config) is None
+def test_grant_skill_name_if_active_requires_live_skill_and_package() -> None:
     assert grant_skill_name_if_active(_make_skill_grant("web_search")) == "web_search"
+    inactive_skill = _make_skill_grant("weather-runtime")
+    inactive_skill.skill.is_active = False
+    assert grant_skill_name_if_active(inactive_skill) is None
+    inactive_package = _make_skill_grant("crm_lookup")
+    inactive_package.skill.package.is_active = False
+    assert grant_skill_name_if_active(inactive_package) is None
 
 
-def test_agent_needs_function_calling_ignores_retired_page_and_inactive_packages() -> None:
+def test_agent_needs_function_calling_ignores_inactive_packages() -> None:
     agent = _make_agent(
         agent_id=59,
-        name="Retired UI Agent",
+        name="Inactive Tool Agent",
         supports_vision=False,
-        skill_names=["ui_get_snapshot", "ui_click"],
+        skill_names=["crm_lookup", "crm_update_record"],
     )
+    for grant in agent.skill_grants:
+        grant.skill.package.is_active = False
 
     assert agent_needs_function_calling(agent) is False
 
@@ -151,8 +149,8 @@ def test_agent_supports_families_uses_skill_preview_metadata() -> None:
             skill_name="web_search",
         ),
         _make_descriptor_grant(
-            skill_name="neutral-page-skill",
-            skill_config={"preview_semantic_families": ["page_ops"]},
+            skill_name="crm-runtime",
+            skill_config={"preview_semantic_families": ["data_ops"]},
         ),
     ]
 
@@ -160,7 +158,7 @@ def test_agent_supports_families_uses_skill_preview_metadata() -> None:
         agent,
         ["weather", "web_research"],
     )
-    assert not agent_supports_families(agent, ["page_ops"])
+    assert not agent_supports_families(agent, ["billing_ops"])
 
 
 def test_agent_supports_families_treats_time_as_runtime_baseline() -> None:
@@ -196,7 +194,7 @@ def test_requested_tool_families_leaves_colloquial_here_question_unrouted() -> N
         "每页显示50条",
     ],
 )
-def test_requested_tool_families_ignores_retired_page_pagination_messages(
+def test_requested_tool_families_ignores_local_pagination_messages(
     message: str,
 ) -> None:
     families = requested_tool_families(message)
@@ -204,15 +202,15 @@ def test_requested_tool_families_ignores_retired_page_pagination_messages(
     assert families == []
 
 
-def test_requested_tool_families_treats_page_search_keywords_as_non_page() -> None:
+def test_requested_tool_families_treats_record_search_as_search() -> None:
     families = requested_tool_families("帮我搜索一下包含'天气'的记录")
 
     assert families == ["weather", "web_research"]
 
 
-def test_requested_tool_families_does_not_add_retired_page_summary_family() -> None:
+def test_requested_tool_families_does_not_add_local_dataset_summary_family() -> None:
     families = requested_tool_families(
-        "帮我搜索一下今天的 AI 新闻，再顺便概括一下当前页面都能做什么"
+        "帮我搜索一下今天的 AI 新闻，再顺便概括一下当前数据集都能做什么"
     )
 
     assert families == ["web_research"]
@@ -226,7 +224,7 @@ def test_requested_tool_families_does_not_add_retired_page_summary_family() -> N
         "帮我编辑第一条记录，把名称改成 E2E-Edit-Test",
     ],
 )
-def test_requested_tool_families_ignores_retired_page_detail_and_form_messages(
+def test_requested_tool_families_ignores_local_detail_and_form_messages(
     message: str,
 ) -> None:
     families = requested_tool_families(message)
@@ -432,22 +430,22 @@ async def test_route_accepts_image_turn_when_smart_routing_can_supply_vision_mod
 
 
 @pytest.mark.asyncio
-async def test_route_does_not_directly_select_page_operation_agent(mock_db):
+async def test_route_does_not_directly_select_data_agent_for_local_action(mock_db):
     service = AgentRouterService(mock_db)
     general_agent = _make_agent(
         agent_id=15,
         name="General Agent",
         supports_vision=False,
     )
-    page_agent = _make_agent(
+    data_agent = _make_agent(
         agent_id=59,
-        name="Page Agent",
+        name="Data Agent",
         supports_vision=False,
-        skill_names=["ui_get_snapshot", "ui_click"],
+        skill_names=["crm_lookup", "crm_update_record"],
     )
 
     service._list_available_agents = AsyncMock(
-        return_value=[general_agent, page_agent],
+        return_value=[general_agent, data_agent],
     )
     service._get_router_agent = AsyncMock(return_value=None)
     service._fallback_to_default = AsyncMock(
@@ -461,7 +459,7 @@ async def test_route_does_not_directly_select_page_operation_agent(mock_db):
 
     result = await service.route(
         tenant_id=1,
-        message="请帮我操作当前页面并打开表单",
+        message="请帮我操作当前数据集并打开表单",
         user_role=UserRoleEnum.TENANT_ADMIN.value,
         user_role_id=1,
         user_id=10,
@@ -475,23 +473,23 @@ async def test_route_does_not_directly_select_page_operation_agent(mock_db):
 
 
 @pytest.mark.asyncio
-async def test_route_ignores_admin_cross_page_navigation_intent(mock_db):
+async def test_route_ignores_admin_cross_navigation_intent(mock_db):
     service = AgentRouterService(mock_db)
     general_agent = _make_agent(
         agent_id=15,
         name="General Agent",
         supports_vision=False,
     )
-    page_agent = _make_agent(
+    data_agent = _make_agent(
         agent_id=59,
-        name="Admin Page Agent",
+        name="Admin Data Agent",
         supports_vision=False,
         owner_tenant_id=None,
-        skill_names=["ui_get_snapshot", "ui_click"],
+        skill_names=["crm_lookup", "crm_update_record"],
     )
 
     service._list_available_agents = AsyncMock(
-        return_value=[general_agent, page_agent],
+        return_value=[general_agent, data_agent],
     )
     service._get_router_agent = AsyncMock(return_value=None)
     service._fallback_to_default = AsyncMock(
@@ -518,22 +516,22 @@ async def test_route_ignores_admin_cross_page_navigation_intent(mock_db):
 
 
 @pytest.mark.asyncio
-async def test_route_ignores_tenant_cross_page_navigation_intent(mock_db):
+async def test_route_ignores_tenant_cross_navigation_intent(mock_db):
     service = AgentRouterService(mock_db)
     general_agent = _make_agent(
         agent_id=15,
         name="General Agent",
         supports_vision=False,
     )
-    page_agent = _make_agent(
+    data_agent = _make_agent(
         agent_id=66,
-        name="Tenant Page Agent",
+        name="Tenant Data Agent",
         supports_vision=False,
-        skill_names=["ui_get_snapshot", "ui_click"],
+        skill_names=["crm_lookup", "crm_update_record"],
     )
 
     service._list_available_agents = AsyncMock(
-        return_value=[general_agent, page_agent],
+        return_value=[general_agent, data_agent],
     )
     service._get_router_agent = AsyncMock(return_value=None)
     service._fallback_to_default = AsyncMock(
@@ -567,16 +565,16 @@ async def test_route_ignores_semantic_agent_navigation_phrase(mock_db):
         name="General Agent",
         supports_vision=False,
     )
-    page_agent = _make_agent(
+    data_agent = _make_agent(
         agent_id=59,
-        name="Admin Page Agent",
+        name="Admin Data Agent",
         supports_vision=False,
         owner_tenant_id=None,
-        skill_names=["ui_get_snapshot", "ui_click"],
+        skill_names=["crm_lookup", "crm_update_record"],
     )
 
     service._list_available_agents = AsyncMock(
-        return_value=[general_agent, page_agent],
+        return_value=[general_agent, data_agent],
     )
     service._get_router_agent = AsyncMock(return_value=None)
     service._fallback_to_default = AsyncMock(
@@ -610,16 +608,16 @@ async def test_route_ignores_semantic_ai_assistant_navigation_phrase(mock_db):
         name="General Agent",
         supports_vision=False,
     )
-    page_agent = _make_agent(
+    data_agent = _make_agent(
         agent_id=59,
-        name="Admin Page Agent",
+        name="Admin Data Agent",
         supports_vision=False,
         owner_tenant_id=None,
-        skill_names=["ui_get_snapshot", "ui_click"],
+        skill_names=["crm_lookup", "crm_update_record"],
     )
 
     service._list_available_agents = AsyncMock(
-        return_value=[general_agent, page_agent],
+        return_value=[general_agent, data_agent],
     )
     service._get_router_agent = AsyncMock(return_value=None)
     service._fallback_to_default = AsyncMock(
@@ -646,7 +644,7 @@ async def test_route_ignores_semantic_ai_assistant_navigation_phrase(mock_db):
 
 
 @pytest.mark.asyncio
-async def test_route_does_not_force_page_operation_pool_for_page_analysis_request(
+async def test_route_does_not_force_data_agent_pool_for_local_analysis_request(
     mock_db,
 ):
     service = AgentRouterService(mock_db)
@@ -655,17 +653,17 @@ async def test_route_does_not_force_page_operation_pool_for_page_analysis_reques
         name="General Agent",
         supports_vision=False,
     )
-    page_agent = _make_agent(
+    data_agent = _make_agent(
         agent_id=59,
-        name="Page Agent",
+        name="Data Agent",
         supports_vision=False,
-        skill_names=["ui_get_snapshot", "ui_click"],
+        skill_names=["crm_lookup", "crm_update_record"],
     )
     router_agent = MagicMock()
     router_agent.model_id = 101
 
     service._list_available_agents = AsyncMock(
-        return_value=[general_agent, page_agent],
+        return_value=[general_agent, data_agent],
     )
     service._get_router_agent = AsyncMock(return_value=router_agent)
     service._call_router = AsyncMock(
@@ -675,7 +673,7 @@ async def test_route_does_not_force_page_operation_pool_for_page_analysis_reques
 
     result = await service.route(
         tenant_id=1,
-        message="请解释一下当前页面的配额和限速差异",
+        message="请解释一下当前数据集的配额和限速差异",
         user_role=UserRoleEnum.TENANT_ADMIN.value,
         user_role_id=1,
         user_id=10,
@@ -688,7 +686,7 @@ async def test_route_does_not_force_page_operation_pool_for_page_analysis_reques
 
 
 @pytest.mark.asyncio
-async def test_route_keeps_full_candidate_pool_for_mixed_weather_and_page_write_request(
+async def test_route_keeps_full_candidate_pool_for_mixed_weather_and_local_write_request(
     mock_db,
 ):
     service = AgentRouterService(mock_db)
@@ -697,17 +695,17 @@ async def test_route_keeps_full_candidate_pool_for_mixed_weather_and_page_write_
         name="General Agent",
         supports_vision=False,
     )
-    page_agent = _make_agent(
+    data_agent = _make_agent(
         agent_id=59,
-        name="Page Agent",
+        name="Data Agent",
         supports_vision=False,
-        skill_names=["ui_get_snapshot", "ui_click"],
+        skill_names=["crm_lookup", "crm_update_record"],
     )
     router_agent = MagicMock()
     router_agent.model_id = 101
 
     service._list_available_agents = AsyncMock(
-        return_value=[general_agent, page_agent],
+        return_value=[general_agent, data_agent],
     )
     service._get_router_agent = AsyncMock(return_value=router_agent)
     service._call_router = AsyncMock(
@@ -717,7 +715,7 @@ async def test_route_keeps_full_candidate_pool_for_mixed_weather_and_page_write_
 
     result = await service.route(
         tenant_id=1,
-        message="帮我查一下北京天气，然后在当前页面创建一条测试记录",
+        message="帮我查一下北京天气，然后在当前数据集创建一条测试记录",
         user_role=UserRoleEnum.TENANT_ADMIN.value,
         user_role_id=1,
         user_id=10,
@@ -730,7 +728,7 @@ async def test_route_keeps_full_candidate_pool_for_mixed_weather_and_page_write_
 
 
 @pytest.mark.asyncio
-async def test_route_keeps_full_candidate_pool_for_mixed_web_and_page_request(
+async def test_route_keeps_full_candidate_pool_for_mixed_web_and_local_request(
     mock_db,
 ):
     service = AgentRouterService(mock_db)
@@ -739,17 +737,17 @@ async def test_route_keeps_full_candidate_pool_for_mixed_web_and_page_request(
         name="General Agent",
         supports_vision=False,
     )
-    page_agent = _make_agent(
+    data_agent = _make_agent(
         agent_id=59,
-        name="Page Agent",
+        name="Data Agent",
         supports_vision=False,
-        skill_names=["ui_get_snapshot", "ui_click"],
+        skill_names=["crm_lookup", "crm_update_record"],
     )
     router_agent = MagicMock()
     router_agent.model_id = 101
 
     service._list_available_agents = AsyncMock(
-        return_value=[general_agent, page_agent],
+        return_value=[general_agent, data_agent],
     )
     service._get_router_agent = AsyncMock(return_value=router_agent)
     service._call_router = AsyncMock(
@@ -759,7 +757,7 @@ async def test_route_keeps_full_candidate_pool_for_mixed_web_and_page_request(
 
     result = await service.route(
         tenant_id=1,
-        message="帮我搜索一下今天的 AI 新闻，再顺便概括一下当前页面都能做什么",
+        message="帮我搜索一下今天的 AI 新闻，再顺便概括一下当前数据集都能做什么",
         user_role=UserRoleEnum.TENANT_ADMIN.value,
         user_role_id=1,
         user_id=10,
@@ -778,13 +776,13 @@ async def test_route_prefers_candidate_covering_all_requested_families_for_mixed
     service = AgentRouterService(mock_db)
     partial_agent = _make_agent(
         agent_id=15,
-        name="Search Page Agent",
+        name="Search Data Agent",
         supports_vision=False,
         skill_names=[
             "web_search",
             "fetch_url",
-            "ui_get_snapshot",
-            "ui_click",
+            "crm_lookup",
+            "crm_update_record",
         ],
     )
     full_agent = _make_agent(
@@ -795,8 +793,8 @@ async def test_route_prefers_candidate_covering_all_requested_families_for_mixed
             "get_current_weather",
             "web_search",
             "fetch_url",
-            "ui_get_snapshot",
-            "ui_click",
+            "crm_lookup",
+            "crm_update_record",
         ],
     )
 
@@ -808,7 +806,7 @@ async def test_route_prefers_candidate_covering_all_requested_families_for_mixed
 
     result = await service.route(
         tenant_id=1,
-        message="帮我查一下北京天气，顺便搜索一下今天的热点新闻，再看看当前页面都有什么",
+        message="帮我查一下北京天气，顺便搜索一下今天的热点新闻，再看看当前数据集都有什么",
         user_role=UserRoleEnum.TENANT_ADMIN.value,
         user_role_id=1,
         user_id=10,
@@ -820,7 +818,7 @@ async def test_route_prefers_candidate_covering_all_requested_families_for_mixed
 
 
 @pytest.mark.asyncio
-async def test_route_prefers_candidate_covering_weather_and_time_for_mixed_non_page_turn(
+async def test_route_prefers_candidate_covering_weather_and_time_for_mixed_turn(
     mock_db,
 ):
     service = AgentRouterService(mock_db)
@@ -855,28 +853,28 @@ async def test_route_prefers_candidate_covering_weather_and_time_for_mixed_non_p
     service._fallback_to_default.assert_not_awaited()
 
 
-async def test_route_does_not_use_page_operation_candidate_pool_for_fallback(mock_db):
+async def test_route_does_not_use_data_candidate_pool_for_fallback(mock_db):
     service = AgentRouterService(mock_db)
     general_agent = _make_agent(
         agent_id=15,
         name="General Agent",
         supports_vision=False,
     )
-    page_agent_a = _make_agent(
+    data_agent_a = _make_agent(
         agent_id=59,
-        name="Page Agent A",
+        name="Data Agent A",
         supports_vision=False,
-        skill_names=["ui_get_snapshot", "ui_click"],
+        skill_names=["crm_lookup", "crm_update_record"],
     )
-    page_agent_b = _make_agent(
+    data_agent_b = _make_agent(
         agent_id=60,
-        name="Page Agent B",
+        name="Data Agent B",
         supports_vision=False,
-        skill_names=["ui_get_snapshot", "ui_click"],
+        skill_names=["crm_lookup", "crm_update_record"],
     )
 
     service._list_available_agents = AsyncMock(
-        return_value=[general_agent, page_agent_a, page_agent_b],
+        return_value=[general_agent, data_agent_a, data_agent_b],
     )
     service._get_router_agent = AsyncMock(return_value=None)
     service._fallback_to_default = AsyncMock(
@@ -914,10 +912,10 @@ async def test_fallback_to_default_prefers_bound_default_agent_within_preferred_
     service._get_published_agent = AsyncMock(
         return_value=_make_agent(
             agent_id=59,
-            name="Default Page Agent",
+            name="Default Data Agent",
             supports_vision=True,
             owner_tenant_id=None,
-            skill_names=["ui_get_snapshot", "ui_click"],
+            skill_names=["crm_lookup", "crm_update_record"],
         ),
     )
     service._is_agent_visible = AsyncMock(return_value=True)
@@ -930,17 +928,17 @@ async def test_fallback_to_default_prefers_bound_default_agent_within_preferred_
         preferred_candidates=[
             _make_agent(
                 agent_id=59,
-                name="Default Page Agent",
+                name="Default Data Agent",
                 supports_vision=True,
                 owner_tenant_id=None,
-                skill_names=["ui_get_snapshot", "ui_click"],
+                skill_names=["crm_lookup", "crm_update_record"],
             ),
             _make_agent(
                 agent_id=60,
-                name="Backup Page Agent",
+                name="Backup Data Agent",
                 supports_vision=True,
                 owner_tenant_id=None,
-                skill_names=["ui_get_snapshot", "ui_click"],
+                skill_names=["crm_lookup", "crm_update_record"],
             ),
         ],
     )
@@ -976,17 +974,17 @@ async def test_fallback_to_default_uses_preferred_pool_when_default_agent_is_out
         preferred_candidates=[
             _make_agent(
                 agent_id=59,
-                name="Page Agent A",
+                name="Data Agent A",
                 supports_vision=True,
                 owner_tenant_id=None,
-                skill_names=["ui_get_snapshot", "ui_click"],
+                skill_names=["crm_lookup", "crm_update_record"],
             ),
             _make_agent(
                 agent_id=60,
-                name="Page Agent B",
+                name="Data Agent B",
                 supports_vision=True,
                 owner_tenant_id=None,
-                skill_names=["ui_get_snapshot", "ui_click"],
+                skill_names=["crm_lookup", "crm_update_record"],
             ),
         ],
     )
@@ -996,23 +994,23 @@ async def test_fallback_to_default_uses_preferred_pool_when_default_agent_is_out
 
 
 @pytest.mark.asyncio
-async def test_route_does_not_prefer_vision_page_agent_for_screenshot_request(mock_db):
+async def test_route_does_not_prefer_vision_data_agent_for_screenshot_request(mock_db):
     service = AgentRouterService(mock_db)
-    text_page_agent = _make_agent(
+    text_data_agent = _make_agent(
         agent_id=59,
-        name="Text Page Agent",
+        name="Text Data Agent",
         supports_vision=False,
-        skill_names=["ui_get_snapshot", "ui_click"],
+        skill_names=["crm_lookup", "crm_update_record"],
     )
-    vision_page_agent = _make_agent(
+    vision_data_agent = _make_agent(
         agent_id=60,
-        name="Vision Page Agent",
+        name="Vision Data Agent",
         supports_vision=True,
-        skill_names=["ui_get_snapshot", "ui_click"],
+        skill_names=["crm_lookup", "crm_update_record"],
     )
 
     service._list_available_agents = AsyncMock(
-        return_value=[text_page_agent, vision_page_agent],
+        return_value=[text_data_agent, vision_data_agent],
     )
     service._agent_can_handle_images = AsyncMock(
         side_effect=lambda agent: bool(agent.model.supports_vision)
@@ -1021,7 +1019,7 @@ async def test_route_does_not_prefer_vision_page_agent_for_screenshot_request(mo
     service._fallback_to_default = AsyncMock(
         return_value=RouteResult(
             agent_id=59,
-            agent_name="Text Page Agent",
+            agent_name="Text Data Agent",
             confidence=1.0,
             routed_by="default",
         ),
@@ -1029,7 +1027,7 @@ async def test_route_does_not_prefer_vision_page_agent_for_screenshot_request(mo
 
     result = await service.route(
         tenant_id=1,
-        message="请帮我给当前页面截图",
+        message="请帮我给当前数据集截图",
         user_role=UserRoleEnum.TENANT_ADMIN.value,
         user_role_id=1,
         user_id=10,
@@ -1042,22 +1040,22 @@ async def test_route_does_not_prefer_vision_page_agent_for_screenshot_request(mo
 
 
 @pytest.mark.asyncio
-async def test_route_does_not_treat_screenshot_request_as_page_vision_gate(mock_db):
+async def test_route_does_not_treat_screenshot_request_as_vision_gate(mock_db):
     service = AgentRouterService(mock_db)
-    text_page_agent = _make_agent(
+    text_data_agent = _make_agent(
         agent_id=59,
-        name="Text Page Agent",
+        name="Text Data Agent",
         supports_vision=False,
-        skill_names=["ui_get_snapshot", "ui_click"],
+        skill_names=["crm_lookup", "crm_update_record"],
     )
 
-    service._list_available_agents = AsyncMock(return_value=[text_page_agent])
+    service._list_available_agents = AsyncMock(return_value=[text_data_agent])
     service._agent_can_handle_images = AsyncMock(return_value=False)
     service._get_router_agent = AsyncMock(return_value=None)
     service._fallback_to_default = AsyncMock(
         return_value=RouteResult(
             agent_id=59,
-            agent_name="Text Page Agent",
+            agent_name="Text Data Agent",
             confidence=1.0,
             routed_by="default",
         ),
@@ -1065,7 +1063,7 @@ async def test_route_does_not_treat_screenshot_request_as_page_vision_gate(mock_
 
     result = await service.route(
         tenant_id=1,
-        message="请帮我把当前页面截图发出来",
+        message="请帮我把当前数据集截图发出来",
         user_role=UserRoleEnum.TENANT_ADMIN.value,
         user_role_id=1,
         user_id=10,

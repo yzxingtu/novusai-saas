@@ -1,14 +1,13 @@
-"""split system core skill package into 4 purpose-specific packages
+"""split system core skill package into purpose-specific packages
 
 Split "系统核心技能包" into:
   A. 系统引擎技能包  — llm_chat + llm_embedding (internal, not for function calling)
   B. 平台数据管理    — data intelligence / management skills (admin_only)
   C. 联网搜索       — web_search (admin_tenant)
-  D. 页面感知交互   — 历史页面交互包（后续由 UI Runtime 接管）(admin_tenant)
 
 All new packages use bind_mode=manual.
 Existing AgentSkillBindings pointing to the old core package are kept pointing
-to package A and complemented with bindings to B/C/D for the same agents
+to package A and complemented with bindings to B/C for the same agents
 (migration compensation).
 
 Revision ID: 20260308_split_packages
@@ -42,9 +41,6 @@ _PKG_B_DESC = "平台数据管理能力包。包含数据智能、Text-to-SQL �
 _PKG_C_NAME = "联网搜索"
 _PKG_C_DESC = "联网搜索能力包。提供 web_search（联网搜索）和 fetch_url（网页抓取）工具，支持管理端和企业端智能体使用。"
 
-_PKG_D_NAME = "页面感知交互"
-_PKG_D_DESC = "历史页面交互包，后续由 UI Runtime 接管。当前用于承接历史页面交互能力并保持迁移兼容。"
-
 # Skills that belong to each new package (matched by name + type)
 _ENGINE_SKILLS = {"llm_chat", "llm_embedding"}
 _WEB_SEARCH_SKILLS = {"web_search"}
@@ -74,6 +70,17 @@ def _is_page_awareness_skill(skill_type: str, skill_config: object) -> bool:
     if skill_type != "builtin":
         return False
     return _extract_builtin_type(skill_config) in _PAGE_BUILTIN_TYPES
+
+
+def _retire_page_awareness_skill(conn, skill_id: int) -> None:
+    conn.execute(
+        text(
+            "UPDATE skills SET "
+            "is_active = false, is_deleted = true, updated_at = NOW() "
+            "WHERE id = :id"
+        ),
+        {"id": skill_id},
+    )
 
 
 def _find_package_by_name(conn, name: str) -> int | None:
@@ -185,19 +192,7 @@ def upgrade() -> None:
     else:
         print(f"[SPLIT] Package C '{_PKG_C_NAME}' already exists (id={pkg_c_id})")
 
-    # ── 6. Create/find Package D (页面感知交互) ───────────────────────────────
-    pkg_d_id = _find_package_by_name(conn, _PKG_D_NAME)
-    if not pkg_d_id:
-        pkg_d_id = _create_system_package(
-            conn, _PKG_D_NAME, _PKG_D_DESC,
-            scope="global_shared", target_audience="admin_tenant",
-            is_recommended=True, sort_order=4,
-        )
-        print(f"[SPLIT] Created Package D '{_PKG_D_NAME}' (id={pkg_d_id})")
-    else:
-        print(f"[SPLIT] Package D '{_PKG_D_NAME}' already exists (id={pkg_d_id})")
-
-    # ── 7. Move skills from Package A to B/C/D ────────────────────────────────
+    # ── 6. Move skills from Package A to B/C and retire page-awareness skills ─
     for skill_id, skill_name, skill_type, skill_config_text in skills:
         if skill_name in _ENGINE_SKILLS:
             # Keep in Package A
@@ -206,8 +201,9 @@ def upgrade() -> None:
             target_pkg = pkg_c_id
             target_name = _PKG_C_NAME
         elif _is_page_awareness_skill(skill_type, skill_config_text):
-            target_pkg = pkg_d_id
-            target_name = _PKG_D_NAME
+            _retire_page_awareness_skill(conn, skill_id)
+            print(f"[SPLIT]   Retired page-awareness skill '{skill_name}' (id={skill_id})")
+            continue
         else:
             # Default: data management skills → Package B
             target_pkg = pkg_b_id
@@ -233,9 +229,9 @@ def upgrade() -> None:
         )
         print(f"[SPLIT]   Moved skill '{skill_name}' (id={skill_id}) → '{target_name}' (id={target_pkg})")
 
-    # ── 8. Migration compensation: create explicit bindings ──────────────────
+    # ── 7. Migration compensation: create explicit bindings ──────────────────
     # For each agent that had a binding to Package A (old core),
-    # create bindings to B, C, D as well (complement).
+    # create bindings to B and C as well (complement).
     agents_with_a = conn.execute(
         text(
             "SELECT DISTINCT agent_id FROM agent_skill_bindings "
@@ -249,7 +245,6 @@ def upgrade() -> None:
     new_pkgs = [
         (pkg_b_id, _PKG_B_NAME),
         (pkg_c_id, _PKG_C_NAME),
-        (pkg_d_id, _PKG_D_NAME),
     ]
 
     for agent_id in agent_ids:
@@ -289,7 +284,7 @@ def upgrade() -> None:
             )
             sort_order += 1
 
-    # ── 9. Validate binding counts ────────────────────────────────────────────
+    # ── 8. Validate binding counts ────────────────────────────────────────────
     after_count = conn.execute(
         text("SELECT COUNT(*) FROM agent_skill_bindings WHERE is_deleted = false")
     ).scalar() or 0

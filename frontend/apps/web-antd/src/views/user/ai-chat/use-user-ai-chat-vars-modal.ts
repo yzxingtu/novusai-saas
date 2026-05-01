@@ -17,7 +17,6 @@ import { getAgentInputVariables } from '#/types/ai-chat';
 
 interface PendingSendState {
   agentId: number;
-  routeSource: null | string;
 }
 
 interface UseUserAIChatVarsModalOptions {
@@ -32,7 +31,6 @@ interface UseUserAIChatVarsModalOptions {
   selectedAgent: Ref<AgentItem | null>;
   sendMessage: (options: {
     agentId: number;
-    routeSource?: null | string;
   }) => boolean | Promise<boolean> | Promise<undefined> | undefined;
 }
 
@@ -156,9 +154,9 @@ export function useUserAIChatVarsModal(options: UseUserAIChatVarsModalOptions) {
     varsModalVisible.value = false;
 
     if (pendingSendState.value) {
-      const { agentId, routeSource } = pendingSendState.value;
+      const { agentId } = pendingSendState.value;
       pendingSendState.value = null;
-      void options.sendMessage({ agentId, routeSource });
+      void options.sendMessage({ agentId });
     }
   }
 

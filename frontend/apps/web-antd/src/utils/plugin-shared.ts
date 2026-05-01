@@ -18,7 +18,6 @@
  */
 
 import * as Vue from 'vue';
-import { watch } from 'vue';
 import * as VueRouter from 'vue-router';
 
 import * as VbenCommonUi from '@vben/common-ui';
@@ -50,7 +49,6 @@ export {
   $t,
   downloadBlob,
   getAccessCodes,
-  getActiveAIConversation,
   getAuthToken,
   getCurrentUser,
   hasAccessByCodes,
@@ -60,7 +58,6 @@ export {
   registerCaptchaProviderRegistry as registerCaptchaProvider,
   requestClient,
   RichTextEditor,
-  subscribeAIConversation,
   usePluginExtensionsStore,
   usePluginSlotsStore,
 };
@@ -144,83 +141,8 @@ export interface OpenAIPanelOptions {
   message?: null | string;
 }
 
-export interface ActiveAIConversationSnapshot {
-  agentId: null | number;
-  conversationId: null | number;
-  routePath: string;
-  visible: boolean;
-}
-
-const aiConversationListeners = new Set<
-  (snapshot: ActiveAIConversationSnapshot) => void
->();
-let aiConversationBridgeInitialized = false;
-
-function getActiveAIConversation(): ActiveAIConversationSnapshot {
-  try {
-    const aiPanelStore = useAIPanelStore();
-    const route = router.currentRoute.value;
-    return {
-      agentId: aiPanelStore.activeAgentId ?? null,
-      conversationId: aiPanelStore.activeConversationId ?? null,
-      routePath: route.path,
-      visible: aiPanelStore.visible,
-    };
-  } catch {
-    return {
-      agentId: null,
-      conversationId: null,
-      routePath: '',
-      visible: false,
-    };
-  }
-}
-
-function notifyAIConversationListeners(): void {
-  const snapshot = getActiveAIConversation();
-  aiConversationListeners.forEach((listener) => {
-    listener(snapshot);
-  });
-}
-
-function ensureAIConversationBridge(): void {
-  if (aiConversationBridgeInitialized) {
-    return;
-  }
-
-  try {
-    const aiPanelStore = useAIPanelStore();
-    watch(
-      [
-        () => aiPanelStore.activeAgentId,
-        () => aiPanelStore.activeConversationId,
-        () => aiPanelStore.visible,
-        () => router.currentRoute.value.path,
-      ],
-      () => {
-        notifyAIConversationListeners();
-      },
-    );
-    aiConversationBridgeInitialized = true;
-  } catch {
-    // Store may not be ready during very early bootstrap. / 极早启动时 Store 可能未就绪
-  }
-}
-
-function subscribeAIConversation(
-  listener: (snapshot: ActiveAIConversationSnapshot) => void,
-): () => void {
-  ensureAIConversationBridge();
-  aiConversationListeners.add(listener);
-  listener(getActiveAIConversation());
-  return () => {
-    aiConversationListeners.delete(listener);
-  };
-}
-
 function openAIPanel(options: OpenAIPanelOptions = {}): void {
   try {
-    ensureAIConversationBridge();
     const aiPanelStore = useAIPanelStore();
     aiPanelStore.openWithContext({
       agentId: options.agentId,
@@ -282,10 +204,6 @@ export interface NovusPluginSharedAPI {
   downloadBlob: typeof downloadBlob;
   /** Open the global AI panel with optional message/agent/conversation seed / 打开全局 AI 面板并可附带消息、智能体或对话种子 */
   openAIPanel: typeof openAIPanel;
-  /** Get the current AI conversation snapshot / 获取当前 AI 对话快照 */
-  getActiveAIConversation: typeof getActiveAIConversation;
-  /** Subscribe to AI conversation changes / 订阅 AI 对话变化 */
-  subscribeAIConversation: typeof subscribeAIConversation;
 }
 
 /**
@@ -293,7 +211,6 @@ export interface NovusPluginSharedAPI {
  * 将共享依赖挂载到 window（调用一次即可）
  */
 export function exposePluginShared(): void {
-  ensureAIConversationBridge();
   const w = window as unknown as Record<string, unknown>;
 
   // Vue 核心 / Vue runtime
@@ -327,8 +244,6 @@ export function exposePluginShared(): void {
     registerCaptchaProvider: registerCaptchaProviderRegistry,
     downloadBlob,
     openAIPanel,
-    getActiveAIConversation,
-    subscribeAIConversation,
   } satisfies NovusPluginSharedAPI;
 }
 

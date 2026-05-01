@@ -29,7 +29,7 @@ describe('useAgentRouter', () => {
     vi.clearAllMocks();
   });
 
-  it('reuses route cache without page-context fingerprints', async () => {
+  it('reuses route cache by message and attachment flags', async () => {
     const scope = effectScope();
 
     await scope.run(async () => {
@@ -41,8 +41,8 @@ describe('useAgentRouter', () => {
         pinnedAgentName: ref(null),
       });
 
-      await routeMessage('请分析当前页面');
-      await routeMessage('请分析当前页面');
+      await routeMessage('请分析这批记录');
+      await routeMessage('请分析这批记录');
 
       expect(routeMessageApiMock).toHaveBeenCalledTimes(1);
     });
@@ -50,7 +50,7 @@ describe('useAgentRouter', () => {
     scope.stop();
   });
 
-  it('does not send retired page_context to the route API', async () => {
+  it('does not send invalid runtime fields to the route API', async () => {
     const scope = effectScope();
 
     await scope.run(async () => {
@@ -65,8 +65,16 @@ describe('useAgentRouter', () => {
       await routeMessage('帮我切到智能体页面');
 
       const requestBody = routeMessageApiMock.mock.calls[0]?.[1];
-      expect(requestBody).not.toHaveProperty('page_context');
-      expect(requestBody).not.toHaveProperty('page_session_id');
+      expect(Object.keys(requestBody ?? {}).sort()).toEqual([
+        'conversation_id',
+        'force_reroute',
+        'has_audio_attachments',
+        'has_file_attachments',
+        'has_image_attachments',
+        'has_video_attachments',
+        'message',
+        'pinned_agent_id',
+      ]);
     });
 
     scope.stop();

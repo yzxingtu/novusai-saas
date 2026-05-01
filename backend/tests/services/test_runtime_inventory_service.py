@@ -98,7 +98,7 @@ def test_shape_manifest_payload_projects_skill_catalog_preview_metadata() -> Non
                     "resolved_tool_count": 1,
                     "has_execution_tools": True,
                     "startup_preview_tool_names": ["crm_lookup"],
-                    "startup_preview_semantic_families": ["page_ops"],
+                    "startup_preview_semantic_families": ["data_ops"],
                 },
             )
         ],
@@ -130,7 +130,7 @@ def test_shape_manifest_payload_projects_skill_catalog_preview_metadata() -> Non
                 "resolved_tool_count": 1,
                 "has_execution_tools": True,
                 "startup_preview_tool_names": ["crm_lookup"],
-                "startup_preview_semantic_families": ["page_ops"],
+                "startup_preview_semantic_families": ["data_ops"],
             },
             "source": "skill_package:neutral.package",
         }
@@ -146,7 +146,7 @@ def test_shape_manifest_payload_projects_skill_catalog_preview_metadata() -> Non
                 "skill_names": ["Assistant Extension"],
                 "package_names": ["neutral.package"],
                 "startup_preview_tool_names": ["crm_lookup"],
-                "startup_preview_semantic_families": ["page_ops"],
+                "startup_preview_semantic_families": ["data_ops"],
             },
             "source": "plugin_runtime",
         }

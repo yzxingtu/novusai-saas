@@ -1,11 +1,12 @@
 # Tool And Skill Governance
 
-## Page Awareness Retirement
+## No Current-Page Runtime
 
-Page awareness and page operation runtime are retired from AI dialogue live
-paths. Do not rebuild DOM/page perception as a platform capability.
+AI dialogue live paths must not include a DOM/current-page perception or
+page-operation runtime. Do not build browser-page state into the platform
+capability model.
 
-Retired concepts include:
+Forbidden concepts include:
 
 - `page_context`, `page_data`, `page_session_id`, `ui_epoch`, active surface,
   active form, and DOM snapshot payloads as AI dialogue context.
@@ -23,7 +24,7 @@ bridges whose only purpose is to preserve `page_context`, `page_session_id`, or
 
 ## Replacement Pattern
 
-When AI needs to analyze business/page data, expose the data through a stable
+When AI needs to analyze business data, expose the data through a stable
 backend boundary instead of page perception:
 
 - Prefer backend read-model/query APIs for structured records and summaries.
@@ -42,18 +43,17 @@ backend boundary instead of page perception:
   capabilities.
 - Builtin runtime tools may cover platform-owned capabilities such as native
   search, current time, memory, variables, and knowledge retrieval.
-- Page operation tools are not valid builtin or installable tools for AI
-  dialogue. Resolver, sandbox, and semantic-family code must filter or reject
-  them.
+- UI/page operation tools are not valid builtin or installable tools for AI
+  dialogue. Public request and sandbox boundaries must reject them.
 - Rich text editing should use explicit editor/domain operations or future
-  skill-pack tools, not page awareness or DOM scanning.
+  skill-pack tools, not DOM scanning.
 
 ## Required Guards
 
 - API entrypoints must not accept `page_context` or `page_session_id`.
 - Runtime context assembly must not create `page_context` context sources.
-- Tool definitions returned to the model must not include retired page tools.
-- `ToolSandbox` must reject retired page tool names even when supplied by a
+- Tool definitions returned to the model must not include UI/page operation tools.
+- `ToolSandbox` must reject UI/page operation tool names even when supplied by a
   manual definition or plugin.
 - Frontend chat shells must not collect DOM, join page sessions, render page AI
   rails, or send page context fields.

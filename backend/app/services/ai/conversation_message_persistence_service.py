@@ -226,7 +226,6 @@ class ConversationMessagePersistenceService:
         history_count: int,
         history_messages: list[ChatMessage] | None = None,
         agent_id: int | None = None,
-        route_source: str | None = None,
         context_diagnostics: dict[str, Any] | None = None,
         last_run_summary: dict[str, Any] | None = None,
     ) -> tuple[list[dict[str, Any]], int]:
@@ -281,8 +280,6 @@ class ConversationMessagePersistenceService:
         next_seq = await service.message_repo.get_next_sequence(conversation.id)
         tool_calls_collected: list[dict[str, Any]] = []
         persisted_count = 0
-        route_source_marked = False
-
         turn_context = build_turn_persistence_context(
             service,
             result=result,
@@ -477,11 +474,6 @@ class ConversationMessagePersistenceService:
                 )
                 if completion_reason:
                     metadata["completion_reason"] = completion_reason
-
-            if route_source and role == "assistant" and not route_source_marked:
-                metadata = metadata or {}
-                metadata["route_source"] = route_source
-                route_source_marked = True
 
             if role == "assistant":
                 if result.runtime_model_name:

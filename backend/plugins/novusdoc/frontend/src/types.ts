@@ -21,37 +21,11 @@ export interface NovusPluginSharedAPI {
     focus(): void;
     destroy(): void;
   };
-  createSimplePageOperation?: (options: Record<string, unknown>) => unknown;
-  createParameterizedPageOperation?: (options: Record<string, unknown>) => unknown;
-  createOpenPageOperation?: (options: Record<string, unknown>) => unknown;
-  createOpenCurrentPageOperation?: (
-    options: Record<string, unknown>,
-  ) => unknown;
-  createOpenRecordPageOperation?: (options: Record<string, unknown>) => unknown;
-  createRecordActionPageOperation?: (
-    options: Record<string, unknown>,
-  ) => unknown;
-  buildPageAIFormExtraData?: (
-    options: Record<string, unknown>,
-  ) => Record<string, unknown>;
-  createPrefilledCreatePageOperation?: (
-    options: Record<string, unknown>,
-  ) => unknown;
-  createRefreshPageOperation?: (options: Record<string, unknown>) => unknown;
-  createSavePageOperation?: (options: Record<string, unknown>) => unknown;
-  createKeywordSearchPageOperation?: (
-    options: Record<string, unknown>,
-  ) => unknown;
   getAccessCodes?: () => string[];
   hasAccessByCodes?: (
     codes: string | string[] | undefined,
     options?: { mode?: 'all' | 'any' },
   ) => boolean;
-  registerRichTextDocumentPageAI?: (options: Record<string, unknown>) => () => void;
-  waitForRichTextEditorOperations?: (
-    pageKey: string,
-    options?: Record<string, unknown>,
-  ) => Promise<boolean>;
 }
 
 export interface DocItem {

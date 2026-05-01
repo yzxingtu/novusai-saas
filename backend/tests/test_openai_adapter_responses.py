@@ -278,7 +278,7 @@ def test_responses_rate_limit_does_not_cross_protocol_fallback() -> None:
             tools=[
                 {
                     "type": "function",
-                    "function": {"name": "ui_get_snapshot", "parameters": {}},
+                    "function": {"name": "crm_lookup", "parameters": {}},
                 }
             ],
             tool_choice="required",
@@ -309,7 +309,7 @@ def test_responses_timeout_does_not_cross_protocol_fallback() -> None:
             tools=[
                 {
                     "type": "function",
-                    "function": {"name": "ui_get_snapshot", "parameters": {}},
+                    "function": {"name": "crm_lookup", "parameters": {}},
                 }
             ],
             tool_choice="required",
@@ -649,7 +649,7 @@ async def test_chat_public_entrypoint_keeps_protocol_safe_responses_error_withou
             tools=[
                 {
                     "type": "function",
-                    "function": {"name": "ui_get_snapshot", "parameters": {}},
+                    "function": {"name": "crm_lookup", "parameters": {}},
                 }
             ],
             tool_choice="required",
@@ -1144,7 +1144,7 @@ async def test_stream_chat_public_entrypoint_keeps_protocol_safe_responses_error
             tools=[
                 {
                     "type": "function",
-                    "function": {"name": "ui_get_snapshot", "parameters": {}},
+                    "function": {"name": "crm_lookup", "parameters": {}},
                 }
             ],
             tool_choice="required",
@@ -2654,7 +2654,7 @@ async def test_stream_chat_public_responses_timeout_does_not_hit_chat_completion
             tools=[
                 {
                     "type": "function",
-                    "function": {"name": "ui_get_snapshot", "parameters": {}},
+                    "function": {"name": "crm_lookup", "parameters": {}},
                 }
             ],
             tool_choice="required",
@@ -2902,7 +2902,7 @@ async def test_convert_messages_to_responses_input_keeps_item_id_separate_from_c
                         "call_id": "call_123",
                         "type": "function",
                         "function": {
-                            "name": "ui_fill_form",
+                            "name": "crm_update_record",
                             "arguments": '{"fields":{"name":"E2E-Test"}}',
                         },
                     }
@@ -2917,7 +2917,7 @@ async def test_convert_messages_to_responses_input_keeps_item_id_separate_from_c
             "type": "function_call",
             "call_id": "call_123",
             "id": "fc_123",
-            "name": "ui_fill_form",
+            "name": "crm_update_record",
             "arguments": '{"fields":{"name":"E2E-Test"}}',
             "status": "completed",
         },
@@ -2946,10 +2946,10 @@ async def test_convert_messages_to_responses_input_synthesizes_missing_call_id_r
                 content="",
                 tool_calls=[
                     {
-                        "id": "fc_page_recovery_ui_get_form_state",
+                        "id": "fc_page_recovery_crm_get_record_state",
                         "type": "function",
                         "function": {
-                            "name": "ui_get_form_state",
+                            "name": "crm_get_record_state",
                             "arguments": "{}",
                         },
                     }
@@ -2962,15 +2962,15 @@ async def test_convert_messages_to_responses_input_synthesizes_missing_call_id_r
     assert converted == [
         {
             "type": "function_call",
-            "call_id": "call_1_1_ui_get_form_state",
-            "id": "fc_page_recovery_ui_get_form_state",
-            "name": "ui_get_form_state",
+            "call_id": "call_1_1_crm_get_record_state",
+            "id": "fc_page_recovery_crm_get_record_state",
+            "name": "crm_get_record_state",
             "arguments": "{}",
             "status": "completed",
         },
         {
             "type": "function_call_output",
-            "call_id": "call_1_1_ui_get_form_state",
+            "call_id": "call_1_1_crm_get_record_state",
             "output": '{"has_active_form":true}',
         },
     ]
@@ -2993,10 +2993,10 @@ async def test_convert_messages_to_responses_input_pairs_mismatched_internal_too
                 content="",
                 tool_calls=[
                     {
-                        "id": "fc_page_recovery_ui_read_region",
+                        "id": "fc_page_recovery_crm_read_record",
                         "type": "function",
                         "function": {
-                            "name": "ui_read_region",
+                            "name": "crm_read_record",
                             "arguments": '{"locator":"main"}',
                         },
                     }
@@ -3005,7 +3005,7 @@ async def test_convert_messages_to_responses_input_pairs_mismatched_internal_too
             ChatMessage(
                 role="tool",
                 content='{"text":"模型管理"}',
-                tool_call_id="fc_page_recovery_ui_read_region",
+                tool_call_id="fc_page_recovery_crm_read_record",
             ),
         ]
     )
@@ -3013,15 +3013,15 @@ async def test_convert_messages_to_responses_input_pairs_mismatched_internal_too
     assert converted == [
         {
             "type": "function_call",
-            "call_id": "call_1_1_ui_read_region",
-            "id": "fc_page_recovery_ui_read_region",
-            "name": "ui_read_region",
+            "call_id": "call_1_1_crm_read_record",
+            "id": "fc_page_recovery_crm_read_record",
+            "name": "crm_read_record",
             "arguments": '{"locator":"main"}',
             "status": "completed",
         },
         {
             "type": "function_call_output",
-            "call_id": "call_1_1_ui_read_region",
+            "call_id": "call_1_1_crm_read_record",
             "output": '{"text":"模型管理"}',
         },
     ]
@@ -3067,7 +3067,7 @@ async def test_convert_messages_to_responses_input_ignores_legacy_text_mode_and_
                         "id": "call_1",
                         "type": "function",
                         "function": {
-                            "name": "ui_get_snapshot",
+                            "name": "crm_lookup",
                             "arguments": "{}",
                         },
                     }
@@ -3085,7 +3085,7 @@ async def test_convert_messages_to_responses_input_ignores_legacy_text_mode_and_
         {
             "type": "function_call",
             "call_id": "call_1",
-            "name": "ui_get_snapshot",
+            "name": "crm_lookup",
             "arguments": "{}",
             "status": "completed",
         },

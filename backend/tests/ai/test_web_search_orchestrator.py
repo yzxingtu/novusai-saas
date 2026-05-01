@@ -152,7 +152,7 @@ async def test_skill_resolver_does_not_resolve_runtime_builtins_from_db_skills()
                 config={
                     "tools": [
                         {"name": "web_search"},
-                        {"name": "ui_get_snapshot"},
+                        {"name": "crm_lookup"},
                         {"name": "custom_builtin_tool"},
                     ]
                 },

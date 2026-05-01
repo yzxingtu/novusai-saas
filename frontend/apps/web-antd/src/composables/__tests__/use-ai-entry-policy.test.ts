@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 // Test type: behavioral
-// Verifies: route meta AI policy only controls chat-entry visibility after page awareness retirement.
+// Verifies: route meta AI policy only controls chat-entry visibility.
 // Mock strategy: permission and route refs are mocked; policy computation runs real.
 import { effectScope, nextTick } from 'vue';
 
@@ -31,7 +31,7 @@ vi.mock('../use-ai-permission', () => ({
   }),
 }));
 
-describe('useCurrentPageAIPolicy', () => {
+describe('useAIEntryPolicy', () => {
   beforeEach(() => {
     mockRefs.canChat.value = true;
     mockRefs.canRoute.value = true;
@@ -46,11 +46,11 @@ describe('useCurrentPageAIPolicy', () => {
 
   it('keeps AI enabled by default', async () => {
     const scope = effectScope();
-    const module = await import('../use-ai-page-policy');
+    const module = await import('../use-ai-entry-policy');
 
-    let policy!: ReturnType<typeof module.useCurrentPageAIPolicy>;
+    let policy!: ReturnType<typeof module.useAIEntryPolicy>;
     scope.run(() => {
-      policy = module.useCurrentPageAIPolicy();
+      policy = module.useAIEntryPolicy();
     });
     await nextTick();
 
@@ -62,21 +62,21 @@ describe('useCurrentPageAIPolicy', () => {
 
   it('disables AI when route meta explicitly disables the entry', async () => {
     const scope = effectScope();
-    const module = await import('../use-ai-page-policy');
+    const module = await import('../use-ai-entry-policy');
     mockRefs.routeMeta.value = {
       ai: {
         mode: 'disabled',
       },
     };
 
-    let policy!: ReturnType<typeof module.useCurrentPageAIPolicy>;
+    let policy!: ReturnType<typeof module.useAIEntryPolicy>;
     scope.run(() => {
-      policy = module.useCurrentPageAIPolicy();
+      policy = module.useAIEntryPolicy();
     });
     await nextTick();
 
     expect(policy.aiEnabled.value).toBe(false);
-    expect(policy.pageDisabled.value).toBe(true);
+    expect(policy.entryDisabled.value).toBe(true);
     expect(policy.effectiveMode.value).toBe('disabled');
 
     scope.stop();
@@ -84,12 +84,12 @@ describe('useCurrentPageAIPolicy', () => {
 
   it('disables AI when chat permission is missing', async () => {
     const scope = effectScope();
-    const module = await import('../use-ai-page-policy');
+    const module = await import('../use-ai-entry-policy');
     mockRefs.canChat.value = false;
 
-    let policy!: ReturnType<typeof module.useCurrentPageAIPolicy>;
+    let policy!: ReturnType<typeof module.useAIEntryPolicy>;
     scope.run(() => {
-      policy = module.useCurrentPageAIPolicy();
+      policy = module.useAIEntryPolicy();
     });
     await nextTick();
 

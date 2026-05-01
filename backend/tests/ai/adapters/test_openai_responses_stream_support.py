@@ -194,7 +194,7 @@ async def test_execute_stream_chat_via_responses_emits_tool_call_from_output_ite
                 item=SimpleNamespace(
                     type="function_call",
                     call_id="call_1",
-                    name="ui_click",
+                    name="crm_update_record",
                     arguments='{"target":"search"}',
                 ),
             ),
@@ -229,7 +229,7 @@ async def test_execute_stream_chat_via_responses_emits_tool_call_from_output_ite
             "index": 0,
             "id": "call_1",
             "function": {
-                "name": "ui_click",
+                "name": "crm_update_record",
                 "arguments": '{"target":"search"}',
             },
         }
@@ -297,7 +297,7 @@ async def test_execute_stream_chat_via_responses_deduplicates_function_call_done
                 item=SimpleNamespace(
                     type="function_call",
                     call_id="call_1",
-                    name="ui_list_interactables",
+                    name="crm_list_actions",
                     arguments="",
                 ),
             ),
@@ -311,7 +311,7 @@ async def test_execute_stream_chat_via_responses_deduplicates_function_call_done
                 type="response.function_call_arguments.done",
                 output_index=0,
                 item_id="call_1",
-                name="ui_list_interactables",
+                name="crm_list_actions",
                 arguments='{"surface_id":"active"}',
             ),
             SimpleNamespace(
@@ -320,7 +320,7 @@ async def test_execute_stream_chat_via_responses_deduplicates_function_call_done
                 item=SimpleNamespace(
                     type="function_call",
                     call_id="call_1",
-                    name="ui_list_interactables",
+                    name="crm_list_actions",
                     arguments='{"surface_id":"active"}',
                 ),
             ),
@@ -361,7 +361,7 @@ async def test_execute_stream_chat_via_responses_deduplicates_function_call_done
             "id": "call_1",
             "type": "function",
             "function": {
-                "name": "ui_list_interactables",
+                "name": "crm_list_actions",
                 "arguments": '{"surface_id":"active"}',
             },
         }

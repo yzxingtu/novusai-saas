@@ -52,13 +52,6 @@ def intent_completion_contract(
     preferred_tool_names: list[str],
     intent_metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    if family == "page_ops":
-        return {
-            "mode": "retired",
-            "completion_signals": [],
-            "action_signals": [],
-            "verify_signals": [],
-        }
     if family == "web_research":
         if "fetch_url" in allowed_tool_names:
             return {
@@ -96,17 +89,6 @@ def deserialize_intent_plan(raw_intent_plan: Any) -> list[IntentPlan]:
             item = IntentPlan(**raw_intent)
         except TypeError:
             continue
-        if item.family == "page_ops":
-            item.family = "none"
-            item.requires_tools = False
-            item.status = "completed"
-            item.allowed_tool_names = []
-            item.preferred_tool_names = []
-            item.completion_signals = []
-            item.metadata = {
-                **dict(item.metadata or {}),
-                "retired_reason": "page_awareness_retired",
-            }
         intent_plan.append(item)
     return intent_plan
 
@@ -121,7 +103,6 @@ def intent_plan_gating_flags(
     )
     return {
         "all_shortcircuit": bool(flags.all_shortcircuit),
-        "has_page_intent": bool(flags.has_page_intent),
         "has_knowledge_intent": bool(flags.has_knowledge_intent),
         "has_web_research_intent": bool(flags.has_web_research_intent),
         "has_memory_intent": bool(flags.has_memory_intent),

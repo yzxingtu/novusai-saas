@@ -12,7 +12,7 @@ from app.ai.tools.types import ToolResult
 from app.ai.types import ChatMessage
 from app.services.ai.conversation_diagnostics_projector_support_diagnostics import (
     extract_turn_diagnostics_from_metadata,
-    is_retired_page_diagnostics_reference,
+    is_invalid_runtime_diagnostics_reference,
     normalize_live_diagnostics_reference,
     normalize_turn_skill_activation_payload,
     resolve_live_selected_name_list,
@@ -70,9 +70,9 @@ def normalize_context_sources(value: Any) -> list[dict[str, Any]]:
         source_kind = to_non_empty_str(item.get("kind"))
         if not source_name and not source_kind:
             continue
-        if is_retired_page_diagnostics_reference(
+        if is_invalid_runtime_diagnostics_reference(
             source_name
-        ) or is_retired_page_diagnostics_reference(source_kind):
+        ) or is_invalid_runtime_diagnostics_reference(source_kind):
             continue
         normalized.append(
             {
@@ -105,9 +105,9 @@ def normalize_intent_plan(value: Any) -> list[dict[str, Any]]:
             continue
         kind = to_non_empty_str(payload.get("kind"))
         family = to_non_empty_str(payload.get("family"))
-        if is_retired_page_diagnostics_reference(
+        if is_invalid_runtime_diagnostics_reference(
             kind
-        ) or is_retired_page_diagnostics_reference(family):
+        ) or is_invalid_runtime_diagnostics_reference(family):
             continue
         normalized.append(
             {
@@ -141,7 +141,7 @@ def normalize_retry_events(value: Any) -> list[dict[str, Any]]:
         if not payload:
             continue
         retry_family = to_non_empty_str(payload.get("retry_family"))
-        if is_retired_page_diagnostics_reference(retry_family):
+        if is_invalid_runtime_diagnostics_reference(retry_family):
             continue
         normalized.append(
             {

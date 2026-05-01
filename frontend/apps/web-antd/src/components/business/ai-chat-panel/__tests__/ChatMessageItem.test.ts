@@ -569,7 +569,6 @@ describe('chatMessageItem', () => {
           content: '喵~收到',
           agent_id: 2,
           agent_name: '猫娘智能体',
-          routeSource: 'mention',
         },
         index: 0,
         compact: true,

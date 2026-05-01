@@ -120,7 +120,7 @@ def resolve_active_intent_kind_from_input_variables(
     input_variables: dict[str, Any] | None,
 ) -> str | None:
     for source in _iter_runtime_intent_fact_sources(input_variables):
-        for key in ("active_intent_kind", "page_intent_kind", "intent_kind"):
+        for key in ("active_intent_kind", "intent_kind"):
             value = str(source.get(key) or "").strip()
             if value and value != "none":
                 return value

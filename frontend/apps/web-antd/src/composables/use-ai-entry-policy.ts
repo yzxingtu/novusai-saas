@@ -1,10 +1,10 @@
 /**
- * Page-level AI entry policy.
+ * Route AI entry policy.
  *
- * Page awareness and page operations are retired. This composable only decides
- * whether the global AI chat entry is visible on the current route.
+ * This composable only decides whether the global AI chat entry is visible on
+ * the current route.
  */
-import type { AIPageMode } from '@vben/types';
+import type { AIEntryMode } from '@vben/types';
 
 import { computed } from 'vue';
 import { useRoute } from 'vue-router';
@@ -12,10 +12,10 @@ import { useRoute } from 'vue-router';
 import { useAIPermission } from './use-ai-permission';
 
 type RouteAIMeta = {
-  mode?: AIPageMode | string;
+  mode?: AIEntryMode | string;
 };
 
-function normalizeAIMode(mode: unknown): AIPageMode {
+function normalizeAIMode(mode: unknown): AIEntryMode {
   return String(mode ?? '')
     .trim()
     .toLowerCase() === 'disabled'
@@ -23,19 +23,19 @@ function normalizeAIMode(mode: unknown): AIPageMode {
     : 'enabled';
 }
 
-export function useCurrentPageAIPolicy() {
+export function useAIEntryPolicy() {
   const route = useRoute();
   const { canChat, canViewHistory, canRoute, resource } = useAIPermission();
   const rawAIMeta = computed<RouteAIMeta>(
     () => (route.meta?.ai as RouteAIMeta | undefined) ?? {},
   );
 
-  const pageMode = computed<AIPageMode>(() =>
+  const entryMode = computed<AIEntryMode>(() =>
     normalizeAIMode(rawAIMeta.value.mode),
   );
-  const pageDisabled = computed(() => pageMode.value === 'disabled');
-  const aiEnabled = computed(() => canChat.value && !pageDisabled.value);
-  const effectiveMode = computed<AIPageMode>(() =>
+  const entryDisabled = computed(() => entryMode.value === 'disabled');
+  const aiEnabled = computed(() => canChat.value && !entryDisabled.value);
+  const effectiveMode = computed<AIEntryMode>(() =>
     aiEnabled.value ? 'enabled' : 'disabled',
   );
 
@@ -45,8 +45,8 @@ export function useCurrentPageAIPolicy() {
     canViewHistory,
     canRoute,
     effectiveMode,
-    pageDisabled,
-    pageMode,
+    entryDisabled,
+    entryMode,
     resource,
   };
 }

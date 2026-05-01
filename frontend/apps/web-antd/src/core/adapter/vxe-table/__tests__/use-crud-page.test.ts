@@ -260,7 +260,7 @@ describe('useCrudPage', () => {
     expect(latestProps?.createPermission).toBe('');
   });
 
-  it('does not inject legacy _aiPageKey into form popup payload', () => {
+  it('does not inject legacy AI route keys into form popup payload', () => {
     const vm = mountCrudPage({});
 
     vm.onCreate();
@@ -282,7 +282,7 @@ describe('useCrudPage', () => {
     });
   });
 
-  it('does not inject retired _pageKey into form popup payloads', () => {
+  it('does not inject legacy route payload keys into form popup payloads', () => {
     mockRoute.path = '/admin/items';
     const vm = mountCrudPage({});
 

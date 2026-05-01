@@ -34,17 +34,17 @@ def _intent(kind: str, family: str, *, metadata: dict | None = None) -> IntentPl
     )
 
 
-def test_tool_router_does_not_reactivate_retired_page_workflow_tools() -> None:
+def test_tool_router_does_not_reactivate_retired_data_workflow_tools() -> None:
     decision = ToolRouter.route(
-        intents=[_intent("page_workflow", "page_ops")],
+        intents=[_intent("data_workflow", "data_ops")],
         tools=[
-            ToolDefinition(name="ui_get_snapshot"),
-            ToolDefinition(name="ui_read_region"),
+            ToolDefinition(name="crm_lookup"),
+            ToolDefinition(name="crm_read_record"),
             ToolDefinition(name="pageop_click"),
         ],
         budget=_budget(),
         input_variables={"page_context": {"page_key": "admin.ai.logs"}},
-        user_text="帮我读取当前页面",
+        user_text="帮我读取当前数据集",
     )
 
     assert decision.candidate_tool_names() == []
@@ -68,7 +68,7 @@ def test_tool_router_web_fetch_ignores_stale_page_context() -> None:
         tools=[
             ToolDefinition(name="web_search"),
             ToolDefinition(name="fetch_url"),
-            ToolDefinition(name="ui_get_snapshot"),
+            ToolDefinition(name="crm_lookup"),
         ],
         budget=_budget(),
         input_variables={"page_context": {"page_key": "admin.ai.logs"}},

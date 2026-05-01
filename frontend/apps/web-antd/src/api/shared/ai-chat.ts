@@ -86,7 +86,6 @@ export interface RawMessageItem {
     provider_name?: string;
     prune_stats?: Record<string, unknown>;
     rag_source_kinds?: string[];
-    route_source?: string;
     selected_skill_names?: string[];
     selected_tool_names?: string[];
     termination_reason?: string;
@@ -396,7 +395,6 @@ export interface AgentChatRequestBody {
   message?: string;
   /** 批量消息（800ms 内多条合并为一次请求） */
   messages?: string[];
-  route_source?: null | string;
   selected_skill_names?: string[];
   trust_policy_ref?: TrustPolicyRef;
   variables?: Record<string, string>;

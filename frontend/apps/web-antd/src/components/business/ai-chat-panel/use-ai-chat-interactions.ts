@@ -11,7 +11,6 @@ interface UseAIChatInteractionsDeps {
   pendingInteractionUpdates?: Ref<PendingInteractionUpdate[]>;
   sendMessage: (options?: {
     agentId?: number;
-    routeSource?: null | string;
     silent?: boolean;
   }) => boolean | Promise<boolean> | Promise<undefined> | undefined;
 }

@@ -38,12 +38,12 @@ def test_extract_turn_diagnostics_from_call_log_metadata_reads_extended_fields()
             },
             {
                 "intent_id": "intent-3",
-                "kind": "page_read",
-                "family": "page_ops",
+                "kind": "record_read",
+                "family": "data_ops",
                 "order": 3,
-                "user_visible_label": "page_read",
+                "user_visible_label": "record_read",
                 "status": "pending",
-                "allowed_tool_names": ["ui_get_snapshot"],
+                "allowed_tool_names": ["crm_lookup"],
             },
         ],
         "budget": {
@@ -57,7 +57,7 @@ def test_extract_turn_diagnostics_from_call_log_metadata_reads_extended_fields()
                 "get_current_weather",
                 "web_search",
                 "fetch_url",
-                "ui_get_snapshot",
+                "crm_lookup",
             ]
         },
         "path_decision": {
@@ -91,8 +91,8 @@ def test_extract_turn_diagnostics_from_call_log_metadata_reads_extended_fields()
                 {
                     "action": "retry_intent",
                     "target_intent_id": "intent-3",
-                    "retry_family": "page_ops",
-                    "allowed_tool_names": ["ui_get_snapshot"],
+                    "retry_family": "data_ops",
+                    "allowed_tool_names": ["crm_lookup"],
                     "completed_intent_ids": ["intent-1", "intent-2"],
                     "unfinished_intent_ids": ["intent-3"],
                     "reason": "unfinished_intent_retry",
@@ -118,13 +118,11 @@ def test_extract_turn_diagnostics_from_call_log_metadata_reads_extended_fields()
                     "termination_reason": "elapsed_budget_exceeded",
                     "protocol_path": "responses",
                     "selected_tool_names": ["get_current_weather", "web_search"],
-                    "selected_skill_names": ["runtime.page_context"],
+                    "selected_skill_names": ["runtime.crm_records"],
                     "context_sources": [
-                        {"kind": "page_context", "name": "admin.ai.dashboard"}
+                        {"kind": "read_model", "name": "admin.ai.dashboard"}
                     ],
-                    "last_tool_name": "ui_get_snapshot",
-                    "last_page_key": "admin.ai.dashboard",
-                    "last_page_op": "read",
+                    "last_tool_name": "crm_lookup",
                     "interrupted_stage": "tool_loop",
                     "tool_loop_progress": {"current_round": 2, "total_rounds": 3},
                     "metadata": {
@@ -141,13 +139,17 @@ def test_extract_turn_diagnostics_from_call_log_metadata_reads_extended_fields()
     )
 
     assert diagnostics["execution_path"] == "deep"
-    assert [item["intent_id"] for item in diagnostics["intent_plan"]] == ["intent-1"]
+    assert [item["intent_id"] for item in diagnostics["intent_plan"]] == [
+        "intent-1",
+        "intent-3",
+    ]
     assert diagnostics["budget_status"] == "exited"
     assert diagnostics["budget_exit_reason"] == "tool_round_budget_exceeded"
     assert diagnostics["candidate_tool_names"] == [
         "get_current_weather",
         "web_search",
         "fetch_url",
+        "crm_lookup",
     ]
     assert diagnostics["path_decision"] == {
         "path": "deep",
@@ -175,7 +177,9 @@ def test_extract_turn_diagnostics_from_call_log_metadata_reads_extended_fields()
             "provider_failure_kind": "provider_http_5xx",
         }
     ]
-    assert diagnostics.get("retry_events", []) == []
+    assert [
+        event["target_intent_id"] for event in diagnostics.get("retry_events", [])
+    ] == ["intent-3"]
     assert diagnostics["partial_exit_reason"] == "retry_budget_exhausted"
     assert diagnostics["failure_kind"] == "provider_http_5xx"
     assert diagnostics["provider_events"] == [
@@ -185,7 +189,7 @@ def test_extract_turn_diagnostics_from_call_log_metadata_reads_extended_fields()
     assert diagnostics["tool_leak_detected"] is True
     assert diagnostics["unfinished_intents"] == ["intent-3"]
     assert diagnostics["recovered_via_retry"] is False
-    assert diagnostics.get("last_tool_name") is None
+    assert diagnostics.get("last_tool_name") == "crm_lookup"
     assert diagnostics["tool_loop_progress"] == {"current_round": 2, "total_rounds": 3}
 
 
@@ -235,12 +239,12 @@ def test_cli_compact_diagnostics_builder_and_text_renderer_surface_key_orchestra
                 "web_search",
                 "fetch_url",
             ],
-            "selected_skill_names": ["runtime.page_context"],
+            "selected_skill_names": ["runtime.crm_records"],
             "candidate_tool_names": [
                 "get_current_weather",
                 "web_search",
                 "fetch_url",
-                "ui_get_snapshot",
+                "crm_lookup",
             ],
             "tool_planner": {
                 "intent": "weather_query",
@@ -291,12 +295,12 @@ def test_cli_compact_diagnostics_builder_and_text_renderer_surface_key_orchestra
                 },
                 {
                     "intent_id": "intent-3",
-                    "kind": "page_read",
-                    "family": "page_ops",
+                    "kind": "record_read",
+                    "family": "data_ops",
                     "order": 3,
-                    "user_visible_label": "page_read",
+                    "user_visible_label": "record_read",
                     "status": "pending",
-                    "allowed_tool_names": ["ui_get_snapshot"],
+                    "allowed_tool_names": ["crm_lookup"],
                 },
             ],
             "unfinished_intents": ["intent-3"],
@@ -304,8 +308,8 @@ def test_cli_compact_diagnostics_builder_and_text_renderer_surface_key_orchestra
                 {
                     "action": "retry_intent",
                     "target_intent_id": "intent-3",
-                    "retry_family": "page_ops",
-                    "allowed_tool_names": ["ui_get_snapshot"],
+                    "retry_family": "data_ops",
+                    "allowed_tool_names": ["crm_lookup"],
                     "completed_intent_ids": ["intent-1", "intent-2"],
                     "unfinished_intent_ids": ["intent-3"],
                     "reason": "unfinished_intent_retry",
@@ -325,9 +329,7 @@ def test_cli_compact_diagnostics_builder_and_text_renderer_surface_key_orchestra
             "contract_breach_type": "unfinished_multi_intent_reply",
             "tool_leak_detected": True,
             "recovered_via_retry": False,
-            "last_tool_name": "ui_get_snapshot",
-            "last_page_key": "admin.ai.dashboard",
-            "last_page_op": "read",
+            "last_tool_name": "crm_lookup",
             "interrupted_stage": "tool_loop",
         },
     }
@@ -342,11 +344,14 @@ def test_cli_compact_diagnostics_builder_and_text_renderer_surface_key_orchestra
     assert [item["intent_id"] for item in compact["intent_plan"]] == [
         "intent-1",
         "intent-2",
+        "intent-3",
     ]
-    assert compact["retry_events"] == []
+    assert [event["target_intent_id"] for event in compact["retry_events"]] == [
+        "intent-3"
+    ]
     assert compact["tool_planner"]["intent"] == "weather_query"
     assert compact["path_decision"]["path"] == "deep"
-    assert "page_injected" not in compact["capability_injection"]
+    assert "current_page_injected" not in compact["capability_injection"]
     assert compact["tool_filtering"]["candidate_tools_count"] == 3
     assert compact["recovery_chain"][0]["target_intent"] == "intent-3"
     assert compact["provider_events"] == [
@@ -355,9 +360,9 @@ def test_cli_compact_diagnostics_builder_and_text_renderer_surface_key_orchestra
     assert "Conversation #666 diagnostics" in text
     assert "execution_path=deep" in text
     assert "selected_tools=get_current_weather, web_search, fetch_url" in text
-    assert "candidate_tools=get_current_weather, web_search, fetch_url" in text
-    assert "ui_get_snapshot" not in text
-    assert "page_ops" not in text
+    assert "candidate_tools=get_current_weather, web_search, fetch_url, crm_lookup" in text
+    assert "crm_lookup" in text
+    assert "data_ops" in text
     assert "tool_planner=" in text
     assert "path_decision=" in text
     assert "capability_injection=" in text

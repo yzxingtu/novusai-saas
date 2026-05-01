@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from app.cli_commands import state as S
 from app.services.ai.conversation_diagnostics_projector_support import (
-    is_retired_page_diagnostics_reference,
+    is_invalid_runtime_diagnostics_reference,
     normalize_live_diagnostics_reference,
     sanitize_diagnostics_payload,
 )
@@ -65,9 +65,9 @@ def _normalize_cli_context_sources(raw_value: object) -> list[dict]:
         name = _normalize_cli_optional_string(item.get("name"))
         if not (kind or name):
             continue
-        if is_retired_page_diagnostics_reference(
+        if is_invalid_runtime_diagnostics_reference(
             kind
-        ) or is_retired_page_diagnostics_reference(name):
+        ) or is_invalid_runtime_diagnostics_reference(name):
             continue
         normalized.append(
             {
@@ -180,9 +180,9 @@ def _normalize_cli_intent_plan(raw_value: object) -> list[dict]:
             continue
         kind = _normalize_cli_optional_string(payload.get("kind"))
         family = _normalize_cli_optional_string(payload.get("family"))
-        if is_retired_page_diagnostics_reference(
+        if is_invalid_runtime_diagnostics_reference(
             kind
-        ) or is_retired_page_diagnostics_reference(family):
+        ) or is_invalid_runtime_diagnostics_reference(family):
             continue
         normalized.append(
             {

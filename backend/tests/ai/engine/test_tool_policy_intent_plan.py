@@ -1,8 +1,8 @@
 """
 Test type: behavioral
-Scope: tool-policy intent projection after page-awareness retirement.
+Scope: tool-policy intent projection with invalid runtime hints absent.
 Mock strategy: focused monkeypatch only blocks planner recomputation; assertions
-cover real helper behavior for non-page intents and retired page hints.
+cover real helper behavior for ordinary intents and invalid runtime hints.
 """
 
 from __future__ import annotations
@@ -41,7 +41,7 @@ def _intent_payload(
     }
 
 
-def test_detect_requested_turn_intents_prefers_precomputed_non_page_plan(
+def test_detect_requested_turn_intents_prefers_precomputed_ordinary_plan(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     def _fail_plan_turn(*_args: object, **_kwargs: object) -> None:
@@ -78,7 +78,7 @@ def test_detect_requested_turn_intents_prefers_precomputed_non_page_plan(
     assert intents == ["weather", "rail_ticket_research"]
 
 
-def test_retired_page_intent_plan_does_not_reactivate_page_awareness(
+def test_invalid_runtime_intent_plan_does_not_reactivate_current_page_runtime(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     def _fail_plan_turn(*_args: object, **_kwargs: object) -> None:
@@ -90,35 +90,35 @@ def test_retired_page_intent_plan_does_not_reactivate_page_awareness(
         "_runtime_intent_plan": [
             _intent_payload(
                 intent_id="intent-1",
-                kind="page_workflow",
-                family="page_ops",
+                kind="data_workflow",
+                family="data_ops",
                 order=1,
-                label="page_workflow",
+                label="data_workflow",
                 source_text="page",
                 metadata={
-                    "page_workflow_kind": "page_workflow",
-                    "page_workflow_goal": "page_summary",
+                    "data_workflow_kind": "data_workflow",
+                    "data_workflow_goal": "record_summary",
                 },
             )
         ],
         "_runtime_intent_facts": {
-            "requested_intents": ["weather", "page_workflow"],
-            "active_intent_kind": "page_workflow",
-            "page_workflow_goal": "navigation",
+            "requested_intents": ["weather", "data_workflow"],
+            "active_intent_kind": "data_workflow",
+            "data_workflow_goal": "navigation",
         },
     }
 
     assert (
         detect_requested_turn_intents(
             "Check the weather and summarize the page",
-            tools=[ToolDefinition(name="ui_get_snapshot")],
+            tools=[ToolDefinition(name="crm_lookup")],
             input_variables=input_variables,
         )
         == []
     )
 
 
-def test_collect_completed_turn_intents_ignores_retired_page_tool_results() -> None:
+def test_collect_completed_turn_intents_ignores_invalid_runtime_tool_results() -> None:
     messages = [
         ChatMessage(
             role="assistant",
@@ -127,14 +127,14 @@ def test_collect_completed_turn_intents_ignores_retired_page_tool_results() -> N
                 {
                     "id": "call-1",
                     "type": "function",
-                    "function": {"name": "ui_get_snapshot", "arguments": "{}"},
+                    "function": {"name": "crm_lookup", "arguments": "{}"},
                 }
             ],
         ),
         ChatMessage(
             role="tool",
-            content='{"title":"legacy page"}',
-            name="ui_get_snapshot",
+            content='{"title":"invalid runtime"}',
+            name="crm_lookup",
             tool_call_id="call-1",
             metadata={"success": True},
         ),
@@ -142,13 +142,13 @@ def test_collect_completed_turn_intents_ignores_retired_page_tool_results() -> N
 
     completed = collect_completed_turn_intents(
         messages,
-        tools=[ToolDefinition(name="ui_get_snapshot")],
+        tools=[ToolDefinition(name="crm_lookup")],
         input_variables={
             "_runtime_intent_facts": {
-                "requested_intents": ["page_workflow"],
-                "page_workflow_goal": "page_summary",
+                "requested_intents": ["data_workflow"],
+                "data_workflow_goal": "record_summary",
             }
         },
     )
 
-    assert "page_workflow" not in completed
+    assert "data_workflow" not in completed

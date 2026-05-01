@@ -13,7 +13,6 @@ from app.ai.memory_policy import resolve_memory_runtime_policy
 @dataclass(frozen=True)
 class IntentPlanFlags:
     all_shortcircuit: bool
-    has_page_intent: bool
     has_knowledge_intent: bool
     has_web_research_intent: bool
     has_memory_intent: bool
@@ -29,7 +28,6 @@ class IntentPlanFlags:
     def to_dict(self) -> dict[str, bool]:
         return {
             "all_shortcircuit": self.all_shortcircuit,
-            "has_page_intent": self.has_page_intent,
             "has_knowledge_intent": self.has_knowledge_intent,
             "has_web_research_intent": self.has_web_research_intent,
             "has_memory_intent": self.has_memory_intent,
@@ -63,7 +61,6 @@ class ContextPipelineOrchestrator:
         all_shortcircuit = bool(normalized_plan) and all(
             bool(getattr(intent, "shortcircuit", False)) for intent in normalized_plan
         )
-        has_page_intent = False
         has_knowledge_intent = "knowledge_query" in intent_kinds
         has_web_research_intent = "web_research" in intent_kinds or any(
             str(getattr(intent, "family", "") or "").strip() == "web_research"
@@ -96,7 +93,6 @@ class ContextPipelineOrchestrator:
         )
         return IntentPlanFlags(
             all_shortcircuit=all_shortcircuit,
-            has_page_intent=has_page_intent,
             has_knowledge_intent=has_knowledge_intent,
             has_web_research_intent=has_web_research_intent,
             has_memory_intent=has_memory_intent,

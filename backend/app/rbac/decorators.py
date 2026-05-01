@@ -88,7 +88,7 @@ class MenuAIConfig:
 
     These fields are emitted through `/permissions/menus` so the frontend can
     decide AI chat entry visibility without carrying page-awareness contracts.
-    这些字段会通过 `/permissions/menus` 下发，供前端判断 AI 对话入口显隐，不携带页面感知契约。
+    这些字段会通过 `/permissions/menus` 下发，供前端判断 AI 对话入口显隐。
     """
 
     description: str | None = None

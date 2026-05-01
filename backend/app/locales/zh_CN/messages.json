@@ -751,8 +751,8 @@
         "error": {
             "conversation_not_found": "对话不存在",
             "conversation_archived": "对话已归档，无法继续",
-            "retired_page_awareness_fields": "页面感知已从 AI 对话中退役，不能继续提交字段：{fields}",
-            "retired_page_awareness_tool": "页面感知工具已从 AI 对话中退役，不能继续提交工具：{tool}",
+            "invalid_ai_runtime_input_fields": "AI 运行时不接受这些字段：{fields}",
+            "invalid_ai_runtime_input_tool": "AI 运行时不接受这个工具：{tool}",
             "execution_failed": "智能体执行失败",
             "skill_load_failed": "部分技能加载失败，智能体将在无工具状态下工作",
             "router_not_found": "路由智能体未找到，请联系管理员配置",

@@ -2,7 +2,7 @@
 Test type: behavioral
 Scope: AI gateway call-log projection for platform/admin requests.
 Mock strategy: repository/provider boundaries are mocked; call-log payload
-assembly and retired tool filtering run real code.
+assembly runs real code.
 """
 
 from __future__ import annotations
@@ -255,7 +255,7 @@ async def test_log_call_failure_logs_platform_admin_calls(mock_db):
     assert kwargs["error_message"] == "boom"
 
 
-def test_build_request_log_data_filters_retired_page_tools_from_logs(mock_db):
+def test_build_request_log_data_preserves_declared_tool_name_lists(mock_db):
     from app.ai.gateway import AIGateway
 
     gateway = AIGateway.__new__(AIGateway)
@@ -272,19 +272,26 @@ def test_build_request_log_data_filters_retired_page_tools_from_logs(mock_db):
         ],
         tool_choice="auto",
         all_tool_names=[
-            "ui_get_snapshot",
-            "ui_click",
+            "crm_lookup",
+            "crm_update_record",
             "web_search",
             "fetch_url",
         ],
         tool_use_policy_family="web_research",
         tool_use_policy_mode="auto",
-        allowed_tool_names=["ui_get_snapshot", "ui_click", "web_search", "fetch_url"],
+        allowed_tool_names=["crm_lookup", "crm_update_record", "web_search", "fetch_url"],
     )
 
     assert payload["selected_tool_names"] == ["web_search", "fetch_url"]
-    assert payload["all_tool_names"] == ["web_search", "fetch_url"]
+    assert payload["all_tool_names"] == [
+        "crm_lookup",
+        "crm_update_record",
+        "web_search",
+        "fetch_url",
+    ]
     assert payload["tool_use_policy"]["allowed_tool_names"] == [
+        "crm_lookup",
+        "crm_update_record",
         "web_search",
         "fetch_url",
     ]
@@ -310,12 +317,12 @@ def test_build_request_log_data_keeps_non_empty_selected_tools_with_mixed_inputs
             "invalid-tool-entry",
         ],
         tool_choice="auto",
-        all_tool_names=["web_search", "fetch_url", "ui_get_snapshot"],
+        all_tool_names=["web_search", "fetch_url", "crm_lookup"],
     )
 
     assert payload["selected_tool_names"] == ["web_search"]
     assert len(payload["selected_tool_names"]) == 1
-    assert payload["all_tool_names"] == ["web_search", "fetch_url"]
+    assert payload["all_tool_names"] == ["web_search", "fetch_url", "crm_lookup"]
 
 
 def test_usage_recorder_turn_diagnostics_preserves_shadow_diff_payload() -> None:
@@ -342,10 +349,10 @@ def test_usage_recorder_turn_diagnostics_preserves_shadow_diff_payload() -> None
             ],
             "context_sources": [
                 {
-                    "kind": "page_context",
+                    "kind": "read_model",
                     "name": "admin.runtime.records",
                     "active": True,
-                    "metadata": {"page_key": "admin.runtime.records"},
+                    "metadata": {"read_model_key": "admin.runtime.records"},
                 }
             ],
             "sync_rescue": True,
@@ -432,10 +439,10 @@ async def test_call_log_service_log_call_async_injects_runtime_turn_fields(mock_
             protocol_path="responses",
             context_sources=[
                 {
-                    "kind": "page_context",
+                    "kind": "read_model",
                     "name": "admin.runtime.records",
                     "active": True,
-                    "metadata": {"page_key": "admin.runtime.records"},
+                    "metadata": {"read_model_key": "admin.runtime.records"},
                 }
             ],
             fallback_history=[
@@ -590,10 +597,10 @@ def test_cli_conversation_summary_renders_runtime_turn_and_call_log_diagnostics(
                 "should_record_call_log": True,
                 "context_sources": [
                     {
-                        "kind": "page_context",
+                        "kind": "read_model",
                         "name": "admin.runtime.records",
                         "active": True,
-                        "metadata": {"page_key": "admin.runtime.records"},
+                        "metadata": {"read_model_key": "admin.runtime.records"},
                     }
                 ],
                 "source": "call_log",

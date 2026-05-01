@@ -1,6 +1,6 @@
 """
 Test type: behavioral
-Scope: Conversation turn-flow projection, failure states, and retired page-awareness
+Scope: Conversation turn-flow projection, failure states, and invalid runtime metadata
 diagnostic scrubbing.
 Mock strategy: no external services; projector logic runs directly.
 """
@@ -178,7 +178,7 @@ def test_project_from_metadata_preserves_hosted_search_progress_for_timeout_hist
     assert retrieval["detail_lines"] == ["搜索未返回可展示证据"]
 
 
-def test_project_from_metadata_scrubs_retired_page_metadata_without_reclassifying_turn() -> None:
+def test_project_from_metadata_scrubs_invalid_runtime_metadata_without_reclassifying_turn() -> None:
     turn_flow = ConversationTurnFlowProjector.project_from_metadata(
         {
             "turn_flow": {
@@ -209,24 +209,24 @@ def test_project_from_metadata_scrubs_retired_page_metadata_without_reclassifyin
             "context_diagnostics": {
                 "conversation_outcome": "success",
                 "turn_outcome": "success",
-                "continuation_source": "page_ops",
+                "continuation_source": "data_ops",
                 "tool_planner": {
                     "intent": "page_search",
-                    "family": "page_ops",
+                    "family": "data_ops",
                 },
                 "intent_plan": [
                     {
                         "intent_id": "intent-1",
                         "kind": "page_search",
-                        "family": "page_ops",
+                        "family": "data_ops",
                         "status": "completed",
-                        "completed_by_tool_names": ["ui_list_interactables"],
+                        "completed_by_tool_names": ["crm_list_actions"],
                     }
                 ],
                 "candidate_tool_names": [
-                    "ui_read_region",
-                    "ui_list_interactables",
-                    "ui_click",
+                    "crm_read_record",
+                    "crm_list_actions",
+                    "crm_update_record",
                 ],
                 "selected_tool_names": [],
             },

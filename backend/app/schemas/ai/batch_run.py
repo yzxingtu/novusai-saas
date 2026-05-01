@@ -14,8 +14,8 @@ from app.core.base_schema import (
     TenantResponseSchema,
 )
 from app.core.i18n import _
-from app.schemas.ai.retired_page_awareness import (
-    ensure_no_retired_page_awareness_input,
+from app.schemas.ai.invalid_ai_runtime_input import (
+    ensure_no_disallowed_ai_runtime_input,
 )
 
 
@@ -33,13 +33,13 @@ class BatchRunCreate(BaseCreateSchema):
     )
 
     @model_validator(mode="after")
-    def reject_retired_page_awareness_inputs(self) -> "BatchRunCreate":
+    def reject_invalid_ai_runtime_inputs(self) -> "BatchRunCreate":
         for item in self.items:
-            ensure_no_retired_page_awareness_input(item)
+            ensure_no_disallowed_ai_runtime_input(item)
             for nested_key in ("variables", "input_variables"):
                 nested = item.get(nested_key)
                 if isinstance(nested, dict):
-                    ensure_no_retired_page_awareness_input(nested)
+                    ensure_no_disallowed_ai_runtime_input(nested)
         return self
 
 

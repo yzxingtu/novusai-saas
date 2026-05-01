@@ -83,23 +83,29 @@ def _tool_families(
 def _continuation_families(continuation_context: Any | None) -> set[str]:
     if continuation_context is None:
         return set()
+    retired_families = {"data_ops"}
+
+    def _active_family(value: Any) -> str:
+        family = str(value or "").strip()
+        return "" if family in retired_families else family
+
     families = {
-        str(family or "").strip()
+        normalized_family
         for family in getattr(
             continuation_context,
             "continuation_capable_families",
             [],
         )
-        if str(family or "").strip() and str(family or "").strip() != "page_ops"
+        if (normalized_family := _active_family(family))
     }
-    active_family = str(getattr(continuation_context, "family", "") or "").strip()
-    if active_family and active_family != "page_ops":
+    active_family = _active_family(getattr(continuation_context, "family", ""))
+    if active_family:
         families.add(active_family)
     tool_families = getattr(continuation_context, "tool_families", []) or []
     families.update(
-        str(family or "").strip()
+        normalized_family
         for family in tool_families
-        if str(family or "").strip() and str(family or "").strip() != "page_ops"
+        if (normalized_family := _active_family(family))
     )
     return families
 

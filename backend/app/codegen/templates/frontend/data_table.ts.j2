@@ -311,7 +311,6 @@ export function useFormSchema(_isEdit: boolean): VbenFormSchema[] {
       component: '{{ comp }}' as const,
       fieldName: '{{ f.name }}',
       label: $t('{{ i18n_pre }}.{{ f.name | camel }}'),
-      {% if comp == 'RichText' and 'ai' in (f.form or {}) %}componentProps: { ai: {{ (f.form.ai)|lower }} },{% endif %}
       {% if f.get('required', true) %}rules: 'required',{% endif %}
       {% if not _insertable or not _editable %}ifShow: ({ values }) => ({{ 'true' if _insertable else 'false' }} && !values.id) || ({{ 'true' if _editable else 'false' }} && !!values.id),{% endif %}
     },

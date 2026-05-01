@@ -5,7 +5,14 @@ from __future__ import annotations
 from typing import Any
 
 from app.ai.json_safe import normalize_json_safe_dict
-from app.schemas.ai.invalid_ai_runtime_input import is_invalid_ai_runtime_tool_name
+from app.schemas.ai.invalid_ai_runtime_input import (
+    DISALLOWED_AI_RUNTIME_INPUT_KEYS,
+    DISALLOWED_AI_RUNTIME_INPUT_PREFIXES,
+    DISALLOWED_AI_RUNTIME_INPUT_VALUES,
+    is_invalid_ai_runtime_tool_family,
+    is_invalid_ai_runtime_tool_name,
+    normalize_ai_runtime_token,
+)
 from app.services.ai.turn_failure_normalizer import derive_budget_projection
 
 
@@ -25,46 +32,6 @@ def _to_non_empty_str(value: Any) -> str | None:
     return text
 
 
-_RETIRED_PAGE_DIAGNOSTIC_TOKENS = frozenset(
-    {
-        "active_surface",
-        "current_dom",
-        "current_editor",
-        "current_page",
-        "dom_snapshot",
-        "editor_ops",
-        "last_page_key",
-        "last_page_op",
-        "page_context",
-        "page_data",
-        "page_operation",
-        "page_operations",
-        "page_ops",
-        "page_runtime",
-        "page_session",
-        "page_session_id",
-        "request_page_context",
-        "runtime_page",
-        "runtime_page_context",
-        "runtime_page_runtime",
-        "runtime_page_session",
-        "system_page_runtime",
-    }
-)
-_RETIRED_PAGE_DIAGNOSTIC_MARKERS = (
-    "页面感知交互",
-    "页面感知",
-    "页面操作",
-    "当前页面",
-    "当前 dom",
-    "page awareness",
-    "page-awareness",
-    "page_awareness",
-    "page operation",
-    "page operations",
-    "ui runtime page",
-    "ui runtime 页面交互",
-)
 _DIAGNOSTIC_NAME_LIST_KEYS = frozenset(
     {
         "allowed_tool_names",
@@ -73,7 +40,6 @@ _DIAGNOSTIC_NAME_LIST_KEYS = frozenset(
         "inventory_selected_skill_names",
         "inventory_selected_tool_names",
         "leaked_tool_names",
-        "page_operation_names",
         "resolved_tool_names",
         "selected_skill_names",
         "selected_tool_names",
@@ -98,37 +64,23 @@ _DIAGNOSTIC_SCALAR_REFERENCE_KEYS = frozenset(
 )
 
 
-def _diagnostic_token(value: Any) -> str:
-    return (
-        str(value or "")
-        .strip()
-        .lower()
-        .replace("-", "_")
-        .replace(" ", "_")
-        .replace(".", "_")
-        .replace(":", "_")
-    )
-
-
-def is_retired_page_diagnostics_reference(value: Any) -> bool:
+def is_invalid_runtime_diagnostics_reference(value: Any) -> bool:
     text = str(value or "").strip()
     if not text:
         return False
-    token = _diagnostic_token(text)
-    lowered = text.lower()
+    token = normalize_ai_runtime_token(text)
     return (
         is_invalid_ai_runtime_tool_name(token)
-        or token in _RETIRED_PAGE_DIAGNOSTIC_TOKENS
-        or token.startswith("page_")
-        or token.startswith("pageop_")
-        or token.startswith("ui_")
-        or any(marker in lowered for marker in _RETIRED_PAGE_DIAGNOSTIC_MARKERS)
+        or is_invalid_ai_runtime_tool_family(token)
+        or token in DISALLOWED_AI_RUNTIME_INPUT_KEYS
+        or token in DISALLOWED_AI_RUNTIME_INPUT_VALUES
+        or token.startswith(DISALLOWED_AI_RUNTIME_INPUT_PREFIXES)
     )
 
 
 def normalize_live_diagnostics_reference(value: Any) -> str | None:
     text = _to_non_empty_str(value)
-    if not text or is_retired_page_diagnostics_reference(text):
+    if not text or is_invalid_runtime_diagnostics_reference(text):
         return None
     return text
 
@@ -174,7 +126,7 @@ def sanitize_diagnostics_payload(value: Any) -> dict[str, Any] | None:
     sanitized: dict[str, Any] = {}
     for raw_key, raw_value in payload.items():
         key = str(raw_key)
-        if is_retired_page_diagnostics_reference(key):
+        if is_invalid_runtime_diagnostics_reference(key):
             continue
 
         if key in _DIAGNOSTIC_NAME_LIST_KEYS:
@@ -220,7 +172,7 @@ def sanitize_diagnostics_payload(value: Any) -> dict[str, Any] | None:
             nested_list = _sanitize_list_payload(raw_value)
             sanitized[key] = nested_list
             continue
-        if isinstance(raw_value, str) and is_retired_page_diagnostics_reference(
+        if isinstance(raw_value, str) and is_invalid_runtime_diagnostics_reference(
             raw_value
         ):
             continue
@@ -240,9 +192,9 @@ def _normalize_context_sources(value: Any) -> list[dict[str, Any]]:
         source_kind = _to_non_empty_str(item.get("kind"))
         if not source_name and not source_kind:
             continue
-        if is_retired_page_diagnostics_reference(
+        if is_invalid_runtime_diagnostics_reference(
             source_name
-        ) or is_retired_page_diagnostics_reference(source_kind):
+        ) or is_invalid_runtime_diagnostics_reference(source_kind):
             continue
         metadata = sanitize_diagnostics_payload(item.get("metadata")) or {}
         normalized.append(
@@ -399,9 +351,9 @@ def _normalize_intent_plan(value: Any) -> list[dict[str, Any]]:
             continue
         raw_kind = _to_non_empty_str(payload.get("kind"))
         raw_family = _to_non_empty_str(payload.get("family"))
-        if is_retired_page_diagnostics_reference(
+        if is_invalid_runtime_diagnostics_reference(
             raw_kind
-        ) or is_retired_page_diagnostics_reference(raw_family):
+        ) or is_invalid_runtime_diagnostics_reference(raw_family):
             continue
         normalized.append(
             {
@@ -435,7 +387,7 @@ def _normalize_retry_events(value: Any) -> list[dict[str, Any]]:
         if not payload:
             continue
         retry_family = _to_non_empty_str(payload.get("retry_family"))
-        if is_retired_page_diagnostics_reference(retry_family):
+        if is_invalid_runtime_diagnostics_reference(retry_family):
             continue
         metadata = sanitize_diagnostics_payload(payload.get("metadata")) or {}
         normalized.append(
@@ -466,9 +418,9 @@ def _sanitize_tool_planner(value: Any) -> dict[str, Any] | None:
     payload = _normalize_json_dict(value)
     if not payload:
         return None
-    if is_retired_page_diagnostics_reference(
+    if is_invalid_runtime_diagnostics_reference(
         payload.get("intent")
-    ) or is_retired_page_diagnostics_reference(payload.get("family")):
+    ) or is_invalid_runtime_diagnostics_reference(payload.get("family")):
         return None
     return sanitize_diagnostics_payload(payload)
 
@@ -1054,7 +1006,7 @@ def extract_turn_diagnostics_from_metadata(
 
 __all__ = [
     "extract_turn_diagnostics_from_metadata",
-    "is_retired_page_diagnostics_reference",
+    "is_invalid_runtime_diagnostics_reference",
     "normalize_live_diagnostics_reference",
     "normalize_turn_skill_activation_payload",
     "resolve_live_selected_name_list",

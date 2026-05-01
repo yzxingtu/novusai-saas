@@ -26,18 +26,16 @@ from app.ai.tools.security import (
     OutputSanitizer,
     ToolSecurityError,
 )
-from app.ai.tools.semantic_defaults import (
-    is_retired_page_tool,
-    is_retired_page_tool_name,
-)
 from app.ai.tools.types import ExecutionContext, ToolDefinition, ToolResult
 from app.core.i18n import _
 from app.core.logging import LogManager
 from app.core.response import build_public_error_text
 from app.enums.agent import ToolTypeEnum
 from app.enums.common import UserRoleEnum
-from app.schemas.ai.retired_page_awareness import (
-    assert_no_retired_page_awareness_input,
+from app.schemas.ai.invalid_ai_runtime_input import (
+    assert_no_disallowed_ai_runtime_input,
+    is_invalid_ai_runtime_tool,
+    is_invalid_ai_runtime_tool_name,
 )
 
 if TYPE_CHECKING:
@@ -47,6 +45,7 @@ if TYPE_CHECKING:
     from app.models.ai.agent import Agent
 
 logger = LogManager.get_logger("ai.tool.sandbox")
+
 
 @dataclass
 class SandboxConfig:
@@ -125,7 +124,7 @@ class ToolSandbox:
         self.user_role = user_role
         self.permissions = permissions or set()
         self.consented_actions: set[str] = set()
-        self.input_variables: dict[str, Any] = assert_no_retired_page_awareness_input(
+        self.input_variables: dict[str, Any] = assert_no_disallowed_ai_runtime_input(
             input_variables
         )
         self.config = config or SandboxConfig()
@@ -165,8 +164,6 @@ class ToolSandbox:
         from app.ai.tools.executors.code_execution_executor import CodeExecutionExecutor
 
         self._executors[ToolTypeEnum.CODE_EXECUTION.value] = CodeExecutionExecutor()
-        # Page-runtime compatibility modules still exist, but live AI dialogue
-        # no longer registers ui_* executors or exposes page operations.
 
     def get_executor(self, tool_type: str) -> BaseToolExecutor | None:
         """Get executor for specified type / 获取指定类型的执行器"""
@@ -211,13 +208,13 @@ class ToolSandbox:
         event_bus = get_event_bus()
         hook_registry = get_hook_registry()
 
-        if is_retired_page_tool_name(name):
+        if is_invalid_ai_runtime_tool_name(name):
             return ToolResult(
                 tool_call_id=tool_call_id,
                 name=name,
                 success=False,
-                error="Page awareness tools are retired from AI dialogue.",
-                error_type="page_awareness_retired",
+                error="This tool is not available in AI dialogue.",
+                error_type="invalid_runtime_tool",
             )
 
         # 1. Find tool definition / 查找工具定义
@@ -231,13 +228,13 @@ class ToolSandbox:
                 error=_("tool.error.not_found", name=name),
             )
 
-        if is_retired_page_tool(definition):
+        if is_invalid_ai_runtime_tool(definition):
             return ToolResult(
                 tool_call_id=tool_call_id,
                 name=name,
                 success=False,
-                error="Page awareness tools are retired from AI dialogue.",
-                error_type="page_awareness_retired",
+                error="This tool is not available in AI dialogue.",
+                error_type="invalid_runtime_tool",
             )
 
         # 1.5 Security check: input validation + call count limit / 安全检查

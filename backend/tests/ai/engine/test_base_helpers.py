@@ -5,13 +5,13 @@ from app.ai.engine.base_helpers import (
 from app.ai.types import ChatMessage
 
 
-def test_truncate_tool_calls_after_navigation_is_noop_after_page_ops_retirement() -> None:
+def test_truncate_tool_calls_after_navigation_is_noop_after_data_ops_retirement() -> None:
     tool_calls = [
         {
             "id": "c1",
             "type": "function",
             "function": {
-                "name": "ui_click",
+                "name": "crm_update_record",
                 "arguments": "{bad json 1",
             },
         },
@@ -19,7 +19,7 @@ def test_truncate_tool_calls_after_navigation_is_noop_after_page_ops_retirement(
             "id": "c2",
             "type": "function",
             "function": {
-                "name": "ui_click",
+                "name": "crm_update_record",
                 "arguments": "{bad json 2",
             },
         },
@@ -27,7 +27,7 @@ def test_truncate_tool_calls_after_navigation_is_noop_after_page_ops_retirement(
             "id": "c3",
             "type": "function",
             "function": {
-                "name": "ui_click",
+                "name": "crm_update_record",
                 "arguments": "{bad json 3",
             },
         },
@@ -35,7 +35,7 @@ def test_truncate_tool_calls_after_navigation_is_noop_after_page_ops_retirement(
 
     truncated, trimmed = truncate_tool_calls_after_navigation(
         tool_calls,
-        navigation_operation_names={"ui_click"},
+        navigation_operation_names={"crm_update_record"},
     )
 
     assert trimmed is False

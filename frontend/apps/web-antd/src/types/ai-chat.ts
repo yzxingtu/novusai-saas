@@ -396,8 +396,6 @@ export interface ChatMessage {
   agent_knowledge_bases?: AgentKnowledgeBaseBindingSummary[] | null;
   /** LLM model name used by the agent / 智能体使用的模型名 */
   model_name?: null | string;
-  /** Route source marker for UI badges (e.g. one-time @ mention) / 路由来源标记 */
-  routeSource?: null | string;
   attachments?: ChatAttachment[];
   /** Pending CRUD confirmation request from tool / 待确认的 CRUD 请求 */
   pendingConfirmation?: PendingConfirmation;

@@ -146,6 +146,12 @@ const createChat = (overrides: Partial<UseAIChatOptions> = {}) =>
     ...overrides,
   });
 
+async function flushDebouncedSend() {
+  await flushPromises();
+  await vi.advanceTimersByTimeAsync(1000);
+  await flushPromises();
+}
+
 describe('useAIChat interrupted stream recovery', () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -242,8 +248,8 @@ describe('useAIChat interrupted stream recovery', () => {
     await chat.loadAgents();
     chat.inputMessage.value = 'hello';
 
-    const sendPromise = chat.sendMessage({ routeSource: 'manual-stop-test' });
-    await flushPromises();
+    const sendPromise = chat.sendMessage();
+    await flushDebouncedSend();
 
     expect(chat.activeConversationId.value).toBe(42);
     expect(chat.chatMessages.value).toHaveLength(2);
@@ -334,8 +340,8 @@ describe('useAIChat interrupted stream recovery', () => {
     await chat.loadConversations();
     chat.inputMessage.value = '查今天AI新闻';
 
-    await chat.sendMessage({ routeSource: 'stream-failure-recovery-test' });
-    await flushPromises();
+    await chat.sendMessage();
+    await flushDebouncedSend();
 
     expect(apiMocks.getGlobalConversationsApi).toHaveBeenCalledTimes(3);
     expect(apiMocks.getChatConversationMessagesApi).toHaveBeenCalledWith(
@@ -406,8 +412,8 @@ describe('useAIChat interrupted stream recovery', () => {
 
     await chat.loadAgents();
     chat.inputMessage.value = '查今天AI新闻';
-    await chat.sendMessage({ routeSource: 'persistence-commit-test' });
-    await flushPromises();
+    await chat.sendMessage();
+    await flushDebouncedSend();
 
     expect(apiMocks.getChatConversationMessagesApi).toHaveBeenCalledWith(
       '/tenant',
@@ -464,8 +470,8 @@ describe('useAIChat interrupted stream recovery', () => {
 
     await chat.loadAgents();
     chat.inputMessage.value = '查今天AI新闻';
-    await chat.sendMessage({ routeSource: 'done-conversation-id-sync-test' });
-    await flushPromises();
+    await chat.sendMessage();
+    await flushDebouncedSend();
 
     expect(apiMocks.getChatConversationMessagesApi).toHaveBeenCalledWith(
       '/tenant',
@@ -548,12 +554,12 @@ describe('useAIChat interrupted stream recovery', () => {
     chat.interactionMode.value = 'trusted_auto';
     chat.inputMessage.value = '查一下';
 
-    const sendPromise = chat.sendMessage({
-      routeSource: 'native-search-status-test',
-    });
+    const sendPromise = chat.sendMessage();
     await vi.advanceTimersByTimeAsync(1000);
     await sendPromise;
     await flushPromises();
+    await flushPromises();
+    await vi.advanceTimersByTimeAsync(1000);
     await flushPromises();
     expect(apiMocks.sendChatStreamApi).toHaveBeenCalledTimes(2);
 
@@ -626,9 +632,7 @@ describe('useAIChat interrupted stream recovery', () => {
     chat.interactionMode.value = 'trusted_auto';
     chat.inputMessage.value = '请查一下北京今天的天气。';
 
-    const firstSendPromise = chat.sendMessage({
-      routeSource: 'trusted-auto-consent-resend-test',
-    });
+    const firstSendPromise = chat.sendMessage();
     await flushPromises();
     await vi.advanceTimersByTimeAsync(1000);
     await firstSendPromise;
@@ -700,8 +704,8 @@ describe('useAIChat interrupted stream recovery', () => {
     await chat.loadAgents();
     chat.inputMessage.value = '统计今天调用情况';
 
-    await chat.sendMessage({ routeSource: 'tool-summary-test' });
-    await flushPromises();
+    await chat.sendMessage();
+    await flushDebouncedSend();
 
     const assistantMessage = chat.chatMessages.value.find(
       (msg) => msg.role === 'assistant',
@@ -802,8 +806,8 @@ describe('useAIChat interrupted stream recovery', () => {
 
     await chat.loadAgents();
     chat.inputMessage.value = '请给出执行方案';
-    await chat.sendMessage({ routeSource: 'turn-flow-canonical-test' });
-    await flushPromises();
+    await chat.sendMessage();
+    await flushDebouncedSend();
 
     const assistantMessage = chat.chatMessages.value.find(
       (msg) => msg.role === 'assistant',
@@ -903,10 +907,8 @@ describe('useAIChat interrupted stream recovery', () => {
 
     await chat.loadAgents();
     chat.inputMessage.value = '请总结一下';
-    await chat.sendMessage({
-      routeSource: 'tenant-legacy-stream-suppression-test',
-    });
-    await flushPromises();
+    await chat.sendMessage();
+    await flushDebouncedSend();
 
     const assistantMessage = chat.chatMessages.value.find(
       (msg) => msg.role === 'assistant',
@@ -987,10 +989,8 @@ describe('useAIChat interrupted stream recovery', () => {
 
     await chat.loadAgents();
     chat.inputMessage.value = '请给我调试信息';
-    await chat.sendMessage({
-      routeSource: 'admin-legacy-stream-suppression-test',
-    });
-    await flushPromises();
+    await chat.sendMessage();
+    await flushDebouncedSend();
 
     const assistantMessage = chat.chatMessages.value.find(
       (msg) => msg.role === 'assistant',
@@ -1159,8 +1159,8 @@ describe('useAIChat interrupted stream recovery', () => {
 
     await chat.loadAgents();
     chat.inputMessage.value = '请继续';
-    await chat.sendMessage({ routeSource: 'turn-flow-dedupe-semantics-test' });
-    await flushPromises();
+    await chat.sendMessage();
+    await flushDebouncedSend();
 
     const assistantMessage = chat.chatMessages.value.find(
       (msg) => msg.role === 'assistant',
@@ -1256,8 +1256,8 @@ describe('useAIChat interrupted stream recovery', () => {
 
     await chat.loadAgents();
     chat.inputMessage.value = '总结一下';
-    await chat.sendMessage({ routeSource: 'turn-flow-provider-failure-test' });
-    await flushPromises();
+    await chat.sendMessage();
+    await flushDebouncedSend();
 
     const assistantMessage = chat.chatMessages.value.find(
       (msg) => msg.role === 'assistant',
@@ -1320,8 +1320,8 @@ describe('useAIChat interrupted stream recovery', () => {
 
     await chat.loadAgents();
     chat.inputMessage.value = '开始执行';
-    await chat.sendMessage({ routeSource: 'turn-flow-finalize-orphan-test' });
-    await flushPromises();
+    await chat.sendMessage();
+    await flushDebouncedSend();
 
     const assistantMessage = chat.chatMessages.value.find(
       (msg) => msg.role === 'assistant',
@@ -1404,8 +1404,8 @@ describe('useAIChat interrupted stream recovery', () => {
 
     await chat.loadAgents();
     chat.inputMessage.value = '开始执行';
-    await chat.sendMessage({ routeSource: 'turn-flow-terminal-summary-sync' });
-    await flushPromises();
+    await chat.sendMessage();
+    await flushDebouncedSend();
 
     const assistantMessage = chat.chatMessages.value.find(
       (msg) => msg.role === 'assistant',
@@ -1463,10 +1463,8 @@ describe('useAIChat interrupted stream recovery', () => {
     await chat.loadAgents();
     chat.inputMessage.value = '搜索一下';
 
-    const sendPromise = chat.sendMessage({
-      routeSource: 'native-search-status-test',
-    });
-    await flushPromises();
+    const sendPromise = chat.sendMessage();
+    await flushDebouncedSend();
 
     const assistantMessage = chat.chatMessages.value.find(
       (msg) => msg.role === 'assistant',
@@ -1571,9 +1569,7 @@ describe('useAIChat interrupted stream recovery', () => {
     await chat.loadAgents();
     chat.inputMessage.value = '查一下今天北京的天气';
 
-    const sendPromise = chat.sendMessage({
-      routeSource: 'done-turn-record-turn-flow-test',
-    });
+    const sendPromise = chat.sendMessage();
     await vi.advanceTimersByTimeAsync(3200);
     await sendPromise;
     await flushPromises();
@@ -2027,10 +2023,8 @@ describe('useAIChat interrupted stream recovery', () => {
 
     await chat.loadAgents();
     chat.inputMessage.value = '测试终态污染';
-    await chat.sendMessage({
-      routeSource: 'terminal-clear-content-guard-test',
-    });
-    await flushPromises();
+    await chat.sendMessage();
+    await flushDebouncedSend();
 
     const assistantMessage = chat.chatMessages.value.find(
       (msg) => msg.role === 'assistant',
@@ -2087,8 +2081,8 @@ describe('useAIChat interrupted stream recovery', () => {
 
     await chat.loadAgents();
     chat.inputMessage.value = '测试 event.error';
-    await chat.sendMessage({ routeSource: 'event-error-terminalize-test' });
-    await flushPromises();
+    await chat.sendMessage();
+    await flushDebouncedSend();
 
     const assistantMessage = chat.chatMessages.value.find(
       (msg) => msg.role === 'assistant',
@@ -2154,8 +2148,8 @@ describe('useAIChat interrupted stream recovery', () => {
 
     await chat.loadAgents();
     chat.inputMessage.value = '测试 tool_call_id 匹配';
-    await chat.sendMessage({ routeSource: 'tool-call-id-match-test' });
-    await flushPromises();
+    await chat.sendMessage();
+    await flushDebouncedSend();
 
     const assistantMessage = chat.chatMessages.value.find(
       (msg) => msg.role === 'assistant',
@@ -2319,7 +2313,7 @@ describe('useAIChat interrupted stream recovery', () => {
     chat.selectedKBIds.value = [10, 20];
     chat.inputMessage.value = '统计今天调用情况';
 
-    await chat.sendMessage({ routeSource: 'kb-feedback-test' });
+    await chat.sendMessage();
     await flushPromises();
 
     expect(chat.selectedKBIds.value).toEqual([10]);
@@ -2488,15 +2482,18 @@ describe('useAIChat interrupted stream recovery', () => {
       (msg) => msg.role === 'assistant',
     );
     expect(assistantMessage?.content).toBe('debounced answer');
-    expect(assistantMessage?.routeSource).toBeUndefined();
 
     const requestBody = apiMocks.sendChatStreamApi.mock.calls.at(-1)?.[2] as
       | Record<string, unknown>
       | undefined;
-    expect(requestBody?.route_source).toBeUndefined();
+    expect(Object.keys(requestBody ?? {}).sort()).toEqual([
+      'consented_actions',
+      'conversation_id',
+      'message',
+    ]);
   });
 
-  it('sends chat without retired page awareness fields', async () => {
+  it('sends chat with only explicit chat request fields', async () => {
     apiMocks.sendChatStreamApi.mockImplementation(
       async (
         _prefix: string,
@@ -2516,7 +2513,7 @@ describe('useAIChat interrupted stream recovery', () => {
     const chat = createChat();
 
     await chat.loadAgents();
-    chat.inputMessage.value = '请帮我打开智能体页面';
+    chat.inputMessage.value = '请帮我查看智能体配置';
 
     await chat.sendMessage();
     await flushPromises();
@@ -2527,8 +2524,11 @@ describe('useAIChat interrupted stream recovery', () => {
     const requestBody = apiMocks.sendChatStreamApi.mock.calls.at(-1)?.[2] as
       | Record<string, unknown>
       | undefined;
-    expect(requestBody).not.toHaveProperty('page_context');
-    expect(requestBody).not.toHaveProperty('page_session_id');
+    expect(Object.keys(requestBody ?? {}).sort()).toEqual([
+      'consented_actions',
+      'conversation_id',
+      'message',
+    ]);
     expect(socketStoreMocks.connect).not.toHaveBeenCalled();
   });
 

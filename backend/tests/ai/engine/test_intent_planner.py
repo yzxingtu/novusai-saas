@@ -1,6 +1,6 @@
 """
 Test type: behavioral
-Scope: Intent planner routing after page-awareness retirement.
+Scope: Intent planner routing with invalid runtime context guards.
 Mocked dependencies: none.
 """
 
@@ -17,8 +17,8 @@ def _tools() -> list[ToolDefinition]:
         ToolDefinition(name="get_current_weather", description="Current weather"),
         ToolDefinition(name="get_weather_forecast", description="Forecast"),
         ToolDefinition(name="get_current_time", description="Current time"),
-        ToolDefinition(name="ui_get_snapshot", description="Retired page tool"),
-        ToolDefinition(name="ui_click", description="Retired page tool"),
+        ToolDefinition(name="crm_lookup", description="CRM lookup"),
+        ToolDefinition(name="crm_update_record", description="CRM update record"),
     ]
 
 
@@ -37,13 +37,13 @@ def _plan(
     )
 
 
-def _legacy_page_context() -> dict:
+def _invalid_runtime_context() -> dict:
     return {
         "page_key": "admin.ai.agents",
         "page_session_id": "retired-session",
         "ui_epoch": 1,
         "suggested_tools": {
-            "primary": ["ui_get_snapshot", "ui_click"],
+            "primary": ["crm_lookup", "crm_update_record"],
         },
     }
 
@@ -56,10 +56,10 @@ def test_intent_planner_suppresses_web_when_user_explicitly_disables_network() -
     assert intents[0].shortcircuit is True
 
 
-def test_intent_planner_ignores_legacy_page_context_for_page_summary() -> None:
+def test_intent_planner_ignores_invalid_runtime_context_for_page_summary() -> None:
     intents = _plan(
         "看看本页面的内容然后总结一下",
-        input_variables={"page_context": _legacy_page_context()},
+        input_variables={"page_context": _invalid_runtime_context()},
     )
 
     assert [intent.family for intent in intents] == ["none"]
@@ -67,10 +67,10 @@ def test_intent_planner_ignores_legacy_page_context_for_page_summary() -> None:
     assert intents[0].requires_tools is False
 
 
-def test_intent_planner_ignores_legacy_page_context_for_page_click_request() -> None:
+def test_intent_planner_ignores_invalid_runtime_context_for_page_click_request() -> None:
     intents = _plan(
-        "请点击当前页面上的创建按钮",
-        input_variables={"page_context": _legacy_page_context()},
+        "请点击当前数据集上的创建按钮",
+        input_variables={"page_context": _invalid_runtime_context()},
     )
 
     assert [intent.family for intent in intents] == ["none"]
@@ -78,42 +78,42 @@ def test_intent_planner_ignores_legacy_page_context_for_page_click_request() -> 
     assert intents[0].requires_tools is False
 
 
-def test_intent_planner_keeps_weather_without_synthesizing_page_workflow() -> None:
+def test_intent_planner_keeps_weather_without_synthesizing_data_workflow() -> None:
     intents = _plan(
-        "帮我查一下北京天气，然后在当前页面创建一条测试记录",
-        input_variables={"page_context": _legacy_page_context()},
+        "帮我查一下北京天气，然后在当前数据集创建一条测试记录",
+        input_variables={"page_context": _invalid_runtime_context()},
     )
 
     assert [intent.kind for intent in intents] == ["weather_query"]
-    assert all(intent.family != "page_ops" for intent in intents)
+    assert all(intent.family != "data_ops" for intent in intents)
 
 
-def test_intent_planner_keeps_generic_search_as_web_research_inside_legacy_page_context() -> None:
+def test_intent_planner_keeps_generic_search_as_web_research_inside_invalid_runtime_context() -> None:
     intents = _plan(
         "搜索一下今天 AI 新闻",
-        input_variables={"page_context": _legacy_page_context()},
+        input_variables={"page_context": _invalid_runtime_context()},
     )
 
     assert [intent.kind for intent in intents] == ["web_research"]
     assert intents[0].family == "web_research"
 
 
-def test_intent_planner_retired_page_continuation_does_not_rehydrate_page_ops() -> None:
+def test_intent_planner_invalid_runtime_continuation_does_not_rehydrate_data_ops() -> None:
     continuation = ResearchContinuationContext(
         active=True,
-        family="page_ops",
+        family="data_ops",
         origin="continuation",
         current_user_text="继续看",
         research_target_text="admin.ai.api-keys",
-        recent_successful_tool_names=["ui_get_snapshot"],
-        tool_families=["page_ops"],
-        continuation_capable_families=["page_ops"],
-        active_intent_kind="page_workflow",
+        recent_successful_tool_names=["crm_lookup"],
+        tool_families=["data_ops"],
+        continuation_capable_families=["data_ops"],
+        active_intent_kind="data_workflow",
     )
 
     intents = _plan(
         "继续看",
-        input_variables={"page_context": _legacy_page_context()},
+        input_variables={"page_context": _invalid_runtime_context()},
         continuation=continuation,
     )
 
@@ -122,17 +122,17 @@ def test_intent_planner_retired_page_continuation_does_not_rehydrate_page_ops() 
     assert intents[0].requires_tools is False
 
 
-def test_intent_planner_returns_direct_reply_for_smalltalk_after_legacy_page_flow() -> None:
+def test_intent_planner_returns_direct_reply_for_smalltalk_after_invalid_runtime_flow() -> None:
     intents = _plan(
         "你真聪明",
-        input_variables={"page_context": _legacy_page_context()},
+        input_variables={"page_context": _invalid_runtime_context()},
         messages=[
             ChatMessage(role="user", content="打开这个页面"),
             ChatMessage(
                 role="assistant",
                 content="",
                 tool_calls=[
-                    {"success": True, "function": {"name": "ui_click"}}
+                    {"success": True, "function": {"name": "crm_update_record"}}
                 ],
             ),
             ChatMessage(role="user", content="你真聪明"),

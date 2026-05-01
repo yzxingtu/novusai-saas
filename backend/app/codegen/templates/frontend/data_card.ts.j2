@@ -122,7 +122,6 @@ export function useFormSchema(_isEdit: boolean): VbenFormSchema[] {
       component: '{{ comp }}' as const,
       fieldName: '{{ f.name }}',
       label: $t('{{ i18n_pre }}.{{ f.name | camel }}'),
-      {% if comp == 'RichText' and 'ai' in (f.form or {}) %}componentProps: { ai: {{ (f.form.ai)|lower }} },{% endif %}
       {% if f.get('required', true) %}rules: 'required',{% endif %}
     },
 {% elif 'Boolean' in ftype or comp == 'switch' %}

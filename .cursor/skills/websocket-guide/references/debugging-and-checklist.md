@@ -36,7 +36,6 @@ redis-cli MONITOR | grep socketio
 - disconnect
 - auth failure
 - reconnect
-- page operation invoke/result
 
 ## 常见问题
 
@@ -74,4 +73,3 @@ redis-cli MONITOR | grep socketio
 - 前端 handler 都有注销
 - 连接失败、鉴权失败、超时路径已验证
 - presence HTTP 接口和实时事件都验证过
-- 页面操作通道验证过 `page_key_mismatch`、重复 `invoke_id`、确认超时

@@ -90,7 +90,7 @@ def test_build_budget_exit_fallback_output_uses_resolved_locale(
     )
 
     output = build_budget_exit_fallback_output(
-        SimpleNamespace(request=SimpleNamespace(input_variables={"page_context": {}})),
+        SimpleNamespace(request=SimpleNamespace(input_variables={"locale": "zh-CN"})),
         tool_results=[],
     )
 

@@ -81,7 +81,7 @@ class _ChatResult:
         }
 
 
-def test_admin_agent_chat_route_rejects_retired_page_context(
+def test_admin_agent_chat_route_rejects_invalid_runtime_context(
     monkeypatch,
 ) -> None:
     admin_module = _load_admin_agent_chat_module()
@@ -132,7 +132,7 @@ def test_admin_agent_chat_route_rejects_retired_page_context(
     handle_route.assert_not_awaited()
 
 
-def test_admin_agent_chat_chat_rejects_retired_page_context(monkeypatch) -> None:
+def test_admin_agent_chat_chat_rejects_invalid_runtime_context(monkeypatch) -> None:
     admin_module = _load_admin_agent_chat_module()
     monkeypatch.setattr(admin_module.AdminAgentChatController, "_instance", None)
     monkeypatch.setattr(admin_module.AdminAgentChatController, "_router", None)

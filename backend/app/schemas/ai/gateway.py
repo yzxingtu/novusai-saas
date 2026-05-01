@@ -5,24 +5,37 @@ AI 网关调用的请求和响应数据结构
 Data structures for AI gateway call requests and responses.
 """
 
+import json
 from decimal import Decimal
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
-from app.ai.tools.semantic_defaults import is_retired_page_tool_name
 from app.core.i18n import _
+from app.schemas.ai.invalid_ai_runtime_input import (
+    ensure_no_disallowed_ai_runtime_input,
+    is_invalid_ai_runtime_tool_name,
+)
 
 
 def _validate_tool_function(function: dict[str, Any]) -> dict[str, Any]:
+    ensure_no_disallowed_ai_runtime_input(function)
     tool_name = str(function.get("name") or "").strip()
-    if tool_name and is_retired_page_tool_name(tool_name):
+    if tool_name and is_invalid_ai_runtime_tool_name(tool_name):
         raise ValueError(
             _(
-                "agent_chat.error.retired_page_awareness_tool",
+                "agent_chat.error.invalid_ai_runtime_input_tool",
                 tool=tool_name,
             )
         )
+    arguments = function.get("arguments")
+    if isinstance(arguments, str) and arguments.strip().startswith(("{", "[")):
+        try:
+            parsed_arguments = json.loads(arguments)
+        except json.JSONDecodeError:
+            parsed_arguments = None
+        if isinstance(parsed_arguments, dict):
+            ensure_no_disallowed_ai_runtime_input(parsed_arguments)
     return function
 
 

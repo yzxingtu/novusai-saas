@@ -88,7 +88,7 @@ We already ship shared helpers for:
 - Backend tenants (`TenantController`, `TenantService`, `TenantRepository`)
 - Responses (`success()`, `error()`, `build_error_payload()`)
 - form state helpers (`use-form-state-tracker`) and backend/skill result
-  renderers. AI page-operation extensions are retired and must not be reused for
+  renderers. AI page-operation extensions are forbidden and must not be reused for
   new work.
 
 Examples:

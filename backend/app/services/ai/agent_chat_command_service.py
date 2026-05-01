@@ -31,9 +31,11 @@ from app.enums.agent import AgentExecutionModeEnum
 from app.enums.common import UserRoleEnum
 from app.exceptions import BusinessException
 from app.schemas.ai.agent_chat import AgentChatResponse, InteractionMode
-from app.schemas.ai.retired_page_awareness import (
-    ensure_no_retired_page_awareness_input,
-    retired_page_awareness_input_keys,
+from app.schemas.ai.invalid_ai_runtime_input import (
+    ensure_no_disallowed_ai_runtime_input,
+    disallowed_ai_runtime_input_keys,
+    filter_invalid_ai_runtime_references,
+    is_invalid_ai_runtime_reference,
 )
 from app.services.ai.agent_chat_command_ephemeral_support import (
     execute_ephemeral_stream_chat,
@@ -62,16 +64,45 @@ def _normalize_chat_variables(
 ) -> dict[str, Any] | None:
     normalized_variables = dict(variables or {})
     try:
-        ensure_no_retired_page_awareness_input(normalized_variables)
+        ensure_no_disallowed_ai_runtime_input(normalized_variables)
     except ValueError:
-        retired_keys = retired_page_awareness_input_keys(normalized_variables)
+        retired_keys = disallowed_ai_runtime_input_keys(normalized_variables)
         raise BusinessException(
             message=_(
-                "agent_chat.error.retired_page_awareness_fields",
+                "agent_chat.error.invalid_ai_runtime_input_fields",
                 fields=", ".join(retired_keys),
             )
         ) from None
     return normalized_variables or None
+
+
+def _raise_invalid_runtime_input(error: ValueError) -> None:
+    raise BusinessException(message=str(error)) from None
+
+
+def _normalize_selected_skill_names(
+    selected_skill_names: list[str] | None,
+) -> list[str] | None:
+    names = [str(name or "").strip() for name in list(selected_skill_names or [])]
+    invalid_names = [name for name in names if is_invalid_ai_runtime_reference(name)]
+    if invalid_names:
+        raise BusinessException(
+            message=_(
+                "agent_chat.error.invalid_ai_runtime_input_tool",
+                tool=", ".join(invalid_names),
+            )
+        )
+    filtered = filter_invalid_ai_runtime_references(names)
+    return filtered or None
+
+
+def _ensure_no_invalid_runtime_mapping(payload: dict[str, Any] | None) -> None:
+    if payload is None:
+        return
+    try:
+        ensure_no_disallowed_ai_runtime_input(payload)
+    except ValueError as exc:
+        _raise_invalid_runtime_input(exc)
 
 
 class AgentChatCommandService:
@@ -94,7 +125,6 @@ class AgentChatCommandService:
         memory_scene: str = DEFAULT_MEMORY_SCENE,
         memory_channel: str = MEMORY_CHANNEL_SYSTEM,
         memory_source: str = "",
-        route_source: str | None = None,
         selected_skill_names: list[str] | None = None,
         interaction_updates: list[dict[str, Any]] | None = None,
         trust_policy_ref: dict[str, Any] | None = None,
@@ -103,6 +133,10 @@ class AgentChatCommandService:
         """Non-streaming chat orchestration."""
         start = time.perf_counter()
         variables = _normalize_chat_variables(variables)
+        selected_skill_names = _normalize_selected_skill_names(selected_skill_names)
+        _ensure_no_invalid_runtime_mapping(trust_policy_ref)
+        for update in list(interaction_updates or []):
+            _ensure_no_invalid_runtime_mapping(update)
 
         agent = await service._validate_agent(agent_id)
         (
@@ -280,7 +314,6 @@ class AgentChatCommandService:
             history_count=history_count,
             history_messages=history_messages,
             agent_id=agent_id,
-            route_source=route_source,
             context_diagnostics=context_diagnostics_payload,
             last_run_summary=last_run_summary_payload,
         )
@@ -374,7 +407,6 @@ class AgentChatCommandService:
         memory_scene: str = DEFAULT_MEMORY_SCENE,
         memory_channel: str = MEMORY_CHANNEL_SYSTEM,
         memory_source: str = "",
-        route_source: str | None = None,
         selected_skill_names: list[str] | None = None,
         interaction_updates: list[dict[str, Any]] | None = None,
         trust_policy_ref: dict[str, Any] | None = None,
@@ -382,6 +414,10 @@ class AgentChatCommandService:
     ) -> StreamingResponse:
         """Streaming chat orchestration."""
         variables = _normalize_chat_variables(variables)
+        selected_skill_names = _normalize_selected_skill_names(selected_skill_names)
+        _ensure_no_invalid_runtime_mapping(trust_policy_ref)
+        for update in list(interaction_updates or []):
+            _ensure_no_invalid_runtime_mapping(update)
 
         agent = await service._validate_agent(agent_id)
         (
@@ -547,7 +583,6 @@ class AgentChatCommandService:
             history_count=history_count,
             history_messages=all_messages,
             seeded_user_message_count=seeded_user_message_count,
-            route_source=route_source,
             interaction_mode_effective=interaction_mode_effective,
             interaction_mode_downgrade_reason=interaction_mode_downgrade_reason,
             memory_event_id=memory_event_id,

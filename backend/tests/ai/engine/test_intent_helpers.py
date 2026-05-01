@@ -47,15 +47,15 @@ def test_tool_families_filters_none_without_page_context_side_effects() -> None:
 
     assert "web_research" in families
     assert "time_ops" in families
-    assert "page_ops" not in families
+    assert "data_ops" not in families
     assert "none" not in families
 
 
-def test_continuation_families_filters_retired_page_ops_sources() -> None:
+def test_continuation_families_filters_retired_data_ops_sources() -> None:
     context = SimpleNamespace(
-        continuation_capable_families=["page_ops", ""],
+        continuation_capable_families=["data_ops", ""],
         family="web_research",
-        tool_families=["weather", "page_ops", ""],
+        tool_families=["weather", "data_ops", ""],
     )
 
     assert _continuation_families(context) == {"web_research", "weather"}

@@ -171,12 +171,6 @@ export function processAssistantMessage({
   }
 
   assignAgentStateFromMessage(state, messageItem, assistantMetadata, agents);
-  if (
-    state.turnRouteSource === null &&
-    typeof assistantMetadata?.route_source === 'string'
-  ) {
-    state.turnRouteSource = assistantMetadata.route_source;
-  }
   if (Array.isArray(assistantMetadata?.action_buttons)) {
     state.turnActionButtons =
       assistantMetadata.action_buttons as ActionButton[];

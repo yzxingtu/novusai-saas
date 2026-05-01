@@ -1,6 +1,6 @@
 """Test type: behavioral.
 
-Verifies generic turn-failure normalization without retired page-workflow
+Verifies generic turn-failure normalization without invalid runtime workflow
 compatibility paths.
 """
 

@@ -1,29 +1,22 @@
-"""Cleanup legacy page-awareness skill grants / Ensure UI runtime skills bound."""
+"""Cleanup legacy page-awareness skill grants."""
 
 from __future__ import annotations
 
 from alembic import op
-from sqlalchemy import MetaData, Table, and_, bindparam, func, inspect, or_, select
+from sqlalchemy import MetaData, Table, bindparam, func, inspect, or_, select
 
 revision: str = "20260410_cleanup_legacy_grants"
 down_revision: str | None = "20260409_ui_runtime_page_tools"
 branch_labels: str | None = None
 depends_on: str | None = None
 
-LEGACY_SKILL_NAMES = ("get_page_context", "invoke_page_operation")
-LEGACY_SKILL_PREFIXES = ("pageop_",)
-UI_RUNTIME_SKILL_NAMES = (
-    "ui_get_snapshot",
-    "ui_read_region",
-    "ui_read_table",
-    "ui_list_interactables",
-    "ui_click",
-    "ui_open_surface",
-    "ui_get_form_state",
-    "ui_set_field",
-    "ui_fill_form",
-    "ui_submit_form",
+LEGACY_SKILL_NAMES = (
+    "get_page_context",
+    "invoke_page_operation",
+    "list_page_operations",
+    "page_ops",
 )
+LEGACY_SKILL_PREFIXES = ("pageop_",)
 
 
 def _reflect_table(conn, table_name: str) -> Table:
@@ -50,130 +43,56 @@ def _legacy_skill_ids(conn, skills_table: Table) -> list[int]:
     return [int(row[0]) for row in rows]
 
 
-def _ui_skill_ids(conn, skills_table: Table) -> list[int]:
-    stmt = select(skills_table.c.id).where(skills_table.c.name.in_(bindparam("ui_names", expanding=True)))
-    rows = conn.execute(stmt, {"ui_names": list(UI_RUNTIME_SKILL_NAMES)}).fetchall()
-    return [int(row[0]) for row in rows]
-
-
-def _agent_rows_to_fix(conn, agent_skill_grants: Table, agents: Table, legacy_skill_ids: list[int]) -> list[dict[str, object]]:
-    stmt = (
-        select(agent_skill_grants.c.agent_id, agents.c.owner_tenant_id)
-        .select_from(
-            agent_skill_grants.join(agents, agents.c.id == agent_skill_grants.c.agent_id)
-        )
-        .where(
-            agent_skill_grants.c.skill_id.in_(legacy_skill_ids),
-            agent_skill_grants.c.is_deleted.is_(False),
-        )
-        .distinct()
-    )
-    rows = conn.execute(stmt).fetchall()
-    return [
-        {"agent_id": int(row[0]), "owner_tenant_id": row[1]}
-        for row in rows
-    ]
-
-
-def _soft_delete_legacy_grants(conn, agent_skill_grants: Table, legacy_skill_ids: list[int]) -> None:
+def _soft_delete_legacy_grants(
+    conn,
+    agent_skill_grants: Table,
+    legacy_skill_ids: list[int],
+) -> None:
     if not legacy_skill_ids:
         return
+
+    values: dict[str, object] = {}
+    columns = set(agent_skill_grants.c.keys())
+    if "is_deleted" in columns:
+        values["is_deleted"] = True
+    if "deleted_at" in columns:
+        values["deleted_at"] = func.coalesce(
+            agent_skill_grants.c.deleted_at,
+            func.now(),
+        )
+    if "enabled" in columns:
+        values["enabled"] = False
+    if "updated_at" in columns:
+        values["updated_at"] = func.now()
+    if not values:
+        return
+
     stmt = (
         agent_skill_grants.update()
         .where(agent_skill_grants.c.skill_id.in_(legacy_skill_ids))
-        .where(agent_skill_grants.c.is_deleted.is_(False))
-        .values(
-            is_deleted=True,
-            deleted_at=func.coalesce(agent_skill_grants.c.deleted_at, func.now()),
-            enabled=False,
-        )
+        .values(**values)
     )
     conn.execute(stmt)
 
 
-def _ensure_ui_grants(
-    conn,
-    agent_skill_grants: Table,
-    agents_table: Table,
-    agent_rows: list[dict[str, object]],
-    ui_skill_ids: list[int],
-) -> None:
-    if not ui_skill_ids or not agent_rows:
-        return
-
-    for agent in agent_rows:
-        agent_id = agent["agent_id"]
-        tenant_id = agent["owner_tenant_id"]
-
-        max_sort = (
-            conn.execute(
-                select(func.coalesce(func.max(agent_skill_grants.c.sort_order), -1)).where(
-                    agent_skill_grants.c.agent_id == agent_id
-                )
-            )
-            .scalar_one()
-        )
-        next_sort = max_sort + 1
-
-        for skill_id in ui_skill_ids:
-            exists = conn.execute(
-                select(
-                    agent_skill_grants.c.id,
-                    agent_skill_grants.c.is_deleted,
-                    agent_skill_grants.c.sort_order,
-                )
-                .where(agent_skill_grants.c.agent_id == agent_id)
-                .where(agent_skill_grants.c.skill_id == skill_id)
-            ).fetchone()
-
-            if exists:
-                grant_id, deleted, _ = exists
-                if deleted:
-                    conn.execute(
-                        agent_skill_grants.update()
-                        .where(agent_skill_grants.c.id == grant_id)
-                        .values(
-                            is_deleted=False,
-                            deleted_at=None,
-                            enabled=True,
-                            default_consent_mode="auto",
-                            sort_order=next_sort,
-                        )
-                    )
-                    next_sort += 1
-                continue
-
-            values = {
-                "agent_id": agent_id,
-                "skill_id": skill_id,
-                "tenant_id": tenant_id,
-                "enabled": True,
-                "sort_order": next_sort,
-                "default_consent_mode": "auto",
-            }
-            conn.execute(agent_skill_grants.insert().values(**values))
-            next_sort += 1
-
-
 def upgrade() -> None:
     conn = op.get_bind()
-    columns = _table_columns(conn, "skills")
-    if not columns:
+    skill_columns = _table_columns(conn, "skills")
+    grant_columns = _table_columns(conn, "agent_skill_grants")
+    if not skill_columns or "id" not in skill_columns or "name" not in skill_columns:
         return
+    if not grant_columns or "skill_id" not in grant_columns:
+        return
+
     skills_table = _reflect_table(conn, "skills")
     legacy_ids = _legacy_skill_ids(conn, skills_table)
     if not legacy_ids:
         return
-    ui_ids = _ui_skill_ids(conn, skills_table)
-    agent_skill_table = _reflect_table(conn, "agent_skill_grants")
-    agents_table = _reflect_table(conn, "agents")
-    agent_rows = _agent_rows_to_fix(conn, agent_skill_table, agents_table, legacy_ids)
-    if not agent_rows:
-        return
 
+    agent_skill_table = _reflect_table(conn, "agent_skill_grants")
     _soft_delete_legacy_grants(conn, agent_skill_table, legacy_ids)
-    _ensure_ui_grants(conn, agent_skill_table, agents_table, agent_rows, ui_ids)
 
 
 def downgrade() -> None:
+    # New-system boundary: retired page grants must not be restored.
     pass

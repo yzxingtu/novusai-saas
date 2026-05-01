@@ -16,12 +16,12 @@ def test_keyword_searcher_extracts_technical_terms() -> None:
     searcher = KeywordSearcher(db=None)  # type: ignore[arg-type]
 
     terms = searcher._extract_exact_terms(
-        '请对比 "OAuth 2.1" 与 auth.user-login API 的差异，并关注 ui_submit_form_v2'
+        '请对比 "OAuth 2.1" 与 auth.user-login API 的差异，并关注 workflow_submit_form_v2'
     )
 
     assert "OAuth 2.1" in terms
     assert "auth.user-login" in terms
-    assert "ui_submit_form_v2" in terms
+    assert "workflow_submit_form_v2" in terms
 
 
 def test_keyword_searcher_technical_term_boost_prefers_exact_identifier() -> None:

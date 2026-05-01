@@ -13,7 +13,7 @@ export {
   type UseCrudPageOptions,
 } from '#/adapter/vxe-table';
 
-export { useCurrentPageAIPolicy } from './use-ai-page-policy';
+export { useAIEntryPolicy } from './use-ai-entry-policy';
 
 export { useAIPermission } from './use-ai-permission';
 

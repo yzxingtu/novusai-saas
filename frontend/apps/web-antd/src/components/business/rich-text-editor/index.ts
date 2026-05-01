@@ -56,7 +56,6 @@ export function mountRichTextEditor(
   if (options.defaultValue !== undefined)
     propsObj.defaultValue = options.defaultValue;
   if (options.toolbar !== undefined) propsObj.toolbar = options.toolbar;
-  if (options.ai !== undefined) propsObj.ai = options.ai;
   if (options.upload !== undefined) propsObj.upload = options.upload;
   if (options.editable !== undefined) propsObj.editable = options.editable;
   if (options.placeholder !== undefined)
@@ -66,8 +65,6 @@ export function mountRichTextEditor(
   if (options.autofocus !== undefined) propsObj.autofocus = options.autofocus;
   if (options.extensions !== undefined)
     propsObj.extensions = options.extensions;
-  if (options.contextTitle !== undefined)
-    propsObj.contextTitle = options.contextTitle;
   const Wrapper = defineComponent({
     setup() {
       return () =>

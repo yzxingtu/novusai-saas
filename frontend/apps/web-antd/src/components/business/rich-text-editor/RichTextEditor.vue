@@ -19,7 +19,6 @@ import './rich-text-editor.css';
 const props = withDefaults(defineProps<RichTextEditorProps>(), {
   mode: 'compact',
   toolbar: true,
-  ai: true,
   upload: true,
   editable: true,
   autofocus: false,

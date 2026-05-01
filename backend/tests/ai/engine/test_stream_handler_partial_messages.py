@@ -21,7 +21,7 @@ def test_last_visible_assistant_content_ignores_previous_round_messages() -> Non
             tool_calls=[
                 {
                     "id": "call-old",
-                    "name": "ui_get_snapshot",
+                    "name": "crm_lookup",
                 }
             ],
         ),

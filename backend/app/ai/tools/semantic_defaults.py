@@ -60,50 +60,21 @@ FAMILY_EXPLICIT_REQUEST_HINTS: dict[str, tuple[str, ...]] = {
     for family, tags in FAMILY_HINT_TAGS.items()
 }
 
-RETIRED_PAGE_TOOL_ORDER: tuple[str, ...] = (
-    "append_content",
-    "editor_ops",
-    "get_editor_html",
-    "get_editor_text",
-    "get_page_context",
-    "insert_content",
-    "invoke_page_operation",
-    "list_page_operations",
-    "page_ops",
-    "replace_content",
-    "replace_section",
-    "ui_get_snapshot",
-    "ui_read_region",
-    "ui_read_table",
-    "ui_list_interactables",
-    "ui_click",
-    "ui_open_surface",
-    "ui_get_form_state",
-    "ui_set_field",
-    "ui_fill_form",
-    "ui_submit_form",
-)
-RETIRED_PAGE_TOOL_NAMES: frozenset[str] = frozenset(RETIRED_PAGE_TOOL_ORDER)
 # ---------------------------------------------------------------------------
 # Unified family resolver
 # ---------------------------------------------------------------------------
 
 
-def is_retired_page_tool_name(name: str) -> bool:
-    normalized = str(name or "").strip().lower()
+def normalize_semantic_family(value: Any) -> str:
     return (
-        normalized.startswith("ui_")
-        or normalized.startswith("pageop_")
-        or normalized in RETIRED_PAGE_TOOL_NAMES
+        str(value or "")
+        .strip()
+        .lower()
+        .replace("-", "_")
+        .replace(" ", "_")
+        .replace(".", "_")
+        .replace(":", "_")
     )
-
-
-def is_retired_page_tool(tool: Any) -> bool:
-    """Return true when a tool belongs to retired page/editor runtime."""
-    if is_retired_page_tool_name(getattr(tool, "name", "")):
-        return True
-    family = str(getattr(tool, "semantic_family", "") or "").strip().lower()
-    return family == "page_ops"
 
 
 def tool_family_from_name(
@@ -129,8 +100,6 @@ def tool_semantic_family(
 ) -> str:
     """Return the semantic family, preferring the ToolDefinition attribute."""
     family = str(getattr(tool, "semantic_family", "") or "").strip()
-    if family.lower() == "page_ops":
-        return "none"
     if family:
         return family
     return tool_family_from_name(getattr(tool, "name", ""), input_variables)

@@ -2,7 +2,7 @@
  * AI Panel state management / AI Panel 状态管理
  *
  * Manages AI slide panel global state: visibility, mode, active conversation,
- * pinned agent, tool call dispatch, etc. Replaces global-ai-chat.ts.
+ * pinned agent, interaction updates, etc. Replaces global-ai-chat.ts.
  * 管理 AI 侧滑面板的全局状态。
  */
 import { ref } from 'vue';
@@ -244,30 +244,6 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
     ];
   }
 
-  // ==================== Tool call dispatch / Tool Call 分发 ====================
-
-  type ToolCallHandler = (toolName: string, output: string) => void;
-
-  const toolCallHandlers = new Map<string, ToolCallHandler>();
-
-  function registerToolCallHandler(key: string, handler: ToolCallHandler) {
-    toolCallHandlers.set(key, handler);
-  }
-
-  function unregisterToolCallHandler(key: string) {
-    toolCallHandlers.delete(key);
-  }
-
-  function dispatchToolCall(toolName: string, output: string) {
-    for (const [key, handler] of toolCallHandlers) {
-      try {
-        handler(toolName, output);
-      } catch (error) {
-        console.warn(`[AIPanel] Tool call handler '${key}' error:`, error);
-      }
-    }
-  }
-
   // ==================== Reset / 重置 ====================
 
   function $reset() {
@@ -285,7 +261,6 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
     pendingConversationId.value = null;
     hasUnread.value = false;
     pendingInteractionUpdates.value = [];
-    toolCallHandlers.clear();
   }
 
   return {
@@ -337,11 +312,6 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
     queueInteractionUpdate,
     consumeInteractionUpdates,
     restoreInteractionUpdates,
-
-    // Tool calls / 工具调用
-    registerToolCallHandler,
-    unregisterToolCallHandler,
-    dispatchToolCall,
 
     // Reset / 重置
     $reset,

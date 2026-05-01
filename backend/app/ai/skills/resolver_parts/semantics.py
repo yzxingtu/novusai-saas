@@ -51,10 +51,6 @@ def apply_tool_semantics(tool: ToolDefinition) -> None:
         )
         return
 
-    # Page-awareness/page-operation tools are retired from AI dialogue. Keep
-    # legacy tool names unclassified so they cannot re-enter live activation via
-    # semantic hints.
-
 
 def is_runtime_eligible_skill(skill: Any) -> bool:
     if not skill:

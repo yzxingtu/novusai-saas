@@ -1,6 +1,6 @@
 """
 Test type: structural
-Scope: AI dialogue page-awareness retirement request and sandbox guards.
+Scope: AI dialogue request and sandbox guards reject invalid runtime input.
 Mock strategy: no mocks; validates public schema and sandbox guard behavior.
 """
 
@@ -11,15 +11,17 @@ from types import SimpleNamespace
 import pytest
 from pydantic import ValidationError
 
+from app.ai.engine.types import ExecutionRequest
 from app.ai.engine.system_prompt_rendering import build_system_message
 from app.ai.tools.sandbox import ToolSandbox
-from app.ai.tools.types import ToolDefinition
+from app.ai.tools.types import ToolDefinition, to_openai_tools
+from app.ai.types import ChatMessage
 from app.schemas.ai.agent_chat import AgentChatRequest, AgentRouteRequest
 from app.schemas.ai.batch_run import BatchRunCreate
 from app.schemas.ai.gateway import ChatRequest
 
 
-def test_agent_chat_request_rejects_retired_page_context_fields() -> None:
+def test_agent_chat_request_rejects_invalid_runtime_fields() -> None:
     with pytest.raises(ValidationError):
         AgentChatRequest.model_validate(
             {
@@ -49,6 +51,10 @@ def test_agent_chat_request_rejects_retired_page_context_fields() -> None:
     "key",
     [
         "page_runtime",
+        "active_surface",
+        "current_dom",
+        "has_page_intent",
+        "page_intent_kind",
         "last_page_key",
         "last_page_op",
         "ui_click",
@@ -60,15 +66,75 @@ def test_agent_chat_request_rejects_retired_page_context_fields() -> None:
         "replace_content",
     ],
 )
-def test_agent_chat_request_rejects_retired_page_runtime_variables(
+def test_agent_chat_request_rejects_invalid_runtime_variables(
     key: str,
 ) -> None:
     with pytest.raises(ValidationError):
         AgentChatRequest.model_validate(
             {
                 "message": "hello",
-                "variables": {key: "retired"},
+                "variables": {key: "invalid"},
             }
+        )
+
+
+@pytest.mark.parametrize(
+    "variables",
+    [
+        {"intent_plan": [{"kind": "tool", "family": "page_ops"}]},
+        {"tool_planner": {"semantic_family": "page_ops"}},
+        {"selected": "ui_get_snapshot"},
+        {"capability": "page_awareness"},
+    ],
+)
+def test_agent_chat_request_rejects_invalid_runtime_values(
+    variables: dict[str, object],
+) -> None:
+    with pytest.raises(ValidationError):
+        AgentChatRequest.model_validate(
+            {
+                "message": "hello",
+                "variables": variables,
+            }
+        )
+
+
+@pytest.mark.parametrize(
+    "selected_skill_name",
+    [
+        "page_awareness",
+        "页面感知交互",
+        "ui-click",
+        "pageop-click",
+    ],
+)
+def test_agent_chat_request_rejects_invalid_selected_skill_names(
+    selected_skill_name: str,
+) -> None:
+    with pytest.raises(ValidationError):
+        AgentChatRequest.model_validate(
+            {
+                "message": "hello",
+                "selected_skill_names": [selected_skill_name],
+            }
+        )
+
+
+def test_execution_request_rejects_direct_invalid_runtime_selection() -> None:
+    with pytest.raises(ValueError):
+        ExecutionRequest(
+            agent_id=1,
+            tenant_id=1,
+            messages=[ChatMessage(role="user", content="hello")],
+            selected_skill_names=["page_awareness"],
+        )
+
+    with pytest.raises(ValueError):
+        ExecutionRequest(
+            agent_id=1,
+            tenant_id=1,
+            messages=[ChatMessage(role="user", content="hello")],
+            trust_policy_ref={"allowed_tool_names": ["ui-click"]},
         )
 
 
@@ -84,19 +150,19 @@ def test_agent_chat_request_rejects_retired_page_runtime_variables(
         "replace_content",
     ],
 )
-def test_batch_run_items_reject_retired_page_runtime_variables(key: str) -> None:
+def test_batch_run_items_reject_invalid_runtime_variables(key: str) -> None:
     with pytest.raises(ValidationError):
-        BatchRunCreate.model_validate({"items": [{"name": "row", key: "retired"}]})
+        BatchRunCreate.model_validate({"items": [{"name": "row", key: "invalid"}]})
 
 
-def test_batch_run_nested_variables_reject_retired_page_runtime_variables() -> None:
+def test_batch_run_nested_variables_reject_invalid_runtime_variables() -> None:
     with pytest.raises(ValidationError):
         BatchRunCreate.model_validate(
-            {"items": [{"name": "row", "variables": {"page_runtime": "retired"}}]}
+            {"items": [{"name": "row", "variables": {"page_runtime": "invalid"}}]}
         )
 
 
-def test_system_prompt_rendering_rejects_direct_retired_variable_bypass() -> None:
+def test_system_prompt_rendering_rejects_direct_invalid_variable_bypass() -> None:
     agent = SimpleNamespace(
         id=1,
         name="Assistant",
@@ -110,7 +176,7 @@ def test_system_prompt_rendering_rejects_direct_retired_variable_bypass() -> Non
         )
 
 
-def test_tool_sandbox_constructor_rejects_retired_page_variables() -> None:
+def test_tool_sandbox_constructor_rejects_invalid_runtime_variables() -> None:
     with pytest.raises(ValueError):
         ToolSandbox(
             tenant_id=1,
@@ -119,7 +185,7 @@ def test_tool_sandbox_constructor_rejects_retired_page_variables() -> None:
         )
 
 
-def test_agent_route_request_rejects_retired_page_context_fields() -> None:
+def test_agent_route_request_rejects_invalid_runtime_fields() -> None:
     with pytest.raises(ValidationError):
         AgentRouteRequest.model_validate(
             {
@@ -129,7 +195,7 @@ def test_agent_route_request_rejects_retired_page_context_fields() -> None:
         )
 
 
-def test_direct_gateway_chat_request_rejects_retired_page_context_fields() -> None:
+def test_direct_gateway_chat_request_rejects_invalid_runtime_fields() -> None:
     with pytest.raises(ValidationError):
         ChatRequest.model_validate(
             {
@@ -154,7 +220,7 @@ def test_direct_gateway_chat_request_rejects_retired_page_context_fields() -> No
         )
 
 
-def test_direct_gateway_rejects_retired_page_tool_definitions() -> None:
+def test_direct_gateway_rejects_invalid_runtime_tool_definitions() -> None:
     with pytest.raises(ValidationError):
         ChatRequest.model_validate(
             {
@@ -165,7 +231,7 @@ def test_direct_gateway_rejects_retired_page_tool_definitions() -> None:
                         "type": "function",
                         "function": {
                             "name": "ui_get_snapshot",
-                            "description": "retired",
+                            "description": "invalid runtime tool",
                         },
                     }
                 ],
@@ -182,7 +248,7 @@ def test_direct_gateway_rejects_retired_page_tool_definitions() -> None:
                         "type": "function",
                         "function": {
                             "name": "append_content",
-                            "description": "retired editor runtime",
+                            "description": "invalid runtime tool",
                         },
                     }
                 ],
@@ -211,17 +277,17 @@ def test_direct_gateway_rejects_retired_page_tool_definitions() -> None:
 
 
 @pytest.mark.asyncio
-async def test_tool_sandbox_rejects_retired_page_tools() -> None:
+async def test_tool_sandbox_rejects_invalid_runtime_tools() -> None:
     sandbox = ToolSandbox(
         tenant_id=1,
         agent_id=1,
     )
     definitions = [
-        ToolDefinition(name="ui_read_region", description="retired"),
-        ToolDefinition(name="get_page_context", description="retired"),
+        ToolDefinition(name="ui_read_region", description="invalid"),
+        ToolDefinition(name="get_page_context", description="invalid"),
         ToolDefinition(
             name="custom_editor_bridge",
-            description="retired by semantic family",
+            description="invalid by semantic family",
             semantic_family="page_ops",
         ),
     ]
@@ -234,4 +300,20 @@ async def test_tool_sandbox_rejects_retired_page_tools() -> None:
         result = await sandbox.execute("call-1", tool_name, {}, definitions)
 
         assert result.success is False
-        assert result.error_type == "page_awareness_retired"
+        assert result.error_type == "invalid_runtime_tool"
+
+
+def test_openai_tool_schema_filters_invalid_runtime_tools() -> None:
+    tools = to_openai_tools(
+        [
+            ToolDefinition(name="crm_lookup", description="valid"),
+            ToolDefinition(name="ui-click", description="invalid alias"),
+            ToolDefinition(
+                name="custom_bridge",
+                description="invalid family",
+                semantic_family="page_ops",
+            ),
+        ]
+    )
+
+    assert [tool["function"]["name"] for tool in tools] == ["crm_lookup"]

@@ -14,10 +14,10 @@ def test_build_model_request_overrides_fast_text_turn_uses_low_reasoning() -> No
     }
 
 
-def test_build_model_request_overrides_retired_ui_only_turn_keeps_default_reasoning() -> None:
+def test_build_model_request_overrides_data_tool_turn_keeps_default_reasoning() -> None:
     overrides = build_model_request_overrides(
         execution_path="deep",
-        tools=[_tool("ui_click"), _tool("ui_get_snapshot")],
+        tools=[_tool("crm_update_record"), _tool("crm_lookup")],
     )
 
     assert overrides == {}
@@ -26,7 +26,7 @@ def test_build_model_request_overrides_retired_ui_only_turn_keeps_default_reason
 def test_build_model_request_overrides_mixed_tool_turn_keeps_default_reasoning() -> None:
     assert build_model_request_overrides(
         execution_path="deep",
-        tools=[_tool("ui_click"), _tool("web_search")],
+        tools=[_tool("crm_update_record"), _tool("web_search")],
     ) == {}
 
 
@@ -37,7 +37,7 @@ def test_build_model_request_overrides_supports_openai_tool_dict_shape() -> None
             {
                 "type": "function",
                 "function": {
-                    "name": "ui_open_surface",
+                    "name": "crm_open_record",
                     "parameters": {},
                 },
             }

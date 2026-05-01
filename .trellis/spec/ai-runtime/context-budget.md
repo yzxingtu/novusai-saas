@@ -41,8 +41,8 @@ diagnostics.
   (`capability_pack`) and resolved tool bindings. Descriptor-only entries with
   `has_execution_tools=false` are catalog metadata, not budget-worthy live
   capability context.
-- `page_context` is retired for AI dialogue and must not be attached to prompt,
-  manifest, or diagnostics context
+- `page_context` is not a live AI dialogue context source and must not be
+  attached to prompt, manifest, or diagnostics context
 - `knowledge_base` should not be injected for all-shortcircuit turns that do
   not need retrieval
 - `memory` should be attached only when the turn or runtime flags justify it;

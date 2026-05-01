@@ -1,5 +1,5 @@
 """Test type: behavioral
-Scope: runtime diagnostics root-cause classification and retired page-awareness scrubbing
+Scope: runtime diagnostics root-cause classification and invalid runtime metadata scrubbing
 Real dependencies: RuntimeDiagnosticsService root-cause projector and diagnostics helpers
 Mocked dependencies: call-log and conversation-turn loaders only
 """
@@ -110,7 +110,7 @@ async def test_build_root_cause_prefers_conversation_partial_over_successful_cal
     assert report["related_ids"]["conversation_message_id"] == 77
 
 
-def test_classify_root_cause_scrubs_retired_page_awareness_diagnostics(mock_db):
+def test_classify_root_cause_scrubs_invalid_ai_runtime_input_diagnostics(mock_db):
     from app.services.ai.runtime_diagnostics_service import RuntimeDiagnosticsService
 
     service = RuntimeDiagnosticsService(mock_db)
@@ -119,13 +119,13 @@ def test_classify_root_cause_scrubs_retired_page_awareness_diagnostics(mock_db):
             call_log=_call_log(),
             diagnostics={
                 "conversation_outcome": "failed",
-                "continuation_source": "page_ops",
+                "continuation_source": "data_ops",
                 "tool_planner": {
                     "intent": "page_search",
-                    "family": "page_ops",
+                    "family": "data_ops",
                 },
-                "candidate_tool_names": ["ui_get_snapshot"],
-                "selected_skill_names": ["runtime.page_context", "Research Skill"],
+                "candidate_tool_names": ["crm_lookup"],
+                "selected_skill_names": ["runtime.crm_records", "Research Skill"],
             },
             conversation_turn={"message_id": 91},
         )
@@ -133,7 +133,7 @@ def test_classify_root_cause_scrubs_retired_page_awareness_diagnostics(mock_db):
 
     assert failure_layer == "post_processing"
     assert cause_code == "unknown_failure"
-    assert "page_ops" not in summary
+    assert "data_ops" not in summary
     assert first_fix is not None
     assert confidence == 0.6
 
@@ -216,8 +216,8 @@ def test_classify_root_cause_prefers_budget_exit_over_untrusted_final_output_sou
                 "partial_exit_reason": "elapsed_budget_exceeded",
                 "failure_kind": "budget_exit",
                 "final_output_source": "budget_fallback",
-                "selected_tool_names": ["ui_get_snapshot"],
-                "candidate_tool_names": ["ui_get_snapshot"],
+                "selected_tool_names": ["crm_lookup"],
+                "candidate_tool_names": ["crm_lookup"],
                 "provider_events": [
                     {"kind": "budget_exit", "reason": "elapsed_budget_exceeded"}
                 ],
@@ -329,12 +329,12 @@ async def test_build_root_cause_reports_fake_tool_call_contract_breach(mock_db):
         "message_id": 88,
         "diagnostics": {
             "conversation_outcome": "failed",
-            "continuation_source": "page_ops",
+            "continuation_source": "data_ops",
             "tool_planner": {
                 "intent": "direct_reply",
                 "family": "none",
             },
-            "candidate_tool_names": ["ui_get_snapshot"],
+            "candidate_tool_names": ["crm_lookup"],
             "assistant_claimed_tool_call_without_tool_event": True,
             "contract_breach_type": "assistant_claimed_tool_call_without_tool_event",
         },
@@ -480,7 +480,7 @@ async def test_build_root_cause_classifies_provider_timeout_before_first_chunk(m
 
 
 @pytest.mark.asyncio
-async def test_build_root_cause_scrubs_retired_page_metadata_from_evidence(mock_db):
+async def test_build_root_cause_scrubs_invalid_runtime_metadata_from_evidence(mock_db):
     from app.services.ai.runtime_diagnostics_service import RuntimeDiagnosticsService
 
     service = RuntimeDiagnosticsService(mock_db)
@@ -488,13 +488,13 @@ async def test_build_root_cause_scrubs_retired_page_metadata_from_evidence(mock_
         request_metadata={
             "turn_diagnostics": {
                 "conversation_outcome": "failed",
-                "continuation_source": "page_ops",
+                "continuation_source": "data_ops",
                 "tool_planner": {
                     "intent": "page_search",
-                    "family": "page_ops",
+                    "family": "data_ops",
                 },
-                "candidate_tool_names": ["ui_read_region", "web_search"],
-                "selected_tool_names": ["ui_get_snapshot", "fetch_url"],
+                "candidate_tool_names": ["crm_read_record", "web_search"],
+                "selected_tool_names": ["crm_lookup", "fetch_url"],
             }
         }
     )
@@ -529,24 +529,24 @@ async def test_build_root_cause_scrubs_retired_page_metadata_from_evidence(mock_
             },
             "context_diagnostics": {
                 "conversation_outcome": "failed",
-                "continuation_source": "page_ops",
+                "continuation_source": "data_ops",
                 "tool_planner": {
                     "intent": "page_search",
-                    "family": "page_ops",
+                    "family": "data_ops",
                 },
-                "candidate_tool_names": ["ui_read_region", "web_search"],
-                "selected_tool_names": ["ui_get_snapshot", "fetch_url"],
+                "candidate_tool_names": ["crm_read_record", "web_search"],
+                "selected_tool_names": ["crm_lookup", "fetch_url"],
             },
         },
         "diagnostics": {
             "conversation_outcome": "failed",
-            "continuation_source": "page_ops",
+            "continuation_source": "data_ops",
             "tool_planner": {
                 "intent": "page_search",
-                "family": "page_ops",
+                "family": "data_ops",
             },
-            "candidate_tool_names": ["ui_read_region", "web_search"],
-            "selected_tool_names": ["ui_get_snapshot", "fetch_url"],
+            "candidate_tool_names": ["crm_read_record", "web_search"],
+            "selected_tool_names": ["crm_lookup", "fetch_url"],
         },
     }
 

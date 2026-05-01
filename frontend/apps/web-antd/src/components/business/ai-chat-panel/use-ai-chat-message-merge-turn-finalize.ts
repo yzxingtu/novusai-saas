@@ -73,7 +73,6 @@ export function buildAssistantMessageFromState(
     content: state.turnPersistedErrorOnly ? '' : mergedContent,
     model_name: state.turnModelName,
     role: 'assistant',
-    routeSource: state.turnRouteSource,
   };
   if (state.turnCreatedAt) {
     assistantMessage.created_at = state.turnCreatedAt;

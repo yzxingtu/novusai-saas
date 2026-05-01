@@ -29,7 +29,7 @@ import NotificationPanel from '#/components/business/notification-panel/Notifica
 import NotificationToast from '#/components/business/notification-toast/NotificationToast.vue';
 import PluginFloatingPanels from '#/components/business/plugin-slots/PluginFloatingPanels.vue';
 import ReLoginForm from '#/components/business/re-login-form/ReLoginForm.vue';
-import { useCurrentPageAIPolicy } from '#/composables';
+import { useAIEntryPolicy } from '#/composables';
 import {
   refreshPluginSlots,
   resetPluginRoutesReady,
@@ -77,7 +77,7 @@ const { initSnapshot, skipSync } = usePreferenceSync();
 
 // ============ AI Panel / AI 面板 ============
 
-const { aiEnabled } = useCurrentPageAIPolicy();
+const { aiEnabled } = useAIEntryPolicy();
 
 const apiPrefix = computed(() => {
   const path = router.currentRoute.value.path;

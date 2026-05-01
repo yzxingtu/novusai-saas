@@ -95,34 +95,23 @@ def test_inject_runtime_summary_is_idempotent_for_same_signature() -> None:
     ) == first_signature
 
 
-def test_inject_runtime_summary_omits_retired_runtime_narration() -> None:
+def test_inject_runtime_summary_uses_compact_live_runtime_narration() -> None:
     messages = [ChatMessage(role="system", content="SYS")]
     tools = [
         ToolDefinition(name="web_search"),
         ToolDefinition(name="fetch_url"),
-        ToolDefinition(name="ui_click"),
-        ToolDefinition(name="ui_read_table"),
-        ToolDefinition(name="ui_list_interactables"),
     ]
     before_tokens = estimate_tokens(messages[0].content)
     intents = [
         IntentPlan(
             intent_id="intent-1",
-            kind="page_workflow",
-            family="page_ops",
+            kind="web_research",
+            family="web_research",
             order=1,
-            user_visible_label="page_workflow",
-            source_text="搜索当前页面中的记录",
-            allowed_tool_names=["ui_click", "ui_read_table", "ui_list_interactables"],
-            preferred_tool_names=[
-                "ui_click",
-                "ui_read_table",
-                "ui_list_interactables",
-            ],
-            metadata={
-                "page_workflow_kind": "page_workflow",
-                "page_workflow_goal": "search",
-            },
+            user_visible_label="web_research",
+            source_text="搜索最新公开资料",
+            allowed_tool_names=["web_search", "fetch_url"],
+            preferred_tool_names=["web_search", "fetch_url"],
         )
     ]
     inject_runtime_summary(
@@ -147,14 +136,10 @@ def test_inject_runtime_summary_omits_retired_runtime_narration() -> None:
     assert "Prefer the smallest tool sequence" not in content
     assert "Stop after reporting completed work" not in content
     assert "Knowledge-base context is available this turn." not in content
-    assert "Page context is available this turn." not in content
     assert "Memory context may already be attached this turn." not in content
     assert "runtime.path=normal" in content
-    assert "runtime.intents=page_workflow" in content
+    assert "runtime.intents=web_research" in content
     assert "runtime.tools=web_search, fetch_url" in content
-    assert "ui_click" not in content
-    assert "ui_read_table" not in content
-    assert "ui_list_interactables" not in content
     assert "runtime.selected_skills=browser, researcher" in content
     assert estimate_tokens(content) - before_tokens <= 120
 
@@ -241,62 +226,72 @@ def test_base_engine_wrappers_delegate_to_extracted_helpers() -> None:
     assert helper_response.message.content == ""
 
 
-def test_page_submit_completion_signals_are_retired() -> None:
+def test_data_submit_completion_signals_use_allowed_record_tools() -> None:
     assert BaseEngine._intent_completion_signals(
-        "page_ops",
-        intent_kind="page_workflow",
+        "data_ops",
+        intent_kind="data_workflow",
         allowed_tool_names=[
-            "ui_get_form_state",
-            "ui_fill_form",
-            "ui_set_field",
-            "ui_submit_form",
+            "crm_get_record_state",
+            "crm_update_record",
+            "crm_set_field",
+            "crm_submit_record",
         ],
         preferred_tool_names=[
-            "ui_fill_form",
-            "ui_set_field",
-            "ui_submit_form",
+            "crm_update_record",
+            "crm_set_field",
+            "crm_submit_record",
         ],
         intent_metadata={
-            "page_workflow_kind": "page_workflow",
-            "page_workflow_goal": "form_write",
-            "page_workflow_phase": "submit",
-            "page_workflow_completion": {
+            "data_workflow_kind": "data_workflow",
+            "data_workflow_goal": "form_write",
+            "data_workflow_phase": "submit",
+            "data_workflow_completion": {
                 "mode": "verify_only",
-                "completion_signals": ["ui_submit_form"],
+                "completion_signals": ["crm_submit_record"],
                 "action_signals": [],
-                "verify_signals": ["ui_submit_form"],
+                "verify_signals": ["crm_submit_record"],
             },
         },
-    ) == []
+    ) == [
+        "crm_get_record_state",
+        "crm_update_record",
+        "crm_set_field",
+        "crm_submit_record",
+    ]
 
 
-def test_page_workflow_completion_signals_do_not_reactivate_page_tools() -> None:
+def test_data_workflow_completion_signals_use_allowed_record_tools() -> None:
     assert BaseEngine._intent_completion_signals(
-        "page_ops",
-        intent_kind="page_workflow",
+        "data_ops",
+        intent_kind="data_workflow",
         allowed_tool_names=[
-            "ui_get_form_state",
-            "ui_fill_form",
-            "ui_set_field",
-            "ui_submit_form",
+            "crm_get_record_state",
+            "crm_update_record",
+            "crm_set_field",
+            "crm_submit_record",
         ],
         preferred_tool_names=[
-            "ui_fill_form",
-            "ui_set_field",
-            "ui_submit_form",
+            "crm_update_record",
+            "crm_set_field",
+            "crm_submit_record",
         ],
         intent_metadata={
-            "page_workflow_kind": "page_workflow",
-            "page_workflow_goal": "form_write",
-            "page_workflow_phase": "submit",
-            "page_workflow_completion": {
+            "data_workflow_kind": "data_workflow",
+            "data_workflow_goal": "form_write",
+            "data_workflow_phase": "submit",
+            "data_workflow_completion": {
                 "mode": "verify_only",
-                "completion_signals": ["ui_submit_form"],
+                "completion_signals": ["crm_submit_record"],
                 "action_signals": [],
-                "verify_signals": ["ui_submit_form"],
+                "verify_signals": ["crm_submit_record"],
             },
         },
-    ) == []
+    ) == [
+        "crm_get_record_state",
+        "crm_update_record",
+        "crm_set_field",
+        "crm_submit_record",
+    ]
 
 
 def test_deserialize_intent_plan_filters_invalid_entries() -> None:

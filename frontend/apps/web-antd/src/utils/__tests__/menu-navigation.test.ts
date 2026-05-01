@@ -57,7 +57,7 @@ describe('menu-navigation', () => {
     }
   });
 
-  it('serializes compact navigation catalog without route page context', () => {
+  it('serializes compact navigation catalog without runtime context fields', () => {
     const entries = buildMenuNavigationEntries({
       currentEndpoint: 'admin',
       menus: [
@@ -75,7 +75,18 @@ describe('menu-navigation', () => {
       path: '/admin/ai/agents',
     });
 
-    expect(JSON.stringify(entries)).not.toContain('navigation_context');
-    expect(JSON.stringify(entries)).not.toContain('page_session_id');
+    expect(Object.keys(entries[0] ?? {}).sort()).toEqual([
+      'breadcrumb',
+      'capabilities',
+      'category',
+      'description',
+      'endpoint',
+      'icon',
+      'key',
+      'keywords',
+      'pageKey',
+      'path',
+      'title',
+    ]);
   });
 });

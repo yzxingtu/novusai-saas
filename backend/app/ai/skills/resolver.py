@@ -27,13 +27,14 @@ from app.ai.events.hooks import HookPoint, get_hook_registry
 from app.ai.runtime.types import CapabilityDescriptor, collect_selected_skill_names
 from app.ai.skills import resolver_parts as parts
 from app.ai.skills.activation import TurnSkillActivation
-from app.ai.tools.semantic_defaults import (
-    is_retired_page_tool,
-    is_retired_page_tool_name,
-    tool_family_from_name,
-)
+from app.ai.tools.semantic_defaults import tool_family_from_name
 from app.ai.tools.types import ToolDefinition, ToolParameter
 from app.core.logging import LogManager
+from app.schemas.ai.invalid_ai_runtime_input import (
+    filter_invalid_ai_runtime_references,
+    filter_invalid_ai_runtime_tools,
+    is_invalid_ai_runtime_reference,
+)
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -58,25 +59,72 @@ def _stable_unique_texts(values: list[Any]) -> list[str]:
     return normalized
 
 
+def _live_runtime_references(values: list[Any] | None) -> list[str]:
+    return filter_invalid_ai_runtime_references(values or [])
+
+
+def _scrub_descriptor_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
+    scrubbed = dict(metadata or {})
+    for key in (
+        "allowed_tool_names",
+        "inventory_selected_tool_names",
+        "preview_semantic_families",
+        "resolved_tool_names",
+        "selected_tool_names",
+        "startup_preview_semantic_families",
+        "startup_preview_tool_names",
+    ):
+        if key in scrubbed:
+            scrubbed[key] = _live_runtime_references(list(scrubbed.get(key) or []))
+    return scrubbed
+
+
+def _descriptor_is_live_runtime(descriptor: CapabilityDescriptor) -> bool:
+    metadata = dict(getattr(descriptor, "metadata", {}) or {})
+    return not (
+        is_invalid_ai_runtime_reference(getattr(descriptor, "name", ""))
+        or is_invalid_ai_runtime_reference(metadata.get("package_name"))
+        or is_invalid_ai_runtime_reference(metadata.get("source_package_name"))
+    )
+
+
+def _sanitize_skill_resolve_result(result: SkillResolveResult) -> None:
+    result.tools = filter_invalid_ai_runtime_tools(result.tools)
+    live_tool_names = {
+        str(getattr(tool, "name", "") or "").strip()
+        for tool in result.tools
+        if str(getattr(tool, "name", "") or "").strip()
+    }
+    result.tool_consent_modes = {
+        name: mode
+        for name, mode in dict(result.tool_consent_modes or {}).items()
+        if name in live_tool_names and not is_invalid_ai_runtime_reference(name)
+    }
+    result.capability_descriptors = [
+        CapabilityDescriptor(
+            name=descriptor.name,
+            kind=descriptor.kind,
+            source=descriptor.source,
+            description=descriptor.description,
+            metadata=_scrub_descriptor_metadata(
+                dict(getattr(descriptor, "metadata", {}) or {})
+            ),
+        )
+        for descriptor in list(result.capability_descriptors or [])
+        if _descriptor_is_live_runtime(descriptor)
+    ]
+    if result.inventory_selected_tool_names_override is not None:
+        result.inventory_selected_tool_names_override = _live_runtime_references(
+            result.inventory_selected_tool_names_override
+        )
+    if result.inventory_selected_skill_names_override is not None:
+        result.inventory_selected_skill_names_override = _live_runtime_references(
+            result.inventory_selected_skill_names_override
+        )
+
+
 def _normalized_match_text(value: Any) -> str:
     return " ".join(str(value or "").strip().lower().split())
-
-
-def _remove_retired_page_tools(result: Any) -> None:
-    tools = list(getattr(result, "tools", []) or [])
-    result.tools = [
-        tool
-        for tool in tools
-        if not is_retired_page_tool(tool)
-    ]
-    if hasattr(result, "tool_consent_modes"):
-        result.tool_consent_modes = {
-            name: mode
-            for name, mode in dict(
-                getattr(result, "tool_consent_modes", {}) or {}
-            ).items()
-            if not is_retired_page_tool_name(name)
-        }
 
 
 @dataclass
@@ -100,38 +148,34 @@ class SkillResolveResult:
     @property
     def inventory_selected_tool_names(self) -> list[str]:
         if self.inventory_selected_tool_names_override is not None:
-            return list(self.inventory_selected_tool_names_override)
-        return [
+            return _live_runtime_references(list(self.inventory_selected_tool_names_override))
+        return _live_runtime_references([
             str(getattr(tool, "name", "") or "").strip()
             for tool in self.tools
             if str(getattr(tool, "name", "") or "").strip()
-        ]
+        ])
 
     @property
     def inventory_selected_skill_names(self) -> list[str]:
         if self.inventory_selected_skill_names_override is not None:
-            return list(self.inventory_selected_skill_names_override)
-        return collect_selected_skill_names(
+            return _live_runtime_references(list(self.inventory_selected_skill_names_override))
+        return _live_runtime_references(collect_selected_skill_names(
             descriptors=self.capability_descriptors,
             tools=self.tools,
-        )
+        ))
 
     @property
     def selected_skill_names(self) -> list[str]:
         activation = self.turn_activation
         if activation is not None and activation.applied:
-            return list(activation.activated_skill_names or [])
+            return _live_runtime_references(list(activation.activated_skill_names or []))
         return self.inventory_selected_skill_names
 
     @property
     def selected_tool_names(self) -> list[str]:
         activation = self.turn_activation
         if activation is not None and activation.applied:
-            return [
-                name
-                for name in list(activation.activated_tool_names or [])
-                if not is_retired_page_tool_name(name)
-            ]
+            return _live_runtime_references(list(activation.activated_tool_names or []))
         return self.inventory_selected_tool_names
 
 
@@ -214,29 +258,29 @@ def _preview_tool_names_for_skill(
                 str(exc),
             )
             return []
-        return [
+        return _live_runtime_references([
             str(getattr(tool_meta, "name", "") or "").strip()
             for tool_meta in list(getattr(meta, "tools", []) or [])
             if str(getattr(tool_meta, "name", "") or "").strip()
-        ]
+        ])
     if skill_type == "builtin":
         tools_config = config.get("tools")
         if isinstance(tools_config, list):
-            return [
+            return _live_runtime_references([
                 str((tool_cfg or {}).get("name") or "").strip()
                 for tool_cfg in tools_config
                 if str((tool_cfg or {}).get("name") or "").strip()
                 and str((tool_cfg or {}).get("name") or "").strip()
                 not in _RUNTIME_BUILTIN_TOOL_NAMES
-            ]
+            ])
         tool_name = str(getattr(skill, "name", "") or "").strip()
         if tool_name in _RUNTIME_BUILTIN_TOOL_NAMES:
             return []
-        return [tool_name] if tool_name else []
+        return _live_runtime_references([tool_name]) if tool_name else []
     if skill_type == "http":
         tool_name = str(getattr(skill, "name", "") or "").strip().lower()
         tool_name = tool_name.replace(" ", "_")
-        return [tool_name] if tool_name else []
+        return _live_runtime_references([tool_name]) if tool_name else []
     if skill_type == "email":
         return ["send_email"]
     if skill_type == "code_execution":
@@ -261,11 +305,7 @@ def _preview_semantic_families_for_skill(
     preview_semantic_families: list[str] | None = None,
     extra_hint_values: list[str] | None = None,
 ) -> list[str]:
-    families = [
-        family
-        for family in _stable_unique_texts(list(preview_semantic_families or []))
-        if family != "page_ops"
-    ]
+    families = _live_runtime_references(list(preview_semantic_families or []))
     for tool_name in preview_tool_names:
         family = tool_family_from_name(str(tool_name or "").strip())
         if family != "none" and family not in families:
@@ -279,7 +319,7 @@ def _preview_semantic_families_for_skill(
     )
     if hint_tokens & _WEB_RESEARCH_HINT_TOKENS and "web_research" not in families:
         families.append("web_research")
-    return families
+    return _live_runtime_references(families)
 
 
 def _match_plugin_startup_preview(
@@ -354,7 +394,7 @@ def _build_skill_grant_previews(
                 source_plugin, []
             ),
         )
-        preview_tool_names = _stable_unique_texts(
+        preview_tool_names = _live_runtime_references(
             list(manifest_preview.get("preview_tool_names") or [])
             + _preview_tool_names_for_skill(
                 skill=skill,
@@ -362,21 +402,23 @@ def _build_skill_grant_previews(
                 source_plugin=source_plugin,
             )
         )
-        preview_semantic_families = _preview_semantic_families_for_skill(
-            skill=skill,
-            package_name=package_name,
-            source_plugin=source_plugin,
-            preview_tool_names=preview_tool_names,
-            preview_semantic_families=list(
-                manifest_preview.get("preview_semantic_families") or []
-            ),
-            extra_hint_values=_stable_unique_texts(
-                list(manifest_preview.get("candidate_names") or [])
-                + [
-                    manifest_preview.get("entry_point"),
-                    manifest_preview.get("description"),
-                ]
-            ),
+        preview_semantic_families = _live_runtime_references(
+            _preview_semantic_families_for_skill(
+                skill=skill,
+                package_name=package_name,
+                source_plugin=source_plugin,
+                preview_tool_names=preview_tool_names,
+                preview_semantic_families=list(
+                    manifest_preview.get("preview_semantic_families") or []
+                ),
+                extra_hint_values=_stable_unique_texts(
+                    list(manifest_preview.get("candidate_names") or [])
+                    + [
+                        manifest_preview.get("entry_point"),
+                        manifest_preview.get("description"),
+                    ]
+                ),
+            )
         )
         previews.append(
             SkillGrantPreview(
@@ -455,10 +497,10 @@ def _apply_catalog_preview_metadata(
         if preview is None:
             continue
 
-        preview_tool_names = _stable_unique_texts(
+        preview_tool_names = _live_runtime_references(
             list(preview.preview_tool_names or [])
         )
-        preview_semantic_families = _stable_unique_texts(
+        preview_semantic_families = _live_runtime_references(
             list(preview.preview_semantic_families or [])
         )
         if not preview_tool_names and not preview_semantic_families:
@@ -613,8 +655,8 @@ class SkillResolver:
 
         # Prevent tool name duplicates causing execution and consent attribution mismatch
         # 避免工具重名导致执行与 consent 归因错配
+        _sanitize_skill_resolve_result(result)
         self._ensure_unique_tool_names(result.tools)
-        _remove_retired_page_tools(result)
 
         logger.info(
             "Resolved {} skills → {} tools",
@@ -970,7 +1012,7 @@ async def resolve_for_agent(
             tool_definitions=resolve_result.tools,
         )
         resolve_result.tools = hook_ctx.get("tool_definitions", resolve_result.tools)
-    _remove_retired_page_tools(resolve_result)
+    _sanitize_skill_resolve_result(resolve_result)
     enrich_skill_capability_descriptors_with_tools(
         descriptors=resolve_result.capability_descriptors,
         tools=resolve_result.tools,

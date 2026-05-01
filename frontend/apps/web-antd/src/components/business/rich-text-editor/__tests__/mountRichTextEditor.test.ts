@@ -17,11 +17,11 @@ vi.mock('../RichTextEditor.vue', () => ({
 }));
 
 describe('mountRichTextEditor', () => {
-  it('mounts without requiring page-level AI context keys', () => {
+  it('mounts the editor without AI runtime options', () => {
     const container = document.createElement('div');
     document.body.append(container);
 
-    const editor = mountRichTextEditor(container, { ai: true });
+    const editor = mountRichTextEditor(container);
 
     expect(container.querySelector('.rich-text-editor-stub')).not.toBeNull();
     editor.destroy();

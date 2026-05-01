@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from typing import Any
 
 from app.core.i18n import _
@@ -61,7 +61,20 @@ DISALLOWED_AI_RUNTIME_INPUT_KEYS = frozenset(
 )
 
 DISALLOWED_AI_RUNTIME_INPUT_PREFIXES = ("pageop_", "ui_")
-DISALLOWED_AI_RUNTIME_INPUT_VALUES = frozenset({"page_awareness"})
+DISALLOWED_AI_RUNTIME_INPUT_VALUES = frozenset(
+    {
+        "page_awareness",
+        "page_awareness_interaction",
+        "page_ai",
+        "page_operation",
+        "page_operations",
+        "page_runtime",
+        "page_summary",
+        "页面感知",
+        "页面感知交互",
+        "页面操作",
+    }
+)
 
 
 def disallowed_ai_runtime_input_keys(
@@ -69,40 +82,48 @@ def disallowed_ai_runtime_input_keys(
 ) -> list[str]:
     if not isinstance(payload, Mapping):
         return []
-    retired_keys: list[str] = []
-    _collect_disallowed_ai_runtime_input_keys(payload, "", retired_keys)
-    return sorted(set(retired_keys))
+    disallowed_keys: list[str] = []
+    _collect_disallowed_ai_runtime_input_keys(payload, "", disallowed_keys)
+    return sorted(set(disallowed_keys))
 
 
 def _collect_disallowed_ai_runtime_input_keys(
     value: Any,
     path: str,
-    retired_keys: list[str],
+    disallowed_keys: list[str],
 ) -> None:
     if isinstance(value, Mapping):
         for key, nested in value.items():
             text = str(key or "").strip()
             next_path = f"{path}.{text}" if path and text else text or path
             if _is_disallowed_ai_runtime_key(text):
-                retired_keys.append(next_path or text)
-            _collect_disallowed_ai_runtime_input_keys(nested, next_path, retired_keys)
+                disallowed_keys.append(next_path or text)
+            _collect_disallowed_ai_runtime_input_keys(
+                nested,
+                next_path,
+                disallowed_keys,
+            )
         return
 
     if isinstance(value, Sequence) and not isinstance(value, str | bytes | bytearray):
         for index, nested in enumerate(value):
             next_path = f"{path}[{index}]" if path else f"[{index}]"
-            _collect_disallowed_ai_runtime_input_keys(nested, next_path, retired_keys)
+            _collect_disallowed_ai_runtime_input_keys(
+                nested,
+                next_path,
+                disallowed_keys,
+            )
         return
 
     if _is_disallowed_ai_runtime_value(value):
-        retired_keys.append(path or str(value or "").strip())
+        disallowed_keys.append(path or str(value or "").strip())
 
 
 def _is_disallowed_ai_runtime_key(key: str) -> bool:
     text = str(key or "").strip()
     if not text:
         return False
-    normalized = text.lower()
+    normalized = normalize_ai_runtime_token(text)
     return normalized in DISALLOWED_AI_RUNTIME_INPUT_KEYS or normalized.startswith(
         DISALLOWED_AI_RUNTIME_INPUT_PREFIXES
     )
@@ -140,11 +161,25 @@ def is_invalid_ai_runtime_tool_family(value: Any) -> bool:
 
 
 def is_invalid_ai_runtime_tool_name(name: Any) -> bool:
-    normalized = str(name or "").strip().lower()
+    normalized = normalize_ai_runtime_token(name)
     return (
         normalized.startswith("ui_")
         or normalized.startswith("pageop_")
         or normalized in INVALID_AI_RUNTIME_TOOL_NAMES
+    )
+
+
+def is_invalid_ai_runtime_reference(value: Any) -> bool:
+    normalized = normalize_ai_runtime_token(value)
+    return bool(
+        normalized
+        and (
+            normalized in DISALLOWED_AI_RUNTIME_INPUT_KEYS
+            or
+            normalized in DISALLOWED_AI_RUNTIME_INPUT_VALUES
+            or is_invalid_ai_runtime_tool_name(value)
+            or is_invalid_ai_runtime_tool_family(value)
+        )
     )
 
 
@@ -154,15 +189,30 @@ def is_invalid_ai_runtime_tool(tool: Any) -> bool:
     return is_invalid_ai_runtime_tool_family(getattr(tool, "semantic_family", ""))
 
 
+def filter_invalid_ai_runtime_tools(tools: Iterable[Any] | None) -> list[Any]:
+    return [tool for tool in list(tools or []) if not is_invalid_ai_runtime_tool(tool)]
+
+
+def filter_invalid_ai_runtime_references(values: Iterable[Any] | None) -> list[str]:
+    filtered: list[str] = []
+    for value in list(values or []):
+        text = str(value or "").strip()
+        if not text or is_invalid_ai_runtime_reference(text):
+            continue
+        if text not in filtered:
+            filtered.append(text)
+    return filtered
+
+
 def ensure_no_disallowed_ai_runtime_input(
     payload: Mapping[str, Any] | None,
 ) -> None:
-    retired_keys = disallowed_ai_runtime_input_keys(payload)
-    if retired_keys:
+    disallowed_keys = disallowed_ai_runtime_input_keys(payload)
+    if disallowed_keys:
         raise ValueError(
             _(
                 "agent_chat.error.invalid_ai_runtime_input_fields",
-                fields=", ".join(retired_keys),
+                fields=", ".join(disallowed_keys),
             )
         )
 
@@ -183,6 +233,9 @@ __all__ = [
     "assert_no_disallowed_ai_runtime_input",
     "ensure_no_disallowed_ai_runtime_input",
     "disallowed_ai_runtime_input_keys",
+    "filter_invalid_ai_runtime_references",
+    "filter_invalid_ai_runtime_tools",
+    "is_invalid_ai_runtime_reference",
     "is_invalid_ai_runtime_tool",
     "is_invalid_ai_runtime_tool_family",
     "is_invalid_ai_runtime_tool_name",

@@ -38,8 +38,7 @@ backend/app/ai/
 │       ├── email_executor.py      # 邮件发送
 │       ├── code_executor.py       # 沙箱 Python 执行
 │       ├── api_action_executor.py  # 业务操作（含确认流程）
-│       ├── builtin_executor.py    # 内置工具（日期、数学等）
-│       └── page_operation_executor.py # 页面操作执行（WebSocket 双向通信）
+│       └── builtin_executor.py    # 内置工具（日期、数学等）
 │
 ├── rag/                       # RAG 管线
 │   ├── parser.py              # 文件解析（PDF/DOCX/TXT/MD/CSV/QA/PPTX/图片）
@@ -100,7 +99,7 @@ backend/app/ai/
 - 共享约束：
   - Prompt 裁剪只允许通过 `TransientPruning`
   - 持久摘要只允许通过 conversation metadata sidecar snapshot
-  - unresolved `pending_consent / pending_confirmation / page_operation` 工具轮次不得被 compact / prune
+  - unresolved `pending_consent / pending_confirmation` 工具轮次不得被 compact / prune
 
 ### Long-Term Memory / 长期记忆
 
@@ -167,7 +166,6 @@ backend/app/ai/
 - `AIActionLog` 不再只记录 data actions
 - 当前必须覆盖：
   - CRUD data ops
-  - page ops
   - http
   - email
   - toolkit
@@ -304,24 +302,6 @@ tools_schema = skill_result.to_openai_tools()
 - 运行时工具集合来自 `AgentSkillGrant -> Skill -> SkillResolver`
 - `SkillPackage` 仅作为归组 / 来源 / 目录单元参与展示与管理，不再承担运行时 auto-bind 语义
 - `ToolRegistry` 属于历史概念，新增实现不要再依赖它
-
-### 页面感知与页面操作（Retired）
-
-AI 对话页面感知和页面操作已退役。不要再接入、修复或恢复：
-
-- thin `page_context` / `page_data` / `page_session_id` / `ui_epoch`
-- shared UI Runtime `ui_*` tools
-- page-session socket join / `use-ui-action-channel`
-- DOM scanner、runtime snapshot、Page AI rail
-- `get_page_context` / `invoke_page_operation` / `list_page_operations`
-
-替代方案：
-
-- 读取业务数据：后端 read-model/query API、报表/导出接口，或权限受控的
-  installable skill-pack tool。
-- 执行业务动作：显式后端 command 或 skill-pack tool，并保留权限校验、参数校验、
-  审计日志和确认策略。
-- 前端只负责展示后端/技能结果，不再把渲染 DOM 作为 AI runtime 的数据源。
 
 #### SkillPackage 目录与资源作用域规则
 

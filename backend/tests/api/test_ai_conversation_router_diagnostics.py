@@ -33,18 +33,18 @@ def _conversation_detail_diagnostics_payload() -> dict:
             },
             {
                 "intent_id": "intent-2",
-                "family": "page_ops",
+                "family": "web_research",
                 "status": "pending",
-                "allowed_tool_names": ["ui_get_snapshot"],
+                "allowed_tool_names": ["web_search"],
             },
         ],
         "active_intent_id": "intent-2",
         "active_intent": {
             "intent_id": "intent-2",
-            "family": "page_ops",
-            "allowed_tool_names": ["ui_get_snapshot"],
+            "family": "web_research",
+            "allowed_tool_names": ["web_search"],
         },
-        "allowed_tool_names": ["ui_get_snapshot"],
+        "allowed_tool_names": ["web_search"],
         "budget": {
             "status": "exited",
             "exit_reason": "retry_budget_exhausted",
@@ -55,8 +55,8 @@ def _conversation_detail_diagnostics_payload() -> dict:
             {
                 "action": "retry_intent",
                 "target_intent_id": "intent-2",
-                "retry_family": "page_ops",
-                "allowed_tool_names": ["ui_get_snapshot"],
+                "retry_family": "web_research",
+                "allowed_tool_names": ["web_search"],
             }
         ],
         "partial_exit_reason": "retry_budget_exhausted",
@@ -109,7 +109,7 @@ async def test_admin_conversation_detail_route_keeps_diagnostics_fields() -> Non
     assert diagnostics["execution_path"] == "deep"
     assert diagnostics["intent_plan"][1]["intent_id"] == "intent-2"
     assert diagnostics["budget"]["exit_reason"] == "retry_budget_exhausted"
-    assert diagnostics["retry_events"][0]["retry_family"] == "page_ops"
+    assert diagnostics["retry_events"][0]["retry_family"] == "web_research"
     assert diagnostics["partial_exit_reason"] == "retry_budget_exhausted"
     assert diagnostics["provider_failure_kind"] == "provider_http_5xx"
 
@@ -145,6 +145,6 @@ async def test_tenant_conversation_detail_route_keeps_diagnostics_fields() -> No
     assert diagnostics["execution_path"] == "deep"
     assert diagnostics["intent_plan"][1]["intent_id"] == "intent-2"
     assert diagnostics["budget"]["exit_reason"] == "retry_budget_exhausted"
-    assert diagnostics["retry_events"][0]["retry_family"] == "page_ops"
+    assert diagnostics["retry_events"][0]["retry_family"] == "web_research"
     assert diagnostics["partial_exit_reason"] == "retry_budget_exhausted"
     assert diagnostics["provider_failure_kind"] == "provider_http_5xx"

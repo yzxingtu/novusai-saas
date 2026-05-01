@@ -1,7 +1,7 @@
 """
 Test type: behavioral
 Scope: AI monitoring read-model projection, diagnostics normalization, and scrubbed
-retired page-awareness metadata.
+invalid runtime metadata metadata.
 Mock strategy: DB/service edges are mocked; projector and diagnostic normalization
 logic run through the real implementation.
 """
@@ -97,7 +97,7 @@ class TestCallTraceDiagnostics:
         assert diagnostics["budget_status"] == "exited"
         assert diagnostics["budget_exit_reason"] == "elapsed_budget_exceeded"
 
-    def test_extract_call_trace_diagnostics_scrubs_retired_page_continuation(
+    def test_extract_call_trace_diagnostics_scrubs_invalid_runtime_continuation(
         self,
     ):
         from app.services.ai.monitoring_service import MonitoringService
@@ -143,19 +143,19 @@ class TestCallTraceDiagnostics:
         diagnostics = MonitoringService._extract_call_trace_diagnostics(
             {
                 "turn_diagnostics": {
-                    "selected_tool_names": ["ui_get_snapshot", "web_search"],
-                    "selected_skill_names": ["Page Skill", "Research Skill"],
+                    "selected_tool_names": ["crm_lookup", "web_search"],
+                    "selected_skill_names": ["Workflow Skill", "Research Skill"],
                     "turn_record": {
                         "selected_tool_names": [],
                         "selected_skill_names": [],
                         "metadata": {
                             "turn_diagnostics": {
                                 "selected_tool_names": [
-                                    "ui_get_snapshot",
+                                    "crm_lookup",
                                     "web_search",
                                 ],
                                 "selected_skill_names": [
-                                    "Page Skill",
+                                    "Workflow Skill",
                                     "Research Skill",
                                 ],
                                 "turn_skill_activation": {
@@ -164,11 +164,11 @@ class TestCallTraceDiagnostics:
                                     "selected_tool_names": [],
                                     "selected_skill_names": [],
                                     "inventory_selected_tool_names": [
-                                        "ui_get_snapshot",
+                                        "crm_lookup",
                                         "web_search",
                                     ],
                                     "inventory_selected_skill_names": [
-                                        "Page Skill",
+                                        "Workflow Skill",
                                         "Research Skill",
                                     ],
                                 },

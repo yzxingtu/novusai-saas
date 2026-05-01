@@ -1,6 +1,6 @@
 """
 Test type: behavioral
-Scope: ConversationEngine prepare-execution routing and retired page-awareness guard behavior.
+Scope: ConversationEngine prepare-execution routing and invalid runtime metadata guard behavior.
 Mock strategy: model router, KB loading, and optimizer edges are faked; prepare-execution
 logic and tool-policy filtering run through the real implementation.
 """
@@ -462,7 +462,7 @@ async def test_prepare_execution_keeps_generic_follow_up_in_research_state() -> 
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_does_not_inherit_page_ops_for_generic_follow_up_without_anchor() -> (
+async def test_prepare_execution_does_not_inherit_data_ops_for_generic_follow_up_without_anchor() -> (
     None
 ):
     engine = ConversationEngine(
@@ -482,7 +482,7 @@ async def test_prepare_execution_does_not_inherit_page_ops_for_generic_follow_up
                         "id": "call_page_1",
                         "type": "function",
                         "function": {
-                            "name": "ui_fill_form",
+                            "name": "crm_update_record",
                             "arguments": '{"form_session_id":"fs_demo","fields":{"name":"Alice"}}',
                         },
                         "success": True,
@@ -509,8 +509,8 @@ async def test_prepare_execution_does_not_inherit_page_ops_for_generic_follow_up
 
     skill_result = SkillResolveResult(
         tools=[
-            ToolDefinition(name="ui_fill_form", description="Fill active form"),
-            ToolDefinition(name="ui_get_snapshot", description="Get UI snapshot"),
+            ToolDefinition(name="crm_update_record", description="Fill active form"),
+            ToolDefinition(name="crm_lookup", description="Lookup CRM records"),
             ToolDefinition(name="web_search", description="Search the web"),
         ]
     )
@@ -559,7 +559,7 @@ async def test_prepare_execution_clears_page_continuation_for_long_no_tool_direc
                         "id": "call_page_1",
                         "type": "function",
                         "function": {
-                            "name": "ui_get_snapshot",
+                            "name": "crm_lookup",
                             "arguments": "{}",
                         },
                         "success": True,
@@ -603,7 +603,7 @@ async def test_prepare_execution_clears_page_continuation_for_long_no_tool_direc
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_does_not_restore_retired_page_continuation() -> (
+async def test_prepare_execution_does_not_restore_invalid_runtime_continuation() -> (
     None
 ):
     engine = ConversationEngine(
@@ -623,7 +623,7 @@ async def test_prepare_execution_does_not_restore_retired_page_continuation() ->
                         "id": "call_page_1",
                         "type": "function",
                         "function": {
-                            "name": "ui_get_snapshot",
+                            "name": "crm_lookup",
                             "arguments": "{}",
                         },
                         "success": True,
@@ -631,7 +631,7 @@ async def test_prepare_execution_does_not_restore_retired_page_continuation() ->
                 ],
                 metadata={
                     "turn_record": {
-                        "active_intent_kind": "page_workflow",
+                        "active_intent_kind": "data_workflow",
                         "last_page_key": "admin.runtime.records",
                     }
                 },
@@ -690,7 +690,7 @@ async def test_prepare_execution_ignores_page_context_for_local_page_content_req
             tools=[
                 tool
                 for tool in tools
-                if tool.name in {"ui_get_snapshot", "ui_read_region", "ui_click"}
+                if tool.name in {"crm_lookup", "crm_read_record", "crm_update_record"}
             ],
             skipped=False,
             total=len(tools),
@@ -701,9 +701,9 @@ async def test_prepare_execution_ignores_page_context_for_local_page_content_req
         tools=[
             ToolDefinition(name="web_search", description="Search the web"),
             ToolDefinition(name="fetch_url", description="Fetch a webpage"),
-            ToolDefinition(name="ui_get_snapshot", description="Get UI snapshot"),
-            ToolDefinition(name="ui_read_region", description="Read UI region"),
-            ToolDefinition(name="ui_click", description="Click UI element"),
+            ToolDefinition(name="crm_lookup", description="Lookup CRM records"),
+            ToolDefinition(name="crm_read_record", description="Read CRM record"),
+            ToolDefinition(name="crm_update_record", description="Update CRM record"),
         ]
     )
 
@@ -747,11 +747,14 @@ async def test_prepare_execution_ignores_page_capability_request() -> None:
         tools=[
             ToolDefinition(name="web_search", description="Search the web"),
             ToolDefinition(name="fetch_url", description="Fetch a webpage"),
-            ToolDefinition(name="ui_get_snapshot", description="Get UI snapshot"),
-            ToolDefinition(name="ui_open_surface", description="Open UI surface"),
-            ToolDefinition(name="ui_get_form_state", description="Get form state"),
-            ToolDefinition(name="ui_fill_form", description="Fill form"),
-            ToolDefinition(name="ui_submit_form", description="Submit form"),
+            ToolDefinition(name="crm_lookup", description="Lookup CRM records"),
+            ToolDefinition(name="crm_open_record", description="Open CRM record"),
+            ToolDefinition(
+                name="crm_get_record_state",
+                description="Get CRM form state",
+            ),
+            ToolDefinition(name="crm_update_record", description="Update CRM form"),
+            ToolDefinition(name="crm_submit_record", description="Submit CRM form"),
         ]
     )
 
@@ -876,9 +879,9 @@ async def test_prepare_execution_keeps_weather_tools_for_mixed_weather_and_healt
         tools=[
             ToolDefinition(name="web_search", description="Search the web"),
             ToolDefinition(name="fetch_url", description="Fetch a webpage"),
-            ToolDefinition(name="ui_get_snapshot", description="Get UI snapshot"),
-            ToolDefinition(name="ui_read_region", description="Read UI region"),
-            ToolDefinition(name="ui_read_table", description="Read UI table"),
+            ToolDefinition(name="crm_lookup", description="Lookup CRM records"),
+            ToolDefinition(name="crm_read_record", description="Read CRM record"),
+            ToolDefinition(name="crm_list_records", description="Read UI table"),
             ToolDefinition(
                 name="get_current_weather", description="Get current weather"
             ),
@@ -927,9 +930,9 @@ async def test_prepare_execution_keeps_weather_only_for_mixed_page_and_weather_r
         tools=[
             ToolDefinition(name="web_search", description="Search the web"),
             ToolDefinition(name="fetch_url", description="Fetch a webpage"),
-            ToolDefinition(name="ui_get_snapshot", description="Get UI snapshot"),
-            ToolDefinition(name="ui_read_region", description="Read UI region"),
-            ToolDefinition(name="ui_read_table", description="Read UI table"),
+            ToolDefinition(name="crm_lookup", description="Lookup CRM records"),
+            ToolDefinition(name="crm_read_record", description="Read CRM record"),
+            ToolDefinition(name="crm_list_records", description="Read UI table"),
             ToolDefinition(
                 name="get_current_weather", description="Get current weather"
             ),
@@ -982,16 +985,16 @@ async def test_prepare_execution_keeps_weather_only_for_mixed_page_health_phrase
         tenant_id=0,
         user_id=1,
         messages=[
-            ChatMessage(role="user", content="我有点头疼，先看看当前页面，再查北京天气")
+            ChatMessage(role="user", content="我有点头疼，先看看当前数据集，再查北京天气")
         ],
     )
     skill_result = SkillResolveResult(
         tools=[
             ToolDefinition(name="web_search", description="Search the web"),
             ToolDefinition(name="fetch_url", description="Fetch a webpage"),
-            ToolDefinition(name="ui_get_snapshot", description="Get UI snapshot"),
-            ToolDefinition(name="ui_read_region", description="Read UI region"),
-            ToolDefinition(name="ui_read_table", description="Read UI table"),
+            ToolDefinition(name="crm_lookup", description="Lookup CRM records"),
+            ToolDefinition(name="crm_read_record", description="Read CRM record"),
+            ToolDefinition(name="crm_list_records", description="Read UI table"),
             ToolDefinition(
                 name="get_current_weather", description="Get current weather"
             ),
@@ -1024,7 +1027,7 @@ async def test_prepare_execution_keeps_weather_only_for_mixed_page_health_phrase
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_does_not_restore_retired_page_family_from_optimizer() -> (
+async def test_prepare_execution_does_not_restore_invalid_runtime_family_from_optimizer() -> (
     None
 ):
     engine = ConversationEngine(
@@ -1040,9 +1043,9 @@ async def test_prepare_execution_does_not_restore_retired_page_family_from_optim
         tools=[
             ToolDefinition(name="web_search", description="Search the web"),
             ToolDefinition(name="fetch_url", description="Fetch a webpage"),
-            ToolDefinition(name="ui_get_snapshot", description="Get UI snapshot"),
-            ToolDefinition(name="ui_read_region", description="Read UI region"),
-            ToolDefinition(name="ui_read_table", description="Read UI table"),
+            ToolDefinition(name="crm_lookup", description="Lookup CRM records"),
+            ToolDefinition(name="crm_read_record", description="Read CRM record"),
+            ToolDefinition(name="crm_list_records", description="Read UI table"),
             ToolDefinition(
                 name="get_current_weather", description="Get current weather"
             ),
@@ -1061,9 +1064,9 @@ async def test_prepare_execution_does_not_restore_retired_page_family_from_optim
                 for tool in tools
                 if tool.name
                 in {
-                    "ui_get_snapshot",
-                    "ui_read_region",
-                    "ui_read_table",
+                    "crm_lookup",
+                    "crm_read_record",
+                    "crm_list_records",
                 }
             ],
             skipped=False,
@@ -1107,8 +1110,8 @@ async def test_prepare_execution_prefers_web_research_on_first_turn_even_with_pa
         tools=[
             ToolDefinition(name="web_search", description="Search the web"),
             ToolDefinition(name="fetch_url", description="Fetch a webpage"),
-            ToolDefinition(name="ui_get_snapshot", description="Get UI snapshot"),
-            ToolDefinition(name="ui_click", description="Click UI element"),
+            ToolDefinition(name="crm_lookup", description="Lookup CRM records"),
+            ToolDefinition(name="crm_update_record", description="Update CRM record"),
             ToolDefinition(name="query_records", description="Query platform data"),
             ToolDefinition(name="create_records", description="Create data"),
             ToolDefinition(name="update_records", description="Update data"),
@@ -1162,8 +1165,8 @@ async def test_prepare_execution_keeps_non_zero_selected_count_for_explicit_web_
         tools=[
             ToolDefinition(name="web_search", description="Search the web"),
             ToolDefinition(name="fetch_url", description="Fetch a webpage"),
-            ToolDefinition(name="ui_get_snapshot", description="Get UI snapshot"),
-            ToolDefinition(name="ui_read_region", description="Read UI region"),
+            ToolDefinition(name="crm_lookup", description="Lookup CRM records"),
+            ToolDefinition(name="crm_read_record", description="Read CRM record"),
         ]
     )
 
@@ -2410,7 +2413,7 @@ async def test_prepare_execution_trusted_auto_bypasses_readonly_even_without_tru
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_does_not_bypass_risk_cap_for_page_ops() -> None:
+async def test_prepare_execution_does_not_bypass_risk_cap_for_data_ops() -> None:
     engine = ConversationEngine(
         db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
     )
@@ -2421,17 +2424,17 @@ async def test_prepare_execution_does_not_bypass_risk_cap_for_page_ops() -> None
         trust_policy_ref={
             "policy_ids": [2],
             "allowed_tool_names": [],
-            "tool_families": ["page_ops"],
+            "tool_families": ["data_ops"],
             "risk_level_cap": "read",
         },
         messages=[ChatMessage(role="user", content="继续")],
     )
     skill_result = SkillResolveResult(
         tools=[
-            ToolDefinition(name="ui_fill_form", description="Fill form"),
+            ToolDefinition(name="crm_update_record", description="Update CRM form"),
         ],
         tool_consent_modes={
-            "ui_fill_form": "ask",
+            "crm_update_record": "ask",
         },
     )
 
@@ -2448,7 +2451,7 @@ async def test_prepare_execution_does_not_bypass_risk_cap_for_page_ops() -> None
             skill_result=skill_result,
         )
 
-    assert prep.tool_consent_modes["ui_fill_form"] == "ask"
+    assert prep.tool_consent_modes["crm_update_record"] == "ask"
 
 
 @pytest.mark.asyncio
@@ -2544,7 +2547,7 @@ async def test_call_llm_runtime_errors_do_not_fallback_to_legacy() -> None:
             agent=agent,
             messages=[ChatMessage(role="user", content="继续")],
             tools=[
-                ToolDefinition(name="ui_get_snapshot", description="Get UI snapshot")
+                ToolDefinition(name="crm_lookup", description="Lookup CRM records")
             ],
             selected_skill_names=["page_skill"],
             context_sources=[],
@@ -2870,7 +2873,7 @@ async def test_prepare_execution_no_tool_turn_keeps_inventory_truth_out_of_live_
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_does_not_project_retired_page_skills_to_live_tools() -> None:
+async def test_prepare_execution_does_not_project_invalid_runtime_tools_to_live_tools() -> None:
     engine = ConversationEngine(
         db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
     )
@@ -2939,7 +2942,7 @@ async def test_prepare_execution_page_screenshot_request_uses_no_page_tools() ->
         agent_id=1,
         tenant_id=1,
         user_id=1,
-        messages=[ChatMessage(role="user", content="帮我给当前页面截图")],
+        messages=[ChatMessage(role="user", content="帮我给当前数据集截图")],
     )
 
     with (
@@ -2988,5 +2991,4 @@ async def test_prepare_execution_editor_write_request_uses_no_page_tools() -> No
     assert [intent.kind for intent in prep.intent_plan] == ["direct_reply"]
     assert prep.tools == []
     assert prep.tool_use_policy == ToolUsePolicy()
-
 

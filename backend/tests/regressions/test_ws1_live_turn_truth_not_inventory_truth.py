@@ -49,7 +49,7 @@ def _run_projection_probe() -> dict[str, object]:
                     "turn_diagnostics": {
                         "turn_outcome": "failed",
                         "selected_tool_names": ["ui_get_snapshot", "web_search"],
-                        "selected_skill_names": ["Page Skill", "Research Skill"],
+                        "selected_skill_names": ["page_awareness", "Research Skill"],
                         "turn_skill_activation": {
                             "applied": True,
                             "reason": "runtime_policy",
@@ -60,7 +60,7 @@ def _run_projection_probe() -> dict[str, object]:
                                 "web_search",
                             ],
                             "inventory_selected_skill_names": [
-                                "Page Skill",
+                                "page_awareness",
                                 "Research Skill",
                             ],
                         },
@@ -69,11 +69,11 @@ def _run_projection_probe() -> dict[str, object]:
             },
             "context_diagnostics": {
                 "selected_tool_names": ["ui_get_snapshot", "web_search"],
-                "selected_skill_names": ["Page Skill", "Research Skill"],
+                "selected_skill_names": ["page_awareness", "Research Skill"],
             },
             "last_run_summary": {
                 "selected_tool_names": ["ui_get_snapshot", "web_search"],
-                "selected_skill_names": ["Page Skill", "Research Skill"],
+                "selected_skill_names": ["page_awareness", "Research Skill"],
             },
         }
         request_metadata = {

@@ -52,7 +52,6 @@ async def test_persist_stream_completion_delegates_to_service_methods():
         result=_build_result(success=True, output="done"),
         history_count=2,
         agent_id=7,
-        route_source="mention",
         context_diagnostics={"ok": True},
         last_run_summary={"done": True},
         current_agent=SimpleNamespace(id=7),
@@ -118,7 +117,7 @@ async def test_save_stream_error_message_persists_turn_flow_context_for_failed_s
         "turn_outcome": "partial",
         "termination_reason": "provider_error",
         "protocol_path": "responses",
-        "selected_tool_names": ["ui_list_interactables"],
+        "selected_tool_names": ["crm_list_actions"],
         "turn_flow": {
             "completion_reason": "provider_error",
             "timeline": [
@@ -198,7 +197,7 @@ async def test_save_stream_error_message_persists_turn_flow_context_for_failed_s
     assert payload["metadata_"]["completion_reason"] == "provider_error"
     assert payload["metadata_"]["provider_failure_kind"] == "provider_http_5xx"
     assert payload["metadata_"]["turn_record"]["selected_tool_names"] == [
-        "ui_list_interactables"
+        "crm_list_actions"
     ]
     assert payload["metadata_"]["turn_flow"]["timeline"][2]["type"] == "tool_execution"
     assert payload["metadata_"]["turn_flow"]["timeline"][2]["status"] == "completed"

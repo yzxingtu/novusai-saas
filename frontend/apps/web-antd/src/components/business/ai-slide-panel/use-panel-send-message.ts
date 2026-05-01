@@ -30,7 +30,6 @@ interface UsePanelSendMessageOptions {
     agentName: string;
     consumeMention?: boolean;
     requiredVars: InputVariable[];
-    routeSource?: string;
   }) => void;
   ensureAgentVarsLoaded: (agentId: number) => void;
   forceRerouteNextTurn: Ref<boolean>;
@@ -51,7 +50,6 @@ interface UsePanelSendMessageOptions {
   selectedAgentId: Ref<null | number>;
   sendMessage: (options?: {
     agentId?: number;
-    routeSource?: null | string;
     silent?: boolean;
   }) => Promise<boolean>;
   showRouteNotice: (text: string) => void;

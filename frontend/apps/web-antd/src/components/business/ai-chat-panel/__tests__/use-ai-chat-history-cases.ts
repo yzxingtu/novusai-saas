@@ -144,7 +144,9 @@ export function registerUseAIChatHistoryCases(
     await chat.loadAgents();
     chat.inputMessage.value = 'hello again';
 
-    await chat.sendMessage({ routeSource: 'unexpected-end-test' });
+    await chat.sendMessage();
+    await flushPromises();
+    await vi.advanceTimersByTimeAsync(1000);
     await flushPromises();
 
     expect(apiMocks.getChatConversationMessagesApi).toHaveBeenCalledTimes(1);
@@ -205,9 +207,7 @@ export function registerUseAIChatHistoryCases(
     chat.selectedAgentId.value = 2;
     chat.inputMessage.value = 'follow-up after interruption';
 
-    const sendPromise = chat.sendMessage({
-      routeSource: 'anchor-recovery-test',
-    });
+    const sendPromise = chat.sendMessage();
     await flushPromises();
     await vi.advanceTimersByTimeAsync(1000);
     await sendPromise;
@@ -278,7 +278,6 @@ export function registerUseAIChatHistoryCases(
 
     const sendPromise = chat.sendMessage({
       agentId: 2,
-      routeSource: 'explicit-agent-switch-test',
     });
     await flushPromises();
     await vi.advanceTimersByTimeAsync(1000);

@@ -22,6 +22,11 @@ from app.ai.tools.types import ToolDefinition, ToolResult
 from app.ai.types import ChatMessage
 from app.enums.agent import AgentExecutionModeEnum
 from app.enums.common import UserRoleEnum
+from app.schemas.ai.invalid_ai_runtime_input import (
+    ensure_no_disallowed_ai_runtime_input,
+    filter_invalid_ai_runtime_references,
+    is_invalid_ai_runtime_reference,
+)
 
 if TYPE_CHECKING:
     from app.ai.routing.router import RouteResult
@@ -284,6 +289,26 @@ class ExecutionRequest:
     memory_runtime_policy: dict[str, Any] = field(default_factory=dict)
     knowledge_base_feedback: dict[str, Any] | None = None
     tool_use_policy: ToolUsePolicy = field(default_factory=ToolUsePolicy)
+
+    def __post_init__(self) -> None:
+        ensure_no_disallowed_ai_runtime_input(self.input_variables)
+        if self.trust_policy_ref is not None:
+            ensure_no_disallowed_ai_runtime_input(self.trust_policy_ref)
+        for update in list(self.interaction_updates or []):
+            ensure_no_disallowed_ai_runtime_input(update)
+        invalid_skill_names = [
+            str(name or "").strip()
+            for name in list(self.selected_skill_names or [])
+            if is_invalid_ai_runtime_reference(name)
+        ]
+        if invalid_skill_names:
+            raise ValueError(
+                "Invalid AI runtime skill/tool selection: "
+                + ", ".join(invalid_skill_names)
+            )
+        self.selected_skill_names = (
+            filter_invalid_ai_runtime_references(self.selected_skill_names) or None
+        )
 
 
 @dataclass

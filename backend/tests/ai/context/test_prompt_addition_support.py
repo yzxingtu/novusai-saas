@@ -112,13 +112,10 @@ def test_build_web_research_date_anchor_requires_signal() -> None:
     assert anchor == ""
 
 
-def test_build_visible_locale_hint_uses_non_page_request_context() -> None:
+def test_build_visible_locale_hint_uses_explicit_request_locale() -> None:
     request = SimpleNamespace(
         messages=[],
-        input_variables={
-            "locale": "zh-CN",
-            "page_context": {"locale": "en-US"},
-        },
+        input_variables={"locale": "zh-CN"},
     )
     visible_hint = support.build_visible_output_locale_hint(request)
 

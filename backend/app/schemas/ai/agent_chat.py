@@ -17,11 +17,41 @@ from pydantic import (
 )
 
 from app.core.i18n import _
-from app.schemas.ai.retired_page_awareness import (
-    ensure_no_retired_page_awareness_input,
+from app.schemas.ai.invalid_ai_runtime_input import (
+    ensure_no_disallowed_ai_runtime_input,
+    is_invalid_ai_runtime_reference,
+    is_invalid_ai_runtime_tool_family,
+    is_invalid_ai_runtime_tool_name,
 )
 
 InteractionMode = Literal["confirm", "trusted_auto"]
+
+
+def _raise_invalid_runtime_tool(value: str) -> None:
+    raise ValueError(
+        _(
+            "agent_chat.error.invalid_ai_runtime_input_tool",
+            tool=value,
+        )
+    )
+
+
+def _ensure_valid_runtime_tool_name(value: str | None) -> None:
+    text = str(value or "").strip()
+    if text and is_invalid_ai_runtime_tool_name(text):
+        _raise_invalid_runtime_tool(text)
+
+
+def _ensure_valid_runtime_reference(value: str | None) -> None:
+    text = str(value or "").strip()
+    if text and is_invalid_ai_runtime_reference(text):
+        _raise_invalid_runtime_tool(text)
+
+
+def _ensure_live_tool_family(value: str | None) -> None:
+    text = str(value or "").strip()
+    if text and is_invalid_ai_runtime_tool_family(text):
+        _raise_invalid_runtime_tool(text)
 
 
 class ChatAttachment(BaseModel):
@@ -78,6 +108,14 @@ class TrustPolicyRef(BaseModel):
         description="Highest auto-approved action level / 自动批准的最高风险级别",
     )
 
+    @model_validator(mode="after")
+    def reject_invalid_runtime_tools(self) -> TrustPolicyRef:
+        for tool_name in self.allowed_tool_names or []:
+            _ensure_valid_runtime_tool_name(tool_name)
+        for family in self.tool_families or []:
+            _ensure_live_tool_family(family)
+        return self
+
 
 class AgentChatRequest(BaseModel):
     """对话请求 / Agent chat request."""
@@ -105,7 +143,11 @@ class AgentChatRequest(BaseModel):
             raise ValueError("message, messages, or interaction_updates required")
         if msgs and any(not (m or "").strip() for m in msgs):
             raise ValueError("messages must not contain empty strings")
-        ensure_no_retired_page_awareness_input(self.variables)
+        ensure_no_disallowed_ai_runtime_input(self.variables)
+        for skill_name in self.selected_skill_names or []:
+            _ensure_valid_runtime_reference(skill_name)
+        for update in self.interaction_updates or []:
+            _ensure_valid_runtime_tool_name(update.tool_name)
         return self
 
     conversation_id: int | None = Field(
@@ -140,11 +182,6 @@ class AgentChatRequest(BaseModel):
     image_params: ImageParams | None = Field(
         None,
         description=_("agent_chat.field.image_params"),
-    )
-    route_source: str | None = Field(
-        None,
-        max_length=32,
-        description="Frontend route source hint (e.g. mention)",
     )
     interaction_updates: list[InteractionUpdate] | None = Field(
         None,
@@ -228,6 +265,11 @@ class InteractionUpdate(BaseModel):
     table: str | None = None
     tool_name: str | None = None
     value: str | None = None
+
+    @model_validator(mode="after")
+    def reject_invalid_runtime_tool_name(self) -> InteractionUpdate:
+        _ensure_valid_runtime_tool_name(self.tool_name)
+        return self
 
 
 class UpdateConversationInteractionStateRequest(BaseModel):

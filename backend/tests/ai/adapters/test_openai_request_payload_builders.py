@@ -266,7 +266,7 @@ async def test_build_responses_request_uses_previous_response_id_for_pure_tool_f
         adapter=adapter,
         messages=[
             ChatMessage(role="system", content="You are helpful."),
-            ChatMessage(role="user", content="请搜索当前页面"),
+            ChatMessage(role="user", content="请搜索当前数据集"),
             ChatMessage(
                 role="assistant",
                 content="",
@@ -274,7 +274,7 @@ async def test_build_responses_request_uses_previous_response_id_for_pure_tool_f
                     {
                         "id": "call_1",
                         "type": "function",
-                        "function": {"name": "ui_click", "arguments": '{"target":"x"}'},
+                        "function": {"name": "crm_update_record", "arguments": '{"target":"x"}'},
                     }
                 ],
                 metadata={
@@ -285,7 +285,7 @@ async def test_build_responses_request_uses_previous_response_id_for_pure_tool_f
             ChatMessage(role="tool", content='{"ok":true}', tool_call_id="call_1"),
         ],
         model="gpt-5.4-xhigh",
-        tools=[{"type": "function", "function": {"name": "ui_click", "parameters": {}}}],
+        tools=[{"type": "function", "function": {"name": "crm_update_record", "parameters": {}}}],
         tool_choice="required",
         kwargs={},
         reasoning_summary_model_prefixes=("gpt-5",),
@@ -392,16 +392,16 @@ async def test_build_responses_stream_follow_up_round_without_tools_keeps_struct
         adapter=adapter,
         messages=[
             ChatMessage(role="system", content="You are helpful."),
-            ChatMessage(role="user", content="读取当前页面"),
+            ChatMessage(role="user", content="读取客户数据集"),
             ChatMessage(
                 role="assistant",
                 content="",
                 tool_calls=[
                     {
-                        "id": "call_snapshot_1",
+                        "id": "call_crm_lookup_1",
                         "type": "function",
                         "function": {
-                            "name": "ui_get_snapshot",
+                            "name": "crm_lookup",
                             "arguments": '{"mode":"compact"}',
                         },
                     }
@@ -413,8 +413,8 @@ async def test_build_responses_stream_follow_up_round_without_tools_keeps_struct
             ),
             ChatMessage(
                 role="tool",
-                content='{"ui_epoch":9,"active_surface_id":"surface:page:admin.dashboard"}',
-                tool_call_id="call_snapshot_1",
+                content='{"row_count":9,"dataset_id":"crm:admin.dashboard"}',
+                tool_call_id="call_crm_lookup_1",
             ),
         ],
         model="gpt-5.4-xhigh",
@@ -439,20 +439,20 @@ async def test_build_responses_stream_follow_up_round_without_tools_keeps_struct
         {
             "type": "message",
             "role": "user",
-            "content": "读取当前页面",
+            "content": "读取客户数据集",
         },
         {
             "type": "function_call",
-            "call_id": "call_snapshot_1",
-            "name": "ui_get_snapshot",
+            "call_id": "call_crm_lookup_1",
+            "name": "crm_lookup",
             "arguments": '{"mode":"compact"}',
             "status": "completed",
         },
         {
             "type": "function_call_output",
-            "call_id": "call_snapshot_1",
+            "call_id": "call_crm_lookup_1",
             "output": (
-                '{"ui_epoch":9,"active_surface_id":"surface:page:admin.dashboard"}'
+                '{"row_count":9,"dataset_id":"crm:admin.dashboard"}'
             ),
         },
     ]
@@ -466,7 +466,7 @@ async def test_build_responses_stream_follow_up_preserves_fc_item_id_when_availa
         adapter=adapter,
         messages=[
             ChatMessage(role="system", content="You are helpful."),
-            ChatMessage(role="user", content="填写当前页面表单"),
+            ChatMessage(role="user", content="填写当前数据集表单"),
             ChatMessage(
                 role="assistant",
                 content="",
@@ -476,7 +476,7 @@ async def test_build_responses_stream_follow_up_preserves_fc_item_id_when_availa
                         "call_id": "call_form_1",
                         "type": "function",
                         "function": {
-                            "name": "ui_fill_form",
+                            "name": "crm_update_record",
                             "arguments": '{"fields":{"name":"E2E-Test-001"}}',
                         },
                     }
@@ -485,7 +485,7 @@ async def test_build_responses_stream_follow_up_preserves_fc_item_id_when_availa
             ChatMessage(role="tool", content='{"ok":true}', tool_call_id="call_form_1"),
         ],
         model="gpt-5.4-xhigh",
-        tools=[{"type": "function", "function": {"name": "ui_fill_form", "parameters": {}}}],
+        tools=[{"type": "function", "function": {"name": "crm_update_record", "parameters": {}}}],
         tool_choice="required",
         stream=True,
         kwargs={},
@@ -496,7 +496,7 @@ async def test_build_responses_stream_follow_up_preserves_fc_item_id_when_availa
         "type": "function_call",
         "call_id": "call_form_1",
         "id": "fc_form_1",
-        "name": "ui_fill_form",
+        "name": "crm_update_record",
         "arguments": '{"fields":{"name":"E2E-Test-001"}}',
         "status": "completed",
     }
@@ -517,7 +517,7 @@ async def test_build_responses_request_drops_previous_response_id_after_tool_rou
         adapter=adapter,
         messages=[
             ChatMessage(role="system", content="You are helpful."),
-            ChatMessage(role="user", content="请搜索当前页面"),
+            ChatMessage(role="user", content="请搜索当前数据集"),
             ChatMessage(
                 role="assistant",
                 content="",
@@ -525,7 +525,7 @@ async def test_build_responses_request_drops_previous_response_id_after_tool_rou
                     {
                         "id": "call_1",
                         "type": "function",
-                        "function": {"name": "ui_click", "arguments": '{"target":"x"}'},
+                        "function": {"name": "crm_update_record", "arguments": '{"target":"x"}'},
                     }
                 ],
                 metadata={
@@ -537,7 +537,7 @@ async def test_build_responses_request_drops_previous_response_id_after_tool_rou
             ChatMessage(role="system", content="Only continue the unfinished page intent."),
         ],
         model="gpt-5.4-xhigh",
-        tools=[{"type": "function", "function": {"name": "ui_click", "parameters": {}}}],
+        tools=[{"type": "function", "function": {"name": "crm_update_record", "parameters": {}}}],
         tool_choice="required",
         kwargs={},
         reasoning_summary_model_prefixes=("gpt-5",),

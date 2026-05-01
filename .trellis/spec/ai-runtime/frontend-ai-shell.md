@@ -5,18 +5,15 @@
 Frontend AI surfaces must compose state from focused composables and shared
 runtime bridges, not re-implement backend orchestration semantics.
 
-## Page Awareness Retirement
+## No Current-Page Runtime
 
-Page awareness is no longer a frontend AI shell capability. Frontend AI
-surfaces must not collect DOM state, build thin `page_context`, join
+Frontend AI surfaces must not collect DOM state, build thin `page_context`, join
 `page_session` channels, render Page AI rails, or send page-operation data to
 AI dialogue APIs.
 
 If AI must analyze data that is currently visible on a page, add a backend
 read-model/API/report/export endpoint or a permissioned installable skill-pack
-tool. Do not make the rendered page the source of truth. Page perception was
-retired because it was slow, operationally awkward, hard to make reliable, and
-too easy to turn into fragile browser automation.
+tool. Do not make the rendered page the source of truth.
 
 Route `meta.ai` may describe whether chat is shown, but it must not carry
 page-context keys or any DOM/page runtime contract.
@@ -74,8 +71,9 @@ page-local composables/context -> focused workspace sections`.
   Slide-panel shell state should further delegate to page-local shell helpers
   (`use-ai-chat-slide-panel-shell.ts` and related companions) rather than
   re-growing orchestration inline.
-- Retired page-runtime helpers must not be used as live dependencies. If a
-  compatibility module remains, it must be isolated from the AI dialogue shell.
+- Legacy UI/page-runtime helper modules must not be used as live dependencies.
+  If a migration-only module remains, it must be isolated from the AI dialogue
+  shell.
 - `turnFlow` is the canonical assistant-process protocol. Live chat state,
   streaming SSE handlers, and history merge/finalize helpers must not mutate
   canonical `turnFlow` back into legacy `thinkingContent`, `optimizingTools`,
@@ -107,16 +105,16 @@ page-local composables/context -> focused workspace sections`.
   rebuilding them from raw metadata in multiple places.
 - Route-level pages delegate to shell components instead of embedding full
   workflows inline.
-- Do not add page-awareness policy surfaces, page-local operation registries,
+- Do not add page-local AI policy surfaces, page-local operation registries,
   DOM scanners, `data-ai*` contracts, or `ui_*` runtime tool UI.
-- Retired UI runtime bridge modules must not be treated as live AI shell
+- Legacy UI runtime bridge modules must not be treated as live AI shell
   dependencies.
 
 ## Transitional Notes
 
 - Wrapper pattern is canonical, but internal shell granularity is still in
   motion. Avoid freezing helper or companion file names as global rules.
-- CRUD-specific AI overrides are compatibility metadata only; they must not
+- CRUD-specific AI overrides are route-entry metadata only; they must not
   register page-operation capabilities.
 
 ## Transcript-first & Diagnostics Gate (2026-04)

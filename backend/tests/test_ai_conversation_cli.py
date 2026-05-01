@@ -38,7 +38,7 @@ def _sample_snapshot() -> dict:
                 "sequence": 17,
                 "role": "user",
                 "created_at": "2026-03-28T17:11:46+00:00",
-                "content": "在本页面进行搜索  对象存储对帐计费",
+                "content": "联网搜索对象存储对帐计费",
                 "tool_calls": None,
                 "metadata": None,
             },
@@ -47,7 +47,7 @@ def _sample_snapshot() -> dict:
                 "sequence": 18,
                 "role": "assistant",
                 "created_at": "2026-03-28T17:11:46+00:00",
-                "content": "to=functions.ui_get_snapshot 天天中奖不json_string",
+                "content": "to=functions.crm_lookup 天天中奖不json_string",
                 "tool_calls": None,
                 "metadata": {
                     "model_name": "gpt-5.4-xhigh",
@@ -62,7 +62,7 @@ def _sample_snapshot() -> dict:
                 "sequence": 17,
                 "role": "user",
                 "created_at": "2026-03-28T17:11:46+00:00",
-                "content": "在本页面进行搜索  对象存储对帐计费",
+                "content": "联网搜索对象存储对帐计费",
             }
         ],
         "recent_call_logs": [
@@ -80,9 +80,9 @@ def _sample_snapshot() -> dict:
         ],
         "diagnostics": {
             "last_assistant_looks_like_textual_tool_call": True,
-            "last_assistant_textual_tool_call_names": ["ui_get_snapshot"],
+            "last_assistant_textual_tool_call_names": ["crm_lookup"],
             "contract_breach_type": "leaked_textual_tool_call",
-            "unfinished_intents": ["rail_ticket_research", "page_summary"],
+            "unfinished_intents": ["rail_ticket_research", "workflow_summary"],
             "recovered_via_retry": True,
             "last_assistant_message_id": 3235,
             "last_assistant_sequence": 18,
@@ -276,7 +276,7 @@ def test_ai_conversation_show_json_success(monkeypatch) -> None:
     assert result.exit_code == 0
     assert '"id": 563' in result.output
     assert '"last_assistant_textual_tool_call_names": [' in result.output
-    assert '"ui_get_snapshot"' in result.output
+    assert '"crm_lookup"' in result.output
 
 
 def test_ai_conversation_show_json_suppresses_runtime_logs(monkeypatch) -> None:
@@ -498,10 +498,13 @@ def test_ai_conversation_show_text_renders_diagnostic(monkeypatch) -> None:
     assert "Conversation #563" in result.output
     assert "Diagnostic: last assistant message looks like leaked textual tool call" in result.output
     assert "Diagnostic: contract_breach_type=leaked_textual_tool_call" in result.output
-    assert "Diagnostic: unfinished_intents=rail_ticket_research, page_summary" in result.output
+    assert (
+        "Diagnostic: unfinished_intents=rail_ticket_research, workflow_summary"
+        in result.output
+    )
     assert "Diagnostic: recovered_via_retry=True" in result.output
     assert "type=main_chat" in result.output
-    assert "ui_get_snapshot" in result.output
+    assert "crm_lookup" in result.output
     assert "对象存储对帐计费" in result.output
 
 

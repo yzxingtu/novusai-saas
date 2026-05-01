@@ -101,10 +101,10 @@ async def test_tool_sandbox_runtime_model_info_is_optional() -> None:
     assert capture.last_context.runtime_model_code is None
 
 
-def test_tool_sandbox_does_not_wire_page_runtime_executors() -> None:
+def test_tool_sandbox_does_not_wire_invalid_runtime_executors() -> None:
     """
     Test type: structural
-    Scope: ToolSandbox executor registry no longer exposes page-runtime ui_* tools.
+    Scope: ToolSandbox executor registry does not expose invalid runtime tools.
     """
     sandbox = ToolSandbox(
         tenant_id=100,
@@ -128,10 +128,10 @@ def test_tool_sandbox_does_not_wire_page_runtime_executors() -> None:
 
 
 @pytest.mark.asyncio
-async def test_tool_sandbox_rejects_retired_page_tools_even_if_defined() -> None:
+async def test_tool_sandbox_rejects_invalid_runtime_tools_even_if_defined() -> None:
     """
     Test type: structural
-    Scope: retired page tools cannot be resurrected by manually supplied definitions.
+    Scope: invalid runtime tools cannot be resurrected by supplied definitions.
     """
     sandbox = ToolSandbox(
         tenant_id=100,
@@ -141,11 +141,11 @@ async def test_tool_sandbox_rejects_retired_page_tools_even_if_defined() -> None
     sandbox._named_executors["ui_get_snapshot"] = _CaptureExecutor()
 
     result = await sandbox.execute(
-        tool_call_id="tc-page-retired",
+        tool_call_id="tc-invalid-runtime",
         name="ui_get_snapshot",
         arguments={},
         definitions=[ToolDefinition(name="ui_get_snapshot", description="snapshot")],
     )
 
     assert result.success is False
-    assert result.error_type == "page_awareness_retired"
+    assert result.error_type == "invalid_runtime_tool"

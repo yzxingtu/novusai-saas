@@ -2,16 +2,16 @@ import type { Component } from 'vue';
 import type { Router, RouteRecordRaw } from 'vue-router';
 
 /** AI entry policy mode: controls entry visibility only. / AI 入口策略模式：仅控制入口显隐。 */
-type AIPageMode = 'disabled' | 'enabled';
+type AIEntryMode = 'disabled' | 'enabled';
 
 /**
- * 页面级 AI 元信息
+ * AI 入口元信息
  *
  * 声明在 route.meta.ai 中，与 RBAC 权限共同决定 AI 入口可见性。
  */
-interface AIPageMeta {
+interface AIEntryMeta {
   /** AI 模式 */
-  mode?: AIPageMode;
+  mode?: AIEntryMode;
 }
 
 interface RouteMeta {
@@ -44,9 +44,9 @@ interface RouteMeta {
    */
   affixTabOrder?: number;
   /**
-   * 页面级 AI 入口策略（与 RBAC 权限共同控制 AI 入口可见性）
+   * AI 入口策略（与 RBAC 权限共同控制 AI 入口可见性）
    */
-  ai?: AIPageMeta;
+  ai?: AIEntryMeta;
   /**
    * 需要特定的角色标识才可以访问
    * @default []
@@ -176,8 +176,8 @@ interface GenerateMenuAndRoutesOptions {
 }
 
 export type {
-  AIPageMeta,
-  AIPageMode,
+  AIEntryMeta,
+  AIEntryMode,
   ComponentRecordType,
   GenerateMenuAndRoutesOptions,
   RouteMeta,

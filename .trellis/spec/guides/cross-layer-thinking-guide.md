@@ -79,7 +79,7 @@ For each layer pair, answer:
 
 ### Frontend AI Data Access Priority
 
-Page perception and UI Runtime page-operation tools are retired for AI dialogue.
+Page perception and UI Runtime page-operation tools are not part of AI dialogue.
 When AI needs to analyze page-visible or domain data, do not add DOM scanners,
 `page_context`, `page_session_id`, `ui_*` tools, or page-operation registries.
 Choose the first backend-owned seam that fits:
@@ -153,7 +153,7 @@ If the answer is no, stop and gather the missing contract before coding.
 - Verify trace_id surfaces via `showRequestError` or backend `build_public_error_text`.
 - If uploads/files changed, ensure downloads still call `requestClient.download` + `downloadBlob`.
 - If plugins or permissions changed, confirm `/permissions/menus`, `/plugins/slots`, and `v-access` flows match the manifest contract.
-- If AI agents changed, confirm the frontend did not reintroduce DOM-driven
+- If AI agents changed, confirm the frontend did not add DOM-driven
   page perception, `page_context`, `page_session_id`, `ui_*` runtime actions,
   or page-operation registries.
 - If quota/rate-limit behavior changed, confirm runtime interception behavior,

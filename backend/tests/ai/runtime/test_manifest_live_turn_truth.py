@@ -179,8 +179,8 @@ def test_build_manifest_projects_live_subset_from_projected_bundle() -> None:
     assert summary["selected_skill_names"] == ["Research Skill"]
     assert summary.get("page_context_attached", False) is False
     assert summary.get("page_operation_names", []) == []
-    assert "page_ops" not in summary["tool_families"]
-    assert "page_ops" not in summary["continuation_capable_families"]
+    assert "data_ops" not in summary["tool_families"]
+    assert "data_ops" not in summary["continuation_capable_families"]
     assert summary["selection_semantics"] == "turn_selected_subset"
     assert summary["selection_live"] is True
     assert summary["live_turn_bound"] is True
@@ -224,8 +224,8 @@ def test_build_manifest_marks_capability_reporting_inventory_as_non_live() -> No
     assert summary["selected_skill_names"] == []
     assert summary.get("page_context_attached", False) is False
     assert summary.get("page_operation_names", []) == []
-    assert "page_ops" not in summary["tool_families"]
-    assert "page_ops" not in summary["continuation_capable_families"]
+    assert "data_ops" not in summary["tool_families"]
+    assert "data_ops" not in summary["continuation_capable_families"]
     assert summary["selection_semantics"] == "capability_reporting_inventory"
     assert summary["selection_live"] is False
     assert summary["live_turn_bound"] is False

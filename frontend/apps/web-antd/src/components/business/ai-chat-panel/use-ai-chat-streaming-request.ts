@@ -63,7 +63,6 @@ export interface StreamRequestDeps {
   selectedSkillNames: Ref<string[]>;
   sendMessage: (options?: {
     agentId?: number;
-    routeSource?: null | string;
     silent?: boolean;
   }) => Promise<boolean>;
   streamControl: StreamControl;
@@ -91,7 +90,6 @@ export interface StreamRequestParams {
   apiAttachments?:
     | Pick<ChatAttachment, 'mime_type' | 'name' | 'type' | 'url'>[]
     | undefined;
-  routeSource?: null | string;
   targetAgentId: number;
   texts: string[];
 }
@@ -111,7 +109,7 @@ export async function runStreamRequest(
     uiPanelStore,
     imageParams,
   } = deps;
-  const { texts, apiAttachments, targetAgentId, routeSource } = params;
+  const { texts, apiAttachments, targetAgentId } = params;
 
   const lifecycle = createStreamRequestLifecycle(deps, targetAgentId);
   const sseBuffer = { value: '' };
@@ -155,7 +153,6 @@ export async function runStreamRequest(
       imageParams.value.n !== 1
         ? { image_params: imageParams.value }
         : {}),
-      ...(routeSource ? { route_source: routeSource } : {}),
     };
 
     pendingInteractionUpdates.value = [];

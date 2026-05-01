@@ -116,12 +116,6 @@ export function createStreamSseHandler(
         case 'tool_call': {
           lifecycle.promoteToolRoundContent();
           applyStreamingToolResultToTurnFlow(msg, event);
-          if (event.success && deps.options.onToolCall) {
-            deps.options.onToolCall(
-              event.name as string,
-              (event.output as string) ?? '',
-            );
-          }
           deps.scrollToBottom();
           break;
         }

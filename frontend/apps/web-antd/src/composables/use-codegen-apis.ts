@@ -1,8 +1,8 @@
 /**
  * Codegen select APIs.
  *
- * UserSelect and DeptSelect generated fields use these helpers. They are not
- * related to AI page awareness and must stay available for generated pages.
+ * UserSelect and DeptSelect generated fields use these ordinary data helpers.
+ * They must stay available for generated pages.
  */
 import {
   getNodeMembersApi as getAdminNodeMembersApi,

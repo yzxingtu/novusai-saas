@@ -1,5 +1,0 @@
-{"file": "backend/app/ai/engine/page_workflow_state_machine.py", "reason": "Canonical page workflow phases and completion contract"}
-{"file": "backend/app/ai/engine/tool_router.py", "reason": "Page intent routing should speak entirely from workflow state"}
-{"file": "backend/app/ai/engine/prepare_execution_tool_helpers.py", "reason": "IntentPlan metadata should remain the single workflow truth source"}
-{"file": "backend/app/ai/engine/page_flow_recovery_helpers.py", "reason": "Recovery must consume canonical workflow state instead of prompt hints"}
-{"file": "backend/app/ai/engine/turn_executor_completion.py", "reason": "Turn finalization must respect page-progress and verify-phase stop-loss"}

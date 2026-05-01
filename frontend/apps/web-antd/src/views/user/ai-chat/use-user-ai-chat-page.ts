@@ -47,7 +47,6 @@ export function useUserAIChatPage() {
       if (inputVariables.length > 0) {
         pendingSendState.value = {
           agentId: agent.id,
-          routeSource: null,
         };
         openVarsModal(inputVariables, agent.id, agent.name);
       }

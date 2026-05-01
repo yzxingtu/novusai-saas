@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.enums.common import UserRoleEnum
+from app.schemas.ai.invalid_ai_runtime_input import is_invalid_ai_runtime_tool
 
 # JSON-compatible scalar value type (for tool parameter defaults, etc.) / JSON 兼容的标量值类型
 JsonScalar = str | int | float | bool | None
@@ -115,6 +116,9 @@ class ToolDefinition:
         Returns:
             OpenAI tool schema dict
         """
+        if is_invalid_ai_runtime_tool(self):
+            raise ValueError(f"Invalid AI runtime tool cannot be exposed: {self.name}")
+
         properties: dict[str, Any] = {}
         required: list[str] = []
 
@@ -260,7 +264,11 @@ def to_openai_tools(definitions: list[ToolDefinition]) -> list[dict[str, Any]]:
     Returns:
         OpenAI tools schema list
     """
-    return [d.to_openai_schema() for d in definitions if d.enabled]
+    return [
+        d.to_openai_schema()
+        for d in definitions
+        if d.enabled and not is_invalid_ai_runtime_tool(d)
+    ]
 
 
 __all__ = [

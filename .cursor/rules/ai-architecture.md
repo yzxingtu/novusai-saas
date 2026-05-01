@@ -125,7 +125,7 @@
 - prompt 裁剪只能走 `TransientPruning`
   - 只影响当前 prompt
   - 不改数据库原始消息
-  - unresolved `pending_consent / pending_confirmation / page_operation` 轮次不得被裁掉
+  - unresolved `pending_consent / pending_confirmation` 轮次不得被裁掉
 - 持久摘要只能走 `Compaction sidecar snapshot`
   - 只写 conversation metadata sidecar
   - 第一阶段禁止直接改 conversation message 主表

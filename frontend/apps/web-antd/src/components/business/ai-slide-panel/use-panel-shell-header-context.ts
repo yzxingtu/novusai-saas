@@ -48,7 +48,6 @@ interface UsePanelShellHeaderContextOptions {
   sendMessage: (options: {
     agentId: number;
     consumeMention?: boolean;
-    routeSource?: string;
   }) => Promise<unknown> | unknown;
   startNewConversation: (forceReset?: boolean) => void;
   storePendingAgentId: Ref<number | undefined>;

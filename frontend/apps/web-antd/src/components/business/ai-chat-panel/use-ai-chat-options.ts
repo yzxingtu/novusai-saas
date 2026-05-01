@@ -9,8 +9,6 @@ export interface UseAIChatOptions {
   initialAgentId?: number | Ref<number | undefined>;
   /** Initial conversation ID to auto-load after agent is selected / 选中智能体后默认加载的对话 ID */
   initialConversationId?: number | Ref<number | undefined>;
-  /** Callback when a tool call completes successfully / 工具调用成功回调 */
-  onToolCall?: (toolName: string, output: string) => void;
   /** Callback when streaming completes (used for unread badge) / 流式结束回调（未读角标等） */
   onStreamComplete?: () => void;
   /** Callback when required input variables are missing — opens the vars modal / 必填变量缺失时回调，打开变量弹窗 */

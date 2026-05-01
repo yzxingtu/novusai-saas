@@ -1,8 +1,8 @@
-"""Tool argument recovery and UI page hint tests."""
+"""Tool argument recovery tests."""
 
-from app.ai.engine.base import BaseEngine
+# Test type: structural
+
 from app.ai.engine.tool_processor import ToolCallProcessor
-from app.ai.tools.types import ToolDefinition
 
 
 class TestParseArguments:
@@ -33,69 +33,3 @@ class TestParseArguments:
         args, err = ToolCallProcessor.parse_arguments(raw)
         assert err is None
         assert args is raw
-
-
-class TestPageOperationsHint:
-    """页面运行时散文提示已退役。"""
-
-    def test_returns_empty_hint_even_with_page_context_and_ui_tools(self) -> None:
-        hint = BaseEngine._build_page_operations_hint(
-            {
-                "page_context": {
-                    "page_key": "admin.ai.agents",
-                    "active_surface_id": "drawer-1",
-                    "surface_stack": [
-                        {"surface_id": "page-1", "kind": "page", "title": "Agents"},
-                        {"surface_id": "drawer-1", "kind": "drawer", "title": "Edit"},
-                    ],
-                    "active_form_summary": {
-                        "form_session_id": "form-1",
-                        "can_submit": True,
-                        "stage": "ready_to_submit",
-                    },
-                }
-            },
-            [
-                ToolDefinition(name="ui_get_snapshot", description="snapshot"),
-                ToolDefinition(name="ui_read_region", description="read region"),
-                ToolDefinition(name="ui_read_table", description="read table"),
-                ToolDefinition(name="ui_list_interactables", description="list"),
-                ToolDefinition(name="ui_click", description="click"),
-                ToolDefinition(name="ui_open_surface", description="open"),
-                ToolDefinition(name="ui_get_form_state", description="form state"),
-                ToolDefinition(name="ui_set_field", description="set field"),
-                ToolDefinition(name="ui_fill_form", description="fill form"),
-                ToolDefinition(name="ui_submit_form", description="submit"),
-            ],
-        )
-
-        assert hint == ""
-
-    def test_returns_empty_hint_without_valid_page_context(self) -> None:
-        hint = BaseEngine._build_page_operations_hint(
-            {"page_context": {"page_title": "missing-key"}},
-            [ToolDefinition(name="ui_get_snapshot", description="snapshot")],
-        )
-        assert hint == ""
-
-    def test_ignores_suggested_submit_only_hints_without_active_form(self) -> None:
-        hint = BaseEngine._build_page_operations_hint(
-            {
-                "page_context": {
-                    "page_key": "admin.ai.agents",
-                    "ui_epoch": 2,
-                    "suggested_tools": {
-                        "primary": ["ui_submit_form", "ui_fill_form"],
-                        "secondary": ["ui_get_form_state"],
-                    },
-                }
-            },
-            [
-                ToolDefinition(name="ui_get_snapshot", description="snapshot"),
-                ToolDefinition(name="ui_click", description="click"),
-                ToolDefinition(name="ui_fill_form", description="fill form"),
-                ToolDefinition(name="ui_submit_form", description="submit"),
-            ],
-        )
-
-        assert hint == ""

@@ -36,10 +36,10 @@ vi.mock('../AIChatSlidePanelShell.vue', () => ({
 }));
 
 describe('aIChatSlidePanel (wrapper)', () => {
-  it('forwards supported props and does not leak retired page-awareness attrs', async () => {
+  it('forwards supported props and does not leak unsupported attrs', async () => {
     const wrapper = mount(AIChatSlidePanel, {
       attrs: {
-        retiredPageAwareness: 'ignored',
+        unsupportedRuntimeAttr: 'ignored',
       },
       props: {
         apiPrefix: '/admin',
@@ -56,7 +56,7 @@ describe('aIChatSlidePanel (wrapper)', () => {
       '/admin/attachments/upload',
     );
     expect(shell.attributes('data-show-attachments')).toBe('false');
-    expect(shell.attributes('data-retired-page-awareness')).toBeUndefined();
+    expect(shell.attributes('data-unsupported-runtime-attr')).toBeUndefined();
 
     await wrapper
       .get('[data-testid="emit-conversation-restored"]')

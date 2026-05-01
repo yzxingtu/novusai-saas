@@ -51,9 +51,6 @@ export function useAIChatSlidePanelShell(
   const chat = useAIChat({
     apiPrefix,
     uploadUrl,
-    onToolCall: (name: string, output: string) => {
-      aiPanelStore.dispatchToolCall(name, output);
-    },
     onStreamComplete: () => {
       aiPanelStore.markUnread();
     },
@@ -196,7 +193,7 @@ export function useAIChatSlidePanelShell(
     selectedAgent,
     selectedAgentId,
     sending,
-    sendMessage: ({ agentId, routeSource }) => sendMessage({ agentId, routeSource }),
+    sendMessage: ({ agentId }) => sendMessage({ agentId }),
     startNewConversation,
     storePendingAgentId: toRef(aiPanelStore, 'pendingAgentId'),
     storePendingConversationId: toRef(aiPanelStore, 'pendingConversationId'),

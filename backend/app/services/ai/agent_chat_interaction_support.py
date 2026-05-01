@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from app.ai.tools.semantic_defaults import is_retired_page_tool_name
 from app.enums.agent import ActionLevelEnum
+from app.schemas.ai.invalid_ai_runtime_input import is_invalid_ai_runtime_tool_name
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -96,7 +96,7 @@ def build_trust_policy_ref_from_interaction_updates(
         }:
             continue
         tool_name = str(update.get("tool_name") or "").strip()
-        if not tool_name or is_retired_page_tool_name(tool_name):
+        if not tool_name or is_invalid_ai_runtime_tool_name(tool_name):
             continue
         tool_family = trust_policy_service_cls.tool_family_for_name(tool_name)
         tool_risk = trust_policy_service_cls.tool_risk_level(
@@ -220,7 +220,7 @@ async def grant_trusted_auto_policies(
         if bool(update.get("rejected")):
             continue
         tool_name = str(update.get("tool_name") or "").strip()
-        if not tool_name or is_retired_page_tool_name(tool_name):
+        if not tool_name or is_invalid_ai_runtime_tool_name(tool_name):
             continue
         await service.grant_conversation_tool_trust(
             conversation_id=conversation_id,

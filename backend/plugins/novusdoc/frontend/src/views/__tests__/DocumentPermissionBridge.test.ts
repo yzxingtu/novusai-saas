@@ -35,20 +35,6 @@ const mockEditor = {
 
 const sharedSpies = {
   mountRichTextEditor: vi.fn(() => mockEditor),
-  registerRichTextDocumentPageAI: vi.fn(() => () => {}),
-  waitForRichTextEditorOperations: vi.fn(async () => true),
-  createSavePageOperation: vi.fn((options: Record<string, unknown>) => options),
-  createSimplePageOperation: vi.fn((options: Record<string, unknown>) => options),
-  createParameterizedPageOperation: vi.fn(
-    (options: Record<string, unknown>) => options,
-  ),
-  createKeywordSearchPageOperation: vi.fn(
-    (options: Record<string, unknown>) => options,
-  ),
-  createPrefilledCreatePageOperation: vi.fn(
-    (options: Record<string, unknown>) => options,
-  ),
-  createRefreshPageOperation: vi.fn((options: Record<string, unknown>) => options),
   routerPush: vi.fn(),
   downloadBlob: vi.fn(),
 };
@@ -76,17 +62,6 @@ function installSharedApi() {
       return requested.some((code) => accessState.codes.includes(code));
     },
     mountRichTextEditor: sharedSpies.mountRichTextEditor,
-    registerRichTextDocumentPageAI: sharedSpies.registerRichTextDocumentPageAI,
-    waitForRichTextEditorOperations: sharedSpies.waitForRichTextEditorOperations,
-    createSavePageOperation: sharedSpies.createSavePageOperation,
-    createSimplePageOperation: sharedSpies.createSimplePageOperation,
-    createParameterizedPageOperation:
-      sharedSpies.createParameterizedPageOperation,
-    createKeywordSearchPageOperation:
-      sharedSpies.createKeywordSearchPageOperation,
-    createPrefilledCreatePageOperation:
-      sharedSpies.createPrefilledCreatePageOperation,
-    createRefreshPageOperation: sharedSpies.createRefreshPageOperation,
     router: {
       push: sharedSpies.routerPush,
       currentRoute: {

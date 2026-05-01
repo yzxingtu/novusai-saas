@@ -18,8 +18,8 @@ from app.core.config import settings
 from app.core.i18n import _
 from app.core.logging import LogManager
 from app.models.ai.agent import Agent
-from app.schemas.ai.retired_page_awareness import (
-    assert_no_retired_page_awareness_input,
+from app.schemas.ai.invalid_ai_runtime_input import (
+    assert_no_disallowed_ai_runtime_input,
 )
 
 logger = LogManager.get_logger("ai.engine")
@@ -55,7 +55,7 @@ def build_system_message(
         "agent_name": agent_name,
     }
     if input_variables:
-        variables.update(assert_no_retired_page_awareness_input(input_variables))
+        variables.update(assert_no_disallowed_ai_runtime_input(input_variables))
 
     try:
         template = _jinja_env.from_string(prompt)

@@ -99,19 +99,19 @@ def test_turn_projection_omits_selected_names_when_live_selection_is_explicitly_
             "termination_reason": "tool_round_failed",
             "metadata": {
                 "turn_diagnostics": {
-                    "selected_tool_names": ["ui_get_snapshot", "web_search"],
-                    "selected_skill_names": ["Page Skill", "Research Skill"],
+                    "selected_tool_names": ["crm_lookup", "web_search"],
+                    "selected_skill_names": ["Workflow Skill", "Research Skill"],
                     "turn_skill_activation": {
                         "applied": True,
                         "reason": "runtime_policy",
                         "selected_tool_names": [],
                         "selected_skill_names": [],
                         "inventory_selected_tool_names": [
-                            "ui_get_snapshot",
+                            "crm_lookup",
                             "web_search",
                         ],
                         "inventory_selected_skill_names": [
-                            "Page Skill",
+                            "Workflow Skill",
                             "Research Skill",
                         ],
                     },

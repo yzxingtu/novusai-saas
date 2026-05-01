@@ -28,7 +28,6 @@ metadata:
 ## 优先切换到更窄技能
 
 - 上传/附件：`attachment-storage`
-- 页面感知/页面操作：`ai-page-awareness`
 - AI 写作：`ai-writing`
 - 会话记忆：`session-memory`
 - 知识库/RAG：`knowledge-base-rag`

@@ -163,13 +163,13 @@ def test_selected_skill_names_merges_descriptor_and_tool_sources() -> None:
     result = SkillResolveResult(
         tools=[
             SimpleNamespace(source_skill_name="Weather Tool Skill"),
-            SimpleNamespace(source_skill_name="Page Skill"),
+            SimpleNamespace(source_skill_name="Workflow Skill"),
         ],
         capability_descriptors=[
             CapabilityDescriptor(
-                name="Page Skill",
+                name="Workflow Skill",
                 kind="capability_pack",
-                source="skill_package:page",
+                source="skill_package:workflow",
             ),
             CapabilityDescriptor(
                 name="Knowledge Skill",
@@ -180,7 +180,7 @@ def test_selected_skill_names_merges_descriptor_and_tool_sources() -> None:
     )
 
     assert result.selected_skill_names == [
-        "Page Skill",
+        "Workflow Skill",
         "Knowledge Skill",
         "Weather Tool Skill",
     ]
@@ -265,7 +265,7 @@ def test_selected_skill_names_skips_auto_injected_runtime_builtins() -> None:
                 config={"auto_injected": True},
             ),
             SimpleNamespace(
-                source_skill_name="Plugin Page Skill",
+                source_skill_name="Plugin Workflow Skill",
                 config={},
             ),
         ],
@@ -280,15 +280,15 @@ def test_selected_skill_names_skips_auto_injected_runtime_builtins() -> None:
                 },
             ),
             CapabilityDescriptor(
-                name="Plugin Page Skill",
+                name="Plugin Workflow Skill",
                 kind="capability_pack",
-                source="skill_package:plugin.page",
+                source="skill_package:plugin.workflow",
                 metadata={"has_execution_tools": True},
             ),
         ],
     )
 
-    assert result.selected_skill_names == ["Plugin Page Skill"]
+    assert result.selected_skill_names == ["Plugin Workflow Skill"]
 
 
 def test_enrich_skill_capability_descriptors_keeps_same_name_skills_isolated() -> None:
@@ -478,12 +478,12 @@ async def test_resolve_for_agent_falls_back_to_baseline_builtins_when_grants_fil
 async def test_resolve_for_agent_prefilters_explicit_skill_mentions_before_resolve(
     monkeypatch,
 ) -> None:
-    plugin_page_skill = _make_runtime_skill(
+    plugin_workflow_skill = _make_runtime_skill(
         skill_id=201,
-        name="Plugin Page Skill",
+        name="Plugin Workflow Skill",
         skill_type="toolkit",
-        package_name="plugin.page",
-        source_plugin="plugin.page",
+        package_name="plugin.workflow",
+        source_plugin="plugin.workflow",
     )
     weather_skill = _make_runtime_skill(
         skill_id=202,
@@ -494,7 +494,7 @@ async def test_resolve_for_agent_prefilters_explicit_skill_mentions_before_resol
     )
     result = MagicMock()
     result.scalars.return_value.all.return_value = [
-        _make_grant(plugin_page_skill),
+        _make_grant(plugin_workflow_skill),
         _make_grant(weather_skill),
     ]
     db = MagicMock()
@@ -504,7 +504,7 @@ async def test_resolve_for_agent_prefilters_explicit_skill_mentions_before_resol
         messages=[
             SimpleNamespace(
                 role="user",
-                content="Please use Plugin Page Skill to inspect this page.",
+                content="Please use Plugin Workflow Skill before you answer.",
             )
         ]
     )
@@ -519,7 +519,7 @@ async def test_resolve_for_agent_prefilters_explicit_skill_mentions_before_resol
 
     await resolve_for_agent(db, agent, tenant_id=9, request=request)
 
-    assert [skill.name for skill in captured["skills"]] == ["Plugin Page Skill"]
+    assert [skill.name for skill in captured["skills"]] == ["Plugin Workflow Skill"]
 
 
 @pytest.mark.asyncio
@@ -581,17 +581,17 @@ async def test_resolve_for_agent_keeps_full_inventory_for_capability_reporting_q
         package_name="weather.tools",
         config={"tools": [{"name": "get_current_weather"}]},
     )
-    page_skill = _make_runtime_skill(
+    workflow_skill = _make_runtime_skill(
         skill_id=402,
-        name="Plugin Page Skill",
+        name="Plugin Workflow Skill",
         skill_type="toolkit",
-        package_name="plugin.page",
-        source_plugin="plugin.page",
+        package_name="plugin.workflow",
+        source_plugin="plugin.workflow",
     )
     result = MagicMock()
     result.scalars.return_value.all.return_value = [
         _make_grant(weather_skill),
-        _make_grant(page_skill),
+        _make_grant(workflow_skill),
     ]
     db = MagicMock()
     db.execute = AsyncMock(return_value=result)
@@ -612,7 +612,7 @@ async def test_resolve_for_agent_keeps_full_inventory_for_capability_reporting_q
 
     assert [skill.name for skill in captured["skills"]] == [
         "Weather Skill",
-        "Plugin Page Skill",
+        "Plugin Workflow Skill",
     ]
 
 
@@ -620,12 +620,12 @@ async def test_resolve_for_agent_keeps_full_inventory_for_capability_reporting_q
 async def test_resolve_for_agent_prefilters_web_research_runtime_policy_before_resolve(
     monkeypatch,
 ) -> None:
-    plugin_page_skill = _make_runtime_skill(
+    plugin_workflow_skill = _make_runtime_skill(
         skill_id=601,
-        name="Plugin Page Skill",
+        name="Plugin Workflow Skill",
         skill_type="toolkit",
-        package_name="plugin.page",
-        source_plugin="plugin.page",
+        package_name="plugin.workflow",
+        source_plugin="plugin.workflow",
     )
     plugin_research_skill = _make_runtime_skill(
         skill_id=602,
@@ -636,7 +636,7 @@ async def test_resolve_for_agent_prefilters_web_research_runtime_policy_before_r
     )
     result = MagicMock()
     result.scalars.return_value.all.return_value = [
-        _make_grant(plugin_page_skill),
+        _make_grant(plugin_workflow_skill),
         _make_grant(plugin_research_skill),
     ]
     db = MagicMock()
@@ -658,7 +658,7 @@ async def test_resolve_for_agent_prefilters_web_research_runtime_policy_before_r
     await resolve_for_agent(db, agent, tenant_id=9, request=request)
 
     assert [skill.name for skill in captured["skills"]] == [
-        "Plugin Page Skill",
+        "Plugin Workflow Skill",
         "Plugin Research Skill",
     ]
 

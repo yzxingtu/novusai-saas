@@ -7,7 +7,7 @@
  */
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
 import type { DocDetail } from '../types';
-import { exportDocumentAsBlob, getDoc, getExportUrl, updateDoc } from '../api/novusdoc';
+import { exportDocumentAsBlob, getDoc, updateDoc } from '../api/novusdoc';
 import {
   getNovusdocPermissionCodes,
   hasNovusdocAccess,
@@ -25,12 +25,7 @@ const shared = (window as unknown as Record<string, unknown>).NovusPluginShared 
       };
     };
   };
-  createParameterizedPageOperation?: (options: Record<string, unknown>) => unknown;
-  createSavePageOperation?: (options: Record<string, unknown>) => unknown;
-  createSimplePageOperation?: (options: Record<string, unknown>) => unknown;
   downloadBlob?: (blob: Blob, opts: { filename: string }) => void;
-  registerRichTextDocumentPageAI?: (options: Record<string, unknown>) => () => void;
-  waitForRichTextEditorOperations?: (pageKey: string, options?: Record<string, unknown>) => Promise<boolean>;
 } | undefined;
 
 const $t = (key: string, params?: Record<string, unknown>) => {
@@ -128,12 +123,9 @@ function mountEditor() {
   mountedEditor.value = shared.mountRichTextEditor(editorContainer.value, {
     content: doc.value.content,
     mode: 'full',
-    ai: true,
     upload: true,
     editable: canUpdate.value,
     placeholder: $t('plugin.novusdoc.doc.untitled'),
-    contextTitle: title.value,
-    pageKey: editorPageKey.value,
     onChange: (_json: unknown, _html: string, text: string) => {
       wordCount.value = text.trim() ? text.trim().split(/\s+/).length : 0;
       debounceSave();
@@ -236,127 +228,6 @@ onBeforeUnmount(() => {
   document.removeEventListener('click', handleExportMenuClickOutside);
 });
 
-// ── Page Awareness / 页面感知 ──
-const editorPageKey = computed(() => {
-  const base = isAdmin.value ? 'admin.plugins.novusdoc.editor' : 'tenant.plugins.novusdoc.editor';
-  return docId.value ? `${base}.${docId.value}` : base;
-});
-
-let cleanupPageAI: (() => void) | undefined;
-
-function buildDocumentOps() {
-  if (!canView.value) {
-    return [];
-  }
-
-  return [
-    canUpdate.value
-      ? shared?.createSavePageOperation?.({
-          name: 'save_document',
-          label: $t('plugin.novusdoc.op.save'),
-          description: 'Save the current document immediately',
-          action: async () => {
-            await saveNow();
-            return {
-              success: true,
-              message: $t('plugin.novusdoc.op.savedSuccess', { title: title.value }),
-            };
-          },
-        })
-      : null,
-    canUpdate.value
-      ? shared?.createSimplePageOperation?.({
-          name: 'toggle_status',
-          label: $t('plugin.novusdoc.op.toggleStatus'),
-          description: 'Switch between draft and published status',
-          readonly: false,
-          action: async () => {
-            await toggleStatus();
-            return {
-              success: true,
-              message: $t('plugin.novusdoc.op.statusChangedTo', {
-                status: doc.value?.status ?? '',
-              }),
-            };
-          },
-        })
-      : null,
-    canUpdate.value
-      ? shared?.createParameterizedPageOperation?.({
-          name: 'update_title',
-          label: $t('plugin.novusdoc.op.updateTitle'),
-          description: 'Change the document title',
-          readonly: false,
-          params: {
-            title: {
-              type: 'string',
-              description: 'New document title',
-            },
-          },
-          action: async (params: Record<string, unknown>) => {
-            title.value = String(params.title || '');
-            debounceSave();
-            return {
-              success: true,
-              message: $t('plugin.novusdoc.op.titleUpdatedTo', {
-                title: title.value,
-              }),
-            };
-          },
-        })
-      : null,
-    canExport.value
-      ? shared?.createParameterizedPageOperation?.({
-          name: 'export_document',
-          label: $t('plugin.novusdoc.op.export'),
-          description: 'Export document in HTML, Markdown or PDF format',
-          readonly: true,
-          params: {
-            format: {
-              type: 'string',
-              enum: ['html', 'md', 'pdf'],
-              description: 'Export format',
-            },
-          },
-          action: async (params: Record<string, unknown>) => {
-            if (!doc.value) return { success: false, message: $t('common.noData') };
-            const fmt = (params.format as 'html' | 'md' | 'pdf') || 'html';
-            const url = getExportUrl(doc.value.id, fmt);
-            return {
-              success: true,
-              message: $t('plugin.novusdoc.op.exportInitiatedIn', {
-                format: fmt,
-              }),
-              data: { export_url: url },
-            };
-          },
-        })
-      : null,
-  ].filter(Boolean);
-}
-
-/** Extras merged onto platform editor context. update_title modifies metadata, not body H1. */
-const ENTITY_DESCRIPTION_APPEND =
-  'update_title modifies document metadata title, not body H1. Document ops: save_document, toggle_status, update_title, export_document.';
-
-function setupEditorPageAwareness() {
-  cleanupPageAI?.();
-  if (!canView.value) {
-    return;
-  }
-  cleanupPageAI = shared?.registerRichTextDocumentPageAI?.({
-    pageKey: editorPageKey.value,
-    documentId: () => docId.value,
-    documentTitle: () => title.value,
-    documentStatus: () => doc.value?.status,
-    wordCount: () => wordCount.value,
-    saving: () => saving.value,
-    editor: () => mountedEditor.value,
-    entityDescriptionAppend: ENTITY_DESCRIPTION_APPEND,
-    operations: buildDocumentOps(),
-  });
-}
-
 onMounted(async () => {
   if (!canView.value) {
     loading.value = false;
@@ -365,9 +236,6 @@ onMounted(async () => {
   await loadDocument();
   if (doc.value) {
     await nextTickMount();
-    await nextTick();
-    await shared?.waitForRichTextEditorOperations?.(editorPageKey.value);
-    setupEditorPageAwareness();
   }
 });
 
@@ -378,7 +246,6 @@ async function nextTickMount() {
 }
 
 onBeforeUnmount(() => {
-  cleanupPageAI?.();
   if (saveTimer) clearTimeout(saveTimer);
   if (mountedEditor.value) {
     saveNow();

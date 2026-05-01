@@ -14,10 +14,8 @@ def test_get_budget_limit_returns_canonical_named_limits() -> None:
         "long_term_memory": 800,
         "kb_rag": 2000,
         "web_search": 1500,
-        "page_context": 600,
         "capability_manifest": 300,
     }
-    assert get_budget_limit("PAGE_CONTEXT") == 600
     assert get_budget_limit("web_search") == 1500
 
 

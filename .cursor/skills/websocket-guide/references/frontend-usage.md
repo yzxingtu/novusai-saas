@@ -107,4 +107,3 @@ on('my_event', (data) => {
 - `presence:offline`
 - `ai:typing:start`
 - `ai:typing:stop`
-- `page_operation_invoke`

@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 // Test type: structural
-// Verifies: rich text editor mounting does not register page-runtime AI operations.
+// Verifies: rich text editor mounting stays independent from AI runtime bridges.
 import { mount } from '@vue/test-utils';
 import { ref, shallowRef } from 'vue';
 
@@ -106,27 +106,11 @@ describe('richTextEditor', () => {
     document.body.innerHTML = '';
   });
 
-  it('mounts without registering page-level AI editor operations', () => {
-    const wrapper = mount(RichTextEditor, {
-      props: {
-        ai: true,
-      },
-    });
+  it('mounts as a standalone editor UI', () => {
+    const wrapper = mount(RichTextEditor);
 
     expect(mocks.useRichTextEditor).toHaveBeenCalledOnce();
     expect(wrapper.find('.ai-bubble-menu-stub').exists()).toBe(false);
-
-    wrapper.unmount();
-  });
-
-  it('does not require page-runtime registration when ai is explicitly enabled', () => {
-    const wrapper = mount(RichTextEditor, {
-      props: {
-        ai: true,
-      },
-    });
-
-    expect(mocks.useRichTextEditor).toHaveBeenCalledOnce();
 
     wrapper.unmount();
   });

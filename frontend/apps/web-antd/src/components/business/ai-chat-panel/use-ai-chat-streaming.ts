@@ -216,7 +216,6 @@ export function useAIChatStreaming(deps: UseAIChatStreamingDeps) {
 
   async function sendMessage(opts?: {
     agentId?: number;
-    routeSource?: null | string;
     silent?: boolean;
   }): Promise<boolean> {
     const silent = opts?.silent ?? false;
@@ -236,7 +235,6 @@ export function useAIChatStreaming(deps: UseAIChatStreamingDeps) {
         : (activeConversationAgentId.value ?? conversationAnchorAgentId.value);
     const maybeTargetAgentId =
       opts?.agentId ?? effectiveConversationAgentId ?? selectedAgentId.value;
-    const routeSource = opts?.routeSource ?? null;
     const hasText = inputMessage.value.trim().length > 0;
     const hasAttachments = pendingAttachments.value.length > 0;
     const hasInteractionUpdates = pendingInteractionUpdates.value.length > 0;
@@ -337,8 +335,7 @@ export function useAIChatStreaming(deps: UseAIChatStreamingDeps) {
       !hasInteractionUpdates &&
       selectedKBIds.value.length === 0 &&
       selectedSkillNames.value.length === 0 &&
-      userMsg.length > 0 &&
-      !routeSource;
+      userMsg.length > 0;
 
     if (useDebounce) {
       if (!silent) {
@@ -385,7 +382,6 @@ export function useAIChatStreaming(deps: UseAIChatStreamingDeps) {
       agent_avatar: targetAgent?.avatar ?? null,
       agent_description: targetAgent?.description ?? null,
       model_name: targetAgent?.model_name ?? null,
-      routeSource,
       created_at: new Date().toISOString(),
     });
     userScrolledUp.value = false;
@@ -410,7 +406,6 @@ export function useAIChatStreaming(deps: UseAIChatStreamingDeps) {
             )
           : undefined,
       targetAgentId,
-      routeSource,
     });
     return true;
   }

@@ -1,7 +1,7 @@
 /**
  * AI Chat E2E Chaos Suite / AI 对话 E2E 混沌测试套件
  * Test type: smoke
- * Scope: real-browser AI chat flows and retired page/editor tool guards.
+ * Scope: real-browser AI chat flows and invalid runtime tool guards.
  * Mock strategy: network interception records SSE events; UI flow and turn
  * projection are exercised through Playwright.
  */
@@ -45,8 +45,8 @@ interface SingleTurnScenario extends ChatTurnOptions {
   verify: (metrics: ChatTurnMetrics) => void;
 }
 
-const RETIRED_PAGE_TOOL_PREFIXES = [`${'u'}${'i'}_`, `${'page'}op_`] as const;
-const RETIRED_PAGE_TOOL_NAMES = new Set([
+const BLOCKED_RUNTIME_TOOL_PREFIXES = [`${'u'}${'i'}_`, `${'page'}op_`] as const;
+const BLOCKED_RUNTIME_TOOL_NAMES = new Set([
   `get_${'page'}_context`,
   `invoke_${'page'}_operation`,
   `list_${'page'}_operations`,
@@ -61,7 +61,7 @@ const RETIRED_EDITOR_TOOL_NAMES = new Set([
   'replace_section',
 ]);
 
-const CHAT_PANEL_SELECTOR = '[data-ai-panel]';
+const CHAT_PANEL_SELECTOR = '[data-testid="ai-chat-slide-panel"]';
 const CHAT_INPUT_SELECTOR = '[data-testid="ai-chat-input"]';
 const COMMAND_INPUT_SELECTOR =
   'textarea[placeholder*="输入消息"], textarea[placeholder*="Enter"]';
@@ -176,11 +176,11 @@ function isWeatherCapableTool(name: string) {
   return isWeatherTool(name) || isSearchTool(name);
 }
 
-function isRetiredPageTool(name: string) {
+function isBlockedRuntimeTool(name: string) {
   const normalized = normalizeToolName(name);
   return (
-    RETIRED_PAGE_TOOL_NAMES.has(normalized) ||
-    RETIRED_PAGE_TOOL_PREFIXES.some((prefix) => normalized.startsWith(prefix))
+    BLOCKED_RUNTIME_TOOL_NAMES.has(normalized) ||
+    BLOCKED_RUNTIME_TOOL_PREFIXES.some((prefix) => normalized.startsWith(prefix))
   );
 }
 
@@ -203,7 +203,7 @@ function resolveToolFamily(name: string) {
   if (isTimeTool(name)) return 'time';
   if (isSearchTool(name)) return 'search';
   if (isRetiredEditorTool(name)) return 'retired_editor';
-  if (isRetiredPageTool(name)) return 'retired';
+  if (isBlockedRuntimeTool(name)) return 'blocked_runtime';
   return 'other';
 }
 
@@ -247,11 +247,11 @@ function expectNoTool(
   ).toBe(false);
 }
 
-function expectNoRetiredPageTool(metrics: ChatTurnMetrics, message: string) {
-  expectNoTool(metrics, isRetiredPageTool, message);
+function expectNoBlockedRuntimeTool(metrics: ChatTurnMetrics, message: string) {
+  expectNoTool(metrics, isBlockedRuntimeTool, message);
   expect(
     metrics.selectedSkillNames.some((skillName) =>
-      isRetiredPageTool(skillName),
+      isBlockedRuntimeTool(skillName),
     ),
     `${message}. Selected skills: ${metrics.selectedSkillNames.join(', ') || 'none'}`,
   ).toBe(false);
@@ -323,9 +323,9 @@ function expectEditorRequestFallsBackToText(metrics: ChatTurnMetrics) {
     metrics,
     'Expected current-editor requests to avoid retired editor tools',
   );
-  expectNoRetiredPageTool(
+  expectNoBlockedRuntimeTool(
     metrics,
-    'Expected current-editor requests not to use retired page tools',
+    'Expected current-editor requests not to use invalid runtime tools',
   );
 }
 
@@ -335,9 +335,9 @@ function expectEditorReadOrGracefulFallback(metrics: ChatTurnMetrics) {
     metrics,
     'Expected editor read requests to avoid retired editor tools',
   );
-  expectNoRetiredPageTool(
+  expectNoBlockedRuntimeTool(
     metrics,
-    'Expected editor read requests not to use retired page tools',
+    'Expected editor read requests not to use invalid runtime tools',
   );
 }
 
@@ -998,19 +998,19 @@ test.describe('AI Chat E2E', () => {
     ]);
   });
 
-  test.describe('D: Retired page tool guards', () => {
+  test.describe('D: Invalid runtime tool guards', () => {
     registerSingleTurnScenarios([
       {
         id: 'D1',
-        name: 'list-oriented prompt does not expose retired tools',
+        name: 'list-oriented prompt does not expose blocked tools',
         prompt: '请概括模型管理模块通常能管理哪些模型配置。',
         route: ROUTES.agents,
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
           expectGracefulResponse(metrics, 12);
-          expectNoRetiredPageTool(
+          expectNoBlockedRuntimeTool(
             metrics,
-            'Expected retired page tools to stay absent for list-oriented chat',
+            'Expected invalid runtime tools to stay absent for list-oriented chat',
           );
         },
       },
@@ -1022,9 +1022,9 @@ test.describe('AI Chat E2E', () => {
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
           expectGracefulResponse(metrics, 12);
-          expectNoRetiredPageTool(
+          expectNoBlockedRuntimeTool(
             metrics,
-            'Expected workflow guidance not to call retired page tools',
+            'Expected workflow guidance not to call invalid runtime tools',
           );
           expect(responseContainsAny(metrics, [/模型/, /配置/, /风险/])).toBe(
             true,
@@ -1067,9 +1067,9 @@ test.describe('AI Chat E2E', () => {
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
           expectGracefulResponse(metrics, 12);
-          expectNoRetiredPageTool(
+          expectNoBlockedRuntimeTool(
             metrics,
-            'Expected visual guidance not to call retired page tools',
+            'Expected visual guidance not to call invalid runtime tools',
           );
         },
       },
@@ -1086,9 +1086,9 @@ test.describe('AI Chat E2E', () => {
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
           expectWeatherCapableResponse(metrics, 20);
-          expectNoRetiredPageTool(
+          expectNoBlockedRuntimeTool(
             metrics,
-            'Expected consent-style guidance not to call retired page tools',
+            'Expected consent-style guidance not to call invalid runtime tools',
           );
           expect(metrics.fullResponse).not.toContain('[PARTIAL EXIT]');
         },
@@ -1157,9 +1157,9 @@ test.describe('AI Chat E2E', () => {
 
       expectGracefulResponse(metrics, 20);
       expectTool(metrics, isSearchTool, 'Expected search-backed tool call');
-      expectNoRetiredPageTool(
+      expectNoBlockedRuntimeTool(
         metrics,
-        'Expected complex tool turn not to call retired page tools',
+        'Expected complex tool turn not to call invalid runtime tools',
       );
       expect(metrics.fullResponse).not.toContain('[PARTIAL EXIT]');
     });
@@ -1177,9 +1177,9 @@ test.describe('AI Chat E2E', () => {
         verify: (metrics) => {
           expectGracefulResponse(metrics, 30);
           expectTool(metrics, isSearchTool, 'Expected search-backed tool call');
-          expectNoRetiredPageTool(
+          expectNoBlockedRuntimeTool(
             metrics,
-            'Expected multi-intent turn not to call retired page tools',
+            'Expected multi-intent turn not to call invalid runtime tools',
           );
           expect(responseContainsAny(metrics, WEATHER_RESPONSE_PATTERNS)).toBe(
             true,
@@ -1216,9 +1216,9 @@ test.describe('AI Chat E2E', () => {
                 isWeatherCapableTool(toolCall.name),
             ),
           ).toBe(true);
-          expectNoRetiredPageTool(
+          expectNoBlockedRuntimeTool(
             metrics,
-            'Expected time/weather turn not to call retired page tools',
+            'Expected time/weather turn not to call invalid runtime tools',
           );
           expect(responseContainsAny(metrics, WEATHER_RESPONSE_PATTERNS)).toBe(
             true,
@@ -1254,16 +1254,16 @@ test.describe('AI Chat E2E', () => {
             isSearchTool(toolCall.name),
         ),
       ).toBe(true);
-      expectNoRetiredPageTool(
+      expectNoBlockedRuntimeTool(
         secondTurn,
-        'Expected chaos turn not to call retired page tools',
+        'Expected chaos turn not to call invalid runtime tools',
       );
       expect(secondTurn.fullResponse).not.toContain('[PARTIAL EXIT]');
 
       expect(thirdTurn.fullResponse).toMatch(/hyper[- ]?panda/i);
-      expectNoRetiredPageTool(
+      expectNoBlockedRuntimeTool(
         thirdTurn,
-        'Expected guidance-only response without retired page tools',
+        'Expected guidance-only response without invalid runtime tools',
       );
     });
   });
@@ -1284,9 +1284,9 @@ test.describe('AI Chat E2E', () => {
             isWeatherCapableTool,
             'Expected weather-capable tool call',
           );
-          expectNoRetiredPageTool(
+          expectNoBlockedRuntimeTool(
             metrics,
-            'Expected mixed-language prompt not to call retired page tools',
+            'Expected mixed-language prompt not to call invalid runtime tools',
           );
           expect(responseContainsAny(metrics, WEATHER_RESPONSE_PATTERNS)).toBe(
             true,
@@ -1312,9 +1312,9 @@ test.describe('AI Chat E2E', () => {
         verify: (metrics) => {
           expectGracefulResponse(metrics, 30);
           expectTool(metrics, isSearchTool, 'Expected search-backed tool call');
-          expectNoRetiredPageTool(
+          expectNoBlockedRuntimeTool(
             metrics,
-            'Expected noisy multi-intent prompt not to call retired page tools',
+            'Expected noisy multi-intent prompt not to call invalid runtime tools',
           );
           expect(responseContainsAny(metrics, WEATHER_RESPONSE_PATTERNS)).toBe(
             true,
@@ -1379,13 +1379,13 @@ test.describe('AI Chat E2E', () => {
 
       expectGracefulResponse(firstTurn, 10);
       expectGracefulResponse(secondTurn, 10);
-      expectNoRetiredPageTool(
+      expectNoBlockedRuntimeTool(
         firstTurn,
-        'Expected first navigation turn not to call retired page tools',
+        'Expected first navigation turn not to call invalid runtime tools',
       );
-      expectNoRetiredPageTool(
+      expectNoBlockedRuntimeTool(
         secondTurn,
-        'Expected second navigation turn not to call retired page tools',
+        'Expected second navigation turn not to call invalid runtime tools',
       );
       expect(secondTurn.conversationId).toBe(firstTurn.conversationId);
       expect(normalizeCompactText(secondTurn.fullResponse)).not.toBe(
@@ -1429,9 +1429,9 @@ test.describe('AI Chat E2E', () => {
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
           expectWeatherCapableResponse(metrics, 12);
-          expectNoRetiredPageTool(
+          expectNoBlockedRuntimeTool(
             metrics,
-            'Expected degraded mixed turn not to call retired page tools',
+            'Expected degraded mixed turn not to call invalid runtime tools',
           );
         },
       },
@@ -1508,13 +1508,13 @@ test.describe('AI Chat E2E', () => {
 
       expectGracefulResponse(firstTurn, 8);
       expectGracefulResponse(secondTurn, 6);
-      expectNoRetiredPageTool(
+      expectNoBlockedRuntimeTool(
         firstTurn,
-        'Expected first context turn not to call retired page tools',
+        'Expected first context turn not to call invalid runtime tools',
       );
-      expectNoRetiredPageTool(
+      expectNoBlockedRuntimeTool(
         secondTurn,
-        'Expected follow-up context turn not to call retired page tools',
+        'Expected follow-up context turn not to call invalid runtime tools',
       );
       expect(secondTurn.conversationId).toBe(firstTurn.conversationId);
       expect(secondTurn.fullResponse).not.toContain('我不知道你说的是什么');
@@ -1596,19 +1596,19 @@ test.describe('AI Chat E2E', () => {
     });
   });
 
-  test.describe('P: Retired page tool prompts', () => {
+  test.describe('P: Invalid runtime tool prompts', () => {
     registerSingleTurnScenarios([
       {
         id: 'P1',
-        name: 'table-oriented prompt avoids retired tools',
+        name: 'table-oriented prompt avoids blocked tools',
         prompt: '请说明模型列表数据做健康检查时应关注哪些维度',
         route: ROUTES.models,
         timeout: EXTENDED_CHAT_TIMEOUT,
         verify: (metrics) => {
           expectGracefulResponse(metrics, 20);
-          expectNoRetiredPageTool(
+          expectNoBlockedRuntimeTool(
             metrics,
-            'Expected table-oriented prompt not to call retired page tools',
+            'Expected table-oriented prompt not to call invalid runtime tools',
           );
         },
       },
@@ -1620,9 +1620,9 @@ test.describe('AI Chat E2E', () => {
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
           expectGracefulResponse(metrics, 4);
-          expectNoRetiredPageTool(
+          expectNoBlockedRuntimeTool(
             metrics,
-            'Expected pagination guidance not to call retired page tools',
+            'Expected pagination guidance not to call invalid runtime tools',
           );
         },
       },
@@ -1634,23 +1634,23 @@ test.describe('AI Chat E2E', () => {
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
           expectGracefulResponse(metrics, 4);
-          expectNoRetiredPageTool(
+          expectNoBlockedRuntimeTool(
             metrics,
-            'Expected table search guidance not to call retired page tools',
+            'Expected table search guidance not to call invalid runtime tools',
           );
         },
       },
       {
         id: 'P4',
-        name: 'multi-step list workflow avoids retired tools',
+        name: 'multi-step list workflow avoids blocked tools',
         prompt: "请给出排查名称包含 'GPT' 的模型配置问题的三步流程",
         route: ROUTES.models,
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
           expectGracefulResponse(metrics, 4);
-          expectNoRetiredPageTool(
+          expectNoBlockedRuntimeTool(
             metrics,
-            'Expected multi-step list guidance not to call retired page tools',
+            'Expected multi-step list guidance not to call invalid runtime tools',
           );
         },
       },
@@ -1663,23 +1663,23 @@ test.describe('AI Chat E2E', () => {
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
           expectGracefulResponse(metrics, 8);
-          expectNoRetiredPageTool(
+          expectNoBlockedRuntimeTool(
             metrics,
-            'Expected record creation guidance not to call retired page tools',
+            'Expected record creation guidance not to call invalid runtime tools',
           );
         },
       },
       {
         id: 'P6',
-        name: 'visual inspection request avoids retired tools',
+        name: 'visual inspection request avoids blocked tools',
         prompt: '请给我一份模型配置界面人工巡检清单。',
         route: ROUTES.agents,
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
           expectGracefulResponse(metrics, 8);
-          expectNoRetiredPageTool(
+          expectNoBlockedRuntimeTool(
             metrics,
-            'Expected visual inspection guidance not to call retired page tools',
+            'Expected visual inspection guidance not to call invalid runtime tools',
           );
         },
       },
@@ -1755,14 +1755,14 @@ test.describe('AI Chat E2E', () => {
         'Expected web search skill trigger',
       );
       expectGracefulResponse(guidanceTurn, 8);
-      expectNoRetiredPageTool(
+      expectNoBlockedRuntimeTool(
         guidanceTurn,
-        'Expected guidance turn not to call retired page tools',
+        'Expected guidance turn not to call invalid runtime tools',
       );
       expectGracefulResponse(skillTurn, 8);
-      expectNoRetiredPageTool(
+      expectNoBlockedRuntimeTool(
         skillTurn,
-        'Expected skill-pack guidance not to call retired page tools',
+        'Expected skill-pack guidance not to call invalid runtime tools',
       );
     });
 
@@ -1851,23 +1851,23 @@ test.describe('AI Chat E2E', () => {
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
           expectGracefulResponse(metrics, 4);
-          expectNoRetiredPageTool(
+          expectNoBlockedRuntimeTool(
             metrics,
-            'Expected row-detail guidance not to call retired page tools',
+            'Expected row-detail guidance not to call invalid runtime tools',
           );
         },
       },
       {
         id: 'T5',
-        name: 'form planning prompt avoids retired tools',
+        name: 'form planning prompt avoids blocked tools',
         prompt: '请说明新建技能包表单通常需要准备哪些字段和选项。',
         route: ROUTES.skillPackages,
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
           expectGracefulResponse(metrics, 8);
-          expectNoRetiredPageTool(
+          expectNoBlockedRuntimeTool(
             metrics,
-            'Expected form planning prompt not to call retired page tools',
+            'Expected form planning prompt not to call invalid runtime tools',
           );
         },
       },
@@ -1880,23 +1880,23 @@ test.describe('AI Chat E2E', () => {
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
           expectGracefulResponse(metrics, 8);
-          expectNoRetiredPageTool(
+          expectNoBlockedRuntimeTool(
             metrics,
-            'Expected edit guidance not to call retired page tools',
+            'Expected edit guidance not to call invalid runtime tools',
           );
         },
       },
       {
         id: 'T9',
-        name: 'navigation guidance avoids retired tools',
+        name: 'navigation guidance avoids blocked tools',
         prompt: '请说明后台菜单规划时如何让智能体管理入口更容易被找到。',
         route: ROUTES.agents,
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
           expectGracefulResponse(metrics, 8);
-          expectNoRetiredPageTool(
+          expectNoBlockedRuntimeTool(
             metrics,
-            'Expected navigation guidance not to call retired page tools',
+            'Expected navigation guidance not to call invalid runtime tools',
           );
         },
       },
@@ -1912,9 +1912,9 @@ test.describe('AI Chat E2E', () => {
             metrics,
             'Expected rich text continue not to call retired editor tools',
           );
-          expectNoRetiredPageTool(
+          expectNoBlockedRuntimeTool(
             metrics,
-            'Expected rich text continue not to call retired page tools',
+            'Expected rich text continue not to call invalid runtime tools',
           );
         },
       },
@@ -1957,9 +1957,9 @@ test.describe('AI Chat E2E', () => {
         timeout: EXTENDED_CHAT_TIMEOUT,
         verify: (metrics) => {
           expectGracefulResponse(metrics, 20);
-          expectNoRetiredPageTool(
+          expectNoBlockedRuntimeTool(
             metrics,
-            'Expected elapsed-budget recovery not to call retired page tools',
+            'Expected elapsed-budget recovery not to call invalid runtime tools',
           );
           expect(metrics.fullResponse).not.toContain('[PARTIAL EXIT]');
         },
@@ -2017,17 +2017,17 @@ test.describe('AI Chat E2E', () => {
       expectGracefulResponse(firstTurn, 4);
       expectGracefulResponse(secondTurn, 4);
       expectGracefulResponse(thirdTurn, 4);
-      expectNoRetiredPageTool(
+      expectNoBlockedRuntimeTool(
         firstTurn,
-        'Expected first pagination-style turn not to call retired page tools',
+        'Expected first pagination-style turn not to call invalid runtime tools',
       );
-      expectNoRetiredPageTool(
+      expectNoBlockedRuntimeTool(
         secondTurn,
-        'Expected second pagination-style turn not to call retired page tools',
+        'Expected second pagination-style turn not to call invalid runtime tools',
       );
-      expectNoRetiredPageTool(
+      expectNoBlockedRuntimeTool(
         thirdTurn,
-        'Expected third pagination-style turn not to call retired page tools',
+        'Expected third pagination-style turn not to call invalid runtime tools',
       );
     });
 
@@ -2046,13 +2046,13 @@ test.describe('AI Chat E2E', () => {
 
       expectGracefulResponse(firstTurn, 4);
       expectGracefulResponse(secondTurn, 4);
-      expectNoRetiredPageTool(
+      expectNoBlockedRuntimeTool(
         firstTurn,
-        'Expected first search-style turn not to call retired page tools',
+        'Expected first search-style turn not to call invalid runtime tools',
       );
-      expectNoRetiredPageTool(
+      expectNoBlockedRuntimeTool(
         secondTurn,
-        'Expected second search-style turn not to call retired page tools',
+        'Expected second search-style turn not to call invalid runtime tools',
       );
     });
 
@@ -2072,7 +2072,7 @@ test.describe('AI Chat E2E', () => {
       expectNoTool(
         secondTurn,
         (name) =>
-          isWeatherTool(name) || isSearchTool(name) || isRetiredPageTool(name),
+          isWeatherTool(name) || isSearchTool(name) || isBlockedRuntimeTool(name),
         'Expected recall from chat context without extra tools',
       );
     });

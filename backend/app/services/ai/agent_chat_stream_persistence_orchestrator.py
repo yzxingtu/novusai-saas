@@ -49,7 +49,6 @@ class AgentChatStreamPersistenceOrchestrator:
         history_count: int,
         history_messages: list[ChatMessage],
         seeded_user_message_count: int,
-        route_source: str | None,
         interaction_mode_effective: str,
         interaction_mode_downgrade_reason: str | None,
         memory_event_id: str,
@@ -79,7 +78,6 @@ class AgentChatStreamPersistenceOrchestrator:
         self.history_count = history_count
         self.history_messages = list(history_messages or [])
         self.seeded_user_message_count = seeded_user_message_count
-        self.route_source = route_source
         self.interaction_mode_effective = interaction_mode_effective
         self.interaction_mode_downgrade_reason = interaction_mode_downgrade_reason
         self.memory_event_id = memory_event_id
@@ -391,7 +389,6 @@ class AgentChatStreamPersistenceOrchestrator:
                                     history_count=self.history_count,
                                     history_messages=self.history_messages,
                                     agent_id=self.agent_id,
-                                    route_source=self.route_source,
                                     context_diagnostics=context_diagnostics_payload,
                                     last_run_summary=last_run_summary_payload,
                                     current_agent=self.agent,

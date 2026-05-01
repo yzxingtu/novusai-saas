@@ -216,8 +216,8 @@ def try_repair_json(raw: str) -> dict[str, Any] | None:
         except json.JSONDecodeError:
             pass
 
-    # Phase D: repair simple malformed single-field objects often emitted by
-    # fallback tool-capable models for locator-style page tools.
+    # Phase D: repair simple malformed single-field objects emitted by
+    # fallback tool-capable models.
     s4 = _try_fix_bare_single_key_object(s)
     if s4 and s4 != s:
         try:

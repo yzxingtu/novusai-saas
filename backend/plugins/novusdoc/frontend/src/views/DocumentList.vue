@@ -16,11 +16,6 @@ import {
 
 const shared = (window as unknown as Record<string, unknown>).NovusPluginShared as {
   $t?: (k: string) => string;
-  createKeywordSearchPageOperation?: (options: Record<string, unknown>) => unknown;
-  createPrefilledCreatePageOperation?: (options: Record<string, unknown>) => unknown;
-  createParameterizedPageOperation?: (options: Record<string, unknown>) => unknown;
-  createRefreshPageOperation?: (options: Record<string, unknown>) => unknown;
-  createSimplePageOperation?: (options: Record<string, unknown>) => unknown;
   router?: {
     push: (to: string) => void;
     currentRoute?: { value?: { meta?: Record<string, unknown> } };

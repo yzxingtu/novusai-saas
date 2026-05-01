@@ -2188,8 +2188,8 @@ class TestThinkingPersistence:
                                 "weight": Decimal("1"),
                             }
                         ],
-                        "page_operation_payload": {
-                            "page_key": "admin.runtime.records",
+                        "record_action_payload": {
+                            "resource_key": "admin.runtime.records",
                             "limit": Decimal("10"),
                         },
                     },
@@ -2349,13 +2349,13 @@ class TestThinkingPersistence:
                 "termination_reason": "protocol_fallback",
                 "protocol_path": "shadow",
                 "selected_tool_names": ["web_search", "fetch_url"],
-                "selected_skill_names": ["runtime.page_context", "runtime.route"],
+                "selected_skill_names": ["runtime.crm_records", "runtime.route"],
                 "context_sources": [
                     {
-                        "kind": "page_context",
+                        "kind": "read_model",
                         "name": "admin.runtime.records",
                         "active": True,
-                        "metadata": {"page_key": "admin.runtime.records"},
+                        "metadata": {"read_model_key": "admin.runtime.records"},
                     }
                 ],
                 "fallback_history": [
@@ -2400,9 +2400,17 @@ class TestThinkingPersistence:
         assert metadata["protocol_path"] == "shadow"
         assert metadata["selected_tool_names"] == ["web_search", "fetch_url"]
         assert metadata["selected_skill_names"] == [
+            "runtime.crm_records",
             "runtime.route",
         ]
-        assert metadata["turn_record"].get("context_sources") is None
+        assert metadata["turn_record"].get("context_sources") == [
+            {
+                "active": True,
+                "kind": "read_model",
+                "metadata": {"read_model_key": "admin.runtime.records"},
+                "name": "admin.runtime.records",
+            }
+        ]
         assert metadata["turn_record"]["fallback_history"][0]["recovered"] is True
         assert metadata["turn_record"]["metadata"]["shadow_diff"] == {
             "selected_tool_names": {
@@ -2412,10 +2420,12 @@ class TestThinkingPersistence:
         }
         assert metadata["context_diagnostics"]["protocol_path"] == "shadow"
         assert metadata["context_diagnostics"]["selected_skill_names"] == [
+            "runtime.crm_records",
             "runtime.route",
         ]
         assert metadata["last_run_summary"]["termination_reason"] == "protocol_fallback"
         assert metadata["last_run_summary"]["selected_skill_names"] == [
+            "runtime.crm_records",
             "runtime.route",
         ]
 
@@ -2881,10 +2891,10 @@ class TestThinkingPersistence:
             tool_calls=[
                 {
                     "id": "tc_confirm_3",
-                    "function": {"name": "ui_open_surface", "arguments": "{}"},
+                    "function": {"name": "crm_open_record", "arguments": "{}"},
                     "pending_confirmation": {
                         "preview": {"target": "create-agent"},
-                        "tool_name": "ui_open_surface",
+                        "tool_name": "crm_open_record",
                     },
                 }
             ],
@@ -2892,7 +2902,7 @@ class TestThinkingPersistence:
         assistant.metadata_ = {
             "pending_confirmation": {
                 "preview": {"target": "create-agent"},
-                "tool_name": "ui_open_surface",
+                "tool_name": "crm_open_record",
             }
         }
 
@@ -2911,7 +2921,7 @@ class TestThinkingPersistence:
                 {
                     "kind": "pending_confirmation",
                     "rejected": False,
-                    "tool_name": "ui_open_surface",
+                    "tool_name": "crm_open_record",
                 }
             ],
         )
@@ -3063,9 +3073,9 @@ def test_extract_turn_diagnostics_reads_extended_runtime_fields_from_nested_turn
                 "termination_reason": "budget_exit",
                 "protocol_path": "responses",
                 "selected_tool_names": ["get_current_weather", "web_search"],
-                "selected_skill_names": ["runtime.page_context"],
+                "selected_skill_names": ["runtime.crm_records"],
                 "context_sources": [
-                    {"kind": "page_context", "name": "admin.ai.dashboard"}
+                    {"kind": "read_model", "name": "admin.ai.dashboard"}
                 ],
                 "execution_path": "deep",
                 "intent_plan": [
@@ -3080,12 +3090,12 @@ def test_extract_turn_diagnostics_reads_extended_runtime_fields_from_nested_turn
                     },
                     {
                         "intent_id": "intent-3",
-                        "kind": "page_read",
-                        "family": "page_ops",
+                        "kind": "record_read",
+                        "family": "data_ops",
                         "order": 3,
-                        "user_visible_label": "page_read",
+                        "user_visible_label": "record_read",
                         "status": "pending",
-                        "allowed_tool_names": ["ui_get_snapshot"],
+                        "allowed_tool_names": ["crm_lookup"],
                     },
                 ],
                 "budget": {
@@ -3094,9 +3104,7 @@ def test_extract_turn_diagnostics_reads_extended_runtime_fields_from_nested_turn
                     "limits": {"max_tool_rounds": 3},
                     "usage": {"tool_rounds_used": 4},
                 },
-                "last_tool_name": "ui_get_snapshot",
-                "last_page_key": "admin.ai.dashboard",
-                "last_page_op": "read",
+                "last_tool_name": "crm_lookup",
                 "interrupted_stage": "tool_loop",
                 "tool_loop_progress": {"current_round": 2, "total_rounds": 3},
                 "metadata": {
@@ -3115,14 +3123,14 @@ def test_extract_turn_diagnostics_reads_extended_runtime_fields_from_nested_turn
                         "turn_skill_activation": {
                             "applied": True,
                             "reason": "runtime_policy",
-                            "selected_skill_names": ["runtime.page_context"],
-                            "selected_tool_names": ["ui_get_snapshot"],
+                            "selected_skill_names": ["runtime.crm_records"],
+                            "selected_tool_names": ["crm_lookup"],
                             "inventory_selected_skill_names": [
-                                "runtime.page_context",
+                                "runtime.crm_records",
                                 "runtime.web_research",
                             ],
                             "inventory_selected_tool_names": [
-                                "ui_get_snapshot",
+                                "crm_lookup",
                                 "web_search",
                             ],
                         },
@@ -3130,7 +3138,6 @@ def test_extract_turn_diagnostics_reads_extended_runtime_fields_from_nested_turn
                             "skills_injected": False,
                             "kb_injected": False,
                             "memory_injected": False,
-                            "page_injected": True,
                             "bypass_reason": None,
                         },
                         "tool_filtering": {
@@ -3152,7 +3159,7 @@ def test_extract_turn_diagnostics_reads_extended_runtime_fields_from_nested_turn
                                 "get_current_weather",
                                 "web_search",
                                 "fetch_url",
-                                "ui_get_snapshot",
+                                "crm_lookup",
                             ]
                         },
                         "recovery": {
@@ -3160,8 +3167,8 @@ def test_extract_turn_diagnostics_reads_extended_runtime_fields_from_nested_turn
                                 {
                                     "action": "retry_intent",
                                     "target_intent_id": "intent-3",
-                                    "retry_family": "page_ops",
-                                    "allowed_tool_names": ["ui_get_snapshot"],
+                                    "retry_family": "data_ops",
+                                    "allowed_tool_names": ["crm_lookup"],
                                     "completed_intent_ids": ["intent-1", "intent-2"],
                                     "unfinished_intent_ids": ["intent-3"],
                                     "reason": "unfinished_intent_retry",
@@ -3194,8 +3201,11 @@ def test_extract_turn_diagnostics_reads_extended_runtime_fields_from_nested_turn
         "get_current_weather",
         "web_search",
         "fetch_url",
+        "crm_lookup",
     ]
-    assert payload["retry_events"] == []
+    assert [event["target_intent_id"] for event in payload["retry_events"]] == [
+        "intent-3"
+    ]
     assert payload["partial_exit_reason"] == "retry_budget_exhausted"
     assert payload["failure_kind"] == "provider_http_5xx"
     assert payload["provider_events"] == [
@@ -3210,14 +3220,15 @@ def test_extract_turn_diagnostics_reads_extended_runtime_fields_from_nested_turn
     assert payload["turn_skill_activation"] == {
         "applied": True,
         "reason": "runtime_policy",
-        "tool_count": 0,
-        "selected_tool_names": [],
-        "skill_count": 0,
-        "selected_skill_names": [],
-        "inventory_tool_count": 1,
-        "inventory_selected_tool_names": ["web_search"],
-        "inventory_skill_count": 1,
+        "tool_count": 1,
+        "selected_tool_names": ["crm_lookup"],
+        "skill_count": 1,
+        "selected_skill_names": ["runtime.crm_records"],
+        "inventory_tool_count": 2,
+        "inventory_selected_tool_names": ["crm_lookup", "web_search"],
+        "inventory_skill_count": 2,
         "inventory_selected_skill_names": [
+            "runtime.crm_records",
             "runtime.web_research",
         ],
     }
@@ -3241,7 +3252,7 @@ def test_extract_turn_diagnostics_reads_extended_runtime_fields_from_nested_turn
             "provider_failure_kind": "provider_http_5xx",
         }
     ]
-    assert payload["last_tool_name"] is None
+    assert payload["last_tool_name"] == "crm_lookup"
     assert "last_page_key" not in payload
     assert payload["interrupted_stage"] == "tool_loop"
     assert payload["tool_loop_progress"] == {"current_round": 2, "total_rounds": 3}
@@ -3293,12 +3304,12 @@ async def test_persist_chat_messages_records_extended_runtime_diagnostics_fields
                 },
                 {
                     "intent_id": "intent-3",
-                    "kind": "page_read",
-                    "family": "page_ops",
+                    "kind": "record_read",
+                    "family": "data_ops",
                     "order": 3,
-                    "user_visible_label": "page_read",
+                    "user_visible_label": "record_read",
                     "status": "pending",
-                    "allowed_tool_names": ["ui_get_snapshot"],
+                    "allowed_tool_names": ["crm_lookup"],
                 },
             ],
             "budget": {
@@ -3315,7 +3326,7 @@ async def test_persist_chat_messages_records_extended_runtime_diagnostics_fields
                             "get_current_weather",
                             "web_search",
                             "fetch_url",
-                            "ui_get_snapshot",
+                            "crm_lookup",
                         ]
                     },
                     "recovery": {
@@ -3323,8 +3334,8 @@ async def test_persist_chat_messages_records_extended_runtime_diagnostics_fields
                             {
                                 "action": "retry_intent",
                                 "target_intent_id": "intent-3",
-                                "retry_family": "page_ops",
-                                "allowed_tool_names": ["ui_get_snapshot"],
+                                "retry_family": "data_ops",
+                                "allowed_tool_names": ["crm_lookup"],
                                 "completed_intent_ids": ["intent-1", "intent-2"],
                                 "unfinished_intent_ids": ["intent-3"],
                                 "reason": "unfinished_intent_retry",
@@ -3361,15 +3372,21 @@ async def test_persist_chat_messages_records_extended_runtime_diagnostics_fields
     last_summary = assistant_payload["metadata_"]["last_run_summary"]
 
     assert context_diag["execution_path"] == "deep"
-    assert [item["intent_id"] for item in context_diag["intent_plan"]] == ["intent-1"]
+    assert [item["intent_id"] for item in context_diag["intent_plan"]] == [
+        "intent-1",
+        "intent-3",
+    ]
     assert context_diag["budget_status"] == "exited"
     assert context_diag["budget_exit_reason"] == "elapsed_budget_exceeded"
     assert context_diag["candidate_tool_names"] == [
         "get_current_weather",
         "web_search",
         "fetch_url",
+        "crm_lookup",
     ]
-    assert context_diag.get("retry_events", []) == []
+    assert [
+        event["target_intent_id"] for event in context_diag.get("retry_events", [])
+    ] == ["intent-3"]
     assert context_diag["partial_exit_reason"] == "elapsed_budget_exceeded"
     assert context_diag["failure_kind"] == "provider_timeout"
     assert context_diag["provider_events"] == [{"kind": "provider_timeout"}]
@@ -3377,7 +3394,9 @@ async def test_persist_chat_messages_records_extended_runtime_diagnostics_fields
     assert last_summary["execution_path"] == "deep"
     assert last_summary["budget_exit_reason"] == "elapsed_budget_exceeded"
     assert last_summary["failure_kind"] == "provider_timeout"
-    assert last_summary.get("retry_events", []) == []
+    assert [
+        event["target_intent_id"] for event in last_summary.get("retry_events", [])
+    ] == ["intent-3"]
 
 
 @pytest.mark.asyncio
@@ -3397,8 +3416,8 @@ async def test_persist_chat_messages_strips_inventory_selected_names_when_live_t
                 "attachments": None,
                 "reasoning_content": None,
                 "metadata": {
-                    "selected_tool_names": ["ui_get_snapshot", "web_search"],
-                    "selected_skill_names": ["Page Skill", "Research Skill"],
+                    "selected_tool_names": ["crm_lookup", "web_search"],
+                    "selected_skill_names": ["Workflow Skill", "Research Skill"],
                 },
             },
         ],
@@ -3417,19 +3436,19 @@ async def test_persist_chat_messages_strips_inventory_selected_names_when_live_t
             "termination_reason": "tool_round_failed",
             "metadata": {
                 "turn_diagnostics": {
-                    "selected_tool_names": ["ui_get_snapshot", "web_search"],
-                    "selected_skill_names": ["Page Skill", "Research Skill"],
+                    "selected_tool_names": ["crm_lookup", "web_search"],
+                    "selected_skill_names": ["Workflow Skill", "Research Skill"],
                     "turn_skill_activation": {
                         "applied": True,
                         "reason": "runtime_policy",
                         "selected_tool_names": [],
                         "selected_skill_names": [],
                         "inventory_selected_tool_names": [
-                            "ui_get_snapshot",
+                            "crm_lookup",
                             "web_search",
                         ],
                         "inventory_selected_skill_names": [
-                            "Page Skill",
+                            "Workflow Skill",
                             "Research Skill",
                         ],
                     },
@@ -3452,12 +3471,12 @@ async def test_persist_chat_messages_strips_inventory_selected_names_when_live_t
         history_count=0,
         agent_id=7,
         context_diagnostics={
-            "selected_tool_names": ["ui_get_snapshot", "web_search"],
-            "selected_skill_names": ["Page Skill", "Research Skill"],
+            "selected_tool_names": ["crm_lookup", "web_search"],
+            "selected_skill_names": ["Workflow Skill", "Research Skill"],
         },
         last_run_summary={
-            "selected_tool_names": ["ui_get_snapshot", "web_search"],
-            "selected_skill_names": ["Page Skill", "Research Skill"],
+            "selected_tool_names": ["crm_lookup", "web_search"],
+            "selected_skill_names": ["Workflow Skill", "Research Skill"],
         },
     )
 
@@ -3513,14 +3532,14 @@ async def test_conversation_detail_surfaces_extended_runtime_diagnostics(
                         "turn_skill_activation": {
                             "applied": True,
                             "reason": "runtime_policy",
-                            "selected_skill_names": ["runtime.page_context"],
-                            "selected_tool_names": ["ui_get_snapshot"],
+                            "selected_skill_names": ["runtime.crm_records"],
+                            "selected_tool_names": ["crm_lookup"],
                             "inventory_selected_skill_names": [
-                                "runtime.page_context",
+                                "runtime.crm_records",
                                 "runtime.web_research",
                             ],
                             "inventory_selected_tool_names": [
-                                "ui_get_snapshot",
+                                "crm_lookup",
                                 "web_search",
                             ],
                         },
@@ -3561,12 +3580,11 @@ async def test_conversation_detail_surfaces_extended_runtime_diagnostics(
     )
     assert detail["context_diagnostics"]["turn_skill_activation"][
         "inventory_selected_skill_names"
-    ] == ["runtime.web_research"]
+    ] == ["runtime.crm_records", "runtime.web_research"]
     assert detail["last_run_summary"]["execution_path"] == "deep"
     assert detail["last_run_summary"]["budget_status"] == "exited"
     assert detail["last_run_summary"]["turn_skill_activation"][
         "selected_tool_names"
-    ] == []
+    ] == ["crm_lookup"]
     assert detail["message_list"][0]["turn_flow"]["completion_reason"] == "budget_exit"
     assert detail["message_list"][0]["turn_flow"]["timeline"][-1]["type"] == "failed"
-

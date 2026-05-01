@@ -1,5 +1,5 @@
 """Test type: behavioral
-Scope: extracted diagnostics support seam and retired page-awareness scrubbing.
+Scope: extracted diagnostics support seam and invalid runtime metadata scrubbing.
 Real dependencies: diagnostics extraction helpers.
 Mocked dependencies: none.
 """
@@ -178,9 +178,9 @@ def test_extract_turn_diagnostics_keeps_explicit_empty_live_selection_over_inven
                 "termination_reason": "tool_round_failed",
                 "metadata": {
                     "turn_diagnostics": {
-                        "selected_tool_names": ["ui_get_snapshot", "web_search"],
+                        "selected_tool_names": ["crm_lookup", "web_search"],
                         "selected_skill_names": [
-                            "runtime.page_context",
+                            "runtime.crm_records",
                             "Research Skill",
                         ],
                         "turn_skill_activation": {
@@ -189,11 +189,11 @@ def test_extract_turn_diagnostics_keeps_explicit_empty_live_selection_over_inven
                             "selected_tool_names": [],
                             "selected_skill_names": [],
                             "inventory_selected_tool_names": [
-                                "ui_get_snapshot",
+                                "crm_lookup",
                                 "web_search",
                             ],
                             "inventory_selected_skill_names": [
-                                "runtime.page_context",
+                                "runtime.crm_records",
                                 "Research Skill",
                             ],
                         },
@@ -201,12 +201,12 @@ def test_extract_turn_diagnostics_keeps_explicit_empty_live_selection_over_inven
                 },
             },
             "context_diagnostics": {
-                "selected_tool_names": ["ui_get_snapshot", "web_search"],
-                "selected_skill_names": ["runtime.page_context", "Research Skill"],
+                "selected_tool_names": ["crm_lookup", "web_search"],
+                "selected_skill_names": ["runtime.crm_records", "Research Skill"],
             },
             "last_run_summary": {
-                "selected_tool_names": ["ui_get_snapshot", "web_search"],
-                "selected_skill_names": ["runtime.page_context", "Research Skill"],
+                "selected_tool_names": ["crm_lookup", "web_search"],
+                "selected_skill_names": ["runtime.crm_records", "Research Skill"],
             },
         }
     )
@@ -214,23 +214,25 @@ def test_extract_turn_diagnostics_keeps_explicit_empty_live_selection_over_inven
     assert payload["selected_tool_names"] == []
     assert payload["selected_skill_names"] == []
     assert payload["turn_skill_activation"]["inventory_selected_tool_names"] == [
+        "crm_lookup",
         "web_search",
     ]
     assert payload["turn_skill_activation"]["inventory_selected_skill_names"] == [
-        "Research Skill"
+        "runtime.crm_records",
+        "Research Skill",
     ]
 
 
-def test_extract_turn_diagnostics_scrubs_retired_page_awareness_metadata() -> None:
+def test_extract_turn_diagnostics_scrubs_invalid_ai_runtime_input_metadata() -> None:
     payload = extract_turn_diagnostics_from_metadata(
         {
             "turn_record": {
                 "selected_tool_names": ["ui_get_snapshot", "web_search"],
-                "selected_skill_names": ["runtime.page_context", "Research Skill"],
+                "selected_skill_names": ["page_awareness", "Research Skill"],
                 "metadata": {
                     "turn_diagnostics": {
                         "continuation_source": "page_ops",
-                        "last_tool_name": "ui_click",
+                        "last_tool_name": "ui_get_snapshot",
                         "routing": {
                             "candidate_tool_names": ["pageop_click", "fetch_url"]
                         },
@@ -239,7 +241,7 @@ def test_extract_turn_diagnostics_scrubs_retired_page_awareness_metadata() -> No
                                 "kind": "page_context",
                                 "name": "admin.ai.dashboard",
                                 "metadata": {
-                                    "selected_tool_names": ["ui_click"],
+                                    "selected_tool_names": ["crm_update_record"],
                                 },
                             },
                             {
@@ -251,7 +253,7 @@ def test_extract_turn_diagnostics_scrubs_retired_page_awareness_metadata() -> No
                                         "fetch_url",
                                     ],
                                     "selected_skill_names": [
-                                        "页面感知交互",
+                                        "page_awareness",
                                         "Research Skill",
                                     ],
                                 },
@@ -260,7 +262,7 @@ def test_extract_turn_diagnostics_scrubs_retired_page_awareness_metadata() -> No
                         "tool_planner": {
                             "intent": "page_search",
                             "family": "page_ops",
-                            "allowed_tool_names": ["ui_get_snapshot"],
+                            "allowed_tool_names": ["crm_lookup"],
                         },
                         "intent_plan": [
                             {
@@ -268,7 +270,7 @@ def test_extract_turn_diagnostics_scrubs_retired_page_awareness_metadata() -> No
                                 "kind": "page_search",
                                 "family": "page_ops",
                                 "status": "completed",
-                                "completed_by_tool_names": ["ui_get_snapshot"],
+                                "completed_by_tool_names": ["crm_lookup"],
                             },
                             {
                                 "intent_id": "intent-web",
@@ -284,7 +286,7 @@ def test_extract_turn_diagnostics_scrubs_retired_page_awareness_metadata() -> No
                                     "action": "retry_intent",
                                     "target_intent_id": "intent-page",
                                     "retry_family": "page_ops",
-                                    "allowed_tool_names": ["ui_click"],
+                                    "allowed_tool_names": ["crm_update_record"],
                                 },
                                 {
                                     "action": "retry_intent",

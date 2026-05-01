@@ -8,7 +8,6 @@ from collections.abc import Callable
 from typing import Any
 
 from app.ai.prompt_contracts import render_prompt_contract
-from app.ai.tools.semantic_defaults import is_retired_page_tool
 from app.ai.tools.types import ToolDefinition
 from app.ai.types import ChatMessage
 
@@ -34,9 +33,7 @@ def inject_runtime_summary(
     if not messages or messages[0].role != "system":
         return False
 
-    allowed_tool_names = [
-        tool.name for tool in tools if not is_retired_page_tool(tool)
-    ]
+    allowed_tool_names = [tool.name for tool in tools]
     summarized_intents = intent_plan or []
     intent_summary = (
         ", ".join(intent.user_visible_label for intent in summarized_intents[:4])

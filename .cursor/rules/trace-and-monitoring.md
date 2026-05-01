@@ -79,7 +79,7 @@
 
 ## AI 操作审计日志
 
-- `write_ai_action_log()` + `resolve_action_level()` 仍是 AI 工具、页面操作、确认流写入 `AIActionLog` 的唯一入口，状态固定在 `success`/`failed`/`rejected`/`pending_confirm`，耗时字段统一 `duration_ms`。
+- `write_ai_action_log()` + `resolve_action_level()` 仍是 AI 工具与确认流写入 `AIActionLog` 的唯一入口，状态固定在 `success`/`failed`/`rejected`/`pending_confirm`，耗时字段统一 `duration_ms`。
 - 审计日志仅供只读显示，后台禁止再新增编辑/删除能力。
 
 ## 参考

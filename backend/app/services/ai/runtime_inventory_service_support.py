@@ -14,6 +14,10 @@ from app.ai.tools.types import ToolDefinition
 from app.models.ai.agent import Agent
 from app.models.ai.model import AIModel
 from app.models.ai.provider import AIProvider
+from app.schemas.ai.invalid_ai_runtime_input import (
+    filter_invalid_ai_runtime_references,
+    filter_invalid_ai_runtime_tools,
+)
 
 
 def _stable_unique_texts(values: list[Any]) -> list[str]:
@@ -33,7 +37,11 @@ def _normalized_skill_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
         "startup_preview_semantic_families",
     ):
         if key in normalized:
-            normalized[key] = _stable_unique_texts(list(normalized.get(key) or []))
+            normalized[key] = _stable_unique_texts(
+                filter_invalid_ai_runtime_references(
+                    list(normalized.get(key) or [])
+                )
+            )
     return normalized
 
 
@@ -192,7 +200,7 @@ def build_extension_items(
         }
     )
 
-    for tool in tools:
+    for tool in filter_invalid_ai_runtime_tools(tools):
         plugin_name = str(getattr(tool, "source_plugin", "") or "").strip()
         if not plugin_name:
             continue
@@ -220,12 +228,16 @@ def build_extension_items(
         if package_name and package_name not in bucket["package_names"]:
             bucket["package_names"].append(package_name)
         for tool_name in _stable_unique_texts(
-            list(metadata.get("startup_preview_tool_names") or [])
+            filter_invalid_ai_runtime_references(
+                list(metadata.get("startup_preview_tool_names") or [])
+            )
         ):
             if tool_name not in bucket["startup_preview_tool_names"]:
                 bucket["startup_preview_tool_names"].append(tool_name)
         for family in _stable_unique_texts(
-            list(metadata.get("startup_preview_semantic_families") or [])
+            filter_invalid_ai_runtime_references(
+                list(metadata.get("startup_preview_semantic_families") or [])
+            )
         ):
             if family not in bucket["startup_preview_semantic_families"]:
                 bucket["startup_preview_semantic_families"].append(family)

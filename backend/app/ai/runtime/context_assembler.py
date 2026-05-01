@@ -29,6 +29,10 @@ from app.ai.skills.activation import (
     execution_selected_tool_names_for_turn,
     execution_tools_for_turn,
 )
+from app.schemas.ai.invalid_ai_runtime_input import (
+    filter_invalid_ai_runtime_references,
+    filter_invalid_ai_runtime_tools,
+)
 from app.services.ai.model_capability_lookup import resolve_runtime_model_capabilities
 
 
@@ -199,19 +203,27 @@ class ContextAssembler:
             return
 
         bundle.inventory_selected_tool_names_override = cls._stable_unique_names(
-            list(getattr(skill_result, "inventory_selected_tool_names", []) or [])
+            filter_invalid_ai_runtime_references(
+                list(getattr(skill_result, "inventory_selected_tool_names", []) or [])
+            )
         )
         bundle.inventory_selected_skill_names_override = cls._stable_unique_names(
-            list(getattr(skill_result, "inventory_selected_skill_names", []) or [])
+            filter_invalid_ai_runtime_references(
+                list(getattr(skill_result, "inventory_selected_skill_names", []) or [])
+            )
         )
 
         activation = getattr(skill_result, "turn_activation", None)
         if activation is not None and activation.applied:
             bundle.selected_tool_names_override = cls._stable_unique_names(
-                list(execution_selected_tool_names_for_turn(skill_result))
+                filter_invalid_ai_runtime_references(
+                    list(execution_selected_tool_names_for_turn(skill_result))
+                )
             )
             bundle.selected_skill_names_override = cls._stable_unique_names(
-                list(getattr(skill_result, "selected_skill_names", []) or [])
+                filter_invalid_ai_runtime_references(
+                    list(getattr(skill_result, "selected_skill_names", []) or [])
+                )
             )
             return
 
@@ -272,31 +284,52 @@ class ContextAssembler:
 
         activation = getattr(skill_result, "turn_activation", None)
         if activation is not None and activation.applied:
-            tools = list(execution_tools_for_turn(skill_result))
+            tools = filter_invalid_ai_runtime_tools(execution_tools_for_turn(skill_result))
             descriptors = list(execution_capability_descriptors_for_turn(skill_result))
         else:
-            tools = list(getattr(skill_result, "tools", []) or [])
+            tools = filter_invalid_ai_runtime_tools(
+                getattr(skill_result, "tools", []) or []
+            )
             descriptors = list(
                 getattr(skill_result, "capability_descriptors", []) or []
             )
-        tool_consent_modes = dict(getattr(skill_result, "tool_consent_modes", {}) or {})
+        live_tool_names = {
+            str(getattr(tool, "name", "") or "").strip()
+            for tool in tools
+            if str(getattr(tool, "name", "") or "").strip()
+        }
+        tool_consent_modes = {
+            tool_name: mode
+            for tool_name, mode in dict(
+                getattr(skill_result, "tool_consent_modes", {}) or {}
+            ).items()
+            if tool_name in live_tool_names
+        }
         if not descriptors:
             descriptors = ContextAssembler._build_skill_descriptors_from_tools(tools)
 
         inventory_selected_tool_names = ContextAssembler._stable_unique_names(
-            list(getattr(skill_result, "inventory_selected_tool_names", []) or [])
+            filter_invalid_ai_runtime_references(
+                list(getattr(skill_result, "inventory_selected_tool_names", []) or [])
+            )
         )
         inventory_selected_skill_names = ContextAssembler._stable_unique_names(
-            list(getattr(skill_result, "inventory_selected_skill_names", []) or [])
+            filter_invalid_ai_runtime_references(
+                list(getattr(skill_result, "inventory_selected_skill_names", []) or [])
+            )
         )
         selected_tool_names: list[str] = []
         selected_skill_names: list[str] = []
         if activation is not None and activation.applied:
             selected_tool_names = ContextAssembler._stable_unique_names(
-                list(getattr(skill_result, "selected_tool_names", []) or [])
+                filter_invalid_ai_runtime_references(
+                    list(getattr(skill_result, "selected_tool_names", []) or [])
+                )
             )
             selected_skill_names = ContextAssembler._stable_unique_names(
-                list(getattr(skill_result, "selected_skill_names", []) or [])
+                filter_invalid_ai_runtime_references(
+                    list(getattr(skill_result, "selected_skill_names", []) or [])
+                )
             )
         context_sources: list[ContextSource] = []
         should_emit_skill_source = bool(

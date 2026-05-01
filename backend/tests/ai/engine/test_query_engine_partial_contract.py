@@ -335,7 +335,7 @@ async def test_runtime_query_engine_does_not_retry_sync_rescue_after_retryable_f
 
 
 @pytest.mark.asyncio
-async def test_runtime_query_engine_does_not_inject_retired_page_retry_override() -> (
+async def test_runtime_query_engine_does_not_inject_invalid_runtime_retry_override() -> (
     None
 ):
     query_engine = ConversationQueryEngine(

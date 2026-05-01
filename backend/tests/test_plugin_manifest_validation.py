@@ -262,7 +262,7 @@ def test_manifest_skill_extensions_accept_startup_preview_metadata() -> None:
                 "entry_point": "skills.neutral",
                 "display_name": {"en": "Neutral Skill"},
                 "preview_tool_names": [" crm_lookup ", "crm_lookup", ""],
-                "preview_semantic_families": [" page_ops ", "page_ops", ""],
+                "preview_semantic_families": [" data_ops ", "data_ops", ""],
             }
         ]
     }
@@ -271,4 +271,4 @@ def test_manifest_skill_extensions_accept_startup_preview_metadata() -> None:
 
     skill = manifest.extensions.skills[0]
     assert skill.preview_tool_names == ["crm_lookup"]
-    assert skill.preview_semantic_families == ["page_ops"]
+    assert skill.preview_semantic_families == ["data_ops"]

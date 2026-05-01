@@ -53,17 +53,17 @@ def test_build_turn_flow_view_model_contains_required_contract() -> None:
     assert turn_flow["completion_reason"] == "completed"
 
 
-def test_build_turn_flow_view_model_prefers_canonical_context_sources_over_legacy_rag_sources() -> None:
+def test_build_turn_flow_view_model_prefers_canonical_context_sources_over_rag_sources() -> None:
     turn_flow = build_turn_flow_view_model(
         diagnostics_payload={
             "context_sources": [
                 {
-                    "kind": "page",
-                    "name": "Current page",
+                    "kind": "knowledge_base",
+                    "name": "Knowledge base source",
                     "metadata": {
-                        "source_ref": "ctx_page_1",
-                        "title": "Current page",
-                        "snippet": "Read page state",
+                        "source_ref": "ctx_kb_1",
+                        "title": "Knowledge base source",
+                        "snippet": "Matched document excerpt",
                     },
                 }
             ],
@@ -73,13 +73,13 @@ def test_build_turn_flow_view_model_prefers_canonical_context_sources_over_legac
         turn_record={"termination_reason": "completed"},
         rag_sources=[
             {
-                "id": "legacy_page_write",
-                "kind": "page_write",
-                "title": "Legacy write alias",
+                "id": "fallback_kb_source",
+                "kind": "knowledge_base",
+                "title": "Fallback KB alias",
                 "snippet": "Should not be primary",
             }
         ],
-        output="已读取页面。",
+        output="已读取知识库资料。",
         completion_reason="completed",
         interrupted=False,
         error=None,
@@ -94,18 +94,18 @@ def test_build_turn_flow_view_model_prefers_canonical_context_sources_over_legac
             "error": None,
             "error_type": None,
             "id": "evidence_1",
-            "kind": "page",
+            "kind": "knowledge_base",
             "output": None,
             "result_link": None,
             "score": None,
             "skill_name": None,
             "skill_type": None,
-            "snippet": "Read page state",
-            "source_ref": "ctx_page_1",
+            "snippet": "Matched document excerpt",
+            "source_ref": "ctx_kb_1",
             "started_at": None,
             "status": None,
             "summary_payload": None,
-            "title": "Current page",
+            "title": "Knowledge base source",
             "tool_call_id": None,
             "tool_name": None,
             "url": None,

@@ -14,9 +14,9 @@ Recovery should narrow the task, not restart the entire turn blindly.
 - return partial results when stop-loss is reached
 - treat consent-required tool responses as a pause that waits for user input,
   not as retry exhaustion
-- historical page workflow fields may be read for legacy diagnostics only; live
-  recovery must not create page-specific retries, page progress snapshots, or
-  page-operation hints
+- historical page workflow fields may be read for migration diagnostics only;
+  live recovery must not create page-specific retries, page progress snapshots,
+  or page-operation hints
 - if a request needs data that used to be inferred from the rendered page,
   recovery must stop and point to an explicit backend API/export/skill-pack
   contract instead of trying to operate the page
@@ -40,7 +40,7 @@ Do not consume retry budget solely because a tool is waiting for consent.
 - failure classification
 - protocol history when relevant
 - next-step guidance only when actionable
-- for retired page-workflow signals, diagnostics should state that the live path
+- for invalid page-workflow signals, diagnostics should state that the live path
   is unavailable and should not suggest restoring page operations
 
 ## Consent Pause

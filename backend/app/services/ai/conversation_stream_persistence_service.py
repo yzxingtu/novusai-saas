@@ -41,7 +41,6 @@ class ConversationStreamPersistenceService:
         result: ExecutionResult,
         history_count: int,
         agent_id: int | None,
-        route_source: str | None,
         context_diagnostics: dict[str, Any] | None,
         last_run_summary: dict[str, Any] | None,
         current_agent: Any,
@@ -56,7 +55,6 @@ class ConversationStreamPersistenceService:
             history_count=history_count,
             history_messages=history_messages,
             agent_id=agent_id,
-            route_source=route_source,
             context_diagnostics=context_diagnostics,
             last_run_summary=last_run_summary,
         )

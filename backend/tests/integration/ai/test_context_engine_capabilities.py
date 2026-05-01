@@ -243,24 +243,18 @@ async def test_context_engine_tracks_skill_capabilities_without_prompt_injection
 
 
 @pytest.mark.asyncio
-async def test_context_engine_ignores_retired_page_context_for_page_turns() -> None:
+async def test_context_engine_ignores_invalid_runtime_context_for_page_turns() -> None:
     """
     Test type: structural
-    Scope: stale page_context no longer activates page skills or ui_* tools.
+    Scope: page-shaped user text does not synthesize current-page runtime tools.
     """
     assembly = await _assemble_context(
         request=_build_request(
             messages=[ChatMessage(role="user", content="帮我看一下当前页面")],
-            input_variables={
-                "page_context": {
-                    "page_key": "admin.ai.dashboard",
-                    "ui_epoch": 3,
-                }
-            },
         ),
         skill_result=_build_plugin_research_skill_result(),
         settings=TenantCapabilityAwarenessSettings(),
-        intent_plan=_build_intent_plan("page_summary"),
+        intent_plan=_build_intent_plan("record_summary"),
     )
 
     assert assembly.capability_bundle is not None
@@ -534,21 +528,9 @@ async def test_context_engine_ignores_stale_page_context_capabilities() -> (
 ):
     """
     Test type: structural
-    Scope: stale page_context does not create runtime context sources.
+    Scope: explicit backend context sources do not create current-page context sources.
     """
-    request = _build_request(
-        input_variables={
-            "page_context": {
-                "page_key": "admin.users",
-                "page_title": "用户管理",
-                "active_surface_id": "drawer-user-create",
-                "active_form_summary": {
-                    "mode": "create",
-                    "stage": "ready",
-                },
-            }
-        }
-    )
+    request = _build_request()
     skill_result = _build_skill_result(
         CapabilityDescriptor(
             name="web_search",
@@ -572,7 +554,7 @@ async def test_context_engine_ignores_stale_page_context_capabilities() -> (
                 "kb_document_count": 3,
             }
         ],
-        intent_plan=_build_intent_plan("knowledge_query", "page_read"),
+        intent_plan=_build_intent_plan("knowledge_query", "record_read"),
     )
 
     assert "[CAPABILITIES]" not in assembly.messages[0].content
@@ -612,12 +594,7 @@ async def test_context_engine_injects_visible_output_locale_for_non_page_turns()
                 content="How is the weather in Shanghai today?",
             )
         ],
-        input_variables={
-            "page_context": {
-                "locale": "zh_CN",
-                "page_title": "仪表盘",
-            }
-        },
+        input_variables={},
     )
 
     assembly = await _assemble_context(

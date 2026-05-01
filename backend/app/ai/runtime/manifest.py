@@ -14,6 +14,10 @@ from app.ai.memory_policy import resolve_memory_runtime_policy
 from app.ai.runtime.context_assembler import ContextAssemblerState
 from app.ai.runtime.types import CapabilityBundle
 from app.ai.tools.semantic_defaults import tool_semantic_family
+from app.schemas.ai.invalid_ai_runtime_input import (
+    filter_invalid_ai_runtime_references,
+    filter_invalid_ai_runtime_tools,
+)
 
 RuntimeCapabilityStatus = Literal["available", "degraded", "unavailable"]
 
@@ -204,7 +208,7 @@ class AIRuntimeInventoryService:
             else {}
         )
         families: list[str] = []
-        for tool in bundle.tools or []:
+        for tool in filter_invalid_ai_runtime_tools(bundle.tools or []):
             family = str(tool_semantic_family(tool, input_variables) or "").strip()
             if family and family != "none" and family not in families:
                 families.append(family)
@@ -218,7 +222,7 @@ class AIRuntimeInventoryService:
             else {}
         )
         family_map: dict[str, str] = {}
-        for tool in bundle.tools or []:
+        for tool in filter_invalid_ai_runtime_tools(bundle.tools or []):
             tool_name = str(getattr(tool, "name", "") or "").strip()
             if not tool_name:
                 continue
@@ -239,8 +243,12 @@ class AIRuntimeInventoryService:
     ) -> RuntimeCapabilityManifest:
         provider, model = cls._resolve_provider_model(agent)
         context_sources = cls._collect_context_sources(bundle)
-        selected_tools = cls._stable_unique(list(bundle.selected_tool_names or []))
-        selected_skills = cls._stable_unique(list(bundle.selected_skill_names or []))
+        selected_tools = cls._stable_unique(
+            filter_invalid_ai_runtime_references(list(bundle.selected_tool_names or []))
+        )
+        selected_skills = cls._stable_unique(
+            filter_invalid_ai_runtime_references(list(bundle.selected_skill_names or []))
+        )
         tool_families = cls._tool_families(bundle, request)
         tool_family_map = cls._tool_family_map(bundle, request)
 

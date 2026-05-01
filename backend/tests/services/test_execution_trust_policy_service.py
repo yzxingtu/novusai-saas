@@ -25,37 +25,37 @@ def test_execution_trust_policy_allows_named_read_tool() -> None:
     )
 
 
-def test_execution_trust_policy_rejects_retired_page_tool_even_when_named() -> None:
+def test_execution_trust_policy_allows_named_safe_write_tool_with_sufficient_risk_cap() -> None:
     policy_ref = {
-        "allowed_tool_names": ["ui_click"],
+        "allowed_tool_names": ["crm_update_record"],
         "tool_families": [],
         "risk_level_cap": "dangerous",
     }
 
     assert (
         ExecutionTrustPolicyService.allows_tool(
-            tool_name="ui_click",
-            tool_family="page_ops",
+            tool_name="crm_update_record",
+            tool_family="data_ops",
             policy_ref=policy_ref,
         )
-        is False
+        is True
     )
 
 
-def test_execution_trust_policy_rejects_page_ops_family_even_when_allowed() -> None:
+def test_execution_trust_policy_allows_family_when_policy_lists_family() -> None:
     policy_ref = {
         "allowed_tool_names": [],
-        "tool_families": ["page_ops"],
+        "tool_families": ["data_ops"],
         "risk_level_cap": "dangerous",
     }
 
     assert (
         ExecutionTrustPolicyService.allows_tool(
-            tool_name="custom_page_bridge",
-            tool_family="page_ops",
+            tool_name="custom_data_update",
+            tool_family="data_ops",
             policy_ref=policy_ref,
         )
-        is False
+        is True
     )
 
 

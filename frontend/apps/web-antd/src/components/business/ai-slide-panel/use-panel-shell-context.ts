@@ -42,7 +42,6 @@ interface UsePanelShellContextOptions {
   sendMessage: (options: {
     agentId: number;
     consumeMention?: boolean;
-    routeSource?: string;
   }) => Promise<boolean>;
   startNewConversation: (forceReset?: boolean) => void;
   storePendingAgentId: Ref<number | undefined>;

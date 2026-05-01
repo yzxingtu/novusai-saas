@@ -9,7 +9,7 @@ Produce explicit, ordered intents before tool routing or context injection.
 - Intent routing emits a list of `IntentPlan` items.
 - Each intent includes `kind`, `family`, `shortcircuit`, `requires_tools`,
   `allow_text_response`, `continuation`, and `metadata`.
-- Page-routing metadata is retired for AI dialogue live paths. Historical
+- Page-routing metadata is not valid for AI dialogue live paths. Historical
   `page_workflow` or `page_*` records may be read for diagnostics only; new
   planner output must not emit `page_ops` intents.
 
@@ -21,7 +21,7 @@ Produce explicit, ordered intents before tool routing or context injection.
 - `web_research` for external search.
 - `time_query` and `weather_query` for tool families that are explicitly
 available.
-- Page operation routing is retired. Do not emit `page_workflow`, `page_*`, or
+- Page operation routing is not valid. Do not emit `page_workflow`, `page_*`, or
   `page_ops` intents for live AI dialogue.
 
 ## Routing Rules
@@ -69,11 +69,11 @@ available.
   may use local structured semantic profiles plus the bounded shortcircuit
   layer above. That fallback must remain schema-shaped and compact; it must not
   regress into per-intent verb buckets.
-- Page intent taxonomy is retired for live AI dialogue. New planner output must
+- Page intent taxonomy is not valid for live AI dialogue. New planner output must
   not emit `page_workflow`, `page_*`, or `page_ops`; historical records may only
-  be read for diagnostics or retirement guards.
-- Page-negation guards may remain only to prevent retired page-routing
-  behavior. They must not create page intents or page-tool requests.
+  be read for diagnostics or invalid-input guards.
+- Page-negation guards may remain only to prevent invalid page-routing behavior.
+  They must not create page intents or page-tool requests.
 - Implementations should stamp routing provenance in `IntentPlan.metadata`
   (`routing_mode=deterministic_shortcircuit` or `routing_mode=structured_semantic`)
   so downstream audits can distinguish bounded guards from semantic fallback.
