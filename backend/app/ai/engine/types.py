@@ -261,6 +261,7 @@ class ExecutionRequest:
     stream: bool = False
     conversation_id: int | None = None
     knowledge_base_ids: list[int] | None = None
+    selected_skill_names: list[str] | None = None
     system_prompt_additions: list[str] = field(default_factory=list)
     trust_policy_ref: dict[str, Any] | None = None
     interaction_mode: str = "trusted_auto"

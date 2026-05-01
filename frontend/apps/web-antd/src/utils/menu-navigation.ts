@@ -58,19 +58,6 @@ export type MenuNavigationResolution =
       kind: 'success';
     };
 
-export interface NavigationContextData {
-  breadcrumb: string[];
-  endpoint: string;
-  page_key: string;
-  path: string;
-}
-
-export interface NavigationPageData {
-  navigation_catalog?: SerializedMenuNavigationEntry[];
-  navigation_context: NavigationContextData;
-  [key: string]: unknown;
-}
-
 export interface SerializedMenuNavigationEntry {
   breadcrumb: string[];
   capabilities?: string[];
@@ -544,78 +531,4 @@ export function buildCompactMenuNavigationCatalog(
     path: entry.path,
     title: entry.title,
   }));
-}
-
-export function findMenuNavigationEntryByPath(
-  entries: MenuNavigationEntry[],
-  path: string,
-): MenuNavigationEntry | undefined {
-  const normalizedPath = normalizeSearchText(normalizeComparablePath(path));
-  return entries.find(
-    (entry) =>
-      normalizeSearchText(normalizeComparablePath(entry.path)) ===
-      normalizedPath,
-  );
-}
-
-export function buildNavigationContext(options: {
-  activePath?: string;
-  currentPageKey?: string;
-  currentPath: string;
-  entries: MenuNavigationEntry[];
-}): NavigationContextData {
-  const normalizedCurrentPath = normalizeComparablePath(options.currentPath);
-  const normalizedActivePath = normalizeComparablePath(options.activePath ?? '');
-  const currentPageKey = normalizeNavigationKey(
-    options.currentPageKey ?? normalizedCurrentPath,
-  );
-  const activeEntry =
-    findMenuNavigationEntryByPath(options.entries, normalizedCurrentPath) ??
-    (normalizedActivePath
-      ? findMenuNavigationEntryByPath(options.entries, normalizedActivePath)
-      : undefined);
-
-  return {
-    breadcrumb: activeEntry?.breadcrumb ?? [],
-    endpoint: getEndpointFromPath(normalizedCurrentPath),
-    page_key: currentPageKey,
-    path: normalizedCurrentPath,
-  };
-}
-
-export function buildCompactNavigationPageData(options: {
-  activePath?: string;
-  currentPageKey?: string;
-  currentPath: string;
-  entries: MenuNavigationEntry[];
-  maxCapabilitiesPerEntry?: number;
-  maxEntries?: number;
-  maxKeywordsPerEntry?: number;
-}): NavigationPageData | undefined {
-  const navigationContext = buildNavigationContext({
-    activePath: options.activePath,
-    currentPageKey: options.currentPageKey,
-    currentPath: options.currentPath,
-    entries: options.entries,
-  });
-  const navigationCatalog = buildCompactMenuNavigationCatalog(options.entries, {
-    maxCapabilitiesPerEntry: options.maxCapabilitiesPerEntry,
-    maxEntries: options.maxEntries,
-    maxKeywordsPerEntry: options.maxKeywordsPerEntry,
-  });
-
-  if (
-    navigationCatalog.length === 0 &&
-    navigationContext.breadcrumb.length === 0 &&
-    !navigationContext.path
-  ) {
-    return undefined;
-  }
-
-  return {
-    ...(navigationCatalog.length > 0
-      ? { navigation_catalog: navigationCatalog }
-      : {}),
-    navigation_context: navigationContext,
-  };
 }

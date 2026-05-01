@@ -7,8 +7,7 @@ Defines batch execution request and response data structures.
 
 from datetime import datetime
 
-from pydantic import Field
-from pydantic import model_validator
+from pydantic import Field, model_validator
 
 from app.core.base_schema import (
     BaseCreateSchema,
@@ -37,6 +36,10 @@ class BatchRunCreate(BaseCreateSchema):
     def reject_retired_page_awareness_inputs(self) -> "BatchRunCreate":
         for item in self.items:
             ensure_no_retired_page_awareness_input(item)
+            for nested_key in ("variables", "input_variables"):
+                nested = item.get(nested_key)
+                if isinstance(nested, dict):
+                    ensure_no_retired_page_awareness_input(nested)
         return self
 
 

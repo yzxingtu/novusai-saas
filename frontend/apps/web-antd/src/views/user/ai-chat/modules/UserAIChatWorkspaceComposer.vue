@@ -1,4 +1,5 @@
 <script lang="ts" setup>
+import type { MentionCandidate } from '#/types/ai-chat';
 import type { VNodeRef } from 'vue';
 
 import { computed } from 'vue';
@@ -27,6 +28,7 @@ const {
   sending,
   streaming,
   pendingAttachments,
+  removeSelectedSkillName,
   uploading,
   fileInput,
   chatAcceptAttribute,
@@ -36,8 +38,10 @@ const {
   handleDragOver,
   removePendingAttachment,
   selectMentionKnowledgeBase,
+  selectMentionSkillPackage,
   removeSelectedKnowledgeBase,
   selectedKBIds,
+  selectedSkillNames,
   agentKBBindings,
   stopGeneration,
 } = chat;
@@ -59,6 +63,50 @@ function resolveSelectedKbName(knowledgeBaseId: number) {
     )?.kb_name,
     knowledgeBaseId,
   );
+}
+
+function formatSkillPackageName(candidate: MentionCandidate): string {
+  if (candidate.kind !== 'skill_package') {
+    return '';
+  }
+  return (
+    candidate.binding.package_name ||
+    candidate.binding.skill_name ||
+    $t('common.globalAiChat.skillBindingFallback', {
+      id: candidate.binding.skill_id,
+    })
+  );
+}
+
+function mentionCandidateKey(candidate: MentionCandidate): string {
+  if (candidate.kind === 'skill_package') {
+    return `skill-${candidate.binding.package_id ?? candidate.binding.skill_id}`;
+  }
+  return `kb-${candidate.binding.knowledge_base_id}`;
+}
+
+function mentionCandidateLabel(candidate: MentionCandidate): string {
+  if (candidate.kind === 'skill_package') {
+    return formatSkillPackageName(candidate);
+  }
+  return formatKnowledgeBaseName(
+    candidate.binding.kb_name,
+    candidate.binding.knowledge_base_id,
+  );
+}
+
+function mentionCandidateHintKey(candidate: MentionCandidate): string {
+  return candidate.kind === 'skill_package'
+    ? 'common.globalAiChat.mentionSkillPickHint'
+    : 'common.globalAiChat.mentionKbPickHint';
+}
+
+function selectMentionCandidate(candidate: MentionCandidate) {
+  if (candidate.kind === 'skill_package') {
+    selectMentionSkillPackage(candidate.binding);
+    return;
+  }
+  selectMentionKnowledgeBase(candidate.binding);
 }
 
 const setFileInputRef: VNodeRef = (element) => {
@@ -192,6 +240,30 @@ const setFileInputRef: VNodeRef = (element) => {
     </div>
 
     <div
+      v-if="selectedSkillNames.length > 0"
+      class="mb-1.5 flex flex-wrap items-center gap-1"
+    >
+      <span class="text-[10px] text-muted-foreground/70">{{
+        $t('common.globalAiChat.selectedSkillForTurn')
+      }}</span>
+      <span
+        v-for="skillName in selectedSkillNames"
+        :key="skillName"
+        class="inline-flex items-center gap-0.5 rounded-full border border-primary/25 bg-background px-1.5 py-0.5 text-[10px] text-primary"
+      >
+        {{ skillName }}
+        <button
+          type="button"
+          class="rounded p-0 leading-none text-muted-foreground hover:text-destructive"
+          :aria-label="$t('common.globalAiChat.removeSkillFromTurn')"
+          @click="removeSelectedSkillName(skillName)"
+        >
+          <IconifyIcon icon="lucide:x" class="size-2.5" />
+        </button>
+      </span>
+    </div>
+
+    <div
       class="user-composer-shell overflow-hidden rounded-[18px] border transition-all"
     >
       <Transition name="mention-panel">
@@ -229,7 +301,7 @@ const setFileInputRef: VNodeRef = (element) => {
           <div v-else class="max-h-48 space-y-2 overflow-y-auto">
             <template
               v-for="(candidate, candidateIndex) in mentionCandidates"
-              :key="`kb-${candidate.binding.knowledge_base_id}`"
+              :key="mentionCandidateKey(candidate)"
             >
               <div
                 v-if="
@@ -238,7 +310,13 @@ const setFileInputRef: VNodeRef = (element) => {
                 "
                 class="px-0.5 pt-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/60"
               >
-                {{ $t('common.globalAiChat.mentionSectionKbs') }}
+                {{
+                  $t(
+                    candidate.kind === 'skill_package'
+                      ? 'common.globalAiChat.mentionSectionSkills'
+                      : 'common.globalAiChat.mentionSectionKbs',
+                  )
+                }}
               </div>
               <button
                 class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors"
@@ -248,24 +326,31 @@ const setFileInputRef: VNodeRef = (element) => {
                     : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
                 "
                 @mousedown.prevent
-                @click="selectMentionKnowledgeBase(candidate.binding)"
+                @click="selectMentionCandidate(candidate)"
               >
                 <div
-                  class="flex size-7 shrink-0 items-center justify-center rounded-lg bg-amber-500/15 text-amber-700 dark:text-amber-400"
+                  class="flex size-7 shrink-0 items-center justify-center rounded-lg"
+                  :class="
+                    candidate.kind === 'skill_package'
+                      ? 'bg-sky-500/15 text-sky-700 dark:text-sky-400'
+                      : 'bg-amber-500/15 text-amber-700 dark:text-amber-400'
+                  "
                 >
-                  <IconifyIcon icon="lucide:library" class="size-4" />
+                  <IconifyIcon
+                    :icon="
+                      candidate.kind === 'skill_package'
+                        ? 'lucide:blocks'
+                        : 'lucide:library'
+                    "
+                    class="size-4"
+                  />
                 </div>
                 <div class="min-w-0 flex-1">
                   <div class="truncate text-[12px] font-medium">
-                    {{
-                      formatKnowledgeBaseName(
-                        candidate.binding.kb_name,
-                        candidate.binding.knowledge_base_id,
-                      )
-                    }}
+                    {{ mentionCandidateLabel(candidate) }}
                   </div>
                   <div class="truncate text-[10px] text-muted-foreground/70">
-                    {{ $t('common.globalAiChat.mentionKbPickHint') }}
+                    {{ $t(mentionCandidateHintKey(candidate)) }}
                   </div>
                 </div>
               </button>

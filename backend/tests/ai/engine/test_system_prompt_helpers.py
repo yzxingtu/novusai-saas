@@ -151,10 +151,10 @@ def test_inject_runtime_summary_omits_retired_runtime_narration() -> None:
     assert "Memory context may already be attached this turn." not in content
     assert "runtime.path=normal" in content
     assert "runtime.intents=page_workflow" in content
-    assert (
-        "runtime.tools=web_search, fetch_url, ui_click, ui_read_table, "
-        "ui_list_interactables" in content
-    )
+    assert "runtime.tools=web_search, fetch_url" in content
+    assert "ui_click" not in content
+    assert "ui_read_table" not in content
+    assert "ui_list_interactables" not in content
     assert "runtime.selected_skills=browser, researcher" in content
     assert estimate_tokens(content) - before_tokens <= 120
 
@@ -241,7 +241,7 @@ def test_base_engine_wrappers_delegate_to_extracted_helpers() -> None:
     assert helper_response.message.content == ""
 
 
-def test_page_submit_completion_signals_follow_state_machine_contract() -> None:
+def test_page_submit_completion_signals_are_retired() -> None:
     assert BaseEngine._intent_completion_signals(
         "page_ops",
         intent_kind="page_workflow",
@@ -267,10 +267,10 @@ def test_page_submit_completion_signals_follow_state_machine_contract() -> None:
                 "verify_signals": ["ui_submit_form"],
             },
         },
-    ) == ["ui_submit_form"]
+    ) == []
 
 
-def test_page_workflow_completion_signals_follow_canonical_goal_metadata() -> None:
+def test_page_workflow_completion_signals_do_not_reactivate_page_tools() -> None:
     assert BaseEngine._intent_completion_signals(
         "page_ops",
         intent_kind="page_workflow",
@@ -296,7 +296,7 @@ def test_page_workflow_completion_signals_follow_canonical_goal_metadata() -> No
                 "verify_signals": ["ui_submit_form"],
             },
         },
-    ) == ["ui_submit_form"]
+    ) == []
 
 
 def test_deserialize_intent_plan_filters_invalid_entries() -> None:
@@ -342,7 +342,7 @@ def test_resolve_capability_injection_decision_does_not_advertise_page_context()
     )
 
     assert decision["all_shortcircuit"] is False
-    assert decision["page_injected"] is False
+    assert decision.get("page_injected", False) is False
     assert decision["kb_injected"] is False
     assert decision["memory_injected"] is False
     assert decision["skills_injected"] is False

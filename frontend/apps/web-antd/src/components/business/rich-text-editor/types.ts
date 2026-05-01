@@ -80,35 +80,6 @@ export interface MountedEditor {
   destroy(): void;
 }
 
-export interface SourceEditorRegistration {
-  pageKey: string;
-  editorInstanceId: string;
-  appendToEnd(
-    content: string,
-    options?: RichTextEditorSetContentOptions,
-  ): boolean;
-  getHTML(): string;
-  getRevision(): number;
-  getText(): string;
-  insertAfterRange(
-    from: number,
-    to: number,
-    content: string,
-    options?: RichTextEditorSetContentOptions,
-  ): boolean;
-  isMounted(): boolean;
-  focus(): void;
-  replaceRange(
-    from: number,
-    to: number,
-    content: string,
-    options?: RichTextEditorSetContentOptions,
-  ): boolean;
-  revision: number;
-  setRevision?(revision: number): void;
-  undo(): boolean;
-}
-
 /** 工具栏按钮定义 / Toolbar button definition */
 export interface ToolbarButtonDef {
   key: string;

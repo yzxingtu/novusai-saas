@@ -40,10 +40,16 @@ interface ComposerKnowledgeBaseChip {
   label: string;
 }
 
+interface ComposerSkillPackageChip {
+  id: string;
+  label: string;
+  value: string;
+}
+
 interface ComposerMentionCandidateItem {
   active: boolean;
   id: number;
-  kind: 'knowledge_base';
+  kind: 'knowledge_base' | 'skill_package';
   subtitle?: string;
   title: string;
 }
@@ -101,7 +107,7 @@ interface UsePanelShellBodyBindingsOptions {
   onSelectConversation: (conversationId: number) => void;
   onSelectMentionCandidate: (payload: {
     id: number;
-    kind: 'knowledge_base';
+    kind: 'knowledge_base' | 'skill_package';
   }) => void;
   paste: (event: ClipboardEvent) => void;
   regenerateMessage: (index: number) => void;
@@ -110,12 +116,14 @@ interface UsePanelShellBodyBindingsOptions {
   rejectConsent: (index: number) => void;
   removeAttachment: (index: number) => void;
   removeSelectedKnowledgeBase: (id: number) => void;
+  removeSelectedSkillName: (skillName: string) => void;
   retryLastMessage: (index: number) => void;
   routing: Ref<boolean>;
   scrollToBottom: (force?: boolean) => void;
   scrollToTop: () => void;
   selectedAgent: Ref<AgentItem | null>;
   selectedKnowledgeBases: ComputedRef<ComposerKnowledgeBaseChip[]>;
+  selectedSkillPackages: ComputedRef<ComposerSkillPackageChip[]>;
   sendDisabled: ComputedRef<boolean>;
   sending: Ref<boolean>;
   sendState: ComputedRef<ComposerSendState>;
@@ -170,6 +178,7 @@ export function usePanelShellBodyBindings(
     routing: options.routing.value,
     selectedAgent: options.selectedAgent.value,
     selectedKnowledgeBases: options.selectedKnowledgeBases.value,
+    selectedSkillPackages: options.selectedSkillPackages.value,
     sendDisabled: options.sendDisabled.value,
     sending: options.sending.value,
     sendState: options.sendState.value,
@@ -218,6 +227,7 @@ export function usePanelShellBodyBindings(
     reject: options.rejectAction,
     removeAttachment: options.removeAttachment,
     removeSelectedKnowledgeBase: options.removeSelectedKnowledgeBase,
+    removeSelectedSkillPackage: options.removeSelectedSkillName,
     retry: options.retryLastMessage,
     scroll: options.handleMessagesScroll,
     scrollToBottom: () => options.scrollToBottom(true),

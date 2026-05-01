@@ -1,3 +1,10 @@
+"""
+Test type: behavioral
+Scope: runtime-v2 replay/query-engine handoff and provider fallback behavior.
+Mock strategy: runtime query engine and adapter are fakes at transport seams;
+conversation engine routing and request assembly run real code.
+"""
+
 from __future__ import annotations
 
 from types import SimpleNamespace
@@ -69,7 +76,7 @@ class _RuntimeQueryEngineStub:
             termination_reason="completed",
             protocol_path="responses",
             selected_tool_names=["query_records"],
-            selected_skill_names=["runtime.page_context"],
+            selected_skill_names=["runtime.query_records"],
             context_sources=[],
             fallback_history=[
                 {
@@ -146,7 +153,7 @@ class _RuntimeQueryEngineFailAfterMeaningfulChunkStub:
             termination_reason="error",
             protocol_path="responses",
             selected_tool_names=["query_records"],
-            selected_skill_names=["runtime.page_context"],
+            selected_skill_names=["runtime.query_records"],
             context_sources=[],
             fallback_history=[],
             metadata={"stream_failure_has_meaningful_chunk": True},
@@ -335,7 +342,7 @@ async def test_runtime_v2_active_mode_uses_query_engine(mock_db) -> None:
         runtime_turn_record = {}
     assert runtime_turn_record
     assert runtime_turn_record.get("selected_skill_names") == [
-        "runtime.page_context"
+        "runtime.query_records"
     ]
     assert runtime_turn_record.get("fallback_history")
     assert runtime_turn_record.get("metadata", {}).get("diagnostics_diff")
@@ -345,7 +352,7 @@ async def test_runtime_v2_active_mode_uses_query_engine(mock_db) -> None:
 
 
 @pytest.mark.asyncio
-async def test_runtime_v2_stream_path_uses_query_engine_for_page_tools(mock_db) -> None:
+async def test_runtime_v2_stream_path_uses_query_engine_for_query_tools(mock_db) -> None:
     engine = _build_engine(mock_db)
     adapter = _AdapterStub(delta="unused-adapter")
     runtime_context = _build_runtime_context(should_record_call_log=False)
@@ -378,8 +385,8 @@ async def test_runtime_v2_stream_path_uses_query_engine_for_page_tools(mock_db) 
                 conversation_id=67,
                 tools=[
                     ToolDefinition(
-                        name="ui_click",
-                        description="Click UI element",
+                        name="query_records",
+                        description="Query platform data",
                     )
                 ],
                 runtime_context=runtime_context,
@@ -487,8 +494,8 @@ def test_agent_chat_service_last_run_summary_carries_turn_record_skill_and_proto
             "termination_reason": "protocol_fallback",
             "protocol_path": "chat_completions",
             "selected_tool_names": ["query_records"],
-            "selected_skill_names": ["runtime.page_context"],
-            "context_sources": [{"kind": "page_context", "name": "admin.ai"}],
+            "selected_skill_names": ["runtime.query_records"],
+            "context_sources": [{"kind": "query_records", "name": "admin.ai"}],
         },
         completion_reason="",
         partial=False,
@@ -505,7 +512,7 @@ def test_agent_chat_service_last_run_summary_carries_turn_record_skill_and_proto
     assert payload["termination_reason"] == "protocol_fallback"
     assert payload["protocol_path"] == "chat_completions"
     assert payload["selected_tool_names"] == ["query_records"]
-    assert payload["selected_skill_names"] == ["runtime.page_context"]
+    assert payload["selected_skill_names"] == ["runtime.query_records"]
 
 
 @pytest.mark.asyncio

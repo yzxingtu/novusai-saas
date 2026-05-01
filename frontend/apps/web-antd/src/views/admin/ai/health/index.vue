@@ -158,15 +158,13 @@ function getProbeText(passed: boolean | null | undefined): string {
 <template>
   <Page auto-content-height content-class="flex flex-col gap-4 !p-4">
     <div
-      data-ai-main="true"
-      data-ai-region="main"
-      data-ai-page="admin-ai-health"
+      data-testid="admin-ai-health-page"
       class="flex flex-col gap-4"
     >
       <AIGatewayQuickStartHero :current-title="$t('admin.ai.health.title')" />
 
       <section
-        data-ai-section="health-runtime-actions"
+        data-testid="health-runtime-actions"
         class="rounded-[20px] border border-border/70 bg-card px-4 py-3 shadow-sm"
       >
         <div
@@ -204,7 +202,7 @@ function getProbeText(passed: boolean | null | undefined): string {
           <div class="flex flex-wrap items-center justify-end gap-2">
             <InputNumber
               v-model:value="runtimeAgentId"
-              data-ai-field-id="runtime-agent-id"
+              data-testid="runtime-agent-id"
               size="small"
               class="w-[140px]"
               :min="1"
@@ -212,7 +210,7 @@ function getProbeText(passed: boolean | null | undefined): string {
             />
             <Button
               v-access:code="['ai_runtime:list']"
-              data-ai-action-id="runtime-doctor"
+              data-testid="runtime-doctor"
               size="small"
               :loading="runtimeLoading"
               @click="runRuntimeDoctor"
@@ -224,7 +222,7 @@ function getProbeText(passed: boolean | null | undefined): string {
             </Button>
             <Button
               v-access:code="['ai_runtime:create']"
-              data-ai-action-id="runtime-smoke"
+              data-testid="runtime-smoke"
               size="small"
               :loading="runtimeLoading"
               @click="runRuntimeSmoke"
@@ -236,7 +234,7 @@ function getProbeText(passed: boolean | null | undefined): string {
             </Button>
             <Button
               v-access:code="['ai_runtime:list']"
-              data-ai-action-id="runtime-capabilities"
+              data-testid="runtime-capabilities"
               size="small"
               :loading="runtimeLoading"
               @click="runRuntimeCapabilities"
@@ -247,7 +245,7 @@ function getProbeText(passed: boolean | null | undefined): string {
               {{ $t('admin.ai.health.runtimeCapabilities') }}
             </Button>
             <Button
-              data-ai-action-id="health-refresh"
+              data-testid="health-refresh"
               size="small"
               @click="loadHealth"
             >
@@ -264,7 +262,7 @@ function getProbeText(passed: boolean | null | undefined): string {
       <Spin :spinning="loading">
         <div
           v-if="statuses.length > 0"
-          data-ai-section="health-provider-cards"
+          data-testid="health-provider-cards"
           class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3"
         >
           <Card
@@ -429,7 +427,7 @@ function getProbeText(passed: boolean | null | undefined): string {
         </div>
         <Empty
           v-else
-          data-ai-section="health-empty-state"
+          data-testid="health-empty-state"
           class="py-16"
           :description="$t('admin.ai.health.noData')"
         />

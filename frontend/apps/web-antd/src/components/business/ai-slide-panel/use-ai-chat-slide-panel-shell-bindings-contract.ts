@@ -18,6 +18,7 @@ import type {
   ConversationItem,
   MentionCandidate,
   MentionKnowledgeBaseBinding,
+  MentionSkillPackageBinding,
 } from '#/types/ai-chat';
 
 export interface UseAIChatSlidePanelShellBindingsOptions {
@@ -113,9 +114,14 @@ export interface UseAIChatSlidePanelShellBindingsOptions {
   selectedAgent: Ref<AgentItem | null>;
   selectedAgentId: Ref<null | number>;
   selectedKBIds: Ref<number[]>;
+  selectedSkillNames: Ref<string[]>;
   selectMentionKnowledgeBase: (
     binding: Pick<MentionKnowledgeBaseBinding, 'knowledge_base_id'>,
   ) => void;
+  selectMentionSkillPackage: (
+    binding: Pick<MentionSkillPackageBinding, 'package_name' | 'skill_name'>,
+  ) => void;
+  removeSelectedSkillName: (skillName: string) => void;
   sending: Ref<boolean>;
   showAttachments: Readonly<Ref<boolean>>;
   showContextDrawer: Ref<boolean>;

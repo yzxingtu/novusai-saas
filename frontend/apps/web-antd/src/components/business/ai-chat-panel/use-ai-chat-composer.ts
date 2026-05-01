@@ -19,6 +19,7 @@ import {
 import {
   extractLeadingAgentMentionDraft,
   filterKnowledgeBasesByMentionQuery,
+  filterSkillPackagesByMentionQuery,
 } from './chat-input-utils';
 
 interface UseAIChatComposerDeps {
@@ -33,6 +34,7 @@ export function useAIChatComposer(deps: UseAIChatComposerDeps) {
   const mentionQuery = ref('');
   const mentionActiveIndex = ref(0);
   const selectedKBIds = ref<number[]>([]);
+  const selectedSkillNames = ref<string[]>([]);
   const agentKBBindings = ref<ChatKBBindingInfo[]>([]);
   const agentKBBindingsByAgentId = ref<Record<number, ChatKBBindingInfo[]>>({});
   const agentSkillBindingsByAgentId = ref<Record<number, AgentSkillBindingSummary[]>>(
@@ -47,7 +49,46 @@ export function useAIChatComposer(deps: UseAIChatComposerDeps) {
     Promise<AgentSkillBindingSummary[]>
   >();
 
-  /** @ 候选：仅当前智能体已绑定知识库 / Only KBs bound to the current agent */
+  function skillPackageSelectionValue(
+    binding: Pick<AgentSkillBindingSummary, 'package_name' | 'skill_name'>,
+  ): string {
+    return String(binding.package_name || binding.skill_name || '').trim();
+  }
+
+  function currentAgentSkillBindings(): AgentSkillBindingSummary[] {
+    const agentId = selectedAgentId.value;
+    if (typeof agentId !== 'number' || !Number.isFinite(agentId)) {
+      return [];
+    }
+    return agentSkillBindingsByAgentId.value[agentId] ?? [];
+  }
+
+  function currentMentionSkillPackages(): AgentSkillBindingSummary[] {
+    const seen = new Set<string>();
+    const out: AgentSkillBindingSummary[] = [];
+    for (const binding of currentAgentSkillBindings()) {
+      const skillId = Number(binding.skill_id);
+      if (!Number.isFinite(skillId)) {
+        continue;
+      }
+      const value = skillPackageSelectionValue(binding);
+      if (!value) {
+        continue;
+      }
+      const key =
+        binding.package_id === null || binding.package_id === undefined
+          ? `skill:${skillId}`
+          : `package:${binding.package_id}`;
+      if (seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+      out.push(binding);
+    }
+    return out;
+  }
+
+  /** @ 候选：当前智能体已绑定知识库与技能包 / KBs and skill packages bound to the current agent */
   const mentionCandidates = computed<MentionCandidate[]>(() => {
     const draft = extractLeadingAgentMentionDraft(inputMessage.value);
     if (draft === null) {
@@ -60,6 +101,20 @@ export function useAIChatComposer(deps: UseAIChatComposerDeps) {
     const out: MentionCandidate[] = [];
     for (const binding of kbMatches) {
       out.push({ kind: 'knowledge_base', binding });
+    }
+    const skillMatches = filterSkillPackagesByMentionQuery(
+      currentMentionSkillPackages()
+        .filter((binding) => Number.isFinite(Number(binding.skill_id)))
+        .map((binding) => ({
+          package_id: binding.package_id ?? null,
+          package_name: binding.package_name ?? null,
+          skill_id: Number(binding.skill_id),
+          skill_name: binding.skill_name ?? binding.name ?? null,
+        })),
+      draft,
+    );
+    for (const binding of skillMatches) {
+      out.push({ kind: 'skill_package', binding });
     }
     return out;
   });
@@ -99,9 +154,27 @@ export function useAIChatComposer(deps: UseAIChatComposerDeps) {
     inputMessage.value = '';
   }
 
+  function selectMentionSkillPackage(
+    binding: Pick<AgentSkillBindingSummary, 'package_name' | 'skill_name'>,
+  ) {
+    const value = skillPackageSelectionValue(binding);
+    if (value && !selectedSkillNames.value.includes(value)) {
+      selectedSkillNames.value = [...selectedSkillNames.value, value];
+    }
+    mentionQuery.value = '';
+    mentionActiveIndex.value = 0;
+    inputMessage.value = '';
+  }
+
   function removeSelectedKnowledgeBase(knowledgeBaseId: number) {
     selectedKBIds.value = selectedKBIds.value.filter(
       (k) => k !== knowledgeBaseId,
+    );
+  }
+
+  function removeSelectedSkillName(skillName: string) {
+    selectedSkillNames.value = selectedSkillNames.value.filter(
+      (name) => name !== skillName,
     );
   }
 
@@ -251,6 +324,20 @@ export function useAIChatComposer(deps: UseAIChatComposerDeps) {
       selectedKBIds.value = selectedKBIds.value.filter((kid) =>
         allowed.has(kid),
       );
+      const allowedSkillNames = new Set<string>();
+      for (const binding of getAgentSkillBindings(id) ?? []) {
+        const packageName = String(binding.package_name || '').trim();
+        const skillName = String(binding.skill_name || binding.name || '').trim();
+        if (packageName) {
+          allowedSkillNames.add(packageName);
+        }
+        if (skillName) {
+          allowedSkillNames.add(skillName);
+        }
+      }
+      selectedSkillNames.value = selectedSkillNames.value.filter((name) =>
+        allowedSkillNames.has(name),
+      );
     },
     { immediate: true },
   );
@@ -286,8 +373,10 @@ export function useAIChatComposer(deps: UseAIChatComposerDeps) {
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
       e.preventDefault();
       const target = candidates[mentionActiveIndex.value] ?? candidates[0];
-      if (target) {
+      if (target?.kind === 'knowledge_base') {
         selectMentionKnowledgeBase(target.binding as ChatKBBindingInfo);
+      } else if (target?.kind === 'skill_package') {
+        selectMentionSkillPackage(target.binding);
       }
       return true;
     }
@@ -309,7 +398,10 @@ export function useAIChatComposer(deps: UseAIChatComposerDeps) {
     mentionCandidates,
     mentionOpen,
     removeSelectedKnowledgeBase,
+    removeSelectedSkillName,
     selectMentionKnowledgeBase,
+    selectMentionSkillPackage,
     selectedKBIds,
+    selectedSkillNames,
   };
 }

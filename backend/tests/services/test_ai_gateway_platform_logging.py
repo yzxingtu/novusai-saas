@@ -1,3 +1,10 @@
+"""
+Test type: behavioral
+Scope: AI gateway call-log projection for platform/admin requests.
+Mock strategy: repository/provider boundaries are mocked; call-log payload
+assembly and retired tool filtering run real code.
+"""
+
 from __future__ import annotations
 
 import time
@@ -248,7 +255,7 @@ async def test_log_call_failure_logs_platform_admin_calls(mock_db):
     assert kwargs["error_message"] == "boom"
 
 
-def test_build_request_log_data_records_selected_and_all_tool_names(mock_db):
+def test_build_request_log_data_filters_retired_page_tools_from_logs(mock_db):
     from app.ai.gateway import AIGateway
 
     gateway = AIGateway.__new__(AIGateway)
@@ -276,9 +283,8 @@ def test_build_request_log_data_records_selected_and_all_tool_names(mock_db):
     )
 
     assert payload["selected_tool_names"] == ["web_search", "fetch_url"]
-    assert payload["all_tool_names"] == [
-        "ui_get_snapshot",
-        "ui_click",
+    assert payload["all_tool_names"] == ["web_search", "fetch_url"]
+    assert payload["tool_use_policy"]["allowed_tool_names"] == [
         "web_search",
         "fetch_url",
     ]
@@ -309,7 +315,7 @@ def test_build_request_log_data_keeps_non_empty_selected_tools_with_mixed_inputs
 
     assert payload["selected_tool_names"] == ["web_search"]
     assert len(payload["selected_tool_names"]) == 1
-    assert payload["all_tool_names"] == ["web_search", "fetch_url", "ui_get_snapshot"]
+    assert payload["all_tool_names"] == ["web_search", "fetch_url"]
 
 
 def test_usage_recorder_turn_diagnostics_preserves_shadow_diff_payload() -> None:
@@ -693,7 +699,10 @@ async def test_conversation_engine_stream_logs_platform_admin_calls_without_mete
     with (
         patch(
             "app.ai.engine.conversation.AdapterRegistry.create_adapter",
-            return_value=SimpleNamespace(stream_chat=fake_stream_chat),
+            return_value=SimpleNamespace(
+                stream_chat=fake_stream_chat,
+                chat=AsyncMock(side_effect=RuntimeError("upstream boom")),
+            ),
         ),
         patch(
             "app.ai.engine.conversation.CostCalculator.calculate_cost",
@@ -863,7 +872,10 @@ async def test_conversation_engine_stream_logs_failure_before_done(
     with (
         patch(
             "app.ai.engine.conversation.AdapterRegistry.create_adapter",
-            return_value=SimpleNamespace(stream_chat=fake_stream_chat),
+            return_value=SimpleNamespace(
+                stream_chat=fake_stream_chat,
+                chat=AsyncMock(side_effect=RuntimeError("upstream boom")),
+            ),
         ),
         pytest.raises(RuntimeError, match="upstream boom"),
     ):
@@ -876,14 +888,14 @@ async def test_conversation_engine_stream_logs_failure_before_done(
                 user_id=7,
                 conversation_id=386,
                 tools=[
-                    ToolDefinition(name="ui_get_snapshot", description="Get UI snapshot"),
-                    ToolDefinition(name="ui_click", description="Click UI element"),
+                    ToolDefinition(name="web_search", description="Search"),
+                    ToolDefinition(name="fetch_url", description="Fetch URL"),
                 ],
-                all_tool_names=["ui_get_snapshot", "ui_click"],
+                all_tool_names=["web_search", "fetch_url"],
                 tool_use_policy=ToolUsePolicy(
-                    family="page_ops",
+                    family="web_research",
                     mode="required",
-                    allowed_tool_names=["ui_get_snapshot", "ui_click"],
+                    allowed_tool_names=["web_search", "fetch_url"],
                 ),
             )
         ]
@@ -897,8 +909,8 @@ async def test_conversation_engine_stream_logs_failure_before_done(
     assert kwargs["model_id"] == 33
     assert kwargs["provider"] is provider
     assert kwargs["tool_choice"] == "required"
-    assert kwargs["selected_tool_names"] == ["ui_get_snapshot", "ui_click"]
-    assert kwargs["allowed_tool_names"] == ["ui_get_snapshot", "ui_click"]
+    assert kwargs["selected_tool_names"] == ["web_search", "fetch_url"]
+    assert kwargs["allowed_tool_names"] == ["web_search", "fetch_url"]
     gateway.usage_recorder.call_log_service.log_call_async.assert_not_awaited()
     gateway.usage_recorder.record_usage_and_adjust.assert_not_awaited()
     api_key.increment_usage.assert_not_called()

@@ -144,6 +144,7 @@ class UserAgentChatController(BaseController):
                 memory_channel=MemoryChannelEnum.USER_CHAT.value,
                 memory_source=MemorySceneEnum.AI_CHAT_PAGE.value,
                 route_source=data.route_source,
+                selected_skill_names=data.selected_skill_names,
                 interaction_updates=[
                     item.model_dump() for item in data.interaction_updates
                 ]
@@ -212,6 +213,7 @@ class UserAgentChatController(BaseController):
                 memory_channel=MemoryChannelEnum.USER_CHAT.value,
                 memory_source=MemorySceneEnum.AI_CHAT_PAGE.value,
                 route_source=data.route_source,
+                selected_skill_names=data.selected_skill_names,
                 interaction_updates=[
                     item.model_dump() for item in data.interaction_updates
                 ]

@@ -44,6 +44,7 @@ import { registerUseAIChatHistoryCases } from './use-ai-chat-history-cases';
 
 const apiMocks = vi.hoisted(() => ({
   getChatAgentKBBindingsApi: vi.fn(),
+  getChatAgentSkillsApi: vi.fn(),
   getChatAgentsApi: vi.fn(),
   getChatConversationMemoryApi: vi.fn(),
   getChatConversationMessagesApi: vi.fn(),
@@ -74,6 +75,7 @@ vi.mock('#/api/shared/ai-chat', () => ({
   clearChatConversationMemoryApi: vi.fn(),
   deleteChatConversationApi: vi.fn(),
   getChatAgentKBBindingsApi: apiMocks.getChatAgentKBBindingsApi,
+  getChatAgentSkillsApi: apiMocks.getChatAgentSkillsApi,
   getChatAgentsApi: apiMocks.getChatAgentsApi,
   getChatConversationMemoryApi: apiMocks.getChatConversationMemoryApi,
   getChatConversationMessagesApi: apiMocks.getChatConversationMessagesApi,
@@ -149,6 +151,7 @@ describe('useAIChat interrupted stream recovery', () => {
     vi.useFakeTimers();
     apiMocks.getChatAgentsApi.mockReset();
     apiMocks.getChatAgentKBBindingsApi.mockReset();
+    apiMocks.getChatAgentSkillsApi.mockReset();
     apiMocks.getChatConversationMemoryApi.mockReset();
     apiMocks.getChatConversationMessagesApi.mockReset();
     apiMocks.getGlobalConversationsApi.mockReset();
@@ -161,6 +164,7 @@ describe('useAIChat interrupted stream recovery', () => {
     socketStoreMocks.isConnected = false;
 
     apiMocks.getChatAgentsApi.mockResolvedValue(buildAgentList());
+    apiMocks.getChatAgentSkillsApi.mockResolvedValue([]);
     apiMocks.getGlobalConversationsApi.mockResolvedValue(
       buildConversationList([buildConversation()]),
     );
@@ -2321,12 +2325,29 @@ describe('useAIChat interrupted stream recovery', () => {
     expect(chat.selectedKBIds.value).toEqual([10]);
   });
 
-  it('builds KB-only mention candidates and selects a knowledge base on Enter', async () => {
+  it('builds bound KB and skill-package mention candidates and selects them on Enter', async () => {
     apiMocks.getChatAgentKBBindingsApi.mockResolvedValue([
       {
         enabled: true,
         kb_name: 'Operations KB',
         knowledge_base_id: 10,
+      },
+    ]);
+    apiMocks.getChatAgentSkillsApi.mockResolvedValue([
+      {
+        agent_id: 1,
+        enabled: true,
+        id: 20,
+        is_auto_bound: false,
+        package_description: 'Baidu public search',
+        package_id: 30,
+        package_is_system: true,
+        package_name: '百度公开搜索',
+        skill_description: 'Search public web pages through Baidu',
+        skill_id: 40,
+        skill_key: 'baidu_public_search',
+        skill_name: 'Baidu Public Search Skill',
+        skill_type: 'toolkit',
       },
     ]);
 
@@ -2335,7 +2356,7 @@ describe('useAIChat interrupted stream recovery', () => {
     await chat.loadAgents();
     await flushPromises();
 
-    chat.inputMessage.value = '@oper';
+    chat.inputMessage.value = '@';
     await flushPromises();
 
     expect(chat.mentionCandidates.value).toEqual([
@@ -2346,6 +2367,13 @@ describe('useAIChat interrupted stream recovery', () => {
         }),
         kind: 'knowledge_base',
       },
+      {
+        binding: expect.objectContaining({
+          package_name: '百度公开搜索',
+          skill_id: 40,
+        }),
+        kind: 'skill_package',
+      },
     ]);
 
     const handled = chat.handleInputKeyDown(
@@ -2355,6 +2383,71 @@ describe('useAIChat interrupted stream recovery', () => {
     expect(handled).toBe(true);
     expect(chat.selectedKBIds.value).toEqual([10]);
     expect(chat.inputMessage.value).toBe('');
+
+    chat.inputMessage.value = '@百度';
+    await flushPromises();
+
+    const skillHandled = chat.handleInputKeyDown(
+      new KeyboardEvent('keydown', { key: 'Enter' }),
+    );
+
+    expect(skillHandled).toBe(true);
+    expect(chat.selectedSkillNames.value).toEqual(['百度公开搜索']);
+    expect(chat.inputMessage.value).toBe('');
+  });
+
+  it('sends selected bound skill packages in the next chat request', async () => {
+    apiMocks.getChatAgentSkillsApi.mockResolvedValue([
+      {
+        agent_id: 1,
+        enabled: true,
+        id: 21,
+        is_auto_bound: false,
+        package_description: 'Baidu public search',
+        package_id: 31,
+        package_is_system: true,
+        package_name: '百度公开搜索',
+        skill_description: 'Search public web pages through Baidu',
+        skill_id: 41,
+        skill_key: 'baidu_public_search',
+        skill_name: 'Baidu Public Search Skill',
+        skill_type: 'toolkit',
+      },
+    ]);
+    apiMocks.sendChatStreamApi.mockImplementation(
+      async (
+        _prefix: string,
+        _agentId: number,
+        _body: Record<string, unknown>,
+        options: {
+          onMessage: (chunk: string) => Promise<void>;
+        },
+      ) => {
+        await options.onMessage(
+          sseEvent({ event: 'conversation', conversation_id: 42 }),
+        );
+        await options.onMessage(sseEvent({ event: 'done', total_tokens: 18 }));
+      },
+    );
+
+    const chat = createChat();
+
+    await chat.loadAgents();
+    await flushPromises();
+
+    chat.inputMessage.value = '@百度';
+    await flushPromises();
+    chat.handleInputKeyDown(new KeyboardEvent('keydown', { key: 'Enter' }));
+    chat.inputMessage.value = '查一下今天新闻';
+
+    await chat.sendMessage();
+    await flushPromises();
+
+    const requestBody = apiMocks.sendChatStreamApi.mock.calls.at(-1)?.[2] as
+      | Record<string, unknown>
+      | undefined;
+    expect(requestBody?.selected_skill_names).toEqual(['百度公开搜索']);
+    expect(chat.selectedSkillNames.value).toEqual([]);
   });
 
   it('does not tag debounced assistant placeholders as rich text drafts', async () => {

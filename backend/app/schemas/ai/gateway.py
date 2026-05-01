@@ -6,9 +6,24 @@ Data structures for AI gateway call requests and responses.
 """
 
 from decimal import Decimal
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
+
+from app.ai.tools.semantic_defaults import is_retired_page_tool_name
+from app.core.i18n import _
+
+
+def _validate_tool_function(function: dict[str, Any]) -> dict[str, Any]:
+    tool_name = str(function.get("name") or "").strip()
+    if tool_name and is_retired_page_tool_name(tool_name):
+        raise ValueError(
+            _(
+                "agent_chat.error.retired_page_awareness_tool",
+                tool=tool_name,
+            )
+        )
+    return function
 
 
 class ToolCall(BaseModel):
@@ -16,14 +31,24 @@ class ToolCall(BaseModel):
 
     id: str = Field(..., description="Tool call ID")
     type: str = Field(default="function", description="Type")
-    function: dict = Field(..., description="Function info")
+    function: dict[str, Any] = Field(..., description="Function info")
+
+    @field_validator("function")
+    @classmethod
+    def validate_function(cls, v: dict[str, Any]) -> dict[str, Any]:
+        return _validate_tool_function(v)
 
 
 class ToolDefinition(BaseModel):
     """Tool definition / 工具定义"""
 
     type: str = Field(default="function", description="Type")
-    function: dict = Field(..., description="Function definition")
+    function: dict[str, Any] = Field(..., description="Function definition")
+
+    @field_validator("function")
+    @classmethod
+    def validate_function(cls, v: dict[str, Any]) -> dict[str, Any]:
+        return _validate_tool_function(v)
 
 
 class ChatMessage(BaseModel):
@@ -38,7 +63,7 @@ class ChatMessage(BaseModel):
     )
     tool_call_id: str | None = Field(default=None, description="Tool call ID")
 
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "forbid"}
 
 
 class UsageInfo(BaseModel):
@@ -92,7 +117,7 @@ class ChatRequest(BaseModel):
             raise ValueError("messages must not be empty")
         return v
 
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "forbid"}
 
 
 class ChatResponse(BaseModel):

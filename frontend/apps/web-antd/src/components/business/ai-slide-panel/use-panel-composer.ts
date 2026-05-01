@@ -1,7 +1,12 @@
 import type { ComputedRef, Ref } from 'vue';
 
 import type { ChatKBBindingInfo } from '#/api/shared/ai-chat';
-import type { ChatAttachment, MentionCandidate } from '#/types/ai-chat';
+import type {
+  ChatAttachment,
+  MentionCandidate,
+  MentionSkillPackageBinding,
+  SelectedSkillPackageChip,
+} from '#/types/ai-chat';
 
 import { computed } from 'vue';
 
@@ -19,8 +24,12 @@ interface UsePanelComposerOptions {
   pendingAttachments: Ref<ChatAttachment[]>;
   routing: Ref<boolean>;
   selectedKBIds: Ref<number[]>;
+  selectedSkillNames: Ref<string[]>;
   selectMentionKnowledgeBase: (
     binding: Pick<ChatKBBindingInfo, 'knowledge_base_id'>,
+  ) => void;
+  selectMentionSkillPackage: (
+    binding: Pick<MentionSkillPackageBinding, 'package_name' | 'skill_name'>,
   ) => void;
   sending: Ref<boolean>;
   showAttachments: ComputedRef<boolean> | Ref<boolean>;
@@ -59,16 +68,39 @@ export function usePanelComposer(options: UsePanelComposerOptions) {
     })),
   );
 
+  const composerSelectedSkillPackages = computed<SelectedSkillPackageChip[]>(
+    () =>
+      options.selectedSkillNames.value.map((skillName) => ({
+        id: skillName,
+        label: skillName,
+        value: skillName,
+      })),
+  );
+
   const composerMentionCandidates = computed(() =>
-    options.mentionCandidates.value.map((candidate, candidateIndex) => ({
-      active: candidateIndex === options.mentionActiveIndex.value,
-      id: candidate.binding.knowledge_base_id,
-      kind: candidate.kind,
-      subtitle: $t('common.globalAiChat.mentionKbPickHint'),
-      title:
-        candidate.binding.kb_name ||
-        `KB#${candidate.binding.knowledge_base_id}`,
-    })),
+    options.mentionCandidates.value.map((candidate, candidateIndex) => {
+      if (candidate.kind === 'skill_package') {
+        return {
+          active: candidateIndex === options.mentionActiveIndex.value,
+          id: candidate.binding.package_id ?? candidate.binding.skill_id,
+          kind: candidate.kind,
+          subtitle: $t('common.globalAiChat.mentionSkillPickHint'),
+          title:
+            candidate.binding.package_name ||
+            candidate.binding.skill_name ||
+            `Skill#${candidate.binding.skill_id}`,
+        };
+      }
+      return {
+        active: candidateIndex === options.mentionActiveIndex.value,
+        id: candidate.binding.knowledge_base_id,
+        kind: candidate.kind,
+        subtitle: $t('common.globalAiChat.mentionKbPickHint'),
+        title:
+          candidate.binding.kb_name ||
+          `KB#${candidate.binding.knowledge_base_id}`,
+      };
+    }),
   );
 
   const composerSendState = computed(() => {
@@ -104,8 +136,20 @@ export function usePanelComposer(options: UsePanelComposerOptions) {
 
   function onSelectMentionCandidate(payload: {
     id: number;
-    kind: 'knowledge_base';
+    kind: 'knowledge_base' | 'skill_package';
   }) {
+    if (payload.kind === 'skill_package') {
+      const skillCandidate = options.mentionCandidates.value.find(
+        (candidate) =>
+          candidate.kind === 'skill_package' &&
+          (candidate.binding.package_id ?? candidate.binding.skill_id) ===
+            payload.id,
+      );
+      if (skillCandidate?.kind === 'skill_package') {
+        options.selectMentionSkillPackage(skillCandidate.binding);
+      }
+      return;
+    }
     const knowledgeBaseCandidate = options.mentionCandidates.value.find(
       (candidate) =>
         candidate.kind === 'knowledge_base' &&
@@ -122,6 +166,7 @@ export function usePanelComposer(options: UsePanelComposerOptions) {
     composerBoundKnowledgeBases,
     composerMentionCandidates,
     composerSelectedKnowledgeBases,
+    composerSelectedSkillPackages,
     composerSendDisabled,
     composerSendState,
     onSelectMentionCandidate,

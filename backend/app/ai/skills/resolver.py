@@ -28,6 +28,7 @@ from app.ai.runtime.types import CapabilityDescriptor, collect_selected_skill_na
 from app.ai.skills import resolver_parts as parts
 from app.ai.skills.activation import TurnSkillActivation
 from app.ai.tools.semantic_defaults import (
+    is_retired_page_tool,
     is_retired_page_tool_name,
     tool_family_from_name,
 )
@@ -66,7 +67,7 @@ def _remove_retired_page_tools(result: Any) -> None:
     result.tools = [
         tool
         for tool in tools
-        if not is_retired_page_tool_name(getattr(tool, "name", None))
+        if not is_retired_page_tool(tool)
     ]
     if hasattr(result, "tool_consent_modes"):
         result.tool_consent_modes = {

@@ -4,6 +4,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.ai.tools.semantic_defaults import (
+    is_retired_page_tool,
+    is_retired_page_tool_name,
+)
 from app.ai.tools.types import ToolDefinition
 
 from .tool_policy_semantics import tool_family_for_name, tool_semantic_family
@@ -47,14 +51,18 @@ def allowed_tool_names_for_family(
     tools: list[ToolDefinition],
     input_variables: dict[str, Any] | None = None,
 ) -> list[str]:
-    if family == "none":
-        return [tool.name for tool in tools]
+    normalized_family = str(family or "").strip()
+    if normalized_family == "page_ops":
+        return []
+    live_tools = [tool for tool in tools if not is_retired_page_tool(tool)]
+    if normalized_family == "none":
+        return [tool.name for tool in live_tools]
 
     allowed: list[str] = []
-    for tool in tools:
-        if tool_semantic_family(tool, input_variables) == family:
+    for tool in live_tools:
+        if tool_semantic_family(tool, input_variables) == normalized_family:
             allowed.append(tool.name)
-    return allowed or [tool.name for tool in tools]
+    return allowed or [tool.name for tool in live_tools]
 
 
 def allowed_tool_names_for_families(
@@ -65,7 +73,7 @@ def allowed_tool_names_for_families(
     ordered: list[str] = []
     for family in families:
         normalized = str(family or "").strip()
-        if not normalized or normalized == "none":
+        if not normalized or normalized in {"none", "page_ops"}:
             continue
         for name in allowed_tool_names_for_family(normalized, tools, input_variables):
             if name not in ordered:
@@ -78,21 +86,33 @@ def filter_tools_for_policy(
     policy: ToolUsePolicy,
 ) -> list[ToolDefinition]:
     if not tools or not policy.allowed_tool_names:
-        return tools
-    allowed = set(policy.allowed_tool_names)
+        return [tool for tool in tools if not is_retired_page_tool(tool)]
+    allowed = {
+        str(name).strip()
+        for name in policy.allowed_tool_names
+        if str(name).strip() and not is_retired_page_tool_name(str(name).strip())
+    }
+    if not allowed:
+        return []
     filtered = [tool for tool in tools if tool.name in allowed]
-    return filtered or tools
+    return filtered
 
 
 def restrict_tools_to_names(
     tools: list[ToolDefinition],
     allowed_names: list[str] | None,
 ) -> list[ToolDefinition]:
+    live_tools = [tool for tool in tools if not is_retired_page_tool(tool)]
     if not allowed_names:
-        return tools
-    allowed = {str(name).strip() for name in allowed_names if str(name).strip()}
-    restricted = [tool for tool in tools if tool.name in allowed]
-    return restricted or tools
+        return live_tools
+    allowed = {
+        str(name).strip()
+        for name in allowed_names
+        if str(name).strip() and not is_retired_page_tool_name(str(name).strip())
+    }
+    if not allowed:
+        return []
+    return [tool for tool in live_tools if tool.name in allowed]
 
 
 def restore_explicit_family_tools(
@@ -104,11 +124,21 @@ def restore_explicit_family_tools(
     if policy.family == "none" or not policy.allowed_tool_names or not all_tools:
         return selected_tools, False
 
-    allowed = set(policy.allowed_tool_names)
+    allowed = {
+        str(name).strip()
+        for name in policy.allowed_tool_names
+        if str(name).strip() and not is_retired_page_tool_name(str(name).strip())
+    }
+    if not allowed:
+        return selected_tools, False
     if any(tool.name in allowed for tool in selected_tools):
         return selected_tools, False
 
-    restored = [tool for tool in all_tools if tool.name in allowed]
+    restored = [
+        tool
+        for tool in all_tools
+        if tool.name in allowed and not is_retired_page_tool(tool)
+    ]
     if restored:
         return restored, True
     return selected_tools, False
@@ -124,7 +154,11 @@ def ensure_explicit_family_coverage(
     ordered_families: list[str] = []
     for family in explicit_requested_families:
         normalized = str(family or "").strip()
-        if not normalized or normalized == "none" or normalized in ordered_families:
+        if (
+            not normalized
+            or normalized in {"none", "page_ops"}
+            or normalized in ordered_families
+        ):
             continue
         ordered_families.append(normalized)
     if len(ordered_families) <= 1:
@@ -151,7 +185,14 @@ def ensure_explicit_family_coverage(
         for name in candidates:
             if name in selected_names:
                 continue
-            candidate = next((tool for tool in all_tools if tool.name == name), None)
+            candidate = next(
+                (
+                    tool
+                    for tool in all_tools
+                    if tool.name == name and not is_retired_page_tool(tool)
+                ),
+                None,
+            )
             if candidate is None:
                 continue
             restored.append(candidate)
@@ -208,7 +249,7 @@ def ordered_requested_families_from_intents(*, intents: list[IntentPlan]) -> lis
     ordered: list[str] = []
     for intent in intents:
         family = str(intent.family or "").strip()
-        if not family or family == "none" or family in ordered:
+        if not family or family in {"none", "page_ops"} or family in ordered:
             continue
         ordered.append(family)
     return ordered

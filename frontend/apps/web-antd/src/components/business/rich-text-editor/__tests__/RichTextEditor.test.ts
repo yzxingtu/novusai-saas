@@ -1,4 +1,6 @@
 // @vitest-environment happy-dom
+// Test type: structural
+// Verifies: rich text editor mounting does not register page-runtime AI operations.
 import { mount } from '@vue/test-utils';
 import { ref, shallowRef } from 'vue';
 
@@ -117,7 +119,7 @@ describe('richTextEditor', () => {
     wrapper.unmount();
   });
 
-  it('does not require pageKey when ai is explicitly enabled', () => {
+  it('does not require page-runtime registration when ai is explicitly enabled', () => {
     const wrapper = mount(RichTextEditor, {
       props: {
         ai: true,

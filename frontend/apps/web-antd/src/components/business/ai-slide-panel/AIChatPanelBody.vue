@@ -40,10 +40,16 @@ interface ComposerKnowledgeBaseChip {
   label: string;
 }
 
+interface ComposerSkillPackageChip {
+  id: string;
+  label: string;
+  value: string;
+}
+
 interface ComposerMentionCandidateItem {
   active: boolean;
   id: number;
-  kind: 'knowledge_base';
+  kind: 'knowledge_base' | 'skill_package';
   subtitle?: string;
   title: string;
 }
@@ -88,6 +94,7 @@ const props = withDefaults(
     routing?: boolean;
     selectedAgent?: AgentItem | null;
     selectedKnowledgeBases?: ComposerKnowledgeBaseChip[];
+    selectedSkillPackages?: ComposerSkillPackageChip[];
     sendDisabled?: boolean;
     sending?: boolean;
     sendState?: ComposerSendState;
@@ -135,6 +142,7 @@ const props = withDefaults(
     routing: false,
     selectedAgent: null,
     selectedKnowledgeBases: () => [],
+    selectedSkillPackages: () => [],
     sendDisabled: false,
     sendState: 'idle',
     sending: false,
@@ -171,7 +179,7 @@ const emit = defineEmits<{
   (e: 'selectConversation', conversationId: number): void;
   (
     e: 'selectMentionCandidate',
-    payload: { id: number; kind: 'knowledge_base' },
+    payload: { id: number; kind: 'knowledge_base' | 'skill_package' },
   ): void;
   (e: 'send'): void;
   (e: 'stop'): void;
@@ -186,6 +194,7 @@ const emit = defineEmits<{
   (e: 'paste', event: ClipboardEvent): void;
   (e: 'removeAttachment', index: number): void;
   (e: 'removeSelectedKnowledgeBase', id: number): void;
+  (e: 'removeSelectedSkillPackage', value: string): void;
 }>();
 
 const panelBodyRoot = ref<HTMLDivElement | null>(null);
@@ -284,6 +293,7 @@ watch(
         :mention-candidates="mentionCandidates"
         :bound-knowledge-bases="boundKnowledgeBases"
         :selected-knowledge-bases="selectedKnowledgeBases"
+        :selected-skill-packages="selectedSkillPackages"
         :shift-enter-hint="shiftEnterHint"
         @update:model-value="emit('update:inputMessage', $event)"
         @dragover="emit('dragover', $event)"
@@ -294,6 +304,9 @@ watch(
         @remove-attachment="emit('removeAttachment', $event)"
         @remove-selected-knowledge-base="
           emit('removeSelectedKnowledgeBase', $event)
+        "
+        @remove-selected-skill-package="
+          emit('removeSelectedSkillPackage', $event)
         "
         @select-mention-candidate="emit('selectMentionCandidate', $event)"
         @send="emit('send')"

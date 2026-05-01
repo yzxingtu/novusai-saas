@@ -1,25 +1,25 @@
 /**
- * replace_content input validation (extracted for testability).
- * replace_content 输入校验（提取以便单元测试）。
+ * Generic rich-text content replacement input validation.
+ * 通用富文本内容替换输入校验。
  */
 
 /** Result of validation: either valid with html to set, or invalid with error info. */
-export type ReplaceContentValidation =
+export type ContentReplacementValidation =
   | { error_type: 'invalid_input_empty_content'; valid: false }
   | { html: string; inputLength: number; valid: true };
 
 /**
- * Validate params for replace_content. Does not touch the editor.
- * 校验 replace_content 的 params，不接触编辑器。
+ * Validate replacement content without touching the editor instance.
+ * 校验替换内容，不接触编辑器实例。
  */
-export function validateReplaceContentParams(
+export function validateContentReplacementParams(
   params: Record<string, unknown>,
   processors: {
     ensureHtml: (s: string) => string;
     fixTableWidthZero: (s: string) => string;
     sanitizeTableAttributesForSetContent: (s: string) => string;
   },
-): ReplaceContentValidation {
+): ContentReplacementValidation {
   const raw = String(params.content ?? '').trim();
   if (!raw) {
     return { valid: false, error_type: 'invalid_input_empty_content' };

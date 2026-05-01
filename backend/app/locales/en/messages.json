@@ -755,6 +755,7 @@
             "conversation_not_found": "Conversation not found",
             "conversation_archived": "Conversation is archived and cannot continue",
             "retired_page_awareness_fields": "Page awareness has been retired from AI dialogue. These fields are not accepted: {fields}",
+            "retired_page_awareness_tool": "Page awareness tools have been retired from AI dialogue. This tool is not accepted: {tool}",
             "execution_failed": "Agent execution failed",
             "skill_load_failed": "Some skills failed to load, agent will work without tools",
             "router_not_found": "Router agent not found, please contact administrator",

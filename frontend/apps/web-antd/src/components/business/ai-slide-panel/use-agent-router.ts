@@ -18,10 +18,6 @@ function _simpleHash(s: string): string {
   return (h >>> 0).toString(36);
 }
 
-export function buildRouteCachePageDataFingerprint(): string {
-  return '';
-}
-
 /** Routing method constants / 路由方式常量 */
 export const ROUTED_BY = {
   DEFAULT: 'default',

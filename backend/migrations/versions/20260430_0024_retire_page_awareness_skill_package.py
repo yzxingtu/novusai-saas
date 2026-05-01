@@ -20,7 +20,30 @@ depends_on: str | Sequence[str] | None = None
 
 
 PAGE_AWARENESS_PACKAGE_NAME = "页面感知交互"
-PAGE_AWARENESS_SKILL_NAMES = (
+PAGE_AWARENESS_PACKAGE_SKILL_NAMES = (
+    "append_content",
+    "editor_ops",
+    "get_editor_html",
+    "get_editor_text",
+    "ui_get_snapshot",
+    "ui_read_region",
+    "ui_read_table",
+    "ui_list_interactables",
+    "ui_click",
+    "ui_open_surface",
+    "ui_get_form_state",
+    "ui_set_field",
+    "ui_fill_form",
+    "ui_submit_form",
+    "get_page_context",
+    "insert_content",
+    "invoke_page_operation",
+    "list_page_operations",
+    "page_ops",
+    "replace_content",
+    "replace_section",
+)
+PAGE_AWARENESS_GLOBAL_SKILL_NAMES = (
     "ui_get_snapshot",
     "ui_read_region",
     "ui_read_table",
@@ -34,8 +57,9 @@ PAGE_AWARENESS_SKILL_NAMES = (
     "get_page_context",
     "invoke_page_operation",
     "list_page_operations",
+    "page_ops",
 )
-PAGE_AWARENESS_SKILL_PREFIXES = ("pageop_",)
+PAGE_AWARENESS_GLOBAL_SKILL_PREFIXES = ("pageop_",)
 
 
 def _table_columns(conn, table_name: str) -> set[str]:
@@ -100,16 +124,22 @@ def _page_skill_ids(conn, package_ids: list[int]) -> list[int]:
         return []
 
     skills = _reflect_table(conn, "skills")
-    predicates = [skills.c.name.in_(bindparam("skill_names", expanding=True))]
-    params: dict[str, object] = {"skill_names": list(PAGE_AWARENESS_SKILL_NAMES)}
+    predicates = [
+        skills.c.name.in_(bindparam("global_skill_names", expanding=True))
+    ]
+    params: dict[str, object] = {
+        "global_skill_names": list(PAGE_AWARENESS_GLOBAL_SKILL_NAMES),
+    }
 
-    for idx, prefix in enumerate(PAGE_AWARENESS_SKILL_PREFIXES):
+    for idx, prefix in enumerate(PAGE_AWARENESS_GLOBAL_SKILL_PREFIXES):
         param_name = f"skill_prefix_{idx}"
         predicates.append(skills.c.name.like(bindparam(param_name)))
         params[param_name] = f"{prefix}%"
 
     if package_ids and "package_id" in columns:
-        predicates.append(skills.c.package_id.in_(bindparam("package_ids", expanding=True)))
+        predicates.append(
+            skills.c.package_id.in_(bindparam("package_ids", expanding=True))
+        )
         params["package_ids"] = package_ids
 
     stmt = select(skills.c.id).where(or_(*predicates)).order_by(skills.c.id)

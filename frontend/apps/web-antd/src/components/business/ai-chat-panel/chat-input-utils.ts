@@ -1,4 +1,8 @@
-import type { AgentItem, MentionKnowledgeBaseBinding } from './types';
+import type {
+  AgentItem,
+  MentionKnowledgeBaseBinding,
+  MentionSkillPackageBinding,
+} from './types';
 
 const LEADING_AGENT_MENTION_RE = /^\s*@(\S*)$/;
 
@@ -36,6 +40,30 @@ export function filterKnowledgeBasesByMentionQuery(
     return (
       label.includes(normalized) ||
       String(b.knowledge_base_id).includes(normalized)
+    );
+  });
+}
+
+/** Filter agent-bound skill packages by @ draft query / 按 @ 草稿过滤已绑定技能包 */
+export function filterSkillPackagesByMentionQuery(
+  bindings: MentionSkillPackageBinding[],
+  query: string,
+): MentionSkillPackageBinding[] {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) {
+    return bindings;
+  }
+  return bindings.filter((binding) => {
+    const skillName = binding.skill_name || '';
+    const packageName = binding.package_name || '';
+    const label = packageName || skillName || `Skill#${binding.skill_id}`;
+    return (
+      label.toLowerCase().includes(normalized) ||
+      skillName.toLowerCase().includes(normalized) ||
+      String(binding.skill_id).includes(normalized) ||
+      (binding.package_id !== null &&
+        binding.package_id !== undefined &&
+        String(binding.package_id).includes(normalized))
     );
   });
 }

@@ -52,6 +52,13 @@ def intent_completion_contract(
     preferred_tool_names: list[str],
     intent_metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    if family == "page_ops":
+        return {
+            "mode": "retired",
+            "completion_signals": [],
+            "action_signals": [],
+            "verify_signals": [],
+        }
     if family == "web_research":
         if "fetch_url" in allowed_tool_names:
             return {

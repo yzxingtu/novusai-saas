@@ -60,6 +60,7 @@ export interface StreamRequestDeps {
   ) => null | number;
   rememberConversationAnchor: (conversationId: number, agentId: number) => void;
   selectedKBIds: Ref<number[]>;
+  selectedSkillNames: Ref<string[]>;
   sendMessage: (options?: {
     agentId?: number;
     routeSource?: null | string;
@@ -106,6 +107,7 @@ export async function runStreamRequest(
     options,
     pendingInteractionUpdates,
     selectedKBIds,
+    selectedSkillNames,
     uiPanelStore,
     imageParams,
   } = deps;
@@ -127,6 +129,7 @@ export async function runStreamRequest(
       ...panelInteractionUpdates,
       ...localInteractionUpdates,
     ];
+    const selectedSkillNamesForTurn = [...selectedSkillNames.value];
     deps.interactionModeEffective.value = interactionMode.value;
 
     const requestBody = {
@@ -137,6 +140,9 @@ export async function runStreamRequest(
         : {}),
       ...(selectedKBIds.value.length > 0
         ? { knowledge_base_ids: selectedKBIds.value }
+        : {}),
+      ...(selectedSkillNamesForTurn.length > 0
+        ? { selected_skill_names: selectedSkillNamesForTurn }
         : {}),
       ...(Object.keys(allAgentsVariables.value[targetAgentId] ?? {}).length > 0
         ? { variables: allAgentsVariables.value[targetAgentId] }
@@ -153,6 +159,7 @@ export async function runStreamRequest(
     };
 
     pendingInteractionUpdates.value = [];
+    selectedSkillNames.value = [];
     const requestAbortController = deps.streamControl.abortController;
     if (!requestAbortController) {
       throw new Error('Stream abort controller was not initialized');

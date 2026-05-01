@@ -31,7 +31,10 @@ from app.enums.agent import AgentExecutionModeEnum
 from app.enums.common import UserRoleEnum
 from app.exceptions import BusinessException
 from app.schemas.ai.agent_chat import AgentChatResponse, InteractionMode
-from app.schemas.ai.retired_page_awareness import retired_page_awareness_input_keys
+from app.schemas.ai.retired_page_awareness import (
+    ensure_no_retired_page_awareness_input,
+    retired_page_awareness_input_keys,
+)
 from app.services.ai.agent_chat_command_ephemeral_support import (
     execute_ephemeral_stream_chat,
 )
@@ -58,14 +61,16 @@ def _normalize_chat_variables(
     variables: dict[str, Any] | None,
 ) -> dict[str, Any] | None:
     normalized_variables = dict(variables or {})
-    retired_keys = retired_page_awareness_input_keys(normalized_variables)
-    if retired_keys:
+    try:
+        ensure_no_retired_page_awareness_input(normalized_variables)
+    except ValueError:
+        retired_keys = retired_page_awareness_input_keys(normalized_variables)
         raise BusinessException(
             message=_(
                 "agent_chat.error.retired_page_awareness_fields",
                 fields=", ".join(retired_keys),
             )
-        )
+        ) from None
     return normalized_variables or None
 
 
@@ -90,6 +95,7 @@ class AgentChatCommandService:
         memory_channel: str = MEMORY_CHANNEL_SYSTEM,
         memory_source: str = "",
         route_source: str | None = None,
+        selected_skill_names: list[str] | None = None,
         interaction_updates: list[dict[str, Any]] | None = None,
         trust_policy_ref: dict[str, Any] | None = None,
         interaction_mode: InteractionMode = "trusted_auto",
@@ -177,6 +183,7 @@ class AgentChatCommandService:
             conversation_id=conversation.id,
             knowledge_base_ids=knowledge_base_ids,
             consented_actions=consented_actions,
+            selected_skill_names=selected_skill_names,
             user_role=user_role,
             user_role_id=user_role_id,
             permissions=permissions,
@@ -368,6 +375,7 @@ class AgentChatCommandService:
         memory_channel: str = MEMORY_CHANNEL_SYSTEM,
         memory_source: str = "",
         route_source: str | None = None,
+        selected_skill_names: list[str] | None = None,
         interaction_updates: list[dict[str, Any]] | None = None,
         trust_policy_ref: dict[str, Any] | None = None,
         interaction_mode: InteractionMode = "trusted_auto",
@@ -456,6 +464,7 @@ class AgentChatCommandService:
                 knowledge_base_ids=knowledge_base_ids,
                 dropped_knowledge_base_ids=dropped_knowledge_base_ids,
                 consented_actions=consented_actions,
+                selected_skill_names=selected_skill_names,
                 user_role=user_role,
                 user_role_id=user_role_id,
                 permissions=permissions,
@@ -584,6 +593,7 @@ class AgentChatCommandService:
         user_role_id: int | None = None,
         permissions: set[str] | None = None,
     ) -> StreamingResponse:
+        variables = _normalize_chat_variables(variables)
         return await execute_ephemeral_stream_chat(
             service=service,
             agent_id=agent_id,

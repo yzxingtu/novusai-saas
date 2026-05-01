@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.ai.tools.semantic_defaults import is_retired_page_tool_name
 from app.ai.types import (
     ChatMessage,
     ChatResponse,
@@ -18,6 +19,25 @@ from app.enums.log import UserTypeEnum as LogUserTypeEnum
 from app.models.ai import AIModel, AIProvider
 
 logger = LogManager.get_logger("ai")
+
+
+def _tool_name_from_payload(tool: Any) -> str:
+    if not isinstance(tool, dict):
+        return ""
+    return str(((tool.get("function", {}) or {}).get("name")) or "").strip()
+
+
+def _is_live_tool_payload(tool: Any) -> bool:
+    name = _tool_name_from_payload(tool)
+    return not name or not is_retired_page_tool_name(name)
+
+
+def _live_tool_names(tool_names: list[str] | None) -> list[str]:
+    return [
+        str(name).strip()
+        for name in (tool_names or [])
+        if str(name).strip() and not is_retired_page_tool_name(str(name).strip())
+    ]
 
 
 class GatewayCallLogBridge:
@@ -61,26 +81,32 @@ class GatewayCallLogBridge:
         breach_retry_result: str | None = None,
         stream: bool = False,
     ) -> dict[str, object]:
-        selected_tool_names = [
-            ((tool.get("function", {}) or {}).get("name"))
-            for tool in (tools or [])
-            if isinstance(tool, dict)
-        ]
-        selected_tool_names = [name for name in selected_tool_names if name]
+        live_tools = [tool for tool in (tools or []) if _is_live_tool_payload(tool)]
+        selected_tool_names = _live_tool_names(
+            [_tool_name_from_payload(tool) for tool in live_tools]
+        )
+        all_live_tool_names = _live_tool_names(all_tool_names) or selected_tool_names
+        live_allowed_tool_names = _live_tool_names(allowed_tool_names)
+        live_policy_family = str(tool_use_policy_family or "none").strip() or "none"
+        if live_policy_family == "page_ops":
+            live_policy_family = "none"
+        live_policy_mode = tool_use_policy_mode or ("auto" if live_tools else "none")
+        if live_policy_family == "none" and not live_allowed_tool_names:
+            live_policy_mode = "none"
         payload: dict[str, object] = {
             "messages": messages_to_dicts(messages),
             "temperature": temperature,
             "max_tokens": max_tokens,
             "top_p": top_p,
-            "tools": tools,
+            "tools": live_tools,
             "tool_choice": tool_choice,
             "runtime_identity": get_runtime_identity_tag(),
             "selected_tool_names": selected_tool_names,
-            "all_tool_names": all_tool_names or selected_tool_names,
+            "all_tool_names": all_live_tool_names,
             "tool_use_policy": {
-                "family": tool_use_policy_family or "none",
-                "mode": tool_use_policy_mode or ("auto" if tools else "none"),
-                "allowed_tool_names": allowed_tool_names or [],
+                "family": live_policy_family,
+                "mode": live_policy_mode,
+                "allowed_tool_names": live_allowed_tool_names,
             },
         }
         if stream:

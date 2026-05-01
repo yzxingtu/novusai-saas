@@ -13,19 +13,12 @@ import pytest
 
 from app.ai.runtime.capabilities import CapabilityRegistry
 from app.ai.runtime.types import CapabilityBundle, CapabilityDescriptor
-from app.ai.skills.activation import (
-    TurnSkillActivation,
-    apply_turn_skill_activation,
-    execution_tools_for_turn,
-    resolve_startup_intent_flags,
-)
 from app.ai.skills.resolver import (
     SkillResolver,
     SkillResolveResult,
     enrich_skill_capability_descriptors_with_tools,
     resolve_for_agent,
 )
-from app.ai.tools.types import ToolDefinition
 
 
 @pytest.mark.asyncio
@@ -264,28 +257,6 @@ def test_selected_skill_names_skips_descriptor_only_skills_without_execution_too
     assert result.selected_skill_names == ["Executable Skill"]
 
 
-def test_selected_skill_names_ignores_non_capability_pack_descriptors() -> None:
-    result = SkillResolveResult(
-        tools=[],
-        capability_descriptors=[
-            CapabilityDescriptor(
-                name="Page Context Provider",
-                kind="context_provider",
-                source="request.page_context",
-                metadata={"has_execution_tools": True},
-            ),
-            CapabilityDescriptor(
-                name="Live Capability Pack",
-                kind="capability_pack",
-                source="skill_package:live",
-                metadata={"has_execution_tools": True},
-            ),
-        ],
-    )
-
-    assert result.selected_skill_names == ["Live Capability Pack"]
-
-
 def test_selected_skill_names_skips_auto_injected_runtime_builtins() -> None:
     result = SkillResolveResult(
         tools=[
@@ -318,147 +289,6 @@ def test_selected_skill_names_skips_auto_injected_runtime_builtins() -> None:
     )
 
     assert result.selected_skill_names == ["Plugin Page Skill"]
-
-
-def test_skill_resolve_result_keeps_inventory_truth_separate_from_live_activation() -> (
-    None
-):
-    result = SkillResolveResult(
-        tools=[
-            SimpleNamespace(
-                name="web_search",
-                source_skill_name="Plugin Research Skill",
-            ),
-            SimpleNamespace(
-                name="ui_get_snapshot",
-                source_skill_name="Plugin Page Skill",
-            ),
-        ],
-        inventory_selected_tool_names_override=[
-            "web_search",
-            "ui_get_snapshot",
-        ],
-        inventory_selected_skill_names_override=[
-            "Plugin Research Skill",
-            "Plugin Page Skill",
-        ],
-        turn_activation=TurnSkillActivation(
-            applied=True,
-            activated_tool_names=["web_search", "ui_get_snapshot"],
-            activated_skill_names=["Plugin Research Skill", "Plugin Page Skill"],
-            reason="runtime_policy",
-        ),
-    )
-
-    assert result.inventory_selected_tool_names == [
-        "web_search",
-        "ui_get_snapshot",
-    ]
-    assert result.inventory_selected_skill_names == [
-        "Plugin Research Skill",
-        "Plugin Page Skill",
-    ]
-    assert result.selected_tool_names == ["web_search"]
-    assert result.selected_skill_names == [
-        "Plugin Research Skill",
-        "Plugin Page Skill",
-    ]
-
-
-def test_selected_skill_names_skips_page_runtime_builtin_capability_truth() -> None:
-    result = SkillResolveResult(
-        tools=[
-            SimpleNamespace(
-                name="ui_get_snapshot",
-                source_skill_name="ui_get_snapshot",
-                config={},
-            ),
-            SimpleNamespace(
-                name="ui_click",
-                source_skill_name="page_runtime",
-                config={},
-            ),
-            SimpleNamespace(
-                name="ui_read_table",
-                source_skill_name="Plugin Page Skill",
-                source_skill_id=12,
-                source_package_name="plugin.page",
-                config={},
-            ),
-        ],
-        capability_descriptors=[
-            CapabilityDescriptor(
-                name="ui_get_snapshot",
-                kind="capability_pack",
-                source="page_runtime",
-                metadata={"has_execution_tools": True},
-            ),
-            CapabilityDescriptor(
-                name="page_runtime",
-                kind="capability_pack",
-                source="request.page_context",
-                metadata={"has_execution_tools": True},
-            ),
-            CapabilityDescriptor(
-                name="Plugin Page Skill",
-                kind="capability_pack",
-                source="skill_package:plugin.page",
-                metadata={"skill_id": 12, "has_execution_tools": True},
-            ),
-        ],
-    )
-
-    assert result.selected_skill_names == ["Plugin Page Skill"]
-
-
-@pytest.mark.asyncio
-async def test_resolver_does_not_materialize_platform_builtins_as_installable_skills() -> (
-    None
-):
-    resolver = SkillResolver(db=None)
-    resolver._load_source_plugins = AsyncMock(return_value={})
-    skill = SimpleNamespace(
-        id=131,
-        name="platform_builtin_bundle",
-        type="builtin",
-        package_id=7131,
-        package=SimpleNamespace(
-            id=7131,
-            name="platform-builtins",
-            source_plugin=None,
-            is_active=True,
-            is_deleted=False,
-            valves_config=None,
-        ),
-        config={
-            "tools": [
-                {"name": "ui_get_snapshot", "description": "Read current page"},
-                {"name": "pageop_click", "description": "Legacy page op"},
-                {"name": "get_page_context", "description": "Legacy page context"},
-                {
-                    "name": "invoke_page_operation",
-                    "description": "Legacy page operation",
-                },
-                {
-                    "name": "list_page_operations",
-                    "description": "Legacy page operations",
-                },
-                {"name": "editor_ops", "description": "Edit rich text"},
-                {"name": "web_search", "description": "Search the web"},
-                {"name": "fetch_url", "description": "Fetch a URL"},
-                {"name": "vendor_lookup", "description": "Lookup vendor data"},
-            ]
-        },
-        input_schema=None,
-        timeout=30,
-        is_active=True,
-        is_deleted=False,
-    )
-
-    result = await resolver.resolve([skill])
-
-    assert [tool.name for tool in result.tools] == ["vendor_lookup"]
-    assert result.tools[0].source_skill_name == "platform_builtin_bundle"
 
 
 def test_enrich_skill_capability_descriptors_keeps_same_name_skills_isolated() -> None:
@@ -548,165 +378,6 @@ def test_build_params_from_schema_keeps_array_items_schema() -> None:
     assert len(params) == 1
     assert params[0].name == "tenant_ids"
     assert params[0].items == {"type": "integer"}
-
-
-def test_apply_turn_skill_activation_ignores_explicit_retired_page_tool_mentions() -> None:
-    result = SkillResolveResult(
-        tools=[
-            SimpleNamespace(
-                name="get_current_weather",
-                source_skill_name="Weather Skill",
-            ),
-            SimpleNamespace(
-                name="ui_get_snapshot",
-                source_skill_name="Plugin Page Skill",
-            ),
-        ],
-        capability_descriptors=[
-            CapabilityDescriptor(
-                name="Weather Skill",
-                kind="capability_pack",
-                source="skill_resolver",
-            ),
-            CapabilityDescriptor(
-                name="Plugin Page Skill",
-                kind="capability_pack",
-                source="skill_resolver",
-            ),
-        ],
-    )
-    request = SimpleNamespace(
-        messages=[
-            SimpleNamespace(
-                role="user",
-                content="call get_current_weather and then ui_get_snapshot",
-            )
-        ]
-    )
-
-    apply_turn_skill_activation(
-        skill_result=result,
-        request=request,
-        intent_flags=None,
-    )
-
-    assert result.turn_activation is not None
-    assert result.turn_activation.reason == "explicit_tool_mention"
-    assert result.turn_activation.activated_tool_names == ["get_current_weather"]
-    assert result.turn_activation.activated_skill_names == ["Weather Skill"]
-
-
-def test_apply_turn_skill_activation_ignores_retired_page_runtime_policy() -> (
-    None
-):
-    result = SkillResolveResult(
-        tools=[],
-        capability_descriptors=[
-            CapabilityDescriptor(
-                name="Plugin Page Skill",
-                kind="capability_pack",
-                source="skill_package:plugin.page",
-                metadata={"preview_semantic_families": ["page_ops"]},
-            ),
-            CapabilityDescriptor(
-                name="Plugin Research Skill",
-                kind="capability_pack",
-                source="skill_package:plugin.research",
-                metadata={"preview_semantic_families": ["web_research"]},
-            ),
-        ],
-    )
-    request = SimpleNamespace(
-        messages=[SimpleNamespace(role="user", content="帮我看一下当前页面")],
-        input_variables={
-            "page_context": {
-                "page_key": "admin.ai.dashboard",
-                "ui_epoch": 3,
-            }
-        },
-    )
-
-    apply_turn_skill_activation(
-        skill_result=result,
-        request=request,
-        intent_flags={"has_page_intent": True, "has_web_research_intent": False},
-        allow_catalog_skill_activation=True,
-    )
-
-    assert result.turn_activation is not None
-    assert result.turn_activation.applied is False
-    assert result.turn_activation.reason == "no_turn_skill_activation"
-    assert result.turn_activation.activated_tool_names == []
-    assert result.turn_activation.activated_skill_names == []
-
-
-def test_apply_turn_skill_activation_keeps_live_selection_execution_backed() -> None:
-    result = SkillResolveResult(
-        tools=[
-            SimpleNamespace(
-                name="get_current_weather",
-                source_skill_name="Weather Skill",
-            )
-        ],
-        capability_descriptors=[
-            CapabilityDescriptor(
-                name="Plugin Page Skill",
-                kind="capability_pack",
-                source="skill_package:plugin.page",
-                metadata={
-                    "preview_semantic_families": ["page_ops"],
-                    "has_execution_tools": False,
-                },
-            ),
-            CapabilityDescriptor(
-                name="Weather Skill",
-                kind="capability_pack",
-                source="skill_package:weather",
-                metadata={"has_execution_tools": True},
-            ),
-        ],
-    )
-    request = SimpleNamespace(
-        messages=[SimpleNamespace(role="user", content="帮我看一下当前页面")],
-        input_variables={
-            "page_context": {
-                "page_key": "admin.ai.dashboard",
-                "ui_epoch": 3,
-            }
-        },
-    )
-
-    apply_turn_skill_activation(
-        skill_result=result,
-        request=request,
-        intent_flags={"has_page_intent": True, "has_web_research_intent": False},
-    )
-
-    assert result.turn_activation is not None
-    assert result.turn_activation.applied is False
-    assert result.turn_activation.reason == "no_turn_skill_activation"
-    assert result.turn_activation.activated_tool_names == []
-    assert result.turn_activation.activated_skill_names == []
-    assert result.selected_skill_names == ["Weather Skill"]
-    assert [tool.name for tool in execution_tools_for_turn(result)] == [
-        "get_current_weather"
-    ]
-
-
-def test_resolve_startup_intent_flags_require_live_page_runtime_state() -> None:
-    request = SimpleNamespace(
-        messages=[SimpleNamespace(role="user", content="帮我看一下当前页面")],
-        input_variables={
-            "page_context": {
-                "page_key": "admin.ai.dashboard",
-            }
-        },
-    )
-
-    flags = resolve_startup_intent_flags(request)
-
-    assert flags["has_page_intent"] is False
-    assert flags["has_web_research_intent"] is False
 
 
 def _make_runtime_skill(
@@ -946,58 +617,6 @@ async def test_resolve_for_agent_keeps_full_inventory_for_capability_reporting_q
 
 
 @pytest.mark.asyncio
-async def test_resolve_for_agent_does_not_prefilter_for_retired_page_policy(
-    monkeypatch,
-) -> None:
-    plugin_page_skill = _make_runtime_skill(
-        skill_id=501,
-        name="Plugin Page Skill",
-        skill_type="toolkit",
-        package_name="plugin.page",
-        source_plugin="plugin.page",
-    )
-    plugin_research_skill = _make_runtime_skill(
-        skill_id=502,
-        name="Plugin Research Skill",
-        skill_type="toolkit",
-        package_name="plugin.research",
-        source_plugin="plugin.research",
-    )
-    result = MagicMock()
-    result.scalars.return_value.all.return_value = [
-        _make_grant(plugin_page_skill),
-        _make_grant(plugin_research_skill),
-    ]
-    db = MagicMock()
-    db.execute = AsyncMock(return_value=result)
-    agent = SimpleNamespace(id=1, owner_tenant_id=9)
-    request = SimpleNamespace(
-        messages=[SimpleNamespace(role="user", content="帮我看一下当前页面")],
-        input_variables={
-            "page_context": {
-                "page_key": "admin.ai.dashboard",
-                "ui_epoch": 4,
-            }
-        },
-    )
-    captured: dict[str, object] = {}
-
-    async def _capture_resolve(self, skills, config_overrides=None):
-        captured["skills"] = skills
-        captured["config_overrides"] = config_overrides
-        return SkillResolveResult()
-
-    monkeypatch.setattr(SkillResolver, "resolve", _capture_resolve)
-
-    await resolve_for_agent(db, agent, tenant_id=9, request=request)
-
-    assert [skill.name for skill in captured["skills"]] == [
-        "Plugin Page Skill",
-        "Plugin Research Skill",
-    ]
-
-
-@pytest.mark.asyncio
 async def test_resolve_for_agent_prefilters_web_research_runtime_policy_before_resolve(
     monkeypatch,
 ) -> None:
@@ -1038,7 +657,138 @@ async def test_resolve_for_agent_prefilters_web_research_runtime_policy_before_r
 
     await resolve_for_agent(db, agent, tenant_id=9, request=request)
 
-    assert [skill.name for skill in captured["skills"]] == ["Plugin Research Skill"]
+    assert [skill.name for skill in captured["skills"]] == [
+        "Plugin Page Skill",
+        "Plugin Research Skill",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_resolve_for_agent_prefilters_selected_bound_skill_package(
+    monkeypatch,
+) -> None:
+    baidu_skill = _make_runtime_skill(
+        skill_id=611,
+        name="Baidu Public Search Skill",
+        skill_type="toolkit",
+        package_name="百度公开搜索",
+        source_plugin="baidu-public-search",
+    )
+    weather_skill = _make_runtime_skill(
+        skill_id=612,
+        name="Weather Skill",
+        skill_type="builtin",
+        package_name="weather.tools",
+        config={"tools": [{"name": "get_current_weather"}]},
+    )
+    result = MagicMock()
+    result.scalars.return_value.all.return_value = [
+        _make_grant(baidu_skill),
+        _make_grant(weather_skill),
+    ]
+    db = MagicMock()
+    db.execute = AsyncMock(return_value=result)
+    agent = SimpleNamespace(id=1, owner_tenant_id=9)
+    request = SimpleNamespace(
+        messages=[SimpleNamespace(role="user", content="查一下今天新闻")],
+        selected_skill_names=["百度公开搜索"],
+    )
+    captured: dict[str, object] = {}
+
+    async def _capture_resolve(self, skills, config_overrides=None):
+        captured["skills"] = skills
+        captured["config_overrides"] = config_overrides
+        return SkillResolveResult()
+
+    monkeypatch.setattr(SkillResolver, "resolve", _capture_resolve)
+
+    await resolve_for_agent(db, agent, tenant_id=9, request=request)
+
+    assert [skill.name for skill in captured["skills"]] == [
+        "Baidu Public Search Skill"
+    ]
+
+
+@pytest.mark.asyncio
+async def test_resolve_for_agent_ignores_unbound_selected_skill_package(
+    monkeypatch,
+) -> None:
+    weather_skill = _make_runtime_skill(
+        skill_id=621,
+        name="Weather Skill",
+        skill_type="builtin",
+        package_name="weather.tools",
+        config={"tools": [{"name": "get_current_weather"}]},
+    )
+    result = MagicMock()
+    result.scalars.return_value.all.return_value = [_make_grant(weather_skill)]
+    db = MagicMock()
+    db.execute = AsyncMock(return_value=result)
+    agent = SimpleNamespace(id=1, owner_tenant_id=9)
+    request = SimpleNamespace(
+        messages=[SimpleNamespace(role="user", content="查一下今天新闻")],
+        selected_skill_names=["百度公开搜索"],
+    )
+    captured: dict[str, object] = {}
+
+    async def _capture_resolve(self, skills, config_overrides=None):
+        captured["skills"] = skills
+        captured["config_overrides"] = config_overrides
+        return SkillResolveResult()
+
+    monkeypatch.setattr(SkillResolver, "resolve", _capture_resolve)
+
+    await resolve_for_agent(db, agent, tenant_id=9, request=request)
+
+    assert [skill.name for skill in captured["skills"]] == ["Weather Skill"]
+
+
+@pytest.mark.asyncio
+async def test_resolve_for_agent_prefilters_explicit_baidu_public_search_mention(
+    monkeypatch,
+) -> None:
+    baidu_skill = _make_runtime_skill(
+        skill_id=631,
+        name="Baidu Public Search Skill",
+        skill_type="toolkit",
+        package_name="百度公开搜索",
+        source_plugin="baidu-public-search",
+    )
+    weather_skill = _make_runtime_skill(
+        skill_id=632,
+        name="Weather Skill",
+        skill_type="builtin",
+        package_name="weather.tools",
+        config={"tools": [{"name": "get_current_weather"}]},
+    )
+    result = MagicMock()
+    result.scalars.return_value.all.return_value = [
+        _make_grant(baidu_skill),
+        _make_grant(weather_skill),
+    ]
+    db = MagicMock()
+    db.execute = AsyncMock(return_value=result)
+    agent = SimpleNamespace(id=1, owner_tenant_id=9)
+    request = SimpleNamespace(
+        messages=[
+            SimpleNamespace(role="user", content="请直接用百度公开搜索查一下")
+        ],
+        selected_skill_names=[],
+    )
+    captured: dict[str, object] = {}
+
+    async def _capture_resolve(self, skills, config_overrides=None):
+        captured["skills"] = skills
+        captured["config_overrides"] = config_overrides
+        return SkillResolveResult()
+
+    monkeypatch.setattr(SkillResolver, "resolve", _capture_resolve)
+
+    await resolve_for_agent(db, agent, tenant_id=9, request=request)
+
+    assert [skill.name for skill in captured["skills"]] == [
+        "Baidu Public Search Skill"
+    ]
 
 
 @pytest.mark.asyncio
@@ -1103,161 +853,6 @@ async def test_resolve_for_agent_prefilters_plugin_tool_mentions_from_manifest_p
     await resolve_for_agent(db, agent, tenant_id=9, request=request)
 
     assert [skill.name for skill in captured["skills"]] == ["Assistant Extension"]
-
-
-@pytest.mark.asyncio
-async def test_resolve_for_agent_ignores_retired_page_policy_from_manifest_preview(
-    monkeypatch,
-) -> None:
-    neutral_page_skill = _make_runtime_skill(
-        skill_id=801,
-        name="Assistant Extension",
-        skill_type="toolkit",
-        package_name="neutral.page",
-        source_plugin="neutral-page-plugin",
-    )
-    neutral_research_skill = _make_runtime_skill(
-        skill_id=802,
-        name="Search Extension",
-        skill_type="toolkit",
-        package_name="neutral.search",
-        source_plugin="neutral-search-plugin",
-    )
-    grant_result = MagicMock()
-    grant_result.scalars.return_value.all.return_value = [
-        _make_grant(neutral_page_skill),
-        _make_grant(neutral_research_skill),
-    ]
-    plugin_preview_result = MagicMock()
-    plugin_preview_result.all.return_value = [
-        (
-            "neutral-page-plugin",
-            {
-                "extensions": {
-                    "skills": [
-                        {
-                            "name": "assistant-extension",
-                            "type": "toolkit",
-                            "display_name": {"en": "Assistant Extension"},
-                            "entry_point": "skills.neutral_page",
-                            "preview_semantic_families": ["page_ops"],
-                        }
-                    ]
-                }
-            },
-        ),
-        (
-            "neutral-search-plugin",
-            {
-                "extensions": {
-                    "skills": [
-                        {
-                            "name": "search-extension",
-                            "type": "toolkit",
-                            "display_name": {"en": "Search Extension"},
-                            "entry_point": "skills.neutral_search",
-                            "preview_semantic_families": ["web_research"],
-                        }
-                    ]
-                }
-            },
-        ),
-    ]
-    db = MagicMock()
-    db.execute = AsyncMock(side_effect=[grant_result, plugin_preview_result])
-    agent = SimpleNamespace(id=1, owner_tenant_id=9)
-    request = SimpleNamespace(
-        messages=[SimpleNamespace(role="user", content="帮我看一下当前页面")],
-        input_variables={
-            "page_context": {
-                "page_key": "admin.ai.dashboard",
-                "ui_epoch": 5,
-            }
-        },
-    )
-    captured: dict[str, object] = {}
-
-    async def _capture_resolve(self, skills, config_overrides=None):
-        captured["skills"] = skills
-        captured["config_overrides"] = config_overrides
-        return SkillResolveResult()
-
-    monkeypatch.setattr(SkillResolver, "resolve", _capture_resolve)
-
-    await resolve_for_agent(db, agent, tenant_id=9, request=request)
-
-    assert [skill.name for skill in captured["skills"]] == [
-        "Assistant Extension",
-        "Search Extension",
-    ]
-
-
-@pytest.mark.asyncio
-async def test_resolve_for_agent_preserves_manifest_startup_preview_on_descriptors(
-    monkeypatch,
-) -> None:
-    neutral_plugin_skill = _make_runtime_skill(
-        skill_id=901,
-        name="Assistant Extension",
-        skill_type="toolkit",
-        package_name="neutral.package",
-        source_plugin="neutral-plugin",
-    )
-    grant_result = MagicMock()
-    grant_result.scalars.return_value.all.return_value = [
-        _make_grant(neutral_plugin_skill),
-    ]
-    plugin_preview_result = MagicMock()
-    plugin_preview_result.all.return_value = [
-        (
-            "neutral-plugin",
-            {
-                "extensions": {
-                    "skills": [
-                        {
-                            "name": "assistant-extension",
-                            "type": "toolkit",
-                            "display_name": {"en": "Assistant Extension"},
-                            "entry_point": "skills.neutral_plugin",
-                            "preview_tool_names": ["crm_lookup"],
-                            "preview_semantic_families": ["page_ops"],
-                        }
-                    ]
-                }
-            },
-        )
-    ]
-    db = MagicMock()
-    db.execute = AsyncMock(side_effect=[grant_result, plugin_preview_result])
-    agent = SimpleNamespace(id=1, owner_tenant_id=9)
-
-    async def _capture_resolve(self, skills, config_overrides=None):
-        del skills, config_overrides
-        return SkillResolveResult(
-            tools=[
-                ToolDefinition(
-                    name="crm_lookup",
-                    source_skill_id=901,
-                    source_skill_name="Assistant Extension",
-                    source_skill_type="toolkit",
-                    source_package_name="neutral.package",
-                    source_plugin="neutral-plugin",
-                )
-            ]
-        )
-
-    monkeypatch.setattr(SkillResolver, "resolve", _capture_resolve)
-
-    resolved = await resolve_for_agent(db, agent, tenant_id=9)
-
-    descriptor = next(
-        item
-        for item in resolved.capability_descriptors
-        if item.name == "Assistant Extension"
-    )
-    assert descriptor.metadata["startup_preview_tool_names"] == ["crm_lookup"]
-    assert descriptor.metadata["startup_preview_semantic_families"] == []
-    assert descriptor.metadata["resolved_tool_names"] == ["crm_lookup"]
 
 
 @pytest.mark.asyncio

@@ -26,13 +26,19 @@ from app.ai.tools.security import (
     OutputSanitizer,
     ToolSecurityError,
 )
-from app.ai.tools.semantic_defaults import is_retired_page_tool_name
+from app.ai.tools.semantic_defaults import (
+    is_retired_page_tool,
+    is_retired_page_tool_name,
+)
 from app.ai.tools.types import ExecutionContext, ToolDefinition, ToolResult
 from app.core.i18n import _
 from app.core.logging import LogManager
 from app.core.response import build_public_error_text
 from app.enums.agent import ToolTypeEnum
 from app.enums.common import UserRoleEnum
+from app.schemas.ai.retired_page_awareness import (
+    assert_no_retired_page_awareness_input,
+)
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -119,7 +125,9 @@ class ToolSandbox:
         self.user_role = user_role
         self.permissions = permissions or set()
         self.consented_actions: set[str] = set()
-        self.input_variables: dict[str, Any] = input_variables or {}
+        self.input_variables: dict[str, Any] = assert_no_retired_page_awareness_input(
+            input_variables
+        )
         self.config = config or SandboxConfig()
         self._gateway = gateway
         self._db = db
@@ -221,6 +229,15 @@ class ToolSandbox:
                 name=name,
                 success=False,
                 error=_("tool.error.not_found", name=name),
+            )
+
+        if is_retired_page_tool(definition):
+            return ToolResult(
+                tool_call_id=tool_call_id,
+                name=name,
+                success=False,
+                error="Page awareness tools are retired from AI dialogue.",
+                error_type="page_awareness_retired",
             )
 
         # 1.5 Security check: input validation + call count limit / 安全检查

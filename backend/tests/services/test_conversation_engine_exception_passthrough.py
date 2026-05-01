@@ -1,3 +1,12 @@
+"""
+Test type: behavioral
+Scope: ConversationEngine exception passthrough, retry policy, and native search repair.
+Mocked dependencies: Redis module import seam and LLM adapter calls via focused AsyncMock.
+"""
+
+# Redis import stubs must be installed before importing app modules under test.
+# ruff: noqa: E402
+
 import sys
 import types
 from types import SimpleNamespace
@@ -13,7 +22,7 @@ redis_exceptions_module = types.ModuleType("redis.exceptions")
 
 class _RedisConnectionPool:
     @classmethod
-    def from_url(cls, *args, **kwargs):
+    def from_url(cls, *_args, **_kwargs):
         return cls()
 
     async def aclose(self) -> None:
@@ -21,7 +30,7 @@ class _RedisConnectionPool:
 
 
 class _RedisClient:
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *_args, **_kwargs) -> None:
         return None
 
 
@@ -34,7 +43,7 @@ redis_asyncio_module.ConnectionPool = _RedisConnectionPool
 redis_asyncio_module.Redis = _RedisClient
 redis_asyncio_client_module.Pipeline = _RedisPipeline
 redis_module.Redis = _RedisClient
-redis_module.from_url = lambda *a, **kw: MagicMock()
+redis_module.from_url = lambda *_args, **_kwargs: MagicMock()
 redis_module.asyncio = redis_asyncio_module
 redis_module.exceptions = redis_exceptions_module
 sys.modules.setdefault("redis", redis_module)
@@ -42,7 +51,10 @@ sys.modules.setdefault("redis.asyncio", redis_asyncio_module)
 sys.modules.setdefault("redis.asyncio.client", redis_asyncio_client_module)
 sys.modules.setdefault("redis.exceptions", redis_exceptions_module)
 
+from app.ai.engine import conversation_sync_io_adapter as sync_io_adapter
 from app.ai.engine.conversation import ConversationEngine
+from app.ai.engine.final_output_policy import build_untrusted_final_output_fallback
+from app.ai.engine.turn_executor import ToolBatchResult
 from app.ai.engine.types import (
     ExecutionBudget,
     ExecutionRequest,
@@ -157,12 +169,48 @@ async def test_conversation_engine_execute_hides_generic_exception_in_production
 
     assert result.success is False
     assert "secret provider stack" not in (result.error or "")
-    assert "trace-conversation-prod" in (result.error or "")
+    assert result.error == "服务器内部错误"
+    assert result.diagnostics is not None
 
 
 @pytest.mark.asyncio
-async def test_conversation_engine_retries_capability_denial_with_required_tool_policy() -> None:
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+async def test_conversation_engine_retries_capability_denial_with_required_tool_policy(
+    monkeypatch,
+) -> None:
+    sandbox = MagicMock()
+    sandbox.execute = AsyncMock(
+        side_effect=[
+            ToolResult(
+                tool_call_id="call_search",
+                name="web_search",
+                success=True,
+                output="GPT background from web search",
+                summary_payload={
+                    "result_count": 1,
+                    "items": [
+                        {
+                            "title": "GPT overview",
+                            "url": "https://example.com/gpt",
+                            "snippet": "GPT background from web search",
+                        }
+                    ],
+                },
+            ),
+            ToolResult(
+                tool_call_id="call_fetch",
+                name="fetch_url",
+                success=True,
+                output="Content from https://example.com/gpt\n\nGPT background from web search",
+                summary_payload={
+                    "fetch_url": True,
+                    "title": "GPT overview",
+                    "description": "GPT background from web search",
+                    "summary": "GPT background from web search",
+                },
+            ),
+        ]
+    )
+    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=sandbox)
     prep = PreparedExecution(
         messages=[ChatMessage(role="user", content="联网帮我查一下 gpt 到底是什么东西")],
         tools=[
@@ -201,7 +249,7 @@ async def test_conversation_engine_retries_capability_denial_with_required_tool_
         execution_budget=ExecutionBudget(
             max_prompt_tokens=4000,
             max_completion_tokens=1200,
-            max_tool_rounds=2,
+            max_tool_rounds=3,
             max_elapsed_ms=25000,
             max_retry_per_intent=1,
             max_candidate_tools=3,
@@ -232,23 +280,20 @@ async def test_conversation_engine_retries_capability_denial_with_required_tool_
                 ],
                 total_tokens=12,
             ),
-        ]
-    )
-    async def _fake_handle_tool_calls(*, messages, response, **kwargs):
-        _ = kwargs
-        messages.append(
-            ChatMessage(
-                role="assistant",
-                content="",
+            ChatResponse(
+                message=ChatMessage(role="assistant", content=""),
                 tool_calls=[
                     {
-                        **response.tool_calls[0],
-                        "success": True,
+                        "id": "call_fetch",
+                        "type": "function",
+                        "function": {
+                            "name": "fetch_url",
+                            "arguments": '{"url":"https://example.com/gpt","max_length":4000}',
+                        },
                     }
                 ],
-            )
-        )
-        return (
+                total_tokens=8,
+            ),
             ChatResponse(
                 message=ChatMessage(
                     role="assistant",
@@ -256,19 +301,8 @@ async def test_conversation_engine_retries_capability_denial_with_required_tool_
                 ),
                 total_tokens=20,
             ),
-            [
-                ToolResult(
-                    tool_call_id="call_search",
-                    name="web_search",
-                    success=True,
-                    output="GPT background from web search",
-                )
-            ],
-            20,
-            20,
-        )
-
-    engine._handle_tool_calls = AsyncMock(side_effect=_fake_handle_tool_calls)
+        ]
+    )
 
     request = ExecutionRequest(
         agent_id=1,
@@ -281,8 +315,9 @@ async def test_conversation_engine_retries_capability_denial_with_required_tool_
 
     result = await engine.execute(agent, request)
 
-    assert result.success is True
-    assert result.output == "GPT 是生成式预训练 Transformer。"
+    assert result.success is False
+    assert result.partial is True
+    assert "GPT overview" in result.output
     assert len(engine._call_llm.await_args_list) == 2
     assert engine._call_llm.await_args_list[0].kwargs["tool_use_policy"].mode == "auto"
     assert engine._call_llm.await_args_list[1].kwargs["tool_use_policy"].mode == "required"
@@ -295,7 +330,40 @@ async def test_conversation_engine_retries_capability_denial_with_required_tool_
 
 @pytest.mark.asyncio
 async def test_conversation_engine_retries_summary_without_fetch_with_fetch_url() -> None:
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+    sandbox = MagicMock()
+    sandbox.execute = AsyncMock(
+        side_effect=[
+            ToolResult(
+                tool_call_id="call_search",
+                name="web_search",
+                success=True,
+                output="Search results for: 乌克兰 局势 今天 最新 官方 新闻",
+                summary_payload={
+                    "result_count": 1,
+                    "items": [
+                        {
+                            "title": "Ukraine live updates",
+                            "url": "https://example.com/ukraine-live",
+                            "snippet": "Search results for Ukraine live updates",
+                        }
+                    ],
+                },
+            ),
+            ToolResult(
+                tool_call_id="call_fetch",
+                name="fetch_url",
+                success=True,
+                output="Content from https://example.com/ukraine-live:\n\n正文内容",
+                summary_payload={
+                    "fetch_url": True,
+                    "title": "Ukraine live updates",
+                    "description": "正文内容",
+                    "summary": "正文内容",
+                },
+            ),
+        ]
+    )
+    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=sandbox)
     prep = PreparedExecution(
         messages=[ChatMessage(role="user", content="联网查阅一下，今天乌克兰的局势")],
         tools=[
@@ -326,6 +394,19 @@ async def test_conversation_engine_retries_summary_without_fetch_with_fetch_url(
             retry_on_contract_breach=True,
             reason="active_continuation:web_research",
         ),
+        intent_plan=[
+            IntentPlan(
+                intent_id="intent-web-research",
+                kind="web_research",
+                family="web_research",
+                order=1,
+                user_visible_label="web_research",
+                source_text="联网查阅一下，今天乌克兰的局势",
+                allowed_tool_names=["web_search", "fetch_url"],
+                preferred_tool_names=["web_search", "fetch_url"],
+                completion_signals=["fetch_url"],
+            )
+        ],
         rag_sources=None,
         tool_consent_modes={},
         optimize_event=None,
@@ -361,72 +442,10 @@ async def test_conversation_engine_retries_summary_without_fetch_with_fetch_url(
         ],
         total_tokens=8,
     )
-    engine._call_llm = AsyncMock(side_effect=[first_response, retry_response])
-
-    async def _fake_handle_tool_calls(
-        *,
-        agent,
-        messages,
-        response,
-        **kwargs,
-    ):
-        tools = kwargs["tools"]
-        all_tools = kwargs["all_tools"]
-        messages.append(
-            ChatMessage(
-                role="assistant",
-                content="",
-                tool_calls=[
-                    {
-                        **response.tool_calls[0],
-                        "success": True,
-                    }
-                ],
-            )
-        )
-        messages.append(
-            ChatMessage(
-                role="tool",
-                content="Search results for: 乌克兰 局势 今天 最新 官方 新闻",
-                tool_call_id="call_search",
-            )
-        )
-        retry_policy = ToolUsePolicy(
-            family="web_research",
-            mode="required",
-            allowed_tool_names=["web_search", "fetch_url"],
-            retry_on_contract_breach=False,
-            reason="web_research_summary_without_fetch",
-        )
-        retry_call = await engine._call_llm(
-            agent=agent,
-            messages=messages,
-            tools=tools,
-            all_tool_names=[tool.name for tool in (all_tools or tools or [])],
-            tool_use_policy=retry_policy,
-            breach_retry_result="retry_follow_up",
-        )
-        assert retry_call.tool_calls is not None
-        messages.append(
-            ChatMessage(
-                role="assistant",
-                content="",
-                tool_calls=[
-                    {
-                        **retry_call.tool_calls[0],
-                        "success": True,
-                    }
-                ],
-            )
-        )
-        messages.append(
-            ChatMessage(
-                role="tool",
-                content="Content from https://example.com/ukraine-live:\n\n正文内容",
-                tool_call_id="call_fetch",
-            )
-        )
-        return (
+    engine._call_llm = AsyncMock(
+        side_effect=[
+            first_response,
+            retry_response,
             ChatResponse(
                 message=ChatMessage(
                     role="assistant",
@@ -434,25 +453,8 @@ async def test_conversation_engine_retries_summary_without_fetch_with_fetch_url(
                 ),
                 total_tokens=15,
             ),
-            [
-                ToolResult(
-                    tool_call_id="call_search",
-                    name="web_search",
-                    success=True,
-                    output="Search results for: 乌克兰 局势 今天 最新 官方 新闻",
-                ),
-                ToolResult(
-                    tool_call_id="call_fetch",
-                    name="fetch_url",
-                    success=True,
-                    output="Content from https://example.com/ukraine-live:\n\n正文内容",
-                ),
-            ],
-            35,
-            35,
-        )
-
-    engine._handle_tool_calls = AsyncMock(side_effect=_fake_handle_tool_calls)
+        ]
+    )
 
     request = ExecutionRequest(
         agent_id=1,
@@ -466,21 +468,62 @@ async def test_conversation_engine_retries_summary_without_fetch_with_fetch_url(
     result = await engine.execute(agent, request)
 
     assert result.success is True
-    assert "基于正文" in result.output
+    assert result.output == build_untrusted_final_output_fallback(
+        auto_fetch_gate_reason="candidate_urls_ready"
+    )
     assert len(engine._call_llm.await_args_list) == 2
     assert engine._call_llm.await_args_list[1].kwargs["tool_use_policy"].reason == (
-        "web_research_summary_without_fetch"
+        "unfinished_intent_retry"
     )
     assert [tool.name for tool in engine._call_llm.await_args_list[1].kwargs["tools"]] == [
-        "web_search",
         "fetch_url",
     ]
 
 
 @pytest.mark.asyncio
-async def test_conversation_engine_repairs_title_only_answer_after_fetch() -> None:
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+async def test_conversation_engine_repairs_title_only_answer_after_fetch(
+    monkeypatch,
+) -> None:
     page_title = "湖南中小学将施行春秋假制度-湖南省人民政府门户网站"
+    sandbox = MagicMock()
+    sandbox.execute = AsyncMock(
+        side_effect=[
+            ToolResult(
+                tool_call_id="call_search",
+                name="web_search",
+                success=True,
+                output="Search results for: 湖南学生放假时间",
+                summary_payload={
+                    "result_count": 1,
+                    "items": [
+                        {
+                            "title": page_title,
+                            "url": "https://searchs.hunan.gov.cn/hnszf/hnyw/zwdt/202603/t20260328_33943174.html",
+                            "snippet": "湖南中小学生即将迎来春秋假。",
+                        }
+                    ],
+                },
+            ),
+            ToolResult(
+                tool_call_id="call_fetch",
+                name="fetch_url",
+                success=True,
+                output=(
+                    "Content from https://searchs.hunan.gov.cn/hnszf/hnyw/zwdt/202603/"
+                    "t20260328_33943174.html\n"
+                    f"Title: {page_title}\n"
+                    "湖南中小学生即将迎来春秋假。"
+                ),
+                summary_payload={
+                    "fetch_url": True,
+                    "title": page_title,
+                    "description": "湖南中小学生即将迎来春秋假。",
+                    "summary": "湖南中小学生即将迎来春秋假。",
+                },
+            ),
+        ]
+    )
+    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=sandbox)
     prep = PreparedExecution(
         messages=[ChatMessage(role="user", content="你联网查一下 湖南学生放假时间")],
         tools=[
@@ -510,6 +553,19 @@ async def test_conversation_engine_repairs_title_only_answer_after_fetch() -> No
             retry_on_contract_breach=True,
             reason="active_continuation:web_research",
         ),
+        intent_plan=[
+            IntentPlan(
+                intent_id="intent-web-research",
+                kind="web_research",
+                family="web_research",
+                order=1,
+                user_visible_label="web_research",
+                source_text="你联网查一下 湖南学生放假时间",
+                allowed_tool_names=["web_search", "fetch_url"],
+                preferred_tool_names=["web_search", "fetch_url"],
+                completion_signals=["fetch_url"],
+            )
+        ],
         rag_sources=None,
         tool_consent_modes={},
         optimize_event=None,
@@ -556,106 +612,94 @@ async def test_conversation_engine_repairs_title_only_answer_after_fetch() -> No
         total_tokens=20,
     )
     engine._call_llm = AsyncMock(
-        side_effect=[first_response, retry_fetch_response, repaired_response]
+        side_effect=[
+            first_response,
+            retry_fetch_response,
+            repaired_response,
+        ]
     )
 
-    async def _fake_handle_tool_calls(
-        *,
-        agent,
-        messages,
-        response,
-        **kwargs,
-    ):
-        tools = kwargs["tools"]
-        all_tools = kwargs["all_tools"]
+    async def _fake_sync_tool_calls(*, messages, response, **kwargs):
+        _ = kwargs
+        tool_calls = list(response.tool_calls or response.message.tool_calls or [])
+        tool_calls[0]["success"] = True
         messages.append(
             ChatMessage(
                 role="assistant",
-                content="",
-                tool_calls=[
-                    {
-                        **response.tool_calls[0],
-                        "success": True,
-                    }
-                ],
+                content=response.message.content or "",
+                tool_calls=tool_calls,
             )
         )
-        messages.append(
-            ChatMessage(
-                role="tool",
-                content="Search results for: 湖南学生放假时间",
+        tool_name = str(tool_calls[0]["function"]["name"])
+        if tool_name == "web_search":
+            result = ToolResult(
                 tool_call_id="call_search",
+                name="web_search",
+                success=True,
+                output="Search results for: 湖南学生放假时间",
+                summary_payload={
+                    "result_count": 1,
+                    "items": [
+                        {
+                            "title": page_title,
+                            "url": "https://searchs.hunan.gov.cn/hnszf/hnyw/zwdt/202603/t20260328_33943174.html",
+                            "snippet": "湖南中小学生即将迎来春秋假。",
+                        }
+                    ],
+                },
             )
-        )
-        retry_policy = ToolUsePolicy(
-            family="web_research",
-            mode="required",
-            allowed_tool_names=["web_search", "fetch_url"],
-            retry_on_contract_breach=False,
-            reason="web_research_summary_without_fetch",
-        )
-        retry_call = await engine._call_llm(
-            agent=agent,
-            messages=messages,
-            tools=tools,
-            all_tool_names=[tool.name for tool in (all_tools or tools or [])],
-            tool_use_policy=retry_policy,
-            breach_retry_result="retry_follow_up",
-        )
-        assert retry_call.tool_calls is not None
-        messages.append(
-            ChatMessage(
-                role="assistant",
-                content="",
-                tool_calls=[
-                    {
-                        **retry_call.tool_calls[0],
-                        "success": True,
-                    }
-                ],
+            messages.append(
+                ChatMessage(
+                    role="tool",
+                    content=result.output or "",
+                    tool_call_id=result.tool_call_id,
+                )
             )
+            return ToolBatchResult(
+                response=None,
+                tool_results=[result],
+                total_tokens=18,
+                completion_tokens_used=18,
+            )
+        result = ToolResult(
+            tool_call_id="call_fetch",
+            name="fetch_url",
+            success=True,
+            output=(
+                "Content from https://searchs.hunan.gov.cn/hnszf/hnyw/zwdt/202603/"
+                "t20260328_33943174.html\n"
+                f"Title: {page_title}\n"
+                "湖南中小学生即将迎来春秋假。"
+            ),
+            summary_payload={
+                "fetch_url": True,
+                "title": page_title,
+                "description": "湖南中小学生即将迎来春秋假。",
+                "summary": "湖南中小学生即将迎来春秋假。",
+            },
         )
         messages.append(
             ChatMessage(
                 role="tool",
-                content=(
-                    "Content from https://searchs.hunan.gov.cn/hnszf/hnyw/zwdt/202603/"
-                    "t20260328_33943174.html\n"
-                    f"Title: {page_title}\n"
-                    "湖南中小学生即将迎来春秋假。"
-                ),
-                tool_call_id="call_fetch",
+                content=result.output or "",
+                tool_call_id=result.tool_call_id,
             )
         )
-        return (
-            ChatResponse(
+        return ToolBatchResult(
+            response=ChatResponse(
                 message=ChatMessage(role="assistant", content=page_title),
                 total_tokens=11,
             ),
-            [
-                ToolResult(
-                    tool_call_id="call_search",
-                    name="web_search",
-                    success=True,
-                    output="Search results for: 湖南学生放假时间",
-                ),
-                ToolResult(
-                    tool_call_id="call_fetch",
-                    name="fetch_url",
-                    success=True,
-                    output=(
-                        "Content from https://searchs.hunan.gov.cn/hnszf/hnyw/zwdt/202603/"
-                        "t20260328_33943174.html\n"
-                        f"Title: {page_title}\n"
-                        "湖南中小学生即将迎来春秋假。"
-                    ),
-                ),
-            ],
-            36,
-            36,
+            tool_results=[result],
+            total_tokens=29,
+            completion_tokens_used=29,
         )
 
-    engine._handle_tool_calls = AsyncMock(side_effect=_fake_handle_tool_calls)
+    monkeypatch.setattr(
+        sync_io_adapter,
+        "handle_sync_tool_calls",
+        _fake_sync_tool_calls,
+    )
 
     request = ExecutionRequest(
         agent_id=1,
@@ -688,247 +732,6 @@ async def test_conversation_engine_repairs_title_only_answer_after_fetch() -> No
     )
     assert result.turn_record["contract_breach_type"] == (
         "web_research_title_only_after_fetch"
-    )
-
-
-@pytest.mark.asyncio
-async def test_conversation_engine_retries_leaked_textual_tool_output_after_partial_web_research() -> None:
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
-    prep = PreparedExecution(
-        messages=[
-            ChatMessage(
-                role="user",
-                content="请帮我查一下今天的天气，然后联网查一下去北京的高铁票，再帮我阅读一下本页面都有什么内容",
-            )
-        ],
-        tools=[
-            ToolDefinition(name="web_search", description="Search the web"),
-            ToolDefinition(name="fetch_url", description="Fetch url"),
-            ToolDefinition(name="ui_get_snapshot", description="Get UI snapshot"),
-        ],
-        all_tools=[
-            ToolDefinition(name="web_search", description="Search the web"),
-            ToolDefinition(name="fetch_url", description="Fetch url"),
-            ToolDefinition(name="ui_get_snapshot", description="Get UI snapshot"),
-        ],
-        tool_use_policy=ToolUsePolicy(
-            family="web_research",
-            mode="required",
-            allowed_tool_names=["web_search", "fetch_url", "ui_get_snapshot"],
-            retry_on_contract_breach=True,
-            reason="explicit_web_request",
-        ),
-        diagnostics={"ordered_requested_families": ["web_research", "page_ops"]},
-        rag_sources=None,
-        tool_consent_modes={},
-        optimize_event=None,
-        route_result=None,
-    )
-    engine._prepare_execution = AsyncMock(return_value=prep)
-    engine._call_llm = AsyncMock(
-        side_effect=[
-            ChatResponse(
-                message=ChatMessage(role="assistant", content=""),
-                tool_calls=[
-                    {
-                        "id": "call_search_weather",
-                        "type": "function",
-                        "function": {
-                            "name": "web_search",
-                            "arguments": '{"query":"2026-04-03 今天天气 中国","max_results":5}',
-                        },
-                    },
-                    {
-                        "id": "call_page_context",
-                        "type": "function",
-                        "function": {
-                            "name": "ui_get_snapshot",
-                            "arguments": "{}",
-                        },
-                    },
-                ],
-                total_tokens=12,
-            ),
-            ChatResponse(
-                message=ChatMessage(role="assistant", content=""),
-                tool_calls=[
-                    {
-                        "id": "call_fetch_weather",
-                        "type": "function",
-                        "function": {
-                            "name": "fetch_url",
-                            "arguments": '{"url":"https://weather.cma.cn/","max_length":4000}',
-                        },
-                    },
-                    {
-                        "id": "call_fetch_ticket",
-                        "type": "function",
-                        "function": {
-                            "name": "fetch_url",
-                            "arguments": '{"url":"https://www.gaotie.cn/","max_length":4000}',
-                        },
-                    }
-                ],
-                total_tokens=10,
-            ),
-        ]
-    )
-
-    async def _fake_handle_tool_calls(
-        *,
-        agent,
-        messages,
-        response,
-        **kwargs,
-    ):
-        tools = kwargs["tools"]
-        all_tools = kwargs["all_tools"]
-        tool_names = [
-            (tool_call.get("function") or {}).get("name")
-            for tool_call in (response.tool_calls or [])
-        ]
-        if tool_names == ["web_search", "ui_get_snapshot"]:
-            messages.append(
-                ChatMessage(
-                    role="assistant",
-                    content="",
-                    tool_calls=[
-                        {**response.tool_calls[0], "success": True},
-                        {**response.tool_calls[1], "success": True},
-                    ],
-                )
-            )
-            messages.append(
-                ChatMessage(
-                    role="tool",
-                    content="Search results for: 2026-04-03 今天天气 中国",
-                    tool_call_id="call_search_weather",
-                )
-            )
-            messages.append(
-                ChatMessage(
-                    role="tool",
-                    content="Page: admin.dashboard\nTitle: 平台控制塔\nData: {\"ai_calls_today\":146}",
-                    tool_call_id="call_page_context",
-                )
-            )
-
-        retry_policy = ToolUsePolicy(
-            family="web_research",
-            mode="required",
-            allowed_tool_names=["web_search", "fetch_url"],
-            retry_on_contract_breach=False,
-            reason="leaked_textual_tool_call:web_search",
-        )
-        retry_call = await engine._call_llm(
-            agent=agent,
-            messages=messages,
-            tools=tools,
-            all_tool_names=[tool.name for tool in (all_tools or tools or [])],
-            tool_use_policy=retry_policy,
-            breach_retry_result="retry_follow_up",
-        )
-        assert retry_call.tool_calls is not None
-        messages.append(
-            ChatMessage(
-                role="assistant",
-                content="",
-                tool_calls=[
-                    {**tool_call, "success": True}
-                    for tool_call in retry_call.tool_calls
-                ],
-            )
-        )
-        messages.append(
-            ChatMessage(
-                role="tool",
-                content="Content from https://weather.cma.cn/\nTitle: 中国气象局-天气预报",
-                tool_call_id="call_fetch_weather",
-            )
-        )
-        messages.append(
-            ChatMessage(
-                role="tool",
-                content="Content from https://www.gaotie.cn/\nTitle: 高铁网\n北京方向车票可查询",
-                tool_call_id="call_fetch_ticket",
-            )
-        )
-        return (
-            ChatResponse(
-                message=ChatMessage(
-                    role="assistant",
-                    content=(
-                        "今天天气方面，可参考中国气象局页面信息；"
-                        "去北京的高铁票可以继续通过高铁网等替代来源查询；"
-                        "当前页面是 admin.dashboard，显示平台控制塔指标。"
-                    ),
-                ),
-                total_tokens=16,
-            ),
-            [
-                ToolResult(
-                    tool_call_id="call_search_weather",
-                    name="web_search",
-                    success=True,
-                    output="Search results for: 2026-04-03 今天天气 中国",
-                ),
-                ToolResult(
-                    tool_call_id="call_page_context",
-                    name="ui_get_snapshot",
-                    success=True,
-                    output="Page: admin.dashboard\nTitle: 平台控制塔\nData: {\"ai_calls_today\":146}",
-                ),
-                ToolResult(
-                    tool_call_id="call_fetch_weather",
-                    name="fetch_url",
-                    success=True,
-                    output="Content from https://weather.cma.cn/\nTitle: 中国气象局-天气预报",
-                ),
-                ToolResult(
-                    tool_call_id="call_fetch_ticket",
-                    name="fetch_url",
-                    success=True,
-                    output="Content from https://www.gaotie.cn/\nTitle: 高铁网\n北京方向车票可查询",
-                ),
-            ],
-            38,
-            38,
-        )
-
-    engine._handle_tool_calls = AsyncMock(side_effect=_fake_handle_tool_calls)
-
-    request = ExecutionRequest(
-        agent_id=1,
-        tenant_id=1,
-        user_id=1,
-        messages=[
-            ChatMessage(
-                role="user",
-                content="请帮我查一下今天的天气，然后联网查一下去北京的高铁票，再帮我阅读一下本页面都有什么内容",
-            )
-        ],
-        input_variables={
-            "page_context": {
-                "page_key": "admin.dashboard",
-                "page_title": "平台控制塔",
-                "ui_epoch": 6,
-                "suggested_tools": {
-                    "primary": ["ui_get_snapshot", "ui_read_region", "ui_read_table"],
-                },
-            }
-        },
-    )
-    agent = SimpleNamespace(id=1)
-
-    result = await engine.execute(agent, request)
-
-    assert result.success is True
-    assert "今天天气" in result.output
-    assert "高铁票" in result.output
-    assert "admin.dashboard" in result.output
-    assert len(engine._call_llm.await_args_list) == 2
-    assert engine._call_llm.await_args_list[1].kwargs["tool_use_policy"].reason.startswith(
-        "leaked_textual_tool_call:"
     )
 
 
@@ -1043,86 +846,6 @@ def test_conversation_engine_detects_capability_denial_from_semantic_family_term
         allowed_tool_names=["public_lookup"],
         retry_on_contract_breach=False,
         reason="capability_denial:web_research",
-    )
-
-
-def test_conversation_engine_retries_same_explicit_family_before_switching() -> None:
-    response = ChatResponse(
-        message=ChatMessage(
-            role="assistant",
-            content="我现在没有实时天气接口，不能直接查询今天北京天气。",
-        ),
-    )
-    current_policy = ToolUsePolicy(
-        family="weather",
-        mode="auto",
-        allowed_tool_names=["get_current_weather", "get_weather_forecast"],
-        retry_on_contract_breach=True,
-        reason="explicit_weather_request",
-    )
-    tools = [
-        ToolDefinition(name="get_current_weather", description="Get current weather"),
-        ToolDefinition(name="get_weather_forecast", description="Get weather forecast"),
-        ToolDefinition(name="ui_get_snapshot", description="Get UI snapshot"),
-    ]
-
-    should_retry, retry_policy, response_text = (
-        ConversationEngine._should_retry_tool_contract_breach(
-            response=response,
-            current_policy=current_policy,
-            tools=tools,
-            input_variables={},
-        )
-    )
-
-    assert should_retry is True
-    assert response_text == "我现在没有实时天气接口，不能直接查询今天北京天气。"
-    assert retry_policy == ToolUsePolicy(
-        family="weather",
-        mode="required",
-        allowed_tool_names=["get_current_weather", "get_weather_forecast"],
-        retry_on_contract_breach=False,
-        reason="capability_denial:weather",
-    )
-
-
-def test_conversation_engine_retries_when_tool_call_leaks_as_plain_text() -> None:
-    response = ChatResponse(
-        message=ChatMessage(
-            role="assistant",
-            content="to=functions.ui_get_snapshot 天天乐不json_string",
-        ),
-    )
-    current_policy = ToolUsePolicy(
-        family="none",
-        mode="auto",
-        allowed_tool_names=["ui_get_snapshot", "ui_click", "web_search"],
-        retry_on_contract_breach=True,
-        reason="default_auto",
-    )
-    tools = [
-        ToolDefinition(name="ui_get_snapshot", description="Get current UI snapshot"),
-        ToolDefinition(name="ui_click", description="Click UI element"),
-        ToolDefinition(name="web_search", description="Search the web"),
-    ]
-
-    should_retry, retry_policy, response_text = (
-        ConversationEngine._should_retry_tool_contract_breach(
-            response=response,
-            current_policy=current_policy,
-            tools=tools,
-            input_variables={},
-        )
-    )
-
-    assert should_retry is True
-    assert response_text == "to=functions.ui_get_snapshot 天天乐不json_string"
-    assert retry_policy == ToolUsePolicy(
-        family="page_ops",
-        mode="required",
-        allowed_tool_names=["ui_get_snapshot", "ui_click"],
-        retry_on_contract_breach=False,
-        reason="textual_tool_call_leak:ui_get_snapshot",
     )
 
 
@@ -1255,102 +978,6 @@ def test_web_research_title_only_retry_skips_explicit_title_request() -> None:
     assert response_text == ""
 
 
-def test_collect_completed_turn_intents_requires_weather_fetch_or_weather_tool() -> None:
-    tools = [
-        ToolDefinition(name="web_search", description="Search the web"),
-        ToolDefinition(name="fetch_url", description="Fetch url"),
-        ToolDefinition(name="ui_get_snapshot", description="Get UI snapshot"),
-    ]
-    messages = [
-        ChatMessage(
-            role="assistant",
-            content="",
-            tool_calls=[
-                {
-                    "id": "call_search_weather",
-                    "type": "function",
-                    "function": {
-                        "name": "web_search",
-                        "arguments": '{"query":"2026-04-03 上海 今天天气","max_results":5}',
-                    },
-                    "success": True,
-                },
-                {
-                    "id": "call_page_context",
-                    "type": "function",
-                    "function": {
-                        "name": "ui_get_snapshot",
-                        "arguments": "{}",
-                    },
-                    "success": True,
-                },
-            ],
-        ),
-        ChatMessage(
-            role="tool",
-            content="Search results for: 2026-04-03 上海 今天天气",
-            tool_call_id="call_search_weather",
-        ),
-        ChatMessage(
-            role="tool",
-            content="Page: admin.ai.agents",
-            tool_call_id="call_page_context",
-        ),
-    ]
-
-    completed_without_fetch = ConversationEngine._collect_completed_turn_intents(
-        messages,
-        tools=tools,
-        input_variables={
-            "page_context": {
-                "page_key": "admin.ai.agents",
-                "page_title": "智能体名称",
-            }
-        },
-    )
-
-    assert "weather" not in completed_without_fetch
-    assert "page_summary" in completed_without_fetch
-
-    messages.extend(
-        [
-            ChatMessage(
-                role="assistant",
-                content="",
-                tool_calls=[
-                    {
-                        "id": "call_fetch_weather",
-                        "type": "function",
-                        "function": {
-                            "name": "fetch_url",
-                            "arguments": '{"url":"https://weather.cma.cn/","max_length":4000}',
-                        },
-                        "success": True,
-                    }
-                ],
-            ),
-            ChatMessage(
-                role="tool",
-                content="Content from https://weather.cma.cn/\nTitle: 中国气象局-天气预报",
-                tool_call_id="call_fetch_weather",
-            ),
-        ]
-    )
-
-    completed_with_fetch = ConversationEngine._collect_completed_turn_intents(
-        messages,
-        tools=tools,
-        input_variables={
-            "page_context": {
-                "page_key": "admin.ai.agents",
-                "page_title": "智能体名称",
-            }
-        },
-    )
-
-    assert "weather" in completed_with_fetch
-
-
 def test_analyze_post_tool_contract_breach_accepts_native_web_search_weather_answer() -> None:
     tools = [
         ToolDefinition(name="web_search", description="Search the web"),
@@ -1415,95 +1042,3 @@ def test_analyze_post_tool_contract_breach_accepts_native_web_search_weather_ans
     assert diagnostics["native_web_search_evidence"] is True
     assert diagnostics["completed_intents"] == ["weather"]
     assert diagnostics["unfinished_intents"] == []
-
-
-def test_ensure_web_research_tool_pair_restores_fetch_url_for_page_first_selection() -> None:
-    all_tools = [
-        ToolDefinition(name="ui_get_snapshot", description="Get UI snapshot"),
-        ToolDefinition(name="web_search", description="Search the web"),
-        ToolDefinition(name="fetch_url", description="Fetch url"),
-    ]
-    selected_tools = [
-        ToolDefinition(name="ui_get_snapshot", description="Get UI snapshot"),
-        ToolDefinition(name="web_search", description="Search the web"),
-    ]
-
-    restored_tools, restored = ConversationEngine._ensure_web_research_tool_pair(
-        selected_tools=selected_tools,
-        all_tools=all_tools,
-        explicit_requested_families=["page_ops", "web_research"],
-        policy=ToolUsePolicy(
-            family="page_ops",
-            mode="required",
-            allowed_tool_names=["ui_get_snapshot", "web_search"],
-            retry_on_contract_breach=False,
-            reason="explicit_page_request",
-        ),
-    )
-
-    assert restored is True
-    assert [tool.name for tool in restored_tools] == [
-        "ui_get_snapshot",
-        "web_search",
-        "fetch_url",
-    ]
-
-
-def test_restrict_page_tools_for_generic_summary_keeps_ui_get_snapshot_only() -> None:
-    all_tools = [
-        ToolDefinition(name="web_search", description="Search the web"),
-        ToolDefinition(name="fetch_url", description="Fetch url"),
-        ToolDefinition(name="ui_get_snapshot", description="Get UI snapshot"),
-        ToolDefinition(name="ui_click", description="Click UI element"),
-        ToolDefinition(name="ui_read_region", description="Read UI region"),
-        ToolDefinition(name="ui_read_table", description="Read UI table"),
-    ]
-    selected_tools = list(all_tools)
-
-    restricted_tools, restricted = ConversationEngine._restrict_page_tools_for_generic_summary(
-        selected_tools=selected_tools,
-        all_tools=all_tools,
-        user_text="请帮我查一下今天的天气，然后联网查一下去北京的高铁票，再帮我阅读一下本页面都有什么内容",
-        input_variables={
-            "page_context": {
-                "page_key": "admin.ai.agents",
-                "page_title": "智能体名称",
-            }
-        },
-    )
-
-    assert restricted is True
-    assert [tool.name for tool in restricted_tools] == [
-        "web_search",
-        "fetch_url",
-        "ui_get_snapshot",
-    ]
-
-
-def test_restrict_page_tools_for_generic_summary_keeps_detail_tools_when_rows_requested() -> None:
-    all_tools = [
-        ToolDefinition(name="web_search", description="Search the web"),
-        ToolDefinition(name="fetch_url", description="Fetch url"),
-        ToolDefinition(name="ui_get_snapshot", description="Get UI snapshot"),
-        ToolDefinition(name="ui_read_table", description="Read table rows"),
-    ]
-
-    restricted_tools, restricted = ConversationEngine._restrict_page_tools_for_generic_summary(
-        selected_tools=list(all_tools),
-        all_tools=all_tools,
-        user_text="先帮我看看本页面都有什么内容，再把当前可见行也读出来",
-        input_variables={
-            "page_context": {
-                "page_key": "admin.ai.agents",
-                "page_title": "智能体名称",
-            }
-        },
-    )
-
-    assert restricted is False
-    assert [tool.name for tool in restricted_tools] == [
-        "web_search",
-        "fetch_url",
-        "ui_get_snapshot",
-        "ui_read_table",
-    ]

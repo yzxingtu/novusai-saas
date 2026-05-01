@@ -7,7 +7,10 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import Any
 
-from app.ai.tools.semantic_defaults import tool_family_from_name
+from app.ai.tools.semantic_defaults import (
+    is_retired_page_tool_name,
+    tool_family_from_name,
+)
 from app.enums.agent import ActionLevelEnum
 
 _RISK_ORDER = {
@@ -53,6 +56,8 @@ def risk_rank(value: str | None) -> int:
 
 
 def tool_family_for_name(tool_name: str) -> str:
+    if is_retired_page_tool_name(tool_name):
+        return "none"
     return tool_family_from_name(tool_name)
 
 
@@ -64,6 +69,8 @@ def tool_risk_level(
     normalized_name = str(tool_name or "").strip().lower()
     normalized_family = str(tool_family or "").strip().lower()
 
+    if is_retired_page_tool_name(normalized_name) or normalized_family == "page_ops":
+        return ActionLevelEnum.DANGEROUS.value
     if normalized_family in {"web_research", "weather"}:
         return ActionLevelEnum.READ.value
     if normalized_name.startswith(("http", "email", "code_", "toolkit")):
@@ -112,6 +119,8 @@ def allows_tool(
         risk_level_cap=(policy_ref or {}).get("risk_level_cap"),
     )
     if normalized_policy_ref is None:
+        return False
+    if is_retired_page_tool_name(tool_name) or str(tool_family or "").strip() == "page_ops":
         return False
 
     allowed_tool_names = {

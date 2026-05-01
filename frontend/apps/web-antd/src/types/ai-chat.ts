@@ -61,10 +61,29 @@ export interface MentionKnowledgeBaseBinding {
   kb_name: null | string;
 }
 
-/** Unified @ candidate: bound knowledge base only / 统一 @ 候选：仅知识库 */
-export interface MentionCandidate {
-  binding: MentionKnowledgeBaseBinding;
-  kind: 'knowledge_base';
+/** Skill package row for @ mention panel / @ 面板技能包行 */
+export interface MentionSkillPackageBinding {
+  package_id?: null | number;
+  package_name?: null | string;
+  skill_id: number;
+  skill_name?: null | string;
+}
+
+/** Unified @ candidate: bound KBs and skill packages / 统一 @ 候选：已绑定知识库与技能包 */
+export type MentionCandidate =
+  | {
+      binding: MentionKnowledgeBaseBinding;
+      kind: 'knowledge_base';
+    }
+  | {
+      binding: MentionSkillPackageBinding;
+      kind: 'skill_package';
+    };
+
+export interface SelectedSkillPackageChip {
+  id: string;
+  label: string;
+  value: string;
 }
 
 export interface AgentItem {

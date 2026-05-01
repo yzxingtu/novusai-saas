@@ -56,7 +56,7 @@ const {
       <div
         v-if="aiPanelStore.visible"
         :ref="setPanelRef"
-        data-ai-panel
+        data-testid="ai-chat-slide-panel"
         class="ai-chat-slide-panel-shell fixed right-0 top-0 z-[2001] flex h-full flex-col overflow-hidden transition-[width] duration-200"
         :class="isFullMode ? 'full-mode-shell' : 'panel-mode-shell'"
         :style="effectivePanelStyle"

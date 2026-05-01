@@ -96,8 +96,11 @@ export function useAIChat(options: UseAIChatOptions) {
     mentionCandidates,
     mentionOpen,
     removeSelectedKnowledgeBase,
+    removeSelectedSkillName,
     selectMentionKnowledgeBase,
+    selectMentionSkillPackage,
     selectedKBIds,
+    selectedSkillNames,
   } = useAIChatComposer({ options, selectedAgentId });
 
   const {
@@ -275,6 +278,7 @@ export function useAIChat(options: UseAIChatOptions) {
     rememberConversationAnchor,
     selectedAgentId,
     selectedKBIds,
+    selectedSkillNames,
     syncConversationAfterInterrupt,
     uiPanelStore: aiPanelStore,
   });
@@ -359,6 +363,7 @@ export function useAIChat(options: UseAIChatOptions) {
     mentionCandidates,
     mentionActiveIndex,
     selectedKBIds,
+    selectedSkillNames,
     agentKBBindings,
     agentKBBindingsByAgentId,
     agentSkillBindingsByAgentId,
@@ -385,7 +390,9 @@ export function useAIChat(options: UseAIChatOptions) {
     copyMessage,
     handleInputKeyDown,
     selectMentionKnowledgeBase,
+    selectMentionSkillPackage,
     removeSelectedKnowledgeBase,
+    removeSelectedSkillName,
     confirmAction,
     rejectAction,
     confirmConsent,

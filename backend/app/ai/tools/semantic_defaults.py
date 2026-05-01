@@ -61,10 +61,17 @@ FAMILY_EXPLICIT_REQUEST_HINTS: dict[str, tuple[str, ...]] = {
 }
 
 RETIRED_PAGE_TOOL_ORDER: tuple[str, ...] = (
+    "append_content",
     "editor_ops",
+    "get_editor_html",
+    "get_editor_text",
     "get_page_context",
+    "insert_content",
     "invoke_page_operation",
     "list_page_operations",
+    "page_ops",
+    "replace_content",
+    "replace_section",
     "ui_get_snapshot",
     "ui_read_region",
     "ui_read_table",
@@ -89,6 +96,14 @@ def is_retired_page_tool_name(name: str) -> bool:
         or normalized.startswith("pageop_")
         or normalized in RETIRED_PAGE_TOOL_NAMES
     )
+
+
+def is_retired_page_tool(tool: Any) -> bool:
+    """Return true when a tool belongs to retired page/editor runtime."""
+    if is_retired_page_tool_name(getattr(tool, "name", "")):
+        return True
+    family = str(getattr(tool, "semantic_family", "") or "").strip()
+    return family == "page_ops"
 
 
 def tool_family_from_name(

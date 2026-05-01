@@ -4,9 +4,6 @@ from __future__ import annotations
 
 import importlib.util
 from pathlib import Path
-from unittest.mock import AsyncMock
-
-import pytest
 
 
 def _load_migration_module():
@@ -115,66 +112,3 @@ def test_interaction_mode_migration_normalizes_nested_metadata_payloads():
     assert payload["last_run_summary"]["interaction_mode_effective"] == "trusted_auto"
     assert payload["last_run_summary"]["downgraded_from"] == "trusted_auto"
     assert payload["tool_calls"][1]["interaction_mode_requested"] == "trusted_auto"
-
-
-@pytest.mark.asyncio
-async def test_resolve_interaction_mode_bootstraps_trusted_auto_without_policy(
-    mock_db,
-):
-    from app.services.ai.agent_chat_service import AgentChatService
-
-    service = AgentChatService(mock_db, tenant_id=1)
-    service._resolve_runtime_trust_policy_ref = AsyncMock(return_value=None)
-
-    effective_mode, trust_policy_ref, downgrade_reason = await service._resolve_interaction_mode(
-        requested_mode="trusted_auto",
-        conversation_id=100,
-        agent_id=1,
-        operator_id=10,
-        operator_type="tenant_admin",
-        explicit_trust_policy_ref=None,
-    )
-
-    assert effective_mode == "trusted_auto"
-    assert trust_policy_ref == {
-        "policy_ids": [],
-        "allowed_tool_names": [],
-        "tool_families": ["page_ops", "weather", "web_research"],
-        "risk_level_cap": "read",
-    }
-    assert downgrade_reason is None
-
-
-@pytest.mark.asyncio
-async def test_resolve_interaction_mode_uses_interaction_updates_as_runtime_policy(
-    mock_db,
-):
-    from app.services.ai.agent_chat_service import AgentChatService
-
-    service = AgentChatService(mock_db, tenant_id=1)
-    service._resolve_runtime_trust_policy_ref = AsyncMock(return_value=None)
-
-    effective_mode, trust_policy_ref, downgrade_reason = await service._resolve_interaction_mode(
-        requested_mode="trusted_auto",
-        conversation_id=100,
-        agent_id=1,
-        operator_id=10,
-        operator_type="tenant_admin",
-        explicit_trust_policy_ref=None,
-        interaction_updates=[
-            {
-                "kind": "pending_confirmation",
-                "rejected": False,
-                "tool_name": "ui_fill_form",
-            }
-        ],
-    )
-
-    assert effective_mode == "trusted_auto"
-    assert trust_policy_ref == {
-        "policy_ids": [],
-        "allowed_tool_names": ["ui_fill_form"],
-        "tool_families": ["page_ops"],
-        "risk_level_cap": "safe_write",
-    }
-    assert downgrade_reason is None

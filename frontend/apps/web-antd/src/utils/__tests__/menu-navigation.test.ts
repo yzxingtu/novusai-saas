@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  buildCompactNavigationPageData,
   buildMenuNavigationEntries,
   resolveMenuNavigationTarget,
   searchMenuNavigationEntries,
@@ -58,7 +57,7 @@ describe('menu-navigation', () => {
     }
   });
 
-  it('builds compact navigation page data from query-bearing current paths', () => {
+  it('serializes compact navigation catalog without route page context', () => {
     const entries = buildMenuNavigationEntries({
       currentEndpoint: 'admin',
       menus: [
@@ -69,25 +68,14 @@ describe('menu-navigation', () => {
       ] as any,
     });
 
-    const pageData = buildCompactNavigationPageData({
-      currentPageKey: 'admin.ai.agents',
-      currentPath: '/admin/ai/agents?tab=create#modal',
-      entries,
+    expect(entries[0]).toMatchObject({
+      breadcrumb: ['智能体管理'],
+      endpoint: 'admin',
+      pageKey: 'admin.ai.agents',
+      path: '/admin/ai/agents',
     });
 
-    expect(pageData).toMatchObject({
-      navigation_catalog: [
-        expect.objectContaining({
-          page_key: 'admin.ai.agents',
-          path: '/admin/ai/agents',
-        }),
-      ],
-      navigation_context: {
-        breadcrumb: ['智能体管理'],
-        endpoint: 'admin',
-        page_key: 'admin.ai.agents',
-        path: '/admin/ai/agents',
-      },
-    });
+    expect(JSON.stringify(entries)).not.toContain('navigation_context');
+    expect(JSON.stringify(entries)).not.toContain('page_session_id');
   });
 });

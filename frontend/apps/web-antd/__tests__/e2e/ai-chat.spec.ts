@@ -1,5 +1,9 @@
 /**
  * AI Chat E2E Chaos Suite / AI 对话 E2E 混沌测试套件
+ * Test type: smoke
+ * Scope: real-browser AI chat flows and retired page/editor tool guards.
+ * Mock strategy: network interception records SSE events; UI flow and turn
+ * projection are exercised through Playwright.
  */
 import type { Locator, Page } from '@playwright/test';
 
@@ -48,7 +52,7 @@ const RETIRED_PAGE_TOOL_NAMES = new Set([
   `list_${'page'}_operations`,
 ]);
 
-const EDITOR_TOOLS = new Set([
+const RETIRED_EDITOR_TOOL_NAMES = new Set([
   'append_content',
   'get_editor_html',
   'get_editor_text',
@@ -180,9 +184,9 @@ function isRetiredPageTool(name: string) {
   );
 }
 
-function isEditorTool(name: string) {
+function isRetiredEditorTool(name: string) {
   const normalized = normalizeToolName(name);
-  if (EDITOR_TOOLS.has(normalized)) {
+  if (RETIRED_EDITOR_TOOL_NAMES.has(normalized)) {
     return true;
   }
   return (
@@ -198,7 +202,7 @@ function resolveToolFamily(name: string) {
   if (isWeatherTool(name)) return 'weather';
   if (isTimeTool(name)) return 'time';
   if (isSearchTool(name)) return 'search';
-  if (isEditorTool(name)) return 'editor';
+  if (isRetiredEditorTool(name)) return 'retired_editor';
   if (isRetiredPageTool(name)) return 'retired';
   return 'other';
 }
@@ -309,43 +313,31 @@ function expectWeatherCapableResponse(metrics: ChatTurnMetrics, minLength = 8) {
   ).toBe(true);
 }
 
-function expectEditorToolOrGracefulFallback(metrics: ChatTurnMetrics) {
-  expectGracefulResponse(metrics);
-  const usedEditorTool = metrics.toolCalls.some((toolCall) =>
-    isEditorTool(toolCall.name),
-  );
-  const editorFallback = responseContainsAny(metrics, [
-    /没有.*编辑器/,
-    /编辑器不可用/,
-    /no editor/i,
-  ]);
+function expectNoRetiredEditorTool(metrics: ChatTurnMetrics, message: string) {
+  expectNoTool(metrics, isRetiredEditorTool, message);
+}
 
-  expect(
-    usedEditorTool || editorFallback || metrics.toolCalls.length === 0,
-    `Expected editor tool or graceful fallback. Seen tool calls: ${readToolNames(metrics).join(', ') || 'none'}`,
-  ).toBe(true);
+function expectEditorRequestFallsBackToText(metrics: ChatTurnMetrics) {
+  expectGracefulResponse(metrics);
+  expectNoRetiredEditorTool(
+    metrics,
+    'Expected current-editor requests to avoid retired editor tools',
+  );
+  expectNoRetiredPageTool(
+    metrics,
+    'Expected current-editor requests not to use retired page tools',
+  );
 }
 
 function expectEditorReadOrGracefulFallback(metrics: ChatTurnMetrics) {
   expectGracefulResponse(metrics, 8);
-  const usedEditorTool = metrics.toolCalls.some((toolCall) =>
-    isEditorTool(toolCall.name),
+  expectNoRetiredEditorTool(
+    metrics,
+    'Expected editor read requests to avoid retired editor tools',
   );
-  const responseLooksEditorAware = responseContainsAny(metrics, [
-    /编辑器/,
-    /编辑区/,
-    /草稿/,
-  ]);
-
-  expect(
-    usedEditorTool ||
-      responseLooksEditorAware ||
-      metrics.toolCalls.length === 0,
-    `Expected editor tool or graceful fallback. Seen tool calls: ${readToolNames(metrics).join(', ') || 'none'}`,
-  ).toBe(true);
   expectNoRetiredPageTool(
     metrics,
-    'Expected editor read fallback not to use retired page tools',
+    'Expected editor read requests not to use retired page tools',
   );
 }
 
@@ -1698,17 +1690,17 @@ test.describe('AI Chat E2E', () => {
     registerSingleTurnScenarios([
       {
         id: 'Q1',
-        name: 'chat panel can optimize editor content',
+        name: 'current editor optimize request avoids retired editor tools',
         prompt: '帮我把编辑器里的内容优化一下，让它更通顺',
         route: ROUTES.codegenNew,
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
-          expectEditorToolOrGracefulFallback(metrics);
+          expectEditorRequestFallsBackToText(metrics);
         },
       },
       {
         id: 'Q2',
-        name: 'editor content can be read from the panel',
+        name: 'current editor read request avoids retired editor tools',
         prompt: '这个编辑器里现在写了什么？',
         route: ROUTES.codegenNew,
         timeout: DEFAULT_CHAT_TIMEOUT,
@@ -1726,7 +1718,7 @@ test.describe('AI Chat E2E', () => {
           expectGracefulResponse(metrics, 50);
           expectNoTool(
             metrics,
-            isEditorTool,
+            isRetiredEditorTool,
             'Expected non-editor page to avoid editor tools',
           );
         },
@@ -1910,43 +1902,50 @@ test.describe('AI Chat E2E', () => {
       },
       {
         id: 'T10',
-        name: 'rich text continue can append content',
+        name: 'rich text continue avoids retired editor tools',
         prompt: '帮我把编辑器里的内容继续往下写',
         route: ROUTES.codegenNew,
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
           expectGracefulResponse(metrics, 8);
-          expectTool(metrics, isEditorTool, 'Expected editor continue chain');
+          expectNoRetiredEditorTool(
+            metrics,
+            'Expected rich text continue not to call retired editor tools',
+          );
+          expectNoRetiredPageTool(
+            metrics,
+            'Expected rich text continue not to call retired page tools',
+          );
         },
       },
       {
         id: 'T11',
-        name: 'rich text translate can replace content',
+        name: 'rich text translate avoids retired editor tools',
         prompt: '把编辑器里的内容翻译成英文',
         route: ROUTES.codegenNew,
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
-          expectEditorToolOrGracefulFallback(metrics);
+          expectEditorRequestFallsBackToText(metrics);
         },
       },
       {
         id: 'T12',
-        name: 'rich text summarize returns a digest',
+        name: 'rich text summarize avoids retired editor tools',
         prompt: '帮我总结一下编辑器里的内容，写一个摘要',
         route: ROUTES.codegenNew,
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
-          expectEditorToolOrGracefulFallback(metrics);
+          expectEditorRequestFallsBackToText(metrics);
         },
       },
       {
         id: 'T13',
-        name: 'rich text proofread inspects current content',
+        name: 'rich text proofread avoids retired editor tools',
         prompt: '帮我检查一下编辑器里有没有错别字或语法问题',
         route: ROUTES.codegenNew,
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
-          expectEditorToolOrGracefulFallback(metrics);
+          expectEditorRequestFallsBackToText(metrics);
         },
       },
       {

@@ -16,15 +16,12 @@ class _FakeExecutionState:
     def __init__(self, intent_plan: list[IntentPlan]) -> None:
         self.intent_plan = intent_plan
         self.readonly_tool_cache: dict[str, tuple[ToolResult, int]] = {}
-        self.page_context_cache: dict[str, tuple[ToolResult, int]] = {}
         self.search_query_cache: dict[str, tuple[ToolResult, int]] = {}
         self.cache_hits: list[str] = []
 
     def cache_for_kind(self, kind: str) -> dict[str, tuple[ToolResult, int]]:
         if kind == "search_query":
             return self.search_query_cache
-        if kind == "page_context":
-            return self.page_context_cache
         return self.readonly_tool_cache
 
     def register_cache_hit(self, kind: str) -> None:
@@ -53,7 +50,7 @@ def test_parse_arguments_valid() -> None:
     assert args["table_name"] == "agents"
 
 
-def test_parse_arguments_repairs_bare_page_locator_object() -> None:
+def test_parse_arguments_repairs_bare_locator_object() -> None:
     args, err = ToolCallProcessor.parse_arguments(
         '{"table_locator: div >:nth-of-type(2)}'
     )
@@ -62,13 +59,13 @@ def test_parse_arguments_repairs_bare_page_locator_object() -> None:
     assert args == {"table_locator": "div >:nth-of-type(2)"}
 
 
-def test_parse_arguments_repairs_quoted_bare_page_locator_object() -> None:
+def test_parse_arguments_repairs_quoted_bare_locator_object() -> None:
     args, err = ToolCallProcessor.parse_arguments(
-        '"{\\"region_locator: 智能体管理}"'
+        '"{\\"section_locator: 智能体管理}"'
     )
 
     assert err is None
-    assert args == {"region_locator": "智能体管理"}
+    assert args == {"section_locator": "智能体管理"}
 
 
 def test_embedded_quotes() -> None:
@@ -186,25 +183,6 @@ def test_find_pending_confirmation_keeps_consent_tool_args_clean() -> None:
     assert "confirmed" not in pending["arguments"]
 
 
-def test_build_pending_confirmation_payload_keeps_tool_name() -> None:
-    payload = ToolCallProcessor.build_pending_confirmation_payload(
-        {"action": "update", "table": "agents"},
-        "ui_fill_form",
-    )
-
-    assert payload["tool_name"] == "ui_fill_form"
-
-
-def test_build_confirmation_event_keeps_tool_name() -> None:
-    payload = ToolCallProcessor.build_confirmation_event(
-        {"action": "update", "table": "agents"},
-        "ui_fill_form",
-    )
-
-    assert payload["event"] == "confirmation_request"
-    assert payload["tool_name"] == "ui_fill_form"
-
-
 def test_build_attachment_relay_message_returns_none_without_attachments() -> None:
     result = ToolResult(
         tool_call_id="tc_result",
@@ -216,23 +194,6 @@ def test_build_attachment_relay_message_returns_none_without_attachments() -> No
     follow_up = ToolCallProcessor.build_attachment_relay_message(result)
 
     assert follow_up is None
-
-
-def test_build_attachment_relay_message_relays_only_attachments() -> None:
-    result = ToolResult(
-        tool_call_id="tc_media",
-        name="ui_click",
-        success=True,
-        attachments=[{"type": "image", "url": "https://example.com/image.png"}],
-    )
-
-    follow_up = ToolCallProcessor.build_attachment_relay_message(result)
-
-    assert follow_up is not None
-    assert follow_up.role == "user"
-    assert follow_up.internal_only is True
-    assert follow_up.content == ""
-    assert follow_up.attachments == [{"type": "image", "url": "https://example.com/image.png"}]
 
 
 def test_execute_tool_uses_all_tools_fallback_for_pending_confirmation_replay() -> None:
@@ -563,48 +524,6 @@ def test_check_consent_auto_approves_readonly_tool_in_trusted_auto_mode() -> Non
     )
 
     assert processor.check_consent("get_current_weather", {"city": "西安"}) == "auto"
-
-
-def test_check_consent_keeps_ui_write_ops_on_ask_and_auto_approves_ui_reads() -> None:
-    processor = ToolCallProcessor(
-        sandbox=None,  # type: ignore[arg-type]
-        tools=[
-            ToolDefinition(name="ui_fill_form"),
-            ToolDefinition(name="ui_read_region"),
-        ],
-        consent_modes={
-            "ui_fill_form": "ask",
-            "ui_read_region": "ask",
-        },
-        interaction_mode="trusted_auto",
-    )
-
-    assert (
-        processor.check_consent(
-            "ui_fill_form",
-            {"fields": [{"field": "name", "value": "Alice"}]},
-        )
-        == "ask"
-    )
-    assert (
-        processor.check_consent(
-            "ui_read_region",
-            {"target_locator": "table-main"},
-        )
-        == "auto"
-    )
-
-
-def test_approved_pending_consent_tool_names_filters_rejected_updates() -> None:
-    approved = ToolCallProcessor.approved_pending_consent_tool_names(
-        [
-            {"kind": "pending_consent", "tool_name": "get_current_weather"},
-            {"kind": "pending_consent", "tool_name": "get_weather_forecast", "rejected": True},
-            {"kind": "pending_confirmation", "tool_name": "ui_submit_form"},
-        ]
-    )
-
-    assert approved == {"get_current_weather"}
 
 
 def test_get_skill_info_falls_back_to_all_tools_when_tool_was_optimized_out() -> None:

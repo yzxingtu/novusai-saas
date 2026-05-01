@@ -125,6 +125,7 @@ class AdminAgentChatController(GlobalController):
                 memory_channel=MemoryChannelEnum.ADMIN_CHAT.value,
                 memory_source=MemorySceneEnum.ADMIN_CHAT.value,
                 route_source=data.route_source,
+                selected_skill_names=data.selected_skill_names,
                 interaction_updates=[
                     item.model_dump() for item in data.interaction_updates
                 ]
@@ -183,6 +184,7 @@ class AdminAgentChatController(GlobalController):
                 memory_channel=MemoryChannelEnum.ADMIN_CHAT.value,
                 memory_source=MemorySceneEnum.ADMIN_CHAT.value,
                 route_source=data.route_source,
+                selected_skill_names=data.selected_skill_names,
                 interaction_updates=[
                     item.model_dump() for item in data.interaction_updates
                 ]

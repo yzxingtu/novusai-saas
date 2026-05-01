@@ -177,6 +177,69 @@ def _explicit_skill_mentions(skill_result: Any, user_text: str) -> list[str]:
     return mentioned
 
 
+def _requested_skill_identifiers(request: Any) -> list[str]:
+    raw_names = getattr(request, "selected_skill_names", None)
+    if not isinstance(raw_names, (list, tuple, set)):
+        return []
+    return _stable_unique(list(raw_names))
+
+
+def _requested_skill_names(
+    skill_result: Any,
+    requested_identifiers: list[str],
+) -> list[str]:
+    normalized_requests = _stable_unique(
+        [
+            " ".join(str(item or "").strip().lower().split())
+            for item in requested_identifiers
+        ]
+    )
+    if not normalized_requests:
+        return []
+
+    candidate_map: dict[str, list[str]] = {}
+
+    def add_candidate(identifier: str, skill_name: str) -> None:
+        normalized_identifier = " ".join(identifier.lower().split())
+        normalized_skill_name = str(skill_name or "").strip()
+        if not normalized_identifier or not normalized_skill_name:
+            return
+        bucket = candidate_map.setdefault(normalized_identifier, [])
+        if normalized_skill_name not in bucket:
+            bucket.append(normalized_skill_name)
+
+    for descriptor in list(getattr(skill_result, "capability_descriptors", []) or []):
+        if _descriptor_is_auto_injected_runtime_builtin(descriptor):
+            continue
+        descriptor_name = str(getattr(descriptor, "name", "") or "").strip()
+        if descriptor_name:
+            add_candidate(descriptor_name, descriptor_name)
+        source = str(getattr(descriptor, "source", "") or "").strip()
+        if source.startswith("skill_package:"):
+            package_name = source.split(":", 1)[1].strip()
+            if package_name and descriptor_name:
+                add_candidate(package_name, descriptor_name)
+
+    for tool in list(getattr(skill_result, "tools", []) or []):
+        if tool_is_auto_injected_runtime_builtin(tool) or tool_is_retired_ui_builtin(
+            tool
+        ):
+            continue
+        skill_name = str(getattr(tool, "source_skill_name", "") or "").strip()
+        package_name = str(getattr(tool, "source_package_name", "") or "").strip()
+        if skill_name:
+            add_candidate(skill_name, skill_name)
+        if package_name and skill_name:
+            add_candidate(package_name, skill_name)
+
+    resolved: list[str] = []
+    for requested in normalized_requests:
+        for skill_name in candidate_map.get(requested, []):
+            if skill_name not in resolved:
+                resolved.append(skill_name)
+    return resolved
+
+
 def _tool_names_for_explicit_skills(
     skill_result: Any,
     skill_names: list[str],
@@ -261,42 +324,8 @@ def _skill_names_for_runtime_policy(
     intent_flags: dict[str, Any],
     allow_catalog_skill_activation: bool,
 ) -> list[str]:
-    requested_families: set[str] = set()
-    if intent_flags.get("has_web_research_intent"):
-        requested_families.add("web_research")
-    if not requested_families:
-        return []
-
-    selected: list[str] = []
-    for descriptor in list(getattr(skill_result, "capability_descriptors", []) or []):
-        if _descriptor_is_auto_injected_runtime_builtin(descriptor):
-            continue
-        if (
-            not allow_catalog_skill_activation
-            and not capability_pack_descriptor_is_live(descriptor)
-        ):
-            continue
-        descriptor_name = str(getattr(descriptor, "name", "") or "").strip()
-        if not descriptor_name:
-            continue
-        if requested_families & set(_descriptor_semantic_families(descriptor)):
-            selected.append(descriptor_name)
-
-    for tool in list(getattr(skill_result, "tools", []) or []):
-        if tool_is_auto_injected_runtime_builtin(tool) or tool_is_retired_ui_builtin(
-            tool
-        ):
-            continue
-        tool_name = str(getattr(tool, "name", "") or "").strip()
-        if not tool_name:
-            continue
-        if tool_family_from_name(tool_name) not in requested_families:
-            continue
-        skill_name = str(getattr(tool, "source_skill_name", "") or "").strip()
-        if skill_name:
-            selected.append(skill_name)
-
-    return _stable_unique(selected)
+    del skill_result, intent_flags, allow_catalog_skill_activation
+    return []
 
 
 def activated_tools_for_turn(skill_result: Any | None) -> list[Any]:
@@ -389,6 +418,10 @@ def apply_turn_skill_activation(
         getattr(skill_result, "inventory_selected_skill_names", []) or []
     )
     last_user_text = _last_user_text(request)
+    requested_skill_names = _requested_skill_names(
+        skill_result,
+        _requested_skill_identifiers(request),
+    )
 
     if is_capability_reporting_query(last_user_text):
         skill_result.turn_activation = TurnSkillActivation(
@@ -399,7 +432,9 @@ def apply_turn_skill_activation(
         )
         return skill_result
 
-    explicit_skill_names = _explicit_skill_mentions(skill_result, last_user_text)
+    explicit_skill_names = _stable_unique(
+        requested_skill_names + _explicit_skill_mentions(skill_result, last_user_text)
+    )
     explicit_tool_names = _explicit_tool_mentions(skill_result, last_user_text)
     live_explicit_skill_names = _filter_live_skill_names(
         skill_result,
@@ -440,7 +475,11 @@ def apply_turn_skill_activation(
         ]
     )
 
-    if explicit_skill_names and explicit_tool_names:
+    if requested_skill_names and explicit_tool_names:
+        reason = "requested_skill_and_tool_mention"
+    elif requested_skill_names:
+        reason = "requested_skill_selection"
+    elif explicit_skill_names and explicit_tool_names:
         reason = "explicit_skill_and_tool_mention"
     elif explicit_skill_names:
         reason = "explicit_skill_mention"

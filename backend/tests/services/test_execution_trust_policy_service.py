@@ -1,3 +1,9 @@
+"""
+Test type: behavioral
+Scope: runtime trust-policy allow/deny decisions for tool names and semantic families.
+Mock strategy: no mocks; pure policy helper calls with observable boolean outcomes.
+"""
+
 from pathlib import Path
 
 from app.services.ai.execution_trust_policy_service import (
@@ -19,31 +25,37 @@ def test_execution_trust_policy_allows_named_read_tool() -> None:
     )
 
 
-def test_execution_trust_policy_blocks_tool_above_risk_cap() -> None:
+def test_execution_trust_policy_rejects_retired_page_tool_even_when_named() -> None:
     policy_ref = {
-        "allowed_tool_names": [],
-        "tool_families": ["page_ops"],
-        "risk_level_cap": "read",
+        "allowed_tool_names": ["ui_click"],
+        "tool_families": [],
+        "risk_level_cap": "dangerous",
     }
 
-    assert not ExecutionTrustPolicyService.allows_tool(
-        tool_name="ui_click",
-        tool_family="page_ops",
-        policy_ref=policy_ref,
+    assert (
+        ExecutionTrustPolicyService.allows_tool(
+            tool_name="ui_click",
+            tool_family="page_ops",
+            policy_ref=policy_ref,
+        )
+        is False
     )
 
 
-def test_execution_trust_policy_allows_family_with_safe_write_cap() -> None:
+def test_execution_trust_policy_rejects_page_ops_family_even_when_allowed() -> None:
     policy_ref = {
         "allowed_tool_names": [],
         "tool_families": ["page_ops"],
-        "risk_level_cap": "safe_write",
+        "risk_level_cap": "dangerous",
     }
 
-    assert ExecutionTrustPolicyService.allows_tool(
-        tool_name="ui_click",
-        tool_family="page_ops",
-        policy_ref=policy_ref,
+    assert (
+        ExecutionTrustPolicyService.allows_tool(
+            tool_name="custom_page_bridge",
+            tool_family="page_ops",
+            policy_ref=policy_ref,
+        )
+        is False
     )
 
 

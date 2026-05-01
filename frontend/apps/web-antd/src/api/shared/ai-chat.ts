@@ -397,6 +397,7 @@ export interface AgentChatRequestBody {
   /** 批量消息（800ms 内多条合并为一次请求） */
   messages?: string[];
   route_source?: null | string;
+  selected_skill_names?: string[];
   trust_policy_ref?: TrustPolicyRef;
   variables?: Record<string, string>;
 }

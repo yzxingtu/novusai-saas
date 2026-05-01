@@ -31,13 +31,13 @@ ROUTER_AGENT_NAME = "系统路由智能体"
 
 ROUTER_SYSTEM_PROMPT = """\
 You are an intelligent routing agent. Your task is to analyze the user's message \
-and optional page context, then select the most appropriate agent from the \
-available candidates.
+then select the most appropriate agent from the available candidates.
 
 Rules:
 1. Analyze the user's intent from the message content.
-2. Consider the page context (if provided) to understand the user's current workflow.
-3. Match the intent against each candidate agent's name and description.
+2. Match the intent against each candidate agent's name and description.
+3. Ignore current-page, DOM, screenshot, page-session, and editor-instance state; \
+those signals are not part of AI dialogue routing.
 4. Return your decision as a JSON object with exactly two fields:
    - agent_id: the integer ID of the selected agent
    - confidence: a float between 0.0 and 1.0 indicating your confidence

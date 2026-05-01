@@ -22,10 +22,16 @@ interface ComposerKnowledgeBaseChip {
   label: string;
 }
 
+interface ComposerSkillPackageChip {
+  id: string;
+  label: string;
+  value: string;
+}
+
 interface ComposerMentionCandidateItem {
   active: boolean;
   id: number;
-  kind: 'knowledge_base';
+  kind: 'knowledge_base' | 'skill_package';
   subtitle?: string;
   title: string;
 }
@@ -47,6 +53,7 @@ const props = withDefaults(
     mentionOpen?: boolean;
     modelValue?: string;
     selectedKnowledgeBases?: ComposerKnowledgeBaseChip[];
+    selectedSkillPackages?: ComposerSkillPackageChip[];
     sendDisabled?: boolean;
     sendState?: ComposerSendState;
     shiftEnterHint?: string;
@@ -69,6 +76,7 @@ const props = withDefaults(
     modelValue: '',
     sendDisabled: false,
     selectedKnowledgeBases: () => [],
+    selectedSkillPackages: () => [],
     sendState: 'idle',
     shiftEnterHint: '',
     showAttachments: true,
@@ -85,8 +93,9 @@ const emit = defineEmits<{
   (e: 'removeSelectedKnowledgeBase', id: number): void;
   (
     e: 'selectMentionCandidate',
-    payload: { id: number; kind: 'knowledge_base' },
+    payload: { id: number; kind: 'knowledge_base' | 'skill_package' },
   ): void;
+  (e: 'removeSelectedSkillPackage', value: string): void;
   (e: 'send'): void;
   (e: 'stop'): void;
   (e: 'update:modelValue', value: string): void;
@@ -194,12 +203,15 @@ function onSendClick() {
     </div>
 
     <div
-      v-if="selectedKnowledgeBases.length > 0"
+      v-if="selectedKnowledgeBases.length > 0 || selectedSkillPackages.length > 0"
       class="mb-1 flex flex-wrap items-center gap-1"
     >
-      <span class="text-[10px] text-muted-foreground/70">{{
-        $t('common.globalAiChat.selectedKbForTurn')
-      }}</span>
+      <span
+        v-if="selectedKnowledgeBases.length > 0"
+        class="text-[10px] text-muted-foreground/70"
+      >
+        {{ $t('common.globalAiChat.selectedKbForTurn') }}
+      </span>
       <span
         v-for="knowledgeBase in selectedKnowledgeBases"
         :key="knowledgeBase.id"
@@ -211,6 +223,27 @@ function onSendClick() {
           class="rounded p-0 leading-none text-muted-foreground hover:text-destructive"
           :aria-label="$t('common.globalAiChat.removeKbFromTurn')"
           @click="emit('removeSelectedKnowledgeBase', knowledgeBase.id)"
+        >
+          <IconifyIcon icon="lucide:x" class="size-2.5" />
+        </button>
+      </span>
+      <span
+        v-if="selectedSkillPackages.length > 0"
+        class="text-[10px] text-muted-foreground/70"
+      >
+        {{ $t('common.globalAiChat.selectedSkillForTurn') }}
+      </span>
+      <span
+        v-for="skillPackage in selectedSkillPackages"
+        :key="skillPackage.id"
+        class="inline-flex items-center gap-0.5 rounded-full border border-emerald-500/25 bg-background px-1.5 py-0.5 text-[10px] text-emerald-700 dark:text-emerald-300"
+      >
+        {{ skillPackage.label }}
+        <button
+          type="button"
+          class="rounded p-0 leading-none text-muted-foreground hover:text-destructive"
+          :aria-label="$t('common.globalAiChat.removeSkillFromTurn')"
+          @click="emit('removeSelectedSkillPackage', skillPackage.value)"
         >
           <IconifyIcon icon="lucide:x" class="size-2.5" />
         </button>
@@ -255,7 +288,11 @@ function onSendClick() {
                 "
                 class="px-0.5 pt-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/60"
               >
-                {{ $t('common.globalAiChat.mentionSectionKbs') }}
+                {{
+                  candidate.kind === 'skill_package'
+                    ? $t('common.globalAiChat.mentionSectionSkills')
+                    : $t('common.globalAiChat.mentionSectionKbs')
+                }}
               </div>
               <button
                 class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors"
@@ -273,9 +310,21 @@ function onSendClick() {
                 "
               >
                 <div
-                  class="flex size-7 shrink-0 items-center justify-center rounded-lg bg-amber-500/15 text-amber-700 dark:text-amber-400"
+                  class="flex size-7 shrink-0 items-center justify-center rounded-lg"
+                  :class="
+                    candidate.kind === 'skill_package'
+                      ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400'
+                      : 'bg-amber-500/15 text-amber-700 dark:text-amber-400'
+                  "
                 >
-                  <IconifyIcon icon="lucide:library" class="size-4" />
+                  <IconifyIcon
+                    :icon="
+                      candidate.kind === 'skill_package'
+                        ? 'lucide:package-check'
+                        : 'lucide:library'
+                    "
+                    class="size-4"
+                  />
                 </div>
                 <div class="min-w-0 flex-1">
                   <div class="truncate text-[12px] font-medium">

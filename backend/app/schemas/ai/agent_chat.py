@@ -120,6 +120,11 @@ class AgentChatRequest(BaseModel):
         None,
         description=_("agent_chat.field.knowledge_base_ids"),
     )
+    selected_skill_names: list[str] | None = Field(
+        None,
+        max_length=20,
+        description="Turn-priority skill/package names selected from current agent bindings",
+    )
     consented_actions: list[str] | None = Field(
         None,
         description=_("agent_chat.field.consented_actions"),
