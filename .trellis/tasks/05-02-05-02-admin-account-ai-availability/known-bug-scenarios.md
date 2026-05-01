@@ -44,5 +44,6 @@
   - UI tests or assertions proving the switch is read-only/omitted without management permission.
 - evidence:
   - `backend/tests/test_ai_account_switch_permission_contract.py`
+  - `backend/tests/regressions/test_bug_2026_05_02_ai_account_003_admin_org_member_update.py`
   - `frontend/apps/web-antd/src/views/admin/tenant/list/modules/__tests__/TenantAdminForm.test.ts`
   - `frontend/apps/web-antd/src/components/business/member-panel/modules/__tests__/AdminFormDrawer.test.ts`
