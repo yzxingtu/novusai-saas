@@ -28,7 +28,7 @@
   "pr_url": null,
   "subtasks": [],
   "children": [],
-  "parent": "04-19-codex-universal-page-ops-replan",
+  "parent": null,
   "relatedFiles": [
     "backend/app/ai/engine/dispatcher.py",
     "backend/app/ai/engine/task.py",
@@ -39,6 +39,6 @@
     "backend/app/services/ai/agent_chat_stream_persistence_orchestrator.py",
     "backend/app/services/ai/agent_chat_stream_persistence_error_support.py"
   ],
-  "notes": "This workstream lands after capability-pack, page-workflow, and thread-memory owner contracts are stable so the core turn loop can stop carrying transitional glue. 2026-04-21 audit follow-up: `AgentChatCommandService` now imports `ExecutionDispatcher` / quota / stats owners directly instead of routing live chat through `agent_chat_service` compat re-exports, and stream completion/error persistence now calls the canonical `ConversationService.persist_stream_*` contract directly instead of probing for old-shape methods and keeping inline legacy fallback implementations in the orchestrator path.",
+  "notes": "This workstream lands after capability-pack and thread-memory owner contracts are stable so the core turn loop can stop carrying transitional glue. 2026-04-21 audit follow-up: `AgentChatCommandService` now imports `ExecutionDispatcher` / quota / stats owners directly instead of routing live chat through `agent_chat_service` compat re-exports, and stream completion/error persistence now calls the canonical `ConversationService.persist_stream_*` contract directly instead of probing for old-shape methods and keeping inline legacy fallback implementations in the orchestrator path.",
   "meta": {}
 }

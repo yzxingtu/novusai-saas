@@ -1,4 +1,0 @@
-{"path":"backend/tests/ai/engine/test_page_flow_recovery.py","reason":"Verify structured no-progress recovery still narrows tool subsets without prompt hints"}
-{"path":"backend/tests/ai/tools/page_runtime/test_definitions.py","reason":"Verify page snapshot contract exposes only canonical ui_get_snapshot"}
-{"path":"frontend/apps/web-antd/src/components/business/ai-chat-panel/__tests__/chat-input-utils.test.ts","reason":"Keep coverage for live mention helpers after deleting dead helper"}
-{"path":".trellis/spec/ai-runtime/tool-skill-governance.md","reason":"Canonical spec reflects single live snapshot contract"}

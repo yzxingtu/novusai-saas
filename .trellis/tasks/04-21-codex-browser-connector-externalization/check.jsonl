@@ -1,5 +1,0 @@
-{"file": "frontend/apps/web-antd/src/components/business/ai-runtime/__tests__/runtime-bridge.test.ts", "reason": "Verify runtime bridge remains the single owner of thin page_context and connector payloads"}
-{"file": "frontend/apps/web-antd/src/utils/__tests__/page-navigation.test.ts", "reason": "Verify navigation payloads reuse the canonical runtime bridge seam"}
-{"file": "backend/tests/ai/tools/page_runtime/test_policy.py", "reason": "Verify page-runtime policy still classifies canonical ui_* actions correctly"}
-{"file": "backend/tests/ai/tools/page_runtime/test_guards.py", "reason": "Verify connector write/submit guards and confirmation logic stay canonical"}
-{"file": "backend/tests/sio/test_page_session_runtime_requests.py", "reason": "Verify page-session transport no longer depends on page_key-indexed live-session fallback"}

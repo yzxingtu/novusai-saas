@@ -49,12 +49,6 @@ function asNumberOrUndefined(value: unknown): number | undefined {
     : undefined;
 }
 
-function asRecord(value: unknown): Record<string, unknown> {
-  return typeof value === 'object' && value !== null
-    ? (value as Record<string, unknown>)
-    : {};
-}
-
 function asString(value: unknown): string {
   return typeof value === 'string' ? value : '';
 }
@@ -336,13 +330,6 @@ export function useWysiwygFormPreview() {
     { immediate: true },
   );
 
-  /** 预加载关联表列信息（用于改善 mock 显示的列名） */
-  function getRichTextAi(f: BuilderField): boolean {
-    const form = asRecord(f.form);
-    if (form.ai === false) return false;
-    return true;
-  }
-
   function onFieldClick(f: BuilderField) {
     store.selectedFieldKey = asString(f.__key) || asString(f.name);
   }
@@ -552,7 +539,6 @@ export function useWysiwygFormPreview() {
     getDateValue,
     getDateRangeValue,
     getRichTextValue,
-    getRichTextAi,
     getScalarSelectValue,
     getMultipleAwareSelectValue,
     getTreeValue,

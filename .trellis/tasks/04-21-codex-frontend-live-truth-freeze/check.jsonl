@@ -1,6 +1,0 @@
-{"file": "frontend/apps/web-antd/src/components/business/ai-chat-panel/__tests__/tool-call-utils.test.ts", "reason": "Verify tool-call display and pending-op state stay on canonical runtime names"}
-{"file": "frontend/apps/web-antd/src/components/business/ai-chat-panel/__tests__/use-ai-chat.test.ts", "reason": "Verify canonical turn_flow stays authoritative and legacy turn-flow backfills stop driving live UI defaults"}
-{"file": "frontend/apps/web-antd/src/utils/__tests__/ai-page-capabilities.test.ts", "reason": "Verify capability filters keep suggested_tools and legacy page-op names out of live truth"}
-{"file": "frontend/apps/web-antd/src/components/business/ai-slide-panel/__tests__/AIChatMessageViewport.test.ts", "reason": "Verify slide/chat viewport no longer depends on synthesized legacy timeline defaults for live turns"}
-{"file": "frontend/apps/web-antd/src/layouts/basic.vue", "reason": "Verify the live page-AI shell chain remains singular"}
-{"file": "frontend/apps/web-antd/src/components/business/ai-slide-panel/use-page-ai-capability.ts", "reason": "Verify slide-panel capability wiring consumes diagnostics without recreating routing truth"}

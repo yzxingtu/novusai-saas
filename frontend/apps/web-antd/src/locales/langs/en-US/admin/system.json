@@ -1378,7 +1378,6 @@
       "placeholderDbDefault": "SQL expr e.g. now()",
       "placeholderSelectComponent": "Select component",
       "queryTypeHelp": "Query condition match mode",
-      "richTextAi": "Enable AI",
       "placeholderRelationTable": "e.g. categories",
       "placeholderRelationDisplay": "name",
       "placeholderRelationValueField": "id",

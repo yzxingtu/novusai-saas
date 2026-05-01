@@ -27,7 +27,7 @@
   "pr_url": null,
   "subtasks": [],
   "children": [],
-  "parent": "04-19-codex-universal-page-ops-replan",
+  "parent": null,
   "relatedFiles": [
     "backend/app/ai/skills/resolver.py",
     "backend/app/ai/skills/turn_activation.py",

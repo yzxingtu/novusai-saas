@@ -62,22 +62,6 @@ const isNumericType = computed(() =>
           @change="setFormComponent"
         />
       </div>
-      <div
-        v-if="selectedFormComponent === 'RichText'"
-        class="flex flex-wrap gap-4"
-      >
-        <Checkbox
-          :checked="selectedFieldForm.ai !== false"
-          @update:checked="
-            (value) =>
-              updateField({
-                form: { ...selectedFieldForm, ai: asBoolean(value) },
-              })
-          "
-        >
-          {{ $t('admin.system.codegen.property.richTextAi') }}
-        </Checkbox>
-      </div>
       <div class="flex flex-wrap gap-4">
         <Checkbox
           :checked="selectedField?.insertable !== false"

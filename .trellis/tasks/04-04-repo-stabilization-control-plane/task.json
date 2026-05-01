@@ -2,7 +2,7 @@
   "id": "repo-stabilization-control-plane",
   "name": "repo-stabilization-control-plane",
   "title": "Repository stabilization control plane",
-  "description": "建立全仓脏改稳定化总控，冻结边界，按 AI runtime、page awareness/provider、plugin runtime、permission/org 五条工作流分轨收口并总装验收。",
+  "description": "建立全仓脏改稳定化总控，冻结边界，按 AI runtime/provider、plugin runtime、permission/org 等工作流分轨收口并总装验收。",
   "status": "completed",
   "dev_type": "fullstack",
   "scope": null,
@@ -29,7 +29,6 @@
   "subtasks": [],
   "children": [
     "04-04-ai-gateway-provider-compat",
-    "04-03-page-awareness-navigation-v2",
     "04-03-04-03-plugin-system-audit-hardening",
     "04-04-permission-tree-fix",
     "04-04-tenant-org-permission-assignment",

@@ -46,7 +46,6 @@ const {
   getNumberValue,
   getRelationApi,
   getRelationPlaceholder,
-  getRichTextAi,
   getRichTextValue,
   getScalarSelectValue,
   getSelectValue,
@@ -330,7 +329,6 @@ const {
                 "
                 mode="compact"
                 :toolbar="true"
-                :ai="getRichTextAi(f)"
                 :upload="false"
                 :editable="true"
                 :min-height="120"

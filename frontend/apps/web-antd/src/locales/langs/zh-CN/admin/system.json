@@ -1410,7 +1410,6 @@
       "placeholderDbDefault": "SQL 表达式如 now()",
       "placeholderSelectComponent": "选择组件",
       "queryTypeHelp": "查询条件匹配方式",
-      "richTextAi": "启用 AI 功能",
       "placeholderRelationTable": "如 categories",
       "placeholderRelationDisplay": "name",
       "placeholderRelationValueField": "id",
