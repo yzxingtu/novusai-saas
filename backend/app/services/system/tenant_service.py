@@ -52,6 +52,7 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
             select(TenantPlan).where(
                 TenantPlan.id == plan_id,
                 TenantPlan.is_deleted.is_(False),
+                TenantPlan.is_active.is_(True),
             )
         )
         plan = result.scalar_one_or_none()

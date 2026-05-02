@@ -24,7 +24,6 @@ from app.core.security import (
 )
 from app.models import Admin, TenantAdmin, TenantUser
 from app.models.auth.admin_role import AdminRole
-from app.models.auth.tenant_admin_role import TenantAdminRole
 from app.models.auth.tenant_user_role import TenantUserRole
 from app.models.org.admin_org_node import AdminOrgNode
 
@@ -156,7 +155,7 @@ class PermissionMiddleware:
         tenant_admin_id: int,
     ) -> None:
         """Load tenant admin permissions / 加载企业管理员权限"""
-        from app.models.tenant.tenant import Tenant
+        from app.rbac.services.permission_service import PermissionService
 
         async with async_session_factory() as db:
             result = await db.execute(
@@ -169,54 +168,9 @@ class PermissionMiddleware:
 
             request.state.user = tenant_admin
 
-            plan_result = await db.execute(
-                select(Tenant.plan_id).where(Tenant.id == tenant_admin.tenant_id)
-            )
-            plan_id = plan_result.scalar_one_or_none()
-            if plan_id is None:
-                return
-
-            if tenant_admin.is_owner:
-                request.state.user_permissions = {"*"}
-                authority = await OrgAuthorityResolver(db).resolve_tenant_admin(
-                    tenant_admin
-                )
-                await self._set_data_permission_ctx(
-                    request,
-                    current_user_id=tenant_admin_id,
-                    current_user_scope=TOKEN_SCOPE_TENANT_ADMIN,
-                    current_tenant_id=tenant_admin.tenant_id,
-                    authority=authority,
-                )
-                return
-
-            if tenant_admin.role_id is None:
-                authority = await OrgAuthorityResolver(db).resolve_tenant_admin(
-                    tenant_admin
-                )
-                await self._set_data_permission_ctx(
-                    request,
-                    current_user_id=tenant_admin_id,
-                    current_user_scope=TOKEN_SCOPE_TENANT_ADMIN,
-                    current_tenant_id=tenant_admin.tenant_id,
-                    authority=authority,
-                )
-                return
-
-            permissions: set[str] = set()
-            result = await db.execute(
-                select(TenantAdminRole)
-                .where(TenantAdminRole.id == tenant_admin.role_id)
-                .options(selectinload(TenantAdminRole.permissions))
-            )
-            role = result.scalar_one_or_none()
-
-            if role and role.is_active:
-                for permission in role.permissions:
-                    if permission.is_enabled and not permission.is_deleted:
-                        permissions.add(permission.code)
-
-            request.state.user_permissions = permissions
+            request.state.user_permissions = await PermissionService(
+                db
+            ).get_tenant_admin_permissions(tenant_admin)
 
             authority = await OrgAuthorityResolver(db).resolve_tenant_admin(
                 tenant_admin

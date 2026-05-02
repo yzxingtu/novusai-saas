@@ -625,10 +625,6 @@ async def _check_plugin_permission(
             if not ta:
                 return False
 
-            # Tenant owner has all permissions / 企业所有者拥有全部权限
-            if ta.is_owner:
-                return True
-
             user_perms = await perm_service.get_tenant_admin_permissions(ta)
             # Check permission in full_perm_code:action format / 检查 full_perm_code:action 格式的权限
             return perm_service.check_permission(

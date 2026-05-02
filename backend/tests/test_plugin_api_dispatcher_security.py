@@ -9,7 +9,7 @@ import pytest
 from fastapi.responses import JSONResponse, StreamingResponse
 from starlette.requests import Request
 
-from app.core.security import TOKEN_SCOPE_ADMIN
+from app.core.security import TOKEN_SCOPE_ADMIN, TOKEN_SCOPE_TENANT_ADMIN
 from app.plugins.api_dispatcher import (
     _check_plugin_permission,
     _context_has_db_capability,
@@ -659,3 +659,57 @@ async def test_admin_plugin_permission_allows_platform_rbac_assignment(
     )
 
     assert allowed is True
+
+
+@pytest.mark.asyncio
+async def test_tenant_owner_plugin_permission_uses_plan_limited_rbac(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test type: behavioral. Tenant owners do not bypass plan plugin entitlements."""
+    db = AsyncMock()
+
+    class _Result:
+        def scalar_one_or_none(self):
+            return SimpleNamespace(
+                id=17,
+                is_deleted=False,
+                is_owner=True,
+                tenant_id=5,
+            )
+
+    db.execute = AsyncMock(return_value=_Result())
+
+    class _PermService:
+        def __init__(self, _db):
+            self.db = _db
+
+        async def get_tenant_admin_permissions(self, _tenant_admin):
+            return {"plugin.demo.other:view"}
+
+        def check_permission(self, user_permissions: set[str], required: str) -> bool:
+            return required in user_permissions
+
+    registry = MagicMock()
+    registry.get_plugin_permissions.return_value = [
+        {"code": "plugin.demo.billing_portal", "actions": ["view"]}
+    ]
+
+    monkeypatch.setattr(
+        "app.plugins.registry.ExtensionRegistry.get_instance",
+        lambda: registry,
+    )
+    monkeypatch.setattr(
+        "app.rbac.services.permission_service.PermissionService",
+        _PermService,
+    )
+
+    allowed = await _check_plugin_permission(
+        db,
+        "demo",
+        "billing_portal:view",
+        user_id=17,
+        user_role=TOKEN_SCOPE_TENANT_ADMIN,
+        tenant_id=5,
+    )
+
+    assert allowed is False

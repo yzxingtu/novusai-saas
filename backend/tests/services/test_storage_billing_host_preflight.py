@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
@@ -383,7 +384,7 @@ class TestTenantPlanServicePreflight:
                 "permissions": [],
             },
         )()
-        valid_permissions = [object()]
+        valid_permissions = [SimpleNamespace(id=101), SimpleNamespace(id=102)]
 
         service = TenantPlanService.__new__(TenantPlanService)
         service.db = mock_db

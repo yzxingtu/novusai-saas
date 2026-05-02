@@ -16,6 +16,7 @@ from app.core.base_controller import TenantController
 from app.core.deps import ActiveTenantAdmin, DbSession
 from app.core.i18n import _
 from app.core.response import build_exception_debug, success
+from app.enums import ErrorCode
 from app.enums.rbac import PermissionScope
 from app.exceptions import (
     BusinessException,
@@ -30,6 +31,25 @@ from app.schemas.ai.gateway import (
     ChatRequest,
     EmbeddingRequest,
 )
+from app.services.ai.account_ai_access_service import AccountAIAccessService
+from app.services.tenant.quota_service import QuotaService
+
+
+async def _ensure_tenant_ai_gateway_access(
+    db: DbSession,
+    tenant_admin: ActiveTenantAdmin,
+) -> None:
+    """Fail closed before tenant-facing direct AI gateway calls."""
+    await AccountAIAccessService(db).require_tenant_admin_ai_access(tenant_admin)
+    api_check = await QuotaService.check_api_quota_for_tenant_id(
+        db,
+        tenant_admin.tenant_id,
+    )
+    if not api_check.allowed:
+        raise BusinessException(
+            message=api_check.message or _("quota.api_calls_exceeded"),
+            code=ErrorCode.CONFLICT,
+        )
 
 
 @permission_resource(
@@ -65,6 +85,7 @@ class TenantAIGatewayController(TenantController):
 
             权限 / Permission: ai_gateway:chat
             """
+            await _ensure_tenant_ai_gateway_access(db, tenant_admin)
             provider_code, model = parse_provider_and_model(body.model_code)
             messages = parse_messages(body.messages)
 
@@ -115,6 +136,7 @@ class TenantAIGatewayController(TenantController):
 
             权限 / Permission: ai_gateway:chat_stream
             """
+            await _ensure_tenant_ai_gateway_access(db, tenant_admin)
             provider_code, model = parse_provider_and_model(body.model_code)
             messages = parse_messages(body.messages)
 
@@ -164,6 +186,7 @@ class TenantAIGatewayController(TenantController):
 
             权限 / Permission: ai_gateway:embedding
             """
+            await _ensure_tenant_ai_gateway_access(db, tenant_admin)
             provider_code, model = parse_provider_and_model(body.model_code)
 
             try:

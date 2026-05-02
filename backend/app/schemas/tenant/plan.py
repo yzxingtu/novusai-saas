@@ -10,7 +10,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from pydantic import Field, field_validator
+from pydantic import ConfigDict, Field, field_validator
 
 from app.core.base_schema import BaseSchema
 from app.core.i18n import _
@@ -21,6 +21,8 @@ from app.enums import BillingCycle
 
 class QuotaSchema(BaseSchema):
     """配额结构定义 / Quota structure definition"""
+
+    model_config = ConfigDict(extra="forbid")
 
     storage_limit_gb: int | None = Field(None, ge=0, description="存储限制(GB)")
     max_users: int | None = Field(None, ge=0, description="最大用户数")
@@ -37,6 +39,8 @@ class QuotaSchema(BaseSchema):
 
 class FeaturesSchema(BaseSchema):
     """特性标记结构定义 / Features structure definition"""
+
+    model_config = ConfigDict(extra="forbid")
 
     ai_enabled: bool | None = Field(None, description="是否启用AI功能")
     advanced_analytics: bool | None = Field(None, description="是否启用高级分析")
@@ -223,6 +227,20 @@ class TenantPlanPermissionsRequest(BaseSchema):
     permission_ids: list[int] = Field(
         default_factory=list, description="权限ID列表（仅支持菜单类型权限）"
     )
+
+    @field_validator("permission_ids")
+    @classmethod
+    def validate_permission_ids(cls, v: list[int]) -> list[int]:
+        """Validate and deduplicate permission ids while preserving request order."""
+        normalized: list[int] = []
+        seen: set[int] = set()
+        for permission_id in v:
+            if permission_id <= 0:
+                raise ValueError("permission_ids must contain positive integers")
+            if permission_id not in seen:
+                normalized.append(permission_id)
+                seen.add(permission_id)
+        return normalized
 
 
 __all__ = [

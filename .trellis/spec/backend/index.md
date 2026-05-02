@@ -13,6 +13,10 @@
   Repository -> Model/DB`.
 - Tenant-aware features must use the tenant base classes; platform-wide
   features must use global base classes.
+- Tenant plan entitlements are runtime server-side boundaries, not UI hints:
+  tenant-admin middleware, plugin dispatchers, and tenant-facing feature routes
+  must resolve permissions through plan-aware services. Tenant owners must not
+  receive wildcard tenant permissions that bypass the active plan.
 
 ## Sources Of Truth
 
@@ -81,6 +85,10 @@
   honor that default so concurrent Windows processes do not spam `WinError 32`
   during shared log rotation.
 - Do not hardcode user-facing text; backend strings must go through `_()`.
+- Tenant-facing direct AI entrypoints must enforce
+  `AccountAIAccessService.require_tenant_admin_ai_access()` and the tenant
+  monthly API-call quota before constructing downstream AI services. This
+  includes chat, streaming, embedding, writing, and future direct AI adapters.
 - Do not hardcode fixed LLM-facing prompts, tool descriptions, or model
   instruction blocks directly in Python business/runtime code; store them under
   `backend/app/ai/prompt_contracts/resources/` and load them through the shared

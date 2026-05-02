@@ -75,6 +75,7 @@ const mainRoutes: RouteRecordRaw = {
       path: 'ai/agents/:id',
       component: () => import('#/views/tenant/ai/agents/detail.vue'),
       meta: {
+        accessCodes: ['agent:detail'],
         hideInMenu: true,
         title: 'tenant.ai.agent.detail.title',
         activePath: '/tenant/ai/agents',

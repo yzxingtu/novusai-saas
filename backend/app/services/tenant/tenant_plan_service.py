@@ -322,8 +322,18 @@ class TenantPlanService(GlobalService[TenantPlan, TenantPlanRepository]):
                 message=_("tenant_plan.not_found"),
             )
 
+        requested_ids = list(dict.fromkeys(permission_ids))
+
         # 获取有效的权限列表（仅 tenant/both scope 的 menu 类型）
-        valid_permissions = await self._get_valid_permissions(permission_ids)
+        valid_permissions = await self._get_valid_permissions(requested_ids)
+        valid_ids = {permission.id for permission in valid_permissions}
+        invalid_ids = sorted(set(requested_ids) - valid_ids)
+        if invalid_ids:
+            raise BusinessException(
+                message=_("common.invalid_request"),
+                code=ErrorCode.VALIDATION_ERROR,
+                data={"invalid_permission_ids": invalid_ids},
+            )
 
         # 更新套餐权限 / Update plan permissions
         plan.permissions = valid_permissions
