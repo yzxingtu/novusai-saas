@@ -247,7 +247,21 @@ async def _dispatch_plugin_api(
         request.scope["path_params"] = existing
 
     # Permission action gating: if route declares a permission field, check user has that action permission / 权限动作门控：若路由声明了 permission 字段，校验用户是否拥有该动作权限
-    route_permission = matched_route.get("permission", "")
+    route_permission = str(matched_route.get("permission", "") or "").strip()
+    route_auth = str(matched_route.get("auth", "required") or "required").strip().lower()
+    if not allow_public_only and route_auth != "none" and not route_permission:
+        logger.warning(
+            "Plugin protected route missing permission: {}/{} (user={} role={})",
+            plugin_name,
+            path,
+            user_id,
+            user_role,
+        )
+        return error(
+            message="Permission denied: protected plugin route requires a permission",
+            code=4030,
+            status_code=403,
+        )
     if route_permission and not allow_public_only:
         has_perm = await _check_plugin_permission(
             db,

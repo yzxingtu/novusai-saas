@@ -33,7 +33,7 @@ from app.core.security import (
     verify_token_with_scope,
 )
 from app.exceptions.base import TokenExpiredException
-from app.models import Admin, TenantAdmin, TenantUser
+from app.models import Admin, Tenant, TenantAdmin, TenantUser
 
 # ========================================
 # OAuth2 配置 / OAuth2 Configuration
@@ -191,12 +191,25 @@ async def get_current_tenant_admin(
 
 
 async def get_current_active_tenant_admin(
+    db: Annotated[AsyncSession, Depends(get_db)],
     current_tenant_admin: Annotated[TenantAdmin, Depends(get_current_tenant_admin)],
 ) -> TenantAdmin:
     """
     获取当前激活的企业管理员 / Get current active tenant admin
     """
     if not current_tenant_admin.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=_("auth.account_disabled"),
+        )
+    result = await db.execute(
+        select(Tenant).where(
+            Tenant.id == current_tenant_admin.tenant_id,
+            Tenant.is_active.is_(True),
+            Tenant.is_deleted.is_(False),
+        )
+    )
+    if result.scalar_one_or_none() is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=_("auth.account_disabled"),
@@ -266,12 +279,25 @@ async def get_current_tenant_user(
 
 
 async def get_current_active_tenant_user(
+    db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[TenantUser, Depends(get_current_tenant_user)],
 ) -> TenantUser:
     """
     获取当前激活的企业业务用户 / Get current active tenant business user
     """
     if not current_user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=_("auth.account_disabled"),
+        )
+    result = await db.execute(
+        select(Tenant).where(
+            Tenant.id == current_user.tenant_id,
+            Tenant.is_active.is_(True),
+            Tenant.is_deleted.is_(False),
+        )
+    )
+    if result.scalar_one_or_none() is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=_("auth.account_disabled"),

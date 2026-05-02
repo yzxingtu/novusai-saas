@@ -130,7 +130,12 @@ class TestApiCallsQuota:
     def _build_service(self, mock_db, limit: int = 5):
         from app.services.tenant.quota_service import QuotaService
 
-        tenant = SimpleNamespace(id=1, quota={}, tenant_plan=None)
+        tenant = SimpleNamespace(
+            id=1,
+            plan_id=1,
+            quota={},
+            tenant_plan=SimpleNamespace(is_active=True),
+        )
         tenant.get_quota_value = MagicMock(
             side_effect=lambda key, default=None: (
                 limit if key == "api_calls_per_month" else default

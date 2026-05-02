@@ -3,13 +3,16 @@
 from typing import TYPE_CHECKING
 
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from app.enums.rbac import PermissionScope
-from app.models import Admin, Permission, TenantAdmin, TenantUser
+from app.models import Admin, Permission, Tenant, TenantAdmin, TenantUser
 from app.schemas.common import MenuResponse
 
 if TYPE_CHECKING:
     from app.rbac.services.permission_service import PermissionService
+
+USER_AI_MENU_CODES = {"menu:user.agents", "menu:user.ai_chat"}
 
 
 class PermissionMenuDomain:
@@ -108,6 +111,16 @@ class PermissionMenuDomain:
         all_permissions = await self._service.get_enabled_permissions_by_scope(
             PermissionScope.USER.value
         )
+        ai_menus_enabled = await self._tenant_user_ai_menus_enabled(
+            tenant_user.tenant_id
+        )
+        if not ai_menus_enabled:
+            all_permissions = [
+                permission
+                for permission in all_permissions
+                if permission.code not in USER_AI_MENU_CODES
+            ]
+
         effective_ids = await self._service.get_tenant_user_effective_permission_ids(
             tenant_user
         )
@@ -122,10 +135,33 @@ class PermissionMenuDomain:
             )
         )
         user_permissions = list(result.scalars().all())
+        if not ai_menus_enabled:
+            user_permissions = [
+                permission
+                for permission in user_permissions
+                if permission.code not in USER_AI_MENU_CODES
+            ]
         return self._build_user_menu_tree(
             all_permissions=all_permissions,
             user_permissions=user_permissions,
         )
+
+    async def _tenant_user_ai_menus_enabled(self, tenant_id: int) -> bool:
+        from app.services.tenant.quota_service import QuotaService
+
+        result = await self._service.db.execute(
+            select(Tenant)
+            .options(selectinload(Tenant.tenant_plan))
+            .where(
+                Tenant.id == tenant_id,
+                Tenant.is_active.is_(True),
+                Tenant.is_deleted.is_(False),
+            )
+        )
+        tenant = result.scalar_one_or_none()
+        if tenant is None:
+            return False
+        return QuotaService(self._service.db, tenant).get_feature("ai_enabled", False)
 
     def _build_user_menu_tree(
         self,

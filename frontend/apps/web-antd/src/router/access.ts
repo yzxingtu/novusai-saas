@@ -119,11 +119,9 @@ async function generateAccess(
       });
       // 获取菜单和权限码 / Fetch menus and permission codes
       const { menus, permissions } = await menuApi();
-      // Merge with codes already set by fetchUserInfo (e.g. super admin `*`) / 与 fetchUserInfo 已写入的权限合并（如超管 `*`），避免被菜单提取列表覆盖丢失
-      const prev = accessStore.accessCodes;
-      const merged =
-        prev.length > 0 ? [...new Set([...permissions, ...prev])] : permissions;
-      accessStore.setAccessCodes(merged);
+      // Treat the backend menu response as the current authority snapshot.
+      // 将后端菜单权限视为当前权威快照，避免套餐降级后旧权限码残留。
+      accessStore.setAccessCodes(permissions);
       return menus;
     },
     // 可以指定没有权限跳转403页面 / forbidden route component

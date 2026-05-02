@@ -89,6 +89,27 @@
   `AccountAIAccessService.require_tenant_admin_ai_access()` and the tenant
   monthly API-call quota before constructing downstream AI services. This
   includes chat, streaming, embedding, writing, and future direct AI adapters.
+- User-facing AI entrypoints under `backend/app/api/user/ai/**` must enforce
+  `AccountAIAccessService.require_tenant_user_ai_access()` before constructing
+  agent, chat, routing, conversation, or knowledge-binding services. User AI
+  menus such as `menu:user.agents` and `menu:user.ai_chat` must be hidden when
+  the owning tenant is inactive, has no active plan, or the active plan disables
+  `ai_enabled`.
+- Active tenant-admin and tenant-user dependencies must fail closed when the
+  owning tenant is inactive or deleted. Existing tokens must not outlive a
+  disabled tenant.
+- Tenant plan runtime checks must treat tenant-level quota overrides as
+  inactive unless the tenant has an active plan relation; missing tenants,
+  inactive tenants, missing plans, and inactive plans must return denial rather
+  than unlimited access.
+- Protected plugin API routes (`auth` other than `none`) must declare an
+  explicit permission code. Standalone plugin page slots without access codes
+  are hidden unless the caller has `*`.
+- Custom-domain runtime resolution, activation, primary-domain switching, SSL
+  provisioning/verification/renewal/upload, and auto-renew enablement must
+  re-check the current tenant plan custom-domain entitlement. Default tenant
+  subdomains are exempt; custom domains fail closed after downgrade or plan
+  deactivation.
 - Do not hardcode fixed LLM-facing prompts, tool descriptions, or model
   instruction blocks directly in Python business/runtime code; store them under
   `backend/app/ai/prompt_contracts/resources/` and load them through the shared

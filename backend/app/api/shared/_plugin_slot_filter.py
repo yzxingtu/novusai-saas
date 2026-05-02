@@ -15,9 +15,9 @@ def filter_grouped_plugin_slots_by_permission_codes(
 ) -> dict[str, list[dict[str, Any]]]:
     """Filter grouped slot payload by slot-level access codes.
 
-    Slots without ``access_codes`` stay visible. Slots with access codes are
-    exposed when the current user has any matching code, mirroring the host
-    router guard's default ``any`` semantics.
+    Non-route slots without ``access_codes`` stay visible. Standalone page slots
+    are protected route entries, so missing or empty ``access_codes`` are hidden
+    unless the user has ``*``.
     """
 
     normalized_codes = {
@@ -34,6 +34,8 @@ def filter_grouped_plugin_slots_by_permission_codes(
         for slot in slots:
             raw_access_codes = slot.get("access_codes")
             if not isinstance(raw_access_codes, list) or len(raw_access_codes) == 0:
+                if slot_key == "pages":
+                    continue
                 visible_slots.append(slot)
                 continue
 
@@ -43,6 +45,8 @@ def filter_grouped_plugin_slots_by_permission_codes(
                 if isinstance(code, str) and code.strip()
             ]
             if not slot_access_codes:
+                if slot_key == "pages":
+                    continue
                 visible_slots.append(slot)
                 continue
 

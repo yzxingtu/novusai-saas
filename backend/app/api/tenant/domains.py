@@ -435,6 +435,10 @@ class TenantDomainController(TenantController):
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=_("ssl_certificate.custom_cert_no_renew"),
                 )
+            await service.ensure_custom_domain_entitled(
+                current_admin.tenant_id,
+                domain,
+            )
 
             from app.services.system.dns_provider import ensure_dns_provider_ready
 
@@ -469,6 +473,10 @@ class TenantDomainController(TenantController):
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=_("tenant_domain.not_found"),
                 )
+            await service.ensure_custom_domain_entitled(
+                current_admin.tenant_id,
+                domain,
+            )
 
             ssl_service = SslCertificateService(db)
             cert = await ssl_service.upload_custom_cert(
@@ -525,6 +533,11 @@ class TenantDomainController(TenantController):
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=_("tenant_domain.not_found"),
+                )
+            if data.auto_renew:
+                await service.ensure_custom_domain_entitled(
+                    current_admin.tenant_id,
+                    domain,
                 )
 
             ssl_service = SslCertificateService(db)

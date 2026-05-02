@@ -16,6 +16,7 @@ from unittest.mock import AsyncMock
 import pytest
 from pydantic import ValidationError
 
+from app.enums.error_code import ErrorCode
 from app.exceptions import BusinessException, NotFoundException
 from app.schemas.tenant.plan import TenantPlanCreateRequest
 
@@ -84,3 +85,346 @@ async def test_tenant_plan_preflight_snapshot_requires_active_plan(mock_db) -> N
 
     assert captured_statements
     assert "tenant_plans.is_active" in captured_statements[0]
+
+
+def test_tenant_quota_overrides_require_active_plan() -> None:
+    from app.models.tenant.tenant import Tenant
+    from app.models.tenant.tenant_plan import TenantPlan
+
+    plan = TenantPlan(
+        id=9,
+        code="inactive",
+        name="Inactive",
+        is_active=False,
+        quota={"max_custom_domains": 9, "allow_custom_domain": True},
+    )
+    tenant = Tenant(
+        name="Inactive tenant",
+        code="inactive-tenant",
+        plan_id=9,
+        quota={"max_custom_domains": 3, "allow_custom_domain": True},
+    )
+    tenant.tenant_plan = plan
+
+    assert tenant.has_active_plan is False
+    assert tenant.get_quota_value("allow_custom_domain", False) is False
+    assert tenant.max_custom_domains == 0
+
+    plan.is_active = True
+
+    assert tenant.has_active_plan is True
+    assert tenant.get_quota_value("allow_custom_domain", False) is True
+    assert tenant.max_custom_domains == 3
+
+
+@pytest.mark.asyncio
+async def test_runtime_user_quota_rejects_inactive_plan_before_counting(
+    mock_db,
+) -> None:
+    from app.services.tenant.quota_service import QuotaService
+
+    tenant = SimpleNamespace(
+        id=5,
+        plan_id=9,
+        quota={},
+        tenant_plan=SimpleNamespace(is_active=False),
+    )
+    result = await QuotaService(mock_db, tenant).check_user_quota()
+
+    assert result.allowed is False
+    assert result.limit == -1
+    mock_db.execute.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_runtime_api_quota_rejects_inactive_plan_before_redis(
+    mock_db,
+    monkeypatch,
+) -> None:
+    from app.services.tenant import quota_service as quota_module
+    from app.services.tenant.quota_service import QuotaService
+
+    tenant = SimpleNamespace(
+        id=5,
+        plan_id=9,
+        quota={},
+        tenant_plan=SimpleNamespace(is_active=False),
+    )
+    monkeypatch.setattr(
+        quota_module,
+        "get_redis",
+        AsyncMock(side_effect=AssertionError("redis should not be touched")),
+    )
+
+    result = await QuotaService(mock_db, tenant).check_api_calls_quota()
+
+    assert result.allowed is False
+    assert result.limit == -1
+    mock_db.execute.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_runtime_api_quota_rejects_missing_tenant_before_redis(
+    mock_db,
+    monkeypatch,
+) -> None:
+    from app.services.tenant import quota_service as quota_module
+    from app.services.tenant.quota_service import QuotaService
+
+    class _Result:
+        def scalar_one_or_none(self):
+            return None
+
+    mock_db.execute = AsyncMock(return_value=_Result())
+    monkeypatch.setattr(
+        quota_module,
+        "get_redis",
+        AsyncMock(side_effect=AssertionError("redis should not be touched")),
+    )
+
+    result = await QuotaService.check_api_quota_for_tenant_id(mock_db, 404)
+
+    assert result.allowed is False
+    assert result.limit == -1
+
+
+@pytest.mark.asyncio
+async def test_custom_domain_gate_rejects_inactive_plan_quota_overrides(
+    mock_db,
+) -> None:
+    from app.models.tenant.tenant import Tenant
+    from app.models.tenant.tenant_plan import TenantPlan
+    from app.services.system.tenant_domain_service import TenantDomainService
+
+    class _Result:
+        def scalar_one_or_none(self):
+            plan = TenantPlan(
+                id=7,
+                code="inactive",
+                name="Inactive",
+                is_active=False,
+                quota={"allow_custom_domain": True, "max_custom_domains": 5},
+            )
+            tenant = Tenant(
+                id=3,
+                name="Inactive tenant",
+                code="inactive-tenant",
+                plan_id=7,
+                quota={"allow_custom_domain": True, "max_custom_domains": 2},
+            )
+            tenant.tenant_plan = plan
+            return tenant
+
+    mock_db.execute = AsyncMock(return_value=_Result())
+    service = TenantDomainService.__new__(TenantDomainService)
+    service.db = mock_db
+
+    allowed, max_domains = await service._check_custom_domain_allowed(3)
+
+    assert allowed is False
+    assert max_domains == 0
+
+
+@pytest.mark.asyncio
+async def test_custom_domain_activation_rejects_inactive_plan(
+    mock_db,
+) -> None:
+    from app.models.tenant.tenant import Tenant
+    from app.models.tenant.tenant_plan import TenantPlan
+    from app.services.system.tenant_domain_service import TenantDomainTenantService
+
+    class _Result:
+        def scalar_one_or_none(self):
+            plan = TenantPlan(
+                id=7,
+                code="inactive",
+                name="Inactive",
+                is_active=False,
+                quota={"allow_custom_domain": True, "max_custom_domains": 5},
+            )
+            tenant = Tenant(
+                id=3,
+                name="Inactive tenant",
+                code="inactive-tenant",
+                plan_id=7,
+                quota={"allow_custom_domain": True, "max_custom_domains": 2},
+            )
+            tenant.tenant_plan = plan
+            return tenant
+
+    mock_db.execute = AsyncMock(return_value=_Result())
+    service = TenantDomainTenantService.__new__(TenantDomainTenantService)
+    service.db = mock_db
+    service.tenant_id = 3
+    service._get_domain_suffix = AsyncMock(return_value=".tenant.example")
+
+    with pytest.raises(BusinessException) as exc_info:
+        await service.ensure_custom_domain_entitled(
+            3,
+            SimpleNamespace(domain="custom.example.com"),
+        )
+
+    assert exc_info.value.code == ErrorCode.FORBIDDEN
+
+
+@pytest.mark.asyncio
+async def test_custom_domain_middleware_refuses_disabled_entitlement(
+    mock_db,
+) -> None:
+    from app.middleware.tenant import TenantMiddleware
+    from app.models.tenant.tenant import Tenant
+    from app.models.tenant.tenant_domain import TenantDomain
+    from app.models.tenant.tenant_plan import TenantPlan
+
+    plan = TenantPlan(
+        id=7,
+        code="no-custom",
+        name="No Custom Domains",
+        is_active=True,
+        quota={"allow_custom_domain": False, "max_custom_domains": 0},
+    )
+    tenant = Tenant(
+        id=3,
+        name="No custom tenant",
+        code="no-custom-tenant",
+        plan_id=7,
+    )
+    tenant.tenant_plan = plan
+    domain = TenantDomain(
+        id=11,
+        tenant_id=3,
+        domain="custom.example.com",
+        is_verified=True,
+    )
+    domain.tenant = tenant
+
+    class _Result:
+        def scalar_one_or_none(self):
+            return domain
+
+    mock_db.execute = AsyncMock(return_value=_Result())
+    middleware = TenantMiddleware(lambda *_args: None)
+
+    resolved = await middleware._resolve_tenant(
+        mock_db,
+        tenant_code=None,
+        host="custom.example.com",
+        domain_type="custom",
+    )
+
+    assert resolved is None
+
+
+@pytest.mark.asyncio
+async def test_custom_ssl_quota_rejects_missing_tenant(mock_db) -> None:
+    from app.services.system.ssl_certificate_service import SslCertificateService
+
+    class _Result:
+        def scalar_one_or_none(self):
+            return None
+
+    mock_db.execute = AsyncMock(return_value=_Result())
+    service = SslCertificateService.__new__(SslCertificateService)
+    service.db = mock_db
+
+    with pytest.raises(BusinessException) as exc_info:
+        await service._check_custom_ssl_quota(404)
+
+    assert exc_info.value.code == ErrorCode.FORBIDDEN
+
+
+@pytest.mark.asyncio
+async def test_active_tenant_user_dependency_rejects_disabled_tenant(mock_db) -> None:
+    from fastapi import HTTPException
+
+    from app.core.deps import get_current_active_tenant_user
+
+    class _Result:
+        def scalar_one_or_none(self):
+            return None
+
+    mock_db.execute = AsyncMock(return_value=_Result())
+
+    with pytest.raises(HTTPException) as exc_info:
+        await get_current_active_tenant_user(
+            db=mock_db,
+            current_user=SimpleNamespace(
+                id=17,
+                is_active=True,
+                tenant_id=5,
+            ),
+        )
+
+    assert exc_info.value.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_tenant_user_menu_hides_ai_pages_when_plan_ai_disabled(mock_db) -> None:
+    from app.rbac.services.permission_domains.menu_query import PermissionMenuDomain
+
+    class _Scalars:
+        def __init__(self, values):
+            self._values = values
+
+        def all(self):
+            return self._values
+
+    class _TenantResult:
+        def scalar_one_or_none(self):
+            return SimpleNamespace(
+                id=5,
+                is_active=True,
+                plan_id=9,
+                quota={},
+                tenant_plan=SimpleNamespace(
+                    is_active=True,
+                    get_feature=lambda _key, _default=False: False,
+                ),
+            )
+
+    class _PermissionResult:
+        def scalars(self):
+            return _Scalars(
+                [
+                    SimpleNamespace(
+                        id=1,
+                        code="menu:user.dashboard",
+                        parent_id=None,
+                        type="menu",
+                    ),
+                    SimpleNamespace(
+                        id=2,
+                        code="menu:user.ai_chat",
+                        parent_id=None,
+                        type="menu",
+                    ),
+                ]
+            )
+
+    mock_db.execute = AsyncMock(side_effect=[_TenantResult(), _PermissionResult()])
+
+    all_permissions = [
+        SimpleNamespace(id=1, code="menu:user.dashboard", parent_id=None, type="menu"),
+        SimpleNamespace(id=2, code="menu:user.ai_chat", parent_id=None, type="menu"),
+    ]
+    captured_codes: list[str] = []
+
+    class _Service:
+        db = mock_db
+
+        async def get_enabled_permissions_by_scope(self, _scope):
+            return all_permissions
+
+        async def get_tenant_user_effective_permission_ids(self, _tenant_user):
+            return {1, 2}
+
+        def _build_menu_tree(self, permissions, _user_permission_codes):
+            captured_codes.extend(permission.code for permission in permissions)
+            return captured_codes
+
+    menus = await PermissionMenuDomain(_Service()).get_tenant_user_menus(
+        SimpleNamespace(tenant_id=5, role_id=3)
+    )
+
+    assert menus == ["menu:user.dashboard"]
+    assert "menu:user.ai_chat" not in captured_codes

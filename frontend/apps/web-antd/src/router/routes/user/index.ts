@@ -33,6 +33,7 @@ const mainRoutes: RouteRecordRaw = {
       path: 'agents',
       component: () => import('#/views/user/agents/index.vue'),
       meta: {
+        accessCodes: ['menu:user.agents'],
         icon: 'lucide:sparkles',
         title: 'user.agents.title',
       },
@@ -42,6 +43,7 @@ const mainRoutes: RouteRecordRaw = {
       path: 'ai-chat',
       component: () => import('#/views/user/ai-chat/index.vue'),
       meta: {
+        accessCodes: ['menu:user.ai_chat'],
         icon: 'lucide:bot',
         title: 'user.aiChat.title',
       },

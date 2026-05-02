@@ -72,6 +72,53 @@ class _ExecuteResult:
         return _ScalarResult(self._items)
 
 
+def test_plugin_slot_filter_hides_permissionless_pages_only() -> None:
+    from app.api.shared._plugin_slot_filter import (
+        filter_grouped_plugin_slots_by_permission_codes,
+    )
+
+    grouped = _empty_slot_groups()
+    grouped["pages"] = [
+        {
+            "plugin_name": "permissionless-plugin",
+            "name": "open-looking-page",
+            "path": "/tenant/plugins/permissionless-plugin",
+        },
+        {
+            "plugin_name": "alpha-plugin",
+            "name": "alpha-home",
+            "path": "/tenant/plugins/alpha-plugin",
+            "access_codes": ["menu:tenant.plugin_alpha_plugin_alpha-home"],
+        },
+    ]
+    grouped["header_widgets"] = [
+        {
+            "plugin_name": "weather-widget",
+            "name": "weather-widget",
+        }
+    ]
+
+    result = filter_grouped_plugin_slots_by_permission_codes(
+        grouped,
+        {"menu:tenant.plugin_alpha_plugin_alpha-home"},
+    )
+
+    assert result["pages"] == [
+        {
+            "plugin_name": "alpha-plugin",
+            "name": "alpha-home",
+            "path": "/tenant/plugins/alpha-plugin",
+            "access_codes": ["menu:tenant.plugin_alpha_plugin_alpha-home"],
+        }
+    ]
+    assert result["header_widgets"] == [
+        {
+            "plugin_name": "weather-widget",
+            "name": "weather-widget",
+        }
+    ]
+
+
 @pytest.mark.asyncio
 async def test_tenant_plugin_slots_hide_pages_without_current_permission(
     monkeypatch: pytest.MonkeyPatch,

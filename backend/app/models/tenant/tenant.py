@@ -197,6 +197,16 @@ class Tenant(BaseModel):
         """获取企业子域名 / Get tenant subdomain."""
         return self.code
 
+    @property
+    def has_active_plan(self) -> bool:
+        """Whether this tenant is linked to an active plan."""
+        plan = self.tenant_plan
+        return (
+            self.plan_id is not None
+            and plan is not None
+            and bool(getattr(plan, "is_active", False))
+        )
+
     # 以下属性已废弃，请使用 ConfigService.get_tenant_config() 代替 /
     # Deprecated properties; use ConfigService.get_tenant_config()
     # - logo_url -> tenant_logo
@@ -207,6 +217,8 @@ class Tenant(BaseModel):
     @property
     def max_custom_domains(self) -> int:
         """获取最大自定义域名数量（由套餐决定） / Max custom domains (from plan quota)."""
+        if not self.has_active_plan:
+            return 0
         # 优先从企业级 quota 获取，其次从套餐获取 /
         # Prefer tenant quota, then plan defaults
         if self.quota and "max_custom_domains" in self.quota:
@@ -226,6 +238,8 @@ class Tenant(BaseModel):
         Returns:
             配额值
         """
+        if not self.has_active_plan:
+            return default
         # 优先从企业级 quota 获取 / Prefer tenant-level quota
         if self.quota and key in self.quota:
             return self.quota.get(key, default)

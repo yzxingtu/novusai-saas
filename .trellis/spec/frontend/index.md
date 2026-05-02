@@ -65,6 +65,11 @@
   error.
 - Do not ship protected UI entry points that rely on backend `403` as the only
   permission guard.
+- Static routes for backend-menu or tenant-plan gated pages must declare
+  `meta.accessCodes` matching the backend menu/permission authority snapshot
+  (for example `menu:user.ai_chat`, `menu:user.agents`, or
+  `ai_tenant_usage:summary`) so direct URL navigation is blocked after role or
+  plan downgrade.
 - Do not duplicate dynamic menu translations in the frontend; host menus are
   already translated by backend menu data, while plugin menu titles come from
   plugin manifests.

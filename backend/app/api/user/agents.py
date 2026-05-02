@@ -18,6 +18,7 @@ from app.rbac.decorators import (
     auth_only,
     permission_resource,
 )
+from app.services.ai.account_ai_access_service import AccountAIAccessService
 from app.services.ai.agent_kb_binding_service import AgentKBBindingService
 from app.services.ai.agent_service import AgentService
 
@@ -50,6 +51,14 @@ class UserAgentController(BaseController):
         """注册路由 / Register routes"""
         router = self.router
 
+        async def _ensure_ai_chat_enabled(
+            db: DbSession,
+            current_user: ActiveTenantUser,
+        ) -> None:
+            await AccountAIAccessService(db).require_tenant_user_ai_access(
+                current_user
+            )
+
         @router.get(
             "/{agent_id}/knowledge-bases",
             summary="获取智能体知识库绑定 / Get agent knowledge base bindings",
@@ -64,6 +73,7 @@ class UserAgentController(BaseController):
             """
             获取智能体绑定的启用知识库列表（用于聊天界面展示 RAG 指示器）/ Get agent bound KB list (for RAG indicator).
             """
+            await _ensure_ai_chat_enabled(db, current_user)
             kb_service = AgentKBBindingService(db, current_user.tenant_id)
             result = await kb_service.get_agent_kb_bindings(
                 agent_id, merge_platform_bindings=True
@@ -86,6 +96,7 @@ class UserAgentController(BaseController):
             - 排除路由智能体 / Exclude router agents
             - 按 visibility + access_type 权限过滤 / Filter by visibility + access_type permissions
             """
+            await _ensure_ai_chat_enabled(db, current_user)
             service = AgentService(db, current_user.tenant_id)
             items, total = await service.list_user_accessible_agents(
                 user_id=current_user.id,

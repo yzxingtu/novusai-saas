@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -149,6 +150,79 @@ async def test_plugin_context_get_db_blocks_dependency_prefix_tables() -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("request_path", "route_group", "user_role", "tenant_id"),
+    [
+        (
+            "/admin/plugins/demo/api/ping",
+            "admin_routes",
+            TOKEN_SCOPE_ADMIN,
+            None,
+        ),
+        (
+            "/tenant/plugins/demo/api/ping",
+            "tenant_routes",
+            TOKEN_SCOPE_TENANT_ADMIN,
+            42,
+        ),
+    ],
+)
+async def test_dispatch_rejects_protected_plugin_route_without_permission(
+    request_path: str,
+    route_group: str,
+    user_role: str,
+    tenant_id: int | None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest = {
+        "extensions": {
+            "api": {
+                "admin_routes": [],
+                "tenant_routes": [],
+                "public_routes": [],
+                route_group: [
+                    {
+                        "path": "ping",
+                        "method": "GET",
+                        "handler": "handlers.demo.ping",
+                        "auth": "required",
+                    }
+                ],
+            }
+        }
+    }
+    db = AsyncMock()
+    handler_called = False
+
+    def _handler(request=None, ctx=None):  # noqa: ANN001
+        nonlocal handler_called
+        _ = (request, ctx)
+        handler_called = True
+        return {"ok": True}
+
+    monkeypatch.setattr(
+        "app.plugins.api_dispatcher.evaluate_plugin_runtime_gate",
+        AsyncMock(return_value=_gate_result(manifest)),
+    )
+    monkeypatch.setattr("app.plugins.api_dispatcher.load_plugin_handler", lambda *_: _handler)
+
+    response = await _dispatch_plugin_api(
+        plugin_name="demo",
+        path="ping",
+        request=_build_request(path=request_path),
+        db=db,
+        tenant_id=tenant_id,
+        user_id=7,
+        user_role=user_role,
+    )
+
+    payload = json.loads(response.body)
+    assert response.status_code == 403
+    assert payload["code"] == 4030
+    assert handler_called is False
+
+
+@pytest.mark.asyncio
 async def test_dispatch_raises_app_exception_when_handler_returns_error_dict(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -156,7 +230,12 @@ async def test_dispatch_raises_app_exception_when_handler_returns_error_dict(
         "extensions": {
             "api": {
                 "admin_routes": [
-                    {"path": "ping", "method": "GET", "handler": "handlers.demo.ping"},
+                    {
+                        "path": "ping",
+                        "method": "GET",
+                        "handler": "handlers.demo.ping",
+                        "auth": "none",
+                    },
                 ],
                 "tenant_routes": [],
                 "public_routes": [],
@@ -198,7 +277,12 @@ async def test_dispatch_raises_app_exception_on_handler_runtime_error(
         "extensions": {
             "api": {
                 "admin_routes": [
-                    {"path": "ping", "method": "GET", "handler": "handlers.demo.ping"},
+                    {
+                        "path": "ping",
+                        "method": "GET",
+                        "handler": "handlers.demo.ping",
+                        "auth": "none",
+                    },
                 ],
                 "tenant_routes": [],
                 "public_routes": [],
@@ -242,7 +326,12 @@ async def test_dispatch_raises_app_exception_on_error_json_response(
         "extensions": {
             "api": {
                 "admin_routes": [
-                    {"path": "ping", "method": "GET", "handler": "handlers.demo.ping"},
+                    {
+                        "path": "ping",
+                        "method": "GET",
+                        "handler": "handlers.demo.ping",
+                        "auth": "none",
+                    },
                 ],
                 "tenant_routes": [],
                 "public_routes": [],
@@ -288,7 +377,12 @@ async def test_dispatch_allows_success_streaming_response_passthrough(
         "extensions": {
             "api": {
                 "admin_routes": [
-                    {"path": "ping", "method": "GET", "handler": "handlers.demo.ping"},
+                    {
+                        "path": "ping",
+                        "method": "GET",
+                        "handler": "handlers.demo.ping",
+                        "auth": "none",
+                    },
                 ],
                 "tenant_routes": [],
                 "public_routes": [],
@@ -327,7 +421,12 @@ async def test_dispatch_uses_scope_trace_id_for_plugin_context_request_id(
         "extensions": {
             "api": {
                 "admin_routes": [
-                    {"path": "ping", "method": "GET", "handler": "handlers.demo.ping"},
+                    {
+                        "path": "ping",
+                        "method": "GET",
+                        "handler": "handlers.demo.ping",
+                        "auth": "none",
+                    },
                 ],
                 "tenant_routes": [],
                 "public_routes": [],

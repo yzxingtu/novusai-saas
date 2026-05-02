@@ -14,6 +14,8 @@ import type { IdentityDetailMeta } from '#/views/_shared/identity/identity-inter
 
 import { computed, onMounted, ref } from 'vue';
 
+import { useAccess } from '@vben/access';
+
 import { getTenantDashboardOverviewApi } from '#/api/tenant/dashboard';
 import { createIdentityDisplayModel } from '#/components/business/identity-display';
 import { $t } from '#/locales';
@@ -33,6 +35,15 @@ import {
 
 type TenantDashboardActivityItem = DashboardActivityIdentitySource &
   TenantDashboardOverview['recent_activities'][number];
+
+const DASHBOARD_ROUTE_ACCESS: Record<string, string[]> = {
+  '/tenant/ai/agents': ['agent:list'],
+  '/tenant/ai/knowledge-bases': ['knowledge_base:list'],
+  '/tenant/ai/usage': ['ai_tenant_usage:summary'],
+  '/tenant/system/operation-logs': ['operation_log:list'],
+  '/tenant/system/storage': ['tenant_config:groups'],
+  '/tenant/system/user-architecture': ['tenant_user:list'],
+};
 
 const DASHBOARD_IDENTITY_TYPES = new Set([
   'admin',
@@ -138,6 +149,7 @@ export function useTenantDashboard() {
   const loading = ref(false);
   const overview = ref<TenantDashboardOverview>(createEmptyOverview());
 
+  const { hasAccessByCodes } = useAccess();
   const presenceStore = usePresenceStore();
   const notificationStore = useNotificationStore();
   const socketStore = useSocketIOStore();
@@ -235,22 +247,36 @@ export function useTenantDashboard() {
     },
   ]);
 
-  const heroActions = computed<DashboardHeroAction[]>(() => [
-    {
-      icon: 'lucide:bot',
-      key: 'agents',
-      label: $t('tenant.dashboard.cockpit.primaryCta'),
-      route: '/tenant/ai/agents',
-      variant: 'primary',
-    },
-    {
-      icon: 'lucide:activity',
-      key: 'usage',
-      label: $t('tenant.dashboard.cockpit.secondaryCta'),
-      route: '/tenant/ai/usage',
-      variant: 'secondary',
-    },
-  ]);
+  function hasDashboardRouteAccess(route?: string): boolean {
+    if (!route) {
+      return true;
+    }
+    const codes = DASHBOARD_ROUTE_ACCESS[route];
+    return !codes || hasAccessByCodes(codes);
+  }
+
+  function filterAccessibleRouteItems<T extends { route?: string }>(items: T[]) {
+    return items.filter((item) => hasDashboardRouteAccess(item.route));
+  }
+
+  const heroActions = computed<DashboardHeroAction[]>(() =>
+    filterAccessibleRouteItems<DashboardHeroAction>([
+      {
+        icon: 'lucide:bot',
+        key: 'agents',
+        label: $t('tenant.dashboard.cockpit.primaryCta'),
+        route: '/tenant/ai/agents',
+        variant: 'primary',
+      },
+      {
+        icon: 'lucide:activity',
+        key: 'usage',
+        label: $t('tenant.dashboard.cockpit.secondaryCta'),
+        route: '/tenant/ai/usage',
+        variant: 'secondary',
+      },
+    ]),
+  );
 
   const overviewCards = computed<DashboardMetricCard[]>(() => [
     {
@@ -306,85 +332,89 @@ export function useTenantDashboard() {
     },
   ]);
 
-  const operationalSignals = computed<DashboardRouteCardItem[]>(() => [
-    {
-      description: $t('tenant.dashboard.cockpit.signals.agentsDesc'),
-      icon: 'lucide:bot',
-      key: 'agents',
-      route: '/tenant/ai/agents',
-      title: $t('tenant.dashboard.cockpit.signals.agentsTitle'),
-      value: formatCompactNumber(stats.value.total_agents),
-    },
-    {
-      description: $t('tenant.dashboard.cockpit.signals.kbDesc'),
-      icon: 'lucide:book-open',
-      key: 'knowledge',
-      route: '/tenant/ai/knowledge-bases',
-      title: $t('tenant.dashboard.cockpit.signals.kbTitle'),
-      value: formatCompactNumber(stats.value.total_knowledge_bases),
-    },
-    {
-      description: $t('tenant.dashboard.cockpit.signals.storageDesc'),
-      icon: 'lucide:hard-drive',
-      key: 'storage',
-      route: '/tenant/system/storage',
-      title: $t('tenant.dashboard.cockpit.signals.storageTitle'),
-      value: `${stats.value.storage_used_mb} MB`,
-    },
-    {
-      description: $t('tenant.dashboard.cockpit.signals.costDesc'),
-      icon: 'lucide:badge-dollar-sign',
-      key: 'cost',
-      route: '/tenant/ai/usage',
-      title: $t('tenant.dashboard.cockpit.signals.costTitle'),
-      value: formatCurrency(stats.value.total_cost),
-    },
-  ]);
+  const operationalSignals = computed<DashboardRouteCardItem[]>(() =>
+    filterAccessibleRouteItems([
+      {
+        description: $t('tenant.dashboard.cockpit.signals.agentsDesc'),
+        icon: 'lucide:bot',
+        key: 'agents',
+        route: '/tenant/ai/agents',
+        title: $t('tenant.dashboard.cockpit.signals.agentsTitle'),
+        value: formatCompactNumber(stats.value.total_agents),
+      },
+      {
+        description: $t('tenant.dashboard.cockpit.signals.kbDesc'),
+        icon: 'lucide:book-open',
+        key: 'knowledge',
+        route: '/tenant/ai/knowledge-bases',
+        title: $t('tenant.dashboard.cockpit.signals.kbTitle'),
+        value: formatCompactNumber(stats.value.total_knowledge_bases),
+      },
+      {
+        description: $t('tenant.dashboard.cockpit.signals.storageDesc'),
+        icon: 'lucide:hard-drive',
+        key: 'storage',
+        route: '/tenant/system/storage',
+        title: $t('tenant.dashboard.cockpit.signals.storageTitle'),
+        value: `${stats.value.storage_used_mb} MB`,
+      },
+      {
+        description: $t('tenant.dashboard.cockpit.signals.costDesc'),
+        icon: 'lucide:badge-dollar-sign',
+        key: 'cost',
+        route: '/tenant/ai/usage',
+        title: $t('tenant.dashboard.cockpit.signals.costTitle'),
+        value: formatCurrency(stats.value.total_cost),
+      },
+    ]),
+  );
 
-  const actionDeck = computed<DashboardRouteCardItem[]>(() => [
-    {
-      description: $t('tenant.dashboard.cockpit.actions.agentsDesc'),
-      icon: 'lucide:bot',
-      key: 'agents',
-      route: '/tenant/ai/agents',
-      title: $t('tenant.dashboard.cockpit.actions.agentsTitle'),
-    },
-    {
-      description: $t('tenant.dashboard.cockpit.actions.kbsDesc'),
-      icon: 'lucide:book-open',
-      key: 'knowledge',
-      route: '/tenant/ai/knowledge-bases',
-      title: $t('tenant.dashboard.cockpit.actions.kbsTitle'),
-    },
-    {
-      description: $t('tenant.dashboard.cockpit.actions.usageDesc'),
-      icon: 'lucide:activity',
-      key: 'usage',
-      route: '/tenant/ai/usage',
-      title: $t('tenant.dashboard.cockpit.actions.usageTitle'),
-    },
-    {
-      description: $t('tenant.dashboard.cockpit.actions.usersDesc'),
-      icon: 'lucide:users',
-      key: 'users',
-      route: '/tenant/system/user-architecture',
-      title: $t('tenant.dashboard.cockpit.actions.usersTitle'),
-    },
-    {
-      description: $t('tenant.dashboard.cockpit.actions.storageDesc'),
-      icon: 'lucide:hard-drive',
-      key: 'storage',
-      route: '/tenant/system/storage',
-      title: $t('tenant.dashboard.cockpit.actions.storageTitle'),
-    },
-    {
-      description: $t('tenant.dashboard.cockpit.actions.logsDesc'),
-      icon: 'lucide:scroll-text',
-      key: 'logs',
-      route: '/tenant/system/operation-logs',
-      title: $t('tenant.dashboard.cockpit.actions.logsTitle'),
-    },
-  ]);
+  const actionDeck = computed<DashboardRouteCardItem[]>(() =>
+    filterAccessibleRouteItems([
+      {
+        description: $t('tenant.dashboard.cockpit.actions.agentsDesc'),
+        icon: 'lucide:bot',
+        key: 'agents',
+        route: '/tenant/ai/agents',
+        title: $t('tenant.dashboard.cockpit.actions.agentsTitle'),
+      },
+      {
+        description: $t('tenant.dashboard.cockpit.actions.kbsDesc'),
+        icon: 'lucide:book-open',
+        key: 'knowledge',
+        route: '/tenant/ai/knowledge-bases',
+        title: $t('tenant.dashboard.cockpit.actions.kbsTitle'),
+      },
+      {
+        description: $t('tenant.dashboard.cockpit.actions.usageDesc'),
+        icon: 'lucide:activity',
+        key: 'usage',
+        route: '/tenant/ai/usage',
+        title: $t('tenant.dashboard.cockpit.actions.usageTitle'),
+      },
+      {
+        description: $t('tenant.dashboard.cockpit.actions.usersDesc'),
+        icon: 'lucide:users',
+        key: 'users',
+        route: '/tenant/system/user-architecture',
+        title: $t('tenant.dashboard.cockpit.actions.usersTitle'),
+      },
+      {
+        description: $t('tenant.dashboard.cockpit.actions.storageDesc'),
+        icon: 'lucide:hard-drive',
+        key: 'storage',
+        route: '/tenant/system/storage',
+        title: $t('tenant.dashboard.cockpit.actions.storageTitle'),
+      },
+      {
+        description: $t('tenant.dashboard.cockpit.actions.logsDesc'),
+        icon: 'lucide:scroll-text',
+        key: 'logs',
+        route: '/tenant/system/operation-logs',
+        title: $t('tenant.dashboard.cockpit.actions.logsTitle'),
+      },
+    ]),
+  );
 
   const portalHealthCards = computed<DashboardMetricCard[]>(() => [
     {

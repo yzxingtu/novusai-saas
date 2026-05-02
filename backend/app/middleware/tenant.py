@@ -200,7 +200,11 @@ class TenantMiddleware:
 
             result = await db.execute(
                 select(TenantDomain)
-                .options(selectinload(TenantDomain.tenant))
+                .options(
+                    selectinload(TenantDomain.tenant).selectinload(
+                        Tenant.tenant_plan
+                    )
+                )
                 .where(
                     TenantDomain.domain == domain,
                     TenantDomain.is_verified.is_(True),
@@ -214,8 +218,12 @@ class TenantMiddleware:
                 and tenant_domain.tenant
                 and tenant_domain.tenant.is_active
                 and not tenant_domain.tenant.is_deleted
+                and tenant_domain.tenant.has_active_plan
+                and tenant_domain.tenant.get_quota_value(
+                    "allow_custom_domain", False
+                )
             ):
-                # Check if tenant is active / 检查企业是否激活
+                # Check if tenant and its custom-domain entitlement are active.
                 return tenant_domain.tenant
 
         return None

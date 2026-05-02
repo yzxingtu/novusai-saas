@@ -167,6 +167,27 @@ class QuotaService:
         """
         return self.tenant.get_quota_value(key, default)
 
+    def _has_active_plan(self) -> bool:
+        """Whether this tenant has an active subscription plan loaded."""
+        has_active_plan = getattr(self.tenant, "has_active_plan", None)
+        if isinstance(has_active_plan, bool):
+            return has_active_plan
+        plan_id = getattr(self.tenant, "plan_id", None)
+        plan = getattr(self.tenant, "tenant_plan", None)
+        return plan_id is not None and plan is not None and bool(
+            getattr(plan, "is_active", False)
+        )
+
+    @staticmethod
+    def _plan_unavailable_result() -> QuotaCheckResult:
+        return QuotaCheckResult(
+            allowed=False,
+            current=0,
+            limit=-1,
+            remaining=0,
+            message=_("tenant_plan.not_found"),
+        )
+
     def get_feature(self, key: str, default: bool = False) -> bool:
         """
         获取特性开关 / Get feature flag.
@@ -178,6 +199,8 @@ class QuotaService:
         Returns:
             特性是否启用
         """
+        if not self._has_active_plan():
+            return False
         # 优先从企业级 quota 获取（特性也可以存在 quota 中）
         if self.tenant.quota and key in self.tenant.quota:
             return bool(self.tenant.quota.get(key, default))
@@ -213,6 +236,9 @@ class QuotaService:
         Returns:
             配额检查结果
         """
+        if not self._has_active_plan():
+            return self._plan_unavailable_result()
+
         limit_gb = self.get_quota_value("storage_limit_gb", 0)
 
         # 0 表示无限制 / Zero means unlimited
@@ -257,6 +283,9 @@ class QuotaService:
         Returns:
             配额检查结果
         """
+        if not self._has_active_plan():
+            return self._plan_unavailable_result()
+
         limit = self.get_quota_value("max_users", 0)
 
         # 0 表示无限制 / Zero means unlimited
@@ -301,6 +330,9 @@ class QuotaService:
         Returns:
             配额检查结果
         """
+        if not self._has_active_plan():
+            return self._plan_unavailable_result()
+
         limit = self.get_quota_value("max_admins", 0)
 
         # 0 表示无限制 / Zero means unlimited
@@ -345,6 +377,9 @@ class QuotaService:
         Returns:
             配额检查结果
         """
+        if not self._has_active_plan():
+            return self._plan_unavailable_result()
+
         # 先检查是否允许自定义域名 / Check custom domain allowed first
         allow_custom = self.get_quota_value("allow_custom_domain", False)
         if not allow_custom:
@@ -404,6 +439,9 @@ class QuotaService:
         Returns:
             配额检查结果
         """
+        if not self._has_active_plan():
+            return self._plan_unavailable_result()
+
         limit = self.get_quota_value("api_calls_per_month", 0)
 
         # 0 表示无限制 / Zero means unlimited
@@ -465,6 +503,9 @@ class QuotaService:
         Returns:
             配额检查结果
         """
+        if not self._has_active_plan():
+            return self._plan_unavailable_result()
+
         limit_mb = self.get_quota_value("max_file_size_mb", 0)
 
         # 0 表示无限制 / Zero means unlimited
@@ -558,12 +599,16 @@ class QuotaService:
             await db.execute(
                 select(Tenant)
                 .options(selectinload(Tenant.tenant_plan))
-                .where(Tenant.id == tenant_id)
+                .where(
+                    Tenant.id == tenant_id,
+                    Tenant.is_active.is_(True),
+                    Tenant.is_deleted.is_(False),
+                )
             )
         ).scalar_one_or_none()
 
         if not tenant_obj:
-            return QuotaCheckResult(allowed=True, current=0, limit=0, remaining=0)
+            return cls._plan_unavailable_result()
 
         svc = cls(db, tenant_obj)
         return await svc.check_api_calls_quota()

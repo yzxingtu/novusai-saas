@@ -38,6 +38,7 @@ from app.schemas.ai.agent_chat import (
     UpdateConversationTitleRequest,
 )
 from app.schemas.common.query import FilterRule
+from app.services.ai.account_ai_access_service import AccountAIAccessService
 from app.services.ai.agent_chat_service import AgentChatService
 from app.services.ai.agent_service import AgentService
 from app.services.ai.conversation_service import ConversationService
@@ -92,6 +93,14 @@ class UserAgentChatController(BaseController):
                     message=_("agent.access.error.no_permission"),
                 )
 
+        async def _ensure_ai_chat_enabled(
+            db: DbSession,
+            current_user: ActiveTenantUser,
+        ) -> None:
+            await AccountAIAccessService(db).require_tenant_user_ai_access(
+                current_user
+            )
+
         # ========================================
         # 对话执行 / Chat execution
         # ========================================
@@ -115,6 +124,7 @@ class UserAgentChatController(BaseController):
             - 新对话：不传 conversation_id / New conversation: omit conversation_id
             - 续接对话：传 conversation_id / Continue conversation: pass conversation_id
             """
+            await _ensure_ai_chat_enabled(db, current_user)
             await _check_agent_access(
                 db,
                 current_user.tenant_id,
@@ -178,6 +188,7 @@ class UserAgentChatController(BaseController):
             - done: 完成（含 conversation_id、total_tokens） / complete (includes conversation_id, total_tokens)
             - [DONE]: SSE 结束标记 / SSE end marker
             """
+            await _ensure_ai_chat_enabled(db, current_user)
             await _check_agent_access(
                 db,
                 current_user.tenant_id,
@@ -245,6 +256,7 @@ class UserAgentChatController(BaseController):
             2. Router 智能体 AI 选择 / Router agent AI selection
             3. default_chat 降级 / default_chat fallback
             """
+            await _ensure_ai_chat_enabled(db, current_user)
             return await handle_route(
                 db,
                 tenant_id=current_user.tenant_id,
@@ -281,6 +293,7 @@ class UserAgentChatController(BaseController):
             仅返回当前用户自己的对话，不可查看其他用户的。
             Only returns the current user's own conversations, cannot view others'.
             """
+            await _ensure_ai_chat_enabled(db, current_user)
             service = ConversationService(db, current_user.tenant_id)
             forced = [
                 FilterRule(field="user_id", operator="eq", value=current_user.id),
@@ -313,6 +326,7 @@ class UserAgentChatController(BaseController):
             current_user: ActiveTenantUser,
         ):
             """获取对话详情（含消息列表） / Get conversation detail (with message list)"""
+            await _ensure_ai_chat_enabled(db, current_user)
             service = ConversationService(db, current_user.tenant_id)
             result = await service.get_conversation_detail(
                 conversation_id,
@@ -332,6 +346,7 @@ class UserAgentChatController(BaseController):
             conversation_id: int,
             current_user: ActiveTenantUser,
         ):
+            await _ensure_ai_chat_enabled(db, current_user)
             service = ConversationService(db, current_user.tenant_id)
             await service.get_accessible_conversation(
                 conversation_id,
@@ -352,6 +367,7 @@ class UserAgentChatController(BaseController):
             conversation_id: int,
             current_user: ActiveTenantUser,
         ):
+            await _ensure_ai_chat_enabled(db, current_user)
             service = ConversationService(db, current_user.tenant_id)
             timeline = await service.get_conversation_timeline(
                 conversation_id,
@@ -373,6 +389,7 @@ class UserAgentChatController(BaseController):
             current_user: ActiveTenantUser,
         ):
             """更新对话标题 / Update conversation title"""
+            await _ensure_ai_chat_enabled(db, current_user)
             service = ConversationService(db, current_user.tenant_id)
             conv = await service.update_conversation_title(
                 conversation_id,
@@ -395,6 +412,7 @@ class UserAgentChatController(BaseController):
             current_user: ActiveTenantUser,
         ):
             """删除对话（软删除） / Delete conversation (soft delete)"""
+            await _ensure_ai_chat_enabled(db, current_user)
             service = ConversationService(db, current_user.tenant_id)
             await service.delete_accessible_conversation(
                 conversation_id,
@@ -420,6 +438,7 @@ class UserAgentChatController(BaseController):
             current_user: ActiveTenantUser,
         ):
             """获取当前会话的记忆状态（偏好/约束/任务/事实） / Get current conversation memory state (preferences/constraints/tasks/facts)"""
+            await _ensure_ai_chat_enabled(db, current_user)
             service = ConversationService(db, current_user.tenant_id)
             state = await service.get_conversation_memory_state(
                 conversation_id,
@@ -440,6 +459,7 @@ class UserAgentChatController(BaseController):
             current_user: ActiveTenantUser,
         ):
             """清空当前会话的记忆状态 / Clear current conversation memory state"""
+            await _ensure_ai_chat_enabled(db, current_user)
             service = ConversationService(db, current_user.tenant_id)
             deleted_count = await service.clear_conversation_memory_state(
                 conversation_id,
@@ -463,6 +483,7 @@ class UserAgentChatController(BaseController):
             conversation_id: int,
             current_user: ActiveTenantUser,
         ):
+            await _ensure_ai_chat_enabled(db, current_user)
             service = ConversationService(db, current_user.tenant_id)
             snapshot = await service.rebuild_context_compaction_snapshot(
                 conversation_id,
@@ -483,6 +504,7 @@ class UserAgentChatController(BaseController):
             conversation_id: int,
             current_user: ActiveTenantUser,
         ):
+            await _ensure_ai_chat_enabled(db, current_user)
             service = ConversationService(db, current_user.tenant_id)
             items = await service.get_conversation_timeline(
                 conversation_id,

@@ -15,6 +15,7 @@ from app.models.org.tenant_org_node import TenantOrgNode
 from app.models.system.admin import Admin
 from app.models.tenant.tenant import Tenant
 from app.models.tenant.tenant_admin import TenantAdmin
+from app.models.tenant.tenant_user import TenantUser
 from app.services.tenant.quota_service import QuotaService
 
 ACCOUNT_AI_DISABLED_CODE: Final = 4032
@@ -48,6 +49,12 @@ class AccountAIAccessService:
             self._raise_account_disabled(
                 reason=str(profile.get("ai_unavailable_reason") or "")
             )
+
+    async def require_tenant_user_ai_access(self, tenant_user: TenantUser) -> None:
+        """Block tenant business users when the owning tenant plan disables AI."""
+        tenant = await self._load_tenant_with_plan(tenant_user.tenant_id)
+        if tenant is None or not self._tenant_plan_ai_enabled(tenant):
+            self._raise_tenant_plan_disabled()
 
     async def get_platform_admin_ai_availability_profile(
         self,
@@ -106,12 +113,12 @@ class AccountAIAccessService:
 
         leader_ai_enabled = await self._tenant_leader_chain_ai_enabled(tenant_admin)
 
-        tenant_ai_enabled = True if projected_tenant_ai is None else projected_tenant_ai
-        if projected_tenant_ai is None:
-            tenant = await self._load_tenant_with_plan(tenant_admin.tenant_id)
-            tenant_ai_enabled = (
-                False if tenant is None else self._tenant_plan_ai_enabled(tenant)
-            )
+        tenant = await self._load_tenant_with_plan(tenant_admin.tenant_id)
+        tenant_ai_enabled = False if tenant is None else self._tenant_plan_ai_enabled(
+            tenant
+        )
+        if projected_tenant_ai is not None:
+            tenant_ai_enabled = projected_tenant_ai and tenant_ai_enabled
 
         effective_ai_enabled = (
             account_ai_enabled and leader_ai_enabled and tenant_ai_enabled
@@ -150,6 +157,7 @@ class AccountAIAccessService:
             .options(selectinload(Tenant.tenant_plan))
             .where(
                 Tenant.id == tenant_id,
+                Tenant.is_active.is_(True),
                 Tenant.is_deleted.is_(False),
             )
         )
@@ -225,6 +233,11 @@ class AccountAIAccessService:
 
     def _tenant_plan_ai_enabled(self, tenant: Tenant) -> bool:
         has_plan = getattr(tenant, "plan_id", None) is not None
+        if not bool(getattr(tenant, "is_active", False)):
+            return False
+        plan = getattr(tenant, "tenant_plan", None)
+        if not has_plan or plan is None or not getattr(plan, "is_active", False):
+            return False
         return QuotaService(self._db, tenant).get_feature("ai_enabled", has_plan)
 
     @staticmethod

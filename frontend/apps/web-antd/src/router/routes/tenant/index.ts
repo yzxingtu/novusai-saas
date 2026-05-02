@@ -65,6 +65,7 @@ const mainRoutes: RouteRecordRaw = {
       path: 'analytics',
       component: () => import('#/views/tenant/analytics/index.vue'),
       meta: {
+        accessCodes: ['ai_tenant_usage:summary'],
         icon: 'lucide:bar-chart-3',
         title: 'tenant.analytics.title',
       },

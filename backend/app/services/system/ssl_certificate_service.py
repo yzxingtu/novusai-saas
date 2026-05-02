@@ -66,7 +66,7 @@ class SslCertificateService(
             .options(selectinload(Tenant.tenant_plan))
         )
         tenant = result.scalar_one_or_none()
-        if tenant and not tenant.get_quota_value("allow_custom_ssl", False):
+        if not tenant or not tenant.get_quota_value("allow_custom_ssl", False):
             raise BusinessException(
                 message=_("ssl_certificate.custom_ssl_not_allowed"),
                 code=ErrorCode.FORBIDDEN,

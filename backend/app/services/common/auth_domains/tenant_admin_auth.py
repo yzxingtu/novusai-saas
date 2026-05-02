@@ -38,10 +38,17 @@ class AuthTenantAdminDomain:
             .options(selectinload(Tenant.tenant_plan))
         )
         tenant = tenant_result.scalar_one_or_none()
-        has_plan = tenant is not None and tenant.plan_id is not None
+        plan = tenant.tenant_plan if tenant is not None else None
+        has_plan = (
+            tenant is not None
+            and bool(getattr(tenant, "is_active", False))
+            and tenant.plan_id is not None
+            and plan is not None
+            and bool(getattr(plan, "is_active", False))
+        )
         plan_name = None
-        if has_plan and tenant and tenant.tenant_plan:
-            plan_name = tenant.tenant_plan.name
+        if has_plan and plan:
+            plan_name = plan.name
         return {"has_plan": has_plan, "plan_name": plan_name}
 
     async def issue_login_tokens(

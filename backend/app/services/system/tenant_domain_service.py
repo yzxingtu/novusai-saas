@@ -35,6 +35,7 @@ from app.repositories.system.tenant_domain_repository import TenantDomainReposit
 from app.repositories.tenant.tenant_domain_tenant_repository import (
     TenantDomainTenantRepository,
 )
+from app.services.tenant.quota_service import QuotaService
 
 _CONFIG_KEY_DOMAIN_SUFFIX = "tenant_domain_suffix"
 _CONFIG_KEY_VERIFICATION_PREFIX = "domain_verification_prefix"
@@ -102,12 +103,46 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
         if not tenant:
             return False, 0
 
-        allow_custom_domain = tenant.get_quota_value("allow_custom_domain", False)
-        if not allow_custom_domain:
+        quota_check = await QuotaService(self.db, tenant).check_domain_quota()
+        if not quota_check.allowed:
             return False, 0
 
-        max_custom_domains = tenant.get_quota_value("max_custom_domains", 0)
-        return True, max_custom_domains
+        return True, quota_check.limit
+
+    async def _is_default_domain(self, domain_obj: TenantDomain) -> bool:
+        suffix = await self._get_domain_suffix()
+        return domain_obj.domain.endswith(suffix)
+
+    async def ensure_custom_domain_entitled(
+        self,
+        tenant_id: int,
+        domain_obj: TenantDomain,
+    ) -> None:
+        """
+        Ensure custom-domain activation operations are still allowed by the plan.
+
+        Default tenant subdomains remain usable for cleanup and fallback flows. Custom
+        domains require an active plan with custom-domain entitlement at the moment an
+        operation activates, extends, or promotes them.
+        """
+        if await self._is_default_domain(domain_obj):
+            return
+
+        tenant = await self._get_tenant_with_plan(tenant_id)
+        if not tenant:
+            raise BusinessException(
+                message=_("tenant_domain.custom_domain_disabled"),
+                code=ErrorCode.FORBIDDEN,
+            )
+
+        quota_check = await QuotaService(self.db, tenant).check_domain_quota(
+            additional=0
+        )
+        if not quota_check.allowed:
+            raise BusinessException(
+                message=quota_check.message or _("tenant_domain.custom_domain_disabled"),
+                code=ErrorCode.FORBIDDEN,
+            )
 
     async def create_default_domain(
         self,
@@ -784,6 +819,24 @@ class TenantDomainTenantService(
         """企业端始终尝试自动签发 / Tenant side always attempts auto provisioning when DNS automation is ready."""
         return True
 
+    async def set_primary_domain(
+        self,
+        tenant_id: int,
+        domain_id: int,
+    ) -> TenantDomain:
+        domain = await self.get_by_id(domain_id)
+        if not domain or domain.tenant_id != tenant_id:
+            raise NotFoundException(message=_("tenant_domain.not_found"))
+        await self.ensure_custom_domain_entitled(tenant_id, domain)
+        return await super().set_primary_domain(tenant_id, domain_id)
+
+    async def start_ssl_provision(self, domain_id: int) -> TenantDomain:
+        domain = await self.get_by_id(domain_id)
+        if not domain or domain.tenant_id != self.tenant_id:
+            raise NotFoundException(message=_("tenant_domain.not_found"))
+        await self.ensure_custom_domain_entitled(self.tenant_id, domain)
+        return await super().start_ssl_provision(domain_id)
+
     async def verify_domain(self, domain_id: int) -> TenantDomain:
         """
         企业端域名验证 — 永远执行真实 DNS 验证，不受 DEBUG 模式影响 / Tenant domain verification: always real DNS, DEBUG does not bypass.
@@ -801,6 +854,8 @@ class TenantDomainTenantService(
                 message=_("tenant_domain.already_verified"),
                 code=ErrorCode.VALIDATION_ERROR,
             )
+
+        await self.ensure_custom_domain_entitled(self.tenant_id, domain)
 
         # 企业端始终执行真实 DNS 验证，不跳过
         is_valid = await self._verify_dns_txt_record(domain)
