@@ -362,6 +362,43 @@ async def test_execute_stream_chat_via_responses_emits_progress_before_text() ->
 
 
 @pytest.mark.asyncio
+async def test_execute_stream_chat_via_responses_marks_native_search_from_output_text_done_citation() -> (
+    None
+):
+    stream = _FakeResponsesStream(
+        [
+            SimpleNamespace(
+                type="response.output_text.done",
+                text="native answer with citation",
+                annotations=[
+                    SimpleNamespace(
+                        type="url_citation",
+                        url="https://example.com/source",
+                    )
+                ],
+                usage=SimpleNamespace(input_tokens=2, output_tokens=3, total_tokens=5),
+            ),
+        ]
+    )
+    adapter = _FakeAdapter(stream)
+
+    chunks: list[ChatChunk] = []
+    async for chunk in execute_stream_chat_via_responses(
+        adapter=adapter,
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-5.4",
+        request_params={"model": "gpt-5.4", "stream": True},
+        aclose_stream=lambda s: s.aclose(),
+    ):
+        chunks.append(chunk)
+
+    assert chunks[0].delta == "native answer with citation"
+    assert chunks[-1].finish_reason == "stop"
+    assert (chunks[-1].metadata or {}).get("native_web_search_observed") is True
+    assert stream.aclose_called is True
+
+
+@pytest.mark.asyncio
 async def test_execute_stream_chat_via_responses_completed_event_estimates_usage() -> (
     None
 ):
@@ -627,6 +664,40 @@ async def test_execute_stream_chat_via_responses_bounds_required_output_stall() 
 
 
 @pytest.mark.asyncio
+async def test_execute_stream_chat_via_responses_defaults_required_output_stall_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        responses_stream_protocol,
+        "_DEFAULT_RESPONSES_STREAM_CREATE_TIMEOUT_SECONDS",
+        0.01,
+    )
+    stream = _FakeResponsesStream([SimpleNamespace(type="response.in_progress")])
+    adapter = _SlowEventAdapter(stream)
+
+    with pytest.raises(
+        ProviderTimeoutError,
+        match="timed out before required tool or text output",
+    ) as exc:
+        async for _chunk in execute_stream_chat_via_responses(
+            adapter=adapter,
+            messages=[ChatMessage(role="user", content="hello")],
+            model="gpt-5.4",
+            request_params={
+                "model": "gpt-5.4",
+                "stream": True,
+                "tool_choice": "required",
+            },
+            aclose_stream=lambda s: s.aclose(),
+        ):
+            pass
+
+    assert exc.value.error_code == "responses_stream_required_output_timeout"
+    assert exc.value.status_code == 504
+    assert stream.aclose_called is True
+
+
+@pytest.mark.asyncio
 async def test_execute_stream_chat_via_responses_raises_typed_auth_from_failed_event() -> (
     None
 ):
@@ -659,6 +730,37 @@ async def test_execute_stream_chat_via_responses_raises_typed_auth_from_failed_e
 
     assert exc.value.error_code == "insufficient_quota"
     assert exc.value.status_code == 403
+    assert stream.aclose_called is True
+
+
+@pytest.mark.asyncio
+async def test_execute_stream_chat_via_responses_raises_typed_timeout_from_error_event() -> (
+    None
+):
+    stream = _FakeResponsesStream(
+        [
+            SimpleNamespace(
+                type="response.error",
+                error=SimpleNamespace(
+                    code="provider_timeout",
+                    message="hosted search error timed out",
+                    status_code=504,
+                ),
+            ),
+        ]
+    )
+    adapter = _FakeAdapter(stream)
+
+    with pytest.raises(ProviderTimeoutError, match="hosted search error timed out"):
+        async for _chunk in execute_stream_chat_via_responses(
+            adapter=adapter,
+            messages=[ChatMessage(role="user", content="hello")],
+            model="gpt-5.4",
+            request_params={"model": "gpt-5.4"},
+            aclose_stream=lambda s: s.aclose(),
+        ):
+            pass
+
     assert stream.aclose_called is True
 
 

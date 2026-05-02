@@ -106,12 +106,65 @@ _EXPLICIT_CALL_WEB_SEARCH_PHRASES = (
     "invoke web search tool",
     "invoke web search skill",
 )
+_RESEARCH_SUBJECT_PREFIX_PATTERN = re.compile(
+    r"(?:"
+    r"如何|怎么|怎样|"
+    r"how to|about how to|docs? about how to|documentation (?:about|for) how to|"
+    r"guide (?:about|to) how to|tutorial (?:about|on) how to|"
+    r"what is|what are|how does"
+    r")\s*$",
+)
+_RESEARCH_SUBJECT_SUFFIX_PATTERN = re.compile(
+    r"^\s*(?:"
+    r"有哪些|是什么|是啥|的最新|的资料|的文档|的教程|"
+    r"api(?:s)?\b|docs?\b|documentation\b|design\b"
+    r")",
+)
 
 
 def normalize_web_search_request_text(value: Any) -> str:
     """Normalize free-form user text for stable policy checks."""
 
     return " ".join(str(value or "").strip().lower().split())
+
+
+def _phrase_occurrence_is_research_subject(
+    normalized: str,
+    phrase: str,
+    start: int,
+) -> bool:
+    end = start + len(phrase)
+    before = normalized[max(0, start - 80) : start]
+    after = normalized[end : end + 40]
+    return bool(
+        _RESEARCH_SUBJECT_PREFIX_PATTERN.search(before)
+        or _RESEARCH_SUBJECT_SUFFIX_PATTERN.search(after)
+    )
+
+
+def _phrase_occurrence_is_embedded(normalized: str, phrase: str, start: int) -> bool:
+    if start <= 0:
+        return False
+    previous = normalized[start - 1]
+    return phrase.startswith("用") and previous in {"使", "调"}
+
+
+def _contains_explicit_phrase(normalized: str, phrases: tuple[str, ...]) -> bool:
+    for phrase in phrases:
+        start = normalized.find(phrase)
+        while start >= 0:
+            if not _phrase_occurrence_is_embedded(
+                normalized,
+                phrase,
+                start,
+            ) and not _phrase_occurrence_is_research_subject(
+                normalized,
+                phrase,
+                start,
+            ):
+                return True
+            start = normalized.find(phrase, start + 1)
+    return False
 
 
 def is_explicit_builtin_web_search_request(user_text: Any) -> bool:
@@ -129,13 +182,13 @@ def is_explicit_builtin_web_search_request(user_text: Any) -> bool:
     if _DIRECT_WEB_TOOL_PATTERN.search(normalized):
         return True
 
-    if any(phrase in normalized for phrase in _EXPLICIT_BUILTIN_WEB_SEARCH_PHRASES):
+    if _contains_explicit_phrase(normalized, _EXPLICIT_BUILTIN_WEB_SEARCH_PHRASES):
         return True
 
-    if any(phrase in normalized for phrase in _EXPLICIT_USE_WEB_SEARCH_PHRASES):
+    if _contains_explicit_phrase(normalized, _EXPLICIT_USE_WEB_SEARCH_PHRASES):
         return True
 
-    if any(phrase in normalized for phrase in _EXPLICIT_CALL_WEB_SEARCH_PHRASES):
+    if _contains_explicit_phrase(normalized, _EXPLICIT_CALL_WEB_SEARCH_PHRASES):
         return True
 
     mentions_search = any(term in normalized for term in _WEB_SEARCH_TERMS)

@@ -20,6 +20,25 @@ def test_generic_search_about_tools_still_prefers_native_path() -> None:
         )
         is False
     )
+    assert (
+        is_explicit_builtin_web_search_request(
+            "联网搜索如何使用搜索工具的最新资料",
+        )
+        is False
+    )
+    assert is_explicit_builtin_web_search_request("搜索如何调用搜索工具") is False
+    assert (
+        is_explicit_builtin_web_search_request(
+            "search latest docs about how to use search tool APIs",
+        )
+        is False
+    )
+    assert (
+        is_explicit_builtin_web_search_request(
+            "search how to call web search tool from Responses API",
+        )
+        is False
+    )
 
 
 def test_direct_tool_names_require_token_boundary() -> None:

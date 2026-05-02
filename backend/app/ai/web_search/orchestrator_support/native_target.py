@@ -6,6 +6,8 @@ from typing import TYPE_CHECKING
 
 from redis.exceptions import RedisError
 
+from app.ai.adapters.openai_compatible.capabilities import OpenAIProtocolCapabilities
+from app.ai.exceptions import ProviderError
 from app.ai.failover import HEALTH_KEY_PREFIX
 from app.ai.web_search.orchestrator_support.provider_selector import (
     is_native_runtime_readiness_candidate as _support_is_native_runtime_readiness_candidate,
@@ -44,6 +46,34 @@ def _parse_health_checked_at(value: object) -> datetime | None:
     return parsed.astimezone(timezone.utc)
 
 
+def _provider_config(provider: AIProvider | None) -> dict:
+    raw_config = getattr(provider, "config", None) if provider is not None else None
+    return dict(raw_config or {}) if isinstance(raw_config, dict) else {}
+
+
+def _check_native_protocol_config(provider: AIProvider | None) -> tuple[bool, str]:
+    provider_config = _provider_config(provider)
+    web_search_config = provider_config.get("web_search")
+    if (
+        isinstance(web_search_config, dict)
+        and web_search_config.get("enabled") is False
+    ):
+        return False, "provider_web_search_disabled"
+    try:
+        capabilities = OpenAIProtocolCapabilities.from_provider_config(
+            provider_config=provider_config,
+            configured_wire_api=provider_config.get("wire_api"),
+        )
+    except ProviderError as exc:
+        return False, f"provider_protocol_capabilities_invalid:{exc.error_code}"
+    if not capabilities.supports_wire_api("responses"):
+        allowed = (
+            ",".join(capabilities.allowed_wire_apis) or capabilities.primary_wire_api
+        )
+        return False, f"provider_responses_wire_api_unsupported:{allowed}"
+    return True, "provider_responses_wire_api_supported"
+
+
 async def is_health_ready_native_candidate(
     provider: AIProvider | None,
     *,
@@ -56,11 +86,7 @@ async def is_health_ready_native_candidate(
     if provider_id <= 0:
         return False, "provider_health_missing"
 
-    provider_config = (
-        dict(getattr(provider, "config", {}) or {})
-        if isinstance(getattr(provider, "config", None), dict)
-        else {}
-    )
+    provider_config = _provider_config(provider)
     wire_api = normalize_wire_api(provider_config.get("wire_api"))
     if wire_api != "responses":
         return False, f"provider_health_wire_api_mismatch:{wire_api or 'unknown'}"
@@ -110,18 +136,23 @@ async def check_native_runtime_readiness(
     *,
     model_code: str,
 ) -> tuple[bool, str]:
+    if provider is None:
+        return False, "runtime_provider_missing"
+
+    provider_type = str(getattr(provider, "type", "") or "").strip().lower()
+    if provider_type != "openai_compatible":
+        return False, f"provider_type_native_denied:{provider_type or 'unknown'}"
+
+    config_ready, config_reason = _check_native_protocol_config(provider)
+    if not config_ready:
+        return False, config_reason
+
     is_ready, readiness_reason = _support_is_native_runtime_readiness_candidate(
         provider,
         trusted_hosts=_TRUSTED_OPENAI_COMPATIBLE_HOSTS,
     )
     if is_ready:
         return True, readiness_reason
-    if provider is None:
-        return is_ready, readiness_reason
-
-    provider_type = str(getattr(provider, "type", "") or "").strip().lower()
-    if provider_type != "openai_compatible":
-        return False, readiness_reason
 
     health_ready, health_reason = await is_health_ready_native_candidate(
         provider,
@@ -254,9 +285,7 @@ async def resolve_native_readiness_target(
         return None, None, None, reason
 
     if runtime_readiness_reason:
-        reason = (
-            f"{default_reason or 'default_native_readiness_target_unavailable'}:{runtime_readiness_reason}"
-        )
+        reason = f"{default_reason or 'default_native_readiness_target_unavailable'}:{runtime_readiness_reason}"
         return (
             None,
             None,
@@ -264,7 +293,12 @@ async def resolve_native_readiness_target(
             reason,
         )
 
-    return None, None, None, default_reason or "default_native_readiness_target_unavailable"
+    return (
+        None,
+        None,
+        None,
+        default_reason or "default_native_readiness_target_unavailable",
+    )
 
 
 __all__ = [

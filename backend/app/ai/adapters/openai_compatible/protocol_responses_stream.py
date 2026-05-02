@@ -243,6 +243,19 @@ def _positive_int(value: Any) -> int:
         return 0
 
 
+def _has_url_citation_annotations(value: Any) -> bool:
+    for annotation in _response_field(value, "annotations", []) or []:
+        if str(_response_field(annotation, "type", "") or "").strip() != (
+            "url_citation"
+        ):
+            continue
+        if str(_response_field(annotation, "url", "") or "").startswith(
+            ("http://", "https://")
+        ):
+            return True
+    return False
+
+
 def _extract_output_item_text(item: Any) -> str:
     parts: list[str] = []
     for content in _response_field(item, "content", []) or []:
@@ -255,12 +268,24 @@ def _extract_output_item_text(item: Any) -> str:
 
 
 def _has_native_web_search_evidence(response: Any) -> bool:
+    if response is None:
+        return False
     tool_usage = _response_field(response, "tool_usage")
     web_search_usage = _response_field(tool_usage, "web_search")
     if _positive_int(_response_field(web_search_usage, "num_requests")) > 0:
         return True
 
-    for item in _response_field(response, "output", []) or []:
+    response_type = str(_response_field(response, "type", "") or "").strip()
+    if response_type == "web_search_call":
+        return True
+    if _has_url_citation_annotations(response):
+        return True
+    if response_type == "message":
+        items = [response]
+    else:
+        items = list(_response_field(response, "output", []) or [])
+
+    for item in items:
         item_type = str(_response_field(item, "type", "") or "").strip()
         if item_type == "web_search_call":
             return True
@@ -269,13 +294,8 @@ def _has_native_web_search_evidence(response: Any) -> bool:
         for content in _response_field(item, "content", []) or []:
             if str(_response_field(content, "type", "") or "").strip() != "output_text":
                 continue
-            for annotation in _response_field(content, "annotations", []) or []:
-                if str(
-                    _response_field(annotation, "type", "") or ""
-                ).strip() == "url_citation" and str(
-                    _response_field(annotation, "url", "") or ""
-                ).startswith(("http://", "https://")):
-                    return True
+            if _has_url_citation_annotations(content):
+                return True
     return False
 
 
@@ -364,6 +384,8 @@ async def execute_stream_chat_via_responses(
     stream_timeout_seconds = adapter._normalize_timeout_seconds(
         request_params.get("timeout")
     )
+    if stream_timeout_seconds is None and request_params.get("stream") is True:
+        stream_timeout_seconds = _DEFAULT_RESPONSES_STREAM_CREATE_TIMEOUT_SECONDS
     adapter._log_upstream_request(
         endpoint_path="responses",
         model=effective_model,
@@ -474,7 +496,13 @@ async def execute_stream_chat_via_responses(
                         "protocol_path": "responses",
                         "responses_response_id": response_id,
                         "usage_mode": usage_mode,
-                        "native_web_search_observed": saw_native_web_search,
+                        "native_web_search_observed": bool(
+                            saw_native_web_search
+                            or _has_native_web_search_evidence(event)
+                            or _has_native_web_search_evidence(
+                                getattr(event, "response", None)
+                            )
+                        ),
                     },
                 )
                 logger.info(
@@ -560,6 +588,8 @@ async def execute_stream_chat_via_responses(
                     raise_if_required_output_stalled()
                     continue
                 if item_type == "message":
+                    if _has_native_web_search_evidence(item):
+                        saw_native_web_search = True
                     text = _extract_output_item_text(item)
                     if text and not emitted_text:
                         collected_text += text

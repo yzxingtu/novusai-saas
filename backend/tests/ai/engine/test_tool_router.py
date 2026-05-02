@@ -149,6 +149,28 @@ def test_tool_router_search_tool_as_research_subject_prefers_native_search() -> 
     assert intent.metadata["native_search_preferred"] is True
 
 
+def test_tool_router_search_tool_howto_subject_prefers_native_search() -> None:
+    intent = _intent("web_research", "web_research")
+
+    decision = ToolRouter.route(
+        intents=[intent],
+        tools=[
+            ToolDefinition(name="web_search"),
+            ToolDefinition(name="fetch_url"),
+        ],
+        budget=_budget(),
+        input_variables={},
+        user_text="联网搜索如何使用搜索工具的最新资料",
+    )
+
+    assert decision.candidate_tool_names() == []
+    assert decision.intent_allowed_tools["intent-web_research"] == [
+        "web_search",
+        "fetch_url",
+    ]
+    assert intent.metadata["native_search_preferred"] is True
+
+
 def test_tool_router_explicit_builtin_search_request_uses_web_tools() -> None:
     intent = _intent("web_research", "web_research")
 

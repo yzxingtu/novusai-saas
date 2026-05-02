@@ -102,7 +102,9 @@ def _make_run(
         status=status,
         items=list(items or []),
         failure_reason=failure_reason,
-        attempted_backends=list(attempted_backends or ([backend_key] if backend_key else [])),
+        attempted_backends=list(
+            attempted_backends or ([backend_key] if backend_key else [])
+        ),
         cache_hit=cache_hit,
         native_attempted=native_attempted,
     )
@@ -121,7 +123,9 @@ def test_skill_resolver_injects_baseline_web_research_tools() -> None:
 
 
 @pytest.mark.asyncio
-async def test_skill_resolver_does_not_resolve_runtime_builtins_from_db_skills() -> None:
+async def test_skill_resolver_does_not_resolve_runtime_builtins_from_db_skills() -> (
+    None
+):
     package = SimpleNamespace(
         id=100,
         name="legacy.runtime",
@@ -167,7 +171,10 @@ async def test_skill_resolver_does_not_resolve_runtime_builtins_from_db_skills()
         ]
     )
 
-    assert [tool.name for tool in result.tools] == ["custom_builtin_tool"]
+    assert [tool.name for tool in result.tools] == [
+        "crm_lookup",
+        "custom_builtin_tool",
+    ]
 
 
 @pytest.mark.asyncio
@@ -202,18 +209,22 @@ async def test_native_model_search_provider_routes_through_gateway() -> None:
         items=[_make_item()],
     )
 
-    with patch.object(
-        ws_orchestrator,
-        "AIProviderRepository",
-        return_value=provider_repo,
-    ), patch.object(
-        ws_orchestrator,
-        "AIModelRepository",
-        return_value=model_repo,
-    ), patch.object(
-        ws_orchestrator,
-        "AIGateway",
-        return_value=gateway,
+    with (
+        patch.object(
+            ws_orchestrator,
+            "AIProviderRepository",
+            return_value=provider_repo,
+        ),
+        patch.object(
+            ws_orchestrator,
+            "AIModelRepository",
+            return_value=model_repo,
+        ),
+        patch.object(
+            ws_orchestrator,
+            "AIGateway",
+            return_value=gateway,
+        ),
     ):
         run = await NativeModelSearchProvider().search(
             query="OpenAI",
@@ -247,15 +258,18 @@ async def test_orchestrator_prefers_native_success_without_public_fallback() -> 
         items=[_make_item()],
     )
 
-    with patch.object(
-        NativeModelSearchProvider,
-        "search",
-        AsyncMock(return_value=native_run),
-    ), patch.object(
-        PublicHtmlSearchProvider,
-        "search",
-        AsyncMock(),
-    ) as public_search:
+    with (
+        patch.object(
+            NativeModelSearchProvider,
+            "search",
+            AsyncMock(return_value=native_run),
+        ),
+        patch.object(
+            PublicHtmlSearchProvider,
+            "search",
+            AsyncMock(),
+        ) as public_search,
+    ):
         execution = await orchestrator.search(
             query="OpenAI",
             max_results=5,
@@ -273,7 +287,9 @@ async def test_orchestrator_prefers_native_success_without_public_fallback() -> 
 
 
 @pytest.mark.asyncio
-async def test_orchestrator_falls_back_from_unsupported_native_to_public_success() -> None:
+async def test_orchestrator_falls_back_from_unsupported_native_to_public_success() -> (
+    None
+):
     orchestrator = WebSearchOrchestrator()
     native_run = _make_run(
         status=STATUS_UNSUPPORTED,
@@ -297,14 +313,17 @@ async def test_orchestrator_falls_back_from_unsupported_native_to_public_success
         attempted_backends=["public:baidu"],
     )
 
-    with patch.object(
-        NativeModelSearchProvider,
-        "search",
-        AsyncMock(return_value=native_run),
-    ), patch.object(
-        PublicHtmlSearchProvider,
-        "search",
-        AsyncMock(return_value=public_run),
+    with (
+        patch.object(
+            NativeModelSearchProvider,
+            "search",
+            AsyncMock(return_value=native_run),
+        ),
+        patch.object(
+            PublicHtmlSearchProvider,
+            "search",
+            AsyncMock(return_value=public_run),
+        ),
     ):
         execution = await orchestrator.search(
             query="OpenAI",
@@ -343,14 +362,17 @@ async def test_orchestrator_returns_public_no_results_after_native_timeout() -> 
         failure_reason="public:baidu returned no results",
     )
 
-    with patch.object(
-        NativeModelSearchProvider,
-        "search",
-        AsyncMock(return_value=native_run),
-    ), patch.object(
-        PublicHtmlSearchProvider,
-        "search",
-        AsyncMock(return_value=public_run),
+    with (
+        patch.object(
+            NativeModelSearchProvider,
+            "search",
+            AsyncMock(return_value=native_run),
+        ),
+        patch.object(
+            PublicHtmlSearchProvider,
+            "search",
+            AsyncMock(return_value=public_run),
+        ),
     ):
         execution = await orchestrator.search(
             query="OpenAI",
@@ -391,15 +413,18 @@ async def test_orchestrator_clamps_public_timeout_to_remaining_tool_budget() -> 
     context = _make_context()
     context.tool_deadline_monotonic = time.perf_counter() + 7.4
 
-    with patch.object(
-        NativeModelSearchProvider,
-        "search",
-        AsyncMock(return_value=native_run),
-    ), patch.object(
-        PublicHtmlSearchProvider,
-        "search",
-        AsyncMock(return_value=public_run),
-    ) as public_search:
+    with (
+        patch.object(
+            NativeModelSearchProvider,
+            "search",
+            AsyncMock(return_value=native_run),
+        ),
+        patch.object(
+            PublicHtmlSearchProvider,
+            "search",
+            AsyncMock(return_value=public_run),
+        ) as public_search,
+    ):
         execution = await orchestrator.search(
             query="OpenAI",
             max_results=5,
@@ -430,14 +455,17 @@ async def test_orchestrator_surfaces_public_failure_when_all_backends_fail() -> 
         attempted_backends=["public:baidu"],
     )
 
-    with patch.object(
-        NativeModelSearchProvider,
-        "search",
-        AsyncMock(return_value=native_run),
-    ), patch.object(
-        PublicHtmlSearchProvider,
-        "search",
-        AsyncMock(return_value=public_run),
+    with (
+        patch.object(
+            NativeModelSearchProvider,
+            "search",
+            AsyncMock(return_value=native_run),
+        ),
+        patch.object(
+            PublicHtmlSearchProvider,
+            "search",
+            AsyncMock(return_value=public_run),
+        ),
     ):
         execution = await orchestrator.search(
             query="OpenAI",
@@ -482,15 +510,18 @@ async def test_orchestrator_falls_back_to_public_when_native_not_attempted() -> 
         ],
     )
 
-    with patch.object(
-        NativeModelSearchProvider,
-        "search",
-        AsyncMock(return_value=native_run),
-    ), patch.object(
-        PublicHtmlSearchProvider,
-        "search",
-        AsyncMock(return_value=public_run),
-    ) as public_search:
+    with (
+        patch.object(
+            NativeModelSearchProvider,
+            "search",
+            AsyncMock(return_value=native_run),
+        ),
+        patch.object(
+            PublicHtmlSearchProvider,
+            "search",
+            AsyncMock(return_value=public_run),
+        ) as public_search,
+    ):
         execution = await orchestrator.search(
             query="OpenAI",
             max_results=5,
@@ -508,7 +539,9 @@ async def test_orchestrator_falls_back_to_public_when_native_not_attempted() -> 
 
 
 @pytest.mark.asyncio
-async def test_orchestrator_ignores_legacy_explicit_verified_native_target_config() -> None:
+async def test_orchestrator_ignores_legacy_explicit_verified_native_target_config() -> (
+    None
+):
     orchestrator = WebSearchOrchestrator()
     runtime_provider = SimpleNamespace(
         id=11,
@@ -534,7 +567,7 @@ async def test_orchestrator_ignores_legacy_explicit_verified_native_target_confi
         code="openai",
         type="openai_compatible",
         base_url="https://api.openai.com/v1",
-        config={},
+        config={"wire_api": "responses"},
     )
     ready_model = SimpleNamespace(id=222, provider_id=12, code="gpt-5.4")
     context = SimpleNamespace(
@@ -561,19 +594,23 @@ async def test_orchestrator_ignores_legacy_explicit_verified_native_target_confi
         native_attempted=True,
     )
 
-    with patch.object(
-        ws_orchestrator,
-        "AIProviderRepository",
-        return_value=provider_repo,
-    ), patch.object(
-        ws_orchestrator,
-        "AIModelRepository",
-        return_value=model_repo,
-    ), patch.object(
-        NativeModelSearchProvider,
-        "search",
-        AsyncMock(return_value=native_run),
-    ) as native_search:
+    with (
+        patch.object(
+            ws_orchestrator,
+            "AIProviderRepository",
+            return_value=provider_repo,
+        ),
+        patch.object(
+            ws_orchestrator,
+            "AIModelRepository",
+            return_value=model_repo,
+        ),
+        patch.object(
+            NativeModelSearchProvider,
+            "search",
+            AsyncMock(return_value=native_run),
+        ) as native_search,
+    ):
         execution = await orchestrator.search(
             query="OpenAI",
             max_results=5,
@@ -590,7 +627,9 @@ async def test_orchestrator_ignores_legacy_explicit_verified_native_target_confi
 
 
 @pytest.mark.asyncio
-async def test_orchestrator_uses_default_native_readiness_target_when_runtime_provider_is_untrusted() -> None:
+async def test_orchestrator_uses_default_native_readiness_target_when_runtime_provider_is_untrusted() -> (
+    None
+):
     orchestrator = WebSearchOrchestrator()
     runtime_provider = SimpleNamespace(
         id=11,
@@ -599,9 +638,10 @@ async def test_orchestrator_uses_default_native_readiness_target_when_runtime_pr
         type="openai_compatible",
         base_url="https://api.asxs.top/v1",
         config={
+            "wire_api": "responses",
             "web_search": {
                 "enabled": True,
-            }
+            },
         },
     )
     runtime_model = SimpleNamespace(id=111, provider_id=11, code="gpt-5.4")
@@ -611,7 +651,7 @@ async def test_orchestrator_uses_default_native_readiness_target_when_runtime_pr
         code="openai",
         type="openai_compatible",
         base_url="https://api.openai.com/v1",
-        config={},
+        config={"wire_api": "responses"},
     )
     ready_model = SimpleNamespace(id=222, provider_id=12, code="gpt-5.4")
     context = SimpleNamespace(
@@ -634,7 +674,9 @@ async def test_orchestrator_uses_default_native_readiness_target_when_runtime_pr
             return ready_model
         return None
 
-    model_repo.get_active_by_code_and_provider.side_effect = get_active_by_code_and_provider
+    model_repo.get_active_by_code_and_provider.side_effect = (
+        get_active_by_code_and_provider
+    )
     native_run = _make_run(
         status=STATUS_SUCCESS,
         provider="openai",
@@ -644,19 +686,23 @@ async def test_orchestrator_uses_default_native_readiness_target_when_runtime_pr
         native_attempted=True,
     )
 
-    with patch.object(
-        ws_orchestrator,
-        "AIProviderRepository",
-        return_value=provider_repo,
-    ), patch.object(
-        ws_orchestrator,
-        "AIModelRepository",
-        return_value=model_repo,
-    ), patch.object(
-        NativeModelSearchProvider,
-        "search",
-        AsyncMock(return_value=native_run),
-    ) as native_search:
+    with (
+        patch.object(
+            ws_orchestrator,
+            "AIProviderRepository",
+            return_value=provider_repo,
+        ),
+        patch.object(
+            ws_orchestrator,
+            "AIModelRepository",
+            return_value=model_repo,
+        ),
+        patch.object(
+            NativeModelSearchProvider,
+            "search",
+            AsyncMock(return_value=native_run),
+        ) as native_search,
+    ):
         execution = await orchestrator.search(
             query="OpenAI",
             max_results=5,
@@ -671,7 +717,9 @@ async def test_orchestrator_uses_default_native_readiness_target_when_runtime_pr
 
 
 @pytest.mark.asyncio
-async def test_orchestrator_falls_back_public_when_only_untrusted_runtime_candidate_exists() -> None:
+async def test_orchestrator_falls_back_public_when_only_untrusted_runtime_candidate_exists() -> (
+    None
+):
     orchestrator = WebSearchOrchestrator()
     runtime_provider = SimpleNamespace(
         id=11,
@@ -680,9 +728,10 @@ async def test_orchestrator_falls_back_public_when_only_untrusted_runtime_candid
         type="openai_compatible",
         base_url="https://api.asxs.top/v1",
         config={
+            "wire_api": "responses",
             "web_search": {
                 "enabled": True,
-            }
+            },
         },
     )
     runtime_model = SimpleNamespace(id=111, provider_id=11, code="gpt-5.4")
@@ -715,23 +764,28 @@ async def test_orchestrator_falls_back_public_when_only_untrusted_runtime_candid
         ],
     )
 
-    with patch.object(
-        ws_orchestrator,
-        "AIProviderRepository",
-        return_value=provider_repo,
-    ), patch.object(
-        ws_orchestrator,
-        "AIModelRepository",
-        return_value=model_repo,
-    ), patch.object(
-        NativeModelSearchProvider,
-        "search",
-        AsyncMock(),
-    ) as native_search, patch.object(
-        PublicHtmlSearchProvider,
-        "search",
-        AsyncMock(return_value=public_run),
-    ) as public_search:
+    with (
+        patch.object(
+            ws_orchestrator,
+            "AIProviderRepository",
+            return_value=provider_repo,
+        ),
+        patch.object(
+            ws_orchestrator,
+            "AIModelRepository",
+            return_value=model_repo,
+        ),
+        patch.object(
+            NativeModelSearchProvider,
+            "search",
+            AsyncMock(),
+        ) as native_search,
+        patch.object(
+            PublicHtmlSearchProvider,
+            "search",
+            AsyncMock(return_value=public_run),
+        ) as public_search,
+    ):
         execution = await orchestrator.search(
             query="OpenAI",
             max_results=5,
@@ -752,14 +806,16 @@ async def test_orchestrator_falls_back_public_when_only_untrusted_runtime_candid
 
 
 @pytest.mark.asyncio
-async def test_resolve_native_readiness_target_rejects_untrusted_runtime_without_override() -> None:
+async def test_resolve_native_readiness_target_rejects_untrusted_runtime_without_override() -> (
+    None
+):
     runtime_provider = SimpleNamespace(
         id=11,
         is_active=True,
         code="provider_1",
         type="openai_compatible",
         base_url="https://api.asxs.top/v1",
-        config={},
+        config={"wire_api": "responses"},
     )
     runtime_model = SimpleNamespace(id=111, provider_id=11, code="gpt-5.4")
     provider_repo = AsyncMock()
@@ -855,27 +911,33 @@ async def test_orchestrator_uses_health_ready_untrusted_runtime_candidate() -> N
         native_attempted=True,
     )
 
-    with patch.object(
-        ws_orchestrator,
-        "AIProviderRepository",
-        return_value=provider_repo,
-    ), patch.object(
-        ws_orchestrator,
-        "AIModelRepository",
-        return_value=model_repo,
-    ), patch.object(
-        ws_orchestrator,
-        "get_redis",
-        AsyncMock(return_value=redis_client),
-    ), patch.object(
-        NativeModelSearchProvider,
-        "search",
-        AsyncMock(return_value=native_run),
-    ) as native_search, patch.object(
-        PublicHtmlSearchProvider,
-        "search",
-        AsyncMock(),
-    ) as public_search:
+    with (
+        patch.object(
+            ws_orchestrator,
+            "AIProviderRepository",
+            return_value=provider_repo,
+        ),
+        patch.object(
+            ws_orchestrator,
+            "AIModelRepository",
+            return_value=model_repo,
+        ),
+        patch.object(
+            ws_orchestrator,
+            "get_redis",
+            AsyncMock(return_value=redis_client),
+        ),
+        patch.object(
+            NativeModelSearchProvider,
+            "search",
+            AsyncMock(return_value=native_run),
+        ) as native_search,
+        patch.object(
+            PublicHtmlSearchProvider,
+            "search",
+            AsyncMock(),
+        ) as public_search,
+    ):
         execution = await orchestrator.search(
             query="OpenAI",
             max_results=5,
@@ -901,14 +963,17 @@ async def test_orchestrator_marks_duplicate_queries_with_fetch_guidance() -> Non
         items=[_make_item()],
     )
 
-    with patch.object(
-        NativeModelSearchProvider,
-        "search",
-        AsyncMock(return_value=native_run),
-    ), patch.object(
-        PublicHtmlSearchProvider,
-        "search",
-        AsyncMock(),
+    with (
+        patch.object(
+            NativeModelSearchProvider,
+            "search",
+            AsyncMock(return_value=native_run),
+        ),
+        patch.object(
+            PublicHtmlSearchProvider,
+            "search",
+            AsyncMock(),
+        ),
     ):
         first = await orchestrator.search(
             query="OpenAI",
@@ -950,23 +1015,28 @@ async def test_orchestrator_disables_invalid_provider_web_search_config() -> Non
     model_repo.get_active_with_provider.return_value = model
     orchestrator = WebSearchOrchestrator()
 
-    with patch.object(
-        ws_orchestrator,
-        "AIProviderRepository",
-        return_value=provider_repo,
-    ), patch.object(
-        ws_orchestrator,
-        "AIModelRepository",
-        return_value=model_repo,
-    ), patch.object(
-        NativeModelSearchProvider,
-        "search",
-        AsyncMock(),
-    ) as native_search, patch.object(
-        PublicHtmlSearchProvider,
-        "search",
-        AsyncMock(),
-    ) as public_search:
+    with (
+        patch.object(
+            ws_orchestrator,
+            "AIProviderRepository",
+            return_value=provider_repo,
+        ),
+        patch.object(
+            ws_orchestrator,
+            "AIModelRepository",
+            return_value=model_repo,
+        ),
+        patch.object(
+            NativeModelSearchProvider,
+            "search",
+            AsyncMock(),
+        ) as native_search,
+        patch.object(
+            PublicHtmlSearchProvider,
+            "search",
+            AsyncMock(),
+        ) as public_search,
+    ):
         execution = await orchestrator.search(
             query="OpenAI",
             max_results=5,
@@ -984,7 +1054,9 @@ async def test_public_html_cache_key_isolated_by_locale_runtime_and_strategy() -
     calls: list[tuple[str, str | None, str | None, str | None, str | None]] = []
 
     async def fake_baidu(query: str, max_results: int, *, timeout_seconds: int):  # noqa: ARG001
-        calls.append((query, current_strategy, current_provider, current_model, current_locale))
+        calls.append(
+            (query, current_strategy, current_provider, current_model, current_locale)
+        )
         return public_html._HtmlSearchAttempt(
             backend_key="public:baidu",
             status=STATUS_SUCCESS,
@@ -1132,7 +1204,9 @@ async def test_public_html_cooldown_does_not_block_other_backends() -> None:
 
 
 @pytest.mark.asyncio
-async def test_public_html_search_applies_timeout_budget_to_baidu_only_backend() -> None:
+async def test_public_html_search_applies_timeout_budget_to_baidu_only_backend() -> (
+    None
+):
     observed_timeouts: list[tuple[str, float]] = []
 
     async def fake_baidu(
