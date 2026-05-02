@@ -1,3 +1,9 @@
+"""
+Test type: structural
+Scope: OpenAI-compatible protocol runtime-context kwarg normalization.
+Mocked dependencies: local adapter stub only; runtime-context logic runs real.
+"""
+
 from __future__ import annotations
 
 from types import SimpleNamespace
@@ -106,6 +112,30 @@ def test_prepare_protocol_execution_context_maps_non_stream_timeout_seconds_to_t
     assert context["kwargs"]["tenant_id"] == 9
     assert context["kwargs"]["timeout"] == 7.0
     assert "timeout_seconds" not in context["kwargs"]
+
+
+def test_prepare_protocol_execution_context_bounds_non_stream_hosted_search_timeout() -> (
+    None
+):
+    adapter = _RuntimeContextAdapterStub()
+
+    context = prepare_protocol_execution_context(
+        adapter=adapter,
+        wire_api="responses",
+        model="gpt-5.4",
+        stream=False,
+        kwargs={
+            ProtocolGuardContract.RUNTIME_DISABLE_CROSS_PROTOCOL_FALLBACK: True,
+            ProtocolGuardContract.RUNTIME_DISABLE_SYNC_RESCUE: True,
+            "_runtime_hosted_web_search_required": True,
+            "tenant_id": 9,
+        },
+        default_stream_timeout_seconds=20.0,
+    )
+
+    assert context["kwargs"]["tenant_id"] == 9
+    assert context["kwargs"]["_runtime_hosted_web_search_required"] is True
+    assert context["kwargs"]["timeout"] == 20.0
 
 
 @pytest.mark.parametrize(

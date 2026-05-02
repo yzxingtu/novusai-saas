@@ -351,7 +351,7 @@ def plan_execution_tools(
             native_search_preferred = bool(
                 (active_intent.metadata or {}).get("native_search_preferred")
             )
-            if native_search_preferred and not tool_candidates:
+            if native_search_preferred:
                 fallback_names = list(
                     active_intent.allowed_tool_names
                     or (active_intent.metadata or {}).get("fallback_tool_names")

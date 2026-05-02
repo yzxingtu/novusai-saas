@@ -2,16 +2,29 @@
 
 from __future__ import annotations
 
+import asyncio
+import inspect
 from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import Any, Protocol
 
 from app.ai.adapters.openai_compatible.support.client_options import (
     with_client_retry_override,
 )
+from app.ai.exceptions import (
+    AIGatewayError,
+    ProviderAuthError,
+    ProviderConnectionError,
+    ProviderError,
+    ProviderRateLimitError,
+    ProviderTimeoutError,
+)
 from app.ai.types import ChatChunk, ChatMessage
 from app.core.logging import LogManager
 
 logger = LogManager.get_logger("ai")
+_DEFAULT_RESPONSES_STREAM_CREATE_TIMEOUT_SECONDS = 20.0
+_TIMEOUT_MARKERS = ("timeout", "timed_out", "time_out", "deadline")
+_CONNECTION_MARKERS = ("connection", "connect", "network", "socket")
 
 
 class ResponsesStreamAdapterProtocol(Protocol):
@@ -93,6 +106,143 @@ def _response_field(value: Any, field_name: str, default: Any = None) -> Any:
     return getattr(value, field_name, default)
 
 
+def _response_status_code(value: Any) -> int | None:
+    raw_status = (
+        _response_field(value, "status_code")
+        or _response_field(value, "status")
+        or _response_field(value, "http_status")
+    )
+    try:
+        return int(raw_status) if raw_status is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _response_error_code(value: Any) -> str:
+    return str(
+        _response_field(value, "code")
+        or _response_field(value, "type")
+        or _response_field(value, "error_code")
+        or ""
+    ).strip()
+
+
+def _response_error_message(value: Any, *, fallback: str) -> str:
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    message = str(
+        _response_field(value, "message")
+        or _response_field(value, "detail")
+        or _response_field(value, "reason")
+        or fallback
+    ).strip()
+    return message or fallback
+
+
+def _responses_provider_error(
+    error_obj: Any,
+    *,
+    model: str,
+    fallback: str,
+) -> AIGatewayError:
+    status_code = _response_status_code(error_obj)
+    error_code = _response_error_code(error_obj)
+    message = _response_error_message(error_obj, fallback=fallback)
+    haystack = " ".join((error_code, message)).lower()
+    kwargs = {
+        "provider_code": "openai",
+        "model_code": model,
+        "error_code": error_code or (str(status_code) if status_code else None),
+        "status_code": status_code,
+    }
+
+    if status_code == 429:
+        return ProviderRateLimitError(message, **kwargs)
+    if status_code in {401, 403}:
+        return ProviderAuthError(message, **kwargs)
+    if status_code in {408, 504} or any(
+        marker in haystack for marker in _TIMEOUT_MARKERS
+    ):
+        return ProviderTimeoutError(message, **kwargs)
+    if any(marker in haystack for marker in _CONNECTION_MARKERS):
+        return ProviderConnectionError(message, **kwargs)
+    return ProviderError(message, **kwargs)
+
+
+def _responses_stream_event_error(
+    event: Any,
+    *,
+    event_type: str,
+    model: str,
+) -> AIGatewayError:
+    error_obj = _response_field(event, "error")
+    response = _response_field(event, "response")
+    if error_obj is None:
+        error_obj = _response_field(response, "error")
+    fallback = f"Responses stream returned {event_type}"
+    return _responses_provider_error(
+        error_obj or {"message": fallback, "code": event_type},
+        model=model,
+        fallback=fallback,
+    )
+
+
+def _effective_create_timeout_seconds(
+    request_params: dict[str, Any],
+    timeout_seconds: float | None,
+) -> float | None:
+    if timeout_seconds is not None:
+        return timeout_seconds
+    if request_params.get("stream") is True:
+        return _DEFAULT_RESPONSES_STREAM_CREATE_TIMEOUT_SECONDS
+    return None
+
+
+async def _create_responses_stream_with_timeout(
+    client: Any,
+    request_params: dict[str, Any],
+    *,
+    timeout_seconds: float | None,
+    model: str,
+) -> Any:
+    create = client.responses.create
+    effective_timeout_seconds = _effective_create_timeout_seconds(
+        request_params,
+        timeout_seconds,
+    )
+
+    async def invoke_create() -> Any:
+        if inspect.iscoroutinefunction(create):
+            return await create(**request_params)
+        result = await asyncio.to_thread(create, **request_params)
+        if inspect.isawaitable(result):
+            return await result
+        return result
+
+    if effective_timeout_seconds is None:
+        return await invoke_create()
+    try:
+        return await asyncio.wait_for(
+            invoke_create(),
+            timeout=effective_timeout_seconds,
+        )
+    except TimeoutError as exc:
+        raise ProviderTimeoutError(
+            "Responses stream request timed out before returning a stream",
+            provider_code="openai",
+            model_code=model,
+            error_code="responses_stream_create_timeout",
+            status_code=504,
+        ) from exc
+
+
+def _positive_int(value: Any) -> int:
+    try:
+        return max(0, int(value or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
 def _extract_output_item_text(item: Any) -> str:
     parts: list[str] = []
     for content in _response_field(item, "content", []) or []:
@@ -105,6 +255,11 @@ def _extract_output_item_text(item: Any) -> str:
 
 
 def _has_native_web_search_evidence(response: Any) -> bool:
+    tool_usage = _response_field(response, "tool_usage")
+    web_search_usage = _response_field(tool_usage, "web_search")
+    if _positive_int(_response_field(web_search_usage, "num_requests")) > 0:
+        return True
+
     for item in _response_field(response, "output", []) or []:
         item_type = str(_response_field(item, "type", "") or "").strip()
         if item_type == "web_search_call":
@@ -219,13 +374,40 @@ async def execute_stream_chat_via_responses(
         adapter.client,
         max_retries=client_max_retries,
     )
-    stream = await client.responses.create(**request_params)
+    stream = await _create_responses_stream_with_timeout(
+        client,
+        request_params,
+        timeout_seconds=stream_timeout_seconds,
+        model=effective_model,
+    )
     stream_iter = aiter(stream)
     emitted_text = False
     emitted_reasoning = False
     response_id: str | None = None
     collected_text = ""
     tool_call_states: dict[str, dict[str, str]] = {}
+    saw_native_web_search = False
+    required_output_deadline_started_at: float | None = None
+    if request_params.get("tool_choice") == "required" and stream_timeout_seconds:
+        required_output_deadline_started_at = asyncio.get_running_loop().time()
+
+    def raise_if_required_output_stalled() -> None:
+        if required_output_deadline_started_at is None:
+            return
+        if emitted_text or tool_call_states:
+            return
+        elapsed_seconds = (
+            asyncio.get_running_loop().time() - required_output_deadline_started_at
+        )
+        if elapsed_seconds < stream_timeout_seconds:
+            return
+        raise ProviderTimeoutError(
+            "Responses stream request timed out before required tool or text output",
+            provider_code="openai",
+            model_code=effective_model,
+            error_code="responses_stream_required_output_timeout",
+            status_code=504,
+        )
 
     try:
         while True:
@@ -243,11 +425,14 @@ async def execute_stream_chat_via_responses(
             if event_type == "response.created":
                 response_obj = getattr(event, "response", None)
                 response_id = getattr(response_obj, "id", None) or response_id
+                raise_if_required_output_stalled()
                 continue
 
             # Keepalive progress chunk during hosted web search.
             if event_type.startswith("response.web_search_call"):
+                saw_native_web_search = True
                 yield ChatChunk(delta="", metadata={"web_search_in_progress": True})
+                raise_if_required_output_stalled()
                 continue
 
             if event_type == "response.output_text.delta":
@@ -256,6 +441,7 @@ async def execute_stream_chat_via_responses(
                     collected_text += delta
                     emitted_text = True
                     yield ChatChunk(delta=delta)
+                raise_if_required_output_stalled()
                 continue
 
             # Some compatible gateways emit output_text.done without response.completed.
@@ -284,7 +470,12 @@ async def execute_stream_chat_via_responses(
                     input_tokens=input_tokens,
                     output_tokens=output_tokens,
                     total_tokens=total_tokens,
-                    metadata={"usage_mode": usage_mode},
+                    metadata={
+                        "protocol_path": "responses",
+                        "responses_response_id": response_id,
+                        "usage_mode": usage_mode,
+                        "native_web_search_observed": saw_native_web_search,
+                    },
                 )
                 logger.info(
                     "Responses stream response.output_text.done, closing upstream: model={} wire_api=responses",
@@ -300,6 +491,7 @@ async def execute_stream_chat_via_responses(
                 if delta:
                     emitted_reasoning = True
                     yield ChatChunk(delta="", reasoning_delta=delta)
+                raise_if_required_output_stalled()
                 continue
 
             if event_type in {
@@ -310,6 +502,7 @@ async def execute_stream_chat_via_responses(
                 if delta:
                     emitted_reasoning = True
                     yield ChatChunk(delta="", reasoning_delta=delta)
+                raise_if_required_output_stalled()
                 continue
 
             if event_type == "response.output_item.added":
@@ -335,6 +528,7 @@ async def execute_stream_chat_via_responses(
                             delta="",
                             tool_calls=[call_payload],
                         )
+                raise_if_required_output_stalled()
                 continue
 
             if event_type == "response.output_item.done":
@@ -363,6 +557,7 @@ async def execute_stream_chat_via_responses(
                             delta="",
                             tool_calls=[call_payload],
                         )
+                    raise_if_required_output_stalled()
                     continue
                 if item_type == "message":
                     text = _extract_output_item_text(item)
@@ -370,6 +565,7 @@ async def execute_stream_chat_via_responses(
                         collected_text += text
                         emitted_text = True
                         yield ChatChunk(delta=text)
+                    raise_if_required_output_stalled()
                     continue
 
             if event_type == "response.function_call_arguments.delta":
@@ -390,6 +586,7 @@ async def execute_stream_chat_via_responses(
                         delta="",
                         tool_calls=[call_payload],
                     )
+                raise_if_required_output_stalled()
                 continue
 
             if event_type == "response.function_call_arguments.done":
@@ -411,6 +608,7 @@ async def execute_stream_chat_via_responses(
                         delta="",
                         tool_calls=[call_payload],
                     )
+                raise_if_required_output_stalled()
                 continue
 
             if event_type == "response.completed":
@@ -485,8 +683,11 @@ async def execute_stream_chat_via_responses(
                         "responses_response_id": response_id,
                         "usage_mode": usage_mode,
                         "native_web_search_observed": bool(
-                            response is not None
-                            and _has_native_web_search_evidence(response)
+                            saw_native_web_search
+                            or (
+                                response is not None
+                                and _has_native_web_search_evidence(response)
+                            )
                         ),
                     },
                 )
@@ -497,10 +698,12 @@ async def execute_stream_chat_via_responses(
                 return
 
             if event_type in {"response.error", "response.failed"}:
-                error_obj = getattr(event, "error", None)
-                if error_obj is not None:
-                    raise RuntimeError(str(error_obj))
-                raise RuntimeError(event_type)
+                raise _responses_stream_event_error(
+                    event,
+                    event_type=event_type,
+                    model=model,
+                )
+            raise_if_required_output_stalled()
     finally:
         await aclose_stream(stream)
 

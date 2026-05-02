@@ -108,6 +108,47 @@ def test_tool_router_generic_web_research_prefers_native_search() -> None:
     assert intent.metadata["fallback_tool_names"] == ["web_search", "fetch_url"]
 
 
+def test_tool_router_web_search_about_tools_still_prefers_native_search() -> None:
+    intent = _intent("web_research", "web_research")
+
+    decision = ToolRouter.route(
+        intents=[intent],
+        tools=[
+            ToolDefinition(name="web_search"),
+            ToolDefinition(name="fetch_url"),
+            ToolDefinition(name="crm_lookup"),
+        ],
+        budget=_budget(),
+        input_variables={},
+        user_text="联网搜索最新 AI 工具发布，给我三个来源",
+    )
+
+    assert decision.candidate_tool_names() == []
+    assert decision.intent_allowed_tools["intent-web_research"] == [
+        "web_search",
+        "fetch_url",
+    ]
+    assert intent.metadata["native_search_preferred"] is True
+
+
+def test_tool_router_search_tool_as_research_subject_prefers_native_search() -> None:
+    intent = _intent("web_research", "web_research")
+
+    decision = ToolRouter.route(
+        intents=[intent],
+        tools=[
+            ToolDefinition(name="web_search"),
+            ToolDefinition(name="fetch_url"),
+        ],
+        budget=_budget(),
+        input_variables={},
+        user_text="搜索工具有哪些好用？请联网对比最新资料",
+    )
+
+    assert decision.candidate_tool_names() == []
+    assert intent.metadata["native_search_preferred"] is True
+
+
 def test_tool_router_explicit_builtin_search_request_uses_web_tools() -> None:
     intent = _intent("web_research", "web_research")
 
@@ -121,6 +162,29 @@ def test_tool_router_explicit_builtin_search_request_uses_web_tools() -> None:
         budget=_budget(),
         input_variables={},
         user_text="请调用 web_search 工具搜索今天的开源模型发布",
+    )
+
+    assert decision.candidate_tool_names() == ["web_search", "fetch_url"]
+    assert decision.intent_allowed_tools["intent-web_research"] == [
+        "web_search",
+        "fetch_url",
+    ]
+    assert "native_search_preferred" not in intent.metadata
+
+
+def test_tool_router_explicit_search_skill_request_uses_web_tools() -> None:
+    intent = _intent("web_research", "web_research")
+
+    decision = ToolRouter.route(
+        intents=[intent],
+        tools=[
+            ToolDefinition(name="web_search"),
+            ToolDefinition(name="fetch_url"),
+            ToolDefinition(name="crm_lookup"),
+        ],
+        budget=_budget(),
+        input_variables={},
+        user_text="请使用联网搜索技能查今天的开源模型发布",
     )
 
     assert decision.candidate_tool_names() == ["web_search", "fetch_url"]

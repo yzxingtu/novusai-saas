@@ -501,6 +501,124 @@ async def test_turn_executor_marks_intent_retry_round() -> None:
 
 
 @pytest.mark.asyncio
+# Test type: structural; fake IO supplies model rounds and only guards
+# retry-policy propagation for the follow-on native-search intent.
+async def test_turn_executor_preserves_native_search_first_for_follow_on_web_intent() -> (
+    None
+):
+    tools = [
+        ToolDefinition(name="get_current_weather", description="Weather"),
+        ToolDefinition(name="web_search", description="Search"),
+        ToolDefinition(name="fetch_url", description="Fetch"),
+    ]
+    intents = [
+        _build_intent(
+            intent_id="intent-weather",
+            kind="weather_query",
+            family="weather",
+            allowed_tool_names=["get_current_weather"],
+        ),
+        _build_intent(
+            intent_id="intent-web",
+            kind="web_research",
+            family="web_research",
+            allowed_tool_names=["web_search", "fetch_url"],
+        ),
+    ]
+    intents[1].metadata = {
+        "native_search_preferred": True,
+        "fallback_tool_names": ["web_search", "fetch_url"],
+    }
+    prep = _build_prep(
+        tools=tools,
+        intents=intents,
+        tool_use_policy=ToolUsePolicy(
+            family="weather",
+            mode="required",
+            allowed_tool_names=["get_current_weather"],
+            retry_on_contract_breach=True,
+            reason="intent:weather_query",
+        ),
+    )
+    state = ExecutionStateMachine.from_prepared_execution(prep)
+    io = _FakeIOAdapter(
+        model_rounds=[
+            _assistant_response(
+                "",
+                tool_calls=[
+                    {
+                        "id": "call-weather",
+                        "type": "function",
+                        "function": {
+                            "name": "get_current_weather",
+                            "arguments": '{"city":"北京"}',
+                        },
+                    }
+                ],
+            ),
+            ModelRoundResult(
+                response=ChatResponse(
+                    message=ChatMessage(
+                        role="assistant",
+                        content="原生搜索结果：今天有多家来源更新了相关新闻。",
+                    ),
+                    total_tokens=12,
+                    output_tokens=12,
+                ),
+                total_tokens=12,
+                completion_tokens_used=12,
+                native_search_observed=True,
+            ),
+        ],
+        tool_batch=ToolBatchResult(
+            response=ChatResponse(
+                message=ChatMessage(role="assistant", content=""),
+                total_tokens=5,
+                output_tokens=5,
+            ),
+            tool_results=[
+                ToolResult(
+                    tool_call_id="call-weather",
+                    name="get_current_weather",
+                    success=True,
+                    output="北京今天晴。",
+                )
+            ],
+            total_tokens=5,
+            completion_tokens_used=5,
+        ),
+    )
+
+    result = await TurnExecutor.run(
+        state=state,
+        io=io,
+        prep=prep,
+        request=SimpleNamespace(input_variables={}, conversation_id=28),
+        agent=SimpleNamespace(id=1),
+    )
+
+    assert result.output == "原生搜索结果：今天有多家来源更新了相关新闻。"
+    assert len(io.call_history) == 2
+    retry_policy = io.call_history[1]["tool_use_policy"]
+    assert retry_policy.reason == "native_web_search_first:web_research"
+    assert [tool.name for tool in io.call_history[1]["tools"]] == [
+        "web_search",
+        "fetch_url",
+    ]
+    assert state.intent_plan[0].status == "completed"
+    assert state.intent_plan[1].status == "completed"
+    assert state.intent_plan[1].completed_by_tool_names == ["native_web_search"]
+    assert any(
+        event.kind == "turn.round_started"
+        and event.data.get("round_kind") == "intent_retry"
+        and event.data.get("intent_id") == "intent-web"
+        and event.data.get("tool_use_policy_reason")
+        == "native_web_search_first:web_research"
+        for event in state.turn_events
+    )
+
+
+@pytest.mark.asyncio
 async def test_turn_executor_retries_web_research_with_fetch_url_after_search_only_round() -> (
     None
 ):

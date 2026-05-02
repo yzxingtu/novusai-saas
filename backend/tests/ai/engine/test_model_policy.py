@@ -99,6 +99,40 @@ def test_build_model_request_overrides_forces_responses_hosted_search_when_avail
     }
 
 
+def test_build_model_request_overrides_does_not_force_hosted_search_for_fetch_only_retry() -> (
+    None
+):
+    runtime_context = SimpleNamespace(
+        provider=SimpleNamespace(
+            type="openai_compatible",
+            config={
+                "wire_api": "chat_completions",
+                "protocol_capabilities": {
+                    "allowed_wire_apis": ["chat_completions", "responses"],
+                },
+                "web_search": {"enabled": True},
+            },
+        ),
+        ai_model=SimpleNamespace(config={}),
+        model_code="gpt-5.4-xhigh",
+    )
+
+    overrides = build_model_request_overrides(
+        execution_path="normal",
+        tools=[_tool("fetch_url")],
+        tool_use_policy=ToolUsePolicy(
+            family="web_research",
+            mode="required",
+            allowed_tool_names=["fetch_url"],
+            retry_on_contract_breach=True,
+            reason="native_web_search_first:web_research",
+        ),
+        runtime_context=runtime_context,
+    )
+
+    assert overrides == {}
+
+
 def test_build_model_request_overrides_keeps_builtin_fallback_when_native_unavailable() -> (
     None
 ):

@@ -16,6 +16,19 @@ FAST_PATH_REASONING_EFFORT = "low"
 _HOSTED_WEB_SEARCH_CONTEXT_SIZE = "medium"
 
 
+def _tool_name(tool: Any) -> str:
+    if isinstance(tool, dict):
+        function = tool.get("function")
+        if isinstance(function, dict):
+            return str(function.get("name") or "").strip()
+        return str(tool.get("name") or "").strip()
+    return str(getattr(tool, "name", "") or "").strip()
+
+
+def _tool_names(tools: list[Any] | None) -> set[str]:
+    return {name for tool in (tools or []) if (name := _tool_name(tool))}
+
+
 def _runtime_context_supports_native_web_search(runtime_context: Any | None) -> bool:
     if runtime_context is None:
         return False
@@ -63,14 +76,23 @@ def _policy_requests_native_web_search_first(
     tool_use_policy: Any | None,
     tools: list[Any] | None,
 ) -> bool:
-    _ = tools
     if tool_use_policy is None:
         return False
-    return str(
+    if str(
         getattr(tool_use_policy, "family", "") or ""
     ).strip() == "web_research" and str(
         getattr(tool_use_policy, "reason", "") or ""
-    ).startswith("native_web_search_first:")
+    ).startswith("native_web_search_first:"):
+        allowed_tool_names = {
+            str(name or "").strip()
+            for name in (getattr(tool_use_policy, "allowed_tool_names", None) or [])
+            if str(name or "").strip()
+        }
+        if allowed_tool_names and "web_search" not in allowed_tool_names:
+            return False
+        available_tool_names = _tool_names(tools)
+        return not available_tool_names or "web_search" in available_tool_names
+    return False
 
 
 def build_model_request_overrides(

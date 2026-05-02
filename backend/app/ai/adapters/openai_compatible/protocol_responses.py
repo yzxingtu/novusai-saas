@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import inspect
 from typing import Any, Protocol
 
 from app.ai.adapters.openai_compatible.support.client_options import (
@@ -10,11 +12,25 @@ from app.ai.adapters.openai_compatible.support.client_options import (
 from app.ai.adapters.openai_compatible.support.responses_reasoning_parser import (
     extract_responses_reasoning_text,
 )
+from app.ai.exceptions import (
+    AIGatewayError,
+    ProviderAuthError,
+    ProviderConnectionError,
+    ProviderError,
+    ProviderRateLimitError,
+    ProviderTimeoutError,
+)
 from app.ai.types import ChatMessage, ChatResponse
 from app.core.logging import LogManager
 
 logger = LogManager.get_logger("ai")
 _RESPONSES_RESPONSE_ID_METADATA_KEY = "responses_response_id"
+_RESPONSES_FAILURE_STATUSES = frozenset(
+    {"failed", "incomplete", "cancelled", "expired"}
+)
+_DEFAULT_RESPONSES_CREATE_TIMEOUT_SECONDS = 20.0
+_TIMEOUT_MARKERS = ("timeout", "timed_out", "time_out", "deadline")
+_CONNECTION_MARKERS = ("connection", "connect", "network", "socket")
 
 
 class ResponsesAdapterProtocol(Protocol):
@@ -33,6 +49,8 @@ class ResponsesAdapterProtocol(Protocol):
         self,
         usage: Any,
     ) -> tuple[int | None, int | None, int | None]: ...
+
+    def _normalize_timeout_seconds(self, timeout: Any) -> float | None: ...
 
 
 def extract_responses_text(response: Any) -> str:
@@ -77,7 +95,155 @@ def _response_field(value: Any, field_name: str, default: Any = None) -> Any:
     return getattr(value, field_name, default)
 
 
+def _response_status_code(value: Any) -> int | None:
+    raw_status = (
+        _response_field(value, "status_code")
+        or _response_field(value, "status")
+        or _response_field(value, "http_status")
+    )
+    try:
+        return int(raw_status) if raw_status is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _response_error_code(value: Any) -> str:
+    return str(
+        _response_field(value, "code")
+        or _response_field(value, "type")
+        or _response_field(value, "error_code")
+        or ""
+    ).strip()
+
+
+def _response_error_message(value: Any, *, fallback: str) -> str:
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    message = str(
+        _response_field(value, "message")
+        or _response_field(value, "detail")
+        or _response_field(value, "reason")
+        or fallback
+    ).strip()
+    return message or fallback
+
+
+def _responses_provider_error(
+    error_obj: Any,
+    *,
+    model: str,
+    fallback: str,
+) -> AIGatewayError:
+    status_code = _response_status_code(error_obj)
+    error_code = _response_error_code(error_obj)
+    message = _response_error_message(error_obj, fallback=fallback)
+    haystack = " ".join((error_code, message)).lower()
+    kwargs = {
+        "provider_code": "openai",
+        "model_code": model,
+        "error_code": error_code or (str(status_code) if status_code else None),
+        "status_code": status_code,
+    }
+
+    if status_code == 429:
+        return ProviderRateLimitError(message, **kwargs)
+    if status_code in {401, 403}:
+        return ProviderAuthError(message, **kwargs)
+    if status_code in {408, 504} or any(
+        marker in haystack for marker in _TIMEOUT_MARKERS
+    ):
+        return ProviderTimeoutError(message, **kwargs)
+    if any(marker in haystack for marker in _CONNECTION_MARKERS):
+        return ProviderConnectionError(message, **kwargs)
+    return ProviderError(message, **kwargs)
+
+
+def _responses_failure_error(response: Any, *, model: str) -> AIGatewayError | None:
+    status = str(_response_field(response, "status", "") or "").strip().lower()
+    error_obj = _response_field(response, "error")
+    if error_obj is None and status == "incomplete":
+        error_obj = _response_field(response, "incomplete_details")
+    if error_obj is None and status not in _RESPONSES_FAILURE_STATUSES:
+        return None
+    fallback = f"Responses API returned {status or 'failed'}"
+    return _responses_provider_error(
+        error_obj or {"message": fallback, "code": status},
+        model=model,
+        fallback=fallback,
+    )
+
+
+def _has_forced_hosted_web_search_tool(request_params: dict[str, Any]) -> bool:
+    if request_params.get("tool_choice") != "required":
+        return False
+    return any(
+        isinstance(tool, dict) and tool.get("type") == "web_search"
+        for tool in (request_params.get("tools") or [])
+    )
+
+
+def _effective_create_timeout_seconds(
+    request_params: dict[str, Any],
+    timeout_seconds: float | None,
+) -> float | None:
+    if timeout_seconds is not None:
+        return timeout_seconds
+    if _has_forced_hosted_web_search_tool(request_params):
+        return _DEFAULT_RESPONSES_CREATE_TIMEOUT_SECONDS
+    return None
+
+
+async def _create_responses_with_timeout(
+    client: Any,
+    request_params: dict[str, Any],
+    *,
+    timeout_seconds: float | None,
+    model: str,
+) -> Any:
+    create = client.responses.create
+    effective_timeout_seconds = _effective_create_timeout_seconds(
+        request_params,
+        timeout_seconds,
+    )
+
+    async def invoke_create() -> Any:
+        if inspect.iscoroutinefunction(create):
+            return await create(**request_params)
+        result = await asyncio.to_thread(create, **request_params)
+        if inspect.isawaitable(result):
+            return await result
+        return result
+
+    if effective_timeout_seconds is None:
+        return await invoke_create()
+    try:
+        return await asyncio.wait_for(
+            invoke_create(),
+            timeout=effective_timeout_seconds,
+        )
+    except TimeoutError as exc:
+        raise ProviderTimeoutError(
+            "Responses API request timed out before returning a response",
+            provider_code="openai",
+            model_code=model,
+            error_code="responses_create_timeout",
+            status_code=504,
+        ) from exc
+
+
+def _positive_int(value: Any) -> int:
+    try:
+        return max(0, int(value or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
 def _has_native_web_search_evidence(response: Any) -> bool:
+    tool_usage = _response_field(response, "tool_usage")
+    web_search_usage = _response_field(tool_usage, "web_search")
+    if _positive_int(_response_field(web_search_usage, "num_requests")) > 0:
+        return True
+
     for item in _response_field(response, "output", []) or []:
         item_type = str(_response_field(item, "type", "") or "").strip()
         if item_type == "web_search_call":
@@ -159,7 +325,17 @@ async def execute_chat_via_responses(
         adapter.client,
         max_retries=client_max_retries,
     )
-    response = await client.responses.create(**request_params)
+    response = await _create_responses_with_timeout(
+        client,
+        request_params,
+        timeout_seconds=adapter._normalize_timeout_seconds(
+            request_params.get("timeout")
+        ),
+        model=effective_model,
+    )
+    response_error = _responses_failure_error(response, model=effective_model)
+    if response_error is not None:
+        raise response_error
     return convert_responses_chat_response(
         adapter=adapter,
         response=response,

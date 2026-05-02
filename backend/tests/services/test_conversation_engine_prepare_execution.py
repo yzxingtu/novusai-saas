@@ -2658,6 +2658,57 @@ async def test_prepare_execution_builds_deep_structured_plan_for_666_style_turn(
 
 
 @pytest.mark.asyncio
+async def test_prepare_execution_preserves_native_first_for_web_first_multi_intent_turn() -> (
+    None
+):
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
+    request = ExecutionRequest(
+        agent_id=1,
+        tenant_id=1,
+        user_id=1,
+        messages=[
+            ChatMessage(
+                role="user",
+                content="联网查今天 OpenAI 新闻，再告诉我北京天气",
+            )
+        ],
+    )
+
+    with (
+        patch(
+            "app.ai.rag_injector.load_agent_kb_bindings",
+            new=AsyncMock(return_value=([], {})),
+        ),
+        patch("app.ai.routing.router.ModelRouter", new=_FakeRouter),
+        patch(
+            "app.ai.engine.intent_planner.IntentPlanner.plan_turn",
+            return_value=_build_intent_plan("web_research", "weather_query"),
+        ),
+    ):
+        prep = await engine._prepare_execution(
+            _build_agent(),
+            request,
+            skill_result=_build_structured_skill_result(),
+        )
+
+    assert [intent.kind for intent in prep.intent_plan] == [
+        "web_research",
+        "weather_query",
+    ]
+    assert prep.active_intent_id == "intent-1"
+    assert [tool.name for tool in prep.tools] == ["web_search", "fetch_url"]
+    assert prep.tool_use_policy == ToolUsePolicy(
+        family="web_research",
+        mode="required",
+        allowed_tool_names=["web_search", "fetch_url"],
+        retry_on_contract_breach=True,
+        reason="native_web_search_first:web_research",
+    )
+
+
+@pytest.mark.asyncio
 async def test_prepare_execution_current_weather_only_avoids_forecast_tool() -> None:
     engine = ConversationEngine(
         db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()

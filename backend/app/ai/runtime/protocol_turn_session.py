@@ -14,6 +14,60 @@ from app.ai.runtime.protocol_planner import ProtocolPlanner
 from app.ai.runtime.types import ContextSource, FallbackRecord, ProtocolPath, TurnRecord
 from app.ai.types import ChatMessage, ChatResponse
 
+_WEB_RESEARCH_FALLBACK_TOOL_NAMES = frozenset({"web_search", "fetch_url"})
+
+
+def _tool_function_name(tool: Any) -> str:
+    if not isinstance(tool, dict):
+        return ""
+    function = tool.get("function")
+    if isinstance(function, dict):
+        return str(function.get("name") or "").strip()
+    return str(tool.get("name") or "").strip()
+
+
+def _has_builtin_web_research_fallback_tools(
+    tools: list[dict[str, Any]] | None,
+) -> bool:
+    return any(
+        _tool_function_name(tool) in _WEB_RESEARCH_FALLBACK_TOOL_NAMES
+        for tool in (tools or [])
+    )
+
+
+def _adapter_supports_protocol(adapter: Any, protocol: ProtocolPath) -> bool:
+    capabilities = getattr(adapter, "protocol_capabilities", None)
+    if capabilities is None:
+        return True
+    supports_wire_api = getattr(capabilities, "supports_wire_api", None)
+    if callable(supports_wire_api):
+        return bool(supports_wire_api(protocol))
+    allowed_wire_apis = getattr(capabilities, "allowed_wire_apis", ())
+    return protocol in {str(item or "").strip() for item in (allowed_wire_apis or ())}
+
+
+def _extend_hosted_web_search_fallback_chain(
+    chain: list[ProtocolPath],
+    *,
+    adapter: Any,
+    requested_protocol: ProtocolPath,
+    extra_kwargs: dict[str, Any],
+    tools: list[dict[str, Any]] | None,
+) -> list[ProtocolPath]:
+    if requested_protocol != "responses":
+        return chain
+    if not bool(extra_kwargs.get("_runtime_hosted_web_search_required")):
+        return chain
+    if not _has_builtin_web_research_fallback_tools(tools):
+        return chain
+    if not _adapter_supports_protocol(adapter, "chat_completions"):
+        if chain and chain[-1] == "responses":
+            return [*chain, "responses"]
+        return chain
+    if "chat_completions" in chain:
+        return chain
+    return [*chain, "chat_completions"]
+
 
 @dataclass
 class ProtocolTurnSession:
@@ -78,6 +132,13 @@ class ProtocolTurnSession:
             plan.protocol_chain = ProtocolPlanner.build_protocol_chain(
                 requested_protocol,
                 adapter=planner.adapter,
+            )
+            plan.protocol_chain = _extend_hosted_web_search_fallback_chain(
+                plan.protocol_chain,
+                adapter=planner.adapter,
+                requested_protocol=requested_protocol,
+                extra_kwargs=resolved_extra_kwargs,
+                tools=command.tools,
             )
         plan.protocol_guards = resolved_guards
         turn_record = TurnRecord(

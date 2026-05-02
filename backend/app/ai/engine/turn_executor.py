@@ -244,6 +244,23 @@ def response_has_visible_content(response: ChatResponse | None) -> bool:
     return bool(str(response.message.content or "").strip())
 
 
+def intent_retry_policy_reason(
+    decision: RecoveryDecision,
+    retry_intent: Any | None,
+) -> str:
+    decision_reason = str(decision.reason or "").strip()
+    if retry_intent is None:
+        return decision_reason
+
+    metadata = dict(getattr(retry_intent, "metadata", {}) or {})
+    if str(
+        getattr(retry_intent, "family", "") or ""
+    ).strip() == "web_research" and bool(metadata.get("native_search_preferred")):
+        intent_kind = str(getattr(retry_intent, "kind", "") or "").strip()
+        return f"native_web_search_first:{intent_kind or 'web_research'}"
+    return decision_reason
+
+
 def latest_auto_fetch_gate_reason(state: ExecutionStateMachine) -> str | None:
     for intent in reversed(state.intent_plan):
         metadata = dict(getattr(intent, "metadata", {}) or {})
@@ -882,14 +899,14 @@ class _TurnRunLoop:
                 allowed_tool_names=decision.allowed_tool_names
                 or [tool.name for tool in retry_tools],
                 retry_on_contract_breach=False,
-                reason=decision.reason,
+                reason=intent_retry_policy_reason(decision, retry_intent),
             )
             self.emit_round(
                 round_kind="intent_retry",
                 policy=retry_policy,
                 tools=retry_tools,
                 intent=retry_intent,
-                reason=decision.reason or "intent_retry",
+                reason=retry_policy.reason or "intent_retry",
             )
             if retry_policy.mode == "required" and retry_tools:
                 self.io.log_tool_contract_diagnostics(
@@ -899,7 +916,7 @@ class _TurnRunLoop:
                     tools=retry_tools,
                     policy=retry_policy,
                     conversation_id=self.request.conversation_id,
-                    breach_type=decision.reason or "intent_retry",
+                    breach_type=retry_policy.reason or "intent_retry",
                     retry_result="retrying",
                     continuation=self.prep.continuation_context,
                 )

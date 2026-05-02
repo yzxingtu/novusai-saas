@@ -60,14 +60,37 @@ backend boundary instead of page perception:
   native hosted search is unavailable, or when the user explicitly asks for the
   builtin/tool/skill path, for example by naming `web_search`, `fetch_url`,
   "联网搜索技能", or "search tool".
+- Explicit builtin web-search requests require the user to ask to use or call
+  the builtin/search tool/skill, or to name `web_search` / `fetch_url`
+  directly. Mentions of "tool", "skill", or "call" as the research subject,
+  such as "联网搜索最新 AI 工具" or "search how to call a tool", still follow
+  the native-first path.
 - Native-first turns may retain builtin web tool definitions as fallback schema
   in the runtime plan, but the OpenAI Responses payload must strip those
-  function tools when hosted search is forced and send only the provider
-  hosted `web_search` tool with required tool choice.
+  function tools and any unrelated function tools when hosted search is forced,
+  sending only the provider hosted `web_search` tool with required tool choice.
+- Native-first overrides apply only to search rounds where `web_search` is still
+  an allowed tool. Follow-up rounds that are narrowed to `fetch_url` must not be
+  re-promoted to hosted search; they should call the retained builtin
+  `fetch_url` tool directly.
+- If forced hosted search fails before meaningful output, times out, loses
+  provider connectivity, or emits only progress without meaningful output,
+  runtime-v2 may fall back to the retained builtin `web_search` / `fetch_url`
+  function-tool schema. Providers that also allow `chat_completions` may use
+  that protocol for the builtin fallback; Responses-only providers must retry
+  the same Responses protocol with the hosted-search override disabled rather
+  than violating `allowed_wire_apis`. The fallback history reason must start
+  with `hosted_web_search_unavailable:`.
+- Responses create-stage calls and required-tool streams must be bounded even
+  when an upstream-compatible SDK omits or cannot normalize a timeout. A
+  required-tool stream that produces no tool call or text before its deadline
+  must raise a typed timeout so runtime recovery can fall back or close
+  gracefully instead of waiting for the browser-side SSE timeout.
 - Native Responses evidence is the `web_search_call` output item,
-  `response.web_search_call.*` stream progress, or URL citations in provider
-  output. That evidence must complete `web_research` recovery intents and must
-  not trigger a second builtin search retry.
+  `response.web_search_call.*` stream progress, URL citations in provider
+  output, or `response.tool_usage.web_search.num_requests > 0`. That evidence
+  must complete `web_research` recovery intents and must not trigger a second
+  builtin search retry.
 
 ## Required Guards
 

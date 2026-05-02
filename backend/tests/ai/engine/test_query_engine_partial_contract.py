@@ -10,7 +10,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from app.ai.exceptions import ProviderError, ProviderTimeoutError
+from app.ai.exceptions import ProviderAuthError, ProviderError, ProviderTimeoutError
 from app.ai.runtime.query_engine import ConversationQueryEngine
 from app.ai.types import ChatChunk, ChatMessage, ChatResponse
 
@@ -149,6 +149,291 @@ class _ReasoningOnlyThenRetryableRescueAdapter:
             finish_reason="stop",
             model="gpt-5.4",
         )
+
+
+class _HostedSearchTimeoutThenBuiltinToolAdapter:
+    wire_api = "chat_completions"
+    protocol_capabilities = SimpleNamespace(
+        primary_wire_api="chat_completions",
+        allowed_wire_apis=("chat_completions", "responses"),
+        allowed_cross_protocol_fallbacks={},
+        allow_adapter_cross_protocol_fallback=False,
+    )
+
+    def __init__(self) -> None:
+        self.stream_protocols: list[str] = []
+        self.stream_tools: list[list[str]] = []
+
+    async def stream_chat(self, **kwargs):
+        protocol = str(kwargs.get("_runtime_force_wire_api") or "").strip()
+        self.stream_protocols.append(protocol)
+        self.stream_tools.append(
+            [
+                str((tool.get("function") or {}).get("name") or "").strip()
+                for tool in kwargs.get("tools", []) or []
+                if isinstance(tool, dict)
+            ]
+        )
+        if protocol == "responses":
+            assert kwargs["_runtime_hosted_web_search_required"] is True
+            raise ProviderTimeoutError(
+                "hosted search timed out",
+                provider_code="openai_compatible",
+                model_code="gpt-5.4",
+            )
+        yield ChatChunk(
+            delta="",
+            role="assistant",
+            tool_calls=[
+                {
+                    "id": "call_builtin_search",
+                    "type": "function",
+                    "function": {
+                        "name": "web_search",
+                        "arguments": '{"query":"今天新闻"}',
+                    },
+                }
+            ],
+            finish_reason="tool_calls",
+        )
+
+    async def chat(self, **kwargs):
+        _ = kwargs
+        raise AssertionError("stream fallback should not use sync chat rescue")
+
+
+class _HostedSearchTimeoutThenBuiltinChatAdapter:
+    wire_api = "chat_completions"
+    protocol_capabilities = SimpleNamespace(
+        primary_wire_api="chat_completions",
+        allowed_wire_apis=("chat_completions", "responses"),
+        allowed_cross_protocol_fallbacks={},
+        allow_adapter_cross_protocol_fallback=False,
+    )
+
+    def __init__(self) -> None:
+        self.chat_protocols: list[str] = []
+
+    async def stream_chat(self, **kwargs):
+        _ = kwargs
+        raise AssertionError("sync test should not stream")
+        yield ChatChunk(delta="")
+
+    async def chat(self, **kwargs):
+        protocol = str(kwargs.get("_runtime_force_wire_api") or "").strip()
+        self.chat_protocols.append(protocol)
+        if protocol == "responses":
+            raise ProviderTimeoutError(
+                "hosted search timed out",
+                provider_code="openai_compatible",
+                model_code="gpt-5.4",
+            )
+        return ChatResponse(
+            message=ChatMessage(
+                role="assistant",
+                content="",
+                tool_calls=[
+                    {
+                        "id": "call_builtin_search",
+                        "type": "function",
+                        "function": {
+                            "name": "web_search",
+                            "arguments": '{"query":"今天新闻"}',
+                        },
+                    }
+                ],
+            ),
+            finish_reason="tool_calls",
+            model="gpt-5.4",
+        )
+
+
+class _HostedSearchAuthThenBuiltinResponsesAdapter:
+    wire_api = "responses"
+    protocol_capabilities = SimpleNamespace(
+        primary_wire_api="responses",
+        allowed_wire_apis=("responses",),
+        allowed_cross_protocol_fallbacks={},
+        allow_adapter_cross_protocol_fallback=False,
+    )
+
+    def __init__(self) -> None:
+        self.stream_protocols: list[str] = []
+        self.hosted_required_flags: list[bool] = []
+        self.fallback_variants: list[str] = []
+
+    async def stream_chat(self, **kwargs):
+        protocol = str(kwargs.get("_runtime_force_wire_api") or "").strip()
+        hosted_required = bool(kwargs.get("_runtime_hosted_web_search_required"))
+        self.stream_protocols.append(protocol)
+        self.hosted_required_flags.append(hosted_required)
+        self.fallback_variants.append(
+            str(kwargs.get("_runtime_native_web_search_fallback_variant") or "")
+        )
+        if hosted_required:
+            raise ProviderAuthError(
+                "hosted search quota is unavailable",
+                provider_code="openai_compatible",
+                model_code="gpt-5.4",
+                error_code="insufficient_quota",
+                status_code=403,
+            )
+        yield ChatChunk(
+            delta="",
+            role="assistant",
+            tool_calls=[
+                {
+                    "id": "call_builtin_search",
+                    "type": "function",
+                    "function": {
+                        "name": "web_search",
+                        "arguments": '{"query":"今天新闻"}',
+                    },
+                }
+            ],
+            finish_reason="tool_calls",
+        )
+
+    async def chat(self, **kwargs):
+        _ = kwargs
+        raise AssertionError("stream fallback should not use sync chat rescue")
+
+
+class _HostedSearchAuthThenBuiltinResponsesChatAdapter:
+    wire_api = "responses"
+    protocol_capabilities = SimpleNamespace(
+        primary_wire_api="responses",
+        allowed_wire_apis=("responses",),
+        allowed_cross_protocol_fallbacks={},
+        allow_adapter_cross_protocol_fallback=False,
+    )
+
+    def __init__(self) -> None:
+        self.chat_protocols: list[str] = []
+        self.hosted_required_flags: list[bool] = []
+        self.fallback_variants: list[str] = []
+
+    async def stream_chat(self, **kwargs):
+        _ = kwargs
+        raise AssertionError("sync test should not stream")
+        yield ChatChunk(delta="")
+
+    async def chat(self, **kwargs):
+        protocol = str(kwargs.get("_runtime_force_wire_api") or "").strip()
+        hosted_required = bool(kwargs.get("_runtime_hosted_web_search_required"))
+        self.chat_protocols.append(protocol)
+        self.hosted_required_flags.append(hosted_required)
+        self.fallback_variants.append(
+            str(kwargs.get("_runtime_native_web_search_fallback_variant") or "")
+        )
+        if hosted_required:
+            raise ProviderAuthError(
+                "hosted search quota is unavailable",
+                provider_code="openai_compatible",
+                model_code="gpt-5.4",
+                error_code="insufficient_quota",
+                status_code=403,
+            )
+        return ChatResponse(
+            message=ChatMessage(
+                role="assistant",
+                content="",
+                tool_calls=[
+                    {
+                        "id": "call_builtin_search",
+                        "type": "function",
+                        "function": {
+                            "name": "web_search",
+                            "arguments": '{"query":"今天新闻"}',
+                        },
+                    }
+                ],
+            ),
+            finish_reason="tool_calls",
+            model="gpt-5.4",
+        )
+
+
+class _HostedSearchProgressThenTimeoutAdapter:
+    wire_api = "chat_completions"
+    protocol_capabilities = SimpleNamespace(
+        primary_wire_api="chat_completions",
+        allowed_wire_apis=("chat_completions", "responses"),
+        allowed_cross_protocol_fallbacks={},
+        allow_adapter_cross_protocol_fallback=False,
+    )
+
+    def __init__(self) -> None:
+        self.stream_protocols: list[str] = []
+
+    async def stream_chat(self, **kwargs):
+        protocol = str(kwargs.get("_runtime_force_wire_api") or "").strip()
+        self.stream_protocols.append(protocol)
+        if protocol == "responses":
+            yield ChatChunk(delta="", metadata={"web_search_in_progress": True})
+            raise ProviderTimeoutError(
+                "hosted search timed out after progress",
+                provider_code="openai_compatible",
+                model_code="gpt-5.4",
+            )
+        yield ChatChunk(
+            delta="",
+            role="assistant",
+            tool_calls=[
+                {
+                    "id": "call_builtin_search",
+                    "type": "function",
+                    "function": {
+                        "name": "web_search",
+                        "arguments": '{"query":"今天新闻"}',
+                    },
+                }
+            ],
+            finish_reason="tool_calls",
+        )
+
+    async def chat(self, **kwargs):
+        _ = kwargs
+        raise AssertionError("stream fallback should not use sync chat rescue")
+
+
+class _HostedSearchProgressOnlyThenBuiltinAdapter:
+    wire_api = "chat_completions"
+    protocol_capabilities = SimpleNamespace(
+        primary_wire_api="chat_completions",
+        allowed_wire_apis=("chat_completions", "responses"),
+        allowed_cross_protocol_fallbacks={},
+        allow_adapter_cross_protocol_fallback=False,
+    )
+
+    def __init__(self) -> None:
+        self.stream_protocols: list[str] = []
+
+    async def stream_chat(self, **kwargs):
+        protocol = str(kwargs.get("_runtime_force_wire_api") or "").strip()
+        self.stream_protocols.append(protocol)
+        if protocol == "responses":
+            yield ChatChunk(delta="", metadata={"web_search_in_progress": True})
+            return
+        yield ChatChunk(
+            delta="",
+            role="assistant",
+            tool_calls=[
+                {
+                    "id": "call_builtin_search",
+                    "type": "function",
+                    "function": {
+                        "name": "web_search",
+                        "arguments": '{"query":"今天新闻"}',
+                    },
+                }
+            ],
+            finish_reason="tool_calls",
+        )
+
+    async def chat(self, **kwargs):
+        _ = kwargs
+        raise AssertionError("stream fallback should not use sync chat rescue")
 
 
 @pytest.mark.asyncio
@@ -332,6 +617,261 @@ async def test_runtime_query_engine_does_not_retry_sync_rescue_after_retryable_f
     assert query_engine.turn_record.turn_outcome == "failed"
     assert query_engine.turn_record.metadata["sync_rescue_attempt_count"] == 1
     assert query_engine.turn_record.metadata["sync_rescue_retry_count"] == 0
+
+
+@pytest.mark.asyncio
+async def test_runtime_query_engine_stream_falls_back_from_hosted_search_timeout_to_builtin_tools() -> (
+    None
+):
+    adapter = _HostedSearchTimeoutThenBuiltinToolAdapter()
+    query_engine = ConversationQueryEngine(
+        adapter=adapter,
+        strict_contract=True,
+    )
+
+    chunks = await query_engine.run_stream_turn(
+        messages=[ChatMessage(role="user", content="联网查今天新闻")],
+        model="gpt-5.4",
+        temperature=0.0,
+        max_tokens=None,
+        top_p=1.0,
+        tools=[
+            {"type": "function", "function": {"name": "web_search"}},
+            {"type": "function", "function": {"name": "fetch_url"}},
+        ],
+        tool_choice="required",
+        supports_vision=False,
+        supports_audio=False,
+        supports_video=False,
+        extra_kwargs={
+            "_runtime_force_protocol_path": "responses",
+            "_runtime_hosted_web_search_required": True,
+        },
+    )
+
+    assert adapter.stream_protocols == ["responses", "chat_completions"]
+    assert adapter.stream_tools == [
+        ["web_search", "fetch_url"],
+        ["web_search", "fetch_url"],
+    ]
+    assert chunks[0].tool_calls[0]["function"]["name"] == "web_search"
+    assert query_engine.turn_record.turn_outcome == "success"
+    assert query_engine.turn_record.termination_reason == "protocol_fallback"
+    assert query_engine.turn_record.fallback_history[0].from_protocol == "responses"
+    assert (
+        query_engine.turn_record.fallback_history[0].to_protocol == "chat_completions"
+    )
+    assert (
+        query_engine.turn_record.fallback_history[0].reason
+        == "hosted_web_search_unavailable:provider_timeout"
+    )
+    assert "protocol_fallback_blocked_reason" not in query_engine.turn_record.metadata
+
+
+@pytest.mark.asyncio
+async def test_runtime_query_engine_stream_falls_back_from_hosted_search_auth_to_responses_builtin_tools() -> (
+    None
+):
+    adapter = _HostedSearchAuthThenBuiltinResponsesAdapter()
+    query_engine = ConversationQueryEngine(
+        adapter=adapter,
+        strict_contract=True,
+    )
+
+    chunks = await query_engine.run_stream_turn(
+        messages=[ChatMessage(role="user", content="联网查今天新闻")],
+        model="gpt-5.4",
+        temperature=0.0,
+        max_tokens=None,
+        top_p=1.0,
+        tools=[
+            {"type": "function", "function": {"name": "web_search"}},
+            {"type": "function", "function": {"name": "fetch_url"}},
+        ],
+        tool_choice="required",
+        supports_vision=False,
+        supports_audio=False,
+        supports_video=False,
+        extra_kwargs={
+            "_runtime_force_protocol_path": "responses",
+            "_runtime_hosted_web_search_required": True,
+        },
+    )
+
+    assert adapter.stream_protocols == ["responses", "responses"]
+    assert adapter.hosted_required_flags == [True, False]
+    assert adapter.fallback_variants == ["", "builtin_web_research_tools"]
+    assert chunks[0].tool_calls[0]["function"]["name"] == "web_search"
+    assert query_engine.turn_record.turn_outcome == "success"
+    assert query_engine.turn_record.termination_reason == "protocol_fallback"
+    assert (
+        query_engine.turn_record.fallback_history[0].reason
+        == "hosted_web_search_unavailable:"
+        "stream_exception_before_first_meaningful_chunk:ProviderAuthError"
+    )
+
+
+@pytest.mark.asyncio
+async def test_runtime_query_engine_stream_falls_back_after_hosted_search_progress_only() -> (
+    None
+):
+    adapter = _HostedSearchProgressOnlyThenBuiltinAdapter()
+    query_engine = ConversationQueryEngine(
+        adapter=adapter,
+        strict_contract=True,
+    )
+
+    chunks = await query_engine.run_stream_turn(
+        messages=[ChatMessage(role="user", content="联网查今天新闻")],
+        model="gpt-5.4",
+        temperature=0.0,
+        max_tokens=None,
+        top_p=1.0,
+        tools=[
+            {"type": "function", "function": {"name": "web_search"}},
+            {"type": "function", "function": {"name": "fetch_url"}},
+        ],
+        tool_choice="required",
+        supports_vision=False,
+        supports_audio=False,
+        supports_video=False,
+        extra_kwargs={
+            "_runtime_force_protocol_path": "responses",
+            "_runtime_hosted_web_search_required": True,
+        },
+    )
+
+    assert adapter.stream_protocols == ["responses", "chat_completions"]
+    assert (chunks[0].metadata or {}).get("web_search_in_progress") is True
+    assert chunks[1].tool_calls[0]["function"]["name"] == "web_search"
+    assert (
+        query_engine.turn_record.fallback_history[0].reason
+        == "hosted_web_search_unavailable:stream_progress_only_no_meaningful_output"
+    )
+
+
+@pytest.mark.asyncio
+async def test_runtime_query_engine_stream_falls_back_after_hosted_search_progress_timeout() -> (
+    None
+):
+    adapter = _HostedSearchProgressThenTimeoutAdapter()
+    query_engine = ConversationQueryEngine(
+        adapter=adapter,
+        strict_contract=True,
+    )
+
+    chunks = await query_engine.run_stream_turn(
+        messages=[ChatMessage(role="user", content="联网查今天新闻")],
+        model="gpt-5.4",
+        temperature=0.0,
+        max_tokens=None,
+        top_p=1.0,
+        tools=[
+            {"type": "function", "function": {"name": "web_search"}},
+            {"type": "function", "function": {"name": "fetch_url"}},
+        ],
+        tool_choice="required",
+        supports_vision=False,
+        supports_audio=False,
+        supports_video=False,
+        extra_kwargs={
+            "_runtime_force_protocol_path": "responses",
+            "_runtime_hosted_web_search_required": True,
+        },
+    )
+
+    assert adapter.stream_protocols == ["responses", "chat_completions"]
+    assert (chunks[0].metadata or {}).get("web_search_in_progress") is True
+    assert chunks[1].tool_calls[0]["function"]["name"] == "web_search"
+    assert query_engine.turn_record.turn_outcome == "success"
+    assert query_engine.turn_record.termination_reason == "protocol_fallback"
+    assert (
+        query_engine.turn_record.fallback_history[0].reason
+        == "hosted_web_search_unavailable:provider_timeout"
+    )
+    assert "protocol_fallback_blocked_reason" not in query_engine.turn_record.metadata
+
+
+@pytest.mark.asyncio
+async def test_runtime_query_engine_sync_falls_back_from_hosted_search_timeout_to_builtin_tools() -> (
+    None
+):
+    adapter = _HostedSearchTimeoutThenBuiltinChatAdapter()
+    query_engine = ConversationQueryEngine(
+        adapter=adapter,
+        strict_contract=True,
+    )
+
+    response = await query_engine.run_chat_turn(
+        messages=[ChatMessage(role="user", content="联网查今天新闻")],
+        model="gpt-5.4",
+        temperature=0.0,
+        max_tokens=None,
+        top_p=1.0,
+        tools=[
+            {"type": "function", "function": {"name": "web_search"}},
+            {"type": "function", "function": {"name": "fetch_url"}},
+        ],
+        tool_choice="required",
+        supports_vision=False,
+        supports_audio=False,
+        supports_video=False,
+        extra_kwargs={
+            "_runtime_force_protocol_path": "responses",
+            "_runtime_hosted_web_search_required": True,
+        },
+    )
+
+    assert adapter.chat_protocols == ["responses", "chat_completions"]
+    assert response.message.tool_calls[0]["function"]["name"] == "web_search"
+    assert query_engine.turn_record.turn_outcome == "success"
+    assert query_engine.turn_record.termination_reason == "protocol_fallback"
+    assert (
+        query_engine.turn_record.fallback_history[0].reason
+        == "hosted_web_search_unavailable:provider_timeout"
+    )
+
+
+@pytest.mark.asyncio
+async def test_runtime_query_engine_sync_falls_back_from_hosted_search_auth_to_responses_builtin_tools() -> (
+    None
+):
+    adapter = _HostedSearchAuthThenBuiltinResponsesChatAdapter()
+    query_engine = ConversationQueryEngine(
+        adapter=adapter,
+        strict_contract=True,
+    )
+
+    response = await query_engine.run_chat_turn(
+        messages=[ChatMessage(role="user", content="联网查今天新闻")],
+        model="gpt-5.4",
+        temperature=0.0,
+        max_tokens=None,
+        top_p=1.0,
+        tools=[
+            {"type": "function", "function": {"name": "web_search"}},
+            {"type": "function", "function": {"name": "fetch_url"}},
+        ],
+        tool_choice="required",
+        supports_vision=False,
+        supports_audio=False,
+        supports_video=False,
+        extra_kwargs={
+            "_runtime_force_protocol_path": "responses",
+            "_runtime_hosted_web_search_required": True,
+        },
+    )
+
+    assert adapter.chat_protocols == ["responses", "responses"]
+    assert adapter.hosted_required_flags == [True, False]
+    assert adapter.fallback_variants == ["", "builtin_web_research_tools"]
+    assert response.message.tool_calls[0]["function"]["name"] == "web_search"
+    assert query_engine.turn_record.turn_outcome == "success"
+    assert query_engine.turn_record.termination_reason == "protocol_fallback"
+    assert (
+        query_engine.turn_record.fallback_history[0].reason
+        == "hosted_web_search_unavailable:exception:ProviderAuthError"
+    )
 
 
 @pytest.mark.asyncio

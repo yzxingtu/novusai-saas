@@ -991,8 +991,8 @@ test.describe('AI Chat E2E', () => {
         prompt: '帮我搜索一下2026年中国新能源汽车销量排行',
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
-          expectGracefulResponse(metrics, 20);
           expectHostedSearchExecutionOrGracefulClosure(metrics);
+          expectGracefulResponse(metrics, 8);
         },
       },
     ]);

@@ -106,6 +106,8 @@ def build_chat_completions_request(
     runtime_kwargs.pop("_runtime_force_protocol_path", None)
     runtime_kwargs.pop("_runtime_hosted_web_search_required", None)
     runtime_kwargs.pop("_runtime_hosted_web_search_context_size", None)
+    runtime_kwargs.pop("_runtime_native_web_search_fallback_reason", None)
+    runtime_kwargs.pop("_runtime_native_web_search_fallback_variant", None)
     if effective_request is None:
         effective_request = adapter.resolve_effective_model_request(
             model=model,
@@ -219,6 +221,16 @@ def _without_builtin_web_research_function_tools(
     return filtered
 
 
+def _hosted_web_search_tools_only(
+    tools: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    return [
+        tool
+        for tool in tools
+        if isinstance(tool, dict) and tool.get("type") == "web_search"
+    ]
+
+
 def convert_tools_for_responses(
     tools: list[dict],
     *,
@@ -279,6 +291,8 @@ async def build_responses_request(
         "medium",
     )
     runtime_kwargs.pop("_runtime_force_protocol_path", None)
+    runtime_kwargs.pop("_runtime_native_web_search_fallback_reason", None)
+    runtime_kwargs.pop("_runtime_native_web_search_fallback_variant", None)
     runtime_kwargs.pop("previous_response_id", None)
     if effective_request is None:
         effective_request = adapter.resolve_effective_model_request(
@@ -334,7 +348,7 @@ async def build_responses_request(
         else []
     )
     if hosted_web_search_required:
-        converted_tools = _without_builtin_web_research_function_tools(converted_tools)
+        converted_tools = _hosted_web_search_tools_only(converted_tools)
         if not any(
             isinstance(tool, dict) and tool.get("type") == "web_search"
             for tool in converted_tools

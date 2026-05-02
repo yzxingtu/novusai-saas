@@ -140,6 +140,37 @@ def test_build_chat_completions_request_applies_reasoning_effort() -> None:
     assert request["reasoning_effort"] == "xhigh"
 
 
+def test_build_chat_completions_request_strips_runtime_native_search_fallback_keys() -> (
+    None
+):
+    adapter = _BuilderAdapterStub()
+
+    request = build_chat_completions_request(
+        adapter=adapter,
+        openai_messages=[{"role": "user", "content": "hello"}],
+        model="gpt-5.4",
+        temperature=0.7,
+        max_tokens=128,
+        top_p=1.0,
+        tools=None,
+        tool_choice=None,
+        stream=False,
+        kwargs={
+            "_runtime_native_web_search_fallback_reason": (
+                "hosted_web_search_unavailable:provider_timeout"
+            ),
+            "_runtime_native_web_search_fallback_variant": (
+                "builtin_web_research_tools"
+            ),
+            "user": "request-user",
+        },
+    )
+
+    assert "_runtime_native_web_search_fallback_reason" not in request
+    assert "_runtime_native_web_search_fallback_variant" not in request
+    assert request["user"] == "request-user"
+
+
 @pytest.mark.asyncio
 async def test_build_responses_request_keeps_required_tool_choice() -> None:
     adapter = _BuilderAdapterStub()
@@ -167,6 +198,39 @@ async def test_build_responses_request_keeps_required_tool_choice() -> None:
             "parameters": {},
         }
     ]
+
+
+@pytest.mark.asyncio
+async def test_build_responses_request_strips_runtime_native_search_fallback_keys() -> (
+    None
+):
+    adapter = _BuilderAdapterStub()
+
+    request = await build_responses_request(
+        adapter=adapter,
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-5.4-xhigh",
+        tools=[
+            {"type": "function", "function": {"name": "web_search", "parameters": {}}}
+        ],
+        tool_choice="required",
+        kwargs={
+            "_runtime_hosted_web_search_required": False,
+            "_runtime_native_web_search_fallback_reason": (
+                "hosted_web_search_unavailable:provider_timeout"
+            ),
+            "_runtime_native_web_search_fallback_variant": (
+                "builtin_web_research_tools"
+            ),
+            "user": "request-user",
+        },
+        reasoning_summary_model_prefixes=("gpt-5",),
+    )
+
+    assert "_runtime_native_web_search_fallback_reason" not in request
+    assert "_runtime_native_web_search_fallback_variant" not in request
+    assert request["user"] == "request-user"
+    assert request["tool_choice"] == "required"
 
 
 @pytest.mark.asyncio
@@ -254,6 +318,37 @@ async def test_build_responses_request_injects_required_hosted_search_override()
     assert request["tool_choice"] == "required"
     assert request["tools"] == [{"type": "web_search", "search_context_size": "medium"}]
     assert request["reasoning"] == {"effort": "xhigh", "summary": "auto"}
+
+
+@pytest.mark.asyncio
+async def test_build_responses_request_strips_all_function_tools_for_hosted_search_override() -> (
+    None
+):
+    adapter = _BuilderAdapterStub()
+
+    request = await build_responses_request(
+        adapter=adapter,
+        messages=[ChatMessage(role="user", content="联网查一下今天的新闻")],
+        model="gpt-5.4-xhigh",
+        tools=[
+            {"type": "function", "function": {"name": "web_search", "parameters": {}}},
+            {"type": "function", "function": {"name": "fetch_url", "parameters": {}}},
+            {"type": "function", "function": {"name": "crm_lookup", "parameters": {}}},
+            {
+                "type": "function",
+                "function": {"name": "get_current_weather", "parameters": {}},
+            },
+        ],
+        tool_choice="required",
+        kwargs={
+            "_runtime_hosted_web_search_required": True,
+            "_runtime_hosted_web_search_context_size": "medium",
+        },
+        reasoning_summary_model_prefixes=("gpt-5",),
+    )
+
+    assert request["tool_choice"] == "required"
+    assert request["tools"] == [{"type": "web_search", "search_context_size": "medium"}]
 
 
 @pytest.mark.asyncio

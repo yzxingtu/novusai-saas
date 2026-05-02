@@ -105,6 +105,43 @@ def test_protocol_turn_session_create_honors_forced_protocol_path() -> None:
     assert session.command.extra_kwargs["_runtime_hosted_web_search_required"] is True
 
 
+def test_protocol_turn_session_create_adds_hosted_search_builtin_fallback_chain() -> (
+    None
+):
+    session = ProtocolTurnSession.create(
+        planner=_PlannerStub(
+            ProtocolExecutionPlan(
+                preferred_protocol="chat_completions",
+                protocol_chain=["chat_completions"],
+                selected_tool_names=["web_search", "fetch_url"],
+                selected_skill_names=[],
+                context_sources=[],
+            )
+        ),
+        messages=[ChatMessage(role="user", content="联网查今天新闻")],
+        model="gpt-5.4",
+        temperature=0.7,
+        max_tokens=None,
+        top_p=1.0,
+        tools=[
+            {"type": "function", "function": {"name": "web_search"}},
+            {"type": "function", "function": {"name": "fetch_url"}},
+        ],
+        tool_choice="required",
+        supports_vision=True,
+        supports_audio=False,
+        supports_video=False,
+        extra_kwargs={
+            "_runtime_force_protocol_path": "responses",
+            "_runtime_hosted_web_search_required": True,
+        },
+    )
+
+    assert session.plan.preferred_protocol == "responses"
+    assert session.plan.protocol_chain == ["responses", "chat_completions"]
+    assert session.command.extra_kwargs["_runtime_hosted_web_search_required"] is True
+
+
 def test_protocol_turn_session_append_fallback_uses_next_protocol() -> None:
     session = ProtocolTurnSession(
         command=None,  # type: ignore[arg-type]
