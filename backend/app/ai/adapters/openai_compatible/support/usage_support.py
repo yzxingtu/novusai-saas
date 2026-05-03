@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from typing import Any
 
 from app.ai.types import ChatChunk, ChatResponse
@@ -14,17 +14,67 @@ logger = LogManager.get_logger("ai")
 RESPONSES_USAGE_RETRIEVE_TIMEOUT_SECONDS = 2.0
 
 
+def _iter_exception_diagnostics(
+    value: Any, seen: set[int] | None = None
+) -> Iterable[str]:
+    """Yield concise nested exception/response fields used by SDK variants."""
+    if seen is None:
+        seen = set()
+    value_id = id(value)
+    if value_id in seen:
+        return
+    seen.add(value_id)
+
+    if value is None:
+        return
+
+    if isinstance(value, dict):
+        for item in value.values():
+            yield from _iter_exception_diagnostics(item, seen)
+        return
+
+    if isinstance(value, (list, tuple, set)):
+        for item in value:
+            yield from _iter_exception_diagnostics(item, seen)
+        return
+
+    if isinstance(value, (str, bytes)):
+        if isinstance(value, bytes):
+            yield value.decode(errors="replace")
+        else:
+            yield value
+        return
+
+    yield str(value)
+    yield repr(value)
+
+    for attr in ("message", "body", "error", "response"):
+        nested = getattr(value, attr, None)
+        if nested is not None:
+            yield from _iter_exception_diagnostics(nested, seen)
+
+    text = getattr(value, "text", None)
+    if isinstance(text, str):
+        yield text
+
+
 def _is_responses_usage_retrieve_unavailable(exc: Exception) -> bool:
     """Return true when a compatible gateway does not expose Responses retrieve."""
     status_code = getattr(exc, "status_code", None)
     response = getattr(exc, "response", None)
     if status_code is None and response is not None:
         status_code = getattr(response, "status_code", None)
-    message = str(exc).lower()
+    if status_code is None and response is not None:
+        status_code = getattr(response, "status", None)
+    diagnostics = " ".join(_iter_exception_diagnostics(exc)).lower()
+    try:
+        numeric_status_code = int(status_code) if status_code is not None else None
+    except (TypeError, ValueError):
+        numeric_status_code = None
     return (
-        status_code == 404
-        or "404 page not found" in message
-        or ("404" in message and "not found" in message)
+        numeric_status_code == 404
+        or "404 page not found" in diagnostics
+        or ("404" in diagnostics and "not found" in diagnostics)
     )
 
 

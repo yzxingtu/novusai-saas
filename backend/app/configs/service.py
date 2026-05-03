@@ -18,6 +18,7 @@ from app.core.logging import LogManager
 from app.enums.config import ConfigScope, ConfigValueType
 from app.models.system.config import (
     SystemConfig,
+    SystemConfigGroup,
     SystemConfigValue,
 )
 from app.utils.config_html_sanitize import sanitize_config_html
@@ -28,7 +29,7 @@ logger = LogManager.get_logger("app")
 PLATFORM_TENANT_ID = 0
 
 # In-memory TTL cache (process-level, shared across requests) / 内存 TTL 缓存（进程级，跨请求共享）
-_config_id_cache: dict[str, tuple[int | None, float]] = {}
+_config_id_cache: dict[tuple[str | None, str], tuple[int | None, float]] = {}
 _config_value_cache: dict[str, tuple[Any, float]] = {}
 _CONFIG_ID_TTL = (
     300  # config key → id mapping rarely changes, cache 5 min / 缓存 5 分钟
@@ -235,7 +236,10 @@ class ConfigService:
 
         for config_meta in tenant_configs:
             # Check if value already exists / 检查是否已有值
-            config_id = await self._get_config_id(config_meta.key)
+            config_id = await self._get_config_id(
+                config_meta.key,
+                group_code=config_meta.group_code,
+            )
             if not config_id:
                 continue
 
@@ -378,10 +382,14 @@ class ConfigService:
         scope: ConfigScope,
         default: Any = None,
         skip_default: bool = False,
+        group_code: str | None = None,
     ) -> Any:
         """Get config value (with in-memory cache) / 获取配置值（带内存缓存）"""
         _ = scope
-        cache_key = f"{tenant_id}:{key}"
+        if group_code is None:
+            config_meta = self.registry.get_config_by_key(key)
+            group_code = config_meta.group_code if config_meta else None
+        cache_key = f"{tenant_id}:{group_code or '*'}:{key}"
         now = time.monotonic()
         cached = _config_value_cache.get(cache_key)
         if cached and (now - cached[1]) < _CONFIG_VALUE_TTL:
@@ -391,7 +399,7 @@ class ConfigService:
             return default if not skip_default else None
 
         # Get config item ID / 获取配置项 ID
-        config_id = await self._get_config_id(key)
+        config_id = await self._get_config_id(key, group_code=group_code)
         if not config_id:
             _config_value_cache[cache_key] = (None, now)
             return default if not skip_default else None
@@ -434,6 +442,7 @@ class ConfigService:
                 tenant_id=actual_tenant_id,
                 scope=scope,
                 default=config_meta.default_value,
+                group_code=config_meta.group_code,
             )
 
         payload = {
@@ -497,8 +506,11 @@ class ConfigService:
         value: Any,
     ) -> None:
         """Set config value / 设置配置值"""
+        config_meta = self.registry.get_config_by_key(key)
+        group_code = config_meta.group_code if config_meta else None
+
         # Get config item ID / 获取配置项 ID
-        config_id = await self._get_config_id(key)
+        config_id = await self._get_config_id(key, group_code=group_code)
         if not config_id:
             raise ValueError(f"Config '{key}' not found")
 
@@ -514,7 +526,6 @@ class ConfigService:
         )
         value_record = result.scalar_one_or_none()
 
-        config_meta = self.registry.get_config_by_key(key)
         if config_meta and config_meta.value_type == ConfigValueType.HTML:
             if value is None:
                 value = ""
@@ -539,7 +550,7 @@ class ConfigService:
         await self.db.flush()
 
         # Invalidate cache after write / 写入后立即失效缓存
-        cache_key = f"{tenant_id}:{key}"
+        cache_key = f"{tenant_id}:{group_code or '*'}:{key}"
         _config_value_cache.pop(cache_key, None)
 
     async def _get_configs_by_group(
@@ -559,20 +570,32 @@ class ConfigService:
                 tenant_id=tenant_id,
                 scope=config_meta.scope,
                 default=config_meta.default_value,
+                group_code=config_meta.group_code,
             )
             result[config_meta.key] = value
 
         return result
 
-    async def _get_config_id(self, key: str) -> int | None:
+    async def _get_config_id(
+        self,
+        key: str,
+        *,
+        group_code: str | None = None,
+    ) -> int | None:
         """Get config item ID by key (with in-memory cache) / 根据 key 获取配置项 ID（带内存缓存）"""
         now = time.monotonic()
-        cached = _config_id_cache.get(key)
+        if group_code is None:
+            config_meta = self.registry.get_config_by_key(key)
+            group_code = config_meta.group_code if config_meta else None
+
+        cache_key = (group_code, key)
+        cached = _config_id_cache.get(cache_key)
         if cached and (now - cached[1]) < _CONFIG_ID_TTL:
             return cached[0]
 
-        result = await self.db.execute(
+        stmt = (
             select(SystemConfig.id)
+            .join(SystemConfigGroup, SystemConfigGroup.id == SystemConfig.group_id)
             .where(
                 and_(
                     SystemConfig.key == key,
@@ -582,16 +605,28 @@ class ConfigService:
             .order_by(SystemConfig.id.asc())
             .limit(2)
         )
+        if group_code:
+            stmt = stmt.where(
+                and_(
+                    SystemConfigGroup.code == group_code,
+                    SystemConfigGroup.is_deleted.is_(False),
+                )
+            )
+
+        result = await self.db.execute(
+            stmt,
+        )
         ids = list(result.scalars().all())
         config_id = ids[0] if ids else None
         if len(ids) > 1:
             logger.warning(
-                "Duplicate system_configs detected for key='{}', using id={} and ignoring {} extra row(s)",
+                "Duplicate system_configs detected for group='{}' key='{}', using id={} and ignoring {} extra row(s)",
+                group_code or "*",
                 key,
                 config_id,
                 len(ids) - 1,
             )
-        _config_id_cache[key] = (config_id, now)
+        _config_id_cache[cache_key] = (config_id, now)
         return config_id
 
     def _serialize_value(self, value: Any) -> str | None:

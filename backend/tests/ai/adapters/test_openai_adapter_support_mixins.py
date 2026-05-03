@@ -1,6 +1,15 @@
+"""
+Test type: structural / behavioral
+Scope: OpenAI adapter support mixins keep public helper seams available and
+handle usage backfill/provider diagnostics without depending on live providers.
+Mocked dependencies: OpenAI SDK clients and support helper callables are local
+fakes; adapter glue and usage-support decision logic execute real code.
+"""
+
 from __future__ import annotations
 
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
@@ -161,6 +170,45 @@ async def test_usage_runtime_delegates_responses_usage_retrieve(
     assert captured["client"] is adapter.client
     assert captured["response_id"] == "resp_123"
     assert captured["usage"] == (5, 7, 12)
+
+
+@pytest.mark.asyncio
+async def test_responses_usage_retrieve_nested_404_body_is_debug_not_warning(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.ai.adapters.openai_compatible.support import usage_support
+
+    class _NestedBodyNotFoundError(Exception):
+        def __init__(self) -> None:
+            super().__init__("page not found")
+            self.body = {"error": {"message": "page not found", "code": 404}}
+            self.response = SimpleNamespace(text="page not found")
+
+    debug_calls: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
+    warning_calls: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
+    monkeypatch.setattr(
+        usage_support,
+        "logger",
+        SimpleNamespace(
+            debug=lambda *args, **kwargs: debug_calls.append((args, kwargs)),
+            warning=lambda *args, **kwargs: warning_calls.append((args, kwargs)),
+        ),
+    )
+    client = SimpleNamespace(
+        responses=SimpleNamespace(
+            retrieve=AsyncMock(side_effect=_NestedBodyNotFoundError()),
+        ),
+    )
+
+    result = await usage_support.retrieve_responses_usage(
+        client=client,
+        response_id="resp_missing",
+        extract_usage_tokens=lambda _usage: (1, 2, 3),
+    )
+
+    assert result == (None, None, None)
+    assert warning_calls == []
+    assert len(debug_calls) == 1
 
 
 def test_usage_runtime_delegates_terminal_stream_chunk_builder(

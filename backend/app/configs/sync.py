@@ -15,7 +15,7 @@ from app.configs.meta import ConfigGroupMeta, ConfigMeta
 from app.configs.registry import ConfigRegistry, config_registry
 from app.core.base_model import utc_now
 from app.core.logging import LogManager
-from app.models.system.config import SystemConfig, SystemConfigGroup
+from app.models.system.config import SystemConfig, SystemConfigGroup, SystemConfigValue
 
 logger = LogManager.get_logger("app")
 
@@ -128,9 +128,9 @@ class ConfigSyncService:
         """Sync config items / 同步配置项
 
         Returns:
-            Sync stats: {created, updated, deprecated} / 同步统计
+            Sync stats: {created, updated, deprecated, migrated_values} / 同步统计
         """
-        stats = {"created": 0, "updated": 0, "deprecated": 0}
+        stats = {"created": 0, "updated": 0, "deprecated": 0, "migrated_values": 0}
 
         # Get all code-defined config items / 获取所有代码定义的配置项
         code_configs = self.registry.get_all_configs()
@@ -152,6 +152,7 @@ class ConfigSyncService:
 
         # Create reverse mapping group_id -> code / 创建反向映射
         group_id_to_code = {v: k for k, v in group_map.items()}
+        canonical_configs_by_key: dict[str, SystemConfig] = {}
 
         # Create/update config items / 创建/更新配置项
         for config_meta in code_configs:
@@ -174,16 +175,68 @@ class ConfigSyncService:
                 db_config = self._create_config_from_meta(config_meta, group_id)
                 self.db.add(db_config)
                 stats["created"] += 1
+            canonical_configs_by_key[config_meta.key] = db_config
+
+        if stats["created"]:
+            await self.db.flush()
 
         # Mark deprecated config items / 标记废弃的配置项
         for (group_id, key), db_config in db_configs.items():
             group_code = group_id_to_code.get(group_id, "")
             if (group_code, key) not in code_config_keys:
+                canonical_config = canonical_configs_by_key.get(key)
+                if canonical_config and canonical_config.id != db_config.id:
+                    migrated_values = await self._copy_values_to_canonical_config(
+                        source_config_id=db_config.id,
+                        target_config_id=canonical_config.id,
+                    )
+                    stats["migrated_values"] += migrated_values
                 db_config.is_visible = False
                 stats["deprecated"] += 1
 
         logger.debug(f"Configs sync stats: {stats}")
         return stats
+
+    async def _copy_values_to_canonical_config(
+        self,
+        *,
+        source_config_id: int,
+        target_config_id: int,
+    ) -> int:
+        """Copy values from a rehomed key when target lacks tenant row / 迁移换组配置值。"""
+        result = await self.db.execute(
+            select(SystemConfigValue).where(
+                SystemConfigValue.config_id == source_config_id,
+                SystemConfigValue.is_deleted.is_(False),
+            )
+        )
+        source_values = list(result.scalars().all())
+        if not source_values:
+            return 0
+
+        tenant_ids = [value.tenant_id for value in source_values]
+        result = await self.db.execute(
+            select(SystemConfigValue.tenant_id).where(
+                SystemConfigValue.config_id == target_config_id,
+                SystemConfigValue.tenant_id.in_(tenant_ids),
+                SystemConfigValue.is_deleted.is_(False),
+            )
+        )
+        existing_tenant_ids = set(result.scalars().all())
+
+        migrated = 0
+        for source_value in source_values:
+            if source_value.tenant_id in existing_tenant_ids:
+                continue
+            self.db.add(
+                SystemConfigValue(
+                    config_id=target_config_id,
+                    tenant_id=source_value.tenant_id,
+                    value=source_value.value,
+                )
+            )
+            migrated += 1
+        return migrated
 
     def _collect_all_groups(self) -> list[ConfigGroupMeta]:
         """Collect all groups (including nested child groups) / 收集所有分组（包括嵌套的子分组）"""
