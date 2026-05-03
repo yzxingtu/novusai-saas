@@ -623,6 +623,14 @@ class RuntimeRootCauseProjector:
                 "Fix explicit time/weather/web intent detection before allowing direct_reply short-circuit.",
                 0.93,
             )
+        if failure_kind == "raw_search_only_recovery_finalized":
+            return (
+                "research_contract",
+                "raw_search_only_recovery_finalized",
+                "The turn finalized raw web_search results as recovery evidence even though fetch_url evidence was still required.",
+                "Keep the web-research intent pending until fetch_url completes, and reject search-only recovery evidence for required-fetch turns.",
+                0.96,
+            )
         if (
             call_log is not None
             and str(call_log.status or "") == CallStatusEnum.SUCCESS.value
@@ -862,6 +870,10 @@ class RuntimeRootCauseProjector:
             ),
         )
         append("failure_kind", normalized_projection.get("failure_kind"))
+        append(
+            "missing_required_tool_names",
+            normalized_projection.get("missing_required_tool_names"),
+        )
         append("contract_breach_type", diagnostics.get("contract_breach_type"))
         append("final_output_source", normalized_projection.get("final_output_source"))
         if not authoritative_completed_output:

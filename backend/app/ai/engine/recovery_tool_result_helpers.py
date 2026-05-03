@@ -97,6 +97,11 @@ def extract_fetch_url_user_preview(
             f"{title} - {description}"
         )
     )
+    summary_is_title_only = bool(
+        normalized_title
+        and normalized_summary
+        and normalized_summary == normalized_title
+    )
     description_has_terminal_punctuation = _has_terminal_punctuation(description)
     description_incomplete = bool(
         description and not description_has_terminal_punctuation
@@ -134,6 +139,7 @@ def extract_fetch_url_user_preview(
             or description_truncated
             or title_has_site_suffix
             or summary_is_title_description
+            or summary_is_title_only
             or description_incomplete
         )
     )

@@ -176,6 +176,32 @@ def test_resolve_failure_projection_clears_completed_success_progress_signal_wit
     assert projection["blocks_success_shortcut"] is False
 
 
+def test_resolve_failure_projection_ignores_progress_signal_when_provider_error_exists() -> (
+    None
+):
+    projection = resolve_failure_projection(
+        diagnostics={
+            "turn_outcome": "partial",
+            "termination_reason": "retry_budget_exhausted",
+            "turn_record": {
+                "metadata": {
+                    "stream_failure_error_type": "ProviderError",
+                }
+            },
+            "provider_events": [
+                {
+                    "kind": "web_search_in_progress",
+                    "protocol_path": "responses",
+                }
+            ],
+        }
+    )
+
+    assert projection["turn_outcome"] == "partial"
+    assert projection["failure_kind"] == "provider_gateway_error"
+    assert projection["blocks_success_shortcut"] is True
+
+
 def test_resolve_failure_projection_keeps_budget_exit_blocking_without_trusted_final_source() -> (
     None
 ):
@@ -236,6 +262,66 @@ def test_resolve_failure_projection_trusts_recovery_evidence_over_stale_budget_f
     assert projection["failure_kind"] is None
     assert projection["budget_exit_reason"] == "elapsed_budget_exceeded"
     assert projection["blocks_success_shortcut"] is False
+
+
+def test_resolve_failure_projection_rejects_raw_search_only_recovery_when_fetch_required() -> (
+    None
+):
+    projection = resolve_failure_projection(
+        diagnostics={
+            "turn_outcome": "success",
+            "conversation_outcome": "success",
+            "termination_reason": "protocol_fallback",
+            "failure_kind": "provider_timeout",
+            "final_output_source": "recovery_evidence",
+            "selected_tool_names": ["web_search", "fetch_url"],
+            "candidate_tool_names": ["web_search", "fetch_url"],
+            "intent_plan": [
+                {
+                    "intent_id": "intent-1",
+                    "kind": "web_research",
+                    "family": "web_research",
+                    "status": "completed",
+                    "allowed_tool_names": ["fetch_url"],
+                    "completed_by_tool_names": ["web_search"],
+                }
+            ],
+            "retry_events": [
+                {
+                    "action": "retry_intent",
+                    "target_intent_id": "intent-1",
+                    "allowed_tool_names": ["fetch_url"],
+                    "unfinished_intent_ids": ["intent-1"],
+                }
+            ],
+            "fallback_history": [
+                {
+                    "from_protocol": "responses",
+                    "to_protocol": "responses",
+                    "reason": "hosted_web_search_unavailable:provider_timeout",
+                    "recovered": True,
+                }
+            ],
+        },
+        turn_flow={
+            "timeline": [
+                {
+                    "id": "answer_assembly",
+                    "type": "failed",
+                    "status": "error",
+                }
+            ],
+            "error_surface": {"failure_kind": "provider_timeout"},
+        },
+    )
+
+    assert projection["turn_outcome"] == "failed"
+    assert projection["conversation_outcome"] == "failed"
+    assert projection["failure_kind"] == "raw_search_only_recovery_finalized"
+    assert projection["raw_search_only_recovery_finalized"] is True
+    assert projection["missing_required_tool_names"] == ["fetch_url"]
+    assert projection["authoritative_completed_success"] is False
+    assert projection["blocks_success_shortcut"] is True
 
 
 def test_resolve_failure_projection_treats_recovered_protocol_fallback_as_success() -> (

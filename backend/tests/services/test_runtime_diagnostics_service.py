@@ -746,6 +746,123 @@ async def test_build_root_cause_keeps_recovery_evidence_output_success_over_trai
 
 
 @pytest.mark.asyncio
+async def test_build_root_cause_flags_raw_search_only_recovery_when_fetch_required(
+    mock_db,
+):
+    from app.services.ai.runtime_diagnostics_service import RuntimeDiagnosticsService
+
+    service = RuntimeDiagnosticsService(mock_db)
+    conversation_turn = {
+        "message_id": 13235,
+        "assistant_content": (
+            "日耗37万亿 Tokens ,千问稳居第一 - "
+            "http://www.baidu.com/link?url=example-token-ranking"
+        ),
+        "diagnostics": {
+            "conversation_outcome": "success",
+            "turn_outcome": "success",
+            "termination_reason": "protocol_fallback",
+            "protocol_path": "responses",
+            "failure_kind": "provider_timeout",
+            "final_output_source": "recovery_evidence",
+            "selected_tool_names": ["web_search", "fetch_url"],
+            "candidate_tool_names": ["web_search", "fetch_url"],
+            "selected_skill_names": ["web_search"],
+            "intent_plan": [
+                {
+                    "intent_id": "intent-1",
+                    "kind": "web_research",
+                    "family": "web_research",
+                    "status": "completed",
+                    "allowed_tool_names": ["fetch_url"],
+                    "completed_by_tool_names": ["web_search"],
+                }
+            ],
+            "tool_planner": {
+                "intent": "web_research",
+                "family": "web_research",
+                "intent_plan": [
+                    {
+                        "intent_id": "intent-1",
+                        "kind": "web_research",
+                        "family": "web_research",
+                        "status": "pending",
+                        "allowed_tool_names": ["web_search", "fetch_url"],
+                        "completed_by_tool_names": [],
+                    }
+                ],
+            },
+            "retry_events": [
+                {
+                    "action": "retry_intent",
+                    "target_intent_id": "intent-1",
+                    "allowed_tool_names": ["fetch_url"],
+                    "unfinished_intent_ids": ["intent-1"],
+                }
+            ],
+            "fallback_history": [
+                {
+                    "from_protocol": "responses",
+                    "to_protocol": "responses",
+                    "reason": "hosted_web_search_unavailable:provider_timeout",
+                    "recovered": True,
+                }
+            ],
+        },
+        "metadata": {
+            "turn_flow": {
+                "timeline": [
+                    {
+                        "id": "answer_assembly",
+                        "type": "failed",
+                        "status": "error",
+                    }
+                ],
+                "error_surface": {"failure_kind": "provider_timeout"},
+            }
+        },
+    }
+    call_log = _call_log(
+        status=CallStatusEnum.SUCCESS.value,
+        request_metadata={
+            "request": {
+                "turn_record": {
+                    "turn_outcome": "success",
+                    "termination_reason": "protocol_fallback",
+                    "protocol_path": "responses",
+                    "failure_kind": "provider_timeout",
+                    "final_output_source": "recovery_evidence",
+                    "selected_tool_names": ["web_search", "fetch_url"],
+                }
+            },
+        },
+    )
+
+    with (
+        patch.object(
+            service,
+            "_resolve_conversation_turn",
+            new=AsyncMock(return_value=conversation_turn),
+        ),
+        patch.object(
+            service,
+            "_resolve_related_call_log_for_conversation_turn",
+            new=AsyncMock(return_value=call_log),
+        ),
+    ):
+        report = await service.build_root_cause(conversation_id=2276, turn=1)
+
+    assert report["status"] == "failed"
+    assert report["failure_layer"] == "research_contract"
+    assert report["cause_code"] == "raw_search_only_recovery_finalized"
+    assert "fetch_url evidence was still required" in report["summary"]
+    evidence = {item["label"]: item["value"] for item in report["evidence"]}
+    assert evidence["failure_kind"] == "raw_search_only_recovery_finalized"
+    assert evidence["missing_required_tool_names"] == ["fetch_url"]
+    assert evidence["final_output_source"] == "recovery_evidence"
+
+
+@pytest.mark.asyncio
 async def test_build_root_cause_scrubs_invalid_runtime_metadata_from_evidence(mock_db):
     from app.services.ai.runtime_diagnostics_service import RuntimeDiagnosticsService
 

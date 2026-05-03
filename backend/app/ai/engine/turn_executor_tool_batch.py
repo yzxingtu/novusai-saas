@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
@@ -170,6 +171,128 @@ def build_shortcircuit_fallback_response(
     )
 
 
+def _normalized_url_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    normalized: list[str] = []
+    for item in value:
+        url = str(item or "").strip()
+        if url and url not in normalized:
+            normalized.append(url)
+    return normalized
+
+
+def _first_unattempted_fetch_url_candidate(intent: Any) -> tuple[str, int]:
+    metadata = dict(getattr(intent, "metadata", {}) or {})
+    candidate_urls = _normalized_url_list(metadata.get("fetch_url_candidate_urls"))
+    attempted_url_list = _normalized_url_list(metadata.get("fetch_url_attempted_urls"))
+    blocked_url_list = _normalized_url_list(metadata.get("fetch_url_blocked_urls"))
+    attempted_urls = set(attempted_url_list + blocked_url_list)
+    attempt_index = len(attempted_urls) + 1
+    for url in candidate_urls:
+        if url not in attempted_urls:
+            return url, attempt_index
+    return "", attempt_index
+
+
+def build_required_fetch_url_fallback_response(
+    *,
+    intent: Any | None,
+    response: ChatResponse | None,
+    tools: list[Any],
+    total_tokens: int,
+    completion_tokens_used: int,
+) -> ChatResponse | None:
+    if intent is None:
+        return None
+    if str(getattr(intent, "family", "") or "").strip() != "web_research":
+        return None
+    if getattr(response, "tool_calls", None):
+        return None
+    if not any(
+        str(getattr(tool, "name", "") or "").strip() == "fetch_url" for tool in tools
+    ):
+        return None
+
+    metadata = dict(getattr(intent, "metadata", {}) or {})
+    gate_reason = str(metadata.get("auto_fetch_gate_reason") or "").strip()
+    if (
+        not bool(metadata.get("requires_fetch_url"))
+        and gate_reason != "candidate_urls_ready"
+    ):
+        return None
+
+    selected_url, attempt_index = _first_unattempted_fetch_url_candidate(intent)
+    if not selected_url:
+        return None
+
+    intent_id = str(getattr(intent, "intent_id", "") or "intent").strip() or "intent"
+    synthetic_call = [
+        {
+            "id": f"synthetic_{intent_id}_fetch_url_{attempt_index}",
+            "type": "function",
+            "function": {
+                "name": "fetch_url",
+                "arguments": json.dumps(
+                    {"url": selected_url, "max_length": 12000},
+                    ensure_ascii=False,
+                ),
+            },
+        }
+    ]
+    response_metadata = dict(getattr(response, "metadata", {}) or {})
+    response_metadata.update(
+        {
+            "synthetic_required_fetch_url_tool_call": True,
+            "synthetic_required_fetch_url_intent_id": intent_id,
+            "synthetic_required_fetch_url_tool_name": "fetch_url",
+            "synthetic_required_fetch_url": selected_url,
+            "synthetic_required_fetch_url_attempt_index": attempt_index,
+            "synthetic_required_fetch_url_reason": (
+                "required_fetch_url_retry_without_tool_call"
+            ),
+        }
+    )
+    return ChatResponse(
+        message=ChatMessage(
+            role="assistant",
+            content="",
+            tool_calls=synthetic_call,
+        ),
+        total_tokens=int(total_tokens or getattr(response, "total_tokens", 0) or 0),
+        output_tokens=int(
+            completion_tokens_used or getattr(response, "output_tokens", 0) or 0
+        ),
+        finish_reason="tool_calls",
+        tool_calls=synthetic_call,
+        metadata=response_metadata,
+    )
+
+
+def record_synthetic_required_fetch_url(
+    state: ExecutionStateMachine,
+    response: ChatResponse,
+) -> None:
+    metadata = dict(getattr(response, "metadata", {}) or {})
+    if not metadata.get("synthetic_required_fetch_url_tool_call"):
+        return
+    state.preparation_diagnostics.update(
+        {
+            "synthetic_required_fetch_url_tool_call": True,
+            "synthetic_required_fetch_url_intent_id": metadata.get(
+                "synthetic_required_fetch_url_intent_id"
+            ),
+            "synthetic_required_fetch_url_tool_name": "fetch_url",
+            "synthetic_required_fetch_url_attempt_index": metadata.get(
+                "synthetic_required_fetch_url_attempt_index"
+            ),
+            "synthetic_required_fetch_url_reason": metadata.get(
+                "synthetic_required_fetch_url_reason"
+            ),
+        }
+    )
+
+
 async def run_tool_batch_or_update_intents(
     *,
     state: ExecutionStateMachine,
@@ -201,14 +324,23 @@ async def run_tool_batch_or_update_intents(
         )
 
     if tools:
-        fallback_response = build_shortcircuit_fallback_response(
+        fallback_response = build_required_fetch_url_fallback_response(
             intent=intent,
             response=response,
             tools=tools,
             total_tokens=total_tokens,
             completion_tokens_used=completion_tokens_used,
         )
+        if fallback_response is None:
+            fallback_response = build_shortcircuit_fallback_response(
+                intent=intent,
+                response=response,
+                tools=tools,
+                total_tokens=total_tokens,
+                completion_tokens_used=completion_tokens_used,
+            )
         if fallback_response is not None:
+            record_synthetic_required_fetch_url(state, fallback_response)
             return await execute_tool_batch(
                 state=state,
                 io=io,
@@ -232,6 +364,46 @@ async def run_tool_batch_or_update_intents(
         )
 
     return response, [], total_tokens, completion_tokens_used
+
+
+async def _execute_synthetic_required_fetch_url_if_needed(
+    *,
+    state: ExecutionStateMachine,
+    io: TurnIOAdapter,
+    intent: Any | None,
+    response: ChatResponse | None,
+    tools: list[Any],
+    all_tools: list[Any] | None,
+    messages: list[ChatMessage],
+    turn_messages: list[ChatMessage],
+    tool_use_policy: ToolUsePolicy | None,
+    input_variables: dict[str, Any] | None,
+    total_tokens: int,
+    completion_tokens_used: int,
+) -> tuple[ChatResponse | None, list[ToolResult], int, int] | None:
+    fallback_response = build_required_fetch_url_fallback_response(
+        intent=intent,
+        response=response,
+        tools=tools,
+        total_tokens=total_tokens,
+        completion_tokens_used=completion_tokens_used,
+    )
+    if fallback_response is None:
+        return None
+    record_synthetic_required_fetch_url(state, fallback_response)
+    return await execute_tool_batch(
+        state=state,
+        io=io,
+        response=fallback_response,
+        tools=tools,
+        all_tools=all_tools or tools,
+        messages=messages,
+        turn_messages=turn_messages,
+        tool_use_policy=tool_use_policy,
+        input_variables=input_variables,
+        total_tokens=total_tokens,
+        completion_tokens_used=completion_tokens_used,
+    )
 
 
 async def run_contract_retry_round(
@@ -410,6 +582,36 @@ async def run_contract_retry_round(
                             retry_policy.allowed_tool_names
                         )
         elif response is not None:
+            fallback_result = await _execute_synthetic_required_fetch_url_if_needed(
+                state=state,
+                io=io,
+                intent=active_intent,
+                response=response,
+                tools=retry_tools,
+                all_tools=retry_tool_pool,
+                messages=messages,
+                turn_messages=turn_messages,
+                tool_use_policy=retry_policy,
+                input_variables=request.input_variables,
+                total_tokens=total_tokens,
+                completion_tokens_used=completion_tokens_used,
+            )
+            if fallback_result is not None:
+                (
+                    response,
+                    extra_tool_results,
+                    total_tokens,
+                    completion_tokens_used,
+                ) = fallback_result
+                tool_results.extend(extra_tool_results)
+                return (
+                    response,
+                    tool_results,
+                    total_tokens,
+                    completion_tokens_used,
+                    active_policy,
+                    list(active_tools or []),
+                )
             response = suppress_contract_placeholder_response(response)
             io.log_tool_contract_diagnostics(
                 agent=agent,
@@ -525,9 +727,11 @@ async def maybe_retry_web_research_contract(
 
 
 __all__ = [
+    "build_required_fetch_url_fallback_response",
     "build_shortcircuit_fallback_response",
     "execute_tool_batch",
     "maybe_retry_web_research_contract",
+    "record_synthetic_required_fetch_url",
     "run_contract_retry_round",
     "run_tool_batch_or_update_intents",
 ]

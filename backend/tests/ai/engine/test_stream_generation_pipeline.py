@@ -426,9 +426,8 @@ async def test_build_stream_exception_artifacts_recovers_successful_web_search_e
                 source_text="帮我搜索一下2025年大模型使用token排行",
                 status="pending",
                 requires_tools=True,
-                allowed_tool_names=["fetch_url"],
-                completion_signals=["fetch_url"],
-                metadata={"requires_fetch_url": True},
+                allowed_tool_names=["web_search"],
+                completion_signals=["web_search"],
             )
         ],
     )
@@ -546,6 +545,127 @@ async def test_build_stream_exception_artifacts_recovers_successful_web_search_e
     assert artifacts.replay_events
 
 
+@pytest.mark.asyncio
+async def test_build_stream_exception_artifacts_does_not_recover_search_only_when_fetch_required() -> (
+    None
+):
+    from app.ai.engine.execution_state_machine import ExecutionStateMachine
+    from app.ai.engine.types import IntentPlan, PreparedExecution
+    from app.ai.tools.types import ToolResult
+
+    prep = PreparedExecution(
+        execution_path="normal",
+        intent_plan=[
+            IntentPlan(
+                intent_id="intent-web",
+                kind="web_research",
+                family="web_research",
+                order=1,
+                user_visible_label="大模型 token 排行",
+                source_text="帮我搜索一下2025年大模型使用token排行",
+                status="pending",
+                requires_tools=True,
+                allowed_tool_names=["fetch_url"],
+                completion_signals=["fetch_url"],
+                metadata={
+                    "requires_fetch_url": True,
+                    "auto_fetch_gate_reason": "candidate_urls_ready",
+                    "fetch_url_candidate_urls": [
+                        "http://www.baidu.com/link?url=example-token-ranking"
+                    ],
+                },
+            )
+        ],
+    )
+    state = ExecutionStateMachine.from_prepared_execution(prep)
+    state.transition("failed")
+    state.register_provider_failure(
+        kind="provider_unavailable",
+        event={"kind": "provider_unavailable", "error": "Connection error."},
+    )
+
+    async def _finalize_partial_output(**_kwargs):
+        return "这次处理被系统中断了，请稍后再试。", 18, 9
+
+    handler = SimpleNamespace(
+        request=SimpleNamespace(conversation_id=2276, input_variables={}),
+        agent=SimpleNamespace(id=59),
+        prep=SimpleNamespace(
+            rag_source_kinds=[],
+            context_compacted=False,
+            memory_flush_triggered=False,
+            memory_recalled=False,
+            prune_stats=None,
+            tool_planner=None,
+            execution_path="normal",
+            stream_runtime=None,
+        ),
+        start_time=0.0,
+        engine=SimpleNamespace(_messages_to_dicts=messages_to_dicts),
+        runtime_contract=SimpleNamespace(
+            finalize_partial_output=_finalize_partial_output,
+        ),
+        _state=state,
+        _runtime_turn_record=None,
+        _runtime_turn_record_source=None,
+        _runtime_turn_record_overlays={},
+        _output="",
+        _reasoning_output="",
+        _total_tokens=0,
+        _completion_tokens_used=0,
+        _visible_stream_content="",
+        _clear_before_next_message=False,
+        _next_runtime_context=None,
+    )
+    messages = [
+        ChatMessage(role="user", content="帮我搜索一下2025年大模型使用token排行")
+    ]
+    tool_results = [
+        ToolResult(
+            tool_call_id="tc-search",
+            name="web_search",
+            success=True,
+            summary="baidu_public: 1 result(s)",
+            summary_payload={
+                "status": "success",
+                "result_count": 1,
+                "items": [
+                    {
+                        "title": "日耗37万亿 Tokens ,千问稳居第一",
+                        "url": "http://www.baidu.com/link?url=example-token-ranking",
+                    }
+                ],
+            },
+        )
+    ]
+
+    try:
+        artifacts = await stream_execution_runtime._build_stream_exception_artifacts(
+            handler,
+            messages=messages,
+            rag_sources=None,
+            output="",
+            total_tokens=0,
+            all_tool_results=tool_results,
+            public_error_message="Connection error.",
+            completion_reason="provider_unavailable",
+        )
+    finally:
+        context_token = getattr(state, "_context_token", None)
+        if context_token is not None:
+            from app.ai.engine.execution_state_machine import (
+                reset_current_execution_state_machine,
+            )
+
+            reset_current_execution_state_machine(context_token)
+
+    assert artifacts.result.success is False
+    assert artifacts.result.partial is True
+    assert artifacts.result.turn_record["final_output_source"] == "partial_output"
+    assert "日耗37万亿 Tokens" not in artifacts.result.output
+    assert "http://www.baidu.com/link" not in artifacts.result.output
+
+
 def test_build_sync_exception_result_hides_provider_failure_partial_output(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -633,9 +753,8 @@ def test_build_sync_exception_result_recovers_successful_web_search_evidence() -
                 source_text="帮我搜索一下2025年大模型使用token排行",
                 status="pending",
                 requires_tools=True,
-                allowed_tool_names=["fetch_url"],
-                completion_signals=["fetch_url"],
-                metadata={"requires_fetch_url": True},
+                allowed_tool_names=["web_search"],
+                completion_signals=["web_search"],
             )
         ],
     )
@@ -698,6 +817,88 @@ def test_build_sync_exception_result_recovers_successful_web_search_evidence() -
     assert result.diagnostics["provider_failure_recovered_from_tool_evidence"] is True
     assert result.diagnostics["failure_kind"] == "none"
     assert result.diagnostics["unfinished_intents"] == []
+
+
+def test_build_sync_exception_result_does_not_recover_search_only_when_fetch_required() -> (
+    None
+):
+    from app.ai.engine.execution_state_machine import ExecutionStateMachine
+    from app.ai.engine.types import IntentPlan, PreparedExecution
+    from app.ai.exceptions import ProviderConnectionError
+    from app.ai.tools.types import ToolResult
+
+    prep = PreparedExecution(
+        execution_path="normal",
+        intent_plan=[
+            IntentPlan(
+                intent_id="intent-web",
+                kind="web_research",
+                family="web_research",
+                order=1,
+                user_visible_label="大模型 token 排行",
+                source_text="帮我搜索一下2025年大模型使用token排行",
+                status="pending",
+                requires_tools=True,
+                allowed_tool_names=["fetch_url"],
+                completion_signals=["fetch_url"],
+                metadata={
+                    "requires_fetch_url": True,
+                    "auto_fetch_gate_reason": "candidate_urls_ready",
+                    "fetch_url_candidate_urls": [
+                        "http://www.baidu.com/link?url=example-token-ranking"
+                    ],
+                },
+            )
+        ],
+    )
+    state = ExecutionStateMachine.from_prepared_execution(prep)
+    tool_results = [
+        ToolResult(
+            tool_call_id="tc-search",
+            name="web_search",
+            success=True,
+            summary_payload={
+                "status": "success",
+                "result_count": 1,
+                "items": [
+                    {
+                        "title": "日耗37万亿 Tokens ,千问稳居第一",
+                        "url": "http://www.baidu.com/link?url=example-token-ranking",
+                    }
+                ],
+            },
+        )
+    ]
+
+    try:
+        result = conversation_sync_result_support.build_sync_exception_result(
+            exc=ProviderConnectionError("Connection error."),
+            request=SimpleNamespace(conversation_id=2276),
+            messages=[
+                ChatMessage(
+                    role="user", content="帮我搜索一下2025年大模型使用token排行"
+                )
+            ],
+            tool_results=tool_results,
+            state=state,
+            prep=prep,
+            start_time=0.0,
+            messages_to_dicts=messages_to_dicts,
+        )
+    finally:
+        context_token = getattr(state, "_context_token", None)
+        if context_token is not None:
+            from app.ai.engine.execution_state_machine import (
+                reset_current_execution_state_machine,
+            )
+
+            reset_current_execution_state_machine(context_token)
+
+    assert result.success is False
+    assert result.partial is True
+    assert result.turn_record["final_output_source"] == "partial_output"
+    assert "日耗37万亿 Tokens" not in result.output
+    assert "http://www.baidu.com/link" not in result.output
 
 
 @pytest.mark.asyncio

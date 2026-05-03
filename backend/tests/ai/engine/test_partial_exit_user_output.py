@@ -464,3 +464,51 @@ def test_update_intent_statuses_does_not_promote_failed_fetch_url_evidence() -> 
     assert updated[0].status == "pending"
     assert updated[0].cached_result is None
     assert "partial_result" not in (updated[0].metadata or {})
+
+
+def test_recovery_does_not_complete_required_fetch_url_from_search_only_evidence() -> (
+    None
+):
+    intent = _web_research_intent()
+    intent.metadata = {
+        "requires_fetch_url": True,
+        "auto_fetch_gate_reason": "candidate_urls_ready",
+        "fetch_url_candidate_urls": [
+            "http://www.baidu.com/link?url=example-token-ranking"
+        ],
+        "partial_result": (
+            "日耗37万亿 Tokens ,千问稳居第一 - "
+            "http://www.baidu.com/link?url=example-token-ranking"
+        ),
+    }
+
+    recovered_intents, recovered_output = (
+        RecoveryManager.recover_web_search_output_from_evidence(
+            [intent],
+            tool_results=[
+                ToolResult(
+                    tool_call_id="tc-search",
+                    name="web_search",
+                    success=True,
+                    summary="baidu_public: 1 result(s)",
+                    summary_payload={
+                        "status": "success",
+                        "result_count": 1,
+                        "items": [
+                            {
+                                "title": "日耗37万亿 Tokens ,千问稳居第一",
+                                "url": "http://www.baidu.com/link?url=example-token-ranking",
+                                "snippet": "沙利文报告显示，中国企业级大模型日均调用量为37万亿Tokens。",
+                            }
+                        ],
+                    },
+                )
+            ],
+            reason="retry_budget_exhausted",
+        )
+    )
+
+    assert recovered_output == ""
+    assert recovered_intents[0].status == "pending"
+    assert recovered_intents[0].completed_by_tool_names == []
+    assert recovered_intents[0].metadata["requires_fetch_url"] is True

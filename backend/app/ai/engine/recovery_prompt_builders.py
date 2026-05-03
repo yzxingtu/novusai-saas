@@ -305,6 +305,12 @@ def _is_recoverable_web_search_intent(intent: IntentPlan) -> bool:
         return False
     metadata = dict(intent.metadata or {})
     gate_reason = str(metadata.get("auto_fetch_gate_reason") or "").strip()
+    if (
+        bool(metadata.get("requires_fetch_url"))
+        or gate_reason == "candidate_urls_ready"
+        or bool(metadata.get("fetch_url_candidate_urls"))
+    ):
+        return False
     return gate_reason not in {
         "search_not_successful",
         "search_no_results_completed",

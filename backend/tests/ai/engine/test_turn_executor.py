@@ -712,6 +712,155 @@ async def test_turn_executor_retries_web_research_with_fetch_url_after_search_on
 
 
 @pytest.mark.asyncio
+async def test_turn_executor_synthesizes_fetch_url_when_required_retry_omits_tool_call() -> (
+    None
+):
+    tools = [
+        ToolDefinition(name="web_search", description="Search"),
+        ToolDefinition(name="fetch_url", description="Fetch"),
+    ]
+    intents = [
+        _build_intent(
+            intent_id="intent-web",
+            kind="web_research",
+            family="web_research",
+            allowed_tool_names=["web_search", "fetch_url"],
+        )
+    ]
+    prep = _build_prep(
+        tools=tools,
+        intents=intents,
+        tool_use_policy=ToolUsePolicy(
+            family="web_research",
+            mode="required",
+            allowed_tool_names=["web_search", "fetch_url"],
+            retry_on_contract_breach=False,
+            reason="native_web_search_first:web_research",
+        ),
+    )
+    state = ExecutionStateMachine.from_prepared_execution(prep)
+    io = _FakeIOAdapter(
+        model_rounds=[
+            _assistant_response(
+                "",
+                tool_calls=[
+                    {
+                        "id": "call-web-search",
+                        "type": "function",
+                        "function": {
+                            "name": "web_search",
+                            "arguments": '{"query":"2025 大模型 token 排行","max_results":5}',
+                        },
+                    }
+                ],
+            ),
+            _assistant_response("我来打开第一条结果核验。"),
+        ],
+        tool_batches=[
+            ToolBatchResult(
+                response=ChatResponse(
+                    message=ChatMessage(role="assistant", content=""),
+                    total_tokens=9,
+                    output_tokens=9,
+                ),
+                tool_results=[
+                    ToolResult(
+                        tool_call_id="call-web-search",
+                        name="web_search",
+                        success=True,
+                        summary="baidu_public: 1 result(s)",
+                        summary_payload={
+                            "status": "success",
+                            "result_count": 1,
+                            "items": [
+                                {
+                                    "title": "日耗37万亿 Tokens ,千问稳居第一",
+                                    "url": "http://www.baidu.com/link?url=example-token-ranking",
+                                    "snippet": "沙利文报告显示，中国企业级大模型日均调用量为37万亿Tokens。",
+                                }
+                            ],
+                        },
+                    )
+                ],
+                total_tokens=9,
+                completion_tokens_used=9,
+            ),
+            ToolBatchResult(
+                response=ChatResponse(
+                    message=ChatMessage(role="assistant", content=""),
+                    total_tokens=11,
+                    output_tokens=11,
+                ),
+                tool_results=[
+                    ToolResult(
+                        tool_call_id="synthetic_intent-web_fetch_url",
+                        name="fetch_url",
+                        success=True,
+                        output=(
+                            "Content from https://example.com/token-ranking:\n"
+                            "Title: 日耗37万亿 Tokens ,千问稳居第一\n"
+                            "Description: 沙利文报告显示，中国企业级大模型调用市场继续扩张。\n\n"
+                            "2025年下半年，中国企业级市场大模型的日均总消耗量为37万亿Tokens。\n"
+                            "千问大模型占比32.1%位列第一。"
+                        ),
+                        summary="日耗37万亿 Tokens ,千问稳居第一",
+                        summary_payload={
+                            "fetch_url": True,
+                            "ok": True,
+                            "title": "日耗37万亿 Tokens ,千问稳居第一",
+                            "description": "沙利文报告显示，中国企业级大模型调用市场继续扩张。",
+                            "summary": "日耗37万亿 Tokens ,千问稳居第一",
+                        },
+                    )
+                ],
+                total_tokens=11,
+                completion_tokens_used=11,
+            ),
+        ],
+    )
+
+    result = await TurnExecutor.run(
+        state=state,
+        io=io,
+        prep=prep,
+        request=SimpleNamespace(
+            input_variables={},
+            conversation_id=2276,
+        ),
+        agent=SimpleNamespace(id=1),
+    )
+
+    assert len(io.tool_call_history) == 2
+    synthetic_response = io.tool_call_history[1]["response"]
+    synthetic_call = synthetic_response.tool_calls[0]
+    assert synthetic_call["function"]["name"] == "fetch_url"
+    assert (
+        "http://www.baidu.com/link?url=example-token-ranking"
+        in synthetic_call["function"]["arguments"]
+    )
+    assert '"max_length": 12000' in synthetic_call["function"]["arguments"]
+    assert state.intent_plan[0].status == "completed"
+    assert state.intent_plan[0].completed_by_tool_names == ["fetch_url"]
+    assert result.final_output_source == "recovery_evidence"
+    assert (
+        state.preparation_diagnostics["synthetic_required_fetch_url_tool_call"] is True
+    )
+    assert (
+        state.preparation_diagnostics["synthetic_required_fetch_url_reason"]
+        == "required_fetch_url_retry_without_tool_call"
+    )
+    assert (
+        state.preparation_diagnostics[
+            "recovered_completed_output_rebuilt_from_tool_evidence"
+        ]
+        is True
+    )
+    assert "37万亿Tokens" in result.output
+    assert "千问大模型占比32.1%位列第一" in result.output
+    assert "http://www.baidu.com/link" not in result.output
+
+
+@pytest.mark.asyncio
 async def test_turn_executor_allows_final_follow_up_after_fetch_candidates_exhausted() -> (
     None
 ):
@@ -1301,7 +1450,7 @@ async def test_turn_executor_promotes_budgeted_web_research_falls_back_to_tool_e
 
 @pytest.mark.asyncio
 async def test_turn_executor_recovers_retry_budgeted_web_search_evidence() -> None:
-    """Regression for conversation 2269: successful search evidence must not end partial."""
+    """Regression for conversation 2269: search-only turns may recover search evidence."""
     tools = [
         ToolDefinition(name="web_search", description="Search"),
         ToolDefinition(name="fetch_url", description="Fetch"),
@@ -1361,12 +1510,10 @@ async def test_turn_executor_recovers_retry_budgeted_web_search_evidence() -> No
                         "items": [
                             {
                                 "title": "Token Usage Ranking 2025",
-                                "url": "https://example.com/token-ranking-2025",
                                 "snippet": "2025 large model token usage ranking.",
                             },
                             {
                                 "title": "LLM Token Analytics 2025",
-                                "url": "https://example.com/llm-token-analytics-2025",
                                 "snippet": "2025 LLM token analytics and usage.",
                             },
                         ],

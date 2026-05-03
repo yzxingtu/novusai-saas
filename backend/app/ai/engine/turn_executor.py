@@ -16,9 +16,11 @@ from .final_output_policy import (
 )
 from .recovery_manager import RecoveryManager
 from .turn_executor_tool_batch import (
+    build_required_fetch_url_fallback_response,
     build_shortcircuit_fallback_response,
     execute_tool_batch,
     maybe_retry_web_research_contract,
+    record_synthetic_required_fetch_url,
     run_contract_retry_round,
     run_tool_batch_or_update_intents,
 )
@@ -342,6 +344,33 @@ def post_tool_completion_state(
     return "assistant"
 
 
+def has_completed_fetch_url_body_evidence(
+    *,
+    state: ExecutionStateMachine,
+    tool_results: list[ToolResult],
+) -> bool:
+    completed_by_fetch_url = any(
+        intent.status == "completed"
+        and str(intent.family or "").strip() == "web_research"
+        and "fetch_url"
+        in {
+            str(name or "").strip()
+            for name in (intent.completed_by_tool_names or [])
+            if str(name or "").strip()
+        }
+        for intent in state.intent_plan
+    )
+    if not completed_by_fetch_url:
+        return False
+    for result in tool_results:
+        if not result.success or str(result.name or "").strip() != "fetch_url":
+            continue
+        output = str(result.output or "").strip()
+        if output and "Content from " in output:
+            return True
+    return False
+
+
 def intent_missing_args(intent: Any | None) -> list[str]:
     metadata = dict(getattr(intent, "metadata", {}) or {}) if intent is not None else {}
     raw_missing_args = metadata.get("missing_args")
@@ -569,7 +598,19 @@ async def finalize_turn_execution(
                 completion_tokens_used=completion_tokens_used,
             )
             if str(output or "").strip():
-                final_output_source = "tool_evidence_completed"
+                if has_completed_fetch_url_body_evidence(
+                    state=state,
+                    tool_results=tool_results,
+                ):
+                    final_output_source = "recovery_evidence"
+                    state.preparation_diagnostics.update(
+                        {
+                            "recovered_completed_output_rebuilt_from_tool_evidence": True,
+                            "recovery_evidence_tool": "fetch_url",
+                        }
+                    )
+                else:
+                    final_output_source = "tool_evidence_completed"
     elif partial:
         state.transition("partial_exit")
         completion_reason = decision.reason or "return_partial"
@@ -615,6 +656,17 @@ async def finalize_turn_execution(
                     tool_results=tool_results,
                 ):
                     final_output_source = "partial_output"
+                elif has_completed_fetch_url_body_evidence(
+                    state=state,
+                    tool_results=tool_results,
+                ):
+                    final_output_source = "recovery_evidence"
+                    state.preparation_diagnostics.update(
+                        {
+                            "recovered_completed_output_rebuilt_from_tool_evidence": True,
+                            "recovery_evidence_tool": "fetch_url",
+                        }
+                    )
                 else:
                     final_output_source = "tool_evidence_completed"
 
@@ -1005,14 +1057,26 @@ class _TurnRunLoop:
                 )
                 self.tool_results.extend(extra_tool_results)
             elif retry_tools:
-                fallback_response = build_shortcircuit_fallback_response(
+                fallback_response = build_required_fetch_url_fallback_response(
                     intent=retry_intent,
                     response=self.response,
                     tools=retry_tools,
                     total_tokens=self.total_tokens,
                     completion_tokens_used=self.completion_tokens_used,
                 )
+                if fallback_response is None:
+                    fallback_response = build_shortcircuit_fallback_response(
+                        intent=retry_intent,
+                        response=self.response,
+                        tools=retry_tools,
+                        total_tokens=self.total_tokens,
+                        completion_tokens_used=self.completion_tokens_used,
+                    )
                 if fallback_response is not None:
+                    record_synthetic_required_fetch_url(
+                        self.state,
+                        fallback_response,
+                    )
                     (
                         self.response,
                         extra_tool_results,
