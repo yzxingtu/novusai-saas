@@ -14,6 +14,103 @@ context assembly, and service-facing workflows can evolve independently.
 - Any AI production file `> 1000` lines is treated as blocking governance debt;
   new feature work should split the file first instead of growing it further.
 
+## Refactor-First Rule For Broken Live Paths
+
+### 1. Scope / Trigger
+
+- Trigger: an AI dialogue live-path bug exposes duplicated policy, unclear
+  ownership, repeated incident-specific patches, or a compatibility branch that
+  keeps a known-bad behavior alive.
+- Applies to runtime orchestration, protocol fallback, tool/skill routing,
+  recovery evidence, diagnostics projection, memory/context governance, and
+  frontend AI shell state derived from runtime facts.
+- This is a new-system boundary. Prefer direct internal contract refactors over
+  preserving broken behavior for backward compatibility.
+
+### 2. Signatures
+
+- Public surfaces that may remain stable as thin facades:
+  - Python package imports from `app.ai`, `app.ai.engine`, `app.ai.runtime`,
+    `app.ai.context`, and service facades.
+  - API route paths, CLI command names/options, and persisted diagnostic field
+    names used by operators.
+- Internal seams that should be refactored when they are wrong:
+  - duplicated fallback policy
+  - per-call-site evidence trust checks
+  - read-model repairs that compensate for producer-side bad state
+  - root-cause or diagnostics reinterpretation that hides a producer bug
+  - legacy compatibility branches that only exist to keep incorrect live output
+    classified as successful
+
+### 3. Contracts
+
+- One runtime fact must have one owner. If several layers independently decide
+  the same truth, move the decision into the owning runtime contract and make
+  callers consume that contract.
+- Thin facades may preserve public imports/routes/commands, but new behavior
+  belongs behind the facade in the focused owner module.
+- Do not add compatibility flags, fallback branches, or read-model-only patches
+  for new-system AI dialogue live paths unless they are explicitly temporary,
+  named as governance debt, and paired with a removal/refactor plan.
+- Diagnostics and monitoring may expose producer facts; they must not convert a
+  bad producer result into success by reinterpreting evidence downstream.
+- Historical data repair is read-only unless an explicit migration/repair
+  command is designed. Read-model repair must not become the canonical live
+  producer path.
+
+### 4. Validation & Error Matrix
+
+| Condition | Expected Action |
+|---|---|
+| Repeated bug appears in the same policy across CLI, monitoring, and runtime | Refactor the policy into one owner; update all callers to consume it |
+| A read-model patch is needed to display old records | Keep it read-only and separately fix the producer path |
+| A diagnostic projector can hide the symptom by changing classification | Reject as the primary fix; fix the upstream producer/contract |
+| Public import, route, or CLI command is already used externally | Keep a thin facade while moving internal behavior |
+| Compatibility branch only preserves incorrect new-system behavior | Remove or replace it with the canonical contract |
+
+### 5. Good/Base/Bad Cases
+
+- Good: `fetch_url` recovery answer quality is centralized in the recovery
+  evidence contract, while CLI and read models consume the same trusted preview
+  decision.
+- Base: a facade keeps `ConversationService` or a CLI command stable, but the
+  actual query/projection logic moves to focused support modules.
+- Bad: root-cause marks a turn successful because a downstream projector ignores
+  unfinished tool evidence that the producer wrongly finalized.
+- Bad: a read-model patch becomes the only place where a bad runtime result is
+  corrected for new conversations.
+
+### 6. Tests Required
+
+- Add a known-bug regression test before closing the bug when the issue was
+  reported by a user or observed in a real conversation.
+- Behavioral tests must exercise the owning contract, not only the downstream
+  facade or diagnostics projection.
+- Keep a route/CLI/read-model sentinel only as secondary coverage for public
+  compatibility.
+- For AI dialogue live paths, follow `testing-discipline.md`: annotate test
+  type, avoid self-fulfilling mocks, and document whether any browser validation
+  is read-only or a real-dialogue smoke.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+- Add one more branch in CLI/monitoring/root-cause to reinterpret a malformed
+  runtime result as success.
+- Keep a compatibility flag that lets the old broken path continue producing
+  final answers.
+- Fix only historical display while leaving the live producer path unchanged.
+
+#### Correct
+
+- Move the decision to the owning runtime contract, delete or bypass the broken
+  internal path, and update all callers.
+- Preserve public routes/imports/commands through a thin facade only when the
+  external surface is stable.
+- Record any unavoidable temporary compatibility path as governance debt with a
+  removal trigger.
+
 ## Runtime Layers (Stable Ownership)
 
 1. Contracts and diagnostics: stable DTOs for intents, budgets, protocol plans,
