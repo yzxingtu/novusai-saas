@@ -146,6 +146,91 @@ Do not consume retry budget solely because a tool is waiting for consent.
 - Limit user-visible fallback text to completed safe results plus interruption
   guidance.
 
+## Scenario: Hosted Web Search Fallback Must Reach Built-In Search, Not Text-Only Success
+
+### 1. Scope / Trigger
+
+- Trigger: Responses hosted web search is required, emits progress, then fails
+  or falls back to a Responses attempt with built-in `web_search` / `fetch_url`
+  tools still available.
+- Why this needs code-spec depth: providers may answer the fallback round with
+  visible preamble text such as "I'll search now" but no tool call. For a
+  required `web_research` intent, that text is not completion evidence and must
+  not end the turn as a successful answer.
+
+### 2. Signatures
+
+- Protocol fallback owner:
+  - `backend/app/ai/runtime/query_engine.py`
+  - `ConversationQueryEngine.iter_stream_turn(...)`
+  - `ConversationQueryEngine.run_chat_turn(...)`
+  - `_runtime_native_web_search_fallback_variant="builtin_web_research_tools"`
+- Synthetic fallback marker fields on `TurnRecord.metadata`:
+  - `native_web_search_builtin_fallback_synthesized`
+  - `native_web_search_builtin_fallback_tool_name`
+  - `native_web_search_builtin_fallback_query`
+  - `native_web_search_builtin_fallback_synthesized_reason`
+
+### 3. Contracts
+
+- Hosted search remains native-first when available.
+- If hosted search becomes unavailable and built-in web research tools remain
+  in scope, fallback must keep the `web_research` intent pinned to
+  `web_search` / `fetch_url`.
+- If the built-in fallback attempt returns only visible text and no tool call,
+  the runtime must synthesize a `web_search` function call from the last user
+  query instead of treating the text as a completed answer.
+- If the built-in fallback attempt fails with retryable gateway/connection
+  errors, the runtime may synthesize the same `web_search` function call rather
+  than issuing another provider-only rescue.
+- Synthetic tool-call fallback is allowed only for the hosted-search-to-built-in
+  web-research fallback variant. Ordinary provider 5xx failures must not be
+  generalized into silent tool synthesis.
+- Fallback history must mark the hosted-search fallback as recovered only after
+  a real or synthetic tool-call path can continue execution.
+
+### 4. Validation & Error Matrix
+
+| Condition | Expected Behavior |
+|---|---|
+| Hosted search times out before meaningful output and built-in tools are available | Retry with hosted search disabled and built-in web research tools still scoped |
+| Built-in fallback emits `web_search` tool call | Continue normal tool execution |
+| Built-in fallback emits text only, no tool call | Synthesize `web_search` call from the last user query and continue tool execution |
+| Built-in fallback fails with retryable 502 / connection error | Synthesize `web_search` call and continue tool execution |
+| Ordinary non-web provider 5xx | Preserve provider failure semantics; do not synthesize tool calls |
+
+### 5. Good/Base/Bad Cases
+
+- Good: hosted search fails, the second Responses round says "I'll search now"
+  but calls no tool, so the runtime emits a synthetic `web_search` call and the
+  user eventually sees concrete search/fetch evidence.
+- Base: hosted search fails and the second round directly emits a valid
+  `web_search` call; no synthesis marker is needed.
+- Bad: the visible "I'll search now" preamble is persisted as the final
+  assistant answer for a required web-search request.
+
+### 6. Tests Required
+
+- `backend/tests/ai/engine/test_query_engine_partial_contract.py`
+  - hosted-search progress-only fallback to built-in tools
+  - hosted-search timeout fallback to built-in tools
+  - built-in fallback 502 / connection-error synthetic `web_search`
+  - built-in fallback text-only synthetic `web_search`
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+- Count pre-tool preamble text as a successful answer for a required
+  `web_research` intent.
+- Broaden all retryable provider 5xx failures into synthetic tool calls.
+
+#### Correct
+
+- Scope synthesis to `_runtime_native_web_search_fallback_variant=
+  "builtin_web_research_tools"` and emit a real `web_search` tool call from the
+  last user query when the provider fails or returns text-only output.
+
 ## Prohibited Patterns
 
 - whole-turn retry for a single unfinished intent
@@ -157,3 +242,5 @@ Do not consume retry budget solely because a tool is waiting for consent.
   partial-exit text
 - promoting unfinished tool evidence into fallback answer text after terminal
   provider failure
+- treating hosted-search fallback preamble text as a completed web-research
+  answer when no `web_search` or `fetch_url` evidence was produced

@@ -432,6 +432,70 @@ async def test_stream_chat_seeds_user_messages_before_stream_starts(mock_db):
 
 
 @pytest.mark.asyncio
+async def test_stream_post_done_tail_contains_lock_release_failure(mock_db):
+    from app.services.ai.agent_chat_stream_persistence_orchestrator import (
+        AgentChatStreamPersistenceOrchestrator,
+    )
+    from app.services.ai.agent_chat_stream_runtime_dependencies import (
+        AgentChatStreamPersistenceDependencies,
+    )
+
+    _ = mock_db
+    hook_registry = SimpleNamespace(
+        has_hooks=MagicMock(return_value=False),
+        trigger=AsyncMock(return_value={}),
+    )
+    dependencies = AgentChatStreamPersistenceDependencies(
+        session_factory=AsyncMock(),
+        conversation_service_cls=MagicMock(),
+        adjust_usage=AsyncMock(),
+        record_user_usage=AsyncMock(),
+        record_chat_stats=AsyncMock(),
+        release_concurrency=AsyncMock(
+            side_effect=RuntimeError("Redis not initialized")
+        ),
+        publish_execution_completed=AsyncMock(),
+        publish_execution_failed=AsyncMock(),
+    )
+    orchestrator = AgentChatStreamPersistenceOrchestrator(
+        tenant_id=1,
+        agent_id=1,
+        conversation_id=100,
+        request=SimpleNamespace(tenant_id=1, skip_quota=True),
+        agent=_build_agent(),
+        message="帮我搜索一下2025年大模型使用token排行",
+        first_message="帮我搜索一下2025年大模型使用token排行",
+        history_count=0,
+        history_messages=[],
+        seeded_user_message_count=1,
+        interaction_mode_effective="trusted_auto",
+        interaction_mode_downgrade_reason=None,
+        memory_event_id="memory-event-1",
+        estimated_tokens=0,
+        quota_config={},
+        user_id=10,
+        lock_token="lock-token",
+        hook_registry=hook_registry,
+        persist_session_memory=AsyncMock(return_value=None),
+        commit_stream_memory_writes=AsyncMock(),
+        rollback_stream_memory_writes=AsyncMock(),
+        build_context_diagnostics=lambda _result: {},
+        build_last_run_summary=lambda _result: {},
+        assistant_message_has_visible_reply_payload=lambda _payload: False,
+        friendly_stream_error_text=lambda _error: "stream failed",
+        build_stream_error_display=lambda **_kwargs: {},
+        runtime_dependencies=dependencies,
+    )
+
+    await orchestrator._run_stream_post_persist_tail(
+        final_result=_build_success_result(output="已完成。"),
+        extra={"memory_updated": True},
+    )
+
+    dependencies.release_concurrency.assert_awaited_once()
+
+
+@pytest.mark.asyncio
 async def test_stream_on_complete_persists_error_message_when_failed_without_new_messages(
     mock_db,
 ):

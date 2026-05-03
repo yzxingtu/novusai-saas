@@ -69,6 +69,10 @@ def schedule_background_callback(
     async def _runner() -> None:
         try:
             await run_post_done_callback(callback)
+        except asyncio.CancelledError:
+            debug = getattr(logger, "debug", None)
+            if callable(debug):
+                debug("post-done callback cancelled during shutdown")
         except Exception as exc:  # noqa: BLE001
             logger.error("post-done callback error: {}", str(exc), exc_info=True)
         except BaseException as exc:  # pragma: no cover

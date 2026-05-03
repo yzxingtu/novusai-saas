@@ -228,12 +228,14 @@ class ConversationQueryEngine:
         cls,
         *,
         command: TurnCommand,
-        error: BaseException,
+        error: BaseException | None,
     ) -> bool:
         if not cls._is_builtin_web_research_fallback_attempt(command):
             return False
         if not cls._has_builtin_web_research_fallback_tools(command.tools):
             return False
+        if error is None:
+            return True
         if not isinstance(error, AIGatewayError):
             return False
         return is_retryable(error)
@@ -303,7 +305,8 @@ class ConversationQueryEngine:
         session: ProtocolTurnSession,
         command: TurnCommand,
         messages: list[ChatMessage],
-        error: BaseException,
+        error: BaseException | None,
+        reason: str | None = None,
     ) -> list[dict[str, Any]] | None:
         if not cls._can_synthesize_builtin_web_research_fallback(
             command=command,
@@ -329,16 +332,23 @@ class ConversationQueryEngine:
         metadata["native_web_search_builtin_fallback_query"] = cls._last_user_query(
             messages
         )
-        metadata["native_web_search_builtin_fallback_error_type"] = type(error).__name__
-        status_code = ProtocolRecoveryPolicy.extract_status_code(error)
-        if status_code is not None:
-            metadata["native_web_search_builtin_fallback_error_status_code"] = (
-                status_code
-            )
-        if isinstance(error, ProviderError):
-            error_code = str(getattr(error, "error_code", "") or "").strip()
-            if error_code:
-                metadata["native_web_search_builtin_fallback_error_code"] = error_code
+        if reason:
+            metadata["native_web_search_builtin_fallback_synthesized_reason"] = reason
+        if error is not None:
+            metadata["native_web_search_builtin_fallback_error_type"] = type(
+                error
+            ).__name__
+            status_code = ProtocolRecoveryPolicy.extract_status_code(error)
+            if status_code is not None:
+                metadata["native_web_search_builtin_fallback_error_status_code"] = (
+                    status_code
+                )
+            if isinstance(error, ProviderError):
+                error_code = str(getattr(error, "error_code", "") or "").strip()
+                if error_code:
+                    metadata["native_web_search_builtin_fallback_error_code"] = (
+                        error_code
+                    )
         return tool_call
 
     @classmethod
@@ -348,13 +358,15 @@ class ConversationQueryEngine:
         session: ProtocolTurnSession,
         command: TurnCommand,
         messages: list[ChatMessage],
-        error: BaseException,
+        error: BaseException | None,
+        reason: str | None = None,
     ) -> ChatResponse | None:
         tool_call = cls._record_synthetic_builtin_web_research_fallback(
             session=session,
             command=command,
             messages=messages,
             error=error,
+            reason=reason,
         )
         if not tool_call:
             return None
@@ -378,17 +390,49 @@ class ConversationQueryEngine:
         session: ProtocolTurnSession,
         command: TurnCommand,
         messages: list[ChatMessage],
-        error: BaseException,
+        error: BaseException | None,
+        reason: str | None = None,
     ) -> ChatChunk | None:
         response = cls._synthetic_builtin_web_research_fallback_response(
             session=session,
             command=command,
             messages=messages,
             error=error,
+            reason=reason,
         )
         if response is None:
             return None
         return cls._response_to_chunk(response)
+
+    @classmethod
+    def _should_synthesize_after_builtin_web_research_text_only_success(
+        cls,
+        *,
+        command: TurnCommand,
+        observed: ObservedStream,
+    ) -> bool:
+        if not cls._is_builtin_web_research_fallback_attempt(command):
+            return False
+        if not cls._has_builtin_web_research_fallback_tools(command.tools):
+            return False
+        if observed.has_tool_calls:
+            return False
+        return bool(observed.output_text.strip())
+
+    @classmethod
+    def _response_is_builtin_web_research_text_only_success(
+        cls,
+        *,
+        command: TurnCommand,
+        response: ChatResponse,
+    ) -> bool:
+        if not cls._is_builtin_web_research_fallback_attempt(command):
+            return False
+        if not cls._has_builtin_web_research_fallback_tools(command.tools):
+            return False
+        if response.tool_calls or response.message.tool_calls:
+            return False
+        return bool(str(response.message.content or "").strip())
 
     @classmethod
     def _command_for_protocol_attempt(
@@ -635,6 +679,21 @@ class ConversationQueryEngine:
                     return session.finalize_chat_success(fallback_response)
                 session.mark_failed()
                 raise
+            if self._response_is_builtin_web_research_text_only_success(
+                command=attempt_command,
+                response=response,
+            ):
+                fallback_response = (
+                    self._synthetic_builtin_web_research_fallback_response(
+                        session=session,
+                        command=attempt_command,
+                        messages=messages,
+                        error=None,
+                        reason="builtin_fallback_text_only_no_tool_call",
+                    )
+                )
+                if fallback_response is not None:
+                    return session.finalize_chat_success(fallback_response)
             if self.recovery_policy.response_blocks_fallback(response):
                 return session.finalize_chat_success(response)
 
@@ -864,6 +923,24 @@ class ConversationQueryEngine:
                     continue
                 session.mark_failed()
                 raise
+
+            if self._should_synthesize_after_builtin_web_research_text_only_success(
+                command=attempt_command,
+                observed=observed,
+            ):
+                fallback_chunk = self._synthetic_builtin_web_research_fallback_chunk(
+                    session=session,
+                    command=attempt_command,
+                    messages=messages,
+                    error=None,
+                    reason="builtin_fallback_text_only_no_tool_call",
+                )
+                if fallback_chunk is not None:
+                    session.finalize_stream_success(
+                        emitted_chunk_count=emitted_chunk_count + 1
+                    )
+                    yield self._attach_turn_record(fallback_chunk, protocol)
+                    return
 
             if self.strict_contract and (
                 observed.blocks_fallback

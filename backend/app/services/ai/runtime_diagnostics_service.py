@@ -181,6 +181,7 @@ class RuntimeDiagnosticsService:
                 call_log = await self._resolve_related_call_log_for_conversation_turn(
                     conversation_id=conversation_id,
                     turn=turn,
+                    conversation_turn=conversation_turn,
                 )
         else:
             call_log = await self._resolve_call_log(
@@ -343,12 +344,14 @@ class RuntimeDiagnosticsService:
         *,
         conversation_id: int,
         turn: int,
+        conversation_turn: dict[str, Any] | None = None,
     ) -> AICallLog | None:
         return await RuntimeDiagnosticsQueryService(
             self
         ).resolve_related_call_log_for_conversation_turn(
             conversation_id=conversation_id,
             turn=turn,
+            conversation_turn=conversation_turn,
         )
 
     async def _resolve_conversation_turn_for_call_log(

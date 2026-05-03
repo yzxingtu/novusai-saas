@@ -57,6 +57,67 @@ def test_runtime_diagnostics_query_groups_same_trace_logs_into_one_turn() -> Non
     ]
 
 
+def test_runtime_diagnostics_query_selects_final_assistant_after_tool_round() -> None:
+    from app.enums.agent import MessageRoleEnum
+    from app.services.ai.runtime_diagnostics_query_service import (
+        RuntimeDiagnosticsQueryService,
+    )
+
+    messages = [
+        SimpleNamespace(
+            id=9101,
+            role=MessageRoleEnum.USER.value,
+            content="帮我搜索一下2025年大模型使用token排行",
+            metadata_={},
+            tool_calls=[],
+        ),
+        SimpleNamespace(
+            id=9102,
+            role=MessageRoleEnum.ASSISTANT.value,
+            content="",
+            metadata_={
+                "context_diagnostics": {
+                    "turn_outcome": "success",
+                    "termination_reason": "protocol_fallback",
+                    "protocol_path": "responses",
+                    "failure_kind": "provider_unavailable",
+                    "selected_tool_names": ["web_search"],
+                }
+            },
+            tool_calls=[{"function": {"name": "web_search"}}],
+        ),
+        SimpleNamespace(
+            id=9103,
+            role=MessageRoleEnum.TOOL.value,
+            content="Search results for: 2025 大模型 token 使用量排行",
+            metadata_={},
+            tool_calls=[],
+        ),
+        SimpleNamespace(
+            id=9104,
+            role=MessageRoleEnum.ASSISTANT.value,
+            content="OpenRouter 报告显示 2025 年大模型 token 调用达到 100 万亿。",
+            metadata_={
+                "context_diagnostics": {
+                    "turn_outcome": "success",
+                    "termination_reason": "completed",
+                    "protocol_path": "responses",
+                    "failure_kind": "none",
+                    "final_output_source": "recovery_evidence",
+                }
+            },
+            tool_calls=[],
+        ),
+    ]
+
+    selected = RuntimeDiagnosticsQueryService._select_conversation_turn_message(
+        messages,
+        turn=1,
+    )
+
+    assert selected.id == 9104
+
+
 @pytest.mark.asyncio
 async def test_build_root_cause_prefers_conversation_partial_over_successful_call_log(
     mock_db,
@@ -608,6 +669,80 @@ async def test_build_root_cause_treats_recovered_protocol_fallback_as_success(
     assert report["summary"] == (
         "The call completed successfully and no blocking failure signal was found."
     )
+
+
+@pytest.mark.asyncio
+async def test_build_root_cause_keeps_recovery_evidence_output_success_over_trailing_failed_call_log(
+    mock_db,
+):
+    from app.services.ai.runtime_diagnostics_service import RuntimeDiagnosticsService
+
+    service = RuntimeDiagnosticsService(mock_db)
+    conversation_turn = {
+        "message_id": 13189,
+        "assistant_content": (
+            "2025 OpenRouter 大模型使用报告显示，100万亿 Token 调用来自多模型生态。"
+        ),
+        "diagnostics": {
+            "conversation_outcome": "success",
+            "turn_outcome": "success",
+            "termination_reason": "completed",
+            "protocol_path": "responses",
+            "failure_kind": "none",
+            "final_output_source": "recovery_evidence",
+            "selected_tool_names": ["fetch_url"],
+            "selected_skill_names": ["web_search"],
+        },
+        "metadata": {
+            "turn_flow": {
+                "timeline": [
+                    {
+                        "id": "terminal",
+                        "type": "failed",
+                        "status": "error",
+                    }
+                ],
+                "error_surface": {"error_type": "provider_unavailable"},
+            }
+        },
+    }
+    failed_call_log = _call_log(
+        status=CallStatusEnum.FAILED.value,
+        error_message="Connection error.",
+        request_metadata={
+            "request": {
+                "turn_record": {
+                    "turn_outcome": "failed",
+                    "termination_reason": "provider_unavailable",
+                    "protocol_path": "responses",
+                    "failure_kind": "provider_unavailable",
+                    "selected_skill_names": ["web_search"],
+                }
+            },
+        },
+    )
+
+    with (
+        patch.object(
+            service,
+            "_resolve_conversation_turn",
+            new=AsyncMock(return_value=conversation_turn),
+        ),
+        patch.object(
+            service,
+            "_resolve_related_call_log_for_conversation_turn",
+            new=AsyncMock(return_value=failed_call_log),
+        ),
+    ):
+        report = await service.build_root_cause(conversation_id=2272, turn=1)
+
+    assert report["status"] == "success"
+    assert report["failure_layer"] is None
+    assert report["cause_code"] is None
+    assert report["related_ids"]["conversation_message_id"] == 13189
+    evidence = {item["label"]: item["value"] for item in report["evidence"]}
+    assert "turn_flow_terminal_stage_status" not in evidence
+    assert "stream_failure_error_type" not in evidence
 
 
 @pytest.mark.asyncio

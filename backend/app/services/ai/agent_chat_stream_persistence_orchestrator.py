@@ -176,7 +176,10 @@ class AgentChatStreamPersistenceOrchestrator:
     @staticmethod
     def _is_transport_disconnect_result(result: ExecutionResult) -> bool:
         diagnostics = getattr(result, "diagnostics", None)
-        if isinstance(diagnostics, dict) and diagnostics.get("transport_disconnect") is True:
+        if (
+            isinstance(diagnostics, dict)
+            and diagnostics.get("transport_disconnect") is True
+        ):
             return True
 
         turn_record = getattr(result, "turn_record", None)
@@ -185,7 +188,9 @@ class AgentChatStreamPersistenceOrchestrator:
         if turn_record.get("transport_disconnect") is True:
             return True
         metadata = turn_record.get("metadata")
-        return isinstance(metadata, dict) and metadata.get("transport_disconnect") is True
+        return (
+            isinstance(metadata, dict) and metadata.get("transport_disconnect") is True
+        )
 
     @staticmethod
     def _result_final_output_source(result: ExecutionResult) -> str:
@@ -355,12 +360,20 @@ class AgentChatStreamPersistenceOrchestrator:
             )
         finally:
             if self.lock_token:
-                await release_execution_postflight_lock(
-                    request=self.request,
-                    agent_id=self.agent_id,
-                    lock_token=self.lock_token,
-                    dependencies=postflight_dependencies,
-                )
+                try:
+                    await release_execution_postflight_lock(
+                        request=self.request,
+                        agent_id=self.agent_id,
+                        lock_token=self.lock_token,
+                        dependencies=postflight_dependencies,
+                    )
+                except Exception as release_exc:
+                    logger.warning(
+                        "Stream post-persist lock release failed: tenant={} conversation={} err={}",
+                        self.tenant_id,
+                        self.conversation_id,
+                        str(release_exc),
+                    )
 
     async def __call__(self, result: ExecutionResult) -> dict[str, Any] | None:
         extra: dict[str, Any] = {}
@@ -511,9 +524,7 @@ class AgentChatStreamPersistenceOrchestrator:
             if (
                 not skip_failed_assistant_persistence
                 and not result.success
-                and (
-                not has_assistant_persisted or not has_visible_assistant_reply
-                )
+                and (not has_assistant_persisted or not has_visible_assistant_reply)
             ):
                 friendly_error_text = self.friendly_stream_error_text(result.error)
                 fallback_rows = await self._save_error_message_to_conversation(

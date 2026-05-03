@@ -1,3 +1,9 @@
+"""
+Test type: behavioral
+Scope: stream completion callback scheduling and post-done background handling.
+Mock strategy: callback/logger seams are mocked; lifecycle callback behavior runs real.
+"""
+
 from __future__ import annotations
 
 import asyncio
@@ -33,7 +39,9 @@ async def test_await_if_needed_supports_sync_and_async_values() -> None:
 
 
 def test_pop_post_done_callback_returns_and_removes_callback() -> None:
-    callback = lambda: None
+    def callback():
+        return None
+
     extra = {"value": 1, "__post_done_callback__": callback}
 
     popped = pop_post_done_callback(extra)
@@ -148,3 +156,27 @@ async def test_schedule_background_callback_accepts_sync_callback() -> None:
     assert events == ["done"]
     assert not handler._background_tasks
     logger.error.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_schedule_background_callback_treats_shutdown_cancel_as_non_error() -> (
+    None
+):
+    handler = SimpleNamespace(_background_tasks=set())
+    logger = SimpleNamespace(debug=MagicMock(), error=MagicMock())
+
+    async def _callback():
+        raise asyncio.CancelledError()
+
+    schedule_background_callback(
+        handler,
+        _callback,
+        logger=logger,
+    )
+
+    await asyncio.sleep(0)
+    await asyncio.sleep(0)
+
+    assert not handler._background_tasks
+    logger.error.assert_not_called()
+    logger.debug.assert_called_once()

@@ -552,6 +552,54 @@ class _HostedSearchProgressTimeoutThenBuiltinConnectionErrorAdapter:
         )
 
 
+class _HostedSearchProgressThenBuiltinTextOnlyAdapter:
+    wire_api = "responses"
+    protocol_capabilities = SimpleNamespace(
+        primary_wire_api="responses",
+        allowed_wire_apis=("responses",),
+        allowed_cross_protocol_fallbacks={},
+        allow_adapter_cross_protocol_fallback=False,
+    )
+
+    def __init__(self) -> None:
+        self.stream_attempts: list[dict[str, object]] = []
+
+    @staticmethod
+    def _tool_names(kwargs: dict[str, object]) -> list[str]:
+        return [
+            str((tool.get("function") or {}).get("name") or "").strip()
+            for tool in kwargs.get("tools", []) or []
+            if isinstance(tool, dict)
+        ]
+
+    async def stream_chat(self, **kwargs):
+        hosted_required = bool(kwargs.get("_runtime_hosted_web_search_required"))
+        self.stream_attempts.append(
+            {
+                "protocol": str(kwargs.get("_runtime_force_wire_api") or "").strip(),
+                "hosted_required": hosted_required,
+                "fallback_variant": str(
+                    kwargs.get("_runtime_native_web_search_fallback_variant") or ""
+                ),
+                "tool_names": self._tool_names(kwargs),
+            }
+        )
+        if hosted_required:
+            yield ChatChunk(delta="", metadata={"web_search_in_progress": True})
+            raise ProviderError(
+                "hosted search failed after progress",
+                provider_code="openai_compatible",
+                model_code="gpt-5.4",
+                error_code="502",
+                status_code=502,
+            )
+        yield ChatChunk(delta="我马上去搜索相关资料。", role="assistant")
+
+    async def chat(self, **kwargs):
+        _ = kwargs
+        raise AssertionError("stream fallback should not use sync chat rescue")
+
+
 class _HostedSearchProgressOnlyThenBuiltinAdapter:
     wire_api = "chat_completions"
     protocol_capabilities = SimpleNamespace(
@@ -945,6 +993,69 @@ async def test_runtime_query_engine_stream_falls_back_after_hosted_search_progre
         == "hosted_web_search_unavailable:provider_timeout"
     )
     assert "protocol_fallback_blocked_reason" not in query_engine.turn_record.metadata
+
+
+@pytest.mark.asyncio
+async def test_runtime_query_engine_stream_synthesizes_web_search_when_builtin_fallback_returns_text_only() -> (
+    None
+):
+    adapter = _HostedSearchProgressThenBuiltinTextOnlyAdapter()
+    query_engine = ConversationQueryEngine(
+        adapter=adapter,
+        strict_contract=False,
+    )
+
+    chunks = await query_engine.run_stream_turn(
+        messages=[
+            ChatMessage(role="user", content="帮我搜索一下2025年大模型使用token排行")
+        ],
+        model="gpt-5.4",
+        temperature=0.0,
+        max_tokens=None,
+        top_p=1.0,
+        tools=[
+            {"type": "function", "function": {"name": "web_search"}},
+            {"type": "function", "function": {"name": "fetch_url"}},
+        ],
+        tool_choice="required",
+        supports_vision=False,
+        supports_audio=False,
+        supports_video=False,
+        extra_kwargs={
+            "_runtime_force_protocol_path": "responses",
+            "_runtime_hosted_web_search_required": True,
+        },
+    )
+
+    assert adapter.stream_attempts == [
+        {
+            "protocol": "responses",
+            "hosted_required": True,
+            "fallback_variant": "",
+            "tool_names": ["web_search", "fetch_url"],
+        },
+        {
+            "protocol": "responses",
+            "hosted_required": False,
+            "fallback_variant": "builtin_web_research_tools",
+            "tool_names": ["web_search", "fetch_url"],
+        },
+    ]
+    assert (chunks[0].metadata or {}).get("web_search_in_progress") is True
+    assert chunks[1].delta == "我马上去搜索相关资料。"
+    assert chunks[2].tool_calls[0]["function"]["name"] == "web_search"
+    assert (
+        chunks[2].tool_calls[0]["function"]["arguments"]
+        == '{"query":"帮我搜索一下2025年大模型使用token排行","max_results":5}'
+    )
+    assert (
+        query_engine.turn_record.metadata[
+            "native_web_search_builtin_fallback_synthesized_reason"
+        ]
+        == "builtin_fallback_text_only_no_tool_call"
+    )
+    assert query_engine.turn_record.turn_outcome == "success"
+    assert query_engine.turn_record.termination_reason == "protocol_fallback"
 
 
 @pytest.mark.asyncio

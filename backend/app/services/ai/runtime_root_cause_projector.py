@@ -407,6 +407,34 @@ class RuntimeRootCauseProjector:
         )
 
     @classmethod
+    def has_authoritative_completed_conversation_output(
+        cls,
+        *,
+        diagnostics: dict[str, Any],
+        conversation_turn: dict[str, Any] | None,
+        call_log: AICallLog | None,
+    ) -> bool:
+        if not isinstance(conversation_turn, dict):
+            return False
+        if not str(conversation_turn.get("assistant_content") or "").strip():
+            return False
+        turn_flow = cls._resolve_turn_flow_payload(
+            diagnostics=diagnostics,
+            conversation_turn=conversation_turn,
+            call_log=call_log,
+        )
+        normalized_projection = resolve_failure_projection(
+            diagnostics=diagnostics,
+            turn_flow=turn_flow,
+        )
+        return bool(
+            normalized_projection.get("authoritative_completed_success")
+            and normalized_projection.get("turn_outcome") == "success"
+            and not normalized_projection.get("failure_kind")
+            and not normalized_projection.get("blocks_success_shortcut")
+        )
+
+    @classmethod
     def resolve_root_cause_status(
         cls,
         *,
@@ -424,6 +452,12 @@ class RuntimeRootCauseProjector:
             diagnostics=diagnostics,
             turn_flow=turn_flow,
         )
+        if cls.has_authoritative_completed_conversation_output(
+            diagnostics=diagnostics,
+            conversation_turn=conversation_turn,
+            call_log=call_log,
+        ):
+            return "success"
         conversation_outcome = str(
             normalized_projection.get("turn_outcome")
             or diagnostics.get("conversation_outcome")
@@ -474,6 +508,18 @@ class RuntimeRootCauseProjector:
             diagnostics=diagnostics,
             turn_flow=turn_flow,
         )
+        if cls.has_authoritative_completed_conversation_output(
+            diagnostics=diagnostics,
+            conversation_turn=conversation_turn,
+            call_log=call_log,
+        ):
+            return (
+                None,
+                None,
+                "The call completed successfully and no blocking failure signal was found.",
+                None,
+                0.98,
+            )
         failure_kind = str(normalized_projection.get("failure_kind") or "").strip()
         if not failure_kind and not normalized_projection.get(
             "authoritative_completed_success"
@@ -772,6 +818,13 @@ class RuntimeRootCauseProjector:
             diagnostics=diagnostics,
             turn_flow=turn_flow,
         )
+        authoritative_completed_output = (
+            RuntimeRootCauseProjector.has_authoritative_completed_conversation_output(
+                diagnostics=diagnostics,
+                conversation_turn=conversation_turn,
+                call_log=call_log,
+            )
+        )
 
         def append(label: str, value: Any) -> None:
             if value in (None, "", [], {}, ()):
@@ -779,8 +832,13 @@ class RuntimeRootCauseProjector:
             evidence.append({"label": label, "value": value})
 
         if call_log is not None:
-            append("call_status", call_log.status)
-            append("error_message", call_log.error_message)
+            if (
+                not authoritative_completed_output
+                or str(call_log.status or "") == CallStatusEnum.SUCCESS.value
+            ):
+                append("call_status", call_log.status)
+            if not authoritative_completed_output:
+                append("error_message", call_log.error_message)
         if isinstance(conversation_turn, dict):
             append("conversation_message_id", conversation_turn.get("message_id"))
         append("turn_outcome", diagnostics.get("turn_outcome"))
@@ -806,30 +864,33 @@ class RuntimeRootCauseProjector:
         append("failure_kind", normalized_projection.get("failure_kind"))
         append("contract_breach_type", diagnostics.get("contract_breach_type"))
         append("final_output_source", normalized_projection.get("final_output_source"))
-        append(
-            "turn_flow_terminal_stage_type",
-            normalized_projection.get("turn_flow_terminal_stage_type"),
-        )
-        append(
-            "turn_flow_terminal_stage_status",
-            normalized_projection.get("turn_flow_terminal_stage_status"),
-        )
-        append(
-            "protocol_fallback_blocked_reason",
-            call_log_turn_record_metadata.get("protocol_fallback_blocked_reason"),
-        )
-        append(
-            "stream_failure_chunk_count",
-            call_log_turn_record_metadata.get("stream_failure_chunk_count"),
-        )
-        append(
-            "stream_failure_has_meaningful_chunk",
-            call_log_turn_record_metadata.get("stream_failure_has_meaningful_chunk"),
-        )
-        append(
-            "stream_failure_error_type",
-            call_log_turn_record_metadata.get("stream_failure_error_type"),
-        )
+        if not authoritative_completed_output:
+            append(
+                "turn_flow_terminal_stage_type",
+                normalized_projection.get("turn_flow_terminal_stage_type"),
+            )
+            append(
+                "turn_flow_terminal_stage_status",
+                normalized_projection.get("turn_flow_terminal_stage_status"),
+            )
+            append(
+                "protocol_fallback_blocked_reason",
+                call_log_turn_record_metadata.get("protocol_fallback_blocked_reason"),
+            )
+            append(
+                "stream_failure_chunk_count",
+                call_log_turn_record_metadata.get("stream_failure_chunk_count"),
+            )
+            append(
+                "stream_failure_has_meaningful_chunk",
+                call_log_turn_record_metadata.get(
+                    "stream_failure_has_meaningful_chunk"
+                ),
+            )
+            append(
+                "stream_failure_error_type",
+                call_log_turn_record_metadata.get("stream_failure_error_type"),
+            )
         append(
             "assistant_claimed_tool_call_without_tool_event",
             diagnostics.get("assistant_claimed_tool_call_without_tool_event"),
