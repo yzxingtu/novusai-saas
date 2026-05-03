@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from app.cli_commands import state as S
 from app.cli_commands.ai_norm import (
     _extract_turn_diagnostics_from_call_log_metadata,
@@ -28,10 +30,44 @@ _BACKEND_DIR = S._BACKEND_DIR
 settings = S.settings
 
 
+def _format_cli_dt(dt: object) -> object:
+    if not isinstance(dt, datetime):
+        return dt
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.isoformat()
+
+
+def _serialize_cli_conversation_message(row: object) -> dict:
+    metadata = getattr(row, "metadata_", None)
+    metadata_payload = dict(metadata) if isinstance(metadata, dict) else None
+    payload = {
+        "id": getattr(row, "id", None),
+        "sequence": getattr(row, "sequence", None),
+        "role": getattr(row, "role", None),
+        "created_at": _format_cli_dt(getattr(row, "created_at", None)),
+        "content": getattr(row, "content", None) or "",
+        "tool_calls": getattr(row, "tool_calls", None),
+        "tool_call_id": getattr(row, "tool_call_id", None),
+        "tool_name": getattr(row, "tool_name", None),
+        "token_count": getattr(row, "token_count", None),
+        "agent_id": getattr(row, "agent_id", None),
+        "model_id": getattr(row, "model_id", None),
+        "metadata": metadata_payload,
+    }
+    if metadata_payload:
+        payload["model_name"] = metadata_payload.get("model_name")
+        payload["provider_id"] = metadata_payload.get("provider_id")
+        payload["provider_name"] = metadata_payload.get("provider_name")
+    return payload
+
+
 def _resolve_assistant_turn_flow(last_assistant: object) -> dict | None:
     if not isinstance(last_assistant, dict):
         return None
-    projected = ConversationTurnFlowProjector.project_from_message_payload(last_assistant)
+    projected = ConversationTurnFlowProjector.project_from_message_payload(
+        last_assistant
+    )
     return dict(projected) if isinstance(projected, dict) else None
 
 
@@ -110,11 +146,18 @@ def _apply_turn_flow_diagnostics_parity(
     )
     if normalized_turn_outcome:
         diagnostics["turn_outcome"] = normalized_turn_outcome
+    normalized_conversation_outcome = _normalize_cli_optional_string(
+        normalized_projection.get("conversation_outcome")
+    )
+    if normalized_conversation_outcome:
+        diagnostics["conversation_outcome"] = normalized_conversation_outcome
     normalized_failure_kind = _normalize_cli_optional_string(
         normalized_projection.get("failure_kind")
     )
     if normalized_failure_kind:
         diagnostics["failure_kind"] = normalized_failure_kind
+    elif normalized_projection.get("turn_outcome") == "success":
+        diagnostics.pop("failure_kind", None)
     normalized_budget_exit_reason = _normalize_cli_optional_string(
         normalized_projection.get("budget_exit_reason")
     )
@@ -125,6 +168,13 @@ def _apply_turn_flow_diagnostics_parity(
     )
     if normalized_final_output_source:
         diagnostics["final_output_source"] = normalized_final_output_source
+    if (
+        diagnostics.get("turn_outcome") == "success"
+        and diagnostics.get("termination_reason") == "completed"
+        and diagnostics.get("partial_exit_reason")
+        == diagnostics.get("budget_exit_reason")
+    ):
+        diagnostics.pop("partial_exit_reason", None)
 
     if isinstance(assistant_message, dict) and turn_flow:
         assistant_message["turn_flow"] = turn_flow
@@ -147,28 +197,112 @@ async def _load_ai_conversation_snapshot(
     keyword: str | None,
     keyword_limit: int,
 ) -> dict:
-    from sqlalchemy import and_, select
+    from sqlalchemy import and_, func, select
 
-    from app.ai.engine.base import BaseEngine
+    from app.ai.text_semantics import extract_textual_tool_call_names
     from app.core.database import get_db_context
+    from app.core.i18n import _
+    from app.exceptions import NotFoundException
+    from app.models.ai.agent import Agent
+    from app.models.ai.agent_conversation import AgentConversation
     from app.models.ai.call_log import AICallLog
     from app.models.ai.conversation_message import ConversationMessage
-    from app.services.ai.conversation_service import ConversationService
 
     async with get_db_context() as db:
-        service, conversation = await ConversationService.get_service_for_conversation(
-            db,
-            conversation_id,
+        conversation = (
+            (
+                await db.execute(
+                    select(AgentConversation).where(
+                        AgentConversation.id == conversation_id,
+                        AgentConversation.is_deleted.is_(False),
+                    )
+                )
+            )
+            .scalars()
+            .first()
         )
-        total_messages = await service.message_repo.count_by_conversation(
-            conversation_id,
+        if conversation is None:
+            raise NotFoundException(
+                message=_("agent_chat.error.conversation_not_found"),
+            )
+
+        total_messages = (
+            await db.execute(
+                select(func.count(ConversationMessage.id)).where(
+                    ConversationMessage.tenant_id == conversation.tenant_id,
+                    ConversationMessage.conversation_id == conversation_id,
+                    ConversationMessage.is_deleted.is_(False),
+                )
+            )
+        ).scalar() or 0
+        skip = max(int(total_messages) - tail, 0)
+        message_stmt = (
+            select(ConversationMessage)
+            .where(
+                ConversationMessage.tenant_id == conversation.tenant_id,
+                ConversationMessage.conversation_id == conversation_id,
+                ConversationMessage.is_deleted.is_(False),
+            )
+            .order_by(ConversationMessage.sequence.asc())
+            .offset(skip)
+            .limit(tail)
         )
-        skip = max(total_messages - tail, 0)
-        detail = await service.get_conversation_detail(
-            conversation_id,
-            message_skip=skip,
-            message_limit=tail,
+        message_rows = (await db.execute(message_stmt)).scalars().all()
+        recent_messages = [
+            _serialize_cli_conversation_message(row) for row in message_rows
+        ]
+        agent_name = (
+            await db.execute(
+                select(Agent.name).where(Agent.id == conversation.agent_id)
+            )
+        ).scalar_one_or_none()
+        detail = {
+            "id": conversation.id,
+            "tenant_id": conversation.tenant_id,
+            "agent_id": conversation.agent_id,
+            "agent_name": agent_name,
+            "user_id": conversation.user_id,
+            "owner_type": conversation.owner_type,
+            "status": conversation.status,
+            "title": conversation.title,
+            "message_count": int(total_messages),
+            "token_count": conversation.token_count,
+            "cost": conversation.cost,
+            "created_at": _format_cli_dt(conversation.created_at),
+            "updated_at": _format_cli_dt(conversation.updated_at),
+            "message_list": recent_messages,
+        }
+
+        last_assistant = next(
+            (
+                item
+                for item in reversed(recent_messages)
+                if item.get("role") == "assistant"
+            ),
+            None,
         )
+        if last_assistant is None:
+            latest_assistant_row = (
+                (
+                    await db.execute(
+                        select(ConversationMessage)
+                        .where(
+                            ConversationMessage.tenant_id == conversation.tenant_id,
+                            ConversationMessage.conversation_id == conversation_id,
+                            ConversationMessage.is_deleted.is_(False),
+                            ConversationMessage.role == "assistant",
+                        )
+                        .order_by(ConversationMessage.sequence.desc())
+                        .limit(1)
+                    )
+                )
+                .scalars()
+                .first()
+            )
+            if latest_assistant_row is not None:
+                last_assistant = _serialize_cli_conversation_message(
+                    latest_assistant_row
+                )
 
         keyword_hits: list[dict] = []
         if keyword:
@@ -192,7 +326,7 @@ async def _load_ai_conversation_snapshot(
                     "id": row.id,
                     "sequence": row.sequence,
                     "role": row.role,
-                    "created_at": ConversationService._format_dt(row.created_at),
+                    "created_at": _format_cli_dt(row.created_at),
                     "content": row.content or "",
                 }
                 for row in matched_rows
@@ -210,19 +344,10 @@ async def _load_ai_conversation_snapshot(
         )
         call_logs = (await db.execute(call_log_stmt)).scalars().all()
 
-        recent_messages = detail.get("message_list") or []
-        last_assistant = next(
-            (
-                item
-                for item in reversed(recent_messages)
-                if item.get("role") == "assistant"
-            ),
-            None,
-        )
         last_assistant_text = str((last_assistant or {}).get("content") or "")
-        leaked_tool_names = BaseEngine._extract_textual_tool_call_names(
+        leaked_tool_names = extract_textual_tool_call_names(
             last_assistant_text,
-            [],
+            alias_to_tool_name={},
         )
         assistant_metadata = (
             dict((last_assistant or {}).get("metadata") or {})
@@ -870,7 +995,7 @@ async def _load_ai_conversation_snapshot(
                 _normalize_cli_call_log_row(
                     {
                         "id": row.id,
-                        "created_at": ConversationService._format_dt(row.created_at),
+                        "created_at": _format_cli_dt(row.created_at),
                         "status": row.status,
                         "call_type": row.call_type,
                         "provider_id": row.provider_id,
@@ -898,7 +1023,9 @@ async def _load_ai_conversation_snapshot(
                         "budget": row_diagnostics.get("budget"),
                         "budget_status": row_diagnostics.get("budget_status"),
                         "budget_exit_reason": row_diagnostics.get("budget_exit_reason"),
-                        "final_output_source": row_diagnostics.get("final_output_source"),
+                        "final_output_source": row_diagnostics.get(
+                            "final_output_source"
+                        ),
                         "path_decision": row_diagnostics.get("path_decision"),
                         "capability_injection": row_diagnostics.get(
                             "capability_injection"
@@ -937,11 +1064,11 @@ async def _load_ai_conversation_snapshot(
                 "cost": float(detail.get("cost", conversation.cost or 0) or 0),
                 "created_at": detail.get(
                     "created_at",
-                    ConversationService._format_dt(conversation.created_at),
+                    _format_cli_dt(conversation.created_at),
                 ),
                 "updated_at": detail.get(
                     "updated_at",
-                    ConversationService._format_dt(conversation.updated_at),
+                    _format_cli_dt(conversation.updated_at),
                 ),
             },
             "recent_messages": recent_messages,
@@ -1308,13 +1435,12 @@ def _hydrate_ai_conversation_snapshot(snapshot: dict) -> dict:
         termination_reason=diagnostics.get("termination_reason"),
     )
     diagnostics["budget"] = budget_projection.get("budget") or diagnostics.get("budget")
-    diagnostics["budget_status"] = (
-        budget_projection.get("budget_status") or diagnostics.get("budget_status")
-    )
-    diagnostics["budget_exit_reason"] = (
-        budget_projection.get("budget_exit_reason")
-        or diagnostics.get("budget_exit_reason")
-    )
+    diagnostics["budget_status"] = budget_projection.get(
+        "budget_status"
+    ) or diagnostics.get("budget_status")
+    diagnostics["budget_exit_reason"] = budget_projection.get(
+        "budget_exit_reason"
+    ) or diagnostics.get("budget_exit_reason")
     diagnostics["failure_kind"] = _first_string(
         diagnostics.get("failure_kind"),
         assistant_metadata.get("failure_kind"),

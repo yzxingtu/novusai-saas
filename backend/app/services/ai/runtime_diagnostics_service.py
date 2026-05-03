@@ -9,7 +9,6 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
-from app.enums.ai import CallStatusEnum
 from app.exceptions import NotFoundException
 from app.models.ai.call_log import AICallLog
 from app.services.ai.monitoring_read_model_projector import (
@@ -307,20 +306,14 @@ class RuntimeDiagnosticsService:
 
     @staticmethod
     def _is_failed_call(log: AICallLog, diagnostics: dict[str, Any]) -> bool:
-        if str(diagnostics.get("conversation_outcome") or "") in {
-            "failed",
-            "partial",
-        }:
-            return True
-        if str(log.status or "") != CallStatusEnum.SUCCESS.value:
-            return True
-        if str(diagnostics.get("turn_outcome") or "") in {
-            "failed",
-            "partial",
-            "tool_round_failed",
-        }:
-            return True
-        return str(diagnostics.get("failure_kind") or "").strip() not in {"", "none"}
+        return (
+            RuntimeRootCauseProjector.resolve_root_cause_status(
+                call_log=log,
+                diagnostics=diagnostics,
+                conversation_turn=None,
+            )
+            == "failed"
+        )
 
     @classmethod
     def _merge_root_cause_diagnostics(
@@ -445,7 +438,9 @@ class RuntimeDiagnosticsService:
             reason = str(check.get("reason") or "").strip()
             name = str(check.get("name") or "").strip()
             if status == "unavailable":
-                actions.append(f"Restore `{name}` before relying on runtime diagnostics.")
+                actions.append(
+                    f"Restore `{name}` before relying on runtime diagnostics."
+                )
             elif status == "degraded" and reason:
                 actions.append(f"Investigate `{name}` degradation: {reason}.")
 

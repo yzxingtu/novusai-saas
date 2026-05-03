@@ -216,7 +216,9 @@ class CallLogProjectionMixin(CallLogSupport):
             (turn_record or {}).get("turn_skill_activation")
             or incoming.get("turn_skill_activation")
             or req.get("turn_skill_activation")
-            or turn_record_metadata.get("turn_diagnostics", {}).get("turn_skill_activation")
+            or turn_record_metadata.get("turn_diagnostics", {}).get(
+                "turn_skill_activation"
+            )
         )
         selected_tool_names, _selected_tools_explicit = resolve_live_selected_name_list(
             "selected_tool_names",
@@ -225,12 +227,14 @@ class CallLogProjectionMixin(CallLogSupport):
             req,
             turn_skill_activation=turn_skill_activation,
         )
-        selected_skill_names, _selected_skills_explicit = resolve_live_selected_name_list(
-            "selected_skill_names",
-            turn_record,
-            incoming,
-            req,
-            turn_skill_activation=turn_skill_activation,
+        selected_skill_names, _selected_skills_explicit = (
+            resolve_live_selected_name_list(
+                "selected_skill_names",
+                turn_record,
+                incoming,
+                req,
+                turn_skill_activation=turn_skill_activation,
+            )
         )
         context_sources = (
             cls._normalize_context_sources((turn_record or {}).get("context_sources"))
@@ -334,15 +338,22 @@ class CallLogProjectionMixin(CallLogSupport):
                 "error_message": error_message,
             }
         )
-        turn_outcome = cls._to_non_empty_str(
-            normalized_failure.get("turn_outcome")
-        ) or turn_outcome
-        termination_reason = cls._to_non_empty_str(
-            normalized_failure.get("termination_reason")
-        ) or termination_reason
-        failure_kind = cls._to_non_empty_str(
+        turn_outcome = (
+            cls._to_non_empty_str(normalized_failure.get("turn_outcome"))
+            or turn_outcome
+        )
+        termination_reason = (
+            cls._to_non_empty_str(normalized_failure.get("termination_reason"))
+            or termination_reason
+        )
+        normalized_failure_kind = cls._to_non_empty_str(
             normalized_failure.get("failure_kind")
-        ) or failure_kind
+        )
+        failure_kind = (
+            normalized_failure_kind
+            if normalized_failure.get("authoritative_completed_success")
+            else normalized_failure_kind or failure_kind
+        )
         if turn_record:
             turn_record = dict(turn_record)
             turn_record["turn_outcome"] = turn_outcome

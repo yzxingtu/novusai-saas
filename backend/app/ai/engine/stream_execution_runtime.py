@@ -1,5 +1,6 @@
 # FROZEN: do not add new dependencies
 """Execution loop helpers and IO adapter for StreamExecutionHandler.generate()."""
+
 from __future__ import annotations
 
 import asyncio
@@ -78,6 +79,16 @@ _TRANSPORT_DISCONNECT_TOKENS = (
 )
 
 
+def _log_stream_info(logger: Any, message: str, *args: Any) -> None:
+    log_fn = getattr(logger, "info", None)
+    if callable(log_fn):
+        log_fn(message, *args)
+        return
+    fallback_fn = getattr(logger, "warning", None)
+    if callable(fallback_fn):
+        fallback_fn(message, *args)
+
+
 class StreamIOAdapter:
     """Transport adapter for streaming TurnExecutor execution."""
 
@@ -134,7 +145,9 @@ class StreamIOAdapter:
             if sandbox is not None and hasattr(sandbox, "set_runtime_model_info"):
                 sandbox.set_runtime_model_info(runtime_model_info)
         raw_turn_record = metadata.get("runtime_turn_record")
-        self.handler._stream_generation_view().replace_runtime_turn_record(raw_turn_record)
+        self.handler._stream_generation_view().replace_runtime_turn_record(
+            raw_turn_record
+        )
 
     def _ensure_runtime_turn_record_state(self) -> None:
         if not hasattr(self.handler, "_runtime_turn_record"):
@@ -168,9 +181,7 @@ class StreamIOAdapter:
             else:
                 with suppress(Exception):
                     runtime_turn_record_source.metadata = {
-                        _CANONICAL_TOOL_CALLS_METADATA_KEY: list(
-                            normalized_tool_calls
-                        )
+                        _CANONICAL_TOOL_CALLS_METADATA_KEY: list(normalized_tool_calls)
                     }
 
         view.refresh_runtime_turn_record()
@@ -263,16 +274,17 @@ class StreamIOAdapter:
     ) -> ToolBatchResult:
         request_proxy = self._request_with_defaults()
         tool_calls = list(response.tool_calls or response.message.tool_calls or [])
-        tool_calls, _unchanged = self.handler.runtime_contract.keep_tool_calls_for_round(
-            tool_calls
+        tool_calls, _unchanged = (
+            self.handler.runtime_contract.keep_tool_calls_for_round(tool_calls)
         )
         starting_total_tokens = int(kwargs.get("starting_total_tokens") or 0)
-        starting_completion_tokens = int(
-            kwargs.get("starting_completion_tokens") or 0
+        starting_completion_tokens = int(kwargs.get("starting_completion_tokens") or 0)
+        reasoning_content = (
+            str(
+                response.message.reasoning_content or response.message.content or ""
+            ).strip()
+            or None
         )
-        reasoning_content = str(
-            response.message.reasoning_content or response.message.content or ""
-        ).strip() or None
         runtime_outcome = await run_stream_tool_batch(
             runtime=StreamToolBatchRuntimeInput(
                 sandbox=self.handler.engine.sandbox,
@@ -296,7 +308,9 @@ class StreamIOAdapter:
             ),
         )
         if runtime_outcome.output_override is not None:
-            self.handler._stream_generation_view().output = runtime_outcome.output_override
+            self.handler._stream_generation_view().output = (
+                runtime_outcome.output_override
+            )
         if runtime_outcome.effective_tool_calls:
             self._store_canonical_tool_calls(runtime_outcome.effective_tool_calls)
             self._store_tool_calls_on_response(
@@ -326,23 +340,27 @@ class StreamIOAdapter:
         total_tokens: int,
         completion_tokens_used: int,
     ) -> tuple[str, int, int]:
-        output, final_total_tokens, final_completion_tokens = (
-            await self.handler.runtime_contract.finalize_partial_output(
-                agent=self.handler.agent,
-                request=self.handler.request,
-                prep=self.handler.prep,
-                messages=messages,
-                response=response,
-                state=state,
-                tool_results=tool_results,
-                reason=reason,
-                total_tokens=total_tokens,
-                completion_tokens_used=completion_tokens_used,
-                selected_skill_names=self._selected_skill_names(),
-                context_sources=self._context_sources(),
-            )
+        (
+            output,
+            final_total_tokens,
+            final_completion_tokens,
+        ) = await self.handler.runtime_contract.finalize_partial_output(
+            agent=self.handler.agent,
+            request=self.handler.request,
+            prep=self.handler.prep,
+            messages=messages,
+            response=response,
+            state=state,
+            tool_results=tool_results,
+            reason=reason,
+            total_tokens=total_tokens,
+            completion_tokens_used=completion_tokens_used,
+            selected_skill_names=self._selected_skill_names(),
+            context_sources=self._context_sources(),
         )
-        stream_local_output = str(self.handler._stream_generation_view().output or "").strip()
+        stream_local_output = str(
+            self.handler._stream_generation_view().output or ""
+        ).strip()
         if not str(output or "").strip() and stream_local_output:
             output = stream_local_output
         return output, final_total_tokens, final_completion_tokens
@@ -358,23 +376,27 @@ class StreamIOAdapter:
         total_tokens: int,
         completion_tokens_used: int,
     ) -> tuple[str, int, int]:
-        output, final_total_tokens, final_completion_tokens = (
-            await self.handler.runtime_contract.finalize_completed_output(
-                agent=self.handler.agent,
-                request=self.handler.request,
-                prep=self.handler.prep,
-                messages=messages,
-                response=response,
-                state=state,
-                tool_results=tool_results,
-                reason=reason,
-                total_tokens=total_tokens,
-                completion_tokens_used=completion_tokens_used,
-                selected_skill_names=self._selected_skill_names(),
-                context_sources=self._context_sources(),
-            )
+        (
+            output,
+            final_total_tokens,
+            final_completion_tokens,
+        ) = await self.handler.runtime_contract.finalize_completed_output(
+            agent=self.handler.agent,
+            request=self.handler.request,
+            prep=self.handler.prep,
+            messages=messages,
+            response=response,
+            state=state,
+            tool_results=tool_results,
+            reason=reason,
+            total_tokens=total_tokens,
+            completion_tokens_used=completion_tokens_used,
+            selected_skill_names=self._selected_skill_names(),
+            context_sources=self._context_sources(),
         )
-        stream_local_output = str(self.handler._stream_generation_view().output or "").strip()
+        stream_local_output = str(
+            self.handler._stream_generation_view().output or ""
+        ).strip()
         if not str(output or "").strip() and stream_local_output:
             output = stream_local_output
         return output, final_total_tokens, final_completion_tokens
@@ -491,7 +513,10 @@ async def _cancel_executor_task(task: asyncio.Task[Any] | None) -> None:
 
 
 def _is_cancelled_base_exception(exc: BaseException) -> bool:
-    return isinstance(exc, asyncio.CancelledError) or type(exc).__name__ == "CancelledError"
+    return (
+        isinstance(exc, asyncio.CancelledError)
+        or type(exc).__name__ == "CancelledError"
+    )
 
 
 def _is_transport_disconnect_cancellation(exc: BaseException) -> bool:
@@ -639,7 +664,9 @@ def _resolve_stream_exception_completion_reason(handler: Any) -> str:
     if state is None:
         return "stream_execution_error"
 
-    failure_kind = str(getattr(state, "provider_failure_kind", "") or "").strip().lower()
+    failure_kind = (
+        str(getattr(state, "provider_failure_kind", "") or "").strip().lower()
+    )
     if failure_kind in {"", "none"}:
         return "stream_execution_error"
     if failure_kind == "budget_exit":
@@ -653,7 +680,11 @@ def _resolve_stream_exception_completion_reason(handler: Any) -> str:
         return "provider_timeout"
     if failure_kind == "provider_unavailable":
         return "provider_unavailable"
-    if failure_kind in {"provider_http_5xx", "provider_bad_response", "provider_rate_limit"}:
+    if failure_kind in {
+        "provider_http_5xx",
+        "provider_bad_response",
+        "provider_rate_limit",
+    }:
         return "provider_error"
     if failure_kind in {"tool_timeout", "tool_execution_error"}:
         return "tool_error"
@@ -694,7 +725,9 @@ def _sync_exception_runtime_metadata(handler: Any, exc: BaseException) -> None:
         view.replace_runtime_turn_record(runtime_turn_record)
         return
 
-    protocol_path = str(getattr(exc, "_novusai_runtime_protocol_path", "") or "").strip()
+    protocol_path = str(
+        getattr(exc, "_novusai_runtime_protocol_path", "") or ""
+    ).strip()
     if protocol_path:
         handler._update_turn_progress(protocol_path=protocol_path)
 
@@ -708,11 +741,13 @@ def _register_stream_exception_failure(handler: Any, exc: BaseException) -> None
     if state is None:
         return
 
-    existing_failure_kind = str(
-        getattr(state, "provider_failure_kind", "") or ""
-    ).strip().lower()
+    existing_failure_kind = (
+        str(getattr(state, "provider_failure_kind", "") or "").strip().lower()
+    )
     event_payload = dict(failure_event or {})
-    protocol_path = str(getattr(exc, "_novusai_runtime_protocol_path", "") or "").strip()
+    protocol_path = str(
+        getattr(exc, "_novusai_runtime_protocol_path", "") or ""
+    ).strip()
     if not protocol_path:
         protocol_path = str(
             (ensure_stream_generation_view(handler).runtime_turn_record or {}).get(
@@ -726,10 +761,11 @@ def _register_stream_exception_failure(handler: Any, exc: BaseException) -> None
     # Preserve the original classified provider/tool failure when cancellation is only
     # the outer transport symptom after a more specific runtime failure was already
     # recorded. This keeps graceful timeout/interruption copy and done semantics aligned.
-    if (
-        failure_kind == "server_interrupt"
-        and existing_failure_kind not in {"", "none", "server_interrupt"}
-    ):
+    if failure_kind == "server_interrupt" and existing_failure_kind not in {
+        "",
+        "none",
+        "server_interrupt",
+    }:
         if event_payload:
             state.provider_events.append(dict(event_payload))
         return
@@ -744,7 +780,9 @@ def _should_emit_graceful_exception_done(handler: Any) -> bool:
     state = getattr(handler, "_state", None)
     if state is None:
         return False
-    failure_kind = str(getattr(state, "provider_failure_kind", "") or "").strip().lower()
+    failure_kind = (
+        str(getattr(state, "provider_failure_kind", "") or "").strip().lower()
+    )
     return failure_kind not in {"", "none"}
 
 
@@ -772,7 +810,9 @@ def _resolve_exception_final_output_source(
 ) -> str | None:
     if not str(partial_output or "").strip():
         return None
-    intent_plan = list(getattr(state, "intent_plan", []) or []) if state is not None else []
+    intent_plan = (
+        list(getattr(state, "intent_plan", []) or []) if state is not None else []
+    )
     if RecoveryManager.has_completed_output_evidence(
         intent_plan,
         tool_results=tool_results,
@@ -824,21 +864,23 @@ async def _build_stream_exception_artifacts(
     partial_completion_tokens = int(view.completion_tokens_used or 0)
 
     if not partial_output:
-        partial_output, partial_tokens, partial_completion_tokens = (
-            await handler.runtime_contract.finalize_partial_output(
-                agent=handler.agent,
-                request=handler.request,
-                prep=handler.prep,
-                messages=messages,
-                response=None,
-                state=handler._state,
-                tool_results=recovered_tool_results,
-                reason=completion_reason,
-                total_tokens=partial_tokens,
-                completion_tokens_used=partial_completion_tokens,
-                selected_skill_names=[],
-                context_sources=[],
-            )
+        (
+            partial_output,
+            partial_tokens,
+            partial_completion_tokens,
+        ) = await handler.runtime_contract.finalize_partial_output(
+            agent=handler.agent,
+            request=handler.request,
+            prep=handler.prep,
+            messages=messages,
+            response=None,
+            state=handler._state,
+            tool_results=recovered_tool_results,
+            reason=completion_reason,
+            total_tokens=partial_tokens,
+            completion_tokens_used=partial_completion_tokens,
+            selected_skill_names=[],
+            context_sources=[],
         )
         generated_partial_output = bool(str(partial_output or "").strip())
 
@@ -850,9 +892,7 @@ async def _build_stream_exception_artifacts(
         tool_results=recovered_tool_results,
     )
     if state is not None:
-        state.preparation_diagnostics["final_output_source"] = (
-            final_output_source
-        )
+        state.preparation_diagnostics["final_output_source"] = final_output_source
     surfaced_output = (
         partial_output
         if _should_surface_exception_partial_output(
@@ -945,7 +985,8 @@ async def _handle_stream_exception(
 
     public_error_message = resolve_stream_public_error_message(exc)
     if completion_reason == "provider_timeout":
-        logger.info(
+        _log_stream_info(
+            logger,
             "Stream provider timeout: agent={} error={}",
             getattr(handler.agent, "id", None),
             str(exc),
@@ -1130,13 +1171,15 @@ async def _handle_stream_cancelled_exception(
         turn_start_message_index=turn_start_message_index,
     )
     if transport_disconnect:
-        logger.info(
+        _log_stream_info(
+            logger,
             "Stream cancelled after client disconnect: agent={} error={}",
             getattr(handler.agent, "id", None),
             str(exc),
         )
     elif completion_reason == "provider_timeout":
-        logger.info(
+        _log_stream_info(
+            logger,
             "Stream cancelled after provider timeout: agent={} error={}",
             getattr(handler.agent, "id", None),
             str(exc),
@@ -1171,8 +1214,7 @@ async def _handle_stream_cancelled_exception(
                     break
     elif (
         not transport_disconnect
-        and
-        completion_reason != "interrupted"
+        and completion_reason != "interrupted"
         and public_error_message
         and public_error_message not in partial_output
     ):
@@ -1297,7 +1339,9 @@ async def run_stream_execution(
         for replay_event in artifacts.replay_events:
             yield replay_event
 
-        on_complete_extra = await handler._await_on_complete_before_done(artifacts.result)
+        on_complete_extra = await handler._await_on_complete_before_done(
+            artifacts.result
+        )
         post_done_callback = handler._pop_post_done_callback(on_complete_extra)
         if post_done_callback is not None:
             handler._schedule_background_callback(post_done_callback)
@@ -1326,9 +1370,13 @@ async def run_stream_execution(
     except BaseException as exc:
         if _is_cancelled_base_exception(exc):
             current_task = asyncio.current_task()
-            if isinstance(exc, asyncio.CancelledError) and current_task is not None and hasattr(
-                current_task,
-                "uncancel",
+            if (
+                isinstance(exc, asyncio.CancelledError)
+                and current_task is not None
+                and hasattr(
+                    current_task,
+                    "uncancel",
+                )
             ):
                 with suppress(Exception):
                     current_task.uncancel()

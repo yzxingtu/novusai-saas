@@ -199,6 +199,55 @@ def test_classify_root_cause_blocks_success_shortcut_on_budget_exit_reason(mock_
     assert confidence == 0.8
 
 
+def test_root_cause_keeps_trusted_completed_assistant_turn_success_over_stale_budget_evidence(
+    mock_db,
+):
+    from app.services.ai.runtime_diagnostics_service import RuntimeDiagnosticsService
+
+    service = RuntimeDiagnosticsService(mock_db)
+    diagnostics = {
+        "turn_outcome": "success",
+        "conversation_outcome": "failed",
+        "termination_reason": "completed",
+        "budget_exit_reason": "elapsed_budget_exceeded",
+        "failure_kind": "budget_exit",
+        "final_output_source": "assistant",
+        "selected_tool_names": ["web_search", "fetch_url"],
+        "candidate_tool_names": ["web_search", "fetch_url"],
+        "selected_skill_names": ["web_search"],
+        "provider_events": [
+            {"kind": "budget_exit", "reason": "elapsed_budget_exceeded"}
+        ],
+    }
+
+    failure_layer, cause_code, summary, first_fix, confidence = (
+        service._classify_root_cause(
+            call_log=_call_log(),
+            diagnostics=diagnostics,
+            conversation_turn={"message_id": 2260},
+        )
+    )
+    status = service._resolve_root_cause_status(
+        call_log=_call_log(),
+        diagnostics=diagnostics,
+        conversation_turn={"message_id": 2260},
+    )
+    evidence = service._build_root_cause_evidence(
+        _call_log(),
+        diagnostics,
+        conversation_turn={"message_id": 2260},
+    )
+
+    assert status == "success"
+    assert failure_layer is None
+    assert cause_code is None
+    assert "completed successfully" in summary
+    assert first_fix is None
+    assert confidence == 0.98
+    assert {"label": "conversation_outcome", "value": "success"} in evidence
+    assert not any(item.get("label") == "failure_kind" for item in evidence)
+
+
 def test_classify_root_cause_prefers_budget_exit_over_untrusted_final_output_source(
     mock_db,
 ):

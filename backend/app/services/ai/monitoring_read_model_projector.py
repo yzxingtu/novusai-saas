@@ -70,7 +70,9 @@ class MonitoringReadModelProjector:
             to_protocol = ConversationDiagnosticsProjector.to_non_empty_str(
                 item.get("to_protocol")
             )
-            reason = ConversationDiagnosticsProjector.to_non_empty_str(item.get("reason"))
+            reason = ConversationDiagnosticsProjector.to_non_empty_str(
+                item.get("reason")
+            )
             if not (from_protocol or to_protocol or reason):
                 continue
             metadata = item.get("metadata")
@@ -124,7 +126,9 @@ class MonitoringReadModelProjector:
             (request_payload.get("turn_flow"), request_payload),
             (request_metadata.get("turn_flow"), request_metadata),
         ):
-            projected = _normalize(raw_turn_flow, metadata if isinstance(metadata, dict) else None)
+            projected = _normalize(
+                raw_turn_flow, metadata if isinstance(metadata, dict) else None
+            )
             if projected is not None:
                 return projected
         return None
@@ -290,9 +294,12 @@ class MonitoringReadModelProjector:
             budget_exit_reason=raw_budget_exit_reason,
             termination_reason=termination_reason,
         )
-        budget = ConversationDiagnosticsProjector.normalize_json_dict(
-            budget_projection.get("budget")
-        ) or budget
+        budget = (
+            ConversationDiagnosticsProjector.normalize_json_dict(
+                budget_projection.get("budget")
+            )
+            or budget
+        )
         turn_flow = cls._resolve_turn_flow_payload(
             request_metadata=request_metadata,
             request_payload=request_payload,
@@ -324,12 +331,8 @@ class MonitoringReadModelProjector:
                     turn_record_metadata.get(
                         "assistant_claimed_tool_call_without_tool_event"
                     )
-                    or turn_record.get(
-                        "assistant_claimed_tool_call_without_tool_event"
-                    )
-                    or diagnostics.get(
-                        "assistant_claimed_tool_call_without_tool_event"
-                    )
+                    or turn_record.get("assistant_claimed_tool_call_without_tool_event")
+                    or diagnostics.get("assistant_claimed_tool_call_without_tool_event")
                     or turn_record_diagnostics.get(
                         "assistant_claimed_tool_call_without_tool_event"
                     )
@@ -351,16 +354,20 @@ class MonitoringReadModelProjector:
             or termination_reason
         )
         conversation_outcome = ConversationDiagnosticsProjector.to_non_empty_str(
+            normalized_failure.get("conversation_outcome")
+        ) or ConversationDiagnosticsProjector.to_non_empty_str(
             turn_record.get("conversation_outcome")
             or diagnostics.get("conversation_outcome")
             or turn_record_diagnostics.get("conversation_outcome")
             or turn_outcome
         )
+        normalized_failure_kind = ConversationDiagnosticsProjector.to_non_empty_str(
+            normalized_failure.get("failure_kind")
+        )
         failure_kind = (
-            ConversationDiagnosticsProjector.to_non_empty_str(
-                normalized_failure.get("failure_kind")
-            )
-            or raw_failure_kind
+            normalized_failure_kind
+            if normalized_failure.get("authoritative_completed_success")
+            else normalized_failure_kind or raw_failure_kind
         )
         final_output_source = (
             ConversationDiagnosticsProjector.to_non_empty_str(
@@ -395,12 +402,14 @@ class MonitoringReadModelProjector:
             turn_record_diagnostics,
             turn_skill_activation=turn_skill_activation,
         )
-        selected_skill_names, _selected_skills_explicit = resolve_live_selected_name_list(
-            "selected_skill_names",
-            turn_record,
-            diagnostics,
-            turn_record_diagnostics,
-            turn_skill_activation=turn_skill_activation,
+        selected_skill_names, _selected_skills_explicit = (
+            resolve_live_selected_name_list(
+                "selected_skill_names",
+                turn_record,
+                diagnostics,
+                turn_record_diagnostics,
+                turn_skill_activation=turn_skill_activation,
+            )
         )
 
         return {
@@ -508,12 +517,8 @@ class MonitoringReadModelProjector:
                 turn_record_metadata.get(
                     "assistant_claimed_tool_call_without_tool_event"
                 )
-                or turn_record.get(
-                    "assistant_claimed_tool_call_without_tool_event"
-                )
-                or diagnostics.get(
-                    "assistant_claimed_tool_call_without_tool_event"
-                )
+                or turn_record.get("assistant_claimed_tool_call_without_tool_event")
+                or diagnostics.get("assistant_claimed_tool_call_without_tool_event")
                 or turn_record_diagnostics.get(
                     "assistant_claimed_tool_call_without_tool_event"
                 )
@@ -643,12 +648,16 @@ class MonitoringReadModelProjector:
             live_actor.nickname if live_actor else None,
         )
         if not display_name:
-            display_name = nickname or username or (
-                live_actor.display_name if live_actor else None
+            display_name = (
+                nickname
+                or username
+                or (live_actor.display_name if live_actor else None)
             )
 
         return MonitoringActorInfo(
-            id=snapshot_value(snapshot, "user_id", live_actor.id if live_actor else actor_id),
+            id=snapshot_value(
+                snapshot, "user_id", live_actor.id if live_actor else actor_id
+            ),
             type=resolved_type,
             display_name=display_name,
             username=username,

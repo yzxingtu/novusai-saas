@@ -52,6 +52,8 @@ _PROVIDER_HTTP_5XX_ERROR_TOKENS = (
     "503",
     "504",
 )
+_RETIRED_ROOT_CAUSE_EVIDENCE_REFERENCES = {"data_ops", "page_search"}
+_RETIRED_ROOT_CAUSE_EVIDENCE_TOOL_PREFIXES = ("crm_",)
 
 
 class RuntimeRootCauseProjector:
@@ -179,6 +181,46 @@ class RuntimeRootCauseProjector:
     @staticmethod
     def has_meaningful_value(value: Any) -> bool:
         return value not in (None, "", [], {}, ())
+
+    @staticmethod
+    def _root_cause_evidence_token(value: Any) -> str:
+        return str(value or "").strip().lower().replace("-", "_").replace(" ", "_")
+
+    @classmethod
+    def _is_retired_root_cause_evidence_reference(cls, value: Any) -> bool:
+        token = cls._root_cause_evidence_token(value)
+        return bool(
+            token in _RETIRED_ROOT_CAUSE_EVIDENCE_REFERENCES
+            or token.startswith(_RETIRED_ROOT_CAUSE_EVIDENCE_TOOL_PREFIXES)
+        )
+
+    @classmethod
+    def _root_cause_evidence_reference(cls, value: Any) -> str | None:
+        text = str(value or "").strip()
+        if not text or cls._is_retired_root_cause_evidence_reference(text):
+            return None
+        return text
+
+    @classmethod
+    def _root_cause_evidence_name_list(cls, value: Any) -> list[str]:
+        if not isinstance(value, list):
+            return []
+        normalized: list[str] = []
+        for item in value:
+            text = cls._root_cause_evidence_reference(item)
+            if text and text not in normalized:
+                normalized.append(text)
+        return normalized
+
+    @classmethod
+    def _root_cause_evidence_tool_planner(cls, value: Any) -> dict[str, Any] | None:
+        if not isinstance(value, dict):
+            return None
+        payload = dict(value)
+        for key in ("intent", "family"):
+            if cls._is_retired_root_cause_evidence_reference(payload.get(key)):
+                return None
+        return payload or None
 
     @classmethod
     def merge_root_cause_diagnostics(
@@ -388,11 +430,12 @@ class RuntimeRootCauseProjector:
             or diagnostics.get("turn_outcome")
             or ""
         ).strip()
+        failure_kind = str(normalized_projection.get("failure_kind") or "").strip()
         if conversation_outcome in {"failed", "partial"}:
             return "failed"
         if bool(diagnostics.get("assistant_claimed_tool_call_without_tool_event")):
             return "failed"
-        if str(diagnostics.get("failure_kind") or "").strip() not in {"", "none"}:
+        if failure_kind not in {"", "none"}:
             return "failed"
         if str(diagnostics.get("contract_breach_type") or "").strip():
             return "failed"
@@ -431,11 +474,11 @@ class RuntimeRootCauseProjector:
             diagnostics=diagnostics,
             turn_flow=turn_flow,
         )
-        failure_kind = str(
-            normalized_projection.get("failure_kind")
-            or diagnostics.get("failure_kind")
-            or ""
-        ).strip()
+        failure_kind = str(normalized_projection.get("failure_kind") or "").strip()
+        if not failure_kind and not normalized_projection.get(
+            "authoritative_completed_success"
+        ):
+            failure_kind = str(diagnostics.get("failure_kind") or "").strip()
         contract_breach_type = str(
             diagnostics.get("contract_breach_type") or ""
         ).strip()
@@ -670,8 +713,7 @@ class RuntimeRootCauseProjector:
                 0.78,
             )
         if any(
-            token in lower_error
-            for token in ("context", "knowledge base", "memory")
+            token in lower_error for token in ("context", "knowledge base", "memory")
         ):
             return (
                 "context_assembly",
@@ -742,12 +784,26 @@ class RuntimeRootCauseProjector:
         if isinstance(conversation_turn, dict):
             append("conversation_message_id", conversation_turn.get("message_id"))
         append("turn_outcome", diagnostics.get("turn_outcome"))
-        append("conversation_outcome", diagnostics.get("conversation_outcome"))
+        append(
+            "conversation_outcome",
+            normalized_projection.get("conversation_outcome")
+            or diagnostics.get("conversation_outcome"),
+        )
         append("termination_reason", diagnostics.get("termination_reason"))
-        append("tool_planner", diagnostics.get("tool_planner"))
+        append(
+            "tool_planner",
+            RuntimeRootCauseProjector._root_cause_evidence_tool_planner(
+                diagnostics.get("tool_planner")
+            ),
+        )
         append("active_intent_id", diagnostics.get("active_intent_id"))
-        append("continuation_source", diagnostics.get("continuation_source"))
-        append("failure_kind", diagnostics.get("failure_kind"))
+        append(
+            "continuation_source",
+            RuntimeRootCauseProjector._root_cause_evidence_reference(
+                diagnostics.get("continuation_source")
+            ),
+        )
+        append("failure_kind", normalized_projection.get("failure_kind"))
         append("contract_breach_type", diagnostics.get("contract_breach_type"))
         append("final_output_source", normalized_projection.get("final_output_source"))
         append(
@@ -779,8 +835,18 @@ class RuntimeRootCauseProjector:
             diagnostics.get("assistant_claimed_tool_call_without_tool_event"),
         )
         append("budget_exit_reason", diagnostics.get("budget_exit_reason"))
-        append("selected_tool_names", diagnostics.get("selected_tool_names"))
-        append("candidate_tool_names", diagnostics.get("candidate_tool_names"))
+        append(
+            "selected_tool_names",
+            RuntimeRootCauseProjector._root_cause_evidence_name_list(
+                diagnostics.get("selected_tool_names")
+            ),
+        )
+        append(
+            "candidate_tool_names",
+            RuntimeRootCauseProjector._root_cause_evidence_name_list(
+                diagnostics.get("candidate_tool_names")
+            ),
+        )
         append("selected_skill_names", diagnostics.get("selected_skill_names"))
         append("unfinished_intents", diagnostics.get("unfinished_intents"))
         append("retry_events", diagnostics.get("retry_events"))

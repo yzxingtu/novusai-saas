@@ -101,10 +101,7 @@ def test_resolve_failure_projection_still_promotes_failed_turn_flow_without_fail
     )
 
     assert projection["turn_outcome"] == "failed"
-    assert (
-        projection["termination_reason"]
-        == "provider_failure_after_partial_progress"
-    )
+    assert projection["termination_reason"] == "provider_failure_after_partial_progress"
     assert projection["failure_kind"] == "provider_http_5xx"
 
 
@@ -123,3 +120,74 @@ def test_resolve_failure_projection_keeps_partial_conversation_outcome_authorita
 
     assert projection["turn_outcome"] == "partial"
     assert projection["has_failure_signal"] is True
+
+
+def test_resolve_failure_projection_keeps_trusted_completed_success_over_stale_budget_exit_projection() -> (
+    None
+):
+    projection = resolve_failure_projection(
+        diagnostics={
+            "turn_outcome": "success",
+            "conversation_outcome": "failed",
+            "termination_reason": "completed",
+            "failure_kind": "budget_exit",
+            "budget": {
+                "status": "exited",
+                "exit_reason": "elapsed_budget_exceeded",
+            },
+            "budget_exit_reason": "elapsed_budget_exceeded",
+            "final_output_source": "assistant",
+        },
+        turn_flow={
+            "timeline": [
+                {
+                    "id": "terminal",
+                    "type": "failed",
+                    "status": "error",
+                }
+            ],
+            "completion_reason": "completed",
+            "error_surface": {"error_type": "budget_exit"},
+        },
+    )
+
+    assert projection["turn_outcome"] == "success"
+    assert projection["termination_reason"] == "completed"
+    assert projection["conversation_outcome"] == "success"
+    assert projection["failure_kind"] is None
+    assert projection["budget_exit_reason"] == "elapsed_budget_exceeded"
+    assert projection["blocks_success_shortcut"] is False
+
+
+def test_resolve_failure_projection_clears_completed_success_progress_signal_without_final_source() -> (
+    None
+):
+    projection = resolve_failure_projection(
+        diagnostics={
+            "turn_outcome": "success",
+            "termination_reason": "completed",
+            "failure_kind": "web_search_in_progress",
+        }
+    )
+
+    assert projection["turn_outcome"] == "success"
+    assert projection["termination_reason"] == "completed"
+    assert projection["failure_kind"] is None
+    assert projection["blocks_success_shortcut"] is False
+
+
+def test_resolve_failure_projection_keeps_budget_exit_blocking_without_trusted_final_source() -> (
+    None
+):
+    projection = resolve_failure_projection(
+        diagnostics={
+            "turn_outcome": "success",
+            "termination_reason": "completed",
+            "budget_exit_reason": "elapsed_budget_exceeded",
+        }
+    )
+
+    assert projection["turn_outcome"] == "failed"
+    assert projection["termination_reason"] == "elapsed_budget_exceeded"
+    assert projection["failure_kind"] == "elapsed_budget_exceeded"
+    assert projection["blocks_success_shortcut"] is True

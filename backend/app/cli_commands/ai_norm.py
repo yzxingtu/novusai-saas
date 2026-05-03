@@ -15,6 +15,7 @@ from app.services.ai.turn_failure_normalizer import (
 
 _json_default = S._json_default
 
+
 def _truncate_cli_block(
     value: object,
     *,
@@ -359,9 +360,14 @@ def _normalize_cli_call_log_row(raw_value: object) -> dict:
     payload["termination_reason"] = _normalize_cli_optional_string(
         normalized_failure.get("termination_reason")
     ) or payload.get("termination_reason")
-    payload["failure_kind"] = _normalize_cli_optional_string(
+    normalized_failure_kind = _normalize_cli_optional_string(
         normalized_failure.get("failure_kind")
-    ) or payload.get("failure_kind")
+    )
+    payload["failure_kind"] = (
+        normalized_failure_kind
+        if normalized_failure.get("authoritative_completed_success")
+        else normalized_failure_kind or payload.get("failure_kind")
+    )
     return sanitize_diagnostics_payload(payload) or {}
 
 
@@ -428,7 +434,8 @@ def _extract_turn_diagnostics_from_call_log_metadata(metadata: object) -> dict:
     budget_projection = derive_budget_projection(
         budget=budget,
         budget_status=budget.get("status") or diagnostics.get("budget_status"),
-        budget_exit_reason=budget.get("exit_reason") or diagnostics.get("budget_exit_reason"),
+        budget_exit_reason=budget.get("exit_reason")
+        or diagnostics.get("budget_exit_reason"),
         termination_reason=raw_termination_reason,
     )
     budget = _normalize_cli_dict(budget_projection.get("budget"))
@@ -453,18 +460,26 @@ def _extract_turn_diagnostics_from_call_log_metadata(metadata: object) -> dict:
             "budget": budget,
             "budget_exit_reason": budget_projection.get("budget_exit_reason"),
             "final_output_source": final_output_source,
-            "error_message": diagnostics.get("error_message") or metadata.get("error_message"),
+            "error_message": diagnostics.get("error_message")
+            or metadata.get("error_message"),
         }
     )
-    turn_outcome = _normalize_cli_optional_string(
-        normalized_failure.get("turn_outcome")
-    ) or raw_turn_outcome
-    termination_reason = _normalize_cli_optional_string(
-        normalized_failure.get("termination_reason")
-    ) or raw_termination_reason
-    failure_kind = _normalize_cli_optional_string(
+    turn_outcome = (
+        _normalize_cli_optional_string(normalized_failure.get("turn_outcome"))
+        or raw_turn_outcome
+    )
+    termination_reason = (
+        _normalize_cli_optional_string(normalized_failure.get("termination_reason"))
+        or raw_termination_reason
+    )
+    normalized_failure_kind = _normalize_cli_optional_string(
         normalized_failure.get("failure_kind")
-    ) or raw_failure_kind
+    )
+    failure_kind = (
+        normalized_failure_kind
+        if normalized_failure.get("authoritative_completed_success")
+        else normalized_failure_kind or raw_failure_kind
+    )
 
     payload = {
         "turn_outcome": turn_outcome,

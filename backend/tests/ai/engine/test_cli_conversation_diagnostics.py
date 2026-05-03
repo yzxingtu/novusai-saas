@@ -23,7 +23,9 @@ from app.cli import (
 )
 
 
-def test_extract_turn_diagnostics_from_call_log_metadata_reads_extended_fields() -> None:
+def test_extract_turn_diagnostics_from_call_log_metadata_reads_extended_fields() -> (
+    None
+):
     top_level_diagnostics = {
         "execution_path": "deep",
         "intent_plan": [
@@ -193,7 +195,9 @@ def test_extract_turn_diagnostics_from_call_log_metadata_reads_extended_fields()
     assert diagnostics["tool_loop_progress"] == {"current_round": 2, "total_rounds": 3}
 
 
-def test_extract_turn_diagnostics_from_call_log_metadata_normalizes_provider_connection_failure() -> None:
+def test_extract_turn_diagnostics_from_call_log_metadata_normalizes_provider_connection_failure() -> (
+    None
+):
     diagnostics = _extract_turn_diagnostics_from_call_log_metadata(
         {
             "turn_diagnostics": {
@@ -218,7 +222,9 @@ def test_extract_turn_diagnostics_from_call_log_metadata_normalizes_provider_con
     assert diagnostics["protocol_path"] == "responses"
 
 
-def test_cli_compact_diagnostics_builder_and_text_renderer_surface_key_orchestration_state() -> None:
+def test_cli_compact_diagnostics_builder_and_text_renderer_surface_key_orchestration_state() -> (
+    None
+):
     snapshot = {
         "conversation": {
             "id": 666,
@@ -360,7 +366,9 @@ def test_cli_compact_diagnostics_builder_and_text_renderer_surface_key_orchestra
     assert "Conversation #666 diagnostics" in text
     assert "execution_path=deep" in text
     assert "selected_tools=get_current_weather, web_search, fetch_url" in text
-    assert "candidate_tools=get_current_weather, web_search, fetch_url, crm_lookup" in text
+    assert (
+        "candidate_tools=get_current_weather, web_search, fetch_url, crm_lookup" in text
+    )
     assert "crm_lookup" in text
     assert "data_ops" in text
     assert "tool_planner=" in text
@@ -373,7 +381,9 @@ def test_cli_compact_diagnostics_builder_and_text_renderer_surface_key_orchestra
     assert "budget=" in text
 
 
-def test_cli_compact_diagnostics_hydrates_required_fields_from_nested_turn_record() -> None:
+def test_cli_compact_diagnostics_hydrates_required_fields_from_nested_turn_record() -> (
+    None
+):
     snapshot = {
         "conversation": {"id": 1237},
         "diagnostics": {
@@ -477,14 +487,18 @@ def test_cli_diagnostics_text_surfaces_empty_selected_and_candidate_tools() -> N
     assert "budget_usage=" in text
 
 
-def test_extract_turn_diagnostics_preserves_provider_failure_after_partial_progress() -> None:
+def test_extract_turn_diagnostics_preserves_provider_failure_after_partial_progress() -> (
+    None
+):
     diagnostics = _extract_turn_diagnostics_from_call_log_metadata(
         {
             "turn_diagnostics": {
                 "execution_path": "normal",
                 "failures": {
                     "failure_kind": "provider_http_5xx",
-                    "provider_events": [{"kind": "provider_http_5xx", "status_code": 503}],
+                    "provider_events": [
+                        {"kind": "provider_http_5xx", "status_code": 503}
+                    ],
                 },
                 "turn_record": {
                     "turn_outcome": "partial",
@@ -503,7 +517,33 @@ def test_extract_turn_diagnostics_preserves_provider_failure_after_partial_progr
     assert diagnostics["failure_kind"] == "provider_http_5xx"
 
 
-def test_cli_compact_diagnostics_marks_untrusted_final_output_source_as_failed() -> None:
+def test_extract_turn_diagnostics_clears_completed_progress_signal() -> None:
+    diagnostics = _extract_turn_diagnostics_from_call_log_metadata(
+        {
+            "turn_diagnostics": {
+                "failures": {
+                    "failure_kind": "web_search_in_progress",
+                },
+                "turn_record": {
+                    "turn_outcome": "success",
+                    "termination_reason": "completed",
+                    "protocol_path": "responses",
+                    "failure_kind": "web_search_in_progress",
+                    "selected_tool_names": ["web_search", "fetch_url"],
+                    "selected_skill_names": ["web_search"],
+                },
+            }
+        }
+    )
+
+    assert diagnostics["turn_outcome"] == "success"
+    assert diagnostics["termination_reason"] == "completed"
+    assert diagnostics["failure_kind"] is None
+
+
+def test_cli_compact_diagnostics_marks_untrusted_final_output_source_as_failed() -> (
+    None
+):
     snapshot = {
         "conversation": {"id": 1215},
         "diagnostics": {
@@ -541,7 +581,9 @@ def test_cli_compact_diagnostics_marks_untrusted_final_output_source_as_failed()
     assert compact["final_output_source"] == "tool_evidence_completed"
 
 
-def test_cli_compact_diagnostics_derives_elapsed_budget_overrun_from_historical_snapshot() -> None:
+def test_cli_compact_diagnostics_derives_elapsed_budget_overrun_from_historical_snapshot() -> (
+    None
+):
     snapshot = {
         "conversation": {"id": 1215},
         "diagnostics": {
@@ -571,7 +613,9 @@ def test_cli_compact_diagnostics_derives_elapsed_budget_overrun_from_historical_
     assert "budget_exit_reason=elapsed_budget_exceeded" in text
 
 
-def test_cli_compact_diagnostics_aligns_turn_outcome_with_projected_turn_flow_failure() -> None:
+def test_cli_compact_diagnostics_aligns_turn_outcome_with_projected_turn_flow_failure() -> (
+    None
+):
     snapshot = {
         "conversation": {"id": 668},
         "recent_messages": [
@@ -752,7 +796,9 @@ def test_execution_state_machine_emits_canonical_turn_event_schema() -> None:
         assert isinstance(event["data"], dict)
 
 
-def test_recoverable_failure_does_not_emit_terminal_failed_event_before_recovery() -> None:
+def test_recoverable_failure_does_not_emit_terminal_failed_event_before_recovery() -> (
+    None
+):
     budget = ExecutionBudget(
         max_prompt_tokens=2048,
         max_completion_tokens=512,

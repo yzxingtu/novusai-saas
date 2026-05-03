@@ -10,11 +10,11 @@ from app.ai.memory_policy import (
     build_effective_memory_runtime_projection,
     normalize_thread_memory_state,
 )
-from app.services.ai.conversation_payload_sanitizer import (
-    sanitize_conversation_last_error_payload,
-)
 from app.services.ai.conversation_diagnostics_projector import (
     ConversationDiagnosticsProjector,
+)
+from app.services.ai.conversation_payload_sanitizer import (
+    sanitize_conversation_last_error_payload,
 )
 from app.services.ai.conversation_turn_flow_projector import (
     ConversationTurnFlowProjector,
@@ -340,6 +340,9 @@ class ConversationRuntimeProjectionService:
             if isinstance((metadata or {}).get("turn_flow"), dict)
             else None,
         )
+        failure_kind = projection.get("failure_kind")
+        if not projection.get("authoritative_completed_success"):
+            failure_kind = failure_kind or turn_meta.get("failure_kind")
         payload = {
             "turn_outcome": projection.get("turn_outcome")
             or turn_meta.get("turn_outcome"),
@@ -353,7 +356,8 @@ class ConversationRuntimeProjectionService:
             "execution_path": turn_meta.get("execution_path"),
             "active_intent_id": turn_meta.get("active_intent_id"),
             "continuation_source": turn_meta.get("continuation_source"),
-            "conversation_outcome": turn_meta.get("conversation_outcome"),
+            "conversation_outcome": projection.get("conversation_outcome")
+            or turn_meta.get("conversation_outcome"),
             "intent_plan": turn_meta.get("intent_plan") or [],
             "budget": turn_meta.get("budget"),
             "budget_status": turn_meta.get("budget_status"),
@@ -362,8 +366,7 @@ class ConversationRuntimeProjectionService:
             "candidate_tool_names": turn_meta.get("candidate_tool_names") or [],
             "retry_events": turn_meta.get("retry_events") or [],
             "partial_exit_reason": turn_meta.get("partial_exit_reason"),
-            "failure_kind": projection.get("failure_kind")
-            or turn_meta.get("failure_kind"),
+            "failure_kind": failure_kind,
             "final_output_source": projection.get("final_output_source")
             or turn_meta.get("final_output_source"),
             "provider_events": turn_meta.get("provider_events") or [],

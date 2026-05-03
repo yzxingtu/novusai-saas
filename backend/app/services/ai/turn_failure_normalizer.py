@@ -32,6 +32,17 @@ _BUDGET_TERMINATION_REASONS = frozenset(
         "candidate_tool_budget_exceeded",
     }
 )
+_COMPLETED_TERMINATION_REASONS = frozenset(
+    {"completed", "complete", "success", "succeeded", "done", "stop"}
+)
+_NON_TERMINAL_PROGRESS_SIGNALS = frozenset(
+    {
+        "web_search_in_progress",
+        "provider_search_in_progress",
+        "search_in_progress",
+        "response_web_search_call_in_progress",
+    }
+)
 _NO_FAILURE_KINDS = frozenset({"none"})
 _TRUSTED_FINAL_OUTPUT_SOURCES = frozenset({"assistant", "recovery_evidence"})
 _INTERRUPTION_TERMINATION_REASONS = frozenset({"interrupted", "partial"})
@@ -57,6 +68,8 @@ _FAILURE_TERMINATION_BY_KIND = {
     "tool_execution_error": "tool_error",
     "server_interrupt": "interrupted",
 }
+
+
 def _as_text(value: Any) -> str | None:
     text = str(value or "").strip()
     if not text:
@@ -97,6 +110,24 @@ def _normalize_signal_token(value: Any) -> str | None:
     snake = snake.replace("-", "_").replace(" ", "_").replace(".", "_")
     snake = re.sub(r"_+", "_", snake).strip("_").lower()
     return snake or None
+
+
+def _is_budget_signal(value: Any) -> bool:
+    token = _normalize_signal_token(value)
+    return bool(token and token in _BUDGET_TERMINATION_REASONS)
+
+
+def _is_non_terminal_progress_signal(value: Any) -> bool:
+    token = _normalize_signal_token(value)
+    return bool(token and token in _NON_TERMINAL_PROGRESS_SIGNALS)
+
+
+def _is_nonblocking_success_failure_kind(value: Any) -> bool:
+    return (
+        not normalize_failure_kind(value)
+        or _is_budget_signal(value)
+        or _is_non_terminal_progress_signal(value)
+    )
 
 
 def _infer_provider_error_kind_from_message(error_message: Any) -> str | None:
@@ -231,7 +262,10 @@ def normalize_failure_termination_reason(
         if normalized_failure_kind
         else None
     )
-    if normalized_failure_kind and normalized_reason in _INTERRUPTION_TERMINATION_REASONS:
+    if (
+        normalized_failure_kind
+        and normalized_reason in _INTERRUPTION_TERMINATION_REASONS
+    ):
         return mapped_failure_reason
     if reason and normalized_reason not in _GENERIC_FAILURE_TERMINATION_REASONS:
         return reason
@@ -258,6 +292,46 @@ def is_trusted_final_output_source(value: Any) -> bool:
     if not source:
         return True
     return source in _TRUSTED_FINAL_OUTPUT_SOURCES
+
+
+def _is_authoritative_completed_success(
+    *,
+    explicit_turn_outcome: str | None,
+    termination_reason: Any,
+    final_output_source: Any,
+    failure_kind: Any,
+    budget_exit_reason: Any = None,
+    contract_breach_type: Any = None,
+    unfinished_intents: Any = None,
+    assistant_claimed_tool_call_without_tool_event: Any = None,
+) -> bool:
+    if explicit_turn_outcome != "success":
+        return False
+    normalized_reason = (_as_text(termination_reason) or "").strip().lower()
+    if normalized_reason not in _COMPLETED_TERMINATION_REASONS:
+        return False
+    output_source = _as_text(final_output_source)
+    if output_source and not is_trusted_final_output_source(output_source):
+        return False
+    if not output_source and (
+        _is_budget_signal(failure_kind) or _is_budget_signal(budget_exit_reason)
+    ):
+        return False
+    if (
+        not output_source
+        and normalize_failure_kind(failure_kind)
+        and not _is_non_terminal_progress_signal(failure_kind)
+    ):
+        return False
+    if output_source and not _is_nonblocking_success_failure_kind(failure_kind):
+        return False
+    if _as_text(contract_breach_type):
+        return False
+    if bool(assistant_claimed_tool_call_without_tool_event):
+        return False
+    if isinstance(unfinished_intents, list) and unfinished_intents:
+        return False
+    return not _as_text(unfinished_intents)
 
 
 def derive_completed_tool_names(intent_plan: Any) -> list[str]:
@@ -449,6 +523,14 @@ def derive_terminal_status(
     )
     if interrupted:
         return "interrupted"
+    if (
+        normalized_turn_outcome == "success"
+        and normalized_completion_reason in _COMPLETED_TERMINATION_REASONS
+        and _as_text(final_output_source)
+        and is_trusted_final_output_source(final_output_source)
+        and _is_nonblocking_success_failure_kind(normalized_failure_kind)
+    ):
+        return "completed"
     if normalized_turn_outcome == "failed":
         return "error"
     if normalized_turn_outcome == "partial" and normalized_failure_kind:
@@ -494,32 +576,69 @@ def resolve_failure_projection(
     )
     final_output_source = _as_text(payload.get("final_output_source"))
     contract_breach_type = _as_text(payload.get("contract_breach_type"))
+    authoritative_completed_success = _is_authoritative_completed_success(
+        explicit_turn_outcome=explicit_turn_outcome,
+        termination_reason=termination_reason,
+        final_output_source=final_output_source,
+        failure_kind=failure_kind,
+        budget_exit_reason=budget_exit_reason,
+        contract_breach_type=contract_breach_type,
+        unfinished_intents=payload.get("unfinished_intents"),
+        assistant_claimed_tool_call_without_tool_event=payload.get(
+            "assistant_claimed_tool_call_without_tool_event"
+        ),
+    )
 
     turn_flow_completion_reason = _as_text(turn_flow_payload.get("completion_reason"))
     if turn_flow_completion_reason:
         termination_reason = turn_flow_completion_reason
+        authoritative_completed_success = authoritative_completed_success or (
+            _is_authoritative_completed_success(
+                explicit_turn_outcome=explicit_turn_outcome,
+                termination_reason=termination_reason,
+                final_output_source=final_output_source,
+                failure_kind=failure_kind,
+                budget_exit_reason=budget_exit_reason,
+                contract_breach_type=contract_breach_type,
+                unfinished_intents=payload.get("unfinished_intents"),
+                assistant_claimed_tool_call_without_tool_event=payload.get(
+                    "assistant_claimed_tool_call_without_tool_event"
+                ),
+            )
+        )
 
     turn_flow_terminal_stage_type = _as_text(terminal_stage.get("type"))
     turn_flow_terminal_stage_status = _as_text(terminal_stage.get("status"))
     if turn_flow_terminal_stage_status == "error":
-        if not preserve_partial_after_failed_conversation:
-            turn_outcome = "failed"
-        failure_kind = failure_kind or infer_failure_kind_from_diagnostics(
+        turn_flow_failure_kind = failure_kind or infer_failure_kind_from_diagnostics(
             turn_flow_error_surface
         )
+        if authoritative_completed_success and _is_nonblocking_success_failure_kind(
+            turn_flow_failure_kind
+        ):
+            turn_outcome = explicit_turn_outcome or "success"
+        elif not preserve_partial_after_failed_conversation:
+            turn_outcome = "failed"
+        failure_kind = turn_flow_failure_kind
     elif turn_flow_terminal_stage_status == "interrupted":
-        turn_outcome = "partial"
+        if not authoritative_completed_success:
+            turn_outcome = "partial"
     elif turn_flow_terminal_stage_status == "completed" and not turn_outcome:
         turn_outcome = "success"
 
-    termination_reason = (
-        normalize_failure_termination_reason(
-            termination_reason=termination_reason,
-            failure_kind=failure_kind,
-            budget_exit_reason=budget_exit_reason,
+    if authoritative_completed_success and _is_nonblocking_success_failure_kind(
+        failure_kind
+    ):
+        turn_outcome = explicit_turn_outcome or "success"
+    else:
+        termination_reason = (
+            normalize_failure_termination_reason(
+                termination_reason=termination_reason,
+                failure_kind=failure_kind,
+                budget_exit_reason=budget_exit_reason,
+            )
+            or termination_reason
         )
-        or termination_reason
-    )
     normalized_termination_reason = (termination_reason or "").strip().lower()
     budget_signal = bool(
         budget_exit_reason
@@ -538,19 +657,30 @@ def resolve_failure_projection(
     non_trusted_final_output_source = bool(
         final_output_source and not is_trusted_final_output_source(final_output_source)
     )
-    if budget_signal and turn_outcome not in {"failed", "partial"}:
+    if authoritative_completed_success and _is_nonblocking_success_failure_kind(
+        failure_kind
+    ):
+        failure_kind = None
+    if (
+        budget_signal
+        and turn_outcome not in {"failed", "partial"}
+        and not authoritative_completed_success
+    ):
         turn_outcome = "failed"
     if non_trusted_final_output_source and not failure_kind:
         failure_kind = "untrusted_final_output_source"
     if non_trusted_final_output_source and turn_outcome not in {"failed", "partial"}:
         turn_outcome = "failed"
-    if budget_signal and not failure_kind:
+    if budget_signal and not failure_kind and not authoritative_completed_success:
         failure_kind = (
             budget_exit_reason or normalized_termination_reason or "budget_exit"
         )
 
     return {
         "turn_outcome": turn_outcome,
+        "conversation_outcome": "success"
+        if authoritative_completed_success
+        else conversation_outcome,
         "termination_reason": termination_reason,
         "failure_kind": failure_kind,
         "budget_exit_reason": budget_exit_reason,
@@ -559,8 +689,10 @@ def resolve_failure_projection(
         "turn_flow_terminal_stage_status": turn_flow_terminal_stage_status,
         "has_failure_signal": has_failure_signal,
         "non_trusted_final_output_source": non_trusted_final_output_source,
+        "authoritative_completed_success": authoritative_completed_success,
         "blocks_success_shortcut": bool(
-            has_failure_signal or budget_signal or non_trusted_final_output_source
+            (has_failure_signal or budget_signal or non_trusted_final_output_source)
+            and not authoritative_completed_success
         ),
     }
 

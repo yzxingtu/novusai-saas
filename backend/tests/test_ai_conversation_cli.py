@@ -1,7 +1,14 @@
-"""AI conversation CLI tests / AI 对话 CLI 测试。"""
+"""AI conversation CLI tests / AI 对话 CLI 测试。
+
+Test type: behavioral
+Scope: CLI conversation detail and diagnostics read-model projection.
+Mocked dependencies: CLI async loaders return stable stored snapshots; the
+diagnostic hydration and turn-flow projection logic runs real code.
+"""
 
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
 
 from click.testing import CliRunner
@@ -262,6 +269,127 @@ def _sample_snapshot_with_call_log_provider_failure_metadata() -> dict:
     return snapshot
 
 
+def _sample_snapshot_with_completed_turn_and_stale_budget_failure_projection() -> dict:
+    snapshot = _sample_snapshot()
+    snapshot["conversation"].update(
+        {
+            "id": 2260,
+            "title": "帮我搜索一下2025年中国新能源汽车销量排行",
+            "message_count": 2,
+            "token_count": 779,
+        }
+    )
+    snapshot["recent_messages"] = [
+        {
+            "id": 9101,
+            "sequence": 1,
+            "role": "user",
+            "created_at": "2026-05-02T05:31:00+00:00",
+            "content": "帮我搜索一下2025年中国新能源汽车销量排行",
+            "tool_calls": None,
+            "metadata": None,
+        },
+        {
+            "id": 9102,
+            "sequence": 2,
+            "role": "assistant",
+            "created_at": "2026-05-02T05:34:28+00:00",
+            "content": "2025年中国新能源汽车销量排行：比亚迪、特斯拉中国、吉利汽车。",
+            "tool_calls": None,
+            "metadata": {},
+        },
+    ]
+    budget = {
+        "status": "exited",
+        "exit_reason": "elapsed_budget_exceeded",
+        "usage": {
+            "elapsed_ms_used": 207985,
+            "elapsed_limit_ms": 60000,
+            "elapsed_over_limit": True,
+        },
+    }
+    turn_flow = {
+        "timeline": [
+            {
+                "id": "terminal",
+                "type": "failed",
+                "status": "error",
+                "summary": "completed",
+            }
+        ],
+        "completion_reason": "completed",
+        "answer_card": {"summary": "2025年中国新能源汽车销量排行"},
+        "error_surface": {
+            "error_type": "budget_exit",
+            "message": "The request ended before a final answer was produced.",
+        },
+    }
+    turn_record = {
+        "turn_outcome": "success",
+        "termination_reason": "completed",
+        "protocol_path": "responses",
+        "execution_path": "normal",
+        "selected_tool_names": ["web_search", "fetch_url"],
+        "selected_skill_names": ["web_search"],
+        "candidate_tool_names": ["web_search", "fetch_url"],
+        "final_output_source": "assistant",
+        "budget": budget,
+        "failure_kind": "budget_exit",
+        "provider_events": [
+            {"kind": "budget_exit", "reason": "elapsed_budget_exceeded"}
+        ],
+        "turn_flow": turn_flow,
+    }
+    stale_failure_projection = {
+        "conversation_outcome": "failed",
+        "turn_outcome": "success",
+        "termination_reason": "completed",
+        "protocol_path": "responses",
+        "execution_path": "normal",
+        "selected_tool_names": ["web_search", "fetch_url"],
+        "selected_skill_names": ["web_search"],
+        "candidate_tool_names": ["web_search", "fetch_url"],
+        "final_output_source": "assistant",
+        "budget": budget,
+        "budget_exit_reason": "elapsed_budget_exceeded",
+        "failure_kind": "budget_exit",
+        "provider_events": [
+            {"kind": "budget_exit", "reason": "elapsed_budget_exceeded"}
+        ],
+    }
+    snapshot["recent_messages"][1]["metadata"] = {
+        "turn_record": turn_record,
+        "context_diagnostics": dict(stale_failure_projection),
+        "last_run_summary": {
+            **stale_failure_projection,
+            "success": True,
+        },
+        "turn_flow": turn_flow,
+    }
+    snapshot["recent_call_logs"] = [
+        {
+            "id": 9901,
+            "created_at": "2026-05-02T05:34:28+00:00",
+            "status": "success",
+            "call_type": "main_chat",
+            "provider_name": "响应云",
+            "model_name": "gpt-5.5",
+            "total_tokens": 779,
+            "latency_ms": 207985,
+            "error_message": None,
+            "turn_outcome": "success",
+            "termination_reason": "completed",
+            "protocol_path": "responses",
+            "turn_record": turn_record,
+        }
+    ]
+    snapshot["diagnostics"] = {
+        "last_assistant_message_id": 9102,
+        "last_assistant_sequence": 2,
+    }
+    return snapshot
+
+
 def test_ai_conversation_show_json_success(monkeypatch) -> None:
     from app.cli import cli
 
@@ -270,7 +398,15 @@ def test_ai_conversation_show_json_success(monkeypatch) -> None:
     runner = CliRunner()
     result = runner.invoke(
         cli,
-        ["ai", "conversation", "show", "563", "--keyword", "对象存储对帐计费", "--json"],
+        [
+            "ai",
+            "conversation",
+            "show",
+            "563",
+            "--keyword",
+            "对象存储对帐计费",
+            "--json",
+        ],
     )
 
     assert result.exit_code == 0
@@ -327,14 +463,22 @@ def test_ai_conversation_show_json_accepts_trace_id_reference(monkeypatch) -> No
     runner = CliRunner()
     result = runner.invoke(
         cli,
-        ["ai", "conversation", "show", "9d819b44-f831-4e42-b550-6520d192ae54", "--json"],
+        [
+            "ai",
+            "conversation",
+            "show",
+            "9d819b44-f831-4e42-b550-6520d192ae54",
+            "--json",
+        ],
     )
 
     assert result.exit_code == 0
     assert '"id": 563' in result.output
 
 
-def test_ai_conversation_show_json_reports_non_conversation_trace_hint(monkeypatch) -> None:
+def test_ai_conversation_show_json_reports_non_conversation_trace_hint(
+    monkeypatch,
+) -> None:
     from app.cli import cli
     from app.exceptions import BusinessException
 
@@ -354,16 +498,27 @@ def test_ai_conversation_show_json_reports_non_conversation_trace_hint(monkeypat
     runner = CliRunner()
     result = runner.invoke(
         cli,
-        ["ai", "conversation", "show", "ae80b0c3-d043-4c09-8aff-1b8533b5b1c3", "--json"],
+        [
+            "ai",
+            "conversation",
+            "show",
+            "ae80b0c3-d043-4c09-8aff-1b8533b5b1c3",
+            "--json",
+        ],
     )
 
     assert result.exit_code == 1
     assert '"code": "trace_not_linked_to_conversation"' in result.output
     assert '"operation": "POST /admin/ai/agents/63/publish"' in result.output
-    assert '"suggested_command": "novusai trace show ae80b0c3-d043-4c09-8aff-1b8533b5b1c3"' in result.output
+    assert (
+        '"suggested_command": "novusai trace show ae80b0c3-d043-4c09-8aff-1b8533b5b1c3"'
+        in result.output
+    )
 
 
-def test_ai_conversation_show_json_surfaces_nested_assistant_diagnostics(monkeypatch) -> None:
+def test_ai_conversation_show_json_surfaces_nested_assistant_diagnostics(
+    monkeypatch,
+) -> None:
     from app.cli import cli
 
     monkeypatch.setattr(
@@ -384,7 +539,9 @@ def test_ai_conversation_show_json_surfaces_nested_assistant_diagnostics(monkeyp
     assert '"turn_outcome": "partial"' in result.output
 
 
-def test_ai_conversation_show_json_infers_budget_exit_from_historical_assistant_metadata(monkeypatch) -> None:
+def test_ai_conversation_show_json_infers_budget_exit_from_historical_assistant_metadata(
+    monkeypatch,
+) -> None:
     from app.cli import cli
 
     monkeypatch.setattr(
@@ -405,7 +562,72 @@ def test_ai_conversation_show_json_infers_budget_exit_from_historical_assistant_
     assert '"intent_id": "intent-1"' in result.output
 
 
-def test_ai_conversation_show_json_falls_back_to_call_log_turn_record(monkeypatch) -> None:
+def test_ai_conversation_show_json_prefers_completed_turn_record_over_stale_budget_failure_projection(
+    monkeypatch,
+) -> None:
+    from app.cli import cli
+
+    monkeypatch.setattr(
+        "app.cli._run_async",
+        _return_value(
+            _sample_snapshot_with_completed_turn_and_stale_budget_failure_projection()
+        ),
+    )
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        ["ai", "conversation", "show", "2260", "--json"],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    diagnostics = payload["data"]["diagnostics"]
+    assert diagnostics["source"] == "assistant_turn_record"
+    assert diagnostics["turn_outcome"] == "success"
+    assert diagnostics["conversation_outcome"] == "success"
+    assert diagnostics["termination_reason"] == "completed"
+    assert diagnostics["final_output_source"] == "assistant"
+    assert diagnostics["budget_status"] == "exited"
+    assert diagnostics["budget_exit_reason"] == "elapsed_budget_exceeded"
+    assert diagnostics.get("failure_kind") is None
+
+
+def test_ai_conversation_show_diagnostics_text_prefers_completed_turn_record_over_stale_budget_failure_projection(
+    monkeypatch,
+) -> None:
+    from app.cli import cli
+
+    monkeypatch.setattr(
+        "app.cli._run_async",
+        _return_value(
+            _sample_snapshot_with_completed_turn_and_stale_budget_failure_projection()
+        ),
+    )
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        ["ai", "conversation", "show", "2260", "--diagnostics-only"],
+    )
+
+    assert result.exit_code == 0
+    assert (
+        "source=assistant_turn_record outcome=success termination_reason=completed"
+        in result.output
+    )
+    assert (
+        "failure_kind=- budget_status=exited budget_exit_reason=elapsed_budget_exceeded"
+        in result.output
+    )
+    assert (
+        "outcome=failed termination_reason=elapsed_budget_exceeded" not in result.output
+    )
+
+
+def test_ai_conversation_show_json_falls_back_to_call_log_turn_record(
+    monkeypatch,
+) -> None:
     from app.cli import cli
 
     monkeypatch.setattr(
@@ -480,7 +702,10 @@ def test_ai_conversation_show_text_normalizes_call_log_provider_failure_summary(
         "summary: outcome=failed termination_reason=provider_unavailable protocol_path=responses"
         in result.output
     )
-    assert "summary: outcome=failed termination_reason=error protocol_path=responses" not in result.output
+    assert (
+        "summary: outcome=failed termination_reason=error protocol_path=responses"
+        not in result.output
+    )
 
 
 def test_ai_conversation_show_text_renders_diagnostic(monkeypatch) -> None:
@@ -496,7 +721,10 @@ def test_ai_conversation_show_text_renders_diagnostic(monkeypatch) -> None:
 
     assert result.exit_code == 0
     assert "Conversation #563" in result.output
-    assert "Diagnostic: last assistant message looks like leaked textual tool call" in result.output
+    assert (
+        "Diagnostic: last assistant message looks like leaked textual tool call"
+        in result.output
+    )
     assert "Diagnostic: contract_breach_type=leaked_textual_tool_call" in result.output
     assert (
         "Diagnostic: unfinished_intents=rail_ticket_research, workflow_summary"
@@ -556,7 +784,13 @@ def test_ai_root_cause_json_handles_missing_call_log(monkeypatch) -> None:
     runner = CliRunner()
     result = runner.invoke(
         cli,
-        ["ai", "root-cause", "--trace-id", "ae80b0c3-d043-4c09-8aff-1b8533b5b1c3", "--json"],
+        [
+            "ai",
+            "root-cause",
+            "--trace-id",
+            "ae80b0c3-d043-4c09-8aff-1b8533b5b1c3",
+            "--json",
+        ],
     )
 
     assert result.exit_code == 1
