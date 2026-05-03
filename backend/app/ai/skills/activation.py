@@ -17,6 +17,23 @@ from app.ai.tools.semantic_defaults import tool_family_from_name
 from app.ai.web_search.request_policy import is_explicit_builtin_web_search_request
 
 _WEB_RESEARCH_TOOL_NAMES = {"web_search", "fetch_url"}
+_GENERIC_WEB_SEARCH_SKILL_TERMS = (
+    "联网搜索",
+    "网络搜索",
+    "网上搜索",
+    "网页搜索",
+    "web search",
+    "online search",
+    "search",
+)
+_EXPLICIT_SKILL_CONTEXT_TERMS = (
+    "技能",
+    "工具",
+    "插件",
+    "skill",
+    "tool",
+    "plugin",
+)
 
 
 @dataclass
@@ -159,13 +176,31 @@ def _explicit_skill_mentions(skill_result: Any, user_text: str) -> list[str]:
                 skill_name or package_name
             )
 
+    def _candidate_requires_skill_context(candidate: str) -> bool:
+        if any(term in candidate for term in _EXPLICIT_SKILL_CONTEXT_TERMS):
+            return False
+        return candidate in _GENERIC_WEB_SEARCH_SKILL_TERMS
+
+    def _occurrence_has_skill_context(candidate: str, start: int) -> bool:
+        end = start + len(candidate)
+        before = normalized_user_text[max(0, start - 24) : start]
+        after = normalized_user_text[end : end + 24]
+        return any(
+            term in f"{before} {after}" for term in _EXPLICIT_SKILL_CONTEXT_TERMS
+        )
+
     mentioned: list[str] = []
     for candidate, resolved_name in candidates.items():
-        if (
-            candidate
-            and candidate in normalized_user_text
-            and resolved_name not in mentioned
-        ):
+        if not candidate or resolved_name in mentioned:
+            continue
+        start = normalized_user_text.find(candidate)
+        while start >= 0:
+            if not _candidate_requires_skill_context(
+                candidate
+            ) or _occurrence_has_skill_context(candidate, start):
+                break
+            start = normalized_user_text.find(candidate, start + 1)
+        if start >= 0:
             mentioned.append(resolved_name)
     return mentioned
 

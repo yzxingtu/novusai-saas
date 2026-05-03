@@ -54,7 +54,6 @@ _EXPLICIT_BUILTIN_WEB_SEARCH_PHRASES = (
 _EXPLICIT_USE_WEB_SEARCH_PHRASES = (
     "使用搜索工具",
     "使用搜索技能",
-    "使用联网搜索",
     "使用联网搜索工具",
     "使用系统内置搜索",
     "使用系统内置的搜索能力",
@@ -88,19 +87,12 @@ _EXPLICIT_USE_WEB_SEARCH_PHRASES = (
     "using the web search tool",
 )
 _EXPLICIT_CALL_WEB_SEARCH_PHRASES = (
-    "调用联网搜索",
-    "调用网络搜索",
-    "调用网上搜索",
     "调用搜索工具",
     "调用搜索技能",
-    "call web search",
-    "call online search",
     "call search tool",
     "call search skill",
     "call web search tool",
     "call web search skill",
-    "invoke web search",
-    "invoke online search",
     "invoke search tool",
     "invoke search skill",
     "invoke web search tool",

@@ -241,6 +241,8 @@ class ExecutionContext:
     runtime_model_id: int | None = None
     runtime_model_name: str | None = None
     runtime_model_code: str | None = None
+    web_search_skip_native_provider: bool = False
+    web_search_skip_native_reason: str | None = None
     tool_timeout_seconds: float | None = None
     tool_started_monotonic: float | None = None
     tool_deadline_monotonic: float | None = None

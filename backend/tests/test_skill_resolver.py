@@ -13,12 +13,14 @@ import pytest
 
 from app.ai.runtime.capabilities import CapabilityRegistry
 from app.ai.runtime.types import CapabilityBundle, CapabilityDescriptor
+from app.ai.skills.activation import apply_turn_skill_activation
 from app.ai.skills.resolver import (
     SkillResolver,
     SkillResolveResult,
     enrich_skill_capability_descriptors_with_tools,
     resolve_for_agent,
 )
+from app.ai.tools.types import ToolDefinition
 
 
 @pytest.mark.asyncio
@@ -663,6 +665,104 @@ async def test_resolve_for_agent_prefilters_web_research_runtime_policy_before_r
     ]
 
 
+def test_turn_skill_activation_does_not_treat_generic_web_search_as_skill_mention() -> (
+    None
+):
+    result = SkillResolveResult(
+        tools=[
+            ToolDefinition(
+                name="web_search",
+                source_skill_name="联网搜索",
+                source_package_name="Web Search",
+                semantic_family="web_research",
+            ),
+            ToolDefinition(
+                name="fetch_url",
+                source_skill_name="联网搜索",
+                source_package_name="Web Search",
+                semantic_family="web_research",
+            ),
+        ],
+        capability_descriptors=[
+            CapabilityDescriptor(
+                name="联网搜索",
+                kind="capability_pack",
+                source="skill_package:Web Search",
+                metadata={
+                    "has_execution_tools": True,
+                    "resolved_tool_names": ["web_search", "fetch_url"],
+                },
+            )
+        ],
+    )
+    request = SimpleNamespace(
+        messages=[SimpleNamespace(role="user", content="请联网搜索今天新闻")],
+    )
+
+    apply_turn_skill_activation(
+        skill_result=result,
+        request=request,
+        intent_flags={
+            "has_web_research_intent": True,
+            "has_builtin_web_tool_request": False,
+        },
+    )
+
+    assert result.turn_activation is not None
+    assert result.turn_activation.applied is False
+    assert result.turn_activation.reason == "no_turn_skill_activation"
+    assert result.turn_activation.activated_skill_names == []
+    assert result.turn_activation.activated_tool_names == []
+
+
+def test_turn_skill_activation_keeps_explicit_web_search_skill_request() -> None:
+    result = SkillResolveResult(
+        tools=[
+            ToolDefinition(
+                name="web_search",
+                source_skill_name="联网搜索",
+                source_package_name="Web Search",
+                semantic_family="web_research",
+            ),
+            ToolDefinition(
+                name="fetch_url",
+                source_skill_name="联网搜索",
+                source_package_name="Web Search",
+                semantic_family="web_research",
+            ),
+        ],
+        capability_descriptors=[
+            CapabilityDescriptor(
+                name="联网搜索",
+                kind="capability_pack",
+                source="skill_package:Web Search",
+                metadata={
+                    "has_execution_tools": True,
+                    "resolved_tool_names": ["web_search", "fetch_url"],
+                },
+            )
+        ],
+    )
+    request = SimpleNamespace(
+        messages=[SimpleNamespace(role="user", content="请使用联网搜索技能查今天新闻")],
+    )
+
+    apply_turn_skill_activation(
+        skill_result=result,
+        request=request,
+        intent_flags={
+            "has_web_research_intent": True,
+            "has_builtin_web_tool_request": True,
+        },
+    )
+
+    assert result.turn_activation is not None
+    assert result.turn_activation.applied is True
+    assert result.turn_activation.reason == "explicit_skill_mention"
+    assert result.turn_activation.activated_skill_names == ["联网搜索"]
+    assert result.turn_activation.activated_tool_names == ["web_search", "fetch_url"]
+
+
 @pytest.mark.asyncio
 async def test_resolve_for_agent_prefilters_selected_bound_skill_package(
     monkeypatch,
@@ -704,9 +804,7 @@ async def test_resolve_for_agent_prefilters_selected_bound_skill_package(
 
     await resolve_for_agent(db, agent, tenant_id=9, request=request)
 
-    assert [skill.name for skill in captured["skills"]] == [
-        "Baidu Public Search Skill"
-    ]
+    assert [skill.name for skill in captured["skills"]] == ["Baidu Public Search Skill"]
 
 
 @pytest.mark.asyncio
@@ -770,9 +868,7 @@ async def test_resolve_for_agent_prefilters_explicit_baidu_public_search_mention
     db.execute = AsyncMock(return_value=result)
     agent = SimpleNamespace(id=1, owner_tenant_id=9)
     request = SimpleNamespace(
-        messages=[
-            SimpleNamespace(role="user", content="请直接用百度公开搜索查一下")
-        ],
+        messages=[SimpleNamespace(role="user", content="请直接用百度公开搜索查一下")],
         selected_skill_names=[],
     )
     captured: dict[str, object] = {}
@@ -786,9 +882,7 @@ async def test_resolve_for_agent_prefilters_explicit_baidu_public_search_mention
 
     await resolve_for_agent(db, agent, tenant_id=9, request=request)
 
-    assert [skill.name for skill in captured["skills"]] == [
-        "Baidu Public Search Skill"
-    ]
+    assert [skill.name for skill in captured["skills"]] == ["Baidu Public Search Skill"]
 
 
 @pytest.mark.asyncio
@@ -856,7 +950,9 @@ async def test_resolve_for_agent_prefilters_plugin_tool_mentions_from_manifest_p
 
 
 @pytest.mark.asyncio
-async def test_resolve_for_agent_returns_baseline_builtin_tools_when_agent_has_no_grants() -> None:
+async def test_resolve_for_agent_returns_baseline_builtin_tools_when_agent_has_no_grants() -> (
+    None
+):
     result = MagicMock()
     result.scalars.return_value.all.return_value = []
     db = MagicMock()

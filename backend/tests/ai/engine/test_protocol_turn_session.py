@@ -192,6 +192,68 @@ def test_protocol_turn_session_finalize_sync_rescue_success_marks_recovery() -> 
     )
 
 
+def test_protocol_turn_session_finalize_stream_success_marks_protocol_fallback_recovered() -> (
+    None
+):
+    session = ProtocolTurnSession(
+        command=None,  # type: ignore[arg-type]
+        plan=ProtocolExecutionPlan(
+            preferred_protocol="responses",
+            protocol_chain=["responses", "responses"],
+        ),
+        turn_record=TurnRecord(),
+    )
+    session.append_fallback(
+        0,
+        from_protocol="responses",
+        reason="hosted_web_search_unavailable:provider_timeout",
+    )
+
+    session.finalize_stream_success(emitted_chunk_count=2)
+
+    assert session.turn_record.turn_outcome == "success"
+    assert session.turn_record.termination_reason == "protocol_fallback"
+    assert session.turn_record.fallback_history[0].recovered is True
+    assert (
+        session.turn_record.fallback_history[0].metadata["recovery_path"]
+        == "protocol_fallback"
+    )
+
+
+def test_protocol_turn_session_finalize_chat_success_marks_protocol_fallback_recovered() -> (
+    None
+):
+    session = ProtocolTurnSession(
+        command=None,  # type: ignore[arg-type]
+        plan=ProtocolExecutionPlan(
+            preferred_protocol="responses",
+            protocol_chain=["responses", "responses"],
+        ),
+        turn_record=TurnRecord(),
+    )
+    session.append_fallback(
+        0,
+        from_protocol="responses",
+        reason="hosted_web_search_unavailable:provider_timeout",
+    )
+    response = ChatResponse(
+        message=ChatMessage(role="assistant", content="done"),
+        finish_reason="stop",
+        model="gpt-5.4",
+    )
+
+    finalized = session.finalize_chat_success(response)
+
+    assert finalized.metadata["runtime_turn_record"] is session.turn_record
+    assert session.turn_record.turn_outcome == "success"
+    assert session.turn_record.termination_reason == "protocol_fallback"
+    assert session.turn_record.fallback_history[0].recovered is True
+    assert (
+        session.turn_record.fallback_history[0].metadata["recovery_path"]
+        == "protocol_fallback"
+    )
+
+
 def test_protocol_turn_session_finalize_chat_success_attaches_turn_record() -> None:
     session = ProtocolTurnSession(
         command=None,  # type: ignore[arg-type]

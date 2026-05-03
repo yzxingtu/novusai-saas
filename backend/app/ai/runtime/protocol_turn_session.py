@@ -191,7 +191,15 @@ class ProtocolTurnSession:
         self.turn_record.turn_outcome = "partial"
         self.turn_record.termination_reason = termination_reason
 
+    def _mark_latest_fallback_recovered(self, *, recovery_path: str) -> None:
+        if not self.turn_record.fallback_history:
+            return
+        latest = self.turn_record.fallback_history[-1]
+        latest.recovered = True
+        latest.metadata.setdefault("recovery_path", recovery_path)
+
     def finalize_chat_success(self, response: ChatResponse) -> ChatResponse:
+        self._mark_latest_fallback_recovered(recovery_path="protocol_fallback")
         self.turn_record.turn_outcome = "success"
         self.turn_record.termination_reason = (
             "protocol_fallback" if self.turn_record.fallback_history else "completed"
@@ -202,6 +210,7 @@ class ProtocolTurnSession:
         return response
 
     def finalize_stream_success(self, *, emitted_chunk_count: int) -> None:
+        self._mark_latest_fallback_recovered(recovery_path="protocol_fallback")
         self.turn_record.turn_outcome = "success"
         self.turn_record.termination_reason = (
             "protocol_fallback" if self.turn_record.fallback_history else "completed"
@@ -209,11 +218,7 @@ class ProtocolTurnSession:
         self.turn_record.metadata["stream_chunk_count"] = emitted_chunk_count
 
     def finalize_sync_rescue_success(self, *, emitted_chunk_count: int) -> None:
-        if self.turn_record.fallback_history:
-            self.turn_record.fallback_history[-1].recovered = True
-            self.turn_record.fallback_history[-1].metadata["recovery_path"] = (
-                "sync_chat_completions"
-            )
+        self._mark_latest_fallback_recovered(recovery_path="sync_chat_completions")
         self.turn_record.turn_outcome = "success"
         self.turn_record.termination_reason = "protocol_fallback"
         self.turn_record.metadata["sync_rescue"] = True

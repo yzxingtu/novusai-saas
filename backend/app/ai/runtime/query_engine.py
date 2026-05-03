@@ -6,11 +6,12 @@ Conversation query runtime (protocol fallback + rescue).
 from __future__ import annotations
 
 import asyncio
+import json
 from collections.abc import AsyncIterator
 from dataclasses import replace
 from typing import Any
 
-from app.ai.exceptions import AIGatewayError, is_retryable
+from app.ai.exceptions import AIGatewayError, ProviderError, is_retryable
 from app.ai.runtime.contracts import TurnCommand
 from app.ai.runtime.protocol_planner import ProtocolPlanner
 from app.ai.runtime.protocol_recovery_policy import (
@@ -209,6 +210,176 @@ class ConversationQueryEngine:
             and latest_fallback.to_protocol == "responses"
             and latest_fallback.reason.startswith("hosted_web_search_unavailable:")
         )
+
+    @staticmethod
+    def _is_builtin_web_research_fallback_attempt(command: TurnCommand) -> bool:
+        return (
+            str(
+                (command.extra_kwargs or {}).get(
+                    "_runtime_native_web_search_fallback_variant"
+                )
+                or ""
+            ).strip()
+            == "builtin_web_research_tools"
+        )
+
+    @classmethod
+    def _can_synthesize_builtin_web_research_fallback(
+        cls,
+        *,
+        command: TurnCommand,
+        error: BaseException,
+    ) -> bool:
+        if not cls._is_builtin_web_research_fallback_attempt(command):
+            return False
+        if not cls._has_builtin_web_research_fallback_tools(command.tools):
+            return False
+        if not isinstance(error, AIGatewayError):
+            return False
+        return is_retryable(error)
+
+    @staticmethod
+    def _last_user_query(messages: list[ChatMessage]) -> str:
+        for message in reversed(messages or []):
+            if str(getattr(message, "role", "") or "").strip() != "user":
+                continue
+            content = str(getattr(message, "content", "") or "").strip()
+            if content:
+                return " ".join(content.split())
+        return ""
+
+    @classmethod
+    def _synthetic_builtin_web_search_tool_call(
+        cls,
+        *,
+        messages: list[ChatMessage],
+        command: TurnCommand,
+    ) -> list[dict[str, Any]] | None:
+        if not cls._has_builtin_web_research_fallback_tools(command.tools):
+            return None
+        tool_names = {
+            cls._tool_function_name(tool)
+            for tool in (command.tools or [])
+            if cls._tool_function_name(tool)
+        }
+        if "web_search" not in tool_names:
+            return None
+
+        query = cls._last_user_query(messages)
+        if not query:
+            return None
+        arguments = json.dumps(
+            {
+                "query": query,
+                "max_results": 5,
+            },
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+        return [
+            {
+                "id": "synthetic_builtin_web_search_fallback",
+                "type": "function",
+                "function": {
+                    "name": "web_search",
+                    "arguments": arguments,
+                },
+            }
+        ]
+
+    @classmethod
+    def _record_synthetic_builtin_web_research_fallback(
+        cls,
+        *,
+        session: ProtocolTurnSession,
+        command: TurnCommand,
+        messages: list[ChatMessage],
+        error: BaseException,
+    ) -> list[dict[str, Any]] | None:
+        if not cls._can_synthesize_builtin_web_research_fallback(
+            command=command,
+            error=error,
+        ):
+            return None
+        tool_call = cls._synthetic_builtin_web_search_tool_call(
+            messages=messages,
+            command=command,
+        )
+        if not tool_call:
+            return None
+
+        if session.turn_record.fallback_history:
+            latest_fallback = session.turn_record.fallback_history[-1]
+            latest_fallback.recovered = True
+            latest_fallback.metadata["recovery_path"] = (
+                "synthetic_builtin_web_search_tool_call"
+            )
+        metadata = session.turn_record.metadata
+        metadata["native_web_search_builtin_fallback_synthesized"] = True
+        metadata["native_web_search_builtin_fallback_tool_name"] = "web_search"
+        metadata["native_web_search_builtin_fallback_query"] = cls._last_user_query(
+            messages
+        )
+        metadata["native_web_search_builtin_fallback_error_type"] = type(error).__name__
+        status_code = ProtocolRecoveryPolicy.extract_status_code(error)
+        if status_code is not None:
+            metadata["native_web_search_builtin_fallback_error_status_code"] = (
+                status_code
+            )
+        if isinstance(error, ProviderError):
+            error_code = str(getattr(error, "error_code", "") or "").strip()
+            if error_code:
+                metadata["native_web_search_builtin_fallback_error_code"] = error_code
+        return tool_call
+
+    @classmethod
+    def _synthetic_builtin_web_research_fallback_response(
+        cls,
+        *,
+        session: ProtocolTurnSession,
+        command: TurnCommand,
+        messages: list[ChatMessage],
+        error: BaseException,
+    ) -> ChatResponse | None:
+        tool_call = cls._record_synthetic_builtin_web_research_fallback(
+            session=session,
+            command=command,
+            messages=messages,
+            error=error,
+        )
+        if not tool_call:
+            return None
+        return ChatResponse(
+            message=ChatMessage(
+                role="assistant",
+                content="",
+                tool_calls=tool_call,
+            ),
+            finish_reason="tool_calls",
+            tool_calls=tool_call,
+            metadata={
+                "native_web_search_builtin_fallback_synthesized": True,
+            },
+        )
+
+    @classmethod
+    def _synthetic_builtin_web_research_fallback_chunk(
+        cls,
+        *,
+        session: ProtocolTurnSession,
+        command: TurnCommand,
+        messages: list[ChatMessage],
+        error: BaseException,
+    ) -> ChatChunk | None:
+        response = cls._synthetic_builtin_web_research_fallback_response(
+            session=session,
+            command=command,
+            messages=messages,
+            error=error,
+        )
+        if response is None:
+            return None
+        return cls._response_to_chunk(response)
 
     @classmethod
     def _command_for_protocol_attempt(
@@ -430,6 +601,16 @@ class ConversationQueryEngine:
                     ),
                 ):
                     continue
+                fallback_response = (
+                    self._synthetic_builtin_web_research_fallback_response(
+                        session=session,
+                        command=attempt_command,
+                        messages=messages,
+                        error=exc,
+                    )
+                )
+                if fallback_response is not None:
+                    return session.finalize_chat_success(fallback_response)
                 session.mark_failed()
                 raise
             if self.recovery_policy.response_blocks_fallback(response):
@@ -591,6 +772,18 @@ class ConversationQueryEngine:
                     ),
                 ):
                     continue
+                fallback_chunk = self._synthetic_builtin_web_research_fallback_chunk(
+                    session=session,
+                    command=attempt_command,
+                    messages=messages,
+                    error=stream_exc.cause,
+                )
+                if fallback_chunk is not None:
+                    session.finalize_stream_success(
+                        emitted_chunk_count=emitted_chunk_count + 1
+                    )
+                    yield self._attach_turn_record(fallback_chunk, protocol)
+                    return
                 if self.recovery_policy.should_skip_sync_rescue_after_stream_error(
                     stream_exc.cause
                 ):

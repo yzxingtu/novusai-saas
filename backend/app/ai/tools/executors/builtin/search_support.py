@@ -45,6 +45,30 @@ def _looks_historical_query(query: str) -> bool:
     return False
 
 
+def _wants_current_results(query: str) -> bool:
+    normalized = _normalize_text(query).lower()
+    if not normalized:
+        return False
+    return any(
+        term in normalized
+        for term in (
+            "最新",
+            "今年",
+            "当前",
+            "现在",
+            "近期",
+            "今天",
+            "今日",
+            "latest",
+            "recent",
+            "current",
+            "today",
+            "now",
+            "this year",
+        )
+    )
+
+
 def _replace_recent_years(query: str, current_year: int) -> str:
     chars = list(query)
     result: list[str] = []
@@ -73,6 +97,8 @@ def correct_query_year(query: str) -> str:
     if not query:
         return query
     if _looks_historical_query(query):
+        return query
+    if not _wants_current_results(query):
         return query
     try:
         current_year = datetime.now(settings.tz).year

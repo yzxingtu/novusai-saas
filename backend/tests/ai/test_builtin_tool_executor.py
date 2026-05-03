@@ -326,7 +326,9 @@ async def test_builtin_executor_fetch_url_success_builds_compact_summary() -> No
 
 
 @pytest.mark.asyncio
-async def test_builtin_executor_web_search_returns_complete_native_summary_payload() -> None:
+async def test_builtin_executor_web_search_returns_complete_native_summary_payload() -> (
+    None
+):
     executor = BuiltinToolExecutor()
     definition = ToolDefinition(name="web_search", description="Search the web")
     execution = _make_search_execution(
@@ -474,7 +476,7 @@ def test_fetch_url_gate_skips_fetch_when_web_search_has_zero_results() -> None:
     assert BaseEngine._needs_fetch_url_before_summary(messages) is False
 
 
-def test_build_web_research_hint_mentions_native_results_are_still_candidates() -> None:
+def test_build_web_research_hint_omits_legacy_prompt_inline_hint() -> None:
     hint = BaseEngine._build_web_research_hint(
         [
             ToolDefinition(name="web_search"),
@@ -482,18 +484,27 @@ def test_build_web_research_hint_mentions_native_results_are_still_candidates() 
         ]
     )
 
-    assert "[WEB RESEARCH]" in hint
-    assert "candidate" in hint.lower()
-    assert "fetch_url" in hint
+    assert hint == ""
 
 
-def test_correct_query_year_replaces_stale_year_without_historical_markers() -> None:
+def test_correct_query_year_preserves_specific_non_current_year_without_currentness_terms() -> (
+    None
+):
     with patch("app.ai.tools.executors.builtin_executor.datetime") as mocked_datetime:
         mocked_datetime.now.return_value = SimpleNamespace(year=2026)
-        assert be._correct_query_year("乌克兰局势 2025 局势") == "乌克兰局势 2026 局势"
+        assert be._correct_query_year("乌克兰局势 2025 局势") == "乌克兰局势 2025 局势"
+
+
+def test_correct_query_year_replaces_stale_year_for_currentness_queries() -> None:
+    with patch("app.ai.tools.executors.builtin_executor.datetime") as mocked_datetime:
+        mocked_datetime.now.return_value = SimpleNamespace(year=2026)
+        assert be._correct_query_year("最新 乌克兰局势 2025") == "最新 乌克兰局势 2026"
 
 
 def test_correct_query_year_leaves_historical_queries_unchanged() -> None:
     with patch("app.ai.tools.executors.builtin_executor.datetime") as mocked_datetime:
         mocked_datetime.now.return_value = SimpleNamespace(year=2026)
-        assert be._correct_query_year("乌克兰局势 2025 年历史回顾") == "乌克兰局势 2025 年历史回顾"
+        assert (
+            be._correct_query_year("乌克兰局势 2025 年历史回顾")
+            == "乌克兰局势 2025 年历史回顾"
+        )

@@ -26,6 +26,23 @@ _HISTORY_QUERY_TERMS = frozenset(
         "战时",
     }
 )
+_CURRENTNESS_QUERY_TERMS = frozenset(
+    {
+        "最新",
+        "今年",
+        "当前",
+        "现在",
+        "近期",
+        "今天",
+        "今日",
+        "latest",
+        "recent",
+        "current",
+        "today",
+        "now",
+        "this year",
+    }
+)
 
 
 def is_cjk(char: str) -> bool:
@@ -141,6 +158,13 @@ def looks_historical_query(query: str) -> bool:
     return False
 
 
+def wants_current_results(query: str) -> bool:
+    normalized = normalize_text(query).lower()
+    if not normalized:
+        return False
+    return any(term in normalized for term in _CURRENTNESS_QUERY_TERMS)
+
+
 def replace_recent_years(query: str, current_year: int) -> str:
     chars = list(query)
     result: list[str] = []
@@ -167,6 +191,8 @@ def replace_recent_years(query: str, current_year: int) -> str:
 def correct_query_year(query: str) -> str:
     if not query or looks_historical_query(query):
         return query
+    if not wants_current_results(query):
+        return query
     try:
         current_year = datetime.now(settings.tz).year
     except Exception:  # noqa: BLE001
@@ -183,4 +209,5 @@ __all__ = [
     "result_passes_relevance",
     "scan_search_tokens",
     "strip_site_filters",
+    "wants_current_results",
 ]

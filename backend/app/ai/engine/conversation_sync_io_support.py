@@ -17,6 +17,7 @@ from .stream_tool_batch_runtime import (
     StreamToolBatchRuntimeInput,
     run_stream_tool_batch,
 )
+from .tool_loop_session import sync_sandbox_runtime_model_info
 from .turn_executor import ModelRoundResult, ToolBatchResult
 from .types import ExecutionRequest, ToolUsePolicy
 
@@ -24,9 +25,7 @@ from .types import ExecutionRequest, ToolUsePolicy
 def _resolve_token_usage(response: ChatResponse) -> tuple[int, int]:
     total_tokens = int(response.total_tokens or 0)
     completion_tokens_used = int(
-        response.output_tokens
-        if response.output_tokens is not None
-        else total_tokens
+        response.output_tokens if response.output_tokens is not None else total_tokens
     )
     return total_tokens, completion_tokens_used
 
@@ -94,6 +93,10 @@ async def handle_sync_tool_calls(
     tool_calls, _unchanged = active_runtime_contract.keep_tool_calls_for_round(
         tool_calls
     )
+    sync_sandbox_runtime_model_info(
+        sandbox=engine.sandbox,
+        response=response,
+    )
 
     state = get_current_execution_state_machine()
 
@@ -131,7 +134,9 @@ async def handle_sync_tool_calls(
                 kwargs.get("starting_completion_tokens") or 0
             ),
             reasoning_content=(
-                str(response.message.reasoning_content or response.message.content or "").strip()
+                str(
+                    response.message.reasoning_content or response.message.content or ""
+                ).strip()
                 or None
             ),
         ),

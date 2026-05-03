@@ -75,6 +75,10 @@ def _extract_baidu_public_results(html: str, max_results: int) -> list[dict[str,
     return _parsing.extract_baidu_public_results(html, max_results)
 
 
+def _extract_so360_public_results(html: str, max_results: int) -> list[dict[str, str]]:
+    return _parsing.extract_so360_public_results(html, max_results)
+
+
 async def _search_with_baidu_public(
     query: str,
     max_results: int,
@@ -165,11 +169,7 @@ class PublicHtmlSearchProvider(BaseSearchProvider):
         providers: list[str] | tuple[str, ...] | None = None,
     ) -> None:
         normalized = [str(item or "").strip().lower() for item in (providers or [])]
-        self.providers = [
-            item
-            for item in normalized
-            if item == PUBLIC_PROVIDER_BAIDU
-        ]
+        self.providers = [item for item in normalized if item == PUBLIC_PROVIDER_BAIDU]
         if not self.providers:
             self.providers = [PUBLIC_PROVIDER_BAIDU]
 
@@ -278,7 +278,9 @@ class PublicHtmlSearchProvider(BaseSearchProvider):
                 return result
 
         latency_ms = int((time.perf_counter() - start) * 1000)
-        if attempts and all(attempt.status == STATUS_NO_RESULTS for attempt in attempts):
+        if attempts and all(
+            attempt.status == STATUS_NO_RESULTS for attempt in attempts
+        ):
             return SearchProviderRun(
                 provider=None,
                 provider_mode=PROVIDER_MODE_PUBLIC,
@@ -290,9 +292,13 @@ class PublicHtmlSearchProvider(BaseSearchProvider):
                 attempted_backends=list(attempted_backends),
             )
 
-        if attempts and any(attempt.status == STATUS_POLICY_FILTERED for attempt in attempts):
+        if attempts and any(
+            attempt.status == STATUS_POLICY_FILTERED for attempt in attempts
+        ):
             status = STATUS_POLICY_FILTERED
-        elif attempts and any(attempt.status == STATUS_PARSE_ERROR for attempt in attempts):
+        elif attempts and any(
+            attempt.status == STATUS_PARSE_ERROR for attempt in attempts
+        ):
             status = STATUS_PARSE_ERROR
         elif attempts and any(attempt.status == STATUS_TIMEOUT for attempt in attempts):
             status = STATUS_TIMEOUT
@@ -320,5 +326,6 @@ __all__ = [
     "PUBLIC_PROVIDER_BAIDU",
     "PublicHtmlSearchProvider",
     "_extract_baidu_public_results",
+    "_extract_so360_public_results",
     "_search_with_baidu_public",
 ]

@@ -53,9 +53,7 @@ if TYPE_CHECKING:
 
 logger = LogManager.get_logger("ai.web_search")
 
-_DUPLICATE_QUERY_SIGNATURES: set[
-    tuple[int, str, str, str, str, str, int]
-] = set()
+_DUPLICATE_QUERY_SIGNATURES: set[tuple[int, str, str, str, str, str, int]] = set()
 _NATIVE_BACKEND_FAIL_STREAK = _native_provider._NATIVE_BACKEND_FAIL_STREAK
 _NATIVE_BACKEND_DISABLED = _native_provider._NATIVE_BACKEND_DISABLED
 _NATIVE_BACKEND_CACHE = _native_provider._NATIVE_BACKEND_CACHE
@@ -205,6 +203,12 @@ class WebSearchOrchestrator:
         fallback_reason: str | None = None
         native_failure_kind: str | None = None
 
+        skip_runtime_native_after_hosted_failure = bool(
+            getattr(context, "web_search_skip_native_provider", False)
+        )
+        skip_runtime_native_reason = str(
+            getattr(context, "web_search_skip_native_reason", "") or ""
+        ).strip()
         should_attempt_runtime_native_without_db = (
             resolved_config.provider is None
             and resolved_config.model is None
@@ -212,10 +216,23 @@ class WebSearchOrchestrator:
             == "runtime_db_unavailable_for_native_readiness_resolution"
         )
 
-        if (
-            (resolved_config.provider is None or resolved_config.model is None)
-            and not should_attempt_runtime_native_without_db
-        ):
+        if skip_runtime_native_after_hosted_failure:
+            native_run = SearchProviderRun(
+                provider=provider_label,
+                provider_mode=PROVIDER_MODE_NATIVE,
+                backend_key=None,
+                status=STATUS_UNSUPPORTED,
+                items=[],
+                failure_reason=(
+                    skip_runtime_native_reason
+                    or "native provider skipped after hosted web search failure"
+                ),
+                attempted_backends=[],
+                native_attempted=False,
+            )
+        elif (
+            resolved_config.provider is None or resolved_config.model is None
+        ) and not should_attempt_runtime_native_without_db:
             native_run = SearchProviderRun(
                 provider=provider_label,
                 provider_mode=PROVIDER_MODE_NATIVE,

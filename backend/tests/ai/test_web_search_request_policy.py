@@ -39,6 +39,14 @@ def test_generic_search_about_tools_still_prefers_native_path() -> None:
         )
         is False
     )
+    assert is_explicit_builtin_web_search_request("请使用联网搜索查今天新闻") is False
+    assert is_explicit_builtin_web_search_request("请调用联网搜索查今天新闻") is False
+    assert (
+        is_explicit_builtin_web_search_request(
+            "please use web search to compare today's releases",
+        )
+        is False
+    )
 
 
 def test_direct_tool_names_require_token_boundary() -> None:

@@ -56,6 +56,35 @@ def extract_baidu_public_results(html: str, max_results: int) -> list[dict[str, 
     return results
 
 
+def extract_so360_public_results(html: str, max_results: int) -> list[dict[str, str]]:
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(html, "lxml")
+    results: list[dict[str, str]] = []
+    seen_urls: set[str] = set()
+
+    for container in soup.select("li.res-list, div.res-list"):
+        title_link = container.select_one("h3.res-title a, a")
+        if title_link is None:
+            continue
+
+        href = (title_link.get("href") or "").strip()
+        title = normalize_text(title_link.get_text(" ", strip=True))
+        if not href or not title or href in seen_urls:
+            continue
+
+        snippet = clean_search_snippet(
+            container.get_text(" ", strip=True),
+            title,
+        )
+        results.append({"title": title, "url": href, "snippet": snippet})
+        seen_urls.add(href)
+        if len(results) >= max_results:
+            break
+
+    return results
+
+
 def extract_title_from_html(html: str) -> str:
     lowered = (html or "").lower()
     start = lowered.find("<title")
@@ -131,6 +160,7 @@ __all__ = [
     "classify_baidu_public_html",
     "clean_search_snippet",
     "extract_baidu_public_results",
+    "extract_so360_public_results",
     "extract_title_from_html",
     "html_may_contain_search_results",
     "make_items",

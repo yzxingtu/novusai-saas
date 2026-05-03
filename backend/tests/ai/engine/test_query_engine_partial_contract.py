@@ -397,6 +397,85 @@ class _HostedSearchProgressThenTimeoutAdapter:
         raise AssertionError("stream fallback should not use sync chat rescue")
 
 
+class _HostedSearchProgressTimeoutThenBuiltinResponses502Adapter:
+    wire_api = "responses"
+    protocol_capabilities = SimpleNamespace(
+        primary_wire_api="responses",
+        allowed_wire_apis=("responses",),
+        allowed_cross_protocol_fallbacks={},
+        allow_adapter_cross_protocol_fallback=False,
+    )
+
+    def __init__(self) -> None:
+        self.stream_attempts: list[dict[str, object]] = []
+        self.chat_attempts: list[dict[str, object]] = []
+
+    @staticmethod
+    def _tool_names(kwargs: dict[str, object]) -> list[str]:
+        return [
+            str((tool.get("function") or {}).get("name") or "").strip()
+            for tool in kwargs.get("tools", []) or []
+            if isinstance(tool, dict)
+        ]
+
+    async def stream_chat(self, **kwargs):
+        protocol = str(kwargs.get("_runtime_force_wire_api") or "").strip()
+        hosted_required = bool(kwargs.get("_runtime_hosted_web_search_required"))
+        fallback_variant = str(
+            kwargs.get("_runtime_native_web_search_fallback_variant") or ""
+        )
+        self.stream_attempts.append(
+            {
+                "protocol": protocol,
+                "hosted_required": hosted_required,
+                "fallback_variant": fallback_variant,
+                "tool_names": self._tool_names(kwargs),
+            }
+        )
+        if hosted_required:
+            yield ChatChunk(delta="", metadata={"web_search_in_progress": True})
+            raise ProviderTimeoutError(
+                "hosted search timed out after progress",
+                provider_code="openai_compatible",
+                model_code="gpt-5.4",
+            )
+        raise ProviderError(
+            "builtin responses fallback upstream 502",
+            provider_code="openai_compatible",
+            model_code="gpt-5.4",
+            error_code="502",
+            status_code=502,
+        )
+
+    async def chat(self, **kwargs):
+        protocol = str(kwargs.get("_runtime_force_wire_api") or "").strip()
+        self.chat_attempts.append(
+            {
+                "protocol": protocol,
+                "hosted_required": bool(
+                    kwargs.get("_runtime_hosted_web_search_required")
+                ),
+                "fallback_variant": str(
+                    kwargs.get("_runtime_native_web_search_fallback_variant") or ""
+                ),
+                "tool_names": self._tool_names(kwargs),
+            }
+        )
+        if kwargs.get("_runtime_hosted_web_search_required"):
+            raise ProviderTimeoutError(
+                "hosted search timed out",
+                provider_code="openai_compatible",
+                model_code="gpt-5.4",
+            )
+        raise ProviderError(
+            "builtin responses fallback upstream 502",
+            provider_code="openai_compatible",
+            model_code="gpt-5.4",
+            error_code="502",
+            status_code=502,
+        )
+
+
 class _HostedSearchProgressOnlyThenBuiltinAdapter:
     wire_api = "chat_completions"
     protocol_capabilities = SimpleNamespace(
@@ -790,6 +869,157 @@ async def test_runtime_query_engine_stream_falls_back_after_hosted_search_progre
         == "hosted_web_search_unavailable:provider_timeout"
     )
     assert "protocol_fallback_blocked_reason" not in query_engine.turn_record.metadata
+
+
+@pytest.mark.asyncio
+async def test_runtime_query_engine_stream_synthesizes_builtin_web_search_after_builtin_responses_502() -> (
+    None
+):
+    adapter = _HostedSearchProgressTimeoutThenBuiltinResponses502Adapter()
+    query_engine = ConversationQueryEngine(
+        adapter=adapter,
+        strict_contract=True,
+    )
+
+    chunks = await query_engine.run_stream_turn(
+        messages=[
+            ChatMessage(role="user", content="帮我搜索一下2025年大模型使用token排行")
+        ],
+        model="gpt-5.4",
+        temperature=0.0,
+        max_tokens=None,
+        top_p=1.0,
+        tools=[
+            {"type": "function", "function": {"name": "web_search"}},
+            {"type": "function", "function": {"name": "fetch_url"}},
+        ],
+        tool_choice="required",
+        supports_vision=False,
+        supports_audio=False,
+        supports_video=False,
+        extra_kwargs={
+            "_runtime_force_protocol_path": "responses",
+            "_runtime_hosted_web_search_required": True,
+        },
+    )
+
+    assert adapter.stream_attempts == [
+        {
+            "protocol": "responses",
+            "hosted_required": True,
+            "fallback_variant": "",
+            "tool_names": ["web_search", "fetch_url"],
+        },
+        {
+            "protocol": "responses",
+            "hosted_required": False,
+            "fallback_variant": "builtin_web_research_tools",
+            "tool_names": ["web_search", "fetch_url"],
+        },
+    ]
+    assert adapter.chat_attempts == []
+    assert (chunks[0].metadata or {}).get("web_search_in_progress") is True
+    assert chunks[1].tool_calls == [
+        {
+            "id": "synthetic_builtin_web_search_fallback",
+            "type": "function",
+            "function": {
+                "name": "web_search",
+                "arguments": (
+                    '{"query":"帮我搜索一下2025年大模型使用token排行","max_results":5}'
+                ),
+            },
+        }
+    ]
+    assert query_engine.turn_record.turn_outcome == "success"
+    assert query_engine.turn_record.termination_reason == "protocol_fallback"
+    assert query_engine.turn_record.fallback_history[0].recovered is True
+    assert query_engine.turn_record.fallback_history[0].metadata["recovery_path"] == (
+        "synthetic_builtin_web_search_tool_call"
+    )
+    assert (
+        query_engine.turn_record.metadata[
+            "native_web_search_builtin_fallback_synthesized"
+        ]
+        is True
+    )
+    assert (
+        query_engine.turn_record.metadata[
+            "native_web_search_builtin_fallback_error_status_code"
+        ]
+        == 502
+    )
+    assert "protocol_fallback_blocked_reason" not in query_engine.turn_record.metadata
+
+
+@pytest.mark.asyncio
+async def test_runtime_query_engine_sync_synthesizes_builtin_web_search_after_builtin_responses_502() -> (
+    None
+):
+    adapter = _HostedSearchProgressTimeoutThenBuiltinResponses502Adapter()
+    query_engine = ConversationQueryEngine(
+        adapter=adapter,
+        strict_contract=True,
+    )
+
+    response = await query_engine.run_chat_turn(
+        messages=[
+            ChatMessage(role="user", content="帮我搜索一下2025年大模型使用token排行")
+        ],
+        model="gpt-5.4",
+        temperature=0.0,
+        max_tokens=None,
+        top_p=1.0,
+        tools=[
+            {"type": "function", "function": {"name": "web_search"}},
+            {"type": "function", "function": {"name": "fetch_url"}},
+        ],
+        tool_choice="required",
+        supports_vision=False,
+        supports_audio=False,
+        supports_video=False,
+        extra_kwargs={
+            "_runtime_force_protocol_path": "responses",
+            "_runtime_hosted_web_search_required": True,
+        },
+    )
+
+    assert adapter.chat_attempts == [
+        {
+            "protocol": "responses",
+            "hosted_required": True,
+            "fallback_variant": "",
+            "tool_names": ["web_search", "fetch_url"],
+        },
+        {
+            "protocol": "responses",
+            "hosted_required": False,
+            "fallback_variant": "builtin_web_research_tools",
+            "tool_names": ["web_search", "fetch_url"],
+        },
+    ]
+    assert adapter.stream_attempts == []
+    assert response.tool_calls == [
+        {
+            "id": "synthetic_builtin_web_search_fallback",
+            "type": "function",
+            "function": {
+                "name": "web_search",
+                "arguments": (
+                    '{"query":"帮我搜索一下2025年大模型使用token排行","max_results":5}'
+                ),
+            },
+        }
+    ]
+    assert query_engine.turn_record.turn_outcome == "success"
+    assert query_engine.turn_record.termination_reason == "protocol_fallback"
+    assert query_engine.turn_record.fallback_history[0].recovered is True
+    assert (
+        query_engine.turn_record.metadata[
+            "native_web_search_builtin_fallback_synthesized"
+        ]
+        is True
+    )
 
 
 @pytest.mark.asyncio
