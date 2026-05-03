@@ -203,8 +203,16 @@ class RecoveryResultNormalizer:
         return _("这部分")
 
     @staticmethod
-    def _cache_intent_result(intent: IntentPlan, value: Any) -> None:
-        normalized = RecoveryResultNormalizer._normalize_cached_result(value)
+    def _cache_intent_result(
+        intent: IntentPlan,
+        value: Any,
+        *,
+        max_length: int = 500,
+    ) -> None:
+        normalized = RecoveryResultNormalizer._normalize_cached_result(
+            value,
+            max_length=max_length,
+        )
         if not normalized:
             return
         intent.cached_result = normalized
@@ -228,15 +236,18 @@ class RecoveryResultNormalizer:
         intent: IntentPlan,
         *,
         intent_results: dict[str, str] | None = None,
+        max_length: int = 500,
     ) -> str | None:
         if intent_results and intent.intent_id in intent_results:
             normalized = RecoveryResultNormalizer._normalize_cached_result(
-                intent_results.get(intent.intent_id)
+                intent_results.get(intent.intent_id),
+                max_length=max_length,
             )
             if normalized:
                 return normalized
         normalized = RecoveryResultNormalizer._normalize_cached_result(
-            intent.cached_result
+            intent.cached_result,
+            max_length=max_length,
         )
         if normalized:
             return normalized
@@ -248,7 +259,8 @@ class RecoveryResultNormalizer:
             "partial_result",
         ):
             normalized = RecoveryResultNormalizer._normalize_cached_result(
-                metadata.get(key)
+                metadata.get(key),
+                max_length=max_length,
             )
             if normalized:
                 return normalized

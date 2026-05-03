@@ -32,6 +32,9 @@ from app.services.ai.conversation_payload_sanitizer import (
 from app.services.ai.conversation_turn_flow_projector import (
     ConversationTurnFlowProjector,
 )
+from app.services.ai.recovery_evidence_read_model import (
+    patch_recovery_evidence_answer_payload,
+)
 from app.services.tenant.attachment_download_service import AttachmentDownloadService
 
 if TYPE_CHECKING:
@@ -175,6 +178,7 @@ class ConversationReadModelService:
         msg_dict["provider_id"] = runtime_meta.get("provider_id")
         msg_dict["provider_name"] = runtime_meta.get("provider_name")
         msg_dict = sanitize_assistant_error_payload(msg_dict)
+        msg_dict = patch_recovery_evidence_answer_payload(msg_dict)
         turn_flow = ConversationTurnFlowProjector.project_from_message_payload(msg_dict)
         if turn_flow is not None:
             msg_dict["turn_flow"] = turn_flow
@@ -247,6 +251,7 @@ class ConversationReadModelService:
                 "metadata": metadata_payload,
             }
             message_payload = sanitize_assistant_error_payload(message_payload)
+            message_payload = patch_recovery_evidence_answer_payload(message_payload)
             projected_turn_flow = (
                 ConversationTurnFlowProjector.project_from_message_payload(
                     message_payload
@@ -307,9 +312,13 @@ class ConversationReadModelService:
             metadata_payload = strip_legacy_interaction_mode_fields(
                 result.get("metadata")
             )
-            if isinstance(metadata_payload, dict) and metadata_payload.get("last_error"):
-                metadata_payload["last_error"] = sanitize_conversation_last_error_payload(
-                    metadata_payload.get("last_error")
+            if isinstance(metadata_payload, dict) and metadata_payload.get(
+                "last_error"
+            ):
+                metadata_payload["last_error"] = (
+                    sanitize_conversation_last_error_payload(
+                        metadata_payload.get("last_error")
+                    )
                 )
             if metadata_payload:
                 result["metadata"] = metadata_payload

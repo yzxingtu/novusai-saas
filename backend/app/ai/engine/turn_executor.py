@@ -15,6 +15,7 @@ from .final_output_policy import (
     is_trusted_assistant_final_output_source,
 )
 from .recovery_manager import RecoveryManager
+from .recovery_tool_result_helpers import intent_result_from_tool_results
 from .turn_executor_tool_batch import (
     build_required_fetch_url_fallback_response,
     build_shortcircuit_fallback_response,
@@ -362,13 +363,13 @@ def has_completed_fetch_url_body_evidence(
     )
     if not completed_by_fetch_url:
         return False
-    for result in tool_results:
-        if not result.success or str(result.name or "").strip() != "fetch_url":
-            continue
-        output = str(result.output or "").strip()
-        if output and "Content from " in output:
-            return True
-    return False
+    return any(
+        bool(intent_result_from_tool_results(intent, tool_results))
+        for intent in state.intent_plan
+        if intent.status == "completed"
+        and str(intent.family or "").strip() == "web_research"
+        and "fetch_url" in set(intent.completed_by_tool_names or [])
+    )
 
 
 def intent_missing_args(intent: Any | None) -> list[str]:

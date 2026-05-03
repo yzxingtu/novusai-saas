@@ -1240,9 +1240,11 @@ async def test_turn_executor_uses_completed_tool_evidence_after_fetch_without_re
         agent=SimpleNamespace(id=1),
     )
 
-    assert result.output == build_untrusted_final_output_fallback()
-    assert result.final_output_source == "tool_evidence_completed"
-    assert state.preparation_diagnostics["stripped_untrusted_final_output"] is True
+    assert result.output == "AI Daily - Latest AI headlines and analysis."
+    assert result.final_output_source == "recovery_evidence"
+    assert (
+        state.preparation_diagnostics.get("stripped_untrusted_final_output") is not True
+    )
     assert len(io.call_history) == 1
     assert io.finalize_completed_calls
     assert not any(
@@ -1250,7 +1252,7 @@ async def test_turn_executor_uses_completed_tool_evidence_after_fetch_without_re
         for call in io.call_history
     )
     assert state.preparation_diagnostics["post_tool_completion_state"] == (
-        "tool_evidence_completed"
+        "recovery_evidence"
     )
 
 
@@ -1417,7 +1419,20 @@ async def test_turn_executor_promotes_budgeted_web_research_falls_back_to_tool_e
                     tool_call_id="call_fetch",
                     name="fetch_url",
                     success=True,
-                    output="今年暑假从7月6日开始。",
+                    output=(
+                        "Content from https://example.com:\n"
+                        "Title: 放假时间\n\n"
+                        "今年暑假从7月6日开始。"
+                    ),
+                    summary="放假时间",
+                    summary_payload={
+                        "fetch_url": True,
+                        "ok": True,
+                        "requested_url": "https://example.com",
+                        "final_url": "https://example.com",
+                        "title": "放假时间",
+                        "summary": "放假时间",
+                    },
                 )
             ],
             total_tokens=8,
@@ -1444,7 +1459,8 @@ async def test_turn_executor_promotes_budgeted_web_research_falls_back_to_tool_e
 
     assert result.partial is False
     assert result.completion_reason == "completed"
-    assert result.final_output_source == "tool_evidence_completed"
+    assert result.final_output_source == "recovery_evidence"
+    assert "今年暑假从7月6日开始" in result.output
     assert io.finalize_completed_calls
 
 

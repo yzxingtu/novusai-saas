@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from app.ai.tools.types import ToolResult
 from app.ai.types import ChatMessage
 
@@ -30,6 +32,26 @@ _FETCH_BODY_NOISE_LINES = {
     "relatedarticles",
     "readmore",
 }
+_FETCH_BODY_RANKED_LINE_RE = re.compile(
+    r"^\s*[❒■□●○◆◇•*·\-–—]*\s*(?:第\s*)?\d{1,2}(?:\s*[.、:：)]|\s+)\s*\S+"
+)
+_FETCH_BODY_INLINE_SECTION_BOUNDARY_RE = re.compile(
+    r"(?<!\S)(?=(?:[❒■□●○◆◇•*·\-–—]*\s*)?(?:第\s*)?(?:(?:0?[1-9]|1[0-9])\s*[.、:：)](?!\d)|(?:0[1-9]|1[0-9])\s+)\s*\S)"
+)
+_FETCH_BODY_LIST_HEADING_RE = re.compile(
+    r"(?:top\s*\d+|排行榜|排名|榜单|战力榜|综合top)",
+    re.IGNORECASE,
+)
+DEFAULT_RECOVERY_RESULT_MAX_LENGTH = 500
+FETCH_URL_RECOVERY_RESULT_MAX_LENGTH = 2000
+
+
+def intent_recovery_result_max_length(intent: IntentPlan) -> int:
+    if str(intent.family or "").strip() == "web_research" and "fetch_url" in set(
+        intent.completed_by_tool_names or []
+    ):
+        return FETCH_URL_RECOVERY_RESULT_MAX_LENGTH
+    return DEFAULT_RECOVERY_RESULT_MAX_LENGTH
 
 
 def _has_terminal_punctuation(text: str) -> bool:
@@ -63,6 +85,103 @@ def _is_useful_fetch_body_line(
     return not (normalized_description and normalized_line == normalized_description)
 
 
+def _is_fetch_body_ranked_line(line: str) -> bool:
+    normalized = str(line or "").strip()
+    if re.match(r"^\s*0\d\s+", normalized) and _is_fetch_body_list_heading(normalized):
+        return False
+    return bool(_FETCH_BODY_RANKED_LINE_RE.match(normalized))
+
+
+def _is_fetch_body_list_heading(line: str) -> bool:
+    normalized = str(line or "").strip()
+    if not normalized:
+        return False
+    return bool(_FETCH_BODY_LIST_HEADING_RE.search(normalized))
+
+
+def _split_fetch_body_logical_lines(line: str) -> list[str]:
+    normalized = re.sub(r"\s+", " ", str(line or "").strip())
+    if not normalized:
+        return []
+    boundary_indexes = [
+        match.start()
+        for match in _FETCH_BODY_INLINE_SECTION_BOUNDARY_RE.finditer(normalized)
+        if match.start() > 0
+    ]
+    if not boundary_indexes:
+        return [normalized]
+    starts = [0, *boundary_indexes]
+    ends = [*boundary_indexes, len(normalized)]
+    return [
+        normalized[start:end].strip()
+        for start, end in zip(starts, ends, strict=False)
+        if normalized[start:end].strip()
+    ]
+
+
+def _join_fetch_body_preview_parts(
+    parts: list[str],
+    *,
+    max_length: int,
+) -> str:
+    preview_parts: list[str] = []
+    used = 0
+    for raw_part in parts:
+        part = str(raw_part or "").strip()
+        if not part:
+            continue
+        separator_len = 1 if preview_parts else 0
+        next_used = used + separator_len + len(part)
+        if next_used > max_length:
+            if not preview_parts:
+                return part[:max_length].rstrip()
+            break
+        preview_parts.append(part)
+        used = next_used
+    return "\n".join(preview_parts)
+
+
+def _build_fetch_body_preview(
+    useful_lines: list[str],
+    *,
+    max_length: int,
+) -> str:
+    if not useful_lines:
+        return ""
+
+    ranked_indexes = [
+        index
+        for index, line in enumerate(useful_lines)
+        if _is_fetch_body_ranked_line(line)
+    ]
+    if ranked_indexes:
+        first_ranked_index = ranked_indexes[0]
+        preceding_window = useful_lines[
+            max(0, first_ranked_index - 5) : first_ranked_index
+        ]
+        heading_candidates = [
+            line for line in preceding_window if _is_fetch_body_list_heading(line)
+        ]
+        primary_heading_candidates = [
+            line
+            for line in heading_candidates
+            if not str(line or "").strip().startswith(("(", "（"))
+        ]
+        preview_parts: list[str] = (
+            primary_heading_candidates[-1:] or heading_candidates[-1:]
+        )
+        preview_parts.extend(useful_lines[index] for index in ranked_indexes[:10])
+        return _join_fetch_body_preview_parts(
+            preview_parts,
+            max_length=max_length,
+        )
+
+    return _join_fetch_body_preview_parts(
+        useful_lines,
+        max_length=max_length,
+    )
+
+
 def extract_fetch_url_user_preview(
     result: ToolResult,
     *,
@@ -72,6 +191,8 @@ def extract_fetch_url_user_preview(
         dict(result.summary_payload) if isinstance(result.summary_payload, dict) else {}
     )
     if not summary_payload.get("fetch_url"):
+        return None
+    if summary_payload.get("ok") is False:
         return None
 
     title = str(summary_payload.get("title") or "").strip()
@@ -122,14 +243,17 @@ def extract_fetch_url_user_preview(
             )
         ):
             continue
-        if not _is_useful_fetch_body_line(
-            line,
-            normalized_title=normalized_title,
-            normalized_description=normalized_description,
-        ):
-            continue
-        useful_lines.append(line)
-        if len(" ".join(useful_lines)) >= max_length:
+        for logical_line in _split_fetch_body_logical_lines(line):
+            if not _is_useful_fetch_body_line(
+                logical_line,
+                normalized_title=normalized_title,
+                normalized_description=normalized_description,
+            ):
+                continue
+            useful_lines.append(logical_line)
+            if len(useful_lines) >= 120:
+                break
+        if len(useful_lines) >= 120:
             break
 
     prefer_body_preview = bool(
@@ -151,8 +275,16 @@ def extract_fetch_url_user_preview(
             and description not in useful_lines[:2]
         ):
             preview_parts.append(description)
-        preview_parts.extend(useful_lines[:2])
-        preview = " ".join(part.strip() for part in preview_parts if part.strip())
+        body_preview = _build_fetch_body_preview(
+            useful_lines,
+            max_length=max_length,
+        )
+        if body_preview:
+            preview_parts.append(body_preview)
+        preview = _join_fetch_body_preview_parts(
+            preview_parts,
+            max_length=max_length,
+        )
         normalized_preview = RecoveryResultNormalizer._normalize_comparison_text(
             preview
         )
@@ -187,18 +319,22 @@ def extract_fetch_url_user_preview(
     if description:
         preview_parts.append(description)
     if useful_lines:
-        preview_parts.extend(useful_lines[:2])
+        body_preview = _build_fetch_body_preview(
+            useful_lines,
+            max_length=max_length,
+        )
+        if body_preview:
+            preview_parts.append(body_preview)
 
-    preview = " ".join(part.strip() for part in preview_parts if part.strip())
+    preview = _join_fetch_body_preview_parts(
+        preview_parts,
+        max_length=max_length,
+    )
     normalized_preview = RecoveryResultNormalizer._normalize_comparison_text(preview)
     if normalized_preview and normalized_preview != normalized_title:
         return RecoveryResultNormalizer._normalize_cached_result(
             preview,
             max_length=max_length,
-        )
-    if title:
-        return RecoveryResultNormalizer._normalize_cached_result(
-            title, max_length=max_length
         )
     return None
 
@@ -215,6 +351,8 @@ def budgeted_web_research_response_candidates(
             if isinstance(result.summary_payload, dict)
             else {}
         )
+        if payload.get("ok") is False:
+            continue
         raw_title = str(payload.get("title") or "").strip()
         description = str(payload.get("description") or "").strip()
         for candidate in (
@@ -388,11 +526,20 @@ def intent_result_from_tool_results(
                 str(intent.family or "").strip() == "web_research"
                 and str(result.name or "").strip() == "fetch_url"
             ):
-                preview = extract_fetch_url_user_preview(result)
-                if preview:
-                    if preview not in normalized_results:
-                        normalized_results.append(preview)
+                payload = (
+                    dict(result.summary_payload)
+                    if isinstance(result.summary_payload, dict)
+                    else {}
+                )
+                if payload.get("ok") is False:
                     continue
+                preview = extract_fetch_url_user_preview(
+                    result,
+                    max_length=FETCH_URL_RECOVERY_RESULT_MAX_LENGTH,
+                )
+                if preview and preview not in normalized_results:
+                    normalized_results.append(preview)
+                continue
             for candidate in (
                 result.summary_payload,
                 result.summary,
@@ -414,6 +561,7 @@ __all__ = [
     "budgeted_web_research_response_candidates",
     "extract_fetch_url_candidate_urls",
     "extract_fetch_url_user_preview",
+    "intent_recovery_result_max_length",
     "intent_result_from_tool_results",
     "latest_successful_tool_result",
     "should_replace_budgeted_web_research_response",

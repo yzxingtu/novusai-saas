@@ -466,6 +466,66 @@ def test_update_intent_statuses_does_not_promote_failed_fetch_url_evidence() -> 
     assert "partial_result" not in (updated[0].metadata or {})
 
 
+def test_update_intent_statuses_does_not_complete_title_only_fetch_url_evidence() -> (
+    None
+):
+    updated = RecoveryManager.update_intent_statuses(
+        [_web_research_intent()],
+        messages=[],
+        tool_results=[
+            ToolResult(
+                tool_call_id="tc-fetch",
+                name="fetch_url",
+                success=True,
+                output=(
+                    "Content from https://example.com/ranking:\n"
+                    "Title: 2026大模型战力榜\n"
+                ),
+                summary="2026大模型战力榜",
+                summary_payload={
+                    "fetch_url": True,
+                    "ok": True,
+                    "title": "2026大模型战力榜",
+                    "summary": "2026大模型战力榜",
+                },
+            )
+        ],
+    )
+
+    assert updated[0].status == "pending"
+    assert updated[0].completed_by_tool_names == []
+    assert updated[0].cached_result is None
+    assert updated[0].metadata["fetch_url_answer_quality"] == "missing"
+
+
+def test_update_intent_statuses_does_not_complete_ok_false_fetch_url_payload() -> None:
+    updated = RecoveryManager.update_intent_statuses(
+        [_web_research_intent()],
+        messages=[],
+        tool_results=[
+            ToolResult(
+                tool_call_id="tc-fetch",
+                name="fetch_url",
+                success=True,
+                output="Content from https://example.com/ranking:\n正文看起来存在。",
+                summary="2026大模型战力榜 - 正文看起来存在。",
+                summary_payload={
+                    "fetch_url": True,
+                    "ok": False,
+                    "title": "2026大模型战力榜",
+                    "description": "正文看起来存在。",
+                    "summary": "2026大模型战力榜 - 正文看起来存在。",
+                },
+            )
+        ],
+    )
+
+    assert updated[0].status == "pending"
+    assert updated[0].completed_by_tool_names == []
+    assert updated[0].cached_result is None
+    assert updated[0].metadata["fetch_url_answer_quality"] == "missing"
+
+
 def test_recovery_does_not_complete_required_fetch_url_from_search_only_evidence() -> (
     None
 ):

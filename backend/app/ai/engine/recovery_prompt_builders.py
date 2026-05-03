@@ -9,6 +9,7 @@ from app.core.i18n import _
 
 from .recovery_result_normalizer import RecoveryResultNormalizer
 from .recovery_tool_result_helpers import (
+    intent_recovery_result_max_length,
     intent_result_from_tool_results,
     web_search_result_count,
 )
@@ -53,9 +54,11 @@ def _collect_completed_output_parts(
     for intent in intents:
         if intent.status != "completed":
             continue
+        result_max_length = intent_recovery_result_max_length(intent)
         intent_result = RecoveryResultNormalizer._intent_cached_result(
             intent,
             intent_results=intent_results,
+            max_length=result_max_length,
         )
         if not intent_result:
             intent_result = intent_result_from_tool_results(intent, tool_results)

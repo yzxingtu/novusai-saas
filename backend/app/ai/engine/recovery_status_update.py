@@ -8,6 +8,7 @@ from app.ai.types import ChatMessage
 from .recovery_consent_helpers import extract_pending_consent_payload
 from .recovery_result_normalizer import RecoveryResultNormalizer
 from .recovery_tool_result_helpers import (
+    intent_recovery_result_max_length,
     intent_result_from_tool_results,
     successful_tool_names,
 )
@@ -16,12 +17,18 @@ from .system_prompt_intent_helpers import (
     intent_completion_matches as resolve_intent_completion_matches,
 )
 from .system_prompt_intent_helpers import (
-    intent_completion_progress as resolve_intent_completion_progress,
-)
-from .system_prompt_intent_helpers import (
     intent_completion_signals as resolve_intent_completion_signals,
 )
 from .types import IntentPlan
+
+
+def _should_keep_untrusted_completed_web_fallback(intent: IntentPlan) -> bool:
+    metadata = dict(intent.metadata or {})
+    return (
+        str(intent.family or "").strip() == "web_research"
+        and str(metadata.get("auto_fetch_gate_reason") or "").strip()
+        == "search_not_successful"
+    )
 
 
 def update_intent_statuses(
@@ -70,14 +77,6 @@ def update_intent_statuses(
             preferred_tool_names=list(clone.preferred_tool_names or []),
             intent_metadata=clone.metadata,
         )
-        completion_progress = resolve_intent_completion_progress(
-            clone.family,
-            completed_tool_names=completed_tool_names,
-            intent_kind=clone.kind,
-            allowed_tool_names=list(clone.allowed_tool_names or []),
-            preferred_tool_names=list(clone.preferred_tool_names or []),
-            intent_metadata=clone.metadata,
-        )
         completion_signals = set(clone.completion_signals or clone.allowed_tool_names)
         if clone.family == "none" or not clone.requires_tools:
             clone.status = "completed"
@@ -103,17 +102,36 @@ def update_intent_statuses(
 
         if clone.status == "completed":
             cached_result = None
+            result_max_length = intent_recovery_result_max_length(clone)
             if (
                 str(clone.metadata.get("auto_fetch_gate_reason") or "").strip()
                 == "search_no_results_completed"
             ):
-                cached_result = RecoveryResultNormalizer._intent_cached_result(clone)
+                cached_result = RecoveryResultNormalizer._intent_cached_result(
+                    clone,
+                    max_length=result_max_length,
+                )
             if not cached_result:
                 cached_result = intent_result_from_tool_results(clone, tool_results)
             if not cached_result:
-                cached_result = RecoveryResultNormalizer._intent_cached_result(clone)
+                cached_result = RecoveryResultNormalizer._intent_cached_result(
+                    clone,
+                    max_length=result_max_length,
+                )
             if cached_result:
-                RecoveryResultNormalizer._cache_intent_result(clone, cached_result)
+                RecoveryResultNormalizer._cache_intent_result(
+                    clone,
+                    cached_result,
+                    max_length=result_max_length,
+                )
+            elif (
+                str(clone.family or "").strip() == "web_research"
+                and "fetch_url" in set(clone.completed_by_tool_names or [])
+                and not _should_keep_untrusted_completed_web_fallback(clone)
+            ):
+                clone.status = "pending"
+                clone.completed_by_tool_names = []
+                clone.metadata["fetch_url_answer_quality"] = "missing"
         elif clone.status not in {"failed", "skipped"}:
             clone.status = "pending"
             partial_result = intent_result_from_tool_results(clone, tool_results)
