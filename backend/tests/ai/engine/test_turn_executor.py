@@ -1300,6 +1300,117 @@ async def test_turn_executor_promotes_budgeted_web_research_falls_back_to_tool_e
 
 
 @pytest.mark.asyncio
+async def test_turn_executor_recovers_retry_budgeted_web_search_evidence() -> None:
+    """Regression for conversation 2269: successful search evidence must not end partial."""
+    tools = [
+        ToolDefinition(name="web_search", description="Search"),
+        ToolDefinition(name="fetch_url", description="Fetch"),
+    ]
+    intents = [
+        _build_intent(
+            intent_id="intent-web",
+            kind="web_research",
+            family="web_research",
+            allowed_tool_names=["web_search", "fetch_url"],
+        )
+    ]
+    prep = _build_prep(
+        tools=tools,
+        intents=intents,
+        tool_use_policy=ToolUsePolicy(
+            family="web_research",
+            mode="required",
+            allowed_tool_names=["web_search", "fetch_url"],
+            retry_on_contract_breach=False,
+            reason="native_web_search_first:web_research",
+        ),
+    )
+    state = ExecutionStateMachine.from_prepared_execution(prep)
+    io = _FakeIOAdapter(
+        model_rounds=[
+            _assistant_response(
+                "",
+                tool_calls=[
+                    {
+                        "id": "call_search",
+                        "type": "function",
+                        "function": {
+                            "name": "web_search",
+                            "arguments": '{"query":"2025 大模型 token 使用排行","max_results":5}',
+                        },
+                    }
+                ],
+            )
+        ],
+        tool_batch=ToolBatchResult(
+            response=ChatResponse(
+                message=ChatMessage(role="assistant", content=""),
+                total_tokens=8,
+                output_tokens=8,
+            ),
+            tool_results=[
+                ToolResult(
+                    tool_call_id="call_search",
+                    name="web_search",
+                    success=True,
+                    output="搜索结果：Token Usage Ranking 2025，LLM Token Analytics 2025。",
+                    summary="Token Usage Ranking 2025；LLM Token Analytics 2025",
+                    summary_payload={
+                        "query": "2025 大模型 token 使用排行",
+                        "result_count": 2,
+                        "items": [
+                            {
+                                "title": "Token Usage Ranking 2025",
+                                "url": "https://example.com/token-ranking-2025",
+                                "snippet": "2025 large model token usage ranking.",
+                            },
+                            {
+                                "title": "LLM Token Analytics 2025",
+                                "url": "https://example.com/llm-token-analytics-2025",
+                                "snippet": "2025 LLM token analytics and usage.",
+                            },
+                        ],
+                    },
+                )
+            ],
+            total_tokens=8,
+            completion_tokens_used=8,
+        ),
+    )
+
+    with patch(
+        "app.ai.engine.turn_executor.RecoveryManager.decide",
+        return_value=RecoveryDecision(
+            action="return_partial",
+            target_intent_id="intent-web",
+            reason="retry_budget_exhausted",
+            provider_failure_kind="none",
+        ),
+    ):
+        result = await TurnExecutor.run(
+            state=state,
+            io=io,
+            prep=prep,
+            request=SimpleNamespace(input_variables={}, conversation_id=2269),
+            agent=SimpleNamespace(id=1),
+        )
+
+    assert result.partial is False
+    assert result.completion_reason == "completed"
+    assert result.final_output_source == "recovery_evidence"
+    assert "Token Usage Ranking 2025" in result.output
+    assert state.intent_plan[0].status == "completed"
+    assert state.intent_plan[0].completed_by_tool_names == ["web_search"]
+    assert state.preparation_diagnostics["final_output_source"] == "recovery_evidence"
+    assert (
+        state.preparation_diagnostics["partial_exit_recovered_from_tool_evidence"]
+        is True
+    )
+    assert state.provider_failure_kind == "none"
+    assert not io.finalize_calls
+
+
+@pytest.mark.asyncio
 async def test_turn_executor_replaces_budgeted_fetch_preview_with_tool_evidence() -> (
     None
 ):

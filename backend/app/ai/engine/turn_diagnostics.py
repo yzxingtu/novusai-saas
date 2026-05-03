@@ -100,7 +100,9 @@ class TurnDiagnostics:
         preparation_diagnostics: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         prep_diagnostics = TurnDiagnostics._as_dict(preparation_diagnostics)
-        explicit_decision = TurnDiagnostics._as_dict(prep_diagnostics.get("path_decision"))
+        explicit_decision = TurnDiagnostics._as_dict(
+            prep_diagnostics.get("path_decision")
+        )
         intent_count = len(intents)
         all_shortcircuit = bool(intents) and all(
             bool(getattr(intent, "shortcircuit", False)) for intent in intents
@@ -318,6 +320,18 @@ class TurnDiagnostics:
         auto_fetch_gate_reason = TurnDiagnostics._as_text(
             prep_diagnostics.get("auto_fetch_gate_reason")
         )
+        provider_failure_recovered_from_tool_evidence = TurnDiagnostics._as_bool(
+            prep_diagnostics.get("provider_failure_recovered_from_tool_evidence"),
+            False,
+        )
+        recovered_provider_failure_kind = TurnDiagnostics._as_text(
+            prep_diagnostics.get("recovered_provider_failure_kind")
+        )
+        recovered_provider_events = (
+            list(prep_diagnostics.get("recovered_provider_events") or [])
+            if isinstance(prep_diagnostics.get("recovered_provider_events"), list)
+            else []
+        )
         assistant_claimed_tool_call_without_tool_event = TurnDiagnostics._as_bool(
             prep_diagnostics.get("assistant_claimed_tool_call_without_tool_event"),
             False,
@@ -394,6 +408,11 @@ class TurnDiagnostics:
             "failures": {
                 "failure_kind": provider_failure_kind,
                 "provider_events": list(provider_events),
+                "provider_failure_recovered_from_tool_evidence": (
+                    provider_failure_recovered_from_tool_evidence
+                ),
+                "recovered_provider_failure_kind": recovered_provider_failure_kind,
+                "recovered_provider_events": recovered_provider_events,
             },
             "retry_events": retry_events,
             "partial_exit_reason": partial_exit_reason,
@@ -404,6 +423,11 @@ class TurnDiagnostics:
             "final_output_source": final_output_source,
             "post_tool_completion_state": post_tool_completion_state,
             "auto_fetch_gate_reason": auto_fetch_gate_reason,
+            "provider_failure_recovered_from_tool_evidence": (
+                provider_failure_recovered_from_tool_evidence
+            ),
+            "recovered_provider_failure_kind": recovered_provider_failure_kind,
+            "recovered_provider_events": recovered_provider_events,
             "assistant_claimed_tool_call_without_tool_event": (
                 assistant_claimed_tool_call_without_tool_event
             ),

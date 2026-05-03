@@ -8,7 +8,10 @@ from app.ai.types import ChatMessage
 from app.core.i18n import _
 
 from .recovery_result_normalizer import RecoveryResultNormalizer
-from .recovery_tool_result_helpers import intent_result_from_tool_results
+from .recovery_tool_result_helpers import (
+    intent_result_from_tool_results,
+    web_search_result_count,
+)
 from .types import IntentPlan, ProviderFailureKind, RecoveryDecision
 
 _BUDGET_EXIT_REASONS: frozenset[str] = frozenset(
@@ -243,9 +246,9 @@ def build_partial_output(
             or retry_budget_exhausted
         ):
             parts.append(
-                _(
-                    "{unfinished}还需要继续核验，我先把目前能确认的内容给你。"
-                ).format(unfinished=unfinished_summary)
+                _("{unfinished}还需要继续核验，我先把目前能确认的内容给你。").format(
+                    unfinished=unfinished_summary
+                )
             )
         elif is_terminal_failure_kind(provider_failure_kind):
             parts.append(
@@ -293,6 +296,72 @@ def has_completed_output_evidence(
         intent_results=intent_results,
     )
     return bool(completed_results)
+
+
+def _is_recoverable_web_search_intent(intent: IntentPlan) -> bool:
+    if intent.status == "completed":
+        return False
+    if str(intent.family or "").strip() != "web_research":
+        return False
+    metadata = dict(intent.metadata or {})
+    gate_reason = str(metadata.get("auto_fetch_gate_reason") or "").strip()
+    return gate_reason not in {
+        "search_not_successful",
+        "search_no_results_completed",
+        "candidate_urls_exhausted",
+    }
+
+
+def recover_web_search_output_from_evidence(
+    intents: list[IntentPlan],
+    *,
+    tool_results: list[ToolResult] | None = None,
+    reason: str = "provider_failure_recovery",
+) -> tuple[list[IntentPlan], str]:
+    """Complete pending web-research intents from successful search evidence.
+
+    This is intentionally narrower than ordinary partial-output rendering: it
+    trusts only successful web_search tool results with at least one persisted
+    result, and only when every unfinished intent can be recovered that way.
+    """
+
+    if (web_search_result_count(tool_results) or 0) <= 0:
+        return list(intents), ""
+
+    recovered_any = False
+    recovered_intents: list[IntentPlan] = []
+    for intent in intents:
+        clone = IntentPlan(**intent.to_dict())
+        if clone.status == "completed":
+            recovered_intents.append(clone)
+            continue
+        if not _is_recoverable_web_search_intent(clone):
+            return list(intents), ""
+
+        probe = IntentPlan(**clone.to_dict())
+        probe.completed_by_tool_names = ["web_search"]
+        recovered_result = intent_result_from_tool_results(probe, tool_results)
+        if not recovered_result:
+            return list(intents), ""
+
+        clone.status = "completed"
+        clone.completed_by_tool_names = ["web_search"]
+        clone.cached_result = recovered_result
+        clone.metadata = dict(clone.metadata or {})
+        clone.metadata["cached_result"] = recovered_result
+        clone.metadata["provider_failure_recovered_from"] = "web_search"
+        recovered_intents.append(clone)
+        recovered_any = True
+
+    if not recovered_any:
+        return list(intents), ""
+
+    output = build_completed_output(
+        recovered_intents,
+        tool_results=tool_results,
+        reason=reason,
+    )
+    return recovered_intents, str(output or "").strip()
 
 
 def build_completed_output(
@@ -366,4 +435,5 @@ __all__ = [
     "has_completed_output_evidence",
     "is_budget_exit_reason",
     "is_terminal_failure_kind",
+    "recover_web_search_output_from_evidence",
 ]

@@ -18,7 +18,9 @@ from app.ai.engine.types import ExecutionRequest, PreparedExecution
 from app.ai.tools.types import ToolDefinition
 from app.ai.types import ChatMessage, ChatResponse
 
-conversation_entrypoints_module = import_module("app.ai.engine.conversation_entrypoints")
+conversation_entrypoints_module = import_module(
+    "app.ai.engine.conversation_entrypoints"
+)
 conversation_result_projector_module = import_module(
     "app.ai.engine.conversation_result_projector"
 )
@@ -32,9 +34,7 @@ class _TurnRecordData:
 
 
 def test_coerce_turn_record_payload_supports_dataclass() -> None:
-    payload = coerce_turn_record_payload(
-        _TurnRecordData(metadata={"seed": "value"})
-    )
+    payload = coerce_turn_record_payload(_TurnRecordData(metadata={"seed": "value"}))
 
     assert payload["turn_outcome"] == "success"
     assert payload["termination_reason"] == "completed"
@@ -61,7 +61,9 @@ def test_build_turn_projection_preserves_success_turn_metadata() -> None:
     assert projection.turn_record["termination_reason"] == "completed"
     assert projection.turn_record["conversation_outcome"] == "success"
     assert projection.turn_record["metadata"]["seed"] == "value"
-    assert projection.turn_record["metadata"]["turn_diagnostics"] == projection.diagnostics
+    assert (
+        projection.turn_record["metadata"]["turn_diagnostics"] == projection.diagnostics
+    )
 
 
 def test_build_turn_projection_marks_partial_exit_from_completion_reason() -> None:
@@ -122,7 +124,9 @@ def test_build_execution_result_uses_projection_and_runtime_model_info() -> None
     assert result.diagnostics["final_output_source"] == "assistant"
 
 
-def test_build_execution_result_accepts_explicit_diagnostics_without_projection() -> None:
+def test_build_execution_result_accepts_explicit_diagnostics_without_projection() -> (
+    None
+):
     result = build_execution_result(
         success=False,
         output="",
@@ -237,6 +241,37 @@ def test_build_execution_result_keeps_recovery_evidence_output_for_turn_flow(
     )
 
 
+def test_build_turn_projection_forces_success_over_stale_runtime_failure() -> None:
+    projection = build_turn_projection(
+        raw_turn_record={
+            "turn_outcome": "failed",
+            "termination_reason": "elapsed_budget_exceeded",
+            "failure_kind": "provider_gateway_error",
+        },
+        diagnostics_payload={
+            "final_output_source": "recovery_evidence",
+            "intent_plan": [
+                {
+                    "intent_id": "intent-1",
+                    "status": "completed",
+                    "completed_by_tool_names": ["fetch_url"],
+                }
+            ],
+            "unfinished_intents": [],
+        },
+        execution_path="normal",
+        completion_reason="completed",
+        partial=False,
+        final_output_source="recovery_evidence",
+        default_turn_outcome="success",
+        force_completion_reason_in_turn_record=True,
+    )
+
+    assert projection.turn_record["turn_outcome"] == "success"
+    assert projection.turn_record["termination_reason"] == "completed"
+    assert projection.turn_record["final_output_source"] == "recovery_evidence"
+
+
 def test_build_untrusted_final_output_fallback_returns_safe_text() -> None:
     fallback = build_untrusted_final_output_fallback(
         auto_fetch_gate_reason="search_not_successful"
@@ -254,8 +289,12 @@ def test_build_untrusted_final_output_fallback_returns_safe_text() -> None:
 
 
 @pytest.mark.asyncio
-async def test_conversation_engine_execute_projects_turn_result_with_shared_helper() -> None:
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+async def test_conversation_engine_execute_projects_turn_result_with_shared_helper() -> (
+    None
+):
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
     prep = PreparedExecution(
         messages=[ChatMessage(role="user", content="hello")],
         tools=[ToolDefinition(name="web_search", description="Search the web")],

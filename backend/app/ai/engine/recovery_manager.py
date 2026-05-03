@@ -28,6 +28,7 @@ from .recovery_prompt_builders import (
     build_partial_response_prompt,
     build_recovery_message,
     has_completed_output_evidence,
+    recover_web_search_output_from_evidence,
 )
 from .recovery_status_update import update_intent_statuses
 from .recovery_tool_result_helpers import should_replace_budgeted_web_research_response
@@ -63,6 +64,9 @@ class RecoveryManager:
     build_partial_output = staticmethod(build_partial_output)
     has_completed_output_evidence = staticmethod(has_completed_output_evidence)
     build_completed_output = staticmethod(build_completed_output)
+    recover_web_search_output_from_evidence = staticmethod(
+        recover_web_search_output_from_evidence
+    )
     build_partial_response_prompt = staticmethod(build_partial_response_prompt)
 
     _pending_consent_payload_from_tool_calls = staticmethod(

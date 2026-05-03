@@ -239,6 +239,15 @@ class ConversationQueryEngine:
         return is_retryable(error)
 
     @staticmethod
+    def _can_synthesize_after_blocked_builtin_web_research_fallback(
+        block_reason: str | None,
+    ) -> bool:
+        return str(block_reason or "").strip() in {
+            "provider_timeout",
+            "provider_connection_error",
+        }
+
+    @staticmethod
     def _last_user_query(messages: list[ChatMessage]) -> str:
         for message in reversed(messages or []):
             if str(getattr(message, "role", "") or "").strip() != "user":
@@ -589,6 +598,19 @@ class ConversationQueryEngine:
                         reason=self._hosted_web_search_unavailable_reason(block_reason),
                     ):
                         continue
+                    if self._can_synthesize_after_blocked_builtin_web_research_fallback(
+                        block_reason
+                    ):
+                        fallback_response = (
+                            self._synthetic_builtin_web_research_fallback_response(
+                                session=session,
+                                command=attempt_command,
+                                messages=messages,
+                                error=exc,
+                            )
+                        )
+                        if fallback_response is not None:
+                            return session.finalize_chat_success(fallback_response)
                     session.mark_failed(block_reason=block_reason)
                     raise
                 if session.append_fallback(
@@ -760,6 +782,23 @@ class ConversationQueryEngine:
                         reason=self._hosted_web_search_unavailable_reason(block_reason),
                     ):
                         continue
+                    if self._can_synthesize_after_blocked_builtin_web_research_fallback(
+                        block_reason
+                    ):
+                        fallback_chunk = (
+                            self._synthetic_builtin_web_research_fallback_chunk(
+                                session=session,
+                                command=attempt_command,
+                                messages=messages,
+                                error=stream_exc.cause,
+                            )
+                        )
+                        if fallback_chunk is not None:
+                            session.finalize_stream_success(
+                                emitted_chunk_count=emitted_chunk_count + 1
+                            )
+                            yield self._attach_turn_record(fallback_chunk, protocol)
+                            return
                     session.mark_failed(block_reason=block_reason)
                     raise stream_exc.cause from stream_exc
                 if session.append_fallback(

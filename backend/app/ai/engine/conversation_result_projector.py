@@ -32,6 +32,9 @@ _TURN_DIAGNOSTIC_KEYS = (
     "final_output_source",
     "post_tool_completion_state",
     "auto_fetch_gate_reason",
+    "provider_failure_recovered_from_tool_evidence",
+    "recovered_provider_failure_kind",
+    "recovered_provider_events",
     "turn_flow",
 )
 
@@ -98,6 +101,12 @@ def build_turn_projection(
         turn_record_payload["partial_exit_reason"] = (
             partial_exit_reason or completion_reason
         )
+    elif force_completion_reason_in_turn_record and default_turn_outcome:
+        turn_record_payload["turn_outcome"] = default_turn_outcome
+        if completion_reason:
+            turn_record_payload["termination_reason"] = completion_reason
+        if partial_exit_reason:
+            turn_record_payload["partial_exit_reason"] = partial_exit_reason
     else:
         if raw_turn_outcome:
             turn_record_payload["turn_outcome"] = raw_turn_outcome
@@ -172,15 +181,20 @@ def build_execution_result(
         else None
     )
     existing_turn_flow = diagnostics_payload.get("turn_flow")
-    if not isinstance(existing_turn_flow, dict) and isinstance(turn_record_payload, dict):
+    if not isinstance(existing_turn_flow, dict) and isinstance(
+        turn_record_payload, dict
+    ):
         existing_turn_flow = turn_record_payload.get("turn_flow")
 
     if not isinstance(existing_turn_flow, dict):
-        resolved_final_output_source = str(
-            diagnostics_payload.get("final_output_source")
-            or (turn_record_payload or {}).get("final_output_source")
-            or ""
-        ).strip() or None
+        resolved_final_output_source = (
+            str(
+                diagnostics_payload.get("final_output_source")
+                or (turn_record_payload or {}).get("final_output_source")
+                or ""
+            ).strip()
+            or None
+        )
         turn_flow_output = (
             str(output or "")
             if is_trusted_assistant_final_output_source(resolved_final_output_source)
@@ -201,7 +215,9 @@ def build_execution_result(
             turn_record_payload["turn_flow"] = projected_turn_flow
             turn_record_metadata = dict(turn_record_payload.get("metadata") or {})
             turn_record_metadata["turn_flow"] = projected_turn_flow
-            orchestration_payload = dict(turn_record_metadata.get("orchestration") or {})
+            orchestration_payload = dict(
+                turn_record_metadata.get("orchestration") or {}
+            )
             orchestration_payload["turn_flow"] = projected_turn_flow
             turn_record_metadata["orchestration"] = orchestration_payload
             turn_record_metadata["turn_diagnostics"] = dict(orchestration_payload)

@@ -195,11 +195,76 @@ def build_sync_exception_result(
                 )
             )
 
+    recovered_from_provider_failure = False
+    recovered_provider_failure_kind = ""
+    recovered_provider_events: list[dict[str, Any]] = []
+    if state is not None:
+        recovered_provider_failure_kind = str(state.provider_failure_kind or "").strip()
+        recovered_provider_events = list(state.provider_events or [])
+        recovered_intents, recovered_output = (
+            RecoveryManager.recover_web_search_output_from_evidence(
+                list(state.intent_plan or []),
+                tool_results=tool_results,
+            )
+        )
+        if recovered_output:
+            recovered_from_provider_failure = True
+            partial_output = recovered_output
+            state.intent_plan = recovered_intents
+            state.preparation_diagnostics.update(
+                {
+                    "final_output_source": "recovery_evidence",
+                    "provider_failure_recovered_from_tool_evidence": True,
+                    "recovered_provider_failure_kind": recovered_provider_failure_kind,
+                    "recovered_provider_events": recovered_provider_events,
+                }
+            )
+            state.provider_failure_kind = "none"
+            state.provider_events = []
+            state.transition("completed")
+            diagnostics_payload = state.build_diagnostics_payload()
+
+    if (
+        state is not None
+        and not partial_output
+        and RecoveryManager.has_completed_output_evidence(
+            list(state.intent_plan or []),
+            tool_results=tool_results,
+        )
+    ):
+        partial_output = str(
+            RecoveryManager.build_completed_output(
+                list(state.intent_plan or []),
+                tool_results=tool_results,
+                reason="provider_failure_recovery",
+            )
+            or ""
+        ).strip()
+
     final_output_source = _resolve_exception_final_output_source(
         partial_output=partial_output,
         state=state,
         tool_results=tool_results,
     )
+    if recovered_from_provider_failure:
+        final_output_source = "recovery_evidence"
+    elif (
+        state is not None
+        and final_output_source == "recovery_evidence"
+        and partial_output
+    ):
+        recovered_from_provider_failure = True
+        state.preparation_diagnostics.update(
+            {
+                "provider_failure_recovered_from_tool_evidence": True,
+                "recovered_provider_failure_kind": recovered_provider_failure_kind,
+                "recovered_provider_events": recovered_provider_events,
+            }
+        )
+        state.provider_failure_kind = "none"
+        state.provider_events = []
+        state.transition("completed")
+        diagnostics_payload = state.build_diagnostics_payload()
     surfaced_output = (
         partial_output
         if (
@@ -217,15 +282,17 @@ def build_sync_exception_result(
     turn_projection = build_turn_projection(
         raw_turn_record=None,
         diagnostics_payload=diagnostics_payload or {},
-        execution_path=(
-            prep.execution_path if prep is not None else None
+        execution_path=(prep.execution_path if prep is not None else None),
+        completion_reason=(
+            "completed" if recovered_from_provider_failure else completion_reason
         ),
-        completion_reason=completion_reason,
-        partial=bool(partial_output),
+        partial=bool(partial_output) and not recovered_from_provider_failure,
         final_output_source=final_output_source,
+        default_turn_outcome="success" if recovered_from_provider_failure else None,
+        force_completion_reason_in_turn_record=recovered_from_provider_failure,
     )
     return build_execution_result(
-        success=False,
+        success=recovered_from_provider_failure,
         output=surfaced_output,
         messages=(messages_to_dicts(messages) if messages else []),
         tool_results=tool_results,
@@ -233,30 +300,28 @@ def build_sync_exception_result(
         duration_ms=duration_ms,
         conversation_id=request.conversation_id,
         runtime_model_info=None,
-        error=resolve_public_error_message(
-            exc,
-            fallback_message=_("common.server_error"),
+        error=(
+            ""
+            if recovered_from_provider_failure
+            else resolve_public_error_message(
+                exc,
+                fallback_message=_("common.server_error"),
+            )
         ),
-        partial=bool(partial_output),
-        completion_reason=completion_reason,
-        rag_sources=(
-            prep.rag_sources if prep is not None else None
+        partial=bool(partial_output) and not recovered_from_provider_failure,
+        completion_reason=(
+            "completed" if recovered_from_provider_failure else completion_reason
         ),
-        rag_source_kinds=(
-            prep.rag_source_kinds if prep is not None else []
-        ),
+        rag_sources=(prep.rag_sources if prep is not None else None),
+        rag_source_kinds=(prep.rag_source_kinds if prep is not None else []),
         context_compacted=bool(getattr(prep, "context_compacted", False)),
-        memory_flush_triggered=bool(
-            getattr(prep, "memory_flush_triggered", False)
-        ),
+        memory_flush_triggered=bool(getattr(prep, "memory_flush_triggered", False)),
         memory_recalled=bool(getattr(prep, "memory_recalled", False)),
         prune_stats=getattr(prep, "prune_stats", None),
         tool_planner=getattr(prep, "tool_planner", None),
         turn_projection=turn_projection,
         intent_plan=list(state.intent_plan) if state is not None else [],
-        execution_path=(
-            prep.execution_path if prep is not None else None
-        ),
+        execution_path=(prep.execution_path if prep is not None else None),
         execution_budget=(
             state.budget.snapshot()
             if state is not None and state.budget is not None
@@ -266,8 +331,10 @@ def build_sync_exception_result(
             decision_item.to_dict()
             for decision_item in (state.recovery_history if state else [])
         ],
-        provider_failure_kind=kind,
-        provider_events=[event] if event else [],
+        provider_failure_kind="none" if recovered_from_provider_failure else kind,
+        provider_events=[]
+        if recovered_from_provider_failure
+        else ([event] if event else []),
     )
 
 

@@ -191,3 +191,82 @@ def test_resolve_failure_projection_keeps_budget_exit_blocking_without_trusted_f
     assert projection["termination_reason"] == "elapsed_budget_exceeded"
     assert projection["failure_kind"] == "elapsed_budget_exceeded"
     assert projection["blocks_success_shortcut"] is True
+
+
+def test_resolve_failure_projection_trusts_recovery_evidence_over_stale_budget_failure() -> (
+    None
+):
+    projection = resolve_failure_projection(
+        diagnostics={
+            "turn_outcome": "failed",
+            "conversation_outcome": "failed",
+            "termination_reason": "elapsed_budget_exceeded",
+            "failure_kind": "provider_gateway_error",
+            "budget": {
+                "status": "exited",
+                "exit_reason": "elapsed_budget_exceeded",
+            },
+            "budget_exit_reason": "elapsed_budget_exceeded",
+            "final_output_source": "recovery_evidence",
+            "intent_plan": [
+                {
+                    "intent_id": "intent-1",
+                    "status": "completed",
+                    "completed_by_tool_names": ["fetch_url"],
+                }
+            ],
+            "unfinished_intents": [],
+        },
+        turn_flow={
+            "timeline": [
+                {
+                    "id": "failed",
+                    "type": "failed",
+                    "status": "error",
+                }
+            ],
+            "completion_reason": "elapsed_budget_exceeded",
+            "error_surface": {"failure_kind": "provider_gateway_error"},
+        },
+    )
+
+    assert projection["turn_outcome"] == "success"
+    assert projection["conversation_outcome"] == "success"
+    assert projection["termination_reason"] == "completed"
+    assert projection["failure_kind"] is None
+    assert projection["budget_exit_reason"] == "elapsed_budget_exceeded"
+    assert projection["blocks_success_shortcut"] is False
+
+
+def test_resolve_failure_projection_treats_recovered_protocol_fallback_as_success() -> (
+    None
+):
+    projection = resolve_failure_projection(
+        diagnostics={
+            "turn_outcome": "success",
+            "conversation_outcome": "success",
+            "termination_reason": "protocol_fallback",
+            "failure_kind": "provider_timeout",
+            "provider_events": [
+                {
+                    "kind": "web_search_in_progress",
+                    "protocol_path": "responses",
+                }
+            ],
+            "fallback_history": [
+                {
+                    "from_protocol": "responses",
+                    "to_protocol": "responses",
+                    "reason": "hosted_web_search_unavailable:provider_timeout",
+                    "recovered": True,
+                }
+            ],
+        },
+        turn_flow=None,
+    )
+
+    assert projection["turn_outcome"] == "success"
+    assert projection["conversation_outcome"] == "success"
+    assert projection["termination_reason"] == "protocol_fallback"
+    assert projection["failure_kind"] is None
+    assert projection["blocks_success_shortcut"] is False

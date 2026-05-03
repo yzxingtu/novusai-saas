@@ -893,11 +893,89 @@ async def _build_stream_exception_artifacts(
 
     partial_output = str(partial_output or "").strip()
     state = getattr(handler, "_state", None)
-    final_output_source = _resolve_exception_final_output_source(
-        partial_output=partial_output,
-        state=state,
-        tool_results=recovered_tool_results,
+    recovered_from_provider_failure = False
+    recovered_provider_failure_kind = ""
+    recovered_provider_events: list[Any] = []
+    if state is not None:
+        recovered_provider_failure_kind = str(
+            getattr(state, "provider_failure_kind", "") or ""
+        ).strip()
+        recovered_provider_events = list(getattr(state, "provider_events", []) or [])
+        recovered_intents, recovered_output = (
+            RecoveryManager.recover_web_search_output_from_evidence(
+                list(getattr(state, "intent_plan", []) or []),
+                tool_results=recovered_tool_results,
+            )
+        )
+        if recovered_output:
+            recovered_from_provider_failure = True
+            partial_output = recovered_output
+            state.intent_plan = recovered_intents
+            state.preparation_diagnostics = dict(
+                getattr(state, "preparation_diagnostics", {}) or {}
+            )
+            state.preparation_diagnostics.update(
+                {
+                    "final_output_source": "recovery_evidence",
+                    "provider_failure_recovered_from_tool_evidence": True,
+                    "recovered_provider_failure_kind": recovered_provider_failure_kind,
+                    "recovered_provider_events": recovered_provider_events,
+                }
+            )
+            state.provider_failure_kind = "none"
+            state.provider_events = []
+            transition = getattr(state, "transition", None)
+            if callable(transition):
+                transition("completed")
+
+    if (
+        state is not None
+        and not partial_output
+        and RecoveryManager.has_completed_output_evidence(
+            list(getattr(state, "intent_plan", []) or []),
+            tool_results=recovered_tool_results,
+        )
+    ):
+        partial_output = str(
+            RecoveryManager.build_completed_output(
+                list(getattr(state, "intent_plan", []) or []),
+                tool_results=recovered_tool_results,
+                reason="provider_failure_recovery",
+            )
+            or ""
+        ).strip()
+
+    final_output_source = (
+        "recovery_evidence"
+        if recovered_from_provider_failure
+        else _resolve_exception_final_output_source(
+            partial_output=partial_output,
+            state=state,
+            tool_results=recovered_tool_results,
+        )
     )
+    if (
+        state is not None
+        and not recovered_from_provider_failure
+        and final_output_source == "recovery_evidence"
+        and partial_output
+    ):
+        recovered_from_provider_failure = True
+        state.preparation_diagnostics = dict(
+            getattr(state, "preparation_diagnostics", {}) or {}
+        )
+        state.preparation_diagnostics.update(
+            {
+                "provider_failure_recovered_from_tool_evidence": True,
+                "recovered_provider_failure_kind": recovered_provider_failure_kind,
+                "recovered_provider_events": recovered_provider_events,
+            }
+        )
+        state.provider_failure_kind = "none"
+        state.provider_events = []
+        transition = getattr(state, "transition", None)
+        if callable(transition):
+            transition("completed")
     if state is not None:
         state.preparation_diagnostics["final_output_source"] = final_output_source
     surfaced_output = (
@@ -918,6 +996,9 @@ async def _build_stream_exception_artifacts(
             reasoning_output=view.reasoning_output,
         )
 
+    terminal_completion_reason = (
+        "completed" if recovered_from_provider_failure else completion_reason
+    )
     failed_result = build_terminal_result(
         handler,
         messages=messages,
@@ -926,10 +1007,16 @@ async def _build_stream_exception_artifacts(
         total_tokens=partial_tokens,
         tool_results=recovered_tool_results,
         duration_ms=duration_ms,
-        error=resolve_public_error_message(fallback_message=public_error_message),
-        completion_reason=completion_reason,
+        error=(
+            ""
+            if recovered_from_provider_failure
+            else resolve_public_error_message(fallback_message=public_error_message)
+        ),
+        completion_reason=terminal_completion_reason,
         interrupted=False,
         include_provider_state=True,
+        success=recovered_from_provider_failure,
+        partial=not recovered_from_provider_failure,
     )
     diagnostics_payload = dict(failed_result.diagnostics or {})
     turn_record = dict(failed_result.turn_record or {})

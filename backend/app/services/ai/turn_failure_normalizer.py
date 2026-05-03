@@ -130,6 +130,16 @@ def _is_nonblocking_success_failure_kind(value: Any) -> bool:
     )
 
 
+def _has_recovered_protocol_fallback(value: Any) -> bool:
+    if not isinstance(value, list):
+        return False
+    for item in value:
+        payload = _as_dict(item)
+        if bool(payload.get("recovered")):
+            return True
+    return False
+
+
 def _infer_provider_error_kind_from_message(error_message: Any) -> str | None:
     lowered = (_as_text(error_message) or "").lower()
     if not lowered:
@@ -305,12 +315,23 @@ def _is_authoritative_completed_success(
     unfinished_intents: Any = None,
     assistant_claimed_tool_call_without_tool_event: Any = None,
 ) -> bool:
+    output_source = _as_text(final_output_source)
+    no_unfinished_intents = not (
+        isinstance(unfinished_intents, list) and unfinished_intents
+    ) and not _as_text(unfinished_intents)
+    if (
+        output_source
+        and output_source.lower() == "recovery_evidence"
+        and no_unfinished_intents
+        and not _as_text(contract_breach_type)
+        and not bool(assistant_claimed_tool_call_without_tool_event)
+    ):
+        return True
     if explicit_turn_outcome != "success":
         return False
     normalized_reason = (_as_text(termination_reason) or "").strip().lower()
     if normalized_reason not in _COMPLETED_TERMINATION_REASONS:
         return False
-    output_source = _as_text(final_output_source)
     if output_source and not is_trusted_final_output_source(output_source):
         return False
     if not output_source and (
@@ -575,6 +596,14 @@ def resolve_failure_projection(
         or _as_dict(payload.get("budget")).get("exit_reason")
     )
     final_output_source = _as_text(payload.get("final_output_source"))
+    recovery_evidence_success = bool(
+        final_output_source and final_output_source.lower() == "recovery_evidence"
+    )
+    recovered_protocol_success = bool(
+        explicit_turn_outcome == "success"
+        and str(termination_reason or "").strip().lower() == "protocol_fallback"
+        and _has_recovered_protocol_fallback(payload.get("fallback_history"))
+    )
     contract_breach_type = _as_text(payload.get("contract_breach_type"))
     authoritative_completed_success = _is_authoritative_completed_success(
         explicit_turn_outcome=explicit_turn_outcome,
@@ -587,6 +616,9 @@ def resolve_failure_projection(
         assistant_claimed_tool_call_without_tool_event=payload.get(
             "assistant_claimed_tool_call_without_tool_event"
         ),
+    )
+    authoritative_completed_success = bool(
+        authoritative_completed_success or recovered_protocol_success
     )
 
     turn_flow_completion_reason = _as_text(turn_flow_payload.get("completion_reason"))
@@ -613,10 +645,16 @@ def resolve_failure_projection(
         turn_flow_failure_kind = failure_kind or infer_failure_kind_from_diagnostics(
             turn_flow_error_surface
         )
-        if authoritative_completed_success and _is_nonblocking_success_failure_kind(
-            turn_flow_failure_kind
+        if authoritative_completed_success and (
+            recovery_evidence_success
+            or recovered_protocol_success
+            or _is_nonblocking_success_failure_kind(turn_flow_failure_kind)
         ):
-            turn_outcome = explicit_turn_outcome or "success"
+            turn_outcome = (
+                "success"
+                if recovery_evidence_success or recovered_protocol_success
+                else explicit_turn_outcome or "success"
+            )
         elif not preserve_partial_after_failed_conversation:
             turn_outcome = "failed"
         failure_kind = turn_flow_failure_kind
@@ -626,10 +664,18 @@ def resolve_failure_projection(
     elif turn_flow_terminal_stage_status == "completed" and not turn_outcome:
         turn_outcome = "success"
 
-    if authoritative_completed_success and _is_nonblocking_success_failure_kind(
-        failure_kind
+    if authoritative_completed_success and (
+        recovery_evidence_success
+        or recovered_protocol_success
+        or _is_nonblocking_success_failure_kind(failure_kind)
     ):
-        turn_outcome = explicit_turn_outcome or "success"
+        turn_outcome = (
+            "success"
+            if recovery_evidence_success or recovered_protocol_success
+            else explicit_turn_outcome or "success"
+        )
+        if recovery_evidence_success:
+            termination_reason = "completed"
     else:
         termination_reason = (
             normalize_failure_termination_reason(
@@ -657,8 +703,10 @@ def resolve_failure_projection(
     non_trusted_final_output_source = bool(
         final_output_source and not is_trusted_final_output_source(final_output_source)
     )
-    if authoritative_completed_success and _is_nonblocking_success_failure_kind(
-        failure_kind
+    if authoritative_completed_success and (
+        recovery_evidence_success
+        or recovered_protocol_success
+        or _is_nonblocking_success_failure_kind(failure_kind)
     ):
         failure_kind = None
     if (

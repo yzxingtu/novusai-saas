@@ -27,7 +27,9 @@ if "app.ai.engine" not in sys.modules:
 
 stream_generation_pipeline = import_module("app.ai.engine.stream_generation_pipeline")
 stream_generation_view = import_module("app.ai.engine.stream_generation_view")
-stream_finalization_pipeline = import_module("app.ai.engine.stream_finalization_pipeline")
+stream_finalization_pipeline = import_module(
+    "app.ai.engine.stream_finalization_pipeline"
+)
 stream_execution_runtime = import_module("app.ai.engine.stream_execution_runtime")
 conversation_sync_result_support = import_module(
     "app.ai.engine.conversation_sync_result_support"
@@ -40,9 +42,7 @@ _finalize_completed_output = stream_generation_pipeline._finalize_completed_outp
 _resolve_done_turn_outcome = stream_finalization_pipeline.resolve_done_turn_outcome
 build_initial_events = stream_generation_pipeline.build_initial_events
 build_terminal_result = stream_generation_pipeline.build_terminal_result
-build_sync_success_result = (
-    conversation_sync_result_support.build_sync_success_result
-)
+build_sync_success_result = conversation_sync_result_support.build_sync_success_result
 _resolve_stream_exception_completion_reason = (
     stream_execution_runtime._resolve_stream_exception_completion_reason
 )
@@ -130,7 +130,9 @@ def _build_stream_cancel_handler(
     return handler, completion_results, progress_updates
 
 
-def test_resolve_stream_exception_completion_reason_resolves_budget_exit_reason() -> None:
+def test_resolve_stream_exception_completion_reason_resolves_budget_exit_reason() -> (
+    None
+):
     state = SimpleNamespace(
         provider_failure_kind="budget_exit",
         budget_exit_reason=lambda: "elapsed_budget_exceeded",
@@ -170,23 +172,27 @@ def test_resolve_stream_exception_completion_reason_maps_failure_kinds(
 
 
 def test_resolve_stream_exception_completion_reason_defaults_to_stream_error() -> None:
-    assert _resolve_stream_exception_completion_reason(SimpleNamespace(_state=None)) == (
-        "stream_execution_error"
-    )
+    assert _resolve_stream_exception_completion_reason(
+        SimpleNamespace(_state=None)
+    ) == ("stream_execution_error")
 
     state = SimpleNamespace(
         provider_failure_kind="none",
         budget_exit_reason=lambda: "",
     )
     handler = SimpleNamespace(_state=state)
-    assert _resolve_stream_exception_completion_reason(handler) == "stream_execution_error"
+    assert (
+        _resolve_stream_exception_completion_reason(handler) == "stream_execution_error"
+    )
 
 
 def _decode_sse(payload: str) -> dict:
     return json.loads(payload.strip()[6:])
 
 
-def test_build_replay_events_does_not_clear_for_untrusted_tool_evidence_replay() -> None:
+def test_build_replay_events_does_not_clear_for_untrusted_tool_evidence_replay() -> (
+    None
+):
     handler = SimpleNamespace(_visible_stream_content="streamed preview")
 
     events = _build_replay_events(
@@ -258,14 +264,20 @@ def test_reset_stream_state_uses_explicit_generation_view_seam() -> None:
 
 
 def test_resolve_done_turn_outcome_prefers_diagnostics_payload() -> None:
-    assert _resolve_done_turn_outcome(
-        diagnostics_payload={"turn_outcome": "partial"},
-        turn_record={"turn_outcome": "success"},
-    ) == "partial"
-    assert _resolve_done_turn_outcome(
-        diagnostics_payload={},
-        turn_record={"turn_outcome": "success"},
-    ) == "success"
+    assert (
+        _resolve_done_turn_outcome(
+            diagnostics_payload={"turn_outcome": "partial"},
+            turn_record={"turn_outcome": "success"},
+        )
+        == "partial"
+    )
+    assert (
+        _resolve_done_turn_outcome(
+            diagnostics_payload={},
+            turn_record={"turn_outcome": "success"},
+        )
+        == "success"
+    )
 
 
 def test_build_result_turn_record_preserves_non_dict_payload() -> None:
@@ -331,7 +343,9 @@ def test_build_terminal_result_hides_provider_state_when_disabled() -> None:
 
 
 @pytest.mark.asyncio
-async def test_build_stream_exception_artifacts_hides_generated_provider_failure_partial_output() -> None:
+async def test_build_stream_exception_artifacts_hides_generated_provider_failure_partial_output() -> (
+    None
+):
     state = _StateStub({})
     state.provider_failure_kind = "provider_http_5xx"
     state.provider_events = [{"kind": "provider_http_5xx"}]
@@ -390,6 +404,146 @@ async def test_build_stream_exception_artifacts_hides_generated_provider_failure
         artifacts.result.turn_record["turn_flow"]["error_surface"]["error_type"]
         == "untrusted_final_output_source"
     )
+
+
+@pytest.mark.asyncio
+async def test_build_stream_exception_artifacts_recovers_successful_web_search_evidence() -> (
+    None
+):
+    from app.ai.engine.execution_state_machine import ExecutionStateMachine
+    from app.ai.engine.types import IntentPlan, PreparedExecution
+    from app.ai.tools.types import ToolResult
+
+    prep = PreparedExecution(
+        execution_path="normal",
+        intent_plan=[
+            IntentPlan(
+                intent_id="intent-web",
+                kind="web_research",
+                family="web_research",
+                order=1,
+                user_visible_label="大模型 token 排行",
+                source_text="帮我搜索一下2025年大模型使用token排行",
+                status="pending",
+                requires_tools=True,
+                allowed_tool_names=["fetch_url"],
+                completion_signals=["fetch_url"],
+                metadata={"requires_fetch_url": True},
+            )
+        ],
+    )
+    state = ExecutionStateMachine.from_prepared_execution(prep)
+    state.transition("failed")
+    state.register_provider_failure(
+        kind="provider_unavailable",
+        event={"kind": "provider_unavailable", "error": "Connection error."},
+    )
+
+    async def _finalize_partial_output(**_kwargs):
+        return "这次处理被系统中断了，请稍后再试。", 18, 9
+
+    handler = SimpleNamespace(
+        request=SimpleNamespace(conversation_id=2267, input_variables={}),
+        agent=SimpleNamespace(id=59),
+        prep=SimpleNamespace(
+            rag_source_kinds=[],
+            context_compacted=False,
+            memory_flush_triggered=False,
+            memory_recalled=False,
+            prune_stats=None,
+            tool_planner=None,
+            execution_path="normal",
+            stream_runtime=None,
+        ),
+        start_time=0.0,
+        engine=SimpleNamespace(_messages_to_dicts=messages_to_dicts),
+        runtime_contract=SimpleNamespace(
+            finalize_partial_output=_finalize_partial_output,
+        ),
+        _state=state,
+        _runtime_turn_record=None,
+        _runtime_turn_record_source=None,
+        _runtime_turn_record_overlays={},
+        _output="",
+        _reasoning_output="",
+        _total_tokens=0,
+        _completion_tokens_used=0,
+        _visible_stream_content="",
+        _clear_before_next_message=False,
+        _next_runtime_context=None,
+    )
+    messages = [
+        ChatMessage(role="user", content="帮我搜索一下2025年大模型使用token排行")
+    ]
+    tool_results = [
+        ToolResult(
+            tool_call_id="tc-search",
+            name="web_search",
+            success=True,
+            summary="baidu_public: 2 result(s)",
+            summary_payload={
+                "status": "success",
+                "result_count": 2,
+                "items": [
+                    {
+                        "title": "中国企业调用大模型日均超10万亿Tokens",
+                        "url": "https://example.com/top-tokens",
+                    },
+                    {
+                        "title": "阿里千问占比32%位列第一",
+                        "url": "https://example.com/qwen-share",
+                    },
+                ],
+            },
+        )
+    ]
+
+    try:
+        artifacts = await stream_execution_runtime._build_stream_exception_artifacts(
+            handler,
+            messages=messages,
+            rag_sources=None,
+            output="",
+            total_tokens=0,
+            all_tool_results=tool_results,
+            public_error_message="Connection error.",
+            completion_reason="provider_unavailable",
+        )
+    finally:
+        context_token = getattr(state, "_context_token", None)
+        if context_token is not None:
+            from app.ai.engine.execution_state_machine import (
+                reset_current_execution_state_machine,
+            )
+
+            reset_current_execution_state_machine(context_token)
+
+    assert artifacts.result.success is True
+    assert artifacts.result.partial is False
+    assert artifacts.result.error == ""
+    assert artifacts.result.provider_failure_kind == "none"
+    assert artifacts.result.output.startswith("中国企业调用大模型日均超10万亿Tokens")
+    assert "阿里千问占比32%位列第一" in artifacts.result.output
+    assert messages[-1].role == "assistant"
+    assert messages[-1].content == artifacts.result.output
+    assert artifacts.result.turn_record["turn_outcome"] == "success"
+    assert artifacts.result.turn_record["termination_reason"] == "completed"
+    assert artifacts.result.turn_record["final_output_source"] == "recovery_evidence"
+    assert (
+        artifacts.diagnostics_payload["provider_failure_recovered_from_tool_evidence"]
+        is True
+    )
+    assert (
+        artifacts.diagnostics_payload["recovered_provider_failure_kind"]
+        == "provider_unavailable"
+    )
+    assert artifacts.diagnostics_payload["failure_kind"] == "none"
+    assert artifacts.diagnostics_payload["unfinished_intents"] == []
+    assert (
+        artifacts.result.turn_record["turn_flow"]["answer_card"]["summary"]
+        == artifacts.result.output
+    )
+    assert artifacts.replay_events
 
 
 def test_build_sync_exception_result_hides_provider_failure_partial_output(
@@ -461,6 +615,299 @@ def test_build_sync_exception_result_hides_provider_failure_partial_output(
     )
 
 
+def test_build_sync_exception_result_recovers_successful_web_search_evidence() -> None:
+    from app.ai.engine.execution_state_machine import ExecutionStateMachine
+    from app.ai.engine.types import IntentPlan, PreparedExecution
+    from app.ai.exceptions import ProviderConnectionError
+    from app.ai.tools.types import ToolResult
+
+    prep = PreparedExecution(
+        execution_path="normal",
+        intent_plan=[
+            IntentPlan(
+                intent_id="intent-web",
+                kind="web_research",
+                family="web_research",
+                order=1,
+                user_visible_label="大模型 token 排行",
+                source_text="帮我搜索一下2025年大模型使用token排行",
+                status="pending",
+                requires_tools=True,
+                allowed_tool_names=["fetch_url"],
+                completion_signals=["fetch_url"],
+                metadata={"requires_fetch_url": True},
+            )
+        ],
+    )
+    state = ExecutionStateMachine.from_prepared_execution(prep)
+    tool_results = [
+        ToolResult(
+            tool_call_id="tc-search",
+            name="web_search",
+            success=True,
+            summary_payload={
+                "status": "success",
+                "result_count": 2,
+                "items": [
+                    {
+                        "title": "中国企业调用大模型日均超10万亿Tokens",
+                        "url": "https://example.com/top-tokens",
+                    },
+                    {
+                        "title": "阿里千问占比32%位列第一",
+                        "url": "https://example.com/qwen-share",
+                    },
+                ],
+            },
+        )
+    ]
+
+    try:
+        result = conversation_sync_result_support.build_sync_exception_result(
+            exc=ProviderConnectionError("Connection error."),
+            request=SimpleNamespace(conversation_id=2267),
+            messages=[
+                ChatMessage(
+                    role="user", content="帮我搜索一下2025年大模型使用token排行"
+                )
+            ],
+            tool_results=tool_results,
+            state=state,
+            prep=prep,
+            start_time=0.0,
+            messages_to_dicts=messages_to_dicts,
+        )
+    finally:
+        context_token = getattr(state, "_context_token", None)
+        if context_token is not None:
+            from app.ai.engine.execution_state_machine import (
+                reset_current_execution_state_machine,
+            )
+
+            reset_current_execution_state_machine(context_token)
+
+    assert result.success is True
+    assert result.partial is False
+    assert result.error == ""
+    assert result.provider_failure_kind == "none"
+    assert "中国企业调用大模型日均超10万亿Tokens" in result.output
+    assert "阿里千问占比32%位列第一" in result.output
+    assert result.turn_record["turn_outcome"] == "success"
+    assert result.turn_record["termination_reason"] == "completed"
+    assert result.turn_record["final_output_source"] == "recovery_evidence"
+    assert result.diagnostics["provider_failure_recovered_from_tool_evidence"] is True
+    assert result.diagnostics["failure_kind"] == "none"
+    assert result.diagnostics["unfinished_intents"] == []
+
+
+@pytest.mark.asyncio
+async def test_build_stream_exception_artifacts_recovers_completed_fetch_url_evidence() -> (
+    None
+):
+    from app.ai.engine.execution_state_machine import ExecutionStateMachine
+    from app.ai.engine.recovery_manager import RecoveryManager
+    from app.ai.engine.types import IntentPlan, PreparedExecution
+    from app.ai.tools.types import ToolResult
+
+    prep = PreparedExecution(
+        execution_path="normal",
+        intent_plan=[
+            IntentPlan(
+                intent_id="intent-web",
+                kind="web_research",
+                family="web_research",
+                order=1,
+                user_visible_label="大模型 token 排行",
+                source_text="帮我搜索一下2025年大模型使用token排行",
+                status="completed",
+                requires_tools=True,
+                allowed_tool_names=["fetch_url"],
+                completion_signals=["fetch_url"],
+                completed_by_tool_names=["fetch_url"],
+            )
+        ],
+    )
+    state = ExecutionStateMachine.from_prepared_execution(prep)
+    state.transition("failed")
+    state.register_provider_failure(
+        kind="provider_timeout",
+        event={"kind": "provider_timeout", "error": "AI 供应商请求超时"},
+    )
+
+    async def _finalize_partial_output(**kwargs):
+        output = RecoveryManager.build_partial_output(
+            kwargs["state"].intent_plan,
+            tool_results=kwargs["tool_results"],
+            reason="provider_timeout",
+            provider_failure_kind=kwargs["state"].provider_failure_kind,
+        )
+        return output, 18, 9
+
+    handler = SimpleNamespace(
+        request=SimpleNamespace(conversation_id=2268, input_variables={}),
+        agent=SimpleNamespace(id=59),
+        prep=SimpleNamespace(
+            rag_source_kinds=[],
+            context_compacted=False,
+            memory_flush_triggered=False,
+            memory_recalled=False,
+            prune_stats=None,
+            tool_planner=None,
+            execution_path="normal",
+            stream_runtime=None,
+        ),
+        start_time=0.0,
+        engine=SimpleNamespace(_messages_to_dicts=messages_to_dicts),
+        runtime_contract=SimpleNamespace(
+            finalize_partial_output=_finalize_partial_output,
+        ),
+        _state=state,
+        _runtime_turn_record=None,
+        _runtime_turn_record_source=None,
+        _runtime_turn_record_overlays={},
+        _output="",
+        _reasoning_output="",
+        _total_tokens=0,
+        _completion_tokens_used=0,
+        _visible_stream_content="",
+        _clear_before_next_message=False,
+        _next_runtime_context=None,
+    )
+    messages = [
+        ChatMessage(role="user", content="帮我搜索一下2025年大模型使用token排行")
+    ]
+    tool_results = [
+        ToolResult(
+            tool_call_id="tc-fetch",
+            name="fetch_url",
+            success=True,
+            output=(
+                "Content from https://example.com/token-ranking\n"
+                "Title: 2025上半年大模型使用量观察\n"
+                "Description: Gemini系列占据近半市场份额，DeepSeek V3用户留存突出。"
+            ),
+            summary_payload={
+                "fetch_url": True,
+                "ok": True,
+                "title": "2025上半年大模型使用量观察",
+                "description": "Gemini系列占据近半市场份额，DeepSeek V3用户留存突出。",
+                "summary": "Gemini系列占据近半市场份额，DeepSeek V3用户留存突出。",
+            },
+        )
+    ]
+
+    try:
+        artifacts = await stream_execution_runtime._build_stream_exception_artifacts(
+            handler,
+            messages=messages,
+            rag_sources=None,
+            output="",
+            total_tokens=0,
+            all_tool_results=tool_results,
+            public_error_message="AI 供应商请求超时",
+            completion_reason="provider_timeout",
+        )
+    finally:
+        context_token = getattr(state, "_context_token", None)
+        if context_token is not None:
+            from app.ai.engine.execution_state_machine import (
+                reset_current_execution_state_machine,
+            )
+
+            reset_current_execution_state_machine(context_token)
+
+    assert artifacts.result.success is True
+    assert artifacts.result.partial is False
+    assert artifacts.result.provider_failure_kind == "none"
+    assert "Gemini系列占据近半市场份额" in artifacts.result.output
+    assert artifacts.result.turn_record["turn_outcome"] == "success"
+    assert artifacts.result.turn_record["termination_reason"] == "completed"
+    assert artifacts.result.turn_record["final_output_source"] == "recovery_evidence"
+    assert artifacts.diagnostics_payload["failure_kind"] == "none"
+    assert artifacts.diagnostics_payload["unfinished_intents"] == []
+    assert (
+        artifacts.diagnostics_payload["recovered_provider_failure_kind"]
+        == "provider_timeout"
+    )
+    assert artifacts.result.turn_record["turn_flow"]["error_surface"] is None
+
+
+def test_build_sync_exception_result_recovers_completed_fetch_url_evidence() -> None:
+    from app.ai.engine.execution_state_machine import ExecutionStateMachine
+    from app.ai.engine.types import IntentPlan, PreparedExecution
+    from app.ai.exceptions import ProviderTimeoutError
+    from app.ai.tools.types import ToolResult
+
+    prep = PreparedExecution(
+        execution_path="normal",
+        intent_plan=[
+            IntentPlan(
+                intent_id="intent-web",
+                kind="web_research",
+                family="web_research",
+                order=1,
+                user_visible_label="大模型 token 排行",
+                source_text="帮我搜索一下2025年大模型使用token排行",
+                status="completed",
+                requires_tools=True,
+                allowed_tool_names=["fetch_url"],
+                completion_signals=["fetch_url"],
+                completed_by_tool_names=["fetch_url"],
+            )
+        ],
+    )
+    state = ExecutionStateMachine.from_prepared_execution(prep)
+    tool_results = [
+        ToolResult(
+            tool_call_id="tc-fetch",
+            name="fetch_url",
+            success=True,
+            summary_payload={
+                "fetch_url": True,
+                "ok": True,
+                "title": "2025上半年大模型使用量观察",
+                "description": "Gemini系列占据近半市场份额，DeepSeek V3用户留存突出。",
+                "summary": "Gemini系列占据近半市场份额，DeepSeek V3用户留存突出。",
+            },
+        )
+    ]
+
+    try:
+        result = conversation_sync_result_support.build_sync_exception_result(
+            exc=ProviderTimeoutError("AI 供应商请求超时"),
+            request=SimpleNamespace(conversation_id=2268),
+            messages=[
+                ChatMessage(
+                    role="user", content="帮我搜索一下2025年大模型使用token排行"
+                )
+            ],
+            tool_results=tool_results,
+            state=state,
+            prep=prep,
+            start_time=0.0,
+            messages_to_dicts=messages_to_dicts,
+        )
+    finally:
+        context_token = getattr(state, "_context_token", None)
+        if context_token is not None:
+            from app.ai.engine.execution_state_machine import (
+                reset_current_execution_state_machine,
+            )
+
+            reset_current_execution_state_machine(context_token)
+
+    assert result.success is True
+    assert result.partial is False
+    assert result.provider_failure_kind == "none"
+    assert "Gemini系列占据近半市场份额" in result.output
+    assert result.turn_record["turn_outcome"] == "success"
+    assert result.turn_record["termination_reason"] == "completed"
+    assert result.turn_record["final_output_source"] == "recovery_evidence"
+    assert result.diagnostics["failure_kind"] == "none"
+    assert result.diagnostics["unfinished_intents"] == []
+    assert result.diagnostics["recovered_provider_failure_kind"] == "provider_timeout"
+
+
 def test_done_payload_marks_partial_provider_failure_as_error_terminal() -> None:
     state = _StateStub(
         {
@@ -507,7 +954,9 @@ def test_done_payload_marks_partial_provider_failure_as_error_terminal() -> None
         on_complete_extra=None,
     )
 
-    assert done_payload["completion_reason"] == "provider_failure_after_partial_progress"
+    assert (
+        done_payload["completion_reason"] == "provider_failure_after_partial_progress"
+    )
     assert done_payload["turn_flow_complete"] is True
     assert done_payload["final_stage_status"] == "error"
 
@@ -519,9 +968,11 @@ def test_finalize_completed_output_scopes_duplicate_check_to_current_turn() -> N
         should_preserve_streamed_assistant_output=lambda **_kwargs: False,
         reasoning_output="",
         current_turn_has_finalized_output=lambda **kwargs: (
-            kwargs["finalized_output"]
-            == "OK"
-            and any(str(message.content or "").strip() == "OK" for message in kwargs["messages"])
+            kwargs["finalized_output"] == "OK"
+            and any(
+                str(message.content or "").strip() == "OK"
+                for message in kwargs["messages"]
+            )
         ),
         chunk_text_for_streaming=lambda text, _chunk_size=32: [text],
     )
@@ -547,7 +998,9 @@ def test_finalize_completed_output_scopes_duplicate_check_to_current_turn() -> N
     assert output == "OK"
     assert chunks
     assert final_output_source == "assistant"
-    assistant_messages = [message for message in messages if message.role == "assistant"]
+    assistant_messages = [
+        message for message in messages if message.role == "assistant"
+    ]
     assert len(assistant_messages) == 2
     assert assistant_messages[-1].content == "OK"
 
@@ -824,7 +1277,9 @@ def test_finalize_successful_turn_uses_streamed_tool_evidence_when_output_is_emp
     )
 
     assert artifacts.result.output == summary
-    assert artifacts.result.turn_record["final_output_source"] == "tool_evidence_completed"
+    assert (
+        artifacts.result.turn_record["final_output_source"] == "tool_evidence_completed"
+    )
     assert messages[-1].role == "assistant"
     assert messages[-1].content == summary
 
@@ -989,7 +1444,9 @@ def test_finalize_completed_output_preserves_streamed_summary_over_generic_fallb
         turn_start_message_index=0,
         output="这次处理没有成功生成最终答复，请再试一次。",
         response=SimpleNamespace(
-            message=ChatMessage(role="assistant", content="这次处理没有成功生成最终答复，请再试一次。")
+            message=ChatMessage(
+                role="assistant", content="这次处理没有成功生成最终答复，请再试一次。"
+            )
         ),
         tool_results=None,
         action_buttons=None,
@@ -1192,7 +1649,10 @@ def test_finalize_successful_turn_projects_turn_record_and_done_payload() -> Non
 @pytest.mark.parametrize(
     ("timeline", "expected_status"),
     [
-        ([{"id": "completed", "type": "completed", "status": "completed"}], "completed"),
+        (
+            [{"id": "completed", "type": "completed", "status": "completed"}],
+            "completed",
+        ),
         ([{"id": "failed", "type": "failed", "status": "error"}], "error"),
         ([{"id": "failed", "type": "failed", "status": "interrupted"}], "interrupted"),
     ],
@@ -1326,7 +1786,9 @@ def test_hydrate_artifacts_turn_flow_from_canonical_tool_calls_updates_done_payl
         }
     ]
     tool_execution = next(
-        stage for stage in hydrated_flow["timeline"] if stage["type"] == "tool_execution"
+        stage
+        for stage in hydrated_flow["timeline"]
+        if stage["type"] == "tool_execution"
     )
     assert tool_execution["tool_call_ids"] == ["tc_weather_1"]
 
@@ -1480,7 +1942,9 @@ def test_sync_success_result_matches_stream_turn_projection() -> None:
 
 
 @pytest.mark.asyncio
-async def test_handle_stream_cancelled_exception_preserves_provider_failure_reason_and_marks_partial_reply() -> None:
+async def test_handle_stream_cancelled_exception_preserves_provider_failure_reason_and_marks_partial_reply() -> (
+    None
+):
     state = _StateStub({})
     state.provider_failure_kind = "provider_timeout"
     state.provider_events = [{"kind": "provider_timeout"}]
@@ -1624,4 +2088,3 @@ async def test_run_stream_execution_treats_named_cancelled_base_exception_as_int
         if event.strip().startswith("data: {")
     )
     assert events[-1] == stream_execution_runtime.SSEChunkEncoder.done()
-

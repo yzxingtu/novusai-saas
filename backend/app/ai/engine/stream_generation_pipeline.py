@@ -1,5 +1,6 @@
 # FROZEN: do not add new dependencies
 """Focused helpers for StreamExecutionHandler.generate()."""
+
 from __future__ import annotations
 
 import asyncio
@@ -53,6 +54,8 @@ _PARTIAL_FAILURE_COMPLETION_REASONS = frozenset(
         "terminal_failure",
     }
 )
+
+
 def _resolve_generation_view(handler: Any) -> Any:
     explicit = getattr(handler, "_stream_generation_view", None)
     if callable(explicit):
@@ -107,7 +110,9 @@ def build_initial_events(
             )
         )
 
-    for canonical_event in build_initial_turn_flow_events(optimize_event=optimize_event):
+    for canonical_event in build_initial_turn_flow_events(
+        optimize_event=optimize_event
+    ):
         events.append(SSEChunkEncoder.encode(_trace_payload(canonical_event)))
 
     return events
@@ -148,9 +153,7 @@ def sync_response_runtime_metadata(
 ) -> dict[str, Any]:
     view = _resolve_generation_view(handler)
     response_metadata = (
-        dict(getattr(response, "metadata", {}) or {})
-        if response is not None
-        else {}
+        dict(getattr(response, "metadata", {}) or {}) if response is not None else {}
     )
     runtime_model_info = response_metadata.get("runtime_model_info")
     if isinstance(runtime_model_info, dict):
@@ -237,7 +240,8 @@ def _resolve_trustworthy_partial_failure_output(
     ):
         return finalized_output
     if visible_assistant_output and (
-        not streamed_output or _outputs_overlap(visible_assistant_output, streamed_output)
+        not streamed_output
+        or _outputs_overlap(visible_assistant_output, streamed_output)
     ):
         return visible_assistant_output
     if streamed_output:
@@ -348,7 +352,9 @@ def _finalize_partial_output(
 ) -> tuple[str, list[str]]:
     view = _resolve_generation_view(handler)
     current_turn_messages = messages[turn_start_message_index:]
-    visible_assistant_output = view.last_visible_assistant_content(current_turn_messages)
+    visible_assistant_output = view.last_visible_assistant_content(
+        current_turn_messages
+    )
     streamed_output = view.visible_stream_content.strip()
     stream_local_output = view.output.strip()
     finalized_output = str(output or "").strip()
@@ -409,7 +415,9 @@ def _finalize_paused_output(
 ) -> tuple[str, list[str]]:
     view = _resolve_generation_view(handler)
     current_turn_messages = messages[turn_start_message_index:]
-    visible_assistant_output = view.last_visible_assistant_content(current_turn_messages)
+    visible_assistant_output = view.last_visible_assistant_content(
+        current_turn_messages
+    )
     streamed_output = view.visible_stream_content.strip()
     output = _resolve_turn_output(
         visible_assistant_output=visible_assistant_output,
@@ -455,21 +463,22 @@ def _finalize_completed_output(
     trusted_final_source = is_trusted_assistant_final_output_source(final_output_source)
     if not trusted_final_source:
         trusted_stream_output = (
-            view.last_visible_assistant_content(current_turn_messages) or streamed_output
+            view.last_visible_assistant_content(current_turn_messages)
+            or streamed_output
         )
         state_source = getattr(view.state, "_source", None)
-        diagnostics_payload = (
-            getattr(state_source, "preparation_diagnostics", {}) or {}
-        )
+        diagnostics_payload = getattr(state_source, "preparation_diagnostics", {}) or {}
         safe_untrusted_fallback_available = bool(
             diagnostics_payload.get("untrusted_final_output_fallback_applied")
             or diagnostics_payload.get("stripped_untrusted_final_output")
         )
-        recovered_output, recovered_output_source = _recover_completed_output_from_evidence(
-            view,
-            finalized_output=finalized_output,
-            trusted_stream_output=trusted_stream_output,
-            tool_results=tool_results,
+        recovered_output, recovered_output_source = (
+            _recover_completed_output_from_evidence(
+                view,
+                finalized_output=finalized_output,
+                trusted_stream_output=trusted_stream_output,
+                tool_results=tool_results,
+            )
         )
         if recovered_output:
             output = recovered_output
@@ -598,7 +607,9 @@ def _build_replay_events(
     **kwargs: Any,
 ) -> list[str]:
     return build_replay_events(
-        streamed_output=_resolve_generation_view(handler).visible_stream_content.strip(),
+        streamed_output=_resolve_generation_view(
+            handler
+        ).visible_stream_content.strip(),
         finalized_output=str(kwargs.get("output") or "").strip(),
         final_output_source=kwargs.get("final_output_source"),
         partial_reply_stream_chunks=kwargs.get("partial_reply_stream_chunks") or [],
@@ -667,18 +678,19 @@ def finalize_successful_turn(
             skip_final_assistant=skip_final_assistant,
         )
     elif (
-        (str(output or "").strip() or view.visible_stream_content.strip())
-        and not skip_final_assistant
-    ):
-        output, completed_reply_stream_chunks, final_output_source = _finalize_completed_output(
-            handler,
-            messages=messages,
-            turn_start_message_index=turn_start_message_index,
-            output=output,
-            response=response,
-            tool_results=tool_results,
-            action_buttons=action_buttons,
-            final_output_source=final_output_source,
+        str(output or "").strip() or view.visible_stream_content.strip()
+    ) and not skip_final_assistant:
+        output, completed_reply_stream_chunks, final_output_source = (
+            _finalize_completed_output(
+                handler,
+                messages=messages,
+                turn_start_message_index=turn_start_message_index,
+                output=output,
+                response=response,
+                tool_results=tool_results,
+                action_buttons=action_buttons,
+                final_output_source=final_output_source,
+            )
         )
 
     diagnostics_payload = view.build_diagnostics_payload()
@@ -716,7 +728,9 @@ def finalize_successful_turn(
 
     answer_card_event = build_turn_answer_card_event(turn_flow)
     if answer_card_event is not None:
-        immediate_events.append(SSEChunkEncoder.encode(_trace_payload(answer_card_event)))
+        immediate_events.append(
+            SSEChunkEncoder.encode(_trace_payload(answer_card_event))
+        )
 
     result = build_execution_result(
         success=not partial,
@@ -819,6 +833,8 @@ def build_terminal_result(
     completion_reason: str,
     interrupted: bool,
     include_provider_state: bool,
+    success: bool = False,
+    partial: bool = True,
 ) -> ExecutionResult:
     view = _resolve_generation_view(handler)
     view.refresh_runtime_turn_record()
@@ -834,9 +850,11 @@ def build_terminal_result(
         diagnostics_payload=diagnostics_payload,
         execution_path=view.execution_path,
         completion_reason=completion_reason,
-        partial=True,
+        partial=partial,
         final_output_source=final_output_source,
         protocol_path=resolved_protocol_path,
+        default_turn_outcome="success" if success else None,
+        force_completion_reason_in_turn_record=success,
     )
     turn_flow = build_turn_flow_view_model(
         diagnostics_payload=turn_projection.diagnostics,
@@ -855,7 +873,7 @@ def build_terminal_result(
     turn_projection.turn_record["metadata"] = turn_record_metadata
 
     return build_execution_result(
-        success=False,
+        success=success,
         output=output,
         messages=view.messages_to_dicts(messages),
         tool_results=tool_results,
@@ -864,7 +882,7 @@ def build_terminal_result(
         conversation_id=view.request.conversation_id,
         runtime_model_info=view.runtime_model_info,
         error=error,
-        partial=True,
+        partial=partial,
         interrupted=interrupted,
         completion_reason=completion_reason,
         rag_sources=rag_sources,
@@ -880,9 +898,7 @@ def build_terminal_result(
         execution_budget=view.budget_snapshot,
         recovery_history=view.recovery_history_dicts,
         provider_failure_kind=(
-            (view.provider_failure_kind or "none")
-            if include_provider_state
-            else "none"
+            (view.provider_failure_kind or "none") if include_provider_state else "none"
         ),
         provider_events=(view.provider_events if include_provider_state else None),
     )

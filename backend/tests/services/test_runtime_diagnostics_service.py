@@ -529,6 +529,88 @@ async def test_build_root_cause_classifies_provider_timeout_before_first_chunk(m
 
 
 @pytest.mark.asyncio
+async def test_build_root_cause_treats_recovered_protocol_fallback_as_success(
+    mock_db,
+):
+    from app.services.ai.runtime_diagnostics_service import RuntimeDiagnosticsService
+
+    service = RuntimeDiagnosticsService(mock_db)
+    conversation_turn = {
+        "message_id": 7542,
+        "diagnostics": {
+            "conversation_outcome": "success",
+            "turn_outcome": "success",
+            "termination_reason": "protocol_fallback",
+            "protocol_path": "responses",
+            "failure_kind": "provider_timeout",
+            "provider_events": [
+                {
+                    "kind": "web_search_in_progress",
+                    "protocol_path": "responses",
+                }
+            ],
+            "fallback_history": [
+                {
+                    "from_protocol": "responses",
+                    "to_protocol": "responses",
+                    "reason": "hosted_web_search_unavailable:provider_timeout",
+                    "recovered": True,
+                    "metadata": {"recovery_path": "protocol_fallback"},
+                }
+            ],
+        },
+    }
+    call_log = _call_log(
+        status=CallStatusEnum.SUCCESS.value,
+        request_metadata={
+            "request": {
+                "turn_record": {
+                    "turn_outcome": "success",
+                    "termination_reason": "protocol_fallback",
+                    "protocol_path": "responses",
+                    "failure_kind": "provider_timeout",
+                    "fallback_history": [
+                        {
+                            "from_protocol": "responses",
+                            "to_protocol": "responses",
+                            "reason": "hosted_web_search_unavailable:provider_timeout",
+                            "recovered": True,
+                            "metadata": {"recovery_path": "protocol_fallback"},
+                        }
+                    ],
+                    "metadata": {
+                        "stream_failure_chunk_count": 3,
+                        "stream_failure_has_meaningful_chunk": False,
+                        "stream_failure_error_type": "ProviderTimeoutError",
+                    },
+                }
+            },
+        },
+    )
+
+    with (
+        patch.object(
+            service,
+            "_resolve_conversation_turn",
+            new=AsyncMock(return_value=conversation_turn),
+        ),
+        patch.object(
+            service,
+            "_resolve_related_call_log_for_conversation_turn",
+            new=AsyncMock(return_value=call_log),
+        ),
+    ):
+        report = await service.build_root_cause(conversation_id=1209, turn=1)
+
+    assert report["status"] == "success"
+    assert report["failure_layer"] is None
+    assert report["cause_code"] is None
+    assert report["summary"] == (
+        "The call completed successfully and no blocking failure signal was found."
+    )
+
+
+@pytest.mark.asyncio
 async def test_build_root_cause_scrubs_invalid_runtime_metadata_from_evidence(mock_db):
     from app.services.ai.runtime_diagnostics_service import RuntimeDiagnosticsService
 

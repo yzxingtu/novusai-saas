@@ -62,6 +62,7 @@ class TurnExecutionResult:
     final_output_source: Literal[
         "assistant",
         "tool_evidence_completed",
+        "recovery_evidence",
         "partial_output",
         "budget_fallback",
     ]
@@ -308,12 +309,23 @@ def should_complete_from_budgeted_web_research_evidence(
     return "keep_visible_output"
 
 
+def should_recover_web_search_evidence_from_partial(reason: str) -> bool:
+    normalized = str(reason or "").strip()
+    return bool(
+        normalized == "retry_budget_exhausted"
+        or normalized == "budget_exit"
+        or RecoveryManager.is_budget_exit_reason(normalized)
+    )
+
+
 def post_tool_completion_state(
     *,
     state: ExecutionStateMachine,
     final_output_source: str,
     ran_post_tool_follow_up: bool,
 ) -> str:
+    if final_output_source == "recovery_evidence":
+        return "recovery_evidence"
     if final_output_source == "tool_evidence_completed":
         auto_fetch_gate_reason = latest_auto_fetch_gate_reason(state)
         if auto_fetch_gate_reason == "search_not_successful":
@@ -376,6 +388,7 @@ async def finalize_turn_execution(
     Literal[
         "assistant",
         "tool_evidence_completed",
+        "recovery_evidence",
         "partial_output",
         "budget_fallback",
     ],
@@ -394,6 +407,18 @@ async def finalize_turn_execution(
         decision is not None and decision.action == "pause_for_consent"
     )
     partial = bool(decision is not None and decision.action == "return_partial")
+    partial_reason = decision.reason or "return_partial" if decision is not None else ""
+    recovered_web_search_intents: list[Any] = []
+    recovered_web_search_output = ""
+    if partial and should_recover_web_search_evidence_from_partial(partial_reason):
+        recovered_web_search_intents, recovered_web_search_output = (
+            RecoveryManager.recover_web_search_output_from_evidence(
+                list(state.intent_plan or []),
+                tool_results=tool_results,
+                reason="partial_exit_recovery",
+            )
+        )
+    promote_web_search_partial_to_completed = bool(recovered_web_search_output)
     budgeted_web_research_completion_mode: Literal[
         "none",
         "keep_visible_output",
@@ -421,6 +446,7 @@ async def finalize_turn_execution(
         or (
             decision.action == "return_partial"
             and not promote_budget_partial_to_completed
+            and not promote_web_search_partial_to_completed
         )
     ):
         recovery_event = {
@@ -441,6 +467,7 @@ async def finalize_turn_execution(
     final_output_source: Literal[
         "assistant",
         "tool_evidence_completed",
+        "recovery_evidence",
         "partial_output",
         "budget_fallback",
     ] = "assistant"
@@ -451,6 +478,37 @@ async def finalize_turn_execution(
             messages,
             RecoveryManager.pending_consent_payload_from_decision(decision),
         )
+    elif promote_web_search_partial_to_completed:
+        partial = False
+        output = recovered_web_search_output
+        state.intent_plan = recovered_web_search_intents
+        recovered_provider_failure_kind = str(state.provider_failure_kind or "").strip()
+        recovered_provider_events = list(state.provider_events or [])
+        state.provider_failure_kind = "none"
+        state.provider_events = []
+        state.transition("completed")
+        state.preparation_diagnostics.update(
+            {
+                "partial_exit_recovered_from_tool_evidence": True,
+                "recovered_partial_exit_reason": partial_reason,
+                "recovery_evidence_tool": "web_search",
+            }
+        )
+        if (
+            recovered_provider_failure_kind
+            and recovered_provider_failure_kind != "none"
+        ):
+            state.preparation_diagnostics.update(
+                {
+                    "provider_failure_recovered_from_tool_evidence": True,
+                    "recovered_provider_failure_kind": recovered_provider_failure_kind,
+                    "recovered_provider_events": recovered_provider_events,
+                }
+            )
+        if response is not None and getattr(response, "message", None) is not None:
+            response.message.content = output
+        completion_reason = "completed"
+        final_output_source = "recovery_evidence"
     elif promote_budget_partial_to_completed:
         partial = False
         state.transition("completed")
