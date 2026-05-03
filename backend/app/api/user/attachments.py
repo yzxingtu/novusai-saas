@@ -10,6 +10,7 @@ from __future__ import annotations
 from fastapi import APIRouter, File, Form, Query, Request, UploadFile
 from fastapi.responses import RedirectResponse
 
+from app.api.shared._attachment_helpers import resolve_attachment_upload_rules
 from app.configs.service import ConfigService
 from app.core.deps import ActiveTenantUser, DbSession
 from app.core.i18n import _
@@ -232,32 +233,10 @@ async def get_upload_rules(
     获取用户端上传规则 / Get user upload rules.
     """
     config_service = ConfigService(db)
-    tid = current_user.tenant_id
-
-    tenant_allowed = await config_service.get_tenant_config(
-        tid, "tenant_storage_allowed_extensions", default=""
-    )
-    tenant_denied = await config_service.get_tenant_config(
-        tid, "tenant_storage_denied_extensions", default=""
-    )
-
-    if not tenant_allowed:
-        tenant_allowed = await config_service.get_platform_config(
-            "platform_storage_allowed_extensions", default=""
-        )
-    if not tenant_denied:
-        tenant_denied = await config_service.get_platform_config(
-            "platform_storage_denied_extensions", default=""
-        )
-
-    max_size = await config_service.get_platform_config(
-        "platform_storage_max_file_size_mb", default=100
-    )
-
     return success(
-        data={
-            "allowed_extensions": str(tenant_allowed) if tenant_allowed else "",
-            "denied_extensions": str(tenant_denied) if tenant_denied else "",
-            "max_file_size_mb": int(max_size) if max_size else 100,
-        }
+        data=await resolve_attachment_upload_rules(
+            config_service,
+            db=db,
+            tenant_id=current_user.tenant_id,
+        )
     )

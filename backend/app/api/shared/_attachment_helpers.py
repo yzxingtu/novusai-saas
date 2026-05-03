@@ -5,8 +5,12 @@ from __future__ import annotations
 from typing import Any, Protocol
 
 from fastapi.responses import RedirectResponse, Response
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.configs.service import PLATFORM_TENANT_ID, ConfigService
+from app.models.tenant.tenant import Tenant
 from app.services.tenant.attachment_download_service import AttachmentDownloadService
 
 
@@ -50,6 +54,7 @@ async def resolve_attachment_default_visibility(config_service: ConfigService) -
 async def resolve_attachment_upload_rules(
     config_service: ConfigService,
     *,
+    db: AsyncSession | None = None,
     tenant_id: int | None = None,
 ) -> dict[str, int | str]:
     """Resolve upload rules with tenant fallback to platform defaults."""
@@ -82,11 +87,36 @@ async def resolve_attachment_upload_rules(
         "platform_storage_max_file_size_mb",
         default=100,
     )
+    effective_max_size_mb = int(max_size) if max_size else 100
+
+    if tenant_id is not None and db is not None:
+        result = await db.execute(
+            select(Tenant)
+            .options(selectinload(Tenant.tenant_plan))
+            .where(Tenant.id == tenant_id, Tenant.is_deleted.is_(False))
+        )
+        tenant = result.scalar_one_or_none()
+        if tenant is None or not tenant.has_active_plan:
+            effective_max_size_mb = 0
+        else:
+            from app.services.tenant.quota_service import QuotaService
+
+            plan_limit_mb = int(
+                QuotaService(db, tenant).get_quota_value(
+                    "max_file_size_mb",
+                    0,
+                )
+                or 0
+            )
+            limits = [
+                item for item in (plan_limit_mb, effective_max_size_mb) if item > 0
+            ]
+            effective_max_size_mb = min(limits) if limits else 0
 
     return {
         "allowed_extensions": str(allowed) if allowed else "",
         "denied_extensions": str(denied) if denied else "",
-        "max_file_size_mb": int(max_size) if max_size else 100,
+        "max_file_size_mb": effective_max_size_mb,
     }
 
 

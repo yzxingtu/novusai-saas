@@ -110,6 +110,11 @@
   storage entitlement before every temporary chunk write and before completion.
   Existing chunk sessions must not keep consuming temporary storage after a
   tenant, plan, or upload entitlement is disabled.
+- Tenant/user attachment upload-rules endpoints must report the same effective
+  single-file limit enforced by upload services: the stricter non-zero value
+  between the active plan `max_file_size_mb` and platform
+  `platform_storage_max_file_size_mb`; inactive or missing plans must not be
+  presented as upload-capable.
 - Protected plugin API routes (`auth` other than `none`) must declare an
   explicit permission code. Standalone plugin page slots without access codes
   are hidden unless the caller has `*`.

@@ -84,6 +84,7 @@ class TenantAttachmentController(TenantController):
             return success(
                 data=await resolve_attachment_upload_rules(
                     config_service,
+                    db=db,
                     tenant_id=current_admin.tenant_id,
                 )
             )

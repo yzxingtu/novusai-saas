@@ -42,6 +42,92 @@ async def test_resolve_attachment_upload_rules_falls_back_to_platform() -> None:
     }
 
 
+@pytest.mark.asyncio
+async def test_resolve_attachment_upload_rules_applies_plan_file_limit() -> None:
+    from app.models.tenant.tenant import Tenant
+    from app.models.tenant.tenant_plan import TenantPlan
+
+    class _Result:
+        def scalar_one_or_none(self):
+            plan = TenantPlan(
+                id=9,
+                code="limited",
+                name="Limited",
+                is_active=True,
+                quota={"max_file_size_mb": 20},
+            )
+            tenant = Tenant(
+                id=7,
+                name="Tenant",
+                code="tenant",
+                is_active=True,
+                plan_id=9,
+            )
+            tenant.tenant_plan = plan
+            return tenant
+
+    db = AsyncMock()
+    db.execute = AsyncMock(return_value=_Result())
+    config_service = AsyncMock()
+    config_service.get_tenant_config = AsyncMock(side_effect=["", ""])
+    config_service.get_platform_config = AsyncMock(
+        side_effect=[".png,.jpg", ".exe", 64],
+    )
+
+    rules = await resolve_attachment_upload_rules(
+        config_service,
+        db=db,
+        tenant_id=7,
+    )
+
+    assert rules == {
+        "allowed_extensions": ".png,.jpg",
+        "denied_extensions": ".exe",
+        "max_file_size_mb": 20,
+    }
+
+
+@pytest.mark.asyncio
+async def test_resolve_attachment_upload_rules_blocks_inactive_plan() -> None:
+    from app.models.tenant.tenant import Tenant
+    from app.models.tenant.tenant_plan import TenantPlan
+
+    class _Result:
+        def scalar_one_or_none(self):
+            plan = TenantPlan(
+                id=9,
+                code="inactive",
+                name="Inactive",
+                is_active=False,
+                quota={"max_file_size_mb": 20},
+            )
+            tenant = Tenant(
+                id=7,
+                name="Tenant",
+                code="tenant",
+                is_active=True,
+                plan_id=9,
+            )
+            tenant.tenant_plan = plan
+            return tenant
+
+    db = AsyncMock()
+    db.execute = AsyncMock(return_value=_Result())
+    config_service = AsyncMock()
+    config_service.get_tenant_config = AsyncMock(side_effect=["", ""])
+    config_service.get_platform_config = AsyncMock(
+        side_effect=[".png,.jpg", ".exe", 64],
+    )
+
+    rules = await resolve_attachment_upload_rules(
+        config_service,
+        db=db,
+        tenant_id=7,
+    )
+
+    assert rules["max_file_size_mb"] == 0
+
+
 def test_kb_helper_pure_builders() -> None:
     assert resolve_document_type("report.PDF") == "pdf"
     assert build_content_hash("hello") == build_content_hash(b"hello")
@@ -84,4 +170,3 @@ async def test_create_url_import_documents_skips_invalid_and_duplicate_urls() ->
 
     assert len(docs) == 1
     assert docs[0]["source_url"] == "https://valid.example"
-
