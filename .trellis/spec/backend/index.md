@@ -115,6 +115,10 @@
   between the active plan `max_file_size_mb` and platform
   `platform_storage_max_file_size_mb`; inactive or missing plans must not be
   presented as upload-capable.
+- Tenant/user storage-quota read models must not translate missing, inactive,
+  or deleted-plan state into "unlimited" capacity. Return zero capacity with an
+  explicit `plan_available=false` marker so frontend quota surfaces display the
+  storage plan as unavailable while write paths continue to fail closed.
 - Protected plugin API routes (`auth` other than `none`) must declare an
   explicit permission code. Standalone plugin page slots without access codes
   are hidden unless the caller has `*`.

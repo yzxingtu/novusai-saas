@@ -44,6 +44,7 @@
     "maxFileSize": "单文件大小上限",
     "bandwidthLimit": "带宽上限",
     "bandwidthUsed": "已用带宽",
+    "unavailable": "未启用",
     "unlimited": "不限"
   },
   "actions": {

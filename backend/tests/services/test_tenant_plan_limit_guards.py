@@ -41,6 +41,17 @@ class _DBResult:
         return _ScalarsResult(self._scalars)
 
 
+class _StatsRowResult:
+    def __init__(self, *, used_bytes: int, file_count: int):
+        self._row = SimpleNamespace(
+            used_bytes=used_bytes,
+            file_count=file_count,
+        )
+
+    def one(self):
+        return self._row
+
+
 @pytest.mark.asyncio
 async def test_assign_permissions_rejects_invalid_ids_without_mutating_plan(
     mock_db,
@@ -343,6 +354,39 @@ async def test_chunk_upload_rechecks_plan_before_temporary_write(mock_db) -> Non
     service._ensure_upload_enabled.assert_awaited_once()
     service._load_session.assert_not_awaited()
     service._write_chunk.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_storage_quota_stats_do_not_report_unlimited_for_inactive_plan(
+    mock_db,
+) -> None:
+    from app.services.common.storage_quota_service import StorageQuotaService
+
+    tenant = SimpleNamespace(
+        id=5,
+        is_active=True,
+        is_deleted=False,
+        plan_id=9,
+        quota={"storage_limit_gb": 99, "max_file_size_mb": 512},
+        tenant_plan=SimpleNamespace(is_active=False),
+    )
+    mock_db.execute = AsyncMock(
+        side_effect=[
+            _StatsRowResult(used_bytes=4096, file_count=2),
+            _DBResult(scalar=tenant),
+        ]
+    )
+
+    stats = await StorageQuotaService(mock_db).get_tenant_storage_stats(5)
+
+    assert stats["used_bytes"] == 4096
+    assert stats["file_count"] == 2
+    assert stats["plan_available"] is False
+    assert stats["unlimited"] is False
+    assert stats["limit_gb"] == 0
+    assert stats["limit_bytes"] == 0
+    assert stats["remaining_bytes"] == 0
+    assert stats["max_file_size_mb"] == 0
 
 
 @pytest.mark.asyncio

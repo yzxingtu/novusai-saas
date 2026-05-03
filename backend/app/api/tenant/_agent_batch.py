@@ -10,11 +10,34 @@ from fastapi import APIRouter, Request
 from app.core.deps import ActiveTenantAdmin, DbSession
 from app.core.i18n import _
 from app.core.response import success
-from app.exceptions import NotFoundException
+from app.enums import ErrorCode
+from app.exceptions import BusinessException, NotFoundException
 from app.rbac.decorators import action_create, action_read, action_update
 from app.schemas.ai.batch_run import BatchRunCreate, BatchRunResponse
+from app.services.ai.account_ai_access_service import AccountAIAccessService
+from app.services.tenant.quota_service import QuotaService
 
 router = APIRouter()
+
+
+async def _ensure_tenant_ai_batch_access(
+    db: DbSession,
+    tenant_admin: ActiveTenantAdmin,
+    *,
+    item_count: int,
+) -> None:
+    """Fail closed before tenant AI batch submission."""
+    await AccountAIAccessService(db).require_tenant_admin_ai_access(tenant_admin)
+    api_check = await QuotaService.check_api_quota_for_tenant_id(
+        db,
+        tenant_admin.tenant_id,
+        additional=max(1, item_count),
+    )
+    if not api_check.allowed:
+        raise BusinessException(
+            message=api_check.message or _("quota.api_calls_exceeded"),
+            code=ErrorCode.CONFLICT,
+        )
 
 
 @router.post("/{agent_id}/batch", summary="提交批处理任务", status_code=202)
@@ -36,6 +59,12 @@ async def submit_batch(
 
     权限 / Permission: agent:batch_submit
     """
+    await _ensure_tenant_ai_batch_access(
+        db,
+        tenant_admin,
+        item_count=len(data.items),
+    )
+
     from app.api.tenant.agents import _ensure_tenant_owned_agent
 
     await _ensure_tenant_owned_agent(db, tenant_admin.tenant_id, agent_id)

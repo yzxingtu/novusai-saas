@@ -57,9 +57,10 @@ class StorageQuotaService:
 
         # 获取企业配额限制 / Fetch tenant quota limit
         tenant = await self._get_tenant_with_plan(tenant_id)
+        plan_available = self._tenant_has_active_plan(tenant)
         limit_gb = 0
         max_file_size_mb = 0
-        if tenant:
+        if plan_available and tenant:
             limit_gb = tenant.get_quota_value("storage_limit_gb", 0)
             max_file_size_mb = tenant.get_quota_value("max_file_size_mb", 0)
 
@@ -68,6 +69,7 @@ class StorageQuotaService:
             file_count=file_count,
             limit_gb=limit_gb,
             max_file_size_mb=max_file_size_mb,
+            plan_available=plan_available,
         )
 
     async def get_tenant_storage_stats_batch(
@@ -114,14 +116,20 @@ class StorageQuotaService:
         result_map: dict[int, dict[str, Any]] = {}
         for tenant in tenants:
             stats = stats_map.get(tenant.id, {"used_bytes": 0, "file_count": 0})
-            limit_gb = tenant.get_quota_value("storage_limit_gb", 0)
-            max_file_size_mb = tenant.get_quota_value("max_file_size_mb", 0)
+            plan_available = self._tenant_has_active_plan(tenant)
+            limit_gb = (
+                tenant.get_quota_value("storage_limit_gb", 0) if plan_available else 0
+            )
+            max_file_size_mb = (
+                tenant.get_quota_value("max_file_size_mb", 0) if plan_available else 0
+            )
 
             result_map[tenant.id] = self._build_stats_response(
                 used_bytes=stats["used_bytes"],
                 file_count=stats["file_count"],
                 limit_gb=limit_gb,
                 max_file_size_mb=max_file_size_mb,
+                plan_available=plan_available,
             )
 
         # 确保所有请求的企业都有统计数据（默认值） / Ensure every requested tenant has stats (defaults)
@@ -132,6 +140,7 @@ class StorageQuotaService:
                     file_count=0,
                     limit_gb=0,
                     max_file_size_mb=0,
+                    plan_available=False,
                 )
 
         return result_map
@@ -212,12 +221,32 @@ class StorageQuotaService:
         )
         return list(result.scalars().all())
 
+    @staticmethod
+    def _tenant_has_active_plan(tenant: Tenant | None) -> bool:
+        """检查企业是否拥有有效套餐 / Check whether tenant has an active plan."""
+        if tenant is None:
+            return False
+        has_active_plan = getattr(tenant, "has_active_plan", None)
+        if isinstance(has_active_plan, bool):
+            return has_active_plan
+        if not bool(getattr(tenant, "is_active", True)):
+            return False
+        if bool(getattr(tenant, "is_deleted", False)):
+            return False
+        plan = getattr(tenant, "tenant_plan", None)
+        return (
+            getattr(tenant, "plan_id", None) is not None
+            and plan is not None
+            and bool(getattr(plan, "is_active", False))
+        )
+
     def _build_stats_response(
         self,
         used_bytes: int,
         file_count: int,
         limit_gb: int,
         max_file_size_mb: int = 0,
+        plan_available: bool = True,
     ) -> dict[str, Any]:
         """
         构建统计响应数据 / Build stats response.
@@ -227,12 +256,13 @@ class StorageQuotaService:
             file_count: 文件数量
             limit_gb: 限制（GB）
             max_file_size_mb: 单文件大小限制（MB）
+            plan_available: 套餐是否可用
 
         Returns:
             统计响应字典
         """
         limit_bytes = limit_gb * 1024 * 1024 * 1024 if limit_gb > 0 else 0
-        unlimited = limit_gb == 0
+        unlimited = plan_available and limit_gb == 0
         usage_percent = (
             round(used_bytes / limit_bytes * 100, 2) if limit_bytes > 0 else 0.0
         )
@@ -246,6 +276,7 @@ class StorageQuotaService:
             "usage_percent": usage_percent,
             "file_count": file_count,
             "max_file_size_mb": max_file_size_mb,
+            "plan_available": plan_available,
             "unlimited": unlimited,
         }
 

@@ -26,6 +26,25 @@ async function loadQuota() {
   }
 }
 
+function formatQuotaLimit(currentQuota: null | StorageQuotaInfo) {
+  if (!currentQuota?.planAvailable) {
+    return $t('tenant.system.attachment.quota.unavailable');
+  }
+  if (currentQuota.unlimited) {
+    return $t('tenant.system.attachment.quota.unlimited');
+  }
+  return formatFileSize(currentQuota.limitBytes || 0);
+}
+
+function formatMaxFileSize(value: number | string) {
+  if (quota.value?.planAvailable === false) {
+    return $t('tenant.system.attachment.quota.unavailable');
+  }
+  return Number(value) === 0
+    ? $t('tenant.system.attachment.quota.unlimited')
+    : `${value} MB`;
+}
+
 onMounted(() => {
   loadQuota();
 });
@@ -49,12 +68,7 @@ defineExpose({ refresh: loadQuota });
           <template #formatter="{ value }">
             {{ formatFileSize(Number(value)) }}
             <span class="text-xs text-muted-foreground">
-              /
-              {{
-                quota?.unlimited
-                  ? $t('tenant.system.attachment.quota.unlimited')
-                  : formatFileSize(quota?.limitBytes || 0)
-              }}
+              / {{ formatQuotaLimit(quota) }}
             </span>
           </template>
         </Statistic>
@@ -76,11 +90,7 @@ defineExpose({ refresh: loadQuota });
           :value="quota.maxFileSizeMb || 0"
         >
           <template #formatter="{ value }">
-            {{
-              Number(value) === 0
-                ? $t('tenant.system.attachment.quota.unlimited')
-                : `${value} MB`
-            }}
+            {{ formatMaxFileSize(value) }}
           </template>
         </Statistic>
       </Col>

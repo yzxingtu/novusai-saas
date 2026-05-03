@@ -245,3 +245,72 @@ def test_tenant_ai_writing_rejects_plan_disabled_before_stream_service(
     assert body["code"] == TENANT_PLAN_AI_DISABLED_CODE
     assert body["reason"] == TENANT_PLAN_AI_DISABLED_REASON
     assert service_events == []
+
+
+def test_tenant_agent_batch_rejects_plan_disabled_before_dispatch(
+    monkeypatch,
+) -> None:
+    module = _load_module(
+        "app/api/tenant/_agent_batch.py",
+        "test_tenant_agent_batch_plan_guard",
+    )
+
+    monkeypatch.setattr(module, "AccountAIAccessService", _RejectingAccessService)
+    monkeypatch.setattr(module, "QuotaService", _UnexpectedQuotaService)
+
+    app = _build_app(module.router)
+
+    with TestClient(app, raise_server_exceptions=False) as client:
+        response = client.post(
+            "/42/batch",
+            json={"items": [{"topic": "one"}, {"topic": "two"}]},
+        )
+
+    body = response.json()
+    assert response.status_code == 403
+    assert body["code"] == TENANT_PLAN_AI_DISABLED_CODE
+    assert body["reason"] == TENANT_PLAN_AI_DISABLED_REASON
+    assert body["feature"] == "ai_chat"
+
+
+def test_tenant_agent_batch_rejects_monthly_quota_for_all_items_before_dispatch(
+    monkeypatch,
+) -> None:
+    module = _load_module(
+        "app/api/tenant/_agent_batch.py",
+        "test_tenant_agent_batch_monthly_quota_guard",
+    )
+    quota_calls: list[int] = []
+
+    class _RejectingBatchQuotaService:
+        @classmethod
+        async def check_api_quota_for_tenant_id(
+            cls,
+            _db,
+            _tenant_id,
+            additional: int = 1,
+        ):
+            quota_calls.append(additional)
+            return QuotaCheckResult(
+                allowed=False,
+                current=9,
+                limit=10,
+                remaining=1,
+                message="monthly api quota exhausted",
+            )
+
+    monkeypatch.setattr(module, "AccountAIAccessService", _AllowingAccessService)
+    monkeypatch.setattr(module, "QuotaService", _RejectingBatchQuotaService)
+
+    app = _build_app(module.router)
+
+    with TestClient(app, raise_server_exceptions=False) as client:
+        response = client.post(
+            "/42/batch",
+            json={"items": [{"topic": "one"}, {"topic": "two"}]},
+        )
+
+    body = response.json()
+    assert response.status_code == 422
+    assert body["message"] == "monthly api quota exhausted"
+    assert quota_calls == [2]

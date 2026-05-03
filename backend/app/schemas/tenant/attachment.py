@@ -106,6 +106,7 @@ class TenantStorageQuotaResponse(BaseSchema):
     usage_percent: float = Field(..., description="使用率百分比")
     total_count: int = Field(..., description="附件总数")
     max_file_size_mb: int = Field(..., description="单文件大小限制（MB），0 表示无限制")
+    plan_available: bool = Field(..., description="当前企业是否拥有有效套餐")
     unlimited: bool = Field(..., description="是否无限制")
 
 

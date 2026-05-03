@@ -583,6 +583,7 @@ class QuotaService:
         cls,
         db: AsyncSession,
         tenant_id: int,
+        additional: int = 1,
     ) -> "QuotaCheckResult":
         """
         通过 tenant_id 检查月 API 调用次数配额（内部加载 Tenant + Plan）/ Check monthly API quota by tenant_id (loads Tenant + Plan internally).
@@ -593,6 +594,7 @@ class QuotaService:
         Args:
             db: 数据库会话
             tenant_id: 企业 ID
+            additional: 本次需要预留的 API 调用次数
 
         Returns:
             QuotaCheckResult（无限制时 allowed=True）
@@ -617,7 +619,7 @@ class QuotaService:
             return cls._plan_unavailable_result()
 
         svc = cls(db, tenant_obj)
-        return await svc.check_api_calls_quota()
+        return await svc.check_api_calls_quota(additional=additional)
 
 
 __all__ = ["QuotaService", "QuotaCheckResult"]

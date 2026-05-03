@@ -47,6 +47,7 @@ export function transformStorageQuota(
     usagePercent: raw.usage_percent,
     totalCount: raw.total_count,
     maxFileSizeMb: raw.max_file_size_mb,
+    planAvailable: raw.plan_available ?? true,
     unlimited: raw.unlimited,
   };
 }

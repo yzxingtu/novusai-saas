@@ -147,6 +147,7 @@ export interface StorageQuotaInfoRaw {
   usage_percent: number;
   total_count: number;
   max_file_size_mb: number;
+  plan_available?: boolean;
   unlimited: boolean;
 }
 
@@ -169,6 +170,8 @@ export interface StorageQuotaInfo {
   totalCount: number;
   /** Max single file size (MB), 0 means unlimited / 单文件大小限制 (MB)，0 表示无限制 */
   maxFileSizeMb: number;
+  /** Whether the tenant has an active plan / 企业是否拥有有效套餐 */
+  planAvailable: boolean;
   /** Whether unlimited / 是否无限制 */
   unlimited: boolean;
 }

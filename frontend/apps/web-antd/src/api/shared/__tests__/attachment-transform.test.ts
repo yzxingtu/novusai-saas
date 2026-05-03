@@ -39,6 +39,7 @@ describe('attachmentTransform', () => {
       usage_percent: 50,
       total_count: 4,
       max_file_size_mb: 100,
+      plan_available: false,
       unlimited: false,
     });
 
@@ -50,6 +51,7 @@ describe('attachmentTransform', () => {
       usagePercent: 50,
       totalCount: 4,
       maxFileSizeMb: 100,
+      planAvailable: false,
       unlimited: false,
     });
   });

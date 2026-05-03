@@ -385,7 +385,7 @@ class AdminPlanController(GlobalController):
             设置套餐关联的权限 / Set plan associated permissions
 
             - 仅支持 tenant/both scope 的 menu 类型权限 / Only supports menu-type permissions with tenant/both scope
-            - 无效的权限 ID 会被自动过滤 / Invalid permission IDs are auto-filtered
+            - 无效的权限 ID 会被拒绝 / Invalid permission IDs are rejected
 
             权限 / Permission: tenant_plan:assign_permissions
             """

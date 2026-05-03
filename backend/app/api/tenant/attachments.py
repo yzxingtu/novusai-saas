@@ -423,6 +423,7 @@ class TenantAttachmentController(TenantController):
                     usage_percent=stats["usage_percent"],
                     total_count=stats["file_count"],
                     max_file_size_mb=stats["max_file_size_mb"],
+                    plan_available=stats["plan_available"],
                     unlimited=stats["unlimited"],
                 ),
                 message=_("common.success"),

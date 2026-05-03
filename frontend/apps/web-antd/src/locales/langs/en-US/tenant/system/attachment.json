@@ -44,6 +44,7 @@
     "maxFileSize": "Max File Size",
     "bandwidthLimit": "Bandwidth Limit",
     "bandwidthUsed": "Bandwidth Used",
+    "unavailable": "Unavailable",
     "unlimited": "Unlimited"
   },
   "actions": {
