@@ -48,6 +48,28 @@ def _append_assistant_message(
     )
 
 
+def _append_assistant_message_if_missing(
+    messages: list[ChatMessage],
+    *,
+    output: str,
+    action_buttons: list[dict[str, str]] | None,
+) -> None:
+    if not output:
+        return
+    if messages:
+        last_message = messages[-1]
+        if (
+            last_message.role == "assistant"
+            and str(last_message.content or "").strip() == output.strip()
+        ):
+            return
+    _append_assistant_message(
+        messages,
+        output=output,
+        action_buttons=action_buttons,
+    )
+
+
 def _should_surface_exception_partial_output(provider_failure_kind: str) -> bool:
     # Sync callers have no prior streamed assistant body, so generated recovery
     # text should stay visible instead of collapsing into an empty assistant turn.
@@ -273,6 +295,12 @@ def build_sync_exception_result(
         )
         else ""
     )
+    if surfaced_output and recovered_from_provider_failure:
+        _append_assistant_message_if_missing(
+            messages,
+            output=surfaced_output,
+            action_buttons=None,
+        )
 
     completion_reason = (
         decision.reason

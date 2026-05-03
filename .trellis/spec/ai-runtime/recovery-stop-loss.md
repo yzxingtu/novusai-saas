@@ -231,6 +231,90 @@ Do not consume retry budget solely because a tool is waiting for consent.
   "builtin_web_research_tools"` and emit a real `web_search` tool call from the
   last user query when the provider fails or returns text-only output.
 
+## Scenario: Recovered Web Evidence Must Not Use Truncated Fetch Metadata As Final Answer
+
+### 1. Scope / Trigger
+
+- Trigger: web research has completed `web_search` / `fetch_url` evidence, but
+  the final assistant synthesis call times out, hits provider failure, or exits
+  the elapsed budget before a normal model-authored answer is available.
+- Why this needs code-spec depth: `fetch_url.summary` and page `description`
+  fields may come from HTML metadata and can end mid-sentence (for example
+  "调研用户通过"). Treating that metadata as a completed answer makes the UI show
+  "已完成" while the answer is visibly clipped.
+
+### 2. Signatures
+
+- Recovery evidence helpers:
+  - `backend/app/ai/engine/recovery_tool_result_helpers.py`
+  - `extract_fetch_url_user_preview(...)`
+  - `intent_result_from_tool_results(...)`
+- Completion salvage callers and representative finalization paths:
+  - `backend/app/ai/engine/recovery_prompt_builders.py`
+  - `build_completed_output(...)`
+  - `recover_web_search_output_from_evidence(...)`
+  - `backend/app/ai/engine/recovery_status_update.py`
+  - `update_intent_statuses(...)`
+  - `backend/app/ai/engine/conversation_sync_result_support.py`
+  - `backend/app/ai/engine/stream_generation_pipeline.py`
+  - `backend/app/ai/engine/turn_executor.py`
+  - `backend/app/ai/engine/stream_execution_runtime.py`
+  - `_build_stream_exception_artifacts(...)`
+
+### 3. Contracts
+
+- Recovered final output may use tool evidence only when the evidence is
+  successful. Completed `fetch_url` evidence can supply answer text through the
+  intent cached-result path; unfinished web-research recovery remains scoped to
+  the narrower successful `web_search` evidence recovery path.
+- For `fetch_url` evidence, user-facing recovery output should prefer useful
+  body lines over generated `title - description` summaries whenever the
+  summary is only a title/description join and the fetched body contains
+  substantive content.
+- Obvious short navigation/body headings such as "报告详情" must not become the
+  primary recovered answer line.
+- A page `description` without terminal punctuation is not enough by itself to
+  mark the evidence as answer-quality when fetched body text is available.
+- A `fetch_url.summary` that includes a truncation marker such as
+  `... [truncated]` is not enough by itself to mark the evidence as
+  answer-quality when fetched body text is available.
+- Recovery may still include a complete page description when it has terminal
+  punctuation and does not duplicate the first useful body lines.
+
+### 4. Validation & Error Matrix
+
+| Condition | Expected Behavior |
+|---|---|
+| `fetch_url.summary` is complete and no body text is available | May use the summary |
+| `fetch_url.summary` is `title - description` and body contains substantive lines | Use body lines for recovered output |
+| `fetch_url.summary` ends with `... [truncated]` and body contains substantive lines | Use body lines for recovered output |
+| `description` ends mid-sentence and body contains facts | Do not end the final answer with the clipped description |
+| Body contains only obvious short headings/navigation | Skip those lines; fall back to safer summary/fallback text |
+| Search or fetch evidence is unsuccessful | Do not promote it to recovered completed output |
+
+### 5. Good/Base/Bad Cases
+
+- Good: final synthesis times out after fetching an Aliyun/Sullivan report; the
+  recovered answer mentions concrete body facts such as "37万亿Tokens" and
+  "千问大模型占比32.1%位列第一".
+- Base: a small article has no extracted body but a complete summary; recovery
+  may surface the summary.
+- Bad: the assistant final message is just "沙利文发布...报告，调研用户通过" and the
+  turn is marked completed.
+
+### 6. Tests Required
+
+- `backend/tests/ai/engine/test_partial_exit_user_output.py`
+  - recovered `fetch_url` evidence uses body lines when generated
+    title/description summary is incomplete.
+  - recovered final output also uses body lines when `fetch_url.summary` carries
+    a truncation marker such as `... [truncated]`.
+  - complete summary with no body text remains usable, and failed fetch evidence
+    is not promoted.
+- Existing stream/turn finalization tests must continue proving that
+  unsuccessful searches or untrusted raw tool evidence are not promoted as
+  canonical assistant answers.
+
 ## Prohibited Patterns
 
 - whole-turn retry for a single unfinished intent
@@ -244,3 +328,5 @@ Do not consume retry budget solely because a tool is waiting for consent.
   provider failure
 - treating hosted-search fallback preamble text as a completed web-research
   answer when no `web_search` or `fetch_url` evidence was produced
+- promoting clipped `fetch_url` title/description metadata as a completed
+  web-research answer when substantive fetched body text is available

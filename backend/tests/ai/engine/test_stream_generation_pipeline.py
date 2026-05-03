@@ -832,6 +832,150 @@ async def test_build_stream_exception_artifacts_recovers_completed_fetch_url_evi
     assert artifacts.result.turn_record["turn_flow"]["error_surface"] is None
 
 
+@pytest.mark.asyncio
+async def test_build_stream_exception_artifacts_rebuilds_clipped_fetch_url_streamed_output() -> (
+    None
+):
+    from app.ai.engine.execution_state_machine import ExecutionStateMachine
+    from app.ai.engine.types import IntentPlan, PreparedExecution
+    from app.ai.tools.types import ToolResult
+
+    title = "沙利文发布《中国GenAI市场洞察：企业级大模型调用全景研究2025H2》报告，阿里云份额第一-阿里云"
+    clipped_description = (
+        "国际市场调研机构沙利文（Frost&Sullivan）发布了最新一期《中国GenAI市场洞察：企业级大模型调用全景研究2025H2》报告，"
+        "调研用户通过"
+    )
+    clipped_summary = f"{title} - {clipped_description}"
+    useful_body = (
+        "千问大模型以32%的份额位居中国企业级大模型调用份额第一\n\n"
+        "报告详情\n\n"
+        "2025年下半年，中国企业级市场大模型的日均总消耗量为37万亿Tokens，"
+        "其中，千问大模型占比32.1%位列第一。\n"
+    )
+    prep = PreparedExecution(
+        execution_path="normal",
+        intent_plan=[
+            IntentPlan(
+                intent_id="intent-web",
+                kind="web_research",
+                family="web_research",
+                order=1,
+                user_visible_label="大模型 token 排行",
+                source_text="帮我搜索一下2025年大模型使用token排行?",
+                status="completed",
+                requires_tools=True,
+                allowed_tool_names=["fetch_url"],
+                completion_signals=["fetch_url"],
+                completed_by_tool_names=["fetch_url"],
+            )
+        ],
+    )
+    state = ExecutionStateMachine.from_prepared_execution(prep)
+    state.transition("failed")
+    state.register_provider_failure(
+        kind="provider_timeout",
+        event={"kind": "provider_timeout", "error": "AI 供应商请求超时"},
+    )
+
+    async def _finalize_partial_output(**_kwargs):
+        return "", 0, 0
+
+    handler = SimpleNamespace(
+        request=SimpleNamespace(conversation_id=2275, input_variables={}),
+        agent=SimpleNamespace(id=59),
+        prep=SimpleNamespace(
+            rag_source_kinds=[],
+            context_compacted=False,
+            memory_flush_triggered=False,
+            memory_recalled=False,
+            prune_stats=None,
+            tool_planner=None,
+            execution_path="normal",
+            stream_runtime=None,
+        ),
+        start_time=0.0,
+        engine=SimpleNamespace(_messages_to_dicts=messages_to_dicts),
+        runtime_contract=SimpleNamespace(
+            finalize_partial_output=_finalize_partial_output,
+        ),
+        _state=state,
+        _runtime_turn_record=None,
+        _runtime_turn_record_source=None,
+        _runtime_turn_record_overlays={},
+        _output=clipped_summary,
+        _reasoning_output="",
+        _total_tokens=0,
+        _completion_tokens_used=0,
+        _visible_stream_content=clipped_summary,
+        _clear_before_next_message=False,
+        _next_runtime_context=None,
+    )
+    messages = [
+        ChatMessage(role="user", content="帮我搜索一下2025年大模型使用token排行?")
+    ]
+    tool_results = [
+        ToolResult(
+            tool_call_id="tc-fetch",
+            name="fetch_url",
+            success=True,
+            output=(
+                "Content from https://www.aliyun.com/analyst-reports/frost-genai-2025h2:\n"
+                f"Title: {title}\n"
+                f"Description: {clipped_description}\n\n"
+                f"{useful_body}"
+            ),
+            summary=clipped_summary,
+            summary_payload={
+                "fetch_url": True,
+                "ok": True,
+                "title": title,
+                "description": clipped_description,
+                "summary": clipped_summary,
+            },
+        )
+    ]
+
+    try:
+        artifacts = await stream_execution_runtime._build_stream_exception_artifacts(
+            handler,
+            messages=messages,
+            rag_sources=None,
+            output="",
+            total_tokens=0,
+            all_tool_results=tool_results,
+            public_error_message="AI 供应商请求超时",
+            completion_reason="provider_timeout",
+        )
+    finally:
+        context_token = getattr(state, "_context_token", None)
+        if context_token is not None:
+            from app.ai.engine.execution_state_machine import (
+                reset_current_execution_state_machine,
+            )
+
+            reset_current_execution_state_machine(context_token)
+
+    assert artifacts.result.success is True
+    assert artifacts.result.partial is False
+    assert artifacts.result.provider_failure_kind == "none"
+    assert "37万亿Tokens" in artifacts.result.output
+    assert "千问大模型占比32.1%位列第一" in artifacts.result.output
+    assert "报告详情" not in artifacts.result.output
+    assert not artifacts.result.output.endswith("调研用户通过")
+    assert messages[-1].role == "assistant"
+    assert messages[-1].content == artifacts.result.output
+    assert artifacts.result.turn_record["turn_outcome"] == "success"
+    assert artifacts.result.turn_record["termination_reason"] == "completed"
+    assert artifacts.result.turn_record["final_output_source"] == "recovery_evidence"
+    assert artifacts.diagnostics_payload["failure_kind"] == "none"
+    assert (
+        artifacts.diagnostics_payload[
+            "recovered_completed_output_rebuilt_from_tool_evidence"
+        ]
+        is True
+    )
+
+
 def test_build_sync_exception_result_recovers_completed_fetch_url_evidence() -> None:
     from app.ai.engine.execution_state_machine import ExecutionStateMachine
     from app.ai.engine.types import IntentPlan, PreparedExecution
@@ -872,15 +1016,14 @@ def test_build_sync_exception_result_recovers_completed_fetch_url_evidence() -> 
         )
     ]
 
+    messages = [
+        ChatMessage(role="user", content="帮我搜索一下2025年大模型使用token排行")
+    ]
     try:
         result = conversation_sync_result_support.build_sync_exception_result(
             exc=ProviderTimeoutError("AI 供应商请求超时"),
             request=SimpleNamespace(conversation_id=2268),
-            messages=[
-                ChatMessage(
-                    role="user", content="帮我搜索一下2025年大模型使用token排行"
-                )
-            ],
+            messages=messages,
             tool_results=tool_results,
             state=state,
             prep=prep,
@@ -906,6 +1049,10 @@ def test_build_sync_exception_result_recovers_completed_fetch_url_evidence() -> 
     assert result.diagnostics["failure_kind"] == "none"
     assert result.diagnostics["unfinished_intents"] == []
     assert result.diagnostics["recovered_provider_failure_kind"] == "provider_timeout"
+    assert messages[-1].role == "assistant"
+    assert messages[-1].content == result.output
+    assert result.messages[-1]["role"] == "assistant"
+    assert result.messages[-1]["content"] == result.output
 
 
 def test_done_payload_marks_partial_provider_failure_as_error_terminal() -> None:

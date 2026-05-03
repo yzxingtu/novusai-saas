@@ -8,6 +8,60 @@ from app.ai.types import ChatMessage
 from .recovery_result_normalizer import RecoveryResultNormalizer
 from .types import IntentPlan
 
+_TERMINAL_PUNCTUATION = ("。", "！", "？", ".", "!", "?")
+_TRUNCATION_MARKERS = ("[truncated]",)
+_LINE_END_QUOTES = "\"'”’)]）】》』」"
+_FETCH_BODY_NOISE_LINES = {
+    "报告详情",
+    "点击查看更多",
+    "查看更多",
+    "相关阅读",
+    "相关阅读推荐",
+    "相关推荐",
+    "相关链接",
+    "相关文章",
+    "更多内容",
+    "阅读更多",
+    "返回首页",
+    "首页",
+    "目录",
+    "导航",
+    "overview",
+    "relatedarticles",
+    "readmore",
+}
+
+
+def _has_terminal_punctuation(text: str) -> bool:
+    normalized = str(text or "").strip().rstrip(_LINE_END_QUOTES)
+    return normalized.endswith(_TERMINAL_PUNCTUATION)
+
+
+def _looks_truncated(text: str) -> bool:
+    normalized = str(text or "").strip().casefold()
+    return bool(
+        normalized.endswith(("...", "…"))
+        or any(marker in normalized for marker in _TRUNCATION_MARKERS)
+    )
+
+
+def _is_useful_fetch_body_line(
+    line: str,
+    *,
+    normalized_title: str,
+    normalized_description: str,
+) -> bool:
+    normalized_line = RecoveryResultNormalizer._normalize_comparison_text(line)
+    if not normalized_line:
+        return False
+    if normalized_line in _FETCH_BODY_NOISE_LINES:
+        return False
+    if len(line) <= 4 and not any(ch.isdigit() for ch in line):
+        return False
+    if normalized_title and normalized_line == normalized_title:
+        return False
+    return not (normalized_description and normalized_line == normalized_description)
+
 
 def extract_fetch_url_user_preview(
     result: ToolResult,
@@ -22,13 +76,31 @@ def extract_fetch_url_user_preview(
 
     title = str(summary_payload.get("title") or "").strip()
     description = str(summary_payload.get("description") or "").strip()
-    generic_summary = str(summary_payload.get("summary") or result.summary or "").strip()
+    generic_summary = str(
+        summary_payload.get("summary") or result.summary or ""
+    ).strip()
     title_has_site_suffix = "|" in title or "_" in title
     normalized_title = RecoveryResultNormalizer._normalize_comparison_text(title)
-    normalized_description = RecoveryResultNormalizer._normalize_comparison_text(description)
-    normalized_summary = RecoveryResultNormalizer._normalize_comparison_text(generic_summary)
-    summary_truncated = generic_summary.endswith(("...", "…"))
-    description_truncated = description.endswith(("...", "…"))
+    normalized_description = RecoveryResultNormalizer._normalize_comparison_text(
+        description
+    )
+    normalized_summary = RecoveryResultNormalizer._normalize_comparison_text(
+        generic_summary
+    )
+    summary_truncated = _looks_truncated(generic_summary)
+    description_truncated = _looks_truncated(description)
+    summary_is_title_description = bool(
+        normalized_title
+        and normalized_description
+        and normalized_summary
+        == RecoveryResultNormalizer._normalize_comparison_text(
+            f"{title} - {description}"
+        )
+    )
+    description_has_terminal_punctuation = _has_terminal_punctuation(description)
+    description_incomplete = bool(
+        description and not description_has_terminal_punctuation
+    )
 
     useful_lines: list[str] = []
     for raw_line in str(result.output or "").splitlines():
@@ -45,16 +117,44 @@ def extract_fetch_url_user_preview(
             )
         ):
             continue
-        normalized_line = RecoveryResultNormalizer._normalize_comparison_text(line)
-        if not normalized_line:
-            continue
-        if normalized_title and normalized_line == normalized_title:
-            continue
-        if normalized_description and normalized_line == normalized_description:
+        if not _is_useful_fetch_body_line(
+            line,
+            normalized_title=normalized_title,
+            normalized_description=normalized_description,
+        ):
             continue
         useful_lines.append(line)
         if len(" ".join(useful_lines)) >= max_length:
             break
+
+    prefer_body_preview = bool(
+        useful_lines
+        and (
+            summary_truncated
+            or description_truncated
+            or title_has_site_suffix
+            or summary_is_title_description
+            or description_incomplete
+        )
+    )
+    if prefer_body_preview:
+        preview_parts: list[str] = []
+        if (
+            description
+            and description_has_terminal_punctuation
+            and description not in useful_lines[:2]
+        ):
+            preview_parts.append(description)
+        preview_parts.extend(useful_lines[:2])
+        preview = " ".join(part.strip() for part in preview_parts if part.strip())
+        normalized_preview = RecoveryResultNormalizer._normalize_comparison_text(
+            preview
+        )
+        if normalized_preview and normalized_preview != normalized_title:
+            return RecoveryResultNormalizer._normalize_cached_result(
+                preview,
+                max_length=max_length,
+            )
 
     if (
         generic_summary
@@ -66,18 +166,6 @@ def extract_fetch_url_user_preview(
             generic_summary,
             max_length=max_length,
         )
-    if useful_lines and (summary_truncated or description_truncated or title_has_site_suffix):
-        preview_parts: list[str] = []
-        if description and description not in useful_lines[:2]:
-            preview_parts.append(description)
-        preview_parts.extend(useful_lines[:2])
-        preview = " ".join(part.strip() for part in preview_parts if part.strip())
-        normalized_preview = RecoveryResultNormalizer._normalize_comparison_text(preview)
-        if normalized_preview and normalized_preview != normalized_title:
-            return RecoveryResultNormalizer._normalize_cached_result(
-                preview,
-                max_length=max_length,
-            )
     if title and description and not title_has_site_suffix:
         return RecoveryResultNormalizer._normalize_cached_result(
             f"{title} - {description}",
@@ -103,7 +191,9 @@ def extract_fetch_url_user_preview(
             max_length=max_length,
         )
     if title:
-        return RecoveryResultNormalizer._normalize_cached_result(title, max_length=max_length)
+        return RecoveryResultNormalizer._normalize_cached_result(
+            title, max_length=max_length
+        )
     return None
 
 
@@ -114,7 +204,11 @@ def budgeted_web_research_response_candidates(
     for result in tool_results or []:
         if not result.success or str(result.name or "").strip() != "fetch_url":
             continue
-        payload = dict(result.summary_payload) if isinstance(result.summary_payload, dict) else {}
+        payload = (
+            dict(result.summary_payload)
+            if isinstance(result.summary_payload, dict)
+            else {}
+        )
         raw_title = str(payload.get("title") or "").strip()
         description = str(payload.get("description") or "").strip()
         for candidate in (
@@ -144,12 +238,16 @@ def should_replace_budgeted_web_research_response(
     if lowered_response.startswith(("content from ", "title: ", "description: ")):
         return True
 
-    normalized_response = RecoveryResultNormalizer._normalize_comparison_text(raw_response)
+    normalized_response = RecoveryResultNormalizer._normalize_comparison_text(
+        raw_response
+    )
     if not normalized_response:
         return True
 
     for candidate in budgeted_web_research_response_candidates(tool_results):
-        normalized_candidate = RecoveryResultNormalizer._normalize_comparison_text(candidate)
+        normalized_candidate = RecoveryResultNormalizer._normalize_comparison_text(
+            candidate
+        )
         if normalized_candidate and normalized_response == normalized_candidate:
             return True
     return False
@@ -205,7 +303,9 @@ def extract_fetch_url_candidate_urls(
     for result in tool_results or []:
         if not result.success or str(result.name or "").strip() != "web_search":
             continue
-        payload = result.summary_payload if isinstance(result.summary_payload, dict) else {}
+        payload = (
+            result.summary_payload if isinstance(result.summary_payload, dict) else {}
+        )
         items = payload.get("items")
         if not isinstance(items, list):
             continue
@@ -292,7 +392,9 @@ def intent_result_from_tool_results(
                 result.summary,
                 result.output or result.error,
             ):
-                normalized = RecoveryResultNormalizer._normalize_cached_result(candidate)
+                normalized = RecoveryResultNormalizer._normalize_cached_result(
+                    candidate
+                )
                 if normalized:
                     if normalized not in normalized_results:
                         normalized_results.append(normalized)

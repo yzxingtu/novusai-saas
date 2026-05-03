@@ -324,6 +324,14 @@ class TurnDiagnostics:
             prep_diagnostics.get("provider_failure_recovered_from_tool_evidence"),
             False,
         )
+        recovered_completed_output_rebuilt_from_tool_evidence = (
+            TurnDiagnostics._as_bool(
+                prep_diagnostics.get(
+                    "recovered_completed_output_rebuilt_from_tool_evidence"
+                ),
+                False,
+            )
+        )
         recovered_provider_failure_kind = TurnDiagnostics._as_text(
             prep_diagnostics.get("recovered_provider_failure_kind")
         )
@@ -411,6 +419,9 @@ class TurnDiagnostics:
                 "provider_failure_recovered_from_tool_evidence": (
                     provider_failure_recovered_from_tool_evidence
                 ),
+                "recovered_completed_output_rebuilt_from_tool_evidence": (
+                    recovered_completed_output_rebuilt_from_tool_evidence
+                ),
                 "recovered_provider_failure_kind": recovered_provider_failure_kind,
                 "recovered_provider_events": recovered_provider_events,
             },
@@ -425,6 +436,9 @@ class TurnDiagnostics:
             "auto_fetch_gate_reason": auto_fetch_gate_reason,
             "provider_failure_recovered_from_tool_evidence": (
                 provider_failure_recovered_from_tool_evidence
+            ),
+            "recovered_completed_output_rebuilt_from_tool_evidence": (
+                recovered_completed_output_rebuilt_from_tool_evidence
             ),
             "recovered_provider_failure_kind": recovered_provider_failure_kind,
             "recovered_provider_events": recovered_provider_events,

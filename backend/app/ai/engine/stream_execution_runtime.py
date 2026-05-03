@@ -828,6 +828,40 @@ def _resolve_exception_final_output_source(
     return "partial_output"
 
 
+def _rebuild_exception_completed_output_from_evidence(
+    *,
+    state: Any,
+    partial_output: str,
+    tool_results: list[Any],
+) -> str:
+    if state is None:
+        return ""
+    intent_plan = list(getattr(state, "intent_plan", []) or [])
+    if not RecoveryManager.has_completed_output_evidence(
+        intent_plan,
+        tool_results=tool_results,
+    ):
+        return ""
+    completed_output = str(
+        RecoveryManager.build_completed_output(
+            intent_plan,
+            tool_results=tool_results,
+            reason="provider_failure_recovery",
+        )
+        or ""
+    ).strip()
+    if not completed_output:
+        return ""
+    if not str(partial_output or "").strip():
+        return completed_output
+    if RecoveryManager.should_replace_budgeted_web_research_response(
+        response_text=partial_output,
+        tool_results=tool_results,
+    ):
+        return completed_output
+    return ""
+
+
 def _resolve_exception_tool_results(
     *,
     all_tool_results: list[Any],
@@ -928,22 +962,20 @@ async def _build_stream_exception_artifacts(
             if callable(transition):
                 transition("completed")
 
-    if (
-        state is not None
-        and not partial_output
-        and RecoveryManager.has_completed_output_evidence(
-            list(getattr(state, "intent_plan", []) or []),
+    if state is not None and not recovered_from_provider_failure:
+        rebuilt_completed_output = _rebuild_exception_completed_output_from_evidence(
+            state=state,
+            partial_output=partial_output,
             tool_results=recovered_tool_results,
         )
-    ):
-        partial_output = str(
-            RecoveryManager.build_completed_output(
-                list(getattr(state, "intent_plan", []) or []),
-                tool_results=recovered_tool_results,
-                reason="provider_failure_recovery",
+        if rebuilt_completed_output:
+            partial_output = rebuilt_completed_output
+            state.preparation_diagnostics = dict(
+                getattr(state, "preparation_diagnostics", {}) or {}
             )
-            or ""
-        ).strip()
+            state.preparation_diagnostics[
+                "recovered_completed_output_rebuilt_from_tool_evidence"
+            ] = True
 
     final_output_source = (
         "recovery_evidence"

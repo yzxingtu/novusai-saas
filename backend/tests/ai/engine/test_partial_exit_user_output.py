@@ -1,3 +1,8 @@
+"""Test type: behavioral
+Scope: recovery output rendering and web research evidence salvage.
+Mock strategy: no LLM/provider mocks; recovery builders run real logic over fixed tool evidence.
+"""
+
 from app.ai.engine.recovery_manager import RecoveryManager
 from app.ai.engine.types import IntentPlan
 from app.ai.tools.types import ToolResult
@@ -13,6 +18,61 @@ def _intent(intent_id: str, status: str, label: str) -> IntentPlan:
         source_text="",
         status=status,
         requires_tools=False,
+    )
+
+
+def _web_research_intent() -> IntentPlan:
+    return IntentPlan(
+        intent_id="intent-web",
+        kind="web_research",
+        family="web_research",
+        order=1,
+        user_visible_label="大模型 token 排行",
+        source_text="帮我搜索一下2025年大模型使用token排行?",
+        status="pending",
+        requires_tools=True,
+        allowed_tool_names=["fetch_url"],
+        completion_signals=["fetch_url"],
+    )
+
+
+def _token_rank_fetch_result(
+    *,
+    description: str,
+    summary: str,
+    body: str | None,
+) -> ToolResult:
+    title = "沙利文发布《中国GenAI市场洞察：企业级大模型调用全景研究2025H2》报告，阿里云份额第一-阿里云"
+    output_body = (
+        body
+        if body is not None
+        else (
+            "千问大模型以32%的份额位居中国企业级大模型调用份额第一\n\n"
+            "报告详情\n\n"
+            "国际市场调研机构沙利文（Frost&Sullivan）发布了最新一期《中国GenAI市场洞察：企业级大模型调用全景研究2025H2》报告，"
+            "调研用户通过公有云、本地部署、MaaS等使用大模型的不同方式，盘点中国企业级大模型调用市场的全景。"
+            "2025年下半年，中国企业级市场大模型的日均总消耗量为37万亿Tokens，其中，千问大模型占比32.1%位列第一。\n"
+        )
+    )
+    output = (
+        "Content from https://www.aliyun.com/analyst-reports/frost-genai-2025h2:\n"
+        f"Title: {title}\n"
+        f"Description: {description}\n\n"
+        f"{output_body}"
+    )
+    return ToolResult(
+        tool_call_id="tc-fetch",
+        name="fetch_url",
+        success=True,
+        output=output,
+        summary=summary,
+        summary_payload={
+            "fetch_url": True,
+            "ok": True,
+            "title": title,
+            "description": description,
+            "summary": summary,
+        },
     )
 
 
@@ -267,3 +327,140 @@ def test_update_intent_statuses_uses_fetch_body_preview_for_web_research_result(
         updated[0].cached_result
         != "放假通知！湖南12地明确！|特殊教育学校_新浪财经_新浪网"
     )
+
+
+def test_update_intent_statuses_uses_body_when_fetch_summary_description_is_incomplete() -> (
+    None
+):
+    description = "国际市场调研机构沙利文（Frost&Sullivan）发布了最新一期《中国GenAI市场洞察：企业级大模型调用全景研究2025H2》报告，调研用户通过"
+    summary = (
+        "沙利文发布《中国GenAI市场洞察：企业级大模型调用全景研究2025H2》报告，阿里云份额第一-阿里云 - "
+        f"{description}"
+    )
+
+    updated = RecoveryManager.update_intent_statuses(
+        [_web_research_intent()],
+        messages=[],
+        tool_results=[
+            _token_rank_fetch_result(
+                description=description,
+                summary=summary,
+                body=None,
+            )
+        ],
+    )
+
+    assert updated[0].status == "completed"
+    assert "37万亿Tokens" in (updated[0].cached_result or "")
+    assert "千问大模型占比32.1%位列第一" in (updated[0].cached_result or "")
+    assert "报告详情" not in (updated[0].cached_result or "")
+    assert not str(updated[0].cached_result or "").endswith("调研用户通过")
+
+
+def test_update_intent_statuses_uses_body_when_fetch_summary_has_truncated_marker() -> (
+    None
+):
+    description = (
+        "沙利文报告显示，2025年下半年中国企业级市场大模型调用规模继续扩大，"
+        "头部模型份额进一步集中。"
+    )
+    summary = (
+        "沙利文发布《中国GenAI市场洞察：企业级大模型调用全景研究2025H2》报告 - "
+        "沙利文报告显示，2025年下半年中国企业级市场大模型调用规模继续扩大... [truncated]"
+    )
+    updated = RecoveryManager.update_intent_statuses(
+        [_web_research_intent()],
+        messages=[],
+        tool_results=[
+            _token_rank_fetch_result(
+                description=description,
+                summary=summary,
+                body=None,
+            )
+        ],
+    )
+
+    assert updated[0].status == "completed"
+    assert "37万亿Tokens" in (updated[0].cached_result or "")
+    assert "千问大模型占比32.1%位列第一" in (updated[0].cached_result or "")
+    assert "[truncated]" not in (updated[0].cached_result or "")
+
+
+def test_completed_output_uses_fetch_body_for_recovered_user_visible_answer() -> None:
+    description = "国际市场调研机构沙利文（Frost&Sullivan）发布了最新一期《中国GenAI市场洞察：企业级大模型调用全景研究2025H2》报告，调研用户通过"
+    summary = (
+        "沙利文发布《中国GenAI市场洞察：企业级大模型调用全景研究2025H2》报告，阿里云份额第一-阿里云 - "
+        f"{description}"
+    )
+    tool_result = _token_rank_fetch_result(
+        description=description,
+        summary=summary,
+        body=None,
+    )
+    updated = RecoveryManager.update_intent_statuses(
+        [_web_research_intent()],
+        messages=[],
+        tool_results=[tool_result],
+    )
+
+    output = RecoveryManager.build_completed_output(
+        updated,
+        tool_results=[tool_result],
+        reason="partial_exit_recovery",
+    )
+
+    assert "37万亿Tokens" in output
+    assert "千问大模型占比32.1%位列第一" in output
+    assert "报告详情" not in output
+    assert not output.endswith("调研用户通过")
+
+
+def test_update_intent_statuses_keeps_complete_fetch_summary_when_body_is_absent() -> (
+    None
+):
+    description = (
+        "2025年中国企业级大模型市场爆发增长，日均调用量突破10万亿tokens。"
+        "阿里通义以17.7%份额领跑。"
+    )
+    summary = f"中国企业调用大模型日均超10万亿Tokens，阿里通义份额第一 - {description}"
+    updated = RecoveryManager.update_intent_statuses(
+        [_web_research_intent()],
+        messages=[],
+        tool_results=[
+            _token_rank_fetch_result(
+                description=description,
+                summary=summary,
+                body="",
+            )
+        ],
+    )
+
+    assert updated[0].status == "completed"
+    assert updated[0].cached_result == summary
+
+
+def test_update_intent_statuses_does_not_promote_failed_fetch_url_evidence() -> None:
+    updated = RecoveryManager.update_intent_statuses(
+        [_web_research_intent()],
+        messages=[],
+        tool_results=[
+            ToolResult(
+                tool_call_id="tc-fetch",
+                name="fetch_url",
+                success=False,
+                error="HTTP 502 while fetching https://example.com/report",
+                summary="截断但失败的网页摘要",
+                summary_payload={
+                    "fetch_url": True,
+                    "ok": False,
+                    "title": "失败报告",
+                    "description": "失败摘要",
+                    "summary": "失败报告 - 失败摘要",
+                },
+            )
+        ],
+    )
+
+    assert updated[0].status == "pending"
+    assert updated[0].cached_result is None
+    assert "partial_result" not in (updated[0].metadata or {})
