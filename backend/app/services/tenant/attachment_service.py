@@ -267,6 +267,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         """
         上传分片 / Upload chunk.
         """
+        await self._ensure_chunk_upload_entitled()
         session = await self._load_session(upload_id)
         chunk_count = int(session["chunk_count"])
         if chunk_index < 0 or chunk_index >= chunk_count:
@@ -297,6 +298,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         """
         完成分片上传并合并文件 / Complete chunk upload and merge files.
         """
+        await self._ensure_chunk_upload_entitled()
         session = await self._load_session(upload_id)
         chunk_count = int(session["chunk_count"])
         uploaded_chunks = set(session.get("uploaded_chunks", []))
@@ -380,6 +382,27 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         if not enabled:
             raise BusinessException(
                 message=_("error.auth.forbidden"),
+                code=ErrorCode.FORBIDDEN,
+            )
+
+    async def _ensure_chunk_upload_entitled(self) -> None:
+        """
+        写入临时分片前重新检查上传资格 / Re-check upload entitlement before temporary chunk writes.
+
+        分片会话可能跨过套餐降级；每次写入仍必须要求有效套餐，避免停用租户继续占用临时存储。
+        Chunk sessions can outlive a downgrade; each write still requires an
+        active plan so disabled tenants cannot keep filling temporary storage.
+        """
+        await self._ensure_upload_enabled()
+        tenant = await self._get_tenant()
+        quota_service = QuotaService(self.db, tenant)
+        storage_check = await quota_service.check_storage_quota(
+            additional_bytes=0,
+            current_bytes=0,
+        )
+        if not storage_check.allowed:
+            raise BusinessException(
+                message=storage_check.message or _("quota.storage_exceeded"),
                 code=ErrorCode.FORBIDDEN,
             )
 

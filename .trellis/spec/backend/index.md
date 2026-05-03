@@ -102,6 +102,14 @@
   inactive unless the tenant has an active plan relation; missing tenants,
   inactive tenants, missing plans, and inactive plans must return denial rather
   than unlimited access.
+- Tenant-admin role permission assignments and tenant organization-node direct
+  permission assignments must reject permission IDs outside the tenant's current
+  active plan at write time. Runtime plan intersection is still required, but
+  historical out-of-plan permissions must not be pre-stored for later upgrades.
+- Attachment chunk-upload writes must re-check upload enablement and active plan
+  storage entitlement before every temporary chunk write and before completion.
+  Existing chunk sessions must not keep consuming temporary storage after a
+  tenant, plan, or upload entitlement is disabled.
 - Protected plugin API routes (`auth` other than `none`) must declare an
   explicit permission code. Standalone plugin page slots without access codes
   are hidden unless the caller has `*`.
@@ -109,7 +117,9 @@
   provisioning/verification/renewal/upload, and auto-renew enablement must
   re-check the current tenant plan custom-domain entitlement. Default tenant
   subdomains are exempt; custom domains fail closed after downgrade or plan
-  deactivation.
+  deactivation. Platform-admin domain and SSL write routes must follow the same
+  entitlement checks unless a deliberately designed, audited override contract is
+  introduced.
 - Do not hardcode fixed LLM-facing prompts, tool descriptions, or model
   instruction blocks directly in Python business/runtime code; store them under
   `backend/app/ai/prompt_contracts/resources/` and load them through the shared

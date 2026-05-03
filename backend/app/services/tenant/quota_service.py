@@ -172,10 +172,16 @@ class QuotaService:
         has_active_plan = getattr(self.tenant, "has_active_plan", None)
         if isinstance(has_active_plan, bool):
             return has_active_plan
+        if not bool(getattr(self.tenant, "is_active", True)):
+            return False
+        if bool(getattr(self.tenant, "is_deleted", False)):
+            return False
         plan_id = getattr(self.tenant, "plan_id", None)
         plan = getattr(self.tenant, "tenant_plan", None)
-        return plan_id is not None and plan is not None and bool(
-            getattr(plan, "is_active", False)
+        return (
+            plan_id is not None
+            and plan is not None
+            and bool(getattr(plan, "is_active", False))
         )
 
     @staticmethod

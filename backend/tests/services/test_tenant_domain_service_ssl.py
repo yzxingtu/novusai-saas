@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -20,11 +21,13 @@ async def test_start_ssl_provision_rejects_when_already_provisioning(mock_db) ->
     service = TenantDomainService.__new__(TenantDomainService)
     service.db = mock_db
     service.repo = AsyncMock()
-    service.get_by_id = AsyncMock(return_value=make_mock_model(
-        id=1,
-        is_verified=True,
-        ssl_status=DomainSslStatus.PROVISIONING.value,
-    ))
+    service.get_by_id = AsyncMock(
+        return_value=make_mock_model(
+            id=1,
+            is_verified=True,
+            ssl_status=DomainSslStatus.PROVISIONING.value,
+        )
+    )
     service.update = AsyncMock()
 
     with pytest.raises(BusinessException) as exc_info:
@@ -46,13 +49,18 @@ async def test_start_ssl_provision_updates_status_and_enqueues_with_delay(
     service = TenantDomainService.__new__(TenantDomainService)
     service.db = mock_db
     service.repo = AsyncMock()
-    service.get_by_id = AsyncMock(return_value=make_mock_model(
-        id=1,
-        is_verified=True,
-        ssl_status=DomainSslStatus.NONE.value,
-    ))
+    service.get_by_id = AsyncMock(
+        return_value=make_mock_model(
+            id=1,
+            tenant_id=5,
+            is_verified=True,
+            ssl_status=DomainSslStatus.NONE.value,
+        )
+    )
+    service.ensure_custom_domain_entitled = AsyncMock()
     updated = make_mock_model(
         id=1,
+        tenant_id=5,
         is_verified=True,
         ssl_status=DomainSslStatus.PROVISIONING.value,
     )
@@ -67,6 +75,7 @@ async def test_start_ssl_provision_updates_status_and_enqueues_with_delay(
     result = await service.start_ssl_provision(1)
 
     assert result is updated
+    service.ensure_custom_domain_entitled.assert_awaited_once()
     service.update.assert_awaited_once_with(
         1,
         {"ssl_status": DomainSslStatus.PROVISIONING.value},
@@ -77,6 +86,65 @@ async def test_start_ssl_provision_updates_status_and_enqueues_with_delay(
         queue="default",
         countdown=2,
     )
+
+
+@pytest.mark.asyncio
+async def test_batch_provision_ssl_rejects_custom_domain_when_plan_inactive(
+    mock_db,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """批量签发也必须复核当前套餐 / Batch provisioning must honor current plan."""
+    from app.services.system.tenant_domain_service import TenantDomainService
+
+    class _Scalars:
+        def __init__(self, values):
+            self._values = values
+
+        def all(self):
+            return self._values
+
+    class _DomainResult:
+        def scalars(self):
+            return _Scalars(
+                [
+                    SimpleNamespace(
+                        id=9,
+                        tenant_id=5,
+                        domain="custom.example.com",
+                    )
+                ]
+            )
+
+    class _TenantResult:
+        def scalar_one_or_none(self):
+            return SimpleNamespace(
+                id=5,
+                is_active=True,
+                is_deleted=False,
+                plan_id=7,
+                quota={"allow_custom_domain": True, "max_custom_domains": 5},
+                tenant_plan=SimpleNamespace(is_active=False),
+            )
+
+    service = TenantDomainService.__new__(TenantDomainService)
+    service.db = mock_db
+    service.repo = AsyncMock()
+    service.update = AsyncMock()
+    service._send_ssl_provision_task = MagicMock()
+    service._get_domain_suffix = AsyncMock(return_value=".tenant.example")
+    mock_db.execute = AsyncMock(side_effect=[_DomainResult(), _TenantResult()])
+
+    monkeypatch.setattr(
+        "app.services.system.dns_provider.ensure_dns_provider_ready",
+        AsyncMock(return_value="cloudflare"),
+    )
+
+    with pytest.raises(BusinessException) as exc_info:
+        await service.batch_provision_ssl(5)
+
+    assert exc_info.value.code == ErrorCode.FORBIDDEN
+    service.update.assert_not_awaited()
+    service._send_ssl_provision_task.assert_not_called()
 
 
 @pytest.mark.asyncio

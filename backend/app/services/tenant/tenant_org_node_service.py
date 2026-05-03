@@ -24,6 +24,9 @@ from app.models.org.tenant_org_node import (
 from app.models.tenant.tenant_admin import TenantAdmin
 from app.repositories.tenant.tenant_org_node_repository import TenantOrgNodeRepository
 from app.services.common.role_tree_mixin import MAX_ROLE_DEPTH, RoleTreeMixin
+from app.services.tenant.plan_permission_guard import (
+    normalize_tenant_plan_permission_ids,
+)
 from app.services.tenant.tenant_admin_service import TenantAdminService
 
 
@@ -49,24 +52,12 @@ class TenantOrgNodeService(
     async def _normalize_permission_ids(
         self, permission_ids: list[int] | None
     ) -> list[int]:
-        if not permission_ids:
-            return []
-
-        deduped = list(dict.fromkeys(permission_ids))
-        result = await self.db.execute(
-            select(Permission.id).where(
-                Permission.id.in_(deduped),
-                Permission.scope.in_(
-                    [PermissionScope.TENANT.value, PermissionScope.BOTH.value]
-                ),
-                Permission.is_deleted.is_(False),
-            )
+        return await normalize_tenant_plan_permission_ids(
+            self.db,
+            tenant_id=self.tenant_id,
+            permission_ids=permission_ids,
+            allowed_scopes=[PermissionScope.TENANT.value, PermissionScope.BOTH.value],
         )
-        existing_ids = set(result.scalars().all())
-        missing_ids = [item for item in deduped if item not in existing_ids]
-        if missing_ids:
-            raise NotFoundException(message=_("permission.not_found"))
-        return deduped
 
     def _role_to_dict(self, org_node: TenantOrgNode) -> dict[str, Any]:
         base = super()._role_to_dict(org_node)

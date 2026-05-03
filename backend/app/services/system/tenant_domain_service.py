@@ -35,7 +35,6 @@ from app.repositories.system.tenant_domain_repository import TenantDomainReposit
 from app.repositories.tenant.tenant_domain_tenant_repository import (
     TenantDomainTenantRepository,
 )
-from app.services.tenant.quota_service import QuotaService
 
 _CONFIG_KEY_DOMAIN_SUFFIX = "tenant_domain_suffix"
 _CONFIG_KEY_VERIFICATION_PREFIX = "domain_verification_prefix"
@@ -103,6 +102,8 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
         if not tenant:
             return False, 0
 
+        from app.services.tenant.quota_service import QuotaService
+
         quota_check = await QuotaService(self.db, tenant).check_domain_quota()
         if not quota_check.allowed:
             return False, 0
@@ -135,12 +136,15 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
                 code=ErrorCode.FORBIDDEN,
             )
 
+        from app.services.tenant.quota_service import QuotaService
+
         quota_check = await QuotaService(self.db, tenant).check_domain_quota(
             additional=0
         )
         if not quota_check.allowed:
             raise BusinessException(
-                message=quota_check.message or _("tenant_domain.custom_domain_disabled"),
+                message=quota_check.message
+                or _("tenant_domain.custom_domain_disabled"),
                 code=ErrorCode.FORBIDDEN,
             )
 
@@ -195,8 +199,6 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
         tenant_id: int,
         domain: str,
         remark: str | None = None,
-        *,
-        skip_quota_check: bool = False,
     ) -> TenantDomain:
         """
         添加自定义域名 / Add custom domain.
@@ -207,7 +209,6 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
             tenant_id: 企业 ID
             domain: 域名
             remark: 备注
-            skip_quota_check: 跳过配额检查（Admin 端使用）
 
         Returns:
             创建的域名
@@ -215,23 +216,22 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
         Raises:
             BusinessException: 域名已存在、配额超限或套餐不允许自定义域名
         """
-        if not skip_quota_check:
-            is_allowed, max_domains = await self._check_custom_domain_allowed(tenant_id)
-            if not is_allowed:
-                raise BusinessException(
-                    message=_("tenant_domain.custom_domain_disabled"),
-                    code=ErrorCode.FORBIDDEN,
-                )
+        is_allowed, max_domains = await self._check_custom_domain_allowed(tenant_id)
+        if not is_allowed:
+            raise BusinessException(
+                message=_("tenant_domain.custom_domain_disabled"),
+                code=ErrorCode.FORBIDDEN,
+            )
 
-            suffix = await self._get_domain_suffix()
-            domains = await self.repo.get_tenant_domains(tenant_id)
-            custom_count = sum(1 for d in domains if not d.domain.endswith(suffix))
+        suffix = await self._get_domain_suffix()
+        domains = await self.repo.get_tenant_domains(tenant_id)
+        custom_count = sum(1 for d in domains if not d.domain.endswith(suffix))
 
-            if max_domains > 0 and custom_count >= max_domains:
-                raise BusinessException(
-                    message=_("tenant_domain.quota_exceeded"),
-                    code=ErrorCode.DOMAIN_QUOTA_EXCEEDED,
-                )
+        if max_domains > 0 and custom_count >= max_domains:
+            raise BusinessException(
+                message=_("tenant_domain.quota_exceeded"),
+                code=ErrorCode.DOMAIN_QUOTA_EXCEEDED,
+            )
 
         if await self.repo.domain_exists(domain):
             raise BusinessException(
@@ -337,6 +337,7 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
                 code=ErrorCode.VALIDATION_ERROR,
             )
 
+        await self.ensure_custom_domain_entitled(tenant_id, domain)
         await self.repo.clear_primary_flag(tenant_id)
 
         result = await self.update(domain_id, {"is_primary": True})
@@ -384,6 +385,7 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
                 code=ErrorCode.CONFLICT,
             )
 
+        await self.ensure_custom_domain_entitled(domain.tenant_id, domain)
         await ensure_dns_provider_ready(self.db)
         result = await self.update(
             domain_id,
@@ -440,6 +442,8 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
                 message=_("tenant_domain.already_verified"),
                 code=ErrorCode.VALIDATION_ERROR,
             )
+
+        await self.ensure_custom_domain_entitled(domain.tenant_id, domain)
 
         # 开发模式跳过 DNS 验证
         if settings.DEBUG:
@@ -792,6 +796,7 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
 
         triggered = 0
         for domain in domains:
+            await self.ensure_custom_domain_entitled(tenant_id, domain)
             await self.update(
                 domain.id,
                 {"ssl_status": DomainSslStatus.PROVISIONING.value},

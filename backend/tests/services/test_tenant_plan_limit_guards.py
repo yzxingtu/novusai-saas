@@ -11,7 +11,7 @@ fail-closed contracts instead of mocked downstream success.
 from __future__ import annotations
 
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from pydantic import ValidationError
@@ -19,6 +19,26 @@ from pydantic import ValidationError
 from app.enums.error_code import ErrorCode
 from app.exceptions import BusinessException, NotFoundException
 from app.schemas.tenant.plan import TenantPlanCreateRequest
+
+
+class _ScalarsResult:
+    def __init__(self, values):
+        self._values = values
+
+    def all(self):
+        return self._values
+
+
+class _DBResult:
+    def __init__(self, *, scalar=None, scalars=None):
+        self._scalar = scalar
+        self._scalars = list(scalars or [])
+
+    def scalar_one_or_none(self):
+        return self._scalar
+
+    def scalars(self):
+        return _ScalarsResult(self._scalars)
 
 
 @pytest.mark.asyncio
@@ -101,6 +121,7 @@ def test_tenant_quota_overrides_require_active_plan() -> None:
     tenant = Tenant(
         name="Inactive tenant",
         code="inactive-tenant",
+        is_active=True,
         plan_id=9,
         quota={"max_custom_domains": 3, "allow_custom_domain": True},
     )
@@ -115,6 +136,108 @@ def test_tenant_quota_overrides_require_active_plan() -> None:
     assert tenant.has_active_plan is True
     assert tenant.get_quota_value("allow_custom_domain", False) is True
     assert tenant.max_custom_domains == 3
+
+
+def test_tenant_quota_overrides_require_active_tenant() -> None:
+    from app.models.tenant.tenant import Tenant
+    from app.models.tenant.tenant_plan import TenantPlan
+
+    plan = TenantPlan(
+        id=9,
+        code="active",
+        name="Active",
+        is_active=True,
+        quota={"allow_custom_domain": True},
+    )
+    tenant = Tenant(
+        name="Disabled tenant",
+        code="disabled-tenant",
+        is_active=False,
+        plan_id=9,
+        quota={"allow_custom_domain": True},
+    )
+    tenant.tenant_plan = plan
+
+    assert tenant.has_active_plan is False
+    assert tenant.get_quota_value("allow_custom_domain", False) is False
+
+
+@pytest.mark.asyncio
+async def test_permission_role_assignment_rejects_ids_outside_active_plan(
+    mock_db,
+) -> None:
+    from app.services.tenant.tenant_permission_role_service import (
+        TenantPermissionRoleService,
+    )
+
+    role = SimpleNamespace(permissions=["existing"])
+    plan_permission = SimpleNamespace(
+        id=101,
+        code="agent:list",
+        type="operation",
+        is_enabled=True,
+        is_deleted=False,
+    )
+    tenant = SimpleNamespace(
+        id=5,
+        plan_id=9,
+        tenant_plan=SimpleNamespace(is_active=True, permissions=[plan_permission]),
+    )
+    mock_db.execute = AsyncMock(
+        side_effect=[
+            _DBResult(scalars=[101, 102]),
+            _DBResult(scalar=tenant),
+        ]
+    )
+    service = TenantPermissionRoleService.__new__(TenantPermissionRoleService)
+    service.db = mock_db
+    service.tenant_id = 5
+
+    with pytest.raises(BusinessException) as exc_info:
+        await service._assign_permissions(role, [101, 102])
+
+    assert exc_info.value.code == ErrorCode.FORBIDDEN
+    assert exc_info.value.data == {"forbidden_permission_ids": [102]}
+    assert role.permissions == ["existing"]
+    mock_db.flush.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_org_node_permission_assignment_rejects_ids_outside_active_plan(
+    mock_db,
+) -> None:
+    from app.services.tenant.tenant_org_node_service import TenantOrgNodeService
+
+    org_node = SimpleNamespace(permissions=["existing"])
+    plan_permission = SimpleNamespace(
+        id=201,
+        code="tenant_user:list",
+        type="operation",
+        is_enabled=True,
+        is_deleted=False,
+    )
+    tenant = SimpleNamespace(
+        id=5,
+        plan_id=9,
+        tenant_plan=SimpleNamespace(is_active=True, permissions=[plan_permission]),
+    )
+    mock_db.execute = AsyncMock(
+        side_effect=[
+            _DBResult(scalars=[201, 202]),
+            _DBResult(scalar=tenant),
+        ]
+    )
+    service = TenantOrgNodeService.__new__(TenantOrgNodeService)
+    service.db = mock_db
+    service.tenant_id = 5
+
+    with pytest.raises(BusinessException) as exc_info:
+        await service._assign_permissions(org_node, [201, 202])
+
+    assert exc_info.value.code == ErrorCode.FORBIDDEN
+    assert exc_info.value.data == {"forbidden_permission_ids": [202]}
+    assert org_node.permissions == ["existing"]
+    mock_db.flush.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -186,6 +309,40 @@ async def test_runtime_api_quota_rejects_missing_tenant_before_redis(
 
     assert result.allowed is False
     assert result.limit == -1
+
+
+@pytest.mark.asyncio
+async def test_chunk_upload_rechecks_plan_before_temporary_write(mock_db) -> None:
+    from app.services.tenant.attachment_service import AttachmentService
+
+    service = AttachmentService.__new__(AttachmentService)
+    service.db = mock_db
+    service.tenant_id = 5
+    service._ensure_upload_enabled = AsyncMock()
+    service._get_tenant = AsyncMock(
+        return_value=SimpleNamespace(
+            id=5,
+            is_active=True,
+            is_deleted=False,
+            plan_id=9,
+            quota={},
+            tenant_plan=SimpleNamespace(is_active=False),
+        )
+    )
+    service._load_session = AsyncMock(
+        side_effect=AssertionError("session should not be loaded")
+    )
+    service._write_chunk = AsyncMock(
+        side_effect=AssertionError("chunk should not be written")
+    )
+
+    with pytest.raises(BusinessException) as exc_info:
+        await service.upload_chunk("upload-1", 0, MagicMock())
+
+    assert exc_info.value.code == ErrorCode.FORBIDDEN
+    service._ensure_upload_enabled.assert_awaited_once()
+    service._load_session.assert_not_awaited()
+    service._write_chunk.assert_not_awaited()
 
 
 @pytest.mark.asyncio

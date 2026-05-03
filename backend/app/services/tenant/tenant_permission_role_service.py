@@ -19,6 +19,9 @@ from app.models.auth.tenant_admin_role import TenantAdminRole
 from app.repositories.tenant.tenant_permission_role_repository import (
     TenantPermissionRoleRepository,
 )
+from app.services.tenant.plan_permission_guard import (
+    normalize_tenant_plan_permission_ids,
+)
 
 
 class TenantPermissionRoleService(
@@ -179,12 +182,23 @@ class TenantPermissionRoleService(
             await self.db.refresh(role)
             return
 
+        normalized_permission_ids = await normalize_tenant_plan_permission_ids(
+            self.db,
+            tenant_id=self.tenant_id,
+            permission_ids=permission_ids,
+        )
         query = select(Permission).where(
-            Permission.id.in_(permission_ids),
+            Permission.id.in_(normalized_permission_ids),
             Permission.is_deleted.is_(False),
         )
         result = await self.db.execute(query)
-        role.permissions = list(result.scalars().all())
+        permissions = list(result.scalars().all())
+        permission_map = {permission.id: permission for permission in permissions}
+        role.permissions = [
+            permission_map[permission_id]
+            for permission_id in normalized_permission_ids
+            if permission_id in permission_map
+        ]
         await self.db.flush()
         await self.db.refresh(role)
 

@@ -153,7 +153,6 @@ class AdminTenantDomainController(GlobalController):
                 tenant_id=tenant_id,
                 domain=data.domain,
                 remark=data.remark,
-                skip_quota_check=True,
             )
 
             # 如果请求设为主域名，且域名已验证 / If requested as primary domain and domain is verified
@@ -487,7 +486,7 @@ class AdminTenantDomainController(GlobalController):
             db: DbSession,
             tenant_id: int,
             domain_id: int,
-        ) -> None:
+        ):
             """验证域名属于指定企业 / Verify domain belongs to specified tenant"""
             service = TenantDomainService(db)
             domain = await service.get_by_id(domain_id)
@@ -496,6 +495,7 @@ class AdminTenantDomainController(GlobalController):
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=_("tenant_domain.not_found"),
                 )
+            return domain
 
         @router.get("/{domain_id}/ssl", summary="获取域名 SSL 证书详情")
         @permission_action("ssl_detail", "action.tenant_domain.ssl_detail")
@@ -561,7 +561,10 @@ class AdminTenantDomainController(GlobalController):
             手动续期已有平台证书（通过 Celery 队列异步执行）/ Manually renew platform cert (async via Celery). 仅 platform 类型证书可续期。
             """
             await _verify_tenant_exists(db, tenant_id)
-            await _verify_domain_ownership(db, tenant_id, domain_id)
+            domain = await _verify_domain_ownership(db, tenant_id, domain_id)
+            await TenantDomainService(db).ensure_custom_domain_entitled(
+                tenant_id, domain
+            )
 
             ssl_service = SslCertificateService(db)
             cert = await ssl_service.get_cert_detail(domain_id)
@@ -603,11 +606,14 @@ class AdminTenantDomainController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             """
-            管理员为企业上传自定义证书（不受套餐限制）/ Admin upload custom cert for tenant. 自动设置 cert_type=custom, auto_renew=False。
+            管理员为企业上传自定义证书 / Admin upload custom cert for tenant. 自动设置 cert_type=custom, auto_renew=False。
             Auto-sets cert_type=custom, auto_renew=False
             """
             await _verify_tenant_exists(db, tenant_id)
-            await _verify_domain_ownership(db, tenant_id, domain_id)
+            domain = await _verify_domain_ownership(db, tenant_id, domain_id)
+            await TenantDomainService(db).ensure_custom_domain_entitled(
+                tenant_id, domain
+            )
 
             ssl_service = SslCertificateService(db)
             cert = await ssl_service.upload_custom_cert(
@@ -616,6 +622,7 @@ class AdminTenantDomainController(GlobalController):
                 cert_pem=data.certificate,
                 key_pem=data.private_key,
                 chain_pem=data.certificate_chain,
+                check_quota=True,
             )
             await db.commit()
 
@@ -640,7 +647,7 @@ class AdminTenantDomainController(GlobalController):
             mode=custom: 上传新的自定义证书 / Upload new custom certificate
             """
             await _verify_tenant_exists(db, tenant_id)
-            await _verify_domain_ownership(db, tenant_id, domain_id)
+            domain = await _verify_domain_ownership(db, tenant_id, domain_id)
 
             if data.mode == "platform":
                 service = TenantDomainService(db)
@@ -654,6 +661,9 @@ class AdminTenantDomainController(GlobalController):
                         detail=_("ssl_certificate.invalid_cert_format"),
                     )
 
+                await TenantDomainService(db).ensure_custom_domain_entitled(
+                    tenant_id, domain
+                )
                 ssl_service = SslCertificateService(db)
                 cert = await ssl_service.upload_custom_cert(
                     domain_id=domain_id,
@@ -661,6 +671,7 @@ class AdminTenantDomainController(GlobalController):
                     cert_pem=data.certificate,
                     key_pem=data.private_key,
                     chain_pem=data.certificate_chain,
+                    check_quota=True,
                 )
                 await db.commit()
                 return success(
@@ -699,7 +710,11 @@ class AdminTenantDomainController(GlobalController):
         ):
             """开启/关闭 SSL 自动续期（仅 platform 类型可开启） / Toggle SSL auto-renew (only platform type can enable)"""
             await _verify_tenant_exists(db, tenant_id)
-            await _verify_domain_ownership(db, tenant_id, domain_id)
+            domain = await _verify_domain_ownership(db, tenant_id, domain_id)
+            if data.auto_renew:
+                await TenantDomainService(db).ensure_custom_domain_entitled(
+                    tenant_id, domain
+                )
 
             ssl_service = SslCertificateService(db)
             cert = await ssl_service.toggle_auto_renew(domain_id, data.auto_renew)

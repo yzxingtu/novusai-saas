@@ -25,7 +25,6 @@ class Tenant(BaseModel):
 
     __tablename__ = "tenants"
 
-
     __delete_deps__ = [
         DeletionDep(
             "TenantAdmin",
@@ -199,10 +198,12 @@ class Tenant(BaseModel):
 
     @property
     def has_active_plan(self) -> bool:
-        """Whether this tenant is linked to an active plan."""
+        """Whether this active tenant is linked to an active plan."""
         plan = self.tenant_plan
         return (
-            self.plan_id is not None
+            bool(self.is_active)
+            and not bool(self.is_deleted)
+            and self.plan_id is not None
             and plan is not None
             and bool(getattr(plan, "is_active", False))
         )
