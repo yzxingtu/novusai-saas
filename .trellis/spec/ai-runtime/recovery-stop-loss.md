@@ -146,76 +146,72 @@ Do not consume retry budget solely because a tool is waiting for consent.
 - Limit user-visible fallback text to completed safe results plus interruption
   guidance.
 
-## Scenario: Hosted Web Search Fallback Must Reach Built-In Search, Not Text-Only Success
+## Retired Scenario: Hosted Web Search Fallback To Built-In Search
 
 ### 1. Scope / Trigger
 
-- Trigger: Responses hosted web search is required, emits progress, then fails
-  or falls back to a Responses attempt with built-in `web_search` / `fetch_url`
-  tools still available.
-- Why this needs code-spec depth: providers may answer the fallback round with
-  visible preamble text such as "I'll search now" but no tool call. For a
-  required `web_research` intent, that text is not completion evidence and must
-  not end the turn as a successful answer.
+- This scenario documented the former native-first hosted-search design.
+  That design is retired for new-system live paths.
+- The retained lesson is still valid: provider preamble text such as "I'll
+  search now" is not completion evidence for a required `web_research` intent.
+  The new owner of this rule is the WebResearch pipeline, not a hosted-search
+  fallback branch.
 
 ### 2. Signatures
 
-- Protocol fallback owner:
+- Former signatures that should be deleted or kept only as historical replay
+  diagnostics:
   - `backend/app/ai/runtime/query_engine.py`
-  - `ConversationQueryEngine.iter_stream_turn(...)`
-  - `ConversationQueryEngine.run_chat_turn(...)`
   - `_runtime_native_web_search_fallback_variant="builtin_web_research_tools"`
-- Synthetic fallback marker fields on `TurnRecord.metadata`:
   - `native_web_search_builtin_fallback_synthesized`
   - `native_web_search_builtin_fallback_tool_name`
   - `native_web_search_builtin_fallback_query`
   - `native_web_search_builtin_fallback_synthesized_reason`
 
-### 3. Contracts
+### 3. New-System Contracts
 
-- Hosted search remains native-first when available.
-- If hosted search becomes unavailable and built-in web research tools remain
-  in scope, fallback must keep the `web_research` intent pinned to
-  `web_search` / `fetch_url`.
-- If the built-in fallback attempt returns only visible text and no tool call,
-  the runtime must synthesize a `web_search` function call from the last user
-  query instead of treating the text as a completed answer.
-- If the built-in fallback attempt fails with retryable gateway/connection
-  errors, the runtime may synthesize the same `web_search` function call rather
-  than issuing another provider-only rescue.
-- Synthetic tool-call fallback is allowed only for the hosted-search-to-built-in
-  web-research fallback variant. Ordinary provider 5xx failures must not be
-  generalized into silent tool synthesis.
-- Fallback history must mark the hosted-search fallback as recovered only after
-  a real or synthetic tool-call path can continue execution.
+- Builtin `web_search` / `fetch_url` are the default WebResearch providers, not
+  the fallback after hosted search failure.
+- Hosted/native search is optional provider capability. If it fails, the
+  failure is recorded as optional-provider diagnostics; it must not be the
+  normal route into builtin execution.
+- Runtime must not synthesize builtin search because a hosted-search fallback
+  provider emitted text-only output. Instead, the platform WebResearch pipeline
+  should already own the required search/fetch steps.
+- Provider text without normalized search/fetch evidence must not complete a
+  `web_research` intent.
 
 ### 4. Validation & Error Matrix
 
 | Condition | Expected Behavior |
 |---|---|
-| Hosted search times out before meaningful output and built-in tools are available | Retry with hosted search disabled and built-in web research tools still scoped |
-| Built-in fallback emits `web_search` tool call | Continue normal tool execution |
-| Built-in fallback emits text only, no tool call | Synthesize `web_search` call from the last user query and continue tool execution |
-| Built-in fallback fails with retryable 502 / connection error | Synthesize `web_search` call and continue tool execution |
+| Ordinary `web_research` request | Run platform WebResearch pipeline with builtin search/fetch default |
+| Optional hosted search disabled or unsupported | Skip optional provider with diagnostics and continue builtin default path |
+| Optional hosted search emits progress-only or text-only output | Do not complete intent; require normalized evidence or fallback to builtin default as a platform provider choice |
+| Search results contain candidate URLs and fetch is required | Fetch deterministically without another provider/model continuation |
 | Ordinary non-web provider 5xx | Preserve provider failure semantics; do not synthesize tool calls |
 
 ### 5. Good/Base/Bad Cases
 
-- Good: hosted search fails, the second Responses round says "I'll search now"
-  but calls no tool, so the runtime emits a synthetic `web_search` call and the
-  user eventually sees concrete search/fetch evidence.
-- Base: hosted search fails and the second round directly emits a valid
-  `web_search` call; no synthesis marker is needed.
+- Good: generic web research enters WebResearchRuntime, runs builtin
+  `web_search`, fetches the selected URL, normalizes evidence, and then
+  synthesizes or recovers the final answer.
+- Base: an explicitly enabled hosted provider returns normalized search
+  evidence; runtime still controls fetch and answer-quality decisions.
 - Bad: the visible "I'll search now" preamble is persisted as the final
   assistant answer for a required web-search request.
+- Bad: hosted search times out first, then query-engine synthesizes builtin
+  tool calls as a compatibility fallback instead of using the default
+  WebResearch pipeline.
 
 ### 6. Tests Required
 
-- `backend/tests/ai/engine/test_query_engine_partial_contract.py`
-  - hosted-search progress-only fallback to built-in tools
-  - hosted-search timeout fallback to built-in tools
-  - built-in fallback 502 / connection-error synthetic `web_search`
-  - built-in fallback text-only synthetic `web_search`
+- Rewrite or delete old tests in
+  `backend/tests/ai/engine/test_query_engine_partial_contract.py` that assert
+  hosted-search-first fallback.
+- Add behavioral WebResearch tests proving builtin default search/fetch
+  progression, optional hosted-provider normalization, and text-only provider
+  output rejection.
 
 ### 7. Wrong vs Correct
 
@@ -223,13 +219,12 @@ Do not consume retry budget solely because a tool is waiting for consent.
 
 - Count pre-tool preamble text as a successful answer for a required
   `web_research` intent.
-- Broaden all retryable provider 5xx failures into synthetic tool calls.
+- Preserve hosted-search-first fallback branches for new live paths.
 
 #### Correct
 
-- Scope synthesis to `_runtime_native_web_search_fallback_variant=
-  "builtin_web_research_tools"` and emit a real `web_search` tool call from the
-  last user query when the provider fails or returns text-only output.
+- Route required web research into the platform WebResearch pipeline and
+  complete only from normalized evidence.
 
 ## Scenario: Recovered Web Evidence Must Not Use Truncated Fetch Metadata As Final Answer
 
@@ -327,6 +322,83 @@ Do not consume retry budget solely because a tool is waiting for consent.
 - Existing stream/turn finalization tests must continue proving that
   unsuccessful searches or untrusted raw tool evidence are not promoted as
   canonical assistant answers.
+
+## Scenario: Required Fetch URL Must Chain After Successful Search Before Budget Partial Exit
+
+### 1. Scope / Trigger
+
+- Trigger: a required `web_research` turn successfully executes `web_search`
+  and obtains candidate URLs, but the next provider/model continuation is
+  unavailable, emits only text, or the elapsed turn budget is already near or
+  past the normal limit before `fetch_url` has been attempted.
+- Why this needs code-spec depth: search snippets and redirect URLs are not
+  answer-quality evidence, but once candidate URLs are retained, `fetch_url` is
+  a deterministic required tool step. Abandoning it solely because another model
+  round would exceed elapsed budget leaves the user with an avoidable partial
+  failure.
+
+### 2. Signatures
+
+- Required-fetch chaining owner:
+  - `backend/app/ai/engine/turn_executor_tool_batch.py`
+  - `execute_tool_batch(...)`
+  - `build_required_fetch_url_fallback_response(...)`
+  - `record_synthetic_required_fetch_url(...)`
+- Budgeted completion owner:
+  - `backend/app/ai/engine/turn_executor.py`
+  - `finalize_turn_execution(...)`
+
+### 3. Contracts
+
+- When `web_search` succeeds and `RecoveryWebResearchGate` narrows the active
+  `web_research` intent to `fetch_url`, runtime may synthesize the `fetch_url`
+  tool call directly from the retained candidate URL instead of asking the
+  provider for another required-tool round.
+- This synthesis is allowed only when `fetch_url` is available in the retained
+  tool pool, a candidate URL remains unattempted, and the projected tool-round
+  count stays within the tool-round budget.
+- The synthetic `fetch_url` step is part of completing the current successful
+  search tool batch. It must not promote raw `web_search` snippets to a final
+  answer if `fetch_url` is unavailable, blocked, exhausted, or unsuccessful.
+- If elapsed budget is exceeded after the deterministic `fetch_url` succeeds,
+  finalization should recover from fetched body evidence directly and must not
+  require another provider synthesis call for this synthetic-fetch path.
+- Diagnostics must mark the recovery with
+  `synthetic_required_fetch_url_after_search_success` and
+  `synthetic_required_fetch_url_reason=required_fetch_url_after_search_success`.
+
+### 4. Validation & Error Matrix
+
+| Condition | Expected Behavior |
+|---|---|
+| `web_search` succeeds with candidate URLs and no `fetch_url` attempt yet | Synthesize `fetch_url` from the first remaining candidate URL |
+| The provider follow-up would be needed only to choose that URL | Do not call the provider; execute deterministic `fetch_url` |
+| Elapsed budget is over the normal limit after search, but tool-round budget remains | Complete the deterministic `fetch_url` tool step before partial-exit finalization |
+| Tool-round budget would be exceeded by the synthetic fetch | Do not synthesize; keep normal budget partial-exit behavior |
+| `fetch_url` succeeds but elapsed budget is exceeded before answer synthesis | Use recovered fetched body evidence; skip another provider synthesis call for this synthetic path |
+| `fetch_url` is blocked, failed, unavailable, or candidate URLs are exhausted | Do not mark the web research intent completed from raw search evidence |
+
+### 5. Good/Base/Bad Cases
+
+- Good: hosted search fallback eventually produces a builtin `web_search` call
+  at 75 seconds, returns Baidu candidates, and runtime immediately executes
+  `fetch_url` on the candidate before returning a recovered answer from fetched
+  body evidence.
+- Base: a normal search round leaves enough budget and the provider directly
+  emits `fetch_url`; runtime executes the real tool call without synthesis.
+- Bad: runtime stops with “sources still need verification” after successful
+  search candidates while `fetch_url` remained available and unattempted.
+
+### 6. Tests Required
+
+- `backend/tests/regressions/test_bug_2026_05_04_2282_required_fetch_url_budget_exit.py`
+  - `BUG-2026-05-04-2282`: after a successful `web_search` result and elapsed
+    budget overrun, TurnExecutor must synthesize `fetch_url`, complete the
+    intent from fetched body evidence, and skip provider synthesis.
+- Existing fetch recovery regressions must stay green:
+  - `BUG-2026-05-04-2276`
+  - `BUG-2026-05-04-2280`
+  - `BUG-2026-05-04-2281`
 
 ## Prohibited Patterns
 

@@ -8,10 +8,17 @@ available in the canonical turn-flow evidence.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any
 
 from app.ai.engine.recovery_tool_result_helpers import extract_fetch_url_user_preview
 from app.ai.tools.types import ToolResult
+
+LEGACY_RECOVERY_EVIDENCE_REPAIR_SCOPE = "legacy_fetch_url_preview_2026_05_04"
+_LEGACY_RECOVERY_EVIDENCE_REPAIR_CONVERSATION_IDS = frozenset({2280, 2281})
+_LEGACY_RECOVERY_EVIDENCE_REPAIR_BEFORE = datetime(
+    2026, 5, 4, 9, 0, tzinfo=timezone.utc
+)
 
 
 def _as_dict(value: Any) -> dict[str, Any]:
@@ -20,6 +27,62 @@ def _as_dict(value: Any) -> dict[str, Any]:
 
 def _as_str(value: Any) -> str:
     return str(value or "").strip()
+
+
+def _as_int(value: Any) -> int | None:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed > 0 else None
+
+
+def _as_aware_datetime(value: Any) -> datetime | None:
+    if isinstance(value, datetime):
+        parsed = value
+    elif isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        if text.endswith("Z"):
+            text = f"{text[:-1]}+00:00"
+        try:
+            parsed = datetime.fromisoformat(text)
+        except ValueError:
+            return None
+    else:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _conversation_id_from_message_payload(message: dict[str, Any]) -> int | None:
+    metadata = _as_dict(message.get("metadata"))
+    turn_record = _as_dict(metadata.get("turn_record"))
+    runtime_turn_record = _as_dict(metadata.get("runtime_turn_record"))
+    for candidate in (
+        message.get("conversation_id"),
+        metadata.get("conversation_id"),
+        turn_record.get("conversation_id"),
+        runtime_turn_record.get("conversation_id"),
+    ):
+        parsed = _as_int(candidate)
+        if parsed is not None:
+            return parsed
+    return None
+
+
+def _created_at_from_message_payload(message: dict[str, Any]) -> datetime | None:
+    metadata = _as_dict(message.get("metadata"))
+    for candidate in (
+        message.get("created_at"),
+        metadata.get("created_at"),
+    ):
+        parsed = _as_aware_datetime(candidate)
+        if parsed is not None:
+            return parsed
+    return None
 
 
 def _turn_flow_from_message_payload(message: dict[str, Any]) -> dict[str, Any]:
@@ -58,6 +121,33 @@ def _final_output_source_from_message_payload(message: dict[str, Any]) -> str:
         if text:
             return text
     return ""
+
+
+def _explicit_legacy_repair_scope(message: dict[str, Any]) -> str:
+    metadata = _as_dict(message.get("metadata"))
+    for candidate in (
+        message.get("legacy_recovery_evidence_repair_scope"),
+        metadata.get("legacy_recovery_evidence_repair_scope"),
+    ):
+        scope = _as_str(candidate)
+        if scope == LEGACY_RECOVERY_EVIDENCE_REPAIR_SCOPE:
+            return scope
+    return ""
+
+
+def _legacy_recovery_evidence_repair_scope(message: dict[str, Any]) -> str:
+    explicit_scope = _explicit_legacy_repair_scope(message)
+    if explicit_scope:
+        return explicit_scope
+    conversation_id = _conversation_id_from_message_payload(message)
+    if conversation_id not in _LEGACY_RECOVERY_EVIDENCE_REPAIR_CONVERSATION_IDS:
+        return ""
+    created_at = _created_at_from_message_payload(message)
+    if created_at is None:
+        return ""
+    if created_at > _LEGACY_RECOVERY_EVIDENCE_REPAIR_BEFORE:
+        return ""
+    return LEGACY_RECOVERY_EVIDENCE_REPAIR_SCOPE
 
 
 def _fetch_url_tool_result_from_evidence(item: dict[str, Any]) -> ToolResult | None:
@@ -158,10 +248,13 @@ def patch_recovery_evidence_answer_payload(
         return message
     if _final_output_source_from_message_payload(message) != "recovery_evidence":
         return message
+    repair_scope = _legacy_recovery_evidence_repair_scope(message)
     turn_flow = _turn_flow_from_message_payload(message)
     if not turn_flow:
         return message
     preview = _best_fetch_url_preview_from_turn_flow(turn_flow)
+    if not repair_scope:
+        return message
     if not _should_replace_recovery_answer(
         current_text=_as_str(message.get("content")),
         preview=preview,
@@ -176,8 +269,16 @@ def patch_recovery_evidence_answer_payload(
     metadata["turn_flow"] = patched_turn_flow
     metadata["recovery_evidence_read_model_repaired"] = True
     metadata["recovery_evidence_read_model_source"] = "fetch_url"
+    metadata["recovery_evidence_read_model_repair_scope"] = repair_scope
+    metadata["recovery_evidence_read_model_remove_after"] = (
+        "Backfill conversations 2280/2281 or drop this legacy scope after "
+        "2026-05-04 recovery-evidence preview incidents are no longer read."
+    )
     patched["metadata"] = metadata
     return patched
 
 
-__all__ = ["patch_recovery_evidence_answer_payload"]
+__all__ = [
+    "LEGACY_RECOVERY_EVIDENCE_REPAIR_SCOPE",
+    "patch_recovery_evidence_answer_payload",
+]

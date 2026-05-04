@@ -47,6 +47,7 @@ def _serialize_cli_conversation_message(row: object) -> dict:
     metadata_payload = dict(metadata) if isinstance(metadata, dict) else None
     payload = {
         "id": getattr(row, "id", None),
+        "conversation_id": getattr(row, "conversation_id", None),
         "sequence": getattr(row, "sequence", None),
         "role": getattr(row, "role", None),
         "created_at": _format_cli_dt(getattr(row, "created_at", None)),

@@ -32,6 +32,7 @@ _TURN_DIAGNOSTIC_KEYS = (
     "final_output_source",
     "post_tool_completion_state",
     "auto_fetch_gate_reason",
+    "web_research_terminal_contract",
     "provider_failure_recovered_from_tool_evidence",
     "recovered_provider_failure_kind",
     "recovered_provider_events",

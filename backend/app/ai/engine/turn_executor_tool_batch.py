@@ -34,13 +34,21 @@ def _assistant_tool_round_count(messages: list[ChatMessage]) -> int:
     )
 
 
+def _tool_round_delta_since(
+    *,
+    before_count: int,
+    messages: list[ChatMessage],
+) -> int:
+    return max(0, _assistant_tool_round_count(messages) - before_count)
+
+
 def _register_tool_round_delta(
     state: ExecutionStateMachine,
     *,
     before_count: int,
     messages: list[ChatMessage],
 ) -> None:
-    delta = max(0, _assistant_tool_round_count(messages) - before_count)
+    delta = _tool_round_delta_since(before_count=before_count, messages=messages)
     for _round_idx in range(delta):
         state.register_tool_round()
 
@@ -100,6 +108,35 @@ async def execute_tool_batch(
             getattr(tool_call_response, "tool_calls", None),
             skip_unresolved_interactions=True,
         )
+    if tool_results:
+        state.intent_plan = RecoveryManager.update_intent_statuses(
+            state.intent_plan,
+            messages=messages,
+            turn_messages=turn_messages,
+            tool_results=tool_results,
+        )
+        chained_fetch = await _chain_required_fetch_url_after_search_if_needed(
+            state=state,
+            io=io,
+            response=next_response,
+            tools=tools,
+            all_tools=all_tools or tools,
+            messages=messages,
+            turn_messages=turn_messages,
+            tool_use_policy=tool_use_policy,
+            input_variables=input_variables,
+            total_tokens=next_total_tokens,
+            completion_tokens_used=next_completion_tokens,
+            before_count=tool_rounds_before,
+        )
+        if chained_fetch is not None:
+            (
+                next_response,
+                chained_tool_results,
+                next_total_tokens,
+                next_completion_tokens,
+            ) = chained_fetch
+            tool_results.extend(chained_tool_results)
     _register_tool_round_delta(
         state,
         before_count=tool_rounds_before,
@@ -195,6 +232,53 @@ def _first_unattempted_fetch_url_candidate(intent: Any) -> tuple[str, int]:
     return "", attempt_index
 
 
+def _active_required_fetch_url_intent(state: ExecutionStateMachine) -> Any | None:
+    for intent in state.intent_plan:
+        if getattr(intent, "status", None) in {"completed", "failed", "skipped"}:
+            continue
+        if str(getattr(intent, "family", "") or "").strip() != "web_research":
+            continue
+        metadata = dict(getattr(intent, "metadata", {}) or {})
+        gate_reason = str(metadata.get("auto_fetch_gate_reason") or "").strip()
+        if not bool(metadata.get("requires_fetch_url")) and gate_reason != (
+            "candidate_urls_ready"
+        ):
+            continue
+        allowed_names = {
+            str(name or "").strip()
+            for name in (
+                list(getattr(intent, "allowed_tool_names", []) or [])
+                + list(getattr(intent, "completion_signals", []) or [])
+            )
+            if str(name or "").strip()
+        }
+        if "fetch_url" in allowed_names:
+            return intent
+    return None
+
+
+def _can_chain_synthetic_tool_round(
+    *,
+    state: ExecutionStateMachine,
+    before_count: int,
+    messages: list[ChatMessage],
+) -> bool:
+    budget = state.budget
+    if budget is None or not int(budget.max_tool_rounds or 0):
+        return True
+    projected_rounds = (
+        int(budget.tool_rounds_used or 0)
+        + _tool_round_delta_since(before_count=before_count, messages=messages)
+        + 1
+    )
+    if projected_rounds <= int(budget.max_tool_rounds or 0):
+        return True
+    state.preparation_diagnostics["synthetic_required_fetch_url_skipped_reason"] = (
+        "tool_round_budget_exceeded"
+    )
+    return False
+
+
 def build_required_fetch_url_fallback_response(
     *,
     intent: Any | None,
@@ -202,6 +286,7 @@ def build_required_fetch_url_fallback_response(
     tools: list[Any],
     total_tokens: int,
     completion_tokens_used: int,
+    reason: str = "required_fetch_url_retry_without_tool_call",
 ) -> ChatResponse | None:
     if intent is None:
         return None
@@ -248,9 +333,7 @@ def build_required_fetch_url_fallback_response(
             "synthetic_required_fetch_url_tool_name": "fetch_url",
             "synthetic_required_fetch_url": selected_url,
             "synthetic_required_fetch_url_attempt_index": attempt_index,
-            "synthetic_required_fetch_url_reason": (
-                "required_fetch_url_retry_without_tool_call"
-            ),
+            "synthetic_required_fetch_url_reason": reason,
         }
     )
     return ChatResponse(
@@ -266,6 +349,84 @@ def build_required_fetch_url_fallback_response(
         finish_reason="tool_calls",
         tool_calls=synthetic_call,
         metadata=response_metadata,
+    )
+
+
+async def _chain_required_fetch_url_after_search_if_needed(
+    *,
+    state: ExecutionStateMachine,
+    io: TurnIOAdapter,
+    response: ChatResponse | None,
+    tools: list[Any],
+    all_tools: list[Any] | None,
+    messages: list[ChatMessage],
+    turn_messages: list[ChatMessage] | None,
+    tool_use_policy: ToolUsePolicy | None,
+    input_variables: dict[str, Any] | None,
+    total_tokens: int,
+    completion_tokens_used: int,
+    before_count: int,
+) -> tuple[ChatResponse | None, list[ToolResult], int, int] | None:
+    if response is not None and getattr(response, "tool_calls", None):
+        return None
+    if not _can_chain_synthetic_tool_round(
+        state=state,
+        before_count=before_count,
+        messages=messages,
+    ):
+        return None
+
+    fetch_intent = _active_required_fetch_url_intent(state)
+    if fetch_intent is None:
+        return None
+
+    tool_pool = list(all_tools or tools)
+    fetch_tools = list(io.restrict_tools_to_names(tool_pool, ["fetch_url"]))
+    if not fetch_tools:
+        return None
+
+    fetch_policy = ToolUsePolicy(
+        family=str(getattr(fetch_intent, "family", "") or "web_research"),
+        mode="required",
+        allowed_tool_names=["fetch_url"],
+        retry_on_contract_breach=False,
+        reason="required_fetch_url_after_search_success",
+    )
+    fallback_response = build_required_fetch_url_fallback_response(
+        intent=fetch_intent,
+        response=response,
+        tools=fetch_tools,
+        total_tokens=total_tokens,
+        completion_tokens_used=completion_tokens_used,
+        reason="required_fetch_url_after_search_success",
+    )
+    if fallback_response is None:
+        return None
+
+    state.preparation_diagnostics[
+        "synthetic_required_fetch_url_after_search_success"
+    ] = True
+    record_synthetic_required_fetch_url(state, fallback_response)
+    tool_batch = await io.handle_tool_calls(
+        response=fallback_response,
+        tools=fetch_tools,
+        messages=messages,
+        tool_use_policy=fetch_policy,
+        starting_total_tokens=total_tokens,
+        starting_completion_tokens=completion_tokens_used,
+    )
+    chained_response = tool_batch.response
+    chained_results = list(tool_batch.tool_results)
+    if not chained_results:
+        chained_results = synthesize_tool_results_from_calls(
+            getattr(fallback_response, "tool_calls", None),
+            skip_unresolved_interactions=True,
+        )
+    return (
+        chained_response,
+        chained_results,
+        int(tool_batch.total_tokens or 0),
+        int(tool_batch.completion_tokens_used or 0),
     )
 
 
@@ -309,7 +470,7 @@ async def run_tool_batch_or_update_intents(
     completion_tokens_used: int,
 ) -> tuple[ChatResponse | None, list[ToolResult], int, int]:
     if getattr(response, "tool_calls", None) and tools:
-        return await execute_tool_batch(
+        result = await execute_tool_batch(
             state=state,
             io=io,
             response=response,
@@ -322,6 +483,7 @@ async def run_tool_batch_or_update_intents(
             total_tokens=total_tokens,
             completion_tokens_used=completion_tokens_used,
         )
+        return result
 
     if tools:
         fallback_response = build_required_fetch_url_fallback_response(

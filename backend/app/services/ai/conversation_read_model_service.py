@@ -238,6 +238,8 @@ class ConversationReadModelService:
             metadata_payload = strip_legacy_interaction_mode_fields(metadata_payload)
             agent_obj = self._safe_attr(msg, "agent")
             message_payload = {
+                "id": self._safe_attr(msg, "id"),
+                "conversation_id": self._safe_attr(msg, "conversation_id"),
                 "role": self._safe_attr(msg, "role"),
                 "content": self._safe_attr(msg, "content"),
                 "token_count": self._safe_attr(msg, "token_count"),

@@ -15,6 +15,7 @@ from app.ai.engine.recovery_manager import RecoveryManager
 from app.ai.engine.types import IntentPlan
 from app.ai.tools.types import ToolResult
 from app.services.ai.recovery_evidence_read_model import (
+    LEGACY_RECOVERY_EVIDENCE_REPAIR_SCOPE,
     patch_recovery_evidence_answer_payload,
 )
 
@@ -158,7 +159,9 @@ def test_bug_2026_05_04_2280_read_model_repairs_historical_short_answer() -> Non
     fetch_result = _conversation_2280_fetch_result()
     preview = _build_output(fetch_result)
     message = {
+        "conversation_id": 2280,
         "role": "assistant",
+        "created_at": "2026-05-03T20:46:49.740473+00:00",
         "content": "01 榜单来源与权重 目前（2026年1月20日），大模型排行榜主要参考 四条权威数据线 ：",
         "metadata": {
             "turn_record": {
@@ -200,3 +203,7 @@ def test_bug_2026_05_04_2280_read_model_repairs_historical_short_answer() -> Non
     assert answer_card["summary"] == preview
     assert answer_card["sections"][0]["content"] == preview
     assert patched["metadata"]["recovery_evidence_read_model_repaired"] is True
+    assert (
+        patched["metadata"]["recovery_evidence_read_model_repair_scope"]
+        == LEGACY_RECOVERY_EVIDENCE_REPAIR_SCOPE
+    )

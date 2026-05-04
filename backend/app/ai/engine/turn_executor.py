@@ -16,6 +16,10 @@ from .final_output_policy import (
 )
 from .recovery_manager import RecoveryManager
 from .recovery_tool_result_helpers import intent_result_from_tool_results
+from .recovery_web_research_gate import (
+    WEB_RESEARCH_TERMINAL_CONTRACT_KEY,
+    RecoveryWebResearchGate,
+)
 from .turn_executor_tool_batch import (
     build_required_fetch_url_fallback_response,
     build_shortcircuit_fallback_response,
@@ -274,6 +278,16 @@ def latest_auto_fetch_gate_reason(state: ExecutionStateMachine) -> str | None:
     return None
 
 
+def latest_web_research_terminal_contract(
+    state: ExecutionStateMachine,
+) -> str | None:
+    for intent in reversed(state.intent_plan):
+        contract = RecoveryWebResearchGate.terminal_contract(intent)
+        if contract:
+            return contract
+    return None
+
+
 def completed_tool_intent_families(state: ExecutionStateMachine) -> set[str]:
     families: set[str] = set()
     for intent in state.intent_plan:
@@ -471,6 +485,16 @@ async def finalize_turn_execution(
     replace_budgeted_web_research_output = (
         budgeted_web_research_completion_mode == "replace_with_tool_evidence"
     )
+    skip_budget_synthesis_for_synthetic_fetch = bool(
+        replace_budgeted_web_research_output
+        and state.preparation_diagnostics.get(
+            "synthetic_required_fetch_url_after_search_success"
+        )
+        and has_completed_fetch_url_body_evidence(
+            state=state,
+            tool_results=tool_results,
+        )
+    )
     if decision is not None and (
         decision.action == "pause_for_consent"
         or (
@@ -547,7 +571,15 @@ async def finalize_turn_execution(
         )
         if replace_budgeted_web_research_output and response is not None:
             response.message.content = ""
-        if replace_budgeted_web_research_output and tool_results:
+        if skip_budget_synthesis_for_synthetic_fetch:
+            state.preparation_diagnostics[
+                "budget_synthesis_skipped_for_synthetic_fetch_url"
+            ] = True
+        if (
+            replace_budgeted_web_research_output
+            and tool_results
+            and not skip_budget_synthesis_for_synthetic_fetch
+        ):
             synthesis_policy = ToolUsePolicy(
                 family="none",
                 mode="none",
@@ -704,6 +736,11 @@ async def finalize_turn_execution(
 
     if auto_fetch_gate_reason:
         state.preparation_diagnostics["auto_fetch_gate_reason"] = auto_fetch_gate_reason
+    web_research_terminal_contract = latest_web_research_terminal_contract(state)
+    if web_research_terminal_contract:
+        state.preparation_diagnostics[WEB_RESEARCH_TERMINAL_CONTRACT_KEY] = (
+            web_research_terminal_contract
+        )
 
     return (
         str(output or ""),

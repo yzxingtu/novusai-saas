@@ -17,6 +17,11 @@ from app.ai.engine.budget_guard import BudgetGuard
 from app.ai.engine.execution_state_machine import ExecutionStateMachine
 from app.ai.engine.final_output_policy import build_untrusted_final_output_fallback
 from app.ai.engine.recovery_manager import RecoveryDecision, RecoveryManager
+from app.ai.engine.recovery_web_research_gate import (
+    WEB_RESEARCH_TERMINAL_CONTRACT_KEY,
+    WEB_RESEARCH_TERMINAL_NO_RESULT,
+    WEB_RESEARCH_TERMINAL_SEARCH_UNAVAILABLE,
+)
 from app.ai.engine.turn_executor import (
     ModelRoundResult,
     ToolBatchResult,
@@ -847,7 +852,7 @@ async def test_turn_executor_synthesizes_fetch_url_when_required_retry_omits_too
     )
     assert (
         state.preparation_diagnostics["synthetic_required_fetch_url_reason"]
-        == "required_fetch_url_retry_without_tool_call"
+        == "required_fetch_url_after_search_success"
     )
     assert (
         state.preparation_diagnostics[
@@ -1806,6 +1811,10 @@ async def test_turn_executor_completes_web_search_no_results_without_auto_fetch(
     assert state.preparation_diagnostics["post_tool_completion_state"] == (
         "completed_no_result"
     )
+    assert (
+        state.preparation_diagnostics[WEB_RESEARCH_TERMINAL_CONTRACT_KEY]
+        == WEB_RESEARCH_TERMINAL_NO_RESULT
+    )
     assert len(io.call_history) == 1
     assert not any(
         call.get("breach_retry_result") == "post_tool_follow_up_retry"
@@ -1902,6 +1911,10 @@ async def test_turn_executor_does_not_promote_search_not_successful_tool_evidenc
     )
     assert state.preparation_diagnostics["post_tool_completion_state"] == (
         "search_not_successful"
+    )
+    assert (
+        state.preparation_diagnostics[WEB_RESEARCH_TERMINAL_CONTRACT_KEY]
+        == WEB_RESEARCH_TERMINAL_SEARCH_UNAVAILABLE
     )
     assert (
         state.preparation_diagnostics["search_not_successful_untrusted_output"] is True

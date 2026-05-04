@@ -4,6 +4,11 @@ Mock strategy: no LLM/provider mocks; recovery builders run real logic over fixe
 """
 
 from app.ai.engine.recovery_manager import RecoveryManager
+from app.ai.engine.recovery_web_research_gate import (
+    WEB_RESEARCH_TERMINAL_CONTRACT_KEY,
+    WEB_RESEARCH_TERMINAL_NO_RESULT,
+    WEB_RESEARCH_TERMINAL_SEARCH_UNAVAILABLE,
+)
 from app.ai.engine.types import IntentPlan
 from app.ai.tools.types import ToolResult
 
@@ -270,6 +275,10 @@ def test_update_intent_statuses_marks_web_search_zero_results_as_completed() -> 
     assert updated[0].metadata.get("requires_fetch_url") is None
     assert (
         updated[0].metadata["auto_fetch_gate_reason"] == "search_no_results_completed"
+    )
+    assert (
+        updated[0].metadata[WEB_RESEARCH_TERMINAL_CONTRACT_KEY]
+        == WEB_RESEARCH_TERMINAL_NO_RESULT
     )
 
 
@@ -538,6 +547,51 @@ def test_update_intent_statuses_does_not_complete_title_only_fetch_url_evidence(
     assert updated[0].completed_by_tool_names == []
     assert updated[0].cached_result is None
     assert updated[0].metadata["fetch_url_answer_quality"] == "missing"
+
+
+def test_update_intent_statuses_records_search_unavailable_terminal_contract() -> None:
+    intent = IntentPlan(
+        intent_id="intent-web",
+        kind="web_research",
+        family="web_research",
+        order=1,
+        user_visible_label="AI 新闻",
+        source_text="查今天 AI 新闻",
+        status="pending",
+        requires_tools=True,
+        allowed_tool_names=["web_search", "fetch_url"],
+        preferred_tool_names=["web_search", "fetch_url"],
+        completion_signals=["fetch_url"],
+    )
+
+    updated = RecoveryManager.update_intent_statuses(
+        [intent],
+        messages=[],
+        tool_results=[
+            ToolResult(
+                tool_call_id="tc-fetch",
+                name="fetch_url",
+                success=True,
+                output="Content from https://example.com/news:\nTitle: AI 新闻",
+                summary="AI 新闻",
+                summary_payload={
+                    "fetch_url": True,
+                    "ok": True,
+                    "title": "AI 新闻",
+                    "summary": "AI 新闻",
+                },
+            )
+        ],
+    )
+
+    assert updated[0].status == "completed"
+    assert updated[0].completed_by_tool_names == ["fetch_url"]
+    assert updated[0].metadata["auto_fetch_gate_reason"] == "search_not_successful"
+    assert (
+        updated[0].metadata[WEB_RESEARCH_TERMINAL_CONTRACT_KEY]
+        == WEB_RESEARCH_TERMINAL_SEARCH_UNAVAILABLE
+    )
+    assert "fetch_url_answer_quality" not in updated[0].metadata
 
 
 def test_update_intent_statuses_does_not_complete_ok_false_fetch_url_payload() -> None:

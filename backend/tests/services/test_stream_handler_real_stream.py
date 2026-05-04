@@ -506,22 +506,28 @@ async def test_stream_io_adapter_keeps_finalized_completed_output_over_stream_pr
     adapter = StreamIOAdapter(handler)
 
     handler.runtime_contract.finalize_completed_output = AsyncMock(
-        return_value=("根据已获取网页内容，长沙义务教育阶段学校今年暑假从7月6日开始。", 18, 18)
-    )
-    output, total_tokens, completion_tokens_used = (
-        await adapter.finalize_completed_output(
-            messages=[],
-            response=ChatResponse(
-                message=ChatMessage(role="assistant", content=""),
-                total_tokens=18,
-                output_tokens=18,
-            ),
-            state=handler._state,
-            tool_results=[],
-            reason="completed",
-            total_tokens=18,
-            completion_tokens_used=18,
+        return_value=(
+            "根据已获取网页内容，长沙义务教育阶段学校今年暑假从7月6日开始。",
+            18,
+            18,
         )
+    )
+    (
+        output,
+        total_tokens,
+        completion_tokens_used,
+    ) = await adapter.finalize_completed_output(
+        messages=[],
+        response=ChatResponse(
+            message=ChatMessage(role="assistant", content=""),
+            total_tokens=18,
+            output_tokens=18,
+        ),
+        state=handler._state,
+        tool_results=[],
+        reason="completed",
+        total_tokens=18,
+        completion_tokens_used=18,
     )
     assert "长沙义务教育阶段学校今年暑假从7月6日开始" in output
     assert "特殊教育学校_新浪财经_新浪网" not in output
@@ -536,22 +542,28 @@ async def test_stream_io_adapter_keeps_finalized_partial_output_over_stream_prev
     adapter = StreamIOAdapter(handler)
 
     handler.runtime_contract.finalize_partial_output = AsyncMock(
-        return_value=("我先把目前能确认的内容给你：长沙义务教育阶段学校今年暑假从7月6日开始。", 18, 18)
-    )
-    output, total_tokens, completion_tokens_used = (
-        await adapter.finalize_partial_output(
-            messages=[],
-            response=ChatResponse(
-                message=ChatMessage(role="assistant", content=""),
-                total_tokens=18,
-                output_tokens=18,
-            ),
-            state=handler._state,
-            tool_results=[],
-            reason="completion_budget_exceeded",
-            total_tokens=18,
-            completion_tokens_used=18,
+        return_value=(
+            "我先把目前能确认的内容给你：长沙义务教育阶段学校今年暑假从7月6日开始。",
+            18,
+            18,
         )
+    )
+    (
+        output,
+        total_tokens,
+        completion_tokens_used,
+    ) = await adapter.finalize_partial_output(
+        messages=[],
+        response=ChatResponse(
+            message=ChatMessage(role="assistant", content=""),
+            total_tokens=18,
+            output_tokens=18,
+        ),
+        state=handler._state,
+        tool_results=[],
+        reason="completion_budget_exceeded",
+        total_tokens=18,
+        completion_tokens_used=18,
     )
     assert "长沙义务教育阶段学校今年暑假从7月6日开始" in output
     assert "特殊教育学校_新浪财经_新浪网" not in output
@@ -569,7 +581,9 @@ def test_stream_io_adapter_request_defaults_use_trusted_auto() -> None:
 
 
 @pytest.mark.asyncio
-async def test_stream_handler_syncs_runtime_model_info_to_sandbox_before_tool_calls() -> None:
+async def test_stream_handler_syncs_runtime_model_info_to_sandbox_before_tool_calls() -> (
+    None
+):
     runtime_model_info = {
         "provider_id": 11,
         "provider_name": "OpenAI",
@@ -882,7 +896,9 @@ async def test_stream_handler_done_event_includes_turn_record_fields() -> None:
 
 
 @pytest.mark.asyncio
-async def test_stream_handler_preserves_runtime_protocol_for_zero_chunk_provider_timeout() -> None:
+async def test_stream_handler_preserves_runtime_protocol_for_zero_chunk_provider_timeout() -> (
+    None
+):
     from app.ai.engine.types import ExecutionResult
 
     captured: list[ExecutionResult] = []
@@ -1270,7 +1286,9 @@ async def test_stream_handler_with_tools_emits_thinking_before_round_finishes():
 
     thinking = _parse_sse_payload(await asyncio.wait_for(agen.__anext__(), timeout=0.2))
     while thinking.get("event") == "turn_stage":
-        thinking = _parse_sse_payload(await asyncio.wait_for(agen.__anext__(), timeout=0.2))
+        thinking = _parse_sse_payload(
+            await asyncio.wait_for(agen.__anext__(), timeout=0.2)
+        )
     assert thinking["event"] == "thinking"
     assert thinking["delta"] == "先"
 
@@ -1629,8 +1647,7 @@ async def test_stream_handler_retry_emits_clear_content_before_follow_up_message
     final_message_idx = next(
         index
         for index, event in enumerate(events)
-        if event.get("event") == "message"
-        and event.get("delta") == "已补救。"
+        if event.get("event") == "message" and event.get("delta") == "已补救。"
     )
     assert first_message_idx < first_clear_idx < final_message_idx
     assert any(
@@ -1810,7 +1827,7 @@ async def test_stream_handler_retry_fallback_keeps_non_empty_final_assistant() -
 
 
 @pytest.mark.asyncio
-async def test_stream_handler_streams_completed_tool_evidence_without_post_tool_retry():
+async def test_stream_handler_replays_completed_fetch_body_without_post_tool_retry():
     from app.ai.engine.types import ExecutionResult
 
     captured: list[ExecutionResult] = []
@@ -1890,13 +1907,22 @@ async def test_stream_handler_streams_completed_tool_evidence_without_post_tool_
     message_text = "".join(
         event.get("delta", "") for event in events if event.get("event") == "message"
     )
+    clear_indexes = [
+        idx for idx, event in enumerate(events) if event.get("event") == "clear_content"
+    ]
+    message_indexes = [
+        idx for idx, event in enumerate(events) if event.get("event") == "message"
+    ]
+    assert clear_indexes
+    assert message_indexes
+    assert clear_indexes[0] < message_indexes[-1]
     assert "AI Daily - Latest AI headlines and analysis." in message_text
-    assert not any(event.get("event") == "clear_content" for event in events)
+    assert "Lead paragraph." in message_text
     assert len(captured) == 1
-    assert captured[0].output == "AI Daily - Latest AI headlines and analysis."
-    assert captured[0].turn_record["final_output_source"] == "tool_evidence_completed"
+    assert captured[0].output == "Latest AI headlines and analysis.\nLead paragraph."
+    assert captured[0].turn_record["final_output_source"] == "recovery_evidence"
     assert captured[0].turn_record["post_tool_completion_state"] == (
-        "tool_evidence_completed"
+        "recovery_evidence"
     )
     assert not any(
         event.kind == "turn.round_started"
@@ -2171,7 +2197,9 @@ async def test_stream_handler_no_result_completion_skips_auto_fetch_url():
     assert len(captured) == 1
     assert captured[0].output == message_text
     assert captured[0].turn_record["final_output_source"] == "tool_evidence_completed"
-    assert captured[0].turn_record["post_tool_completion_state"] == "completed_no_result"
+    assert (
+        captured[0].turn_record["post_tool_completion_state"] == "completed_no_result"
+    )
     assert captured[0].turn_record["auto_fetch_gate_reason"] == (
         "search_no_results_completed"
     )
@@ -2684,7 +2712,11 @@ async def test_stream_emits_tool_selection_skipped_stage_when_optimizer_selects_
         ],
     )
     handler = _build_handler(engine)
-    handler.prep.optimize_event = {"total": 15, "selected": 0, "execution_path": "normal"}
+    handler.prep.optimize_event = {
+        "total": 15,
+        "selected": 0,
+        "execution_path": "normal",
+    }
 
     stage_updates: list[dict] = []
     async for raw in handler.generate():

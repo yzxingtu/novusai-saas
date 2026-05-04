@@ -1,3 +1,9 @@
+"""
+Test type: structural
+Scope: conversation execution-result projection and stable diagnostic fields.
+Mock strategy: service collaborators use fakes; projection helpers run real logic.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -14,6 +20,10 @@ from app.ai.engine.conversation_result_projector import (
     coerce_turn_record_payload,
 )
 from app.ai.engine.final_output_policy import build_untrusted_final_output_fallback
+from app.ai.engine.recovery_web_research_gate import (
+    WEB_RESEARCH_TERMINAL_CONTRACT_KEY,
+    WEB_RESEARCH_TERMINAL_NO_RESULT,
+)
 from app.ai.engine.types import ExecutionRequest, PreparedExecution
 from app.ai.tools.types import ToolDefinition
 from app.ai.types import ChatMessage, ChatResponse
@@ -258,6 +268,7 @@ def test_build_turn_projection_forces_success_over_stale_runtime_failure() -> No
                 }
             ],
             "unfinished_intents": [],
+            WEB_RESEARCH_TERMINAL_CONTRACT_KEY: WEB_RESEARCH_TERMINAL_NO_RESULT,
         },
         execution_path="normal",
         completion_reason="completed",
@@ -270,6 +281,10 @@ def test_build_turn_projection_forces_success_over_stale_runtime_failure() -> No
     assert projection.turn_record["turn_outcome"] == "success"
     assert projection.turn_record["termination_reason"] == "completed"
     assert projection.turn_record["final_output_source"] == "recovery_evidence"
+    assert (
+        projection.turn_record[WEB_RESEARCH_TERMINAL_CONTRACT_KEY]
+        == WEB_RESEARCH_TERMINAL_NO_RESULT
+    )
 
 
 def test_build_untrusted_final_output_fallback_returns_safe_text() -> None:

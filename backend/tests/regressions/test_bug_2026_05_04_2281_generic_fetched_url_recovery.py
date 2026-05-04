@@ -15,6 +15,7 @@ from app.ai.engine.recovery_manager import RecoveryManager
 from app.ai.engine.types import IntentPlan
 from app.ai.tools.types import ToolResult
 from app.services.ai.recovery_evidence_read_model import (
+    LEGACY_RECOVERY_EVIDENCE_REPAIR_SCOPE,
     patch_recovery_evidence_answer_payload,
 )
 
@@ -94,7 +95,9 @@ def test_bug_2026_05_04_2281_read_model_repairs_historical_fetched_url_answer() 
     fetch_result = _conversation_2281_fetch_result()
     preview = _build_output(fetch_result)
     message = {
+        "conversation_id": 2281,
         "role": "assistant",
+        "created_at": "2026-05-04T08:06:45.379940+00:00",
         "content": "Fetched https://mp.weixin.qq.com/s/example-2281",
         "metadata": {
             "turn_record": {
@@ -136,3 +139,53 @@ def test_bug_2026_05_04_2281_read_model_repairs_historical_fetched_url_answer() 
     assert answer_card["summary"] == preview
     assert answer_card["sections"][0]["content"] == preview
     assert patched["metadata"]["recovery_evidence_read_model_repaired"] is True
+    assert (
+        patched["metadata"]["recovery_evidence_read_model_repair_scope"]
+        == LEGACY_RECOVERY_EVIDENCE_REPAIR_SCOPE
+    )
+
+
+def test_bug_2026_05_04_2281_read_model_does_not_repair_new_live_payloads() -> None:
+    fetch_result = _conversation_2281_fetch_result()
+    message = {
+        "conversation_id": 3001,
+        "role": "assistant",
+        "created_at": "2026-05-04T09:00:01+00:00",
+        "content": "Fetched https://mp.weixin.qq.com/s/example-2281",
+        "metadata": {
+            "turn_record": {
+                "final_output_source": "recovery_evidence",
+                "turn_flow": {
+                    "answer_card": {
+                        "summary": "Fetched https://mp.weixin.qq.com/s/example-2281",
+                        "sections": [
+                            {
+                                "title": "Answer",
+                                "content": "Fetched https://mp.weixin.qq.com/s/example-2281",
+                            }
+                        ],
+                    },
+                    "evidence": [
+                        {
+                            "id": "call-fetch-2281",
+                            "kind": "tool",
+                            "title": "fetch_url",
+                            "tool_name": "fetch_url",
+                            "source_ref": "fetch_url",
+                            "status": "success",
+                            "tool_call_id": "call-fetch-2281",
+                            "snippet": fetch_result.summary,
+                            "output": fetch_result.output,
+                            "summary_payload": fetch_result.summary_payload,
+                        }
+                    ],
+                },
+            }
+        },
+    }
+
+    patched = patch_recovery_evidence_answer_payload(message)
+
+    assert patched is message
+    assert patched["content"] == "Fetched https://mp.weixin.qq.com/s/example-2281"
+    assert "recovery_evidence_read_model_repaired" not in patched["metadata"]

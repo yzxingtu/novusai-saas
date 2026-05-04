@@ -17,6 +17,22 @@ from .recovery_tool_result_helpers import (
 )
 from .types import IntentPlan
 
+WEB_RESEARCH_TERMINAL_CONTRACT_KEY = "web_research_terminal_contract"
+WEB_RESEARCH_TERMINAL_NO_RESULT = "no_result"
+WEB_RESEARCH_TERMINAL_SEARCH_UNAVAILABLE = "search_unavailable"
+
+_WEB_RESEARCH_TERMINAL_CONTRACTS = frozenset(
+    {
+        WEB_RESEARCH_TERMINAL_NO_RESULT,
+        WEB_RESEARCH_TERMINAL_SEARCH_UNAVAILABLE,
+    }
+)
+_TERMINAL_CONTRACT_BY_GATE_REASON = {
+    "search_no_results": WEB_RESEARCH_TERMINAL_NO_RESULT,
+    "search_no_results_completed": WEB_RESEARCH_TERMINAL_NO_RESULT,
+    "search_not_successful": WEB_RESEARCH_TERMINAL_SEARCH_UNAVAILABLE,
+}
+
 
 class RecoveryWebResearchGate:
     """Recovery helpers for web_research intents."""
@@ -59,11 +75,15 @@ class RecoveryWebResearchGate:
             if url not in merged_urls:
                 merged_urls.append(url)
         metadata["fetch_url_candidate_urls"] = merged_urls
-        metadata["fetch_url_attempted_urls"] = RecoveryWebResearchGate.normalized_url_list(
-            metadata.get("fetch_url_attempted_urls")
+        metadata["fetch_url_attempted_urls"] = (
+            RecoveryWebResearchGate.normalized_url_list(
+                metadata.get("fetch_url_attempted_urls")
+            )
         )
-        metadata["fetch_url_blocked_urls"] = RecoveryWebResearchGate.normalized_url_list(
-            metadata.get("fetch_url_blocked_urls")
+        metadata["fetch_url_blocked_urls"] = (
+            RecoveryWebResearchGate.normalized_url_list(
+                metadata.get("fetch_url_blocked_urls")
+            )
         )
         intent.metadata = metadata
 
@@ -83,17 +103,51 @@ class RecoveryWebResearchGate:
     @staticmethod
     def set_auto_fetch_gate_reason(intent: IntentPlan, reason: str) -> None:
         metadata = dict(intent.metadata or {})
-        metadata["auto_fetch_gate_reason"] = str(reason or "").strip() or None
+        normalized_reason = str(reason or "").strip()
+        metadata["auto_fetch_gate_reason"] = normalized_reason or None
         if metadata["auto_fetch_gate_reason"] is None:
             metadata.pop("auto_fetch_gate_reason", None)
+        RecoveryWebResearchGate.sync_terminal_contract(metadata, normalized_reason)
         intent.metadata = metadata
 
     @staticmethod
     def clear_requires_fetch_url(intent: IntentPlan, *, reason: str) -> None:
         metadata = dict(intent.metadata or {})
         metadata.pop("requires_fetch_url", None)
-        metadata["auto_fetch_gate_reason"] = str(reason or "").strip() or None
+        normalized_reason = str(reason or "").strip()
+        metadata["auto_fetch_gate_reason"] = normalized_reason or None
+        RecoveryWebResearchGate.sync_terminal_contract(metadata, normalized_reason)
         intent.metadata = metadata
+
+    @staticmethod
+    def terminal_contract_for_gate_reason(reason: str) -> str | None:
+        return _TERMINAL_CONTRACT_BY_GATE_REASON.get(str(reason or "").strip())
+
+    @staticmethod
+    def sync_terminal_contract(metadata: dict[str, Any], reason: str) -> None:
+        contract = RecoveryWebResearchGate.terminal_contract_for_gate_reason(reason)
+        if contract:
+            metadata[WEB_RESEARCH_TERMINAL_CONTRACT_KEY] = contract
+        else:
+            metadata.pop(WEB_RESEARCH_TERMINAL_CONTRACT_KEY, None)
+
+    @staticmethod
+    def terminal_contract(intent: IntentPlan) -> str:
+        metadata = dict(intent.metadata or {})
+        explicit = str(metadata.get(WEB_RESEARCH_TERMINAL_CONTRACT_KEY) or "").strip()
+        if explicit in _WEB_RESEARCH_TERMINAL_CONTRACTS:
+            return explicit
+        reason = str(metadata.get("auto_fetch_gate_reason") or "").strip()
+        return RecoveryWebResearchGate.terminal_contract_for_gate_reason(reason) or ""
+
+    @staticmethod
+    def is_terminal_without_verified_fetch_answer(intent: IntentPlan) -> bool:
+        if str(intent.family or "").strip() != "web_research":
+            return False
+        return (
+            RecoveryWebResearchGate.terminal_contract(intent)
+            in _WEB_RESEARCH_TERMINAL_CONTRACTS
+        )
 
     @staticmethod
     def web_research_no_result_output(intent: IntentPlan) -> str:
@@ -203,6 +257,7 @@ class RecoveryWebResearchGate:
         intent.completion_signals = ["fetch_url"]
         intent.metadata["requires_fetch_url"] = True
         intent.metadata["auto_fetch_gate_reason"] = "candidate_urls_ready"
+        intent.metadata.pop(WEB_RESEARCH_TERMINAL_CONTRACT_KEY, None)
 
     @staticmethod
     def complete_native_search_intents(intents: list[IntentPlan]) -> list[IntentPlan]:
@@ -218,8 +273,14 @@ class RecoveryWebResearchGate:
                 clone.completed_by_tool_names = ["native_web_search"]
                 clone.metadata = dict(clone.metadata or {})
                 clone.metadata["auto_fetch_gate_reason"] = "native_search_completed"
+                clone.metadata.pop(WEB_RESEARCH_TERMINAL_CONTRACT_KEY, None)
             updated.append(clone)
         return updated
 
 
-__all__ = ["RecoveryWebResearchGate"]
+__all__ = [
+    "WEB_RESEARCH_TERMINAL_CONTRACT_KEY",
+    "WEB_RESEARCH_TERMINAL_NO_RESULT",
+    "WEB_RESEARCH_TERMINAL_SEARCH_UNAVAILABLE",
+    "RecoveryWebResearchGate",
+]

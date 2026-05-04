@@ -16,6 +16,10 @@ from app.ai.engine.conversation import ConversationEngine
 from app.ai.engine.execution_state_machine import ExecutionStateMachine
 from app.ai.engine.final_output_policy import build_untrusted_final_output_fallback
 from app.ai.engine.recovery_manager import RecoveryManager
+from app.ai.engine.recovery_web_research_gate import (
+    WEB_RESEARCH_TERMINAL_CONTRACT_KEY,
+    WEB_RESEARCH_TERMINAL_SEARCH_UNAVAILABLE,
+)
 from app.ai.engine.stream_handler import StreamExecutionHandler
 from app.ai.engine.turn_executor import finalize_turn_execution
 from app.ai.engine.types import (
@@ -356,6 +360,10 @@ async def test_finalize_turn_execution_replaces_untrusted_tool_evidence_with_saf
     assert (finalized_response.message.content or "").strip() == expected_fallback
     assert state.preparation_diagnostics["post_tool_completion_state"] == (
         "search_not_successful"
+    )
+    assert (
+        state.preparation_diagnostics[WEB_RESEARCH_TERMINAL_CONTRACT_KEY]
+        == WEB_RESEARCH_TERMINAL_SEARCH_UNAVAILABLE
     )
     assert (
         state.preparation_diagnostics["search_not_successful_untrusted_output"] is True
@@ -994,6 +1002,14 @@ def test_recovery_manager_prefers_current_completed_tool_result_over_stale_cache
                     "TodayAiNews.com ~ The latest Artificial Intelligence (AI) news - "
                     "The latest Artificial Intelligence (AI) news, articles, photos, slideshows and videos."
                 ),
+                summary_payload={
+                    "fetch_url": True,
+                    "ok": True,
+                    "summary": (
+                        "TodayAiNews.com ~ The latest Artificial Intelligence (AI) news - "
+                        "The latest Artificial Intelligence (AI) news, articles, photos, slideshows and videos."
+                    ),
+                },
             )
         ],
     )

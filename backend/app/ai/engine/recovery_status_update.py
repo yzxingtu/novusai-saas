@@ -22,15 +22,6 @@ from .system_prompt_intent_helpers import (
 from .types import IntentPlan
 
 
-def _should_keep_untrusted_completed_web_fallback(intent: IntentPlan) -> bool:
-    metadata = dict(intent.metadata or {})
-    return (
-        str(intent.family or "").strip() == "web_research"
-        and str(metadata.get("auto_fetch_gate_reason") or "").strip()
-        == "search_not_successful"
-    )
-
-
 def update_intent_statuses(
     intents: list[IntentPlan],
     *,
@@ -127,7 +118,9 @@ def update_intent_statuses(
             elif (
                 str(clone.family or "").strip() == "web_research"
                 and "fetch_url" in set(clone.completed_by_tool_names or [])
-                and not _should_keep_untrusted_completed_web_fallback(clone)
+                and not RecoveryWebResearchGate.is_terminal_without_verified_fetch_answer(
+                    clone
+                )
             ):
                 clone.status = "pending"
                 clone.completed_by_tool_names = []
