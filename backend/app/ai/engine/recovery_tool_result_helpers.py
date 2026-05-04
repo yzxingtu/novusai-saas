@@ -42,6 +42,7 @@ _FETCH_BODY_LIST_HEADING_RE = re.compile(
     r"(?:top\s*\d+|排行榜|排名|榜单|战力榜|综合top)",
     re.IGNORECASE,
 )
+_GENERIC_FETCH_SUMMARY_RE = re.compile(r"^\s*fetched\s+https?://\S+\s*$", re.I)
 DEFAULT_RECOVERY_RESULT_MAX_LENGTH = 500
 FETCH_URL_RECOVERY_RESULT_MAX_LENGTH = 2000
 
@@ -65,6 +66,10 @@ def _looks_truncated(text: str) -> bool:
         normalized.endswith(("...", "…"))
         or any(marker in normalized for marker in _TRUNCATION_MARKERS)
     )
+
+
+def _is_generic_fetch_summary(text: str) -> bool:
+    return bool(_GENERIC_FETCH_SUMMARY_RE.match(str(text or "").strip()))
 
 
 def _is_useful_fetch_body_line(
@@ -223,6 +228,7 @@ def extract_fetch_url_user_preview(
         and normalized_summary
         and normalized_summary == normalized_title
     )
+    summary_is_generic_fetch_status = _is_generic_fetch_summary(generic_summary)
     description_has_terminal_punctuation = _has_terminal_punctuation(description)
     description_incomplete = bool(
         description and not description_has_terminal_punctuation
@@ -264,6 +270,7 @@ def extract_fetch_url_user_preview(
             or title_has_site_suffix
             or summary_is_title_description
             or summary_is_title_only
+            or summary_is_generic_fetch_status
             or description_incomplete
         )
     )
@@ -299,6 +306,7 @@ def extract_fetch_url_user_preview(
         and normalized_summary != normalized_title
         and not summary_truncated
         and not title_has_site_suffix
+        and not summary_is_generic_fetch_status
     ):
         return RecoveryResultNormalizer._normalize_cached_result(
             generic_summary,

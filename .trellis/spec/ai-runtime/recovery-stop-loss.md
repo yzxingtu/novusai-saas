@@ -271,6 +271,10 @@ Do not consume retry budget solely because a tool is waiting for consent.
   body lines over generated `title - description` summaries whenever the
   summary is only a title/description join and the fetched body contains
   substantive content.
+- A generic `fetch_url.summary` status such as `Fetched https://...` is not
+  answer-quality evidence. If the fetched body contains substantive content,
+  recovery output must use body lines; if it does not, the generic status must
+  not by itself complete a `web_research` answer.
 - Obvious short navigation/body headings such as "报告详情" must not become the
   primary recovered answer line.
 - A page `description` without terminal punctuation is not enough by itself to
@@ -287,6 +291,8 @@ Do not consume retry budget solely because a tool is waiting for consent.
 |---|---|
 | `fetch_url.summary` is complete and no body text is available | May use the summary |
 | `fetch_url.summary` is `title - description` and body contains substantive lines | Use body lines for recovered output |
+| `fetch_url.summary` is generic `Fetched https://...` and body contains substantive lines | Use body lines for recovered output |
+| `fetch_url.summary` is generic `Fetched https://...` and no useful body text is available | Do not treat the generic status as a completed answer |
 | `fetch_url.summary` ends with `... [truncated]` and body contains substantive lines | Use body lines for recovered output |
 | `description` ends mid-sentence and body contains facts | Do not end the final answer with the clipped description |
 | Body contains only obvious short headings/navigation | Skip those lines; fall back to safer summary/fallback text |
@@ -301,6 +307,8 @@ Do not consume retry budget solely because a tool is waiting for consent.
   may surface the summary.
 - Bad: the assistant final message is just "沙利文发布...报告，调研用户通过" and the
   turn is marked completed.
+- Bad: the assistant final message is just `Fetched https://...` while the
+  successful fetched body contains the facts the user asked for.
 
 ### 6. Tests Required
 
@@ -309,8 +317,13 @@ Do not consume retry budget solely because a tool is waiting for consent.
     title/description summary is incomplete.
   - recovered final output also uses body lines when `fetch_url.summary` carries
     a truncation marker such as `... [truncated]`.
+  - recovered final output uses body lines when `fetch_url.summary` is only a
+    generic `Fetched https://...` status.
   - complete summary with no body text remains usable, and failed fetch evidence
     is not promoted.
+- `backend/tests/regressions/test_bug_2026_05_04_2281_generic_fetched_url_recovery.py`
+  - completed `fetch_url` recovery must not finalize a generic fetched-URL
+    status when body evidence contains answer facts.
 - Existing stream/turn finalization tests must continue proving that
   unsuccessful searches or untrusted raw tool evidence are not promoted as
   canonical assistant answers.
@@ -329,4 +342,6 @@ Do not consume retry budget solely because a tool is waiting for consent.
 - treating hosted-search fallback preamble text as a completed web-research
   answer when no `web_search` or `fetch_url` evidence was produced
 - promoting clipped `fetch_url` title/description metadata as a completed
+  web-research answer when substantive fetched body text is available
+- promoting generic `Fetched https://...` fetch status as a completed
   web-research answer when substantive fetched body text is available

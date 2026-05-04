@@ -386,6 +386,48 @@ def test_update_intent_statuses_uses_body_when_fetch_summary_has_truncated_marke
     assert "[truncated]" not in (updated[0].cached_result or "")
 
 
+def test_update_intent_statuses_uses_body_when_fetch_summary_is_generic_fetched_url() -> (
+    None
+):
+    updated = RecoveryManager.update_intent_statuses(
+        [_web_research_intent()],
+        messages=[],
+        tool_results=[
+            ToolResult(
+                tool_call_id="tc-fetch",
+                name="fetch_url",
+                success=True,
+                output=(
+                    "Content from https://mp.weixin.qq.com/s/example:\n"
+                    "Redirected from: http://www.baidu.com/link?url=example\n\n"
+                    "全球知名的大模型盲测榜单LMArena更新了新一期排名，"
+                    "阿里巴巴千问最新旗舰模型预览版Qwen3.5-Max-Preview首度亮相，"
+                    "斩获1464分，超过了GPT5.4、Grok4.1等海外模型。\n\n"
+                    "此外，LMArena基于各公司最强模型对全球大模型机构进行排名，"
+                    "5家中国公司闯进前十，阿里位列全球前五、中国第一。\n"
+                ),
+                summary="Fetched https://mp.weixin.qq.com/s/example",
+                summary_payload={
+                    "fetch_url": True,
+                    "ok": True,
+                    "requested_url": "http://www.baidu.com/link?url=example",
+                    "final_url": "https://mp.weixin.qq.com/s/example",
+                    "title": None,
+                    "description": None,
+                    "summary": "Fetched https://mp.weixin.qq.com/s/example",
+                },
+            )
+        ],
+    )
+
+    assert updated[0].status == "completed"
+    assert "Qwen3.5-Max-Preview首度亮相" in (updated[0].cached_result or "")
+    assert "阿里位列全球前五、中国第一" in (updated[0].cached_result or "")
+    assert "Fetched https://mp.weixin.qq.com/s/example" not in (
+        updated[0].cached_result or ""
+    )
+
+
 def test_completed_output_uses_fetch_body_for_recovered_user_visible_answer() -> None:
     description = "国际市场调研机构沙利文（Frost&Sullivan）发布了最新一期《中国GenAI市场洞察：企业级大模型调用全景研究2025H2》报告，调研用户通过"
     summary = (
