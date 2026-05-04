@@ -3,9 +3,9 @@ Test type: behavioral
 Regression for: BUG-2026-05-05-2285
 Original symptom: conversation 2285 marked WebResearch evidence as completed
 after fetching an irrelevant Baijiahao article for "大模型排行榜 2026".
-Scope: WebResearchRuntime search -> fetch -> relevance gate -> evidence status.
+Scope: WebResearchRuntime search -> query planning -> fetch -> relevance gate -> evidence status.
 Mock strategy: fake providers replace external network only; the real runtime,
-candidate iteration, relevance gate, and evidence builder make the decision.
+query planner, candidate iteration, relevance gate, and evidence builder make the decision.
 """
 
 from collections.abc import Callable
@@ -102,7 +102,7 @@ def _leaderboard_page(url: str):
 
 
 @pytest.mark.asyncio
-async def test_2285_rejects_irrelevant_first_fetch_and_continues_to_relevant_candidate() -> None:
+async def test_2285_prioritizes_trusted_candidates_before_noisy_public_hit() -> None:
     query = "查一下大模型排行榜 2026  水平排行！"
 
     def fetch_handler(url: str, options: FetchOptions) -> object:
@@ -124,21 +124,26 @@ async def test_2285_rejects_irrelevant_first_fetch_and_continues_to_relevant_can
     )
 
     assert fetch_provider.events == [
-        "https://baijiahao.baidu.com/s?id=1860091565873698107",
         "https://artificialanalysis.ai/leaderboards/models",
+        "https://lmarena.ai/leaderboard",
     ]
     assert evidence.status == "completed"
     assert evidence.answer_quality == "body"
     assert evidence.failure_kind is None
-    assert evidence.fetched_pages[0].status == "skipped"
-    assert evidence.fetched_pages[0].answer_quality == "none"
-    assert evidence.fetched_pages[0].failure_kind == "low_query_relevance"
-    assert evidence.fetched_pages[1].url == "https://artificialanalysis.ai/leaderboards/models"
+    assert [page.url for page in evidence.fetched_pages] == [
+        "https://artificialanalysis.ai/leaderboards/models",
+        "https://lmarena.ai/leaderboard",
+    ]
+    assert [page.status for page in evidence.fetched_pages] == ["completed", "completed"]
     assert evidence.diagnostics.fetched_urls == [
-        "https://artificialanalysis.ai/leaderboards/models"
+        "https://artificialanalysis.ai/leaderboards/models",
+        "https://lmarena.ai/leaderboard",
     ]
     assert evidence.diagnostics.answer_source == "fetched_body"
-    assert evidence.citations[0].url == "https://artificialanalysis.ai/leaderboards/models"
+    assert [citation.url for citation in evidence.citations] == [
+        "https://artificialanalysis.ai/leaderboards/models",
+        "https://lmarena.ai/leaderboard",
+    ]
 
 
 @pytest.mark.asyncio
@@ -158,11 +163,15 @@ async def test_2285_low_relevance_only_never_completes_as_fetched_body_answer() 
     )
 
     assert fetch_provider.events == [
-        "https://baijiahao.baidu.com/s?id=1860091565873698107"
+        "https://artificialanalysis.ai/leaderboards/models"
     ]
     assert evidence.status == "partial"
     assert evidence.answer_quality == "none"
     assert evidence.failure_kind == "low_query_relevance"
+    assert evidence.fetched_pages[0].url == (
+        "https://artificialanalysis.ai/leaderboards/models"
+    )
+    assert evidence.fetched_pages[0].failure_kind == "low_query_relevance"
     assert evidence.diagnostics.answer_source == "none"
     assert evidence.diagnostics.fetched_urls == []
     assert evidence.citations == []

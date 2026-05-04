@@ -109,6 +109,25 @@ def _artificial_analysis_page(url: str):
     )
 
 
+def _lmarena_page(url: str):
+    return normalize_page_evidence(
+        url=url,
+        status="completed",
+        title="Arena Leaderboard | Compare & Benchmark the Best Frontier AI Models",
+        description="See how leading AI models stack up across text, code, vision, and more.",
+        summary="Arena leaderboard compares frontier AI models by category and score",
+        body_text=(
+            "LMArena Arena Leaderboard ranks frontier AI models across text, "
+            "code and multimodal arenas with benchmark scores. "
+            "1. Claude Opus 4.7 thinking score 1503. "
+            "2. Gemini 3.1 Pro score 1493. "
+            "3. GPT-5.5 high score 1488. "
+            "4. Grok 4.20 score 1480."
+        ),
+        provider="fake-fetch",
+    )
+
+
 def _noisy_or_blocked_page(url: str):
     if "baijiahao" in url:
         return normalize_page_evidence(
@@ -136,15 +155,21 @@ def _noisy_or_blocked_page(url: str):
 
 
 @pytest.mark.asyncio
-async def test_2293_llm_leaderboard_query_uses_trusted_authority_candidate_after_noisy_search() -> None:
+async def test_2293_llm_leaderboard_query_uses_trusted_authority_candidate_after_noisy_search() -> (
+    None
+):
     query = "查一下大模型排行榜 2026 水平排行！"
 
     def fetch_handler(url: str, options: FetchOptions) -> object:
         if "artificialanalysis.ai/leaderboards/models" in url:
             return _artificial_analysis_page(url)
+        if "lmarena.ai/leaderboard" in url:
+            return _lmarena_page(url)
         return _noisy_or_blocked_page(url)
 
-    search_provider = FakeSearchProvider(lambda query, _options: _noisy_2293_search_results(query))
+    search_provider = FakeSearchProvider(
+        lambda query, _options: _noisy_2293_search_results(query)
+    )
     fetch_provider = FakeFetchProvider(fetch_handler)
     runtime = WebResearchRuntime(
         search_provider=search_provider,
@@ -161,11 +186,24 @@ async def test_2293_llm_leaderboard_query_uses_trusted_authority_candidate_after
     assert evidence.answer_quality == "body"
     assert evidence.diagnostics.answer_source == "fetched_body"
     assert evidence.diagnostics.fetched_urls == [
-        "https://artificialanalysis.ai/leaderboards/models"
+        "https://artificialanalysis.ai/leaderboards/models",
+        "https://lmarena.ai/leaderboard",
     ]
-    assert evidence.citations[0].url == "https://artificialanalysis.ai/leaderboards/models"
-    assert "https://artificialanalysis.ai/leaderboards/models" in fetch_provider.events
+    assert [citation.url for citation in evidence.citations] == [
+        "https://artificialanalysis.ai/leaderboards/models",
+        "https://lmarena.ai/leaderboard",
+    ]
+    assert fetch_provider.events == [
+        "https://artificialanalysis.ai/leaderboards/models",
+        "https://lmarena.ai/leaderboard",
+    ]
     assert evidence.diagnostics.raw["query_profile"] == "llm_leaderboard"
     assert evidence.diagnostics.raw["trusted_seed_candidate_urls"] == [
-        "https://artificialanalysis.ai/leaderboards/models"
+        "https://artificialanalysis.ai/leaderboards/models",
+        "https://lmarena.ai/leaderboard",
     ]
+    assert evidence.diagnostics.raw["minimum_relevant_sources"] == 2
+    assert (
+        evidence.diagnostics.raw["source_quality_floor"]
+        == "trusted_leaderboard_or_relevant_benchmark"
+    )

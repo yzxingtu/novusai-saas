@@ -30,6 +30,12 @@ from app.ai.web_research.normalization import (
     normalize_page_evidence,
     normalize_search_item,
 )
+from app.ai.web_research.query_planning import (
+    TrustedSeedCandidate,
+    WebResearchQueryPlan,
+    apply_query_plan_to_search_results,
+    build_web_research_query_plan,
+)
 from app.ai.web_research.relevance import (
     EvidenceRelevance,
     apply_page_relevance_gate,
@@ -58,9 +64,11 @@ __all__ = [
     "SearchOptions",
     "SearchProvider",
     "SearchResultSet",
+    "TrustedSeedCandidate",
     "FetchCandidateSelection",
     "ProviderResolution",
     "SkippedFetchCandidate",
+    "WebResearchQueryPlan",
     "WebResearchDiagnostics",
     "WebResearchEvidence",
     "WebResearchProviderRouter",
@@ -68,7 +76,9 @@ __all__ = [
     "WebResearchRuntime",
     "answer_source_for_quality",
     "apply_page_relevance_gate",
+    "apply_query_plan_to_search_results",
     "build_citations",
+    "build_web_research_query_plan",
     "build_web_research_evidence",
     "detect_query_profile",
     "determine_evidence_answer_quality",

@@ -22,6 +22,10 @@ from app.ai.web_research.normalization import (
     build_web_research_evidence,
     normalize_page_evidence,
 )
+from app.ai.web_research.query_planning import (
+    apply_query_plan_to_search_results,
+    build_web_research_query_plan,
+)
 from app.ai.web_research.relevance import apply_page_relevance_gate
 from app.ai.web_research.routing import WebResearchProviderRouter
 from app.ai.web_research.selection import (
@@ -97,6 +101,7 @@ class WebResearchRuntime:
             provider_disable_reason=provider_disable_reason,
             raw_diagnostics={
                 **dict(run_options.diagnostics),
+                **_query_plan_diagnostics(search_results),
                 "requested_search_provider": search_resolution.requested_provider_id,
                 "selected_search_provider": search_resolution.selected_provider_id,
                 "requested_fetch_provider": fetch_resolution.requested_provider_id,
@@ -119,8 +124,9 @@ class WebResearchRuntime:
         options: WebResearchRunOptions,
         search_provider: SearchProvider,
     ) -> SearchResultSet:
+        query_plan = build_web_research_query_plan(query)
         try:
-            return await search_provider.search(
+            search_results = await search_provider.search(
                 query,
                 SearchOptions(
                     max_results=options.max_search_results,
@@ -128,13 +134,21 @@ class WebResearchRuntime:
                     diagnostics=options.diagnostics,
                 ),
             )
+            return apply_query_plan_to_search_results(
+                search_results,
+                plan=query_plan,
+            )
         except Exception as exc:
-            return SearchResultSet(
+            search_results = SearchResultSet(
                 query=query,
                 provider=search_provider.provider_id,
                 status="failed",
                 failure_kind="search_exception",
                 diagnostics={"error": str(exc)},
+            )
+            return apply_query_plan_to_search_results(
+                search_results,
+                plan=query_plan,
             )
 
     async def _fetch_candidates(
@@ -149,6 +163,8 @@ class WebResearchRuntime:
         if not candidate_selection.selected_urls:
             return pages
 
+        minimum_relevant_sources = _minimum_relevant_sources(search_results)
+        relevant_source_count = 0
         search_items_by_url = {
             item.url.strip(): item for item in search_results.items if item.url.strip()
         }
@@ -177,7 +193,9 @@ class WebResearchRuntime:
             )
             pages.append(page)
             if page.status == "completed" and page.answer_quality != "none":
-                break
+                relevant_source_count += 1
+                if relevant_source_count >= minimum_relevant_sources:
+                    break
         return pages
 
 
@@ -208,6 +226,30 @@ def _skipped_pages(
 
 def _next_pipeline_id() -> str:
     return f"web-research-{next(_PIPELINE_COUNTER)}"
+
+
+def _query_plan_diagnostics(search_results: SearchResultSet) -> dict[str, object]:
+    diagnostics = dict(search_results.diagnostics or {})
+    payload: dict[str, object] = {
+        "search_diagnostics": diagnostics,
+    }
+    for key in (
+        "query_profile",
+        "trusted_seed_candidate_urls",
+        "minimum_relevant_sources",
+        "source_quality_floor",
+    ):
+        if key in diagnostics:
+            payload[key] = diagnostics[key]
+    return payload
+
+
+def _minimum_relevant_sources(search_results: SearchResultSet) -> int:
+    raw_value = dict(search_results.diagnostics or {}).get("minimum_relevant_sources")
+    try:
+        return max(1, int(raw_value or 1))
+    except (TypeError, ValueError):
+        return 1
 
 
 __all__ = ["WebResearchRuntime"]

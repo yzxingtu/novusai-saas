@@ -410,3 +410,253 @@ async def test_runtime_projects_skipped_unsafe_candidate_before_fetching_next_ur
             "reason": "unsupported_scheme",
         }
     ]
+
+
+@pytest.mark.asyncio
+async def test_runtime_fetches_llm_leaderboard_trusted_seed_before_noisy_search_hit() -> (
+    None
+):
+    # behavioral: the runtime must apply query planning before fetch candidate
+    # selection, so the trusted seed is the first fetched URL for this prompt.
+    events: list[str] = []
+
+    def search_handler(query: str, options: SearchOptions) -> SearchResultSet:
+        return SearchResultSet(
+            query=query,
+            provider="public-search",
+            items=[
+                normalize_search_item(
+                    title="大模型排行榜被投毒了吗",
+                    url="https://baijiahao.baidu.com/s?id=noisy-315",
+                    snippet="3·15 广告监管 黑产 软文 信息操控，不是模型榜单。",
+                    rank=1,
+                    provider="public-search",
+                ),
+                normalize_search_item(
+                    title="Artificial Analysis duplicate",
+                    url="https://artificialanalysis.ai/leaderboards/models",
+                    snippet="Duplicate public-search result for the trusted seed.",
+                    rank=2,
+                    provider="public-search",
+                ),
+            ],
+        )
+
+    def fetch_handler(url: str, options: FetchOptions) -> object:
+        return normalize_page_evidence(
+            url=url,
+            status="completed",
+            title="Artificial Analysis LLM Leaderboard",
+            body_text=(
+                "2026 AI model leaderboard ranking GPT Claude Gemini DeepSeek "
+                "Qwen with benchmark score and intelligence index results. "
+                "#1 GPT #2 Claude #3 Gemini."
+            ),
+            summary="",
+            description="",
+            provider="fake-fetch",
+        )
+
+    runtime = WebResearchRuntime(
+        search_provider=FakeSearchProvider(events, search_handler),
+        fetch_provider=FakeFetchProvider(events, fetch_handler),
+    )
+
+    evidence = await runtime.run(
+        "大模型排行榜 2026",
+        WebResearchRunOptions(pipeline_id="pipeline-llm-leaderboard", max_fetches=1),
+    )
+
+    assert events == [
+        "search:大模型排行榜 2026:max=5",
+        "fetch:https://artificialanalysis.ai/leaderboards/models",
+    ]
+    assert [item.url for item in evidence.search_results] == [
+        "https://artificialanalysis.ai/leaderboards/models",
+        "https://lmarena.ai/leaderboard",
+        "https://baijiahao.baidu.com/s?id=noisy-315",
+    ]
+    assert [item.rank for item in evidence.search_results] == [1, 2, 3]
+    assert evidence.diagnostics.candidate_urls == [
+        "https://artificialanalysis.ai/leaderboards/models",
+        "https://lmarena.ai/leaderboard",
+        "https://baijiahao.baidu.com/s?id=noisy-315",
+    ]
+    assert evidence.diagnostics.fetched_urls == [
+        "https://artificialanalysis.ai/leaderboards/models"
+    ]
+    assert evidence.diagnostics.raw["query_profile"] == "llm_leaderboard"
+    assert evidence.diagnostics.raw["trusted_seed_candidate_urls"] == [
+        "https://artificialanalysis.ai/leaderboards/models",
+        "https://lmarena.ai/leaderboard",
+    ]
+    assert evidence.diagnostics.raw["minimum_relevant_sources"] == 2
+    assert (
+        evidence.diagnostics.raw["source_quality_floor"]
+        == "trusted_leaderboard_or_relevant_benchmark"
+    )
+
+
+@pytest.mark.asyncio
+async def test_runtime_fetches_two_relevant_llm_leaderboard_sources_before_stopping() -> (
+    None
+):
+    # behavioral: leaderboard queries need more than one authority when the
+    # plan requires two relevant sources; the runtime should not stop after the
+    # first fetched body for this profile.
+    events: list[str] = []
+
+    def search_handler(query: str, options: SearchOptions) -> SearchResultSet:
+        return SearchResultSet(
+            query=query,
+            provider="public-search",
+            items=[
+                normalize_search_item(
+                    title="Weak public-search result",
+                    url="https://baijiahao.baidu.com/s?id=noisy-315",
+                    snippet="GEO营销、广告监管、token调用量和信息操控，不是能力榜单。",
+                    rank=1,
+                    provider="public-search",
+                )
+            ],
+        )
+
+    def fetch_handler(url: str, options: FetchOptions) -> object:
+        if "lmarena.ai" in url:
+            return normalize_page_evidence(
+                url=url,
+                status="completed",
+                title="Arena Leaderboard",
+                body_text=(
+                    "AI model ranking leaderboard with Claude Gemini GPT Grok "
+                    "and Qwen scores. 1. Claude 2. Gemini 3. GPT."
+                ),
+                summary="Arena leaderboard ranking frontier AI models",
+                description="",
+                provider="fake-fetch",
+            )
+        return normalize_page_evidence(
+            url=url,
+            status="completed",
+            title="Artificial Analysis LLM Leaderboard",
+            body_text=(
+                "2026 AI model leaderboard ranking GPT Claude Gemini DeepSeek "
+                "Qwen with benchmark score and intelligence index results. "
+                "#1 GPT #2 Claude #3 Gemini."
+            ),
+            summary="Artificial Analysis ranks frontier AI models",
+            description="",
+            provider="fake-fetch",
+        )
+
+    runtime = WebResearchRuntime(
+        search_provider=FakeSearchProvider(events, search_handler),
+        fetch_provider=FakeFetchProvider(events, fetch_handler),
+    )
+
+    evidence = await runtime.run(
+        "大模型排行榜 2026",
+        WebResearchRunOptions(pipeline_id="pipeline-llm-leaderboard-2", max_fetches=3),
+    )
+
+    assert events == [
+        "search:大模型排行榜 2026:max=5",
+        "fetch:https://artificialanalysis.ai/leaderboards/models",
+        "fetch:https://lmarena.ai/leaderboard",
+    ]
+    assert evidence.status == "completed"
+    assert evidence.diagnostics.fetched_urls == [
+        "https://artificialanalysis.ai/leaderboards/models",
+        "https://lmarena.ai/leaderboard",
+    ]
+    assert [citation.url for citation in evidence.citations] == [
+        "https://artificialanalysis.ai/leaderboards/models",
+        "https://lmarena.ai/leaderboard",
+    ]
+    assert evidence.diagnostics.raw["minimum_relevant_sources"] == 2
+
+
+@pytest.mark.asyncio
+async def test_runtime_cross_checks_two_relevant_llm_leaderboard_sources() -> None:
+    # behavioral: default leaderboard research should not stop at the first
+    # relevant page when the query plan requires two independent sources.
+    events: list[str] = []
+
+    def search_handler(query: str, options: SearchOptions) -> SearchResultSet:
+        return SearchResultSet(
+            query=query,
+            provider="public-search",
+            items=[
+                normalize_search_item(
+                    title="大模型榜单软文",
+                    url="https://baijiahao.baidu.com/s?id=noisy-315",
+                    snippet="广告监管、信息操控、GEO营销，不是可核实能力榜单。",
+                    rank=1,
+                    provider="public-search",
+                )
+            ],
+        )
+
+    def fetch_handler(url: str, options: FetchOptions) -> object:
+        if "artificialanalysis.ai" in url:
+            return normalize_page_evidence(
+                url=url,
+                status="completed",
+                title="Artificial Analysis LLM Leaderboard",
+                body_text=(
+                    "LLM leaderboard benchmark score intelligence index ranks "
+                    "GPT Claude Gemini DeepSeek Qwen. #1 GPT #2 Claude."
+                ),
+                summary="",
+                description="",
+                provider="fake-fetch",
+            )
+        if "lmarena.ai" in url:
+            return normalize_page_evidence(
+                url=url,
+                status="completed",
+                title="Arena Leaderboard",
+                body_text=(
+                    "Arena leaderboard benchmark score for frontier language "
+                    "models GPT Claude Gemini DeepSeek Qwen. #1 Claude #2 GPT."
+                ),
+                summary="",
+                description="",
+                provider="fake-fetch",
+            )
+        return normalize_page_evidence(
+            url=url,
+            status="completed",
+            title="Noisy article",
+            body_text="3·15 广告监管 信息操控 黑产 token消耗 恐慌。",
+            summary="",
+            description="",
+            provider="fake-fetch",
+        )
+
+    runtime = WebResearchRuntime(
+        search_provider=FakeSearchProvider(events, search_handler),
+        fetch_provider=FakeFetchProvider(events, fetch_handler),
+    )
+
+    evidence = await runtime.run(
+        "查一下大模型排行榜 2026 水平排行！",
+        WebResearchRunOptions(pipeline_id="pipeline-llm-cross-check"),
+    )
+
+    assert events == [
+        "search:查一下大模型排行榜 2026 水平排行！:max=5",
+        "fetch:https://artificialanalysis.ai/leaderboards/models",
+        "fetch:https://lmarena.ai/leaderboard",
+    ]
+    assert evidence.status == "completed"
+    assert evidence.answer_quality == "body"
+    assert evidence.diagnostics.fetched_urls == [
+        "https://artificialanalysis.ai/leaderboards/models",
+        "https://lmarena.ai/leaderboard",
+    ]
+    assert [citation.url for citation in evidence.citations] == [
+        "https://artificialanalysis.ai/leaderboards/models",
+        "https://lmarena.ai/leaderboard",
+    ]
+    assert evidence.diagnostics.raw["minimum_relevant_sources"] == 2
