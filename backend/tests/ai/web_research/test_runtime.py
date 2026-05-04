@@ -471,29 +471,110 @@ async def test_runtime_fetches_llm_leaderboard_trusted_seed_before_noisy_search_
         "search:大模型排行榜 2026:max=5",
         "fetch:https://artificialanalysis.ai/leaderboards/models",
     ]
-    assert [item.url for item in evidence.search_results] == [
-        "https://artificialanalysis.ai/leaderboards/models",
-        "https://lmarena.ai/leaderboard",
-        "https://baijiahao.baidu.com/s?id=noisy-315",
-    ]
-    assert [item.rank for item in evidence.search_results] == [1, 2, 3]
-    assert evidence.diagnostics.candidate_urls == [
-        "https://artificialanalysis.ai/leaderboards/models",
-        "https://lmarena.ai/leaderboard",
-        "https://baijiahao.baidu.com/s?id=noisy-315",
-    ]
+    trusted_urls = evidence.diagnostics.raw["trusted_seed_candidate_urls"]
+    search_urls = [item.url for item in evidence.search_results]
+    assert trusted_urls[0] == "https://artificialanalysis.ai/leaderboards/models"
+    assert "https://lmarena.ai/leaderboard" in trusted_urls
+    assert search_urls[: len(trusted_urls)] == trusted_urls
+    assert search_urls.index("https://baijiahao.baidu.com/s?id=noisy-315") >= len(
+        trusted_urls
+    )
+    assert [item.rank for item in evidence.search_results] == list(
+        range(1, len(evidence.search_results) + 1)
+    )
+    assert evidence.diagnostics.candidate_urls[: len(trusted_urls)] == trusted_urls
     assert evidence.diagnostics.fetched_urls == [
         "https://artificialanalysis.ai/leaderboards/models"
     ]
     assert evidence.diagnostics.raw["query_profile"] == "llm_leaderboard"
-    assert evidence.diagnostics.raw["trusted_seed_candidate_urls"] == [
-        "https://artificialanalysis.ai/leaderboards/models",
-        "https://lmarena.ai/leaderboard",
-    ]
     assert evidence.diagnostics.raw["minimum_relevant_sources"] == 2
     assert (
         evidence.diagnostics.raw["source_quality_floor"]
         == "trusted_leaderboard_or_relevant_benchmark"
+    )
+
+
+@pytest.mark.asyncio
+async def test_runtime_max_fetches_one_uses_canonical_seed_before_url_variants() -> (
+    None
+):
+    # behavioral: even when public-search ranks low-trust noise first and later
+    # returns tracked trusted duplicates, max_fetches=1 must fetch the canonical
+    # Artificial Analysis seed rather than Baijiahao or a duplicate variant.
+    events: list[str] = []
+
+    def search_handler(query: str, options: SearchOptions) -> SearchResultSet:
+        return SearchResultSet(
+            query=query,
+            provider="public-search",
+            items=[
+                normalize_search_item(
+                    title="大模型榜单软文",
+                    url="https://baijiahao.baidu.com/s?id=noisy-315",
+                    snippet="广告监管、信息操控、GEO营销，不是可核实能力榜单。",
+                    rank=1,
+                    provider="public-search",
+                ),
+                normalize_search_item(
+                    title="Artificial Analysis tracking duplicate",
+                    url="https://www.artificialanalysis.ai/leaderboards/models/?utm_source=search#models",
+                    snippet="Duplicate tracked trusted result.",
+                    rank=2,
+                    provider="public-search",
+                ),
+                normalize_search_item(
+                    title="LMArena http duplicate",
+                    url="http://lmarena.ai/leaderboard?utm_campaign=rankings",
+                    snippet="Duplicate tracked arena result.",
+                    rank=3,
+                    provider="public-search",
+                ),
+            ],
+        )
+
+    def fetch_handler(url: str, options: FetchOptions) -> object:
+        return normalize_page_evidence(
+            url=url,
+            status="completed",
+            title="Artificial Analysis LLM Leaderboard",
+            body_text=(
+                "2026 AI model leaderboard ranking GPT Claude Gemini DeepSeek "
+                "Qwen with benchmark score and intelligence index results. "
+                "#1 GPT #2 Claude #3 Gemini."
+            ),
+            summary="",
+            description="",
+            provider="fake-fetch",
+        )
+
+    runtime = WebResearchRuntime(
+        search_provider=FakeSearchProvider(events, search_handler),
+        fetch_provider=FakeFetchProvider(events, fetch_handler),
+    )
+
+    evidence = await runtime.run(
+        "查一下大模型排行榜 2026 水平排行！",
+        WebResearchRunOptions(pipeline_id="pipeline-llm-variant", max_fetches=1),
+    )
+
+    trusted_urls = evidence.diagnostics.raw["trusted_seed_candidate_urls"]
+    assert events == [
+        "search:查一下大模型排行榜 2026 水平排行！:max=5",
+        "fetch:https://artificialanalysis.ai/leaderboards/models",
+    ]
+    assert evidence.diagnostics.candidate_urls[: len(trusted_urls)] == trusted_urls
+    assert "https://baijiahao.baidu.com/s?id=noisy-315" in (
+        evidence.diagnostics.candidate_urls
+    )
+    assert evidence.diagnostics.fetched_urls == [
+        "https://artificialanalysis.ai/leaderboards/models"
+    ]
+    assert not any(
+        "utm_" in item.url or "#" in item.url for item in evidence.search_results
+    )
+    assert not any(item.url.startswith("http://") for item in evidence.search_results)
+    assert not any(
+        "www.artificialanalysis.ai" in item.url for item in evidence.search_results
     )
 
 
@@ -559,20 +640,22 @@ async def test_runtime_fetches_two_relevant_llm_leaderboard_sources_before_stopp
         WebResearchRunOptions(pipeline_id="pipeline-llm-leaderboard-2", max_fetches=3),
     )
 
-    assert events == [
+    trusted_urls = evidence.diagnostics.raw["trusted_seed_candidate_urls"]
+    assert events[:2] == [
         "search:大模型排行榜 2026:max=5",
         "fetch:https://artificialanalysis.ai/leaderboards/models",
-        "fetch:https://lmarena.ai/leaderboard",
     ]
+    assert events[2].removeprefix("fetch:") in trusted_urls
+    assert "fetch:https://baijiahao.baidu.com/s?id=noisy-315" not in events[:3]
     assert evidence.status == "completed"
-    assert evidence.diagnostics.fetched_urls == [
-        "https://artificialanalysis.ai/leaderboards/models",
-        "https://lmarena.ai/leaderboard",
-    ]
-    assert [citation.url for citation in evidence.citations] == [
-        "https://artificialanalysis.ai/leaderboards/models",
-        "https://lmarena.ai/leaderboard",
-    ]
+    assert len(evidence.diagnostics.fetched_urls) == 2
+    assert evidence.diagnostics.fetched_urls[0] == (
+        "https://artificialanalysis.ai/leaderboards/models"
+    )
+    assert set(evidence.diagnostics.fetched_urls).issubset(set(trusted_urls))
+    assert [citation.url for citation in evidence.citations] == (
+        evidence.diagnostics.fetched_urls
+    )
     assert evidence.diagnostics.raw["minimum_relevant_sources"] == 2
 
 
@@ -644,19 +727,21 @@ async def test_runtime_cross_checks_two_relevant_llm_leaderboard_sources() -> No
         WebResearchRunOptions(pipeline_id="pipeline-llm-cross-check"),
     )
 
-    assert events == [
+    trusted_urls = evidence.diagnostics.raw["trusted_seed_candidate_urls"]
+    assert events[:2] == [
         "search:查一下大模型排行榜 2026 水平排行！:max=5",
         "fetch:https://artificialanalysis.ai/leaderboards/models",
-        "fetch:https://lmarena.ai/leaderboard",
     ]
+    assert events[2].removeprefix("fetch:") in trusted_urls
+    assert "fetch:https://baijiahao.baidu.com/s?id=noisy-315" not in events[:3]
     assert evidence.status == "completed"
     assert evidence.answer_quality == "body"
-    assert evidence.diagnostics.fetched_urls == [
-        "https://artificialanalysis.ai/leaderboards/models",
-        "https://lmarena.ai/leaderboard",
-    ]
-    assert [citation.url for citation in evidence.citations] == [
-        "https://artificialanalysis.ai/leaderboards/models",
-        "https://lmarena.ai/leaderboard",
-    ]
+    assert len(evidence.diagnostics.fetched_urls) == 2
+    assert evidence.diagnostics.fetched_urls[0] == (
+        "https://artificialanalysis.ai/leaderboards/models"
+    )
+    assert set(evidence.diagnostics.fetched_urls).issubset(set(trusted_urls))
+    assert [citation.url for citation in evidence.citations] == (
+        evidence.diagnostics.fetched_urls
+    )
     assert evidence.diagnostics.raw["minimum_relevant_sources"] == 2

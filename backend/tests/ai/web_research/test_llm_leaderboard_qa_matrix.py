@@ -15,10 +15,22 @@ from app.ai.web_research import (
     normalize_search_item,
 )
 
-TRUSTED_LEADERBOARD_URLS = [
-    "https://artificialanalysis.ai/leaderboards/models",
+PRIMARY_TRUSTED_LEADERBOARD_URL = "https://artificialanalysis.ai/leaderboards/models"
+REQUIRED_TRUSTED_LEADERBOARD_URLS = {
+    PRIMARY_TRUSTED_LEADERBOARD_URL,
     "https://lmarena.ai/leaderboard",
-]
+}
+
+
+def _assert_llm_leaderboard_plan_contract(plan) -> None:
+    # behavioral: Artificial Analysis must remain the first authority, but the
+    # platform may add more trusted seeds without breaking QA.
+    assert plan.trusted_seed_urls[0] == PRIMARY_TRUSTED_LEADERBOARD_URL
+    assert REQUIRED_TRUSTED_LEADERBOARD_URLS.issubset(set(plan.trusted_seed_urls))
+    assert len(plan.trusted_seed_urls) >= 2
+    assert len(plan.trusted_seed_urls) == len(set(plan.trusted_seed_urls))
+    assert plan.minimum_relevant_sources == 2
+    assert plan.source_quality_floor == "trusted_leaderboard_or_relevant_benchmark"
 
 
 @pytest.mark.parametrize(
@@ -56,8 +68,7 @@ def test_query_profile_matrix_for_leaderboard_and_non_leaderboard_queries(
 
     assert plan.profile == expected_profile
     if expected_profile == "llm_leaderboard":
-        assert plan.trusted_seed_urls == TRUSTED_LEADERBOARD_URLS
-        assert plan.minimum_relevant_sources == 2
+        _assert_llm_leaderboard_plan_contract(plan)
     else:
         assert plan.trusted_seed_urls == []
 
@@ -99,23 +110,24 @@ def test_llm_leaderboard_seeds_precede_weak_or_low_trust_sources(query: str) -> 
     )
 
     planned = apply_query_plan_to_search_results(search_results, plan=plan)
+    planned_urls = [item.url for item in planned.items]
+    trusted_urls = planned.diagnostics["trusted_seed_candidate_urls"]
 
-    assert [item.url for item in planned.items] == [
-        *TRUSTED_LEADERBOARD_URLS,
-        "https://baijiahao.baidu.com/s?id=weak-source",
-        "https://example.invalid/blog/unsourced-llm-top",
-    ]
-    assert [item.provider for item in planned.items] == [
-        "platform:trusted_seed",
-        "platform:trusted_seed",
-        "public-search",
-        "public-search",
-    ]
-    assert [item.rank for item in planned.items] == [1, 2, 3, 4]
-    assert planned.diagnostics["query_profile"] == "llm_leaderboard"
-    assert (
-        planned.diagnostics["trusted_seed_candidate_urls"] == TRUSTED_LEADERBOARD_URLS
+    assert trusted_urls[0] == PRIMARY_TRUSTED_LEADERBOARD_URL
+    assert REQUIRED_TRUSTED_LEADERBOARD_URLS.issubset(set(trusted_urls))
+    assert planned_urls[: len(trusted_urls)] == trusted_urls
+    assert [item.provider for item in planned.items[: len(trusted_urls)]] == [
+        "platform:trusted_seed"
+    ] * len(trusted_urls)
+    assert planned_urls.index("https://baijiahao.baidu.com/s?id=weak-source") >= len(
+        trusted_urls
     )
+    assert planned_urls.index("https://example.invalid/blog/unsourced-llm-top") >= len(
+        trusted_urls
+    )
+    assert [item.rank for item in planned.items] == list(range(1, len(planned.items) + 1))
+    assert planned.diagnostics["query_profile"] == "llm_leaderboard"
+    assert planned.diagnostics["trusted_seed_count"] >= 2
     assert planned.diagnostics["minimum_relevant_sources"] == 2
 
 
@@ -144,4 +156,6 @@ def test_non_llm_leaderboard_queries_do_not_inherit_trusted_seed_or_diagnostics(
 
         assert planned.items == search_results.items
         assert planned.diagnostics == search_results.diagnostics
-        assert not set(TRUSTED_LEADERBOARD_URLS) & {item.url for item in planned.items}
+        assert not REQUIRED_TRUSTED_LEADERBOARD_URLS & {
+            item.url for item in planned.items
+        }

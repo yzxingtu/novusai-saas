@@ -181,27 +181,24 @@ async def test_2293_llm_leaderboard_query_uses_trusted_authority_candidate_after
         WebResearchRunOptions(pipeline_id="bug-2293", max_fetches=3),
     )
 
+    trusted_urls = evidence.diagnostics.raw["trusted_seed_candidate_urls"]
+    assert trusted_urls[0] == "https://artificialanalysis.ai/leaderboards/models"
+    assert "https://lmarena.ai/leaderboard" in trusted_urls
     assert evidence.status == "completed"
     assert evidence.failure_kind is None
     assert evidence.answer_quality == "body"
     assert evidence.diagnostics.answer_source == "fetched_body"
-    assert evidence.diagnostics.fetched_urls == [
-        "https://artificialanalysis.ai/leaderboards/models",
-        "https://lmarena.ai/leaderboard",
-    ]
-    assert [citation.url for citation in evidence.citations] == [
-        "https://artificialanalysis.ai/leaderboards/models",
-        "https://lmarena.ai/leaderboard",
-    ]
-    assert fetch_provider.events == [
-        "https://artificialanalysis.ai/leaderboards/models",
-        "https://lmarena.ai/leaderboard",
-    ]
+    assert len(evidence.diagnostics.fetched_urls) == 2
+    assert evidence.diagnostics.fetched_urls[0] == (
+        "https://artificialanalysis.ai/leaderboards/models"
+    )
+    assert set(evidence.diagnostics.fetched_urls).issubset(set(trusted_urls))
+    assert [citation.url for citation in evidence.citations] == (
+        evidence.diagnostics.fetched_urls
+    )
+    assert fetch_provider.events == evidence.diagnostics.fetched_urls
+    assert all("baijiahao" not in url for url in fetch_provider.events)
     assert evidence.diagnostics.raw["query_profile"] == "llm_leaderboard"
-    assert evidence.diagnostics.raw["trusted_seed_candidate_urls"] == [
-        "https://artificialanalysis.ai/leaderboards/models",
-        "https://lmarena.ai/leaderboard",
-    ]
     assert evidence.diagnostics.raw["minimum_relevant_sources"] == 2
     assert (
         evidence.diagnostics.raw["source_quality_floor"]

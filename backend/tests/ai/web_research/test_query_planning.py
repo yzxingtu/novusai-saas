@@ -12,25 +12,39 @@ from app.ai.web_research import (
     normalize_search_item,
 )
 
-TRUSTED_LEADERBOARD_URLS = [
-    "https://artificialanalysis.ai/leaderboards/models",
-    "https://lmarena.ai/leaderboard",
-]
+PRIMARY_TRUSTED_LEADERBOARD_URL = "https://artificialanalysis.ai/leaderboards/models"
+SECONDARY_TRUSTED_LEADERBOARD_URL = "https://lmarena.ai/leaderboard"
+REQUIRED_TRUSTED_LEADERBOARD_URLS = {
+    PRIMARY_TRUSTED_LEADERBOARD_URL,
+    SECONDARY_TRUSTED_LEADERBOARD_URL,
+}
+
+
+def _assert_trusted_seed_contract(trusted_urls: list[str]) -> None:
+    assert trusted_urls[0] == PRIMARY_TRUSTED_LEADERBOARD_URL
+    assert REQUIRED_TRUSTED_LEADERBOARD_URLS.issubset(set(trusted_urls))
+    assert len(trusted_urls) >= 2
+    assert len(trusted_urls) == len(set(trusted_urls))
 
 
 def test_chinese_2026_llm_leaderboard_query_gets_trusted_seed_plan() -> None:
     # behavioral: this would fail if Chinese leaderboard intent stops mapping
-    # to the llm_leaderboard profile or loses the trusted seeds.
+    # to the llm_leaderboard profile or loses required trusted seeds. It allows
+    # additional trusted seeds beyond the product-required minimum.
     plan = build_web_research_query_plan("大模型排行榜 2026")
 
     assert plan.profile == "llm_leaderboard"
-    assert plan.trusted_seed_urls == TRUSTED_LEADERBOARD_URLS
+    _assert_trusted_seed_contract(plan.trusted_seed_urls)
     assert plan.minimum_relevant_sources == 2
     assert plan.source_quality_floor == "trusted_leaderboard_or_relevant_benchmark"
     assert plan.trusted_seed_candidates[0].title == (
         "Artificial Analysis LLM Leaderboard"
     )
-    assert plan.trusted_seed_candidates[1].title == "LMArena Arena Leaderboard"
+    assert any(
+        candidate.url == SECONDARY_TRUSTED_LEADERBOARD_URL
+        and candidate.title == "LMArena Arena Leaderboard"
+        for candidate in plan.trusted_seed_candidates
+    )
 
 
 def test_trusted_seeds_are_ranked_before_noisy_public_search_results() -> None:
@@ -59,15 +73,21 @@ def test_trusted_seeds_are_ranked_before_noisy_public_search_results() -> None:
     )
 
     planned = apply_query_plan_to_search_results(search_results, plan=plan)
+    trusted_urls = planned.diagnostics["trusted_seed_candidate_urls"]
+    planned_urls = [item.url for item in planned.items]
 
-    assert [item.url for item in planned.items] == [
-        *TRUSTED_LEADERBOARD_URLS,
-        "https://baijiahao.baidu.com/s?id=noisy-315",
-        "https://example.com/ai-news",
-    ]
-    assert [item.rank for item in planned.items] == [1, 2, 3, 4]
-    assert planned.items[0].provider == "platform:trusted_seed"
-    assert planned.items[1].provider == "platform:trusted_seed"
+    _assert_trusted_seed_contract(trusted_urls)
+    assert planned_urls[: len(trusted_urls)] == trusted_urls
+    assert [item.provider for item in planned.items[: len(trusted_urls)]] == [
+        "platform:trusted_seed"
+    ] * len(trusted_urls)
+    assert planned_urls.index("https://baijiahao.baidu.com/s?id=noisy-315") >= len(
+        trusted_urls
+    )
+    assert planned_urls.index("https://example.com/ai-news") >= len(trusted_urls)
+    assert [item.rank for item in planned.items] == list(
+        range(1, len(planned.items) + 1)
+    )
     assert planned.items[0].raw == {
         "source": "trusted_seed",
         "query_profile": "llm_leaderboard",
@@ -75,11 +95,9 @@ def test_trusted_seeds_are_ranked_before_noisy_public_search_results() -> None:
         "trusted_seed_index": 1,
     }
     assert planned.diagnostics["query_profile"] == "llm_leaderboard"
-    assert planned.diagnostics["trusted_seed_candidate_urls"] == (
-        TRUSTED_LEADERBOARD_URLS
-    )
+    assert planned.diagnostics["trusted_seed_count"] >= 2
     assert planned.diagnostics["minimum_relevant_sources"] == 2
-    assert planned.diagnostics["planned_result_count"] == 4
+    assert planned.diagnostics["planned_result_count"] == len(planned.items)
 
 
 def test_duplicate_trusted_seed_and_search_url_is_deduplicated() -> None:
@@ -115,17 +133,71 @@ def test_duplicate_trusted_seed_and_search_url_is_deduplicated() -> None:
     )
 
     planned = apply_query_plan_to_search_results(search_results, plan=plan)
+    trusted_urls = planned.diagnostics["trusted_seed_candidate_urls"]
+    planned_urls = [item.url for item in planned.items]
 
-    assert [item.url for item in planned.items] == [
-        *TRUSTED_LEADERBOARD_URLS,
-        "https://livebench.ai/",
-    ]
-    assert [item.provider for item in planned.items] == [
-        "platform:trusted_seed",
-        "platform:trusted_seed",
-        "public-search",
-    ]
-    assert [item.rank for item in planned.items] == [1, 2, 3]
+    _assert_trusted_seed_contract(trusted_urls)
+    assert planned_urls[: len(trusted_urls)] == trusted_urls
+    assert planned_urls.count(PRIMARY_TRUSTED_LEADERBOARD_URL) == 1
+    assert planned_urls.count(SECONDARY_TRUSTED_LEADERBOARD_URL) == 1
+    assert planned_urls[-1] == "https://livebench.ai/"
+    assert [item.provider for item in planned.items[: len(trusted_urls)]] == [
+        "platform:trusted_seed"
+    ] * len(trusted_urls)
+    assert planned.items[-1].provider == "public-search"
+    assert [item.rank for item in planned.items] == list(
+        range(1, len(planned.items) + 1)
+    )
+
+
+def test_duplicate_trusted_seed_url_variants_are_deduplicated() -> None:
+    # behavioral: public-search often returns the trusted page through http,
+    # www, UTM, or fragment variants; these must not appear as separate
+    # candidates ahead of or behind the canonical platform seed.
+    plan = build_web_research_query_plan("大模型排行榜 2026")
+    search_results = SearchResultSet(
+        query="大模型排行榜 2026",
+        provider="public-search",
+        items=[
+            normalize_search_item(
+                title="Artificial Analysis tracking duplicate",
+                url="https://www.artificialanalysis.ai/leaderboards/models/?utm_source=search#models",
+                snippet="Duplicate with tracking parameters.",
+                rank=1,
+                provider="public-search",
+            ),
+            normalize_search_item(
+                title="LMArena http duplicate",
+                url="http://lmarena.ai/leaderboard?utm_campaign=rankings",
+                snippet="Duplicate with http and tracking parameters.",
+                rank=2,
+                provider="public-search",
+            ),
+            normalize_search_item(
+                title="Low trust noise",
+                url="https://baijiahao.baidu.com/s?id=noisy-315",
+                snippet="广告监管、信息操控、黑产，不是能力榜单。",
+                rank=3,
+                provider="public-search",
+            ),
+        ],
+    )
+
+    planned = apply_query_plan_to_search_results(search_results, plan=plan)
+    trusted_urls = planned.diagnostics["trusted_seed_candidate_urls"]
+    planned_urls = [item.url for item in planned.items]
+
+    _assert_trusted_seed_contract(trusted_urls)
+    assert planned_urls[: len(trusted_urls)] == trusted_urls
+    assert PRIMARY_TRUSTED_LEADERBOARD_URL in planned_urls
+    assert SECONDARY_TRUSTED_LEADERBOARD_URL in planned_urls
+    assert not any("utm_" in item.url or "#" in item.url for item in planned.items)
+    assert not any(item.url.startswith("http://") for item in planned.items)
+    assert not any("www.artificialanalysis.ai" in item.url for item in planned.items)
+    assert planned_urls[-1] == "https://baijiahao.baidu.com/s?id=noisy-315"
+    assert [item.rank for item in planned.items] == list(
+        range(1, len(planned.items) + 1)
+    )
 
 
 def test_generic_query_does_not_inject_trusted_seed() -> None:

@@ -5,7 +5,7 @@ Query-profile planning for platform WebResearch.
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from app.ai.web_research.evidence import SearchEvidenceItem, SearchResultSet
 from app.ai.web_research.normalization import normalize_search_item
@@ -121,6 +121,17 @@ def apply_query_plan_to_search_results(
     return replace(search_results, items=items, diagnostics=diagnostics)
 
 
+_TRACKING_QUERY_KEYS = {
+    "fbclid",
+    "gclid",
+    "igshid",
+    "mc_cid",
+    "mc_eid",
+    "ref",
+    "spm",
+}
+
+
 def _canonical_url_key(url: str) -> str:
     raw = str(url or "").strip()
     if not raw:
@@ -128,10 +139,23 @@ def _canonical_url_key(url: str) -> str:
     parsed = urlsplit(raw)
     if not parsed.scheme or not parsed.netloc:
         return raw.rstrip("/")
-    scheme = parsed.scheme.casefold()
+
     netloc = parsed.netloc.casefold()
+    if netloc.startswith("www."):
+        netloc = netloc.removeprefix("www.")
     path = parsed.path.rstrip("/") or "/"
-    return urlunsplit((scheme, netloc, path, parsed.query, ""))
+    query = _canonical_query(parsed.query)
+    return urlunsplit(("https", netloc, path, query, ""))
+
+
+def _canonical_query(query: str) -> str:
+    kept: list[tuple[str, str]] = []
+    for key, value in parse_qsl(query, keep_blank_values=True):
+        normalized_key = key.casefold()
+        if normalized_key.startswith("utm_") or normalized_key in _TRACKING_QUERY_KEYS:
+            continue
+        kept.append((key, value))
+    return urlencode(sorted(kept))
 
 
 __all__ = [

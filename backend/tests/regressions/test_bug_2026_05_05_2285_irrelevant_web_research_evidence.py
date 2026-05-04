@@ -123,27 +123,23 @@ async def test_2285_prioritizes_trusted_candidates_before_noisy_public_hit() -> 
         WebResearchRunOptions(pipeline_id="bug-2285", max_fetches=3),
     )
 
-    assert fetch_provider.events == [
-        "https://artificialanalysis.ai/leaderboards/models",
-        "https://lmarena.ai/leaderboard",
-    ]
+    trusted_urls = evidence.diagnostics.raw["trusted_seed_candidate_urls"]
+    assert trusted_urls[0] == "https://artificialanalysis.ai/leaderboards/models"
+    assert "https://lmarena.ai/leaderboard" in trusted_urls
+    assert fetch_provider.events[0] == "https://artificialanalysis.ai/leaderboards/models"
+    assert len(fetch_provider.events) == 2
+    assert set(fetch_provider.events).issubset(set(trusted_urls))
+    assert "https://baijiahao.baidu.com/s?id=1860091565873698107" not in (
+        fetch_provider.events
+    )
     assert evidence.status == "completed"
     assert evidence.answer_quality == "body"
     assert evidence.failure_kind is None
-    assert [page.url for page in evidence.fetched_pages] == [
-        "https://artificialanalysis.ai/leaderboards/models",
-        "https://lmarena.ai/leaderboard",
-    ]
+    assert [page.url for page in evidence.fetched_pages] == fetch_provider.events
     assert [page.status for page in evidence.fetched_pages] == ["completed", "completed"]
-    assert evidence.diagnostics.fetched_urls == [
-        "https://artificialanalysis.ai/leaderboards/models",
-        "https://lmarena.ai/leaderboard",
-    ]
+    assert evidence.diagnostics.fetched_urls == fetch_provider.events
     assert evidence.diagnostics.answer_source == "fetched_body"
-    assert [citation.url for citation in evidence.citations] == [
-        "https://artificialanalysis.ai/leaderboards/models",
-        "https://lmarena.ai/leaderboard",
-    ]
+    assert [citation.url for citation in evidence.citations] == fetch_provider.events
 
 
 @pytest.mark.asyncio
