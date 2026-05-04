@@ -319,6 +319,50 @@ commits。PR 审核（parent agent 或人类 reviewer）必须核对这条引用
 
 ---
 
+### BUG-2026-05-05-2293 LLM leaderboard query stopped after rejecting noisy public-search candidates
+
+- **reporter**: user
+- **report_date**: 2026-05-05
+- **reproduction_prompt**:
+  ```text
+  查一下大模型排行榜 2026 水平排行！
+  ```
+- **preconditions**:
+  - conversation_id: `2293`
+  - agent: `59` / 猫娘智能体
+  - owner_type: `platform_admin`
+  - tools in scope: `web_search`, `fetch_url`
+  - WebResearch runtime default path with builtin search/fetch providers
+- **current_wrong_behavior**:
+  - The relevance gate correctly rejected the previous low-quality / low-relevance
+    source, but the runtime only searched the raw Chinese query through the
+    public Baidu backend.
+  - Search candidates were noisy or low-trust: advertising/product pages,
+    Zhihu/video/Taobao content, and the same OpenClaw/GEO-style article family.
+  - After three failed or rejected fetch attempts, the turn ended as
+    `low_query_relevance` and showed “The assistant could not finish this turn /
+    没有拿到与问题足够相关、可核实的内容”.
+- **expected_behavior**:
+  - A domain-recognized `llm_leaderboard` query must not stop at noisy generic
+    public-search candidates.
+  - Runtime should expand the search plan and/or add platform-owned trusted
+    leaderboard source candidates such as Artificial Analysis before declaring
+    failure.
+  - Trusted candidates still must go through `fetch_url` and the same relevance
+    gate; they must not become an answer if fetch or relevance fails.
+  - A successful trusted fetched source should complete WebResearch with
+    `fetched_urls` populated, `answer_source=fetched_body`, and no
+    `low_query_relevance` terminal failure.
+- **status**: `red_test_written`
+- **notes**:
+  - RED regression added at:
+    `backend/tests/regressions/test_bug_2026_05_05_2293_llm_leaderboard_authority_fallback.py`.
+  - The GREEN commit must add platform-owned authority/query expansion for the
+    `llm_leaderboard` profile and prove conversation-style WebResearch can reach
+    accepted evidence instead of a clean but useless failure.
+
+---
+
 ## 用户/QA 批量上报模板（粘贴即可）
 
 对话遇到不对的场景，请用下面格式追加到本文件末尾（Codex 看到该条目会自动为其写 RED 测试）：
