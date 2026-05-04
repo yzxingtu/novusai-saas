@@ -291,6 +291,67 @@ async def test_runtime_does_not_fetch_when_search_provider_fails() -> None:
 
 
 @pytest.mark.asyncio
+async def test_runtime_skips_search_wrapper_candidate_without_fetching() -> None:
+    """
+    Test type: behavioral
+    中文: 回归保护 BUG-2026-05-05-2295，WebResearch 不应抓取搜索包装页。
+    EN: Regression for BUG-2026-05-05-2295; WebResearch must not fetch search wrappers.
+    """
+
+    events: list[str] = []
+    baidu_image_url = (
+        "https://image.baidu.com/search/index?tn=baiduimage&word="
+        "2026%E5%A5%B3%E6%80%A7%E8%A3%99%E5%AD%90"
+    )
+
+    def search_handler(query: str, options: SearchOptions) -> SearchResultSet:
+        return SearchResultSet(
+            query=query,
+            provider="fake-search",
+            items=[
+                normalize_search_item(
+                    title="查一下 2026年最热门的 女性裙子款式排行! - 百度图片",
+                    url=baidu_image_url,
+                    snippet="9 变清晰 4 变清晰 查看全部4341张图片 免费AI生图 百度图片",
+                    rank=1,
+                    provider="fake-search",
+                )
+            ],
+        )
+
+    def fetch_handler(url: str, options: FetchOptions) -> object:
+        raise AssertionError(f"search wrapper URL should not be fetched: {url}")
+
+    runtime = WebResearchRuntime(
+        search_provider=FakeSearchProvider(events, search_handler),
+        fetch_provider=FakeFetchProvider(events, fetch_handler),
+    )
+
+    evidence = await runtime.run(
+        "查一下 2026年最热门的 女性裙子款式排行！",
+        WebResearchRunOptions(pipeline_id="pipeline-2295-search-wrapper"),
+    )
+
+    assert events == ["search:查一下 2026年最热门的 女性裙子款式排行！:max=5"]
+    assert evidence.status == "partial"
+    assert evidence.answer_quality == "none"
+    assert evidence.failure_kind == "candidate_search_wrapper_url"
+    assert evidence.diagnostics.candidate_urls == []
+    assert evidence.diagnostics.fetched_urls == []
+    assert evidence.diagnostics.answer_source == "none"
+    assert evidence.fetched_pages[0].status == "skipped"
+    assert evidence.fetched_pages[0].failure_kind == "candidate_search_wrapper_url"
+    assert evidence.diagnostics.raw["skipped_candidates"] == [
+        {
+            "url": baidu_image_url,
+            "rank": 1,
+            "provider": "fake-search",
+            "reason": "search_wrapper_url",
+        }
+    ]
+
+
+@pytest.mark.asyncio
 async def test_runtime_can_emit_snippet_quality_only_when_fetch_not_required() -> None:
     events: list[str] = []
 

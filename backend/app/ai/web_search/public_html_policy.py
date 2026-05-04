@@ -6,12 +6,11 @@ Public HTML query correction and relevance policy helpers.
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from urllib.parse import urlparse
 
 from app.ai.web_search.public_html_parsing import normalize_text
+from app.ai.web_search.url_policy import url_is_search_result_wrapper
 from app.core.config import settings
 
-_SEARCH_ENGINE_HOSTS = frozenset({"www.baidu.com", "baidu.com"})
 _QUERY_RELEVANCE_MIN_RATIO = 0.28
 _HISTORY_QUERY_TERMS = frozenset(
     {
@@ -106,18 +105,16 @@ def result_text_tokens(result: dict[str, str], *, include_url: bool) -> set[str]
 
 
 def result_is_search_wrapper(url: str) -> bool:
-    try:
-        host = (urlparse(url).hostname or "").lower()
-    except Exception:  # noqa: BLE001
-        return False
-    return host in _SEARCH_ENGINE_HOSTS
+    return url_is_search_result_wrapper(url)
 
 
 def result_passes_relevance(query: str, result: dict[str, str]) -> bool:
     q_tokens = query_tokens_for_relevance(query)
     url = str(result.get("url") or "")
+    if result_is_search_wrapper(url):
+        return False
     if not q_tokens:
-        return not result_is_search_wrapper(url)
+        return True
 
     ts_tokens = result_text_tokens(result, include_url=False)
     ts_hits = len(q_tokens & ts_tokens)
@@ -126,9 +123,6 @@ def result_passes_relevance(query: str, result: dict[str, str]) -> bool:
         1, (len(q_tokens) + 1) // 2
     ):
         return True
-
-    if result_is_search_wrapper(url):
-        return False
 
     all_tokens = result_text_tokens(result, include_url=True)
     all_hits = len(q_tokens & all_tokens)

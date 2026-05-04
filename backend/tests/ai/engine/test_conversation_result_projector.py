@@ -299,6 +299,12 @@ def test_build_untrusted_final_output_fallback_returns_safe_text() -> None:
     )
     assert no_results.strip()
 
+    candidate_wrapper = build_untrusted_final_output_fallback(
+        failure_kind="candidate_search_wrapper_url"
+    )
+    assert "无法直接核实" in candidate_wrapper
+    assert "再试一次" not in candidate_wrapper
+
     generic_fallback = build_untrusted_final_output_fallback()
     assert generic_fallback.strip()
 

@@ -120,7 +120,7 @@ Primary references:
   `sync_plugin_permissions(plugin.name)` instead of broad ad-hoc refreshes.
 - Row-level permission changes should be validated through the repository/base
   filtering path, not only through service mocks.
-- New code comments, docstrings, `TODO`, or `FIXME` notes should follow the
+- New code comments, docstrings, `TODO`, or `FIXME` notes must follow the
   repo's bilingual comment convention when comments are necessary.
 
 Examples:
@@ -128,6 +128,43 @@ Examples:
 - `backend/tests/services/conftest.py`
 - `backend/tests/services/test_attachment_service.py`
 - `backend/tests/services/test_ai_quota_runtime_diagnostics.py`
+
+## Bilingual Comment Convention
+
+- Comments are mandatory when the logic is complex, easy to misread, subtly
+  ordered, compatibility-sensitive, repetitive enough to hide intent, or likely
+  to be forgotten during later maintenance.
+- Every retained code comment, docstring, `TODO`, and `FIXME` must include both
+  Chinese and English. Prefer Chinese first, then English, with explicit
+  `中文:` and `EN:` labels.
+- Keep comments concise and explain the reason or invariant, not the obvious
+  syntax. If a small refactor would make the code self-explanatory, refactor
+  first; if the domain rule or execution order is still non-obvious, keep the
+  bilingual comment immediately above the block it protects.
+- Use this shape for ordinary comments:
+
+```python
+# 中文: 先锁定租户计划，再计算覆盖值，避免把无计划状态误判为无限制。
+# EN: Resolve the tenant plan before overrides so missing plans never become unlimited.
+```
+
+- Use this shape for docstrings:
+
+```python
+def resolve_quota_boundary(...):
+    """中文: 汇总计划、租户覆盖值和平台上限，得到最终配额边界。
+
+    EN: Combines the plan, tenant overrides, and platform ceiling into the
+    effective quota boundary.
+    """
+```
+
+- Use this shape for follow-up notes:
+
+```python
+# TODO: 中文: 收敛旧导入路径后删除这个兼容分支。
+# TODO: EN: Remove this compatibility branch after legacy imports converge.
+```
 
 ## Dev-only Bootstrap Credential for Local E2E
 

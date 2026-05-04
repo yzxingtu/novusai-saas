@@ -19,8 +19,8 @@ import {
   getToolCallsForDisplay,
   getTurnFlowForDisplay,
 } from '../chat-message-turn-flow';
-import { createStreamSseHandler } from '../use-ai-chat-streaming-request-sse';
 import { shouldDisplayConversationInHistory, useAIChat } from '../use-ai-chat';
+import { createStreamSseHandler } from '../use-ai-chat-streaming-request-sse';
 import {
   applyStreamingToolResultToTurnFlow,
   applyStreamingToolStartToTurnFlow,
@@ -502,7 +502,9 @@ describe('useAIChat interrupted stream recovery', () => {
         await options.onMessage(
           sseEvent({ event: 'conversation', conversation_id: 42 }),
         );
-        await options.onMessage(sseEvent({ event: 'message', delta: '已记住。' }));
+        await options.onMessage(
+          sseEvent({ event: 'message', delta: '已记住。' }),
+        );
         await options.onMessage(
           sseEvent({
             conversation_id: 42,
@@ -529,7 +531,9 @@ describe('useAIChat interrupted stream recovery', () => {
       42,
     );
     expect(chat.lastMemoryUpdated.value).toBe(true);
-    expect(chat.memoryState.value?.verified_facts).toEqual(['用户名字是ix long']);
+    expect(chat.memoryState.value?.verified_facts).toEqual([
+      '用户名字是ix long',
+    ]);
   });
 
   it('uses updated_at as the recency signal for empty conversations', () => {
@@ -1467,6 +1471,83 @@ describe('useAIChat interrupted stream recovery', () => {
     expect(assistantMessage.turnFlow?.finalStageStatus).toBe('error');
   });
 
+  it('does not sync process-only answer card labels into empty assistant content on done', async () => {
+    apiMocks.sendChatStreamApi.mockImplementation(
+      async (
+        _prefix: string,
+        _agentId: number,
+        _body: Record<string, unknown>,
+        options: {
+          onMessage: (chunk: string) => Promise<void>;
+        },
+      ) => {
+        await options.onMessage(
+          sseEvent({ event: 'conversation', conversation_id: 42 }),
+        );
+        await options.onMessage(
+          sseEvent({
+            completion_reason: 'completed',
+            event: 'done',
+            final_stage_status: 'completed',
+            total_tokens: 5,
+            turn_flow: {
+              answer_card: {
+                summary: '结果整理',
+              },
+              completion_reason: 'completed',
+              evidence: [
+                {
+                  id: 'aa-leaderboard',
+                  kind: 'web',
+                  title: 'Artificial Analysis LLM Leaderboard',
+                },
+              ],
+              final_stage_status: 'completed',
+              timeline: [
+                {
+                  id: 'stage-retrieval',
+                  metrics: { source_count: 2 },
+                  status: 'completed',
+                  summary: '找到 2 条来源',
+                  type: 'retrieval',
+                },
+                {
+                  id: 'stage-answer',
+                  status: 'completed',
+                  summary: '已完成答案整理',
+                  type: 'answer_assembly',
+                },
+              ],
+            },
+            turn_flow_complete: true,
+          }),
+        );
+      },
+    );
+
+    const chat = createChat();
+
+    await chat.loadAgents();
+    chat.inputMessage.value = '查一下大模型排行榜 2026';
+    await chat.sendMessage();
+    await flushDebouncedSend();
+
+    const assistantMessage = chat.chatMessages.value.find(
+      (msg) => msg.role === 'assistant',
+    );
+    expect(assistantMessage).toBeDefined();
+    if (!assistantMessage) {
+      throw new Error('assistant message missing');
+    }
+    expect(assistantMessage.content).toBe('');
+    expect(assistantMessage.turnFlow?.answerCard?.summary).toBe('结果整理');
+    expect(
+      assistantMessage.turnFlow?.timeline?.map((stage) => stage.id),
+    ).toEqual(
+      expect.arrayContaining(['stage-retrieval', 'stage-answer', 'turn-final']),
+    );
+  });
+
   it('surfaces native web search progress as a visible tool card', async () => {
     let releaseDone = () => {};
     apiMocks.getChatConversationMessagesApi.mockResolvedValue(
@@ -1669,7 +1750,9 @@ describe('useAIChat interrupted stream recovery', () => {
     expect(getToolCallsForDisplay(assistantMessage)?.[0]?.displayName).toBe(
       '数据查询',
     );
-    expect(getToolCallsForDisplay(assistantMessage)?.[0]?.summaryPayload).toEqual({
+    expect(
+      getToolCallsForDisplay(assistantMessage)?.[0]?.summaryPayload,
+    ).toEqual({
       filters: ['today'],
       tables: ['ai_call_logs'],
       tool_kind: 'query_records',
@@ -1799,13 +1882,11 @@ describe('useAIChat interrupted stream recovery', () => {
       Record<string, unknown>;
     expect(assistantMessage?.turnFlow).toBeDefined();
     expect(assistantMessage?.completionReason).toBe('completed');
-    expect(getThinkingContentForDisplay(assistantMessage!)).toContain(
+    expect(getThinkingContentForDisplay(rawMessage)).toContain(
       '先检查可用上下文',
     );
-    expect(getToolCallsForDisplay(assistantMessage!)?.[0]?.name).toBe(
-      'query_records',
-    );
-    expect(getRagSourcesForDisplay(assistantMessage!)?.[0]?.doc_name).toBe(
+    expect(getToolCallsForDisplay(rawMessage)?.[0]?.name).toBe('query_records');
+    expect(getRagSourcesForDisplay(rawMessage)?.[0]?.doc_name).toBe(
       '合规流程文档',
     );
     expect(rawMessage.thinkingContent).toBeUndefined();
@@ -1881,9 +1962,9 @@ describe('useAIChat interrupted stream recovery', () => {
     expect(assistantMessage.turnFlow?.answerCard?.summary).toBe(
       '历史结构化摘要',
     );
-    expect(assistantMessage.turnFlow?.timeline?.map((stage) => stage.id)).toEqual([
-      'tool-select-legacy',
-    ]);
+    expect(
+      assistantMessage.turnFlow?.timeline?.map((stage) => stage.id),
+    ).toEqual(['tool-select-legacy']);
     expect(getThinkingContentForDisplay(assistantMessage)).toBeUndefined();
     expect(getToolCallsForDisplay(assistantMessage)).toBeUndefined();
     expect(getOptimizingToolsForDisplay(assistantMessage)).toEqual({
@@ -2535,7 +2616,7 @@ describe('useAIChat interrupted stream recovery', () => {
     const requestBody = apiMocks.sendChatStreamApi.mock.calls.at(-1)?.[2] as
       | Record<string, unknown>
       | undefined;
-    expect(Object.keys(requestBody ?? {}).sort()).toEqual([
+    expect(Object.keys(requestBody ?? {}).toSorted()).toEqual([
       'consented_actions',
       'conversation_id',
       'message',
@@ -2573,7 +2654,7 @@ describe('useAIChat interrupted stream recovery', () => {
     const requestBody = apiMocks.sendChatStreamApi.mock.calls.at(-1)?.[2] as
       | Record<string, unknown>
       | undefined;
-    expect(Object.keys(requestBody ?? {}).sort()).toEqual([
+    expect(Object.keys(requestBody ?? {}).toSorted()).toEqual([
       'consented_actions',
       'conversation_id',
       'message',

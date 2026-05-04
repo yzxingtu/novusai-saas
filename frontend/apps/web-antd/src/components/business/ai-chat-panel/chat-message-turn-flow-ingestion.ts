@@ -65,6 +65,11 @@ const TURN_FLOW_FINAL_STAGE_STATUS_SET = new Set<TurnFlowStageStatus>([
 ]);
 const TURN_FLOW_NON_VISIBLE_SUMMARY_SET = new Set([
   'No trusted assistant final answer.',
+  '已完成',
+  '已完成答案整理',
+  '已完成证据整理',
+  '本轮过程',
+  '结果整理',
 ]);
 
 function toErrorSurface(

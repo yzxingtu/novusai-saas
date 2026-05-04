@@ -353,13 +353,58 @@ commits。PR 审核（parent agent 或人类 reviewer）必须核对这条引用
   - A successful trusted fetched source should complete WebResearch with
     `fetched_urls` populated, `answer_source=fetched_body`, and no
     `low_query_relevance` terminal failure.
-- **status**: `red_test_written`
+- **status**: `fixed_with_green_test`
 - **notes**:
   - RED regression added at:
     `backend/tests/regressions/test_bug_2026_05_05_2293_llm_leaderboard_authority_fallback.py`.
-  - The GREEN commit must add platform-owned authority/query expansion for the
+  - GREEN commits add platform-owned authority/query expansion for the
     `llm_leaderboard` profile and prove conversation-style WebResearch can reach
-    accepted evidence instead of a clean but useless failure.
+    accepted evidence instead of a clean but useless failure:
+    `d805a0f86`, `69659e730`, `e236d6b64`.
+
+---
+
+### BUG-2026-05-05-2295 Fashion ranking query stopped on Baidu Images blocked_url
+
+- **reporter**: user
+- **report_date**: 2026-05-05
+- **reproduction_prompt**:
+  ```text
+  查一下 2026年最热门的 女性裙子款式排行！
+  ```
+- **preconditions**:
+  - conversation_id: `2295`
+  - agent: `59` / 猫娘智能体
+  - owner_type: `platform_admin`
+  - tools in scope: `web_search`, `fetch_url`
+  - WebResearch runtime default path with builtin public search/fetch providers
+- **current_wrong_behavior**:
+  - Public Baidu search returned a Baidu Images vertical-search page whose title
+    echoed the user query.
+  - The result passed low-confidence filtering, became the only fetch candidate,
+    and `fetch_url` returned `blocked_url` because the page had no readable main
+    content.
+  - The user saw process-only "结果整理/本轮过程" fragments, "找到 2 条来源", and
+    a generic retry/failure answer instead of a useful or transparent outcome.
+- **expected_behavior**:
+  - Search-result wrapper pages such as `image.baidu.com/search/*` must not be
+    accepted as answer-quality evidence just because their title repeats the
+    query.
+  - Platform WebResearch must distinguish the default builtin
+    `web_search -> fetch_url -> evidence -> answer` path from optional
+    provider-native/hosted search. Native search is not a default fallback unless
+    explicitly configured and normalized into WebResearch evidence.
+  - If only wrapper/low-confidence candidates are found, the turn should degrade
+    to "no directly verifiable search results" / candidate-exhausted style
+    diagnostics instead of attempting `fetch_url` on the wrapper and ending as
+    `blocked_url`.
+  - Frontend must not expose process-only "结果整理/本轮过程" as final answer body.
+- **status**: `fixed_with_green_test`
+- **notes**:
+  - Behavioral regression coverage:
+    `backend/tests/ai/test_web_search_orchestrator.py::test_public_html_filters_baidu_image_wrapper_result_as_no_results`
+    and
+    `backend/tests/ai/web_research/test_runtime.py::test_runtime_skips_search_wrapper_candidate_without_fetching`.
 
 ---
 
@@ -367,7 +412,7 @@ commits。PR 审核（parent agent 或人类 reviewer）必须核对这条引用
 
 对话遇到不对的场景，请用下面格式追加到本文件末尾（Codex 看到该条目会自动为其写 RED 测试）：
 
-```markdown
+````markdown
 ### BUG-YYYY-MM-DD-NNN <一句话标题>
 
 - **reporter**: <谁>
@@ -389,7 +434,7 @@ commits。PR 审核（parent agent 或人类 reviewer）必须核对这条引用
   <一句话描述正确应该怎样>
 - **status**: `reported`
 - **notes**: <任何额外线索，比如"从 conversation id 1234 抓的"、"只在 page_search 场景出现"等>
-```
+````
 
 ## Codex 子代理处理流程
 

@@ -1294,7 +1294,9 @@ async def test_turn_executor_allows_final_follow_up_after_fetch_candidates_exhau
     )
 
     assert result.partial is True
-    assert result.output == build_untrusted_final_output_fallback()
+    assert result.output == build_untrusted_final_output_fallback(
+        failure_kind="candidate_urls_exhausted"
+    )
     assert result.completion_reason == "candidate_urls_exhausted"
     assert result.final_output_source == "partial_output"
     assert state.preparation_diagnostics["stripped_untrusted_final_output"] is True

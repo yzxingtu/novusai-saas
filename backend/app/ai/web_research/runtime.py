@@ -220,7 +220,8 @@ def _skipped_pages(
             },
         )
         for skipped in skipped_candidates
-        if skipped.url and skipped.reason == "unsupported_scheme"
+        if skipped.url
+        and skipped.reason in {"unsupported_scheme", "search_wrapper_url"}
     ]
 
 

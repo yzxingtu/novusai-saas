@@ -33,6 +33,10 @@ def build_untrusted_final_output_fallback(
             )
             or ""
         ).strip()
+    if normalized_failure_kind.startswith("candidate_"):
+        return str(
+            _("我找到了候选线索，但这些来源暂时无法直接核实，因此不生成结论。") or ""
+        ).strip()
     if gate_reason == "search_no_results_completed":
         return str(_("我暂时没有找到可直接核实的搜索结果。") or "").strip()
     if gate_reason == "search_not_successful":

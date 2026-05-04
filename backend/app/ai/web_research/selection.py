@@ -9,11 +9,13 @@ from typing import Literal
 from urllib.parse import urlparse
 
 from app.ai.web_research.evidence import SearchResultSet
+from app.ai.web_search.url_policy import url_is_search_result_wrapper
 
 SkippedCandidateReason = Literal[
     "empty_url",
     "duplicate_url",
     "unsupported_scheme",
+    "search_wrapper_url",
 ]
 
 
@@ -80,6 +82,17 @@ def select_fetch_candidates(
                     rank=item.rank,
                     provider=item.provider,
                     reason="unsupported_scheme",
+                )
+            )
+            continue
+        if url_is_search_result_wrapper(url):
+            skipped.append(
+                SkippedFetchCandidate(
+                    url=url,
+                    title=item.title,
+                    rank=item.rank,
+                    provider=item.provider,
+                    reason="search_wrapper_url",
                 )
             )
             continue

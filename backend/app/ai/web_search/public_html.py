@@ -116,9 +116,9 @@ async def _search_with_baidu_public(
                 )
             return _HtmlSearchAttempt(
                 backend_key=backend_key,
-                status=STATUS_POLICY_FILTERED,
+                status=STATUS_NO_RESULTS,
                 items=[],
-                error="returned low-confidence results",
+                error="returned only low-confidence results",
             )
         return _HtmlSearchAttempt(
             backend_key=backend_key,

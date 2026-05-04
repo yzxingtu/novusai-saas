@@ -102,6 +102,30 @@ backend boundary instead of page perception:
   available or required. Final answer synthesis and recovery must consume
   normalized evidence, preferably fetched body evidence.
 
+### Native Search vs Platform WebResearch Boundary
+
+- **Platform WebResearch / 联网搜索** is the default user-facing path for
+  ordinary "查一下 / 联网查 / 搜一下 / latest/current ranking" requests. It owns
+  tool planning, provider selection, URL fetch, relevance gating, canonical
+  evidence, citations, partial/no-result wording, and frontend diagnostics.
+- **Builtin `web_search` / `fetch_url`** are platform runtime tools used inside
+  WebResearch. They are not "raw final answer" sources by themselves; their
+  outputs must be normalized into WebResearch evidence before final synthesis.
+- **Provider-native / hosted search / 原生搜索** is an optional SearchProvider
+  adapter for a specific provider/model/protocol combination. It may be used
+  only when explicit configuration, capability checks, and real smoke or
+  approved replay evidence prove that combination. Its provider events are
+  diagnostics until converted into the same WebResearch evidence schema.
+- Do **not** silently switch an ordinary `web_research` turn to native search
+  just because builtin public search is weak or a fetch candidate is blocked.
+  Weak builtin results should instead be rejected/skipped with typed
+  diagnostics (`no_results`, `candidate_*`, `blocked_url`, `low_query_relevance`)
+  and, when evidence is insufficient, a transparent no-result/partial answer.
+- If a user explicitly asks to test or use the builtin search tool itself
+  ("用内置 web_search", "调用 fetch_url", etc.), route as a direct builtin-tool
+  request. Otherwise, the runtime should treat "联网查一下" as a WebResearch
+  evidence task, not as a request for the raw tool or hosted-search provider.
+
 ## Required Guards
 
 - API entrypoints must not accept `page_context` or `page_session_id`.

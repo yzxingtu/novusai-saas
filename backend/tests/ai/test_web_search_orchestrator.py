@@ -25,6 +25,7 @@ from app.ai.web_search.orchestrator import WebSearchOrchestrator
 from app.ai.web_search.public_html import PublicHtmlSearchProvider
 from app.ai.web_search.types import (
     PROVIDER_MODE_PUBLIC,
+    STATUS_NO_RESULTS,
     STATUS_SUCCESS,
     STATUS_UNSUPPORTED,
     STATUS_UPSTREAM_ERROR,
@@ -232,6 +233,86 @@ async def test_orchestrator_returns_public_failure_without_native_retry() -> Non
     assert execution.meta.attempted_backends == ["public:baidu"]
     assert "Search source unavailable" in execution.output
     public_search.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_public_html_filters_baidu_image_wrapper_result_as_no_results() -> None:
+    """
+    Test type: behavioral
+    中文: 回归保护 BUG-2026-05-05-2295，百度图片包装页不能成为可抓取证据。
+    EN: Regression for BUG-2026-05-05-2295; Baidu Images wrappers are not fetchable evidence.
+    """
+
+    html = """
+    <html>
+      <body>
+        <div class="result c-container">
+          <h3>
+            <a href="https://image.baidu.com/search/index?tn=baiduimage&word=2026%E5%A5%B3%E6%80%A7%E8%A3%99%E5%AD%90">
+              查一下 2026年最热门的 女性裙子款式排行! - 百度图片
+            </a>
+          </h3>
+          <div>9 变清晰 4 变清晰 查看全部4341张图片 免费AI生图 百度图片</div>
+        </div>
+      </body>
+    </html>
+    """
+
+    async def fake_fetch_public_html(
+        url: str,
+        *,
+        params: dict[str, str],
+        timeout_seconds: int | float,
+    ):
+        assert url == "https://www.baidu.com/s"
+        assert params["wd"] == "查一下 2026年最热门的 女性裙子款式排行！"
+        assert timeout_seconds > 0
+        return public_html._transport.PublicHtmlResponse(
+            status_code=200,
+            text=html,
+        )
+
+    provider = PublicHtmlSearchProvider(providers=["baidu"])
+
+    with patch.object(
+        public_html._transport,
+        "fetch_public_html",
+        side_effect=fake_fetch_public_html,
+    ):
+        run = await provider.search(
+            query="查一下 2026年最热门的 女性裙子款式排行！",
+            max_results=5,
+            locale="zh_CN",
+            timeout_seconds=15,
+            context=_make_context(conversation_id=2295),
+            strategy=WEB_SEARCH_POLICY_BUILTIN_PUBLIC,
+            runtime_provider_label="OpenAI",
+            runtime_model_code="gpt-5.4",
+        )
+
+    assert run.status == STATUS_NO_RESULTS
+    assert run.items == []
+    assert run.failure_reason == "public:baidu returned only low-confidence results"
+    assert run.attempted_backends == ["public:baidu"]
+
+
+def test_public_html_policy_keeps_baidu_redirect_link_candidates() -> None:
+    """
+    Test type: behavioral
+    中文: 百度 /link 跳转仍可由 fetch_url 跟随，不应被包装页策略误杀。
+    EN: Baidu /link redirects can still be followed by fetch_url and must remain candidates.
+    """
+
+    from app.ai.web_search.public_html_policy import result_passes_relevance
+
+    assert result_passes_relevance(
+        "2026 女性裙子款式排行",
+        {
+            "title": "2026 女性裙子款式流行趋势排行",
+            "url": "https://www.baidu.com/link?url=redirect-token",
+            "snippet": "整理 2026 年女性裙子款式趋势、热门廓形与搭配。",
+        },
+    )
 
 
 @pytest.mark.asyncio

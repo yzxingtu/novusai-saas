@@ -82,12 +82,12 @@ function stripModelFunctionCallMarkup(content: string): string {
   for (const [blockStart, blockEnd] of MODEL_FUNCTION_CALL_BLOCK_MARKERS) {
     while (true) {
       const start = cleaned.indexOf(blockStart);
-      if (start < 0) {
+      if (start === -1) {
         break;
       }
 
       const end = cleaned.indexOf(blockEnd, start + blockStart.length);
-      if (end < 0) {
+      if (end === -1) {
         cleaned = cleaned.slice(0, start);
         break;
       }
@@ -104,7 +104,7 @@ function stripModelFunctionCallMarkup(content: string): string {
       cleaned.startsWith(MODEL_FUNCTION_CALL_TAG_PREFIXES[1], index)
     ) {
       const closeIndex = cleaned.indexOf('>', index);
-      if (closeIndex < 0) {
+      if (closeIndex === -1) {
         break;
       }
       index = closeIndex + 1;
@@ -437,6 +437,306 @@ function shouldSuppressUntrustedFailureBody(
   );
 }
 
+const PROCESS_ONLY_BODY_LINES = new Set([
+  'completed',
+  'process',
+  'reference',
+  'references',
+  'source',
+  'sources',
+  'summary',
+  '参考',
+  '参考来源',
+  '已完成',
+  '本轮过程',
+  '来源',
+  '结果整理',
+  '资料来源',
+  '链接',
+]);
+
+interface ResearchResidualBodyCleanup {
+  bodyMarkdown: string;
+  suppressed: boolean;
+}
+
+function hasReadableAnswerCard(
+  flow: ReturnType<typeof getTurnFlowForDisplay>,
+): boolean {
+  const card = flow.answerCard;
+  if (!card) {
+    return false;
+  }
+  if (normalizeOptionalString(card.summary)) {
+    return true;
+  }
+  return (card.sections ?? []).some(
+    (section) =>
+      Boolean(normalizeOptionalString(section.title)) ||
+      Boolean(normalizeOptionalString(section.body ?? section.content)),
+  );
+}
+
+function readPositiveMetric(
+  metrics: Record<string, unknown> | undefined,
+  keys: string[],
+): boolean {
+  if (!metrics) {
+    return false;
+  }
+  return keys.some((key) => {
+    const value = metrics[key];
+    if (typeof value === 'number') {
+      return Number.isFinite(value) && value > 0;
+    }
+    if (typeof value === 'string' && value.trim()) {
+      const numericValue = Number(value);
+      return Number.isFinite(numericValue) && numericValue > 0;
+    }
+    return false;
+  });
+}
+
+function hasResearchDisplayContext(
+  flow: ReturnType<typeof getTurnFlowForDisplay>,
+): boolean {
+  if (hasReadableAnswerCard(flow)) {
+    return true;
+  }
+  if (
+    flow.evidence.some(
+      (item) => item.kind === 'knowledge_base' || item.kind === 'web',
+    )
+  ) {
+    return true;
+  }
+  return flow.timeline.some((stage) => {
+    if (stage.status === 'skipped') {
+      return false;
+    }
+    if (stage.type === 'retrieval') {
+      return true;
+    }
+    if (stage.type === 'tool_execution') {
+      return readPositiveMetric(stage.metrics, [
+        'completed',
+        'running',
+        'tool_call_count',
+        'total',
+      ]);
+    }
+    if (stage.type === 'tool_selection') {
+      return readPositiveMetric(stage.metrics, ['selected']);
+    }
+    return false;
+  });
+}
+
+function countVisibleContentCharacters(content: string): number {
+  return [...content.replaceAll(/[\p{P}\p{S}\s]/gu, '')].length;
+}
+
+function looksLikeAbnormalShortResidualBody(content: string): boolean {
+  return countVisibleContentCharacters(content) === 1;
+}
+
+function looksLikeBareNumericFragmentBody(content: string): boolean {
+  const normalized = content.replaceAll(/\s+/gu, ' ').trim();
+  if (!normalized) {
+    return false;
+  }
+  const numericTokens = normalized.match(/[+-]?\d+(?:[.,]\d+)?%?/gu) ?? [];
+  if (numericTokens.length < 4) {
+    return false;
+  }
+  const remainder = normalized
+    .replaceAll(/[+-]?\d+(?:[.,]\d+)?%?/gu, '')
+    .replaceAll(/[,.，、;；:：|/()[\]{}<>%％+\-–—\s]/gu, '');
+  return remainder.length === 0;
+}
+
+function normalizeProcessOnlyLine(line: string): string {
+  return stripTrailingColon(stripListPrefix(line)).trim();
+}
+
+function isProcessOnlyLine(line: string): boolean {
+  const normalized = normalizeProcessOnlyLine(line);
+  if (!normalized) {
+    return true;
+  }
+  const lower = normalized.toLocaleLowerCase();
+  return (
+    PROCESS_ONLY_BODY_LINES.has(normalized) ||
+    PROCESS_ONLY_BODY_LINES.has(lower) ||
+    /^找到\s*\d+\s*条(?:来源|证据|参考|结果)$/u.test(normalized) ||
+    /^\d+\s*个阶段$/u.test(normalized) ||
+    /^found\s+\d+\s+(?:sources?|references?|results?)$/iu.test(normalized) ||
+    /^\d+\s+stages?$/iu.test(normalized)
+  );
+}
+
+function looksLikeProcessOnlyBody(content: string): boolean {
+  const lines = content
+    .split(/\r?\n/u)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  return lines.length >= 2 && lines.every((line) => isProcessOnlyLine(line));
+}
+
+function looksLikeSearchPromptResidualLine(line: string): boolean {
+  const normalized = normalizeProcessOnlyLine(line);
+  return (
+    /[?？!！]$/u.test(normalized) &&
+    /查一下|搜索|搜一下|排行|推荐|find|look\s*up|search/iu.test(normalized)
+  );
+}
+
+function isFailedResearchTurn(
+  flow: ReturnType<typeof getTurnFlowForDisplay>,
+): boolean {
+  const failureSignals = [
+    normalizeOptionalString(flow.errorSurface?.errorType),
+    normalizeOptionalString(flow.failureKind),
+    normalizeOptionalString(flow.completionReason),
+    normalizeOptionalString(flow.turnOutcome),
+  ].map((value) => value.toLocaleLowerCase());
+  return (
+    flow.finalStageStatus === 'error' ||
+    failureSignals.some(
+      (value) =>
+        value === 'candidate_search_wrapper_url' ||
+        value === 'failed' ||
+        value === 'low_query_relevance' ||
+        value === 'partial' ||
+        value === 'untrusted_final_output_source',
+    )
+  );
+}
+
+function normalizeResidualComparableText(value: string): string {
+  return value
+    .normalize('NFKC')
+    .replaceAll(/\s+/gu, ' ')
+    .trim()
+    .toLocaleLowerCase();
+}
+
+function collectEvidenceResidualTexts(
+  flow: ReturnType<typeof getTurnFlowForDisplay>,
+): string[] {
+  return flow.evidence
+    .flatMap((item) => [item.title, item.snippet, item.sourceRef])
+    .map((value) => normalizeOptionalString(value))
+    .filter((value): value is string => Boolean(value) && value.length >= 40)
+    .map((value) => normalizeResidualComparableText(value));
+}
+
+function isLikelyEvidenceResidualLine(
+  line: string,
+  evidenceResidualTexts: string[],
+): boolean {
+  const normalized = normalizeResidualComparableText(line);
+  if (normalized.length < 40) {
+    return false;
+  }
+  return evidenceResidualTexts.some(
+    (evidenceText) =>
+      evidenceText.includes(normalized) || normalized.includes(evidenceText),
+  );
+}
+
+function updateFenceState(activeFence: FenceState, line: string): FenceState {
+  const fence = parseFenceState(line);
+  if (!fence) {
+    return activeFence;
+  }
+  if (
+    activeFence &&
+    activeFence.character === fence.character &&
+    fence.length >= activeFence.length
+  ) {
+    return null;
+  }
+  return activeFence ?? fence;
+}
+
+function shouldRemoveResearchResidualLine(
+  line: string,
+  evidenceResidualTexts: string[],
+): boolean {
+  const trimmed = line.trim();
+  if (!trimmed) {
+    return false;
+  }
+  return (
+    isProcessOnlyLine(trimmed) ||
+    looksLikeAbnormalShortResidualBody(trimmed) ||
+    looksLikeBareNumericFragmentBody(trimmed) ||
+    isLikelyEvidenceResidualLine(trimmed, evidenceResidualTexts)
+  );
+}
+
+function cleanupResidualBodyWhitespace(lines: string[]): string {
+  return lines
+    .join('\n')
+    .replaceAll(/[ \t]+\n/gu, '\n')
+    .replaceAll(/\n{3,}/gu, '\n\n')
+    .trim();
+}
+
+function sanitizeSuspiciousResearchResidualBody(
+  flow: ReturnType<typeof getTurnFlowForDisplay>,
+  content: string,
+): ResearchResidualBodyCleanup {
+  const normalized = content.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
+  if (!normalized.trim() || !hasResearchDisplayContext(flow)) {
+    return { bodyMarkdown: content, suppressed: false };
+  }
+  if (
+    looksLikeAbnormalShortResidualBody(normalized) ||
+    looksLikeBareNumericFragmentBody(normalized) ||
+    looksLikeProcessOnlyBody(normalized)
+  ) {
+    return { bodyMarkdown: '', suppressed: true };
+  }
+
+  const evidenceResidualTexts = collectEvidenceResidualTexts(flow);
+  const keptLines: string[] = [];
+  let activeFence: FenceState = null;
+  for (const line of normalized.split('\n')) {
+    const wasInsideFence = Boolean(activeFence);
+    const nextFence = updateFenceState(activeFence, line);
+    const isFenceBoundary = nextFence !== activeFence;
+    if (
+      !wasInsideFence &&
+      !isFenceBoundary &&
+      shouldRemoveResearchResidualLine(line, evidenceResidualTexts)
+    ) {
+      activeFence = nextFence;
+      continue;
+    }
+    keptLines.push(line);
+    activeFence = nextFence;
+  }
+
+  const bodyMarkdown = cleanupResidualBodyWhitespace(keptLines);
+  const bodyLines = bodyMarkdown
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (
+    bodyLines.length === 1 &&
+    isFailedResearchTurn(flow) &&
+    looksLikeSearchPromptResidualLine(bodyLines[0] ?? '')
+  ) {
+    return { bodyMarkdown: '', suppressed: true };
+  }
+  if (!bodyMarkdown && normalized.trim()) {
+    return { bodyMarkdown: '', suppressed: true };
+  }
+  return { bodyMarkdown, suppressed: false };
+}
+
 function looksLikeRawHtmlFailureDocument(content: string): boolean {
   const normalized = content.trim().toLocaleLowerCase();
   if (!normalized) {
@@ -471,7 +771,7 @@ function shouldSuppressProviderFailureBody(
     normalizeOptionalString(flow.completionReason),
     normalizeOptionalString(flow.turnOutcome),
   ]
-    .filter((value): value is string => Boolean(value))
+    .filter(Boolean)
     .map((value) => value.toLocaleLowerCase());
   return (
     flow.finalStageStatus === 'error' ||
@@ -491,9 +791,14 @@ export function prepareMessageContent(
   const preparedBody = stripModelFunctionCallMarkup(
     resolvePreparedBodyMarkdown(msg),
   );
+  const residualCleanup = sanitizeSuspiciousResearchResidualBody(
+    flow,
+    preparedBody,
+  );
   if (
     shouldSuppressUntrustedFailureBody(flow) ||
-    shouldSuppressProviderFailureBody(flow, preparedBody)
+    shouldSuppressProviderFailureBody(flow, preparedBody) ||
+    residualCleanup.suppressed
   ) {
     return {
       bodyMarkdown: '',
@@ -502,7 +807,7 @@ export function prepareMessageContent(
     };
   }
 
-  const extracted = extractTailReferences(preparedBody);
+  const extracted = extractTailReferences(residualCleanup.bodyMarkdown);
   const references = mergeReferences(
     flow.evidence.map((item) => toEvidenceReference(item)),
     extracted.references,

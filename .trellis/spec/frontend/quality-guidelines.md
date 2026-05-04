@@ -44,7 +44,7 @@ pnpm exec vue-tsc --noEmit --skipLibCheck --pretty false -p apps/web-antd/tsconf
   UI stays in the page layer, shared data/loading logic stays in shared
   composables or API modules.
 - If a page or component has grown oversized, prefer `page shell + composables +
-  section components` or `component shell + focused child units` instead of
+section components` or `component shell + focused child units` instead of
   adding more branches to the same SFC.
 - When a refactor claims a shell is now thin, reviewers should expect the
   extracted workflow composables or child units to carry follow-up changes.
@@ -78,7 +78,7 @@ pnpm exec vue-tsc --noEmit --skipLibCheck --pretty false -p apps/web-antd/tsconf
   first.
 - Do not expand legacy `200 + success=false` soft-failure contracts into new
   endpoints or new page flows.
-- New comments, TODOs, and inline documentation should follow the repo's
+- New comments, TODOs, and inline documentation must follow the repo's
   bilingual comment convention when comments are necessary.
 - Shared frontend layers must not turn into cross-domain dump buckets. If a
   composable or shared component keeps absorbing unrelated page flows, split it
@@ -94,6 +94,43 @@ Examples:
 - `frontend/apps/web-antd/src/api/admin/attachment.ts`
 - `frontend/apps/web-antd/src/directives/access.ts`
 - `frontend/apps/web-antd/src/utils/error-helpers.ts`
+
+## Bilingual Comment Convention
+
+- Comments are mandatory when the logic is complex, easy to misread, subtly
+  ordered, compatibility-sensitive, repetitive enough to hide intent, or likely
+  to be forgotten during later maintenance.
+- Every retained code comment, inline documentation note, `TODO`, and `FIXME`
+  must include both Chinese and English. Prefer Chinese first, then English,
+  with explicit `中文:` and `EN:` labels.
+- Keep comments concise and explain the reason or invariant, not the obvious
+  syntax. If a small refactor would make the code self-explanatory, refactor
+  first; if the UI/domain rule or execution order is still non-obvious, keep
+  the bilingual comment immediately above the block it protects.
+- Use this shape for ordinary comments:
+
+```ts
+// 中文: 这里保留稳定 key，避免刷新后会话状态丢失。
+// EN: Keep the stable key so refreshes do not drop session state.
+```
+
+- Use this shape for longer helper documentation:
+
+```ts
+/**
+ * 中文: 合并后端权限、计划限制和本地禁用态，得到按钮最终可用状态。
+ *
+ * EN: Combines backend permissions, plan limits, and local disabled state into
+ * the final button availability.
+ */
+```
+
+- Use this shape for follow-up notes:
+
+```ts
+// TODO: 中文: 旧弹窗迁移完成后删除这个适配分支。
+// TODO: EN: Remove this adapter branch after the legacy modal migration lands.
+```
 
 ## Governance Refactor Acceptance Gates
 
@@ -244,7 +281,7 @@ Examples:
 - Playwright auth helpers should prefer backend dev bootstrap APIs:
   - `POST /admin/auth/dev/bootstrap`
   - `POST /tenant/auth/dev/bootstrap`
-  and fall back to:
+    and fall back to:
   - `POST /admin/auth/login`
   - `POST /tenant/auth/login`
 - Session helpers must seed namespaced localStorage keys instead of dragging UI
@@ -269,14 +306,14 @@ Examples:
 
 ### 4. Validation & Error Matrix
 
-| Condition | Expected Behavior |
-|---|---|
-| Valid dev bootstrap secret | Matching smoke suite passes with API-seeded session and no manual login UI |
-| Valid admin credentials | Admin dashboard / profile smoke passes with API-seeded session |
-| Valid tenant credentials + tenant code | Tenant dashboard / profile / organization / logs smoke passes |
-| Missing tenant code | Tenant smoke skips instead of hanging on login UI |
-| Tenant domain env absent | Suite still runs against localhost |
-| Page text shifts from “最近活动” to “近期活动” | Spec should assert the real page anchor, not an outdated copy guess |
+| Condition                                      | Expected Behavior                                                          |
+| ---------------------------------------------- | -------------------------------------------------------------------------- |
+| Valid dev bootstrap secret                     | Matching smoke suite passes with API-seeded session and no manual login UI |
+| Valid admin credentials                        | Admin dashboard / profile smoke passes with API-seeded session             |
+| Valid tenant credentials + tenant code         | Tenant dashboard / profile / organization / logs smoke passes              |
+| Missing tenant code                            | Tenant smoke skips instead of hanging on login UI                          |
+| Tenant domain env absent                       | Suite still runs against localhost                                         |
+| Page text shifts from “最近活动” to “近期活动” | Spec should assert the real page anchor, not an outdated copy guess        |
 
 ### 5. Good/Base/Bad Cases
 
