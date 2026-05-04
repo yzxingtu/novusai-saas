@@ -1256,6 +1256,10 @@
       "toolParams": "Parameters",
       "envVars": "Env Vars",
       "configured": "Configured",
+      "resolution": {
+        "degraded": "Catalog resolution has {count} issue(s). Resolved tools can still be previewed. First reason: {reason}",
+        "unavailable": "Catalog resolution is unavailable and produced no executable tools. First reason: {reason}"
+      },
       "runtimeTruthHint": "SkillPackage provides grouping, source attribution, and catalog display; the agent runtime actually receives capabilities through direct skill grants, not package-level auto-binding."
     },
     "valves": {

@@ -24,11 +24,19 @@ async def _build_resolved_tools_payload(
     pkg: SkillPackage,
     skills,
 ) -> dict[str, Any]:
-    """Resolve package tools through SkillResolver. / 统一解析技能包工具定义。"""
+    """Build catalog-resolution preview payload.
+
+    This endpoint previews package contents without AgentSkillGrant context; it is
+    not the runtime truth for a specific agent turn.
+    """
     from app.ai.skills.resolver import SkillResolver
 
     resolver = SkillResolver(db=db)
     resolve_result = await resolver.resolve(skills)
+    issues = [
+        issue.to_dict() if hasattr(issue, "to_dict") else dict(issue or {})
+        for issue in list(getattr(resolve_result, "resolution_issues", []) or [])
+    ]
 
     if resolve_result.warnings:
         logger.warning(
@@ -58,11 +66,24 @@ async def _build_resolved_tools_payload(
         }
         for td in resolve_result.tools
     ]
+    if issues and not tools:
+        resolution_status = "unavailable"
+    elif issues:
+        resolution_status = "degraded"
+    elif not tools:
+        resolution_status = "empty"
+    else:
+        resolution_status = "available"
 
     return {
         "package_id": pkg.id,
         "package_name": pkg.name,
         "source_plugin": pkg.source_plugin,
+        "preview_mode": "catalog_resolution",
+        "runtime_truth": False,
+        "resolution_status": resolution_status,
+        "resolution_issues": issues,
+        "resolution_issue_count": len(issues),
         "tool_count": len(tools),
         "tools": tools,
     }
@@ -240,14 +261,18 @@ class AdminSkillPackageService(
             if existing:
                 raise BusinessException(message=_("skill_package.error.name_exists"))
 
-        new_tenant_id = data.get("tenant_id")
-        if new_tenant_id is not None and new_tenant_id != pkg.tenant_id:
+        if "tenant_id" in data and data.get("tenant_id") != pkg.tenant_id:
+            new_tenant_id = data.get("tenant_id")
             await self.repo.cascade_update_skill_tenant_id(id, new_tenant_id)
             logger.info(
                 "Cascade synced Skill.tenant_id to {} for package {}",
                 new_tenant_id,
                 id,
             )
+
+    async def list_recommended_packages(self) -> list[SkillPackage]:
+        """List active recommended packages for admin catalog surfaces."""
+        return await self.repo.list_recommended_packages()
 
     async def _before_delete(self, id: int) -> None:
         """删除前校验：系统技能包不可删除，级联软删除技能 / Before delete: system protected, cascade soft-delete skills."""

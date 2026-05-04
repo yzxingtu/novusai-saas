@@ -10,6 +10,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from app.enums.agent import get_all_skill_types
 from app.enums.common import ResourceScopeEnum
 from app.plugins.manifest_helpers import (
     _API_AUTH_VALUES,
@@ -64,8 +65,8 @@ __all__ = [
 class SkillExtensionSchema(BaseModel):
     """Skill extension declaration / 技能扩展声明"""
 
-    name: str
-    type: str = "toolkit"
+    name: str = Field(..., max_length=100)
+    type: str = Field("toolkit", max_length=30)
     display_name: I18nText = Field(default_factory=dict)
     description: I18nText = Field(default_factory=dict)
     entry_point: str
@@ -80,12 +81,29 @@ class SkillExtensionSchema(BaseModel):
             raise ValueError("skill.entry_point is required")
         return _validate_handler_path(v, "skill.entry_point")
 
-    @field_validator("name", "type")
+    @field_validator("name")
     @classmethod
-    def validate_required_text(cls, v: str) -> str:
+    def validate_name(cls, v: str) -> str:
         text = str(v or "").strip()
         if not text:
-            raise ValueError("skill name and type are required")
+            raise ValueError("skill.name is required")
+        if not _PLUGIN_NAME_PATTERN.match(text):
+            raise ValueError(
+                "skill.name must be lowercase kebab-case (e.g. 'weather-realtime')"
+            )
+        return text
+
+    @field_validator("type")
+    @classmethod
+    def validate_type(cls, v: str) -> str:
+        text = str(v or "").strip()
+        if not text:
+            raise ValueError("skill.type is required")
+        valid_types = get_all_skill_types()
+        if text not in valid_types:
+            raise ValueError(
+                f"Invalid skill.type '{text}'. Must be one of: {sorted(valid_types)}"
+            )
         return text
 
     @field_validator("preview_tool_names", mode="before")
@@ -733,6 +751,21 @@ class ExtensionsSchema(BaseModel):
     consumers: list[ConsumerExtensionSchema] = Field(default_factory=list)
     custom: list[CustomExtensionSchema] = Field(default_factory=list)
     middleware: list[MiddlewareExtensionSchema] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_unique_skill_names(self) -> "ExtensionsSchema":
+        seen: set[str] = set()
+        duplicates: list[str] = []
+        for skill in self.skills:
+            if skill.name in seen:
+                duplicates.append(skill.name)
+            seen.add(skill.name)
+        if duplicates:
+            raise ValueError(
+                "extensions.skills[*].name must be unique within a plugin: "
+                f"{sorted(set(duplicates))}"
+            )
+        return self
 
 
 # ============================================================

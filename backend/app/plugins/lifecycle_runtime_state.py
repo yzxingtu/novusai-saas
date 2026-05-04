@@ -406,6 +406,9 @@ class LifecycleRuntimeStateMixin:
         )
         existing_skills = list(existing_skills_result.scalars().all())
 
+        desired_source_refs: set[str] = set()
+        touched_skill_ids: set[int] = set()
+
         # Create or update Skill record for each skill extension
         # / 对每个 skill extension 创建或更新 Skill 记录
         for skill_ext in skill_extensions:
@@ -413,8 +416,7 @@ class LifecycleRuntimeStateMixin:
                 plugin_name,
                 skill_ext.name,
             )
-            # Prefer the stable plugin skill identity; legacy rows fall back to
-            # name/type matching until an explicit repair sync updates them.
+            desired_source_refs.add(source_ref)
             existing_skill = next(
                 (
                     s
@@ -424,28 +426,6 @@ class LifecycleRuntimeStateMixin:
                 ),
                 None,
             )
-            if existing_skill is None:
-                existing_skill = next(
-                    (
-                        s
-                        for s in existing_skills
-                        if s.name
-                        == (
-                            resolve_i18n(skill_ext.display_name)
-                            if skill_ext.display_name
-                            else skill_ext.name
-                        )
-                    ),
-                    next(
-                        (s for s in existing_skills if s.type == skill_ext.type), None
-                    ),
-                )
-            if (
-                existing_skill is None
-                and len(existing_skills) == 1
-                and len(skill_extensions) == 1
-            ):
-                existing_skill = existing_skills[0]
 
             skill_display = (
                 resolve_i18n(skill_ext.display_name)
@@ -492,6 +472,21 @@ class LifecycleRuntimeStateMixin:
                     or "1.0.0"
                 )
                 existing_skill.config = skill_ext.config_schema or {}
+                touched_skill_ids.add(existing_skill.id)
+
+        for existing_skill in existing_skills:
+            if getattr(existing_skill, "id", None) in touched_skill_ids:
+                continue
+            existing_source_ref = str(
+                getattr(existing_skill, "source_ref", "") or ""
+            ).strip()
+            if existing_source_ref not in desired_source_refs:
+                existing_skill.is_active = False
+                logger.info(
+                    "Deactivated stale Skill '{}' for plugin {}",
+                    existing_skill.name,
+                    plugin_name,
+                )
 
         await self._db.flush()
 
@@ -573,10 +568,6 @@ class LifecycleRuntimeStateMixin:
         return load_plugin_handler(plugin_name, handler_path)
 
     def _load_plugin_executor(self, plugin_name: str, skill_type: str):
-        """Load plugin executor class — delegate to unified loader / 加载插件 executor 类 — 委托给统一加载器"""
-        from app.plugins.module_loader import load_plugin_executor
-
-        return load_plugin_executor(plugin_name, skill_type)
         """Load plugin executor class — delegate to unified loader / 加载插件 executor 类 — 委托给统一加载器"""
         from app.plugins.module_loader import load_plugin_executor
 

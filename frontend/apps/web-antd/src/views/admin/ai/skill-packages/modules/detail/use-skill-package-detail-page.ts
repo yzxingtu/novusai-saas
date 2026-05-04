@@ -1,4 +1,8 @@
-import type { ResolvedTool, ValvesSchema } from './detail-helpers';
+import type {
+  ResolvedTool,
+  ResolvedToolsInfo,
+  ValvesSchema,
+} from './detail-helpers';
 
 import type { AdminSkillPackageInfo } from '#/api/admin/skill-packages';
 import type { AdminSkillInfo } from '#/api/admin/skills';
@@ -34,6 +38,7 @@ import {
   getPackageIcon,
   getPackageStatusColor,
   getPackageStatusText,
+  getResolutionAlertType,
   getSortedValveFields,
   getToolRequiredParamCount,
   getToolTypeColor,
@@ -74,6 +79,7 @@ export function useSkillPackageDetailPage() {
   const skills = ref<AdminSkillInfo[]>([]);
   const skillsLoading = ref(false);
   const resolvedTools = ref<ResolvedTool[]>([]);
+  const resolvedToolsInfo = ref<null | ResolvedToolsInfo>(null);
   const toolsLoading = ref(false);
   const valvesSchema = ref<null | ValvesSchema>(null);
   const valvesConfig = ref<Record<string, unknown>>({});
@@ -179,8 +185,10 @@ export function useSkillPackageDetailPage() {
     toolsLoading.value = true;
     try {
       const data = await getSkillPackageResolvedToolsApi(packageId.value);
+      resolvedToolsInfo.value = data;
       resolvedTools.value = data.tools || [];
     } catch {
+      resolvedToolsInfo.value = null;
       resolvedTools.value = [];
     } finally {
       toolsLoading.value = false;
@@ -353,6 +361,7 @@ export function useSkillPackageDetailPage() {
     getPackageRoleText,
     getPackageStatusColor,
     getPackageStatusText,
+    getResolutionAlertType,
     getRuntimeBindingModeColor,
     getRuntimeBindingModeText,
     getSourceSummaryText,
@@ -374,6 +383,7 @@ export function useSkillPackageDetailPage() {
     overviewStats,
     pkg,
     resetValvesToDefaults,
+    resolvedToolsInfo,
     resolvedTools,
     skills,
     skillsLoading,

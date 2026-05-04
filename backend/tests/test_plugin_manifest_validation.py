@@ -319,3 +319,83 @@ def test_manifest_skill_extensions_require_entry_point() -> None:
 
     with pytest.raises(ValidationError, match="entry_point"):
         PluginManifest.model_validate(payload)
+
+
+@pytest.mark.parametrize(
+    "skill_name",
+    [
+        "WeatherRealtime",
+        "weather realtime",
+        "weather_realtime",
+        "weather-realtime-",
+    ],
+)
+def test_manifest_skill_extensions_require_stable_kebab_case_name(
+    skill_name: str,
+) -> None:
+    payload = _base_manifest()
+    payload["extensions"] = {
+        "skills": [
+            {
+                "name": skill_name,
+                "type": "toolkit",
+                "entry_point": "skills.neutral",
+            }
+        ]
+    }
+
+    with pytest.raises(ValidationError, match="skill.name must be lowercase"):
+        PluginManifest.model_validate(payload)
+
+
+def test_manifest_skill_extensions_reject_too_long_name() -> None:
+    payload = _base_manifest()
+    payload["extensions"] = {
+        "skills": [
+            {
+                "name": f"skill-{'a' * 101}",
+                "type": "toolkit",
+                "entry_point": "skills.neutral",
+            }
+        ]
+    }
+
+    with pytest.raises(ValidationError, match="String should have at most 100"):
+        PluginManifest.model_validate(payload)
+
+
+def test_manifest_skill_extensions_reject_unknown_type() -> None:
+    payload = _base_manifest()
+    payload["extensions"] = {
+        "skills": [
+            {
+                "name": "neutral-skill",
+                "type": "unknown",
+                "entry_point": "skills.neutral",
+            }
+        ]
+    }
+
+    with pytest.raises(ValidationError, match="Invalid skill.type"):
+        PluginManifest.model_validate(payload)
+
+
+def test_manifest_skill_extensions_reject_duplicate_names() -> None:
+    payload = _base_manifest()
+    payload["extensions"] = {
+        "skills": [
+            {
+                "name": "neutral-skill",
+                "type": "toolkit",
+                "entry_point": "skills.neutral",
+            },
+            {
+                "name": "neutral-skill",
+                "type": "builtin",
+                "entry_point": "skills.other",
+            },
+        ]
+    }
+
+    with pytest.raises(ValidationError, match="must be unique"):
+        PluginManifest.model_validate(payload)

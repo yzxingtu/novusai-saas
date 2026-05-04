@@ -1256,6 +1256,10 @@
       "toolParams": "参数",
       "envVars": "环境变量",
       "configured": "已配置",
+      "resolution": {
+        "degraded": "目录解析存在 {count} 个问题，已解析的工具仍可预览；首个原因：{reason}",
+        "unavailable": "目录解析不可用，未得到可执行工具；首个原因：{reason}"
+      },
       "runtimeTruthHint": "SkillPackage 负责归组、来源和目录展示；智能体运行时真正获得能力的是直接 Skill 授予，而不是包级自动绑定。"
     },
     "valves": {

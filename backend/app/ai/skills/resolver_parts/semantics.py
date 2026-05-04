@@ -61,7 +61,7 @@ def is_runtime_eligible_skill(skill: Any) -> bool:
         return False
     package = getattr(skill, "package", None)
     if package is None:
-        return False
+        return True
     return bool(
         getattr(package, "is_active", True) is not False
         and getattr(package, "is_deleted", False) is not True

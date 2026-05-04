@@ -344,6 +344,22 @@ class AdminSkillPackageRepository(
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def list_recommended_packages(self) -> list[SkillPackage]:
+        """List active recommended packages for admin catalog surfaces."""
+        stmt = (
+            select(SkillPackage)
+            .where(
+                and_(
+                    SkillPackage.is_recommended.is_(True),
+                    SkillPackage.is_active.is_(True),
+                    SkillPackage.is_deleted.is_(False),
+                )
+            )
+            .order_by(SkillPackage.sort_order)
+        )
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
+
 
 __all__ = [
     "SkillPackageRepository",

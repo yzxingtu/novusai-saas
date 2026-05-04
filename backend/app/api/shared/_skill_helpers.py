@@ -7,18 +7,13 @@ Extracted from admin/skills.py, shared by admin and tenant endpoints.
 
 from __future__ import annotations
 
-import asyncio
 from typing import TYPE_CHECKING
-
-from app.core.logging import LogManager
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
     from app.models.ai.skill import Skill
     from app.schemas.ai.skill import SkillResponse
-
-logger = LogManager.get_logger("ai")
 
 
 async def enrich_plugin_skill_info(
@@ -34,71 +29,22 @@ async def enrich_plugin_skill_info(
     若是则从 ExtensionRegistry 调用 resolver 获取工具列表。
     if so, calls resolver from ExtensionRegistry to get tool list.
     """
-    from sqlalchemy import select
-
-    from app.models.ai.skill_package import SkillPackage
     from app.schemas.ai.skill import PluginToolInfo
+    from app.services.ai.skill_plugin_query_service import load_plugin_skill_preview
 
-    # 查询所属技能包的 source_plugin / Query source_plugin of the parent skill package
-    result = await db.execute(
-        select(SkillPackage.source_plugin).where(
-            SkillPackage.id == skill.package_id,
-        )
-    )
-    source_plugin = result.scalar_one_or_none()
-
-    if not source_plugin:
+    preview = await load_plugin_skill_preview(db, skill)
+    if not preview.source_plugin:
         return
 
-    data.source_plugin = source_plugin
-
-    # 从插件 registry 获取 resolver 并调用 / Get resolver from plugin registry and invoke
-    try:
-        from app.ai.skills.plugin_identity import plugin_skill_lookup_name
-        from app.plugins.registry import ExtensionRegistry
-
-        registry = ExtensionRegistry.get_instance()
-        skill_lookup_name = plugin_skill_lookup_name(skill, source_plugin)
-        if not skill_lookup_name:
-            logger.warning(
-                "Skip resolving plugin tools for skill {}: missing plugin skill identity",
-                skill.id,
-            )
-            return
-
-        resolver_func = registry.get_plugin_skill_resolver(
-            source_plugin,
-            skill_lookup_name,
+    data.source_plugin = preview.source_plugin
+    data.plugin_tools = [
+        PluginToolInfo(
+            name=tool.name,
+            description=tool.description,
+            parameters=tool.parameters,
         )
-        if resolver_func is None:
-            return
-
-        config = skill.config or {}
-        tool_defs = (
-            await resolver_func(skill, config)
-            if asyncio.iscoroutinefunction(resolver_func)
-            else resolver_func(skill, config)
-        )
-
-        if isinstance(tool_defs, list):
-            data.plugin_tools = [
-                PluginToolInfo(
-                    name=td.name,
-                    description=td.description,
-                    parameters=[
-                        {
-                            "name": p.name,
-                            "type": p.type,
-                            "description": p.description,
-                            "required": p.required,
-                        }
-                        for p in (td.parameters or [])
-                    ],
-                )
-                for td in tool_defs
-            ]
-    except Exception as exc:
-        logger.warning("Failed to resolve plugin tools for skill {}: {}", skill.id, exc)
+        for tool in preview.tools
+    ]
 
 
 __all__ = ["enrich_plugin_skill_info"]

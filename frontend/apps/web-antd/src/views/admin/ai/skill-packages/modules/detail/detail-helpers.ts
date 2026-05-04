@@ -1,5 +1,6 @@
 import type {
   AdminSkillPackageInfo,
+  SkillPackageResolvedToolsInfo,
   SkillPackageResolvedToolInfo,
   SkillPackageValvesInfo,
 } from '#/api/admin/skill-packages';
@@ -7,6 +8,7 @@ import type {
 import { $t } from '#/locales';
 
 export type ResolvedTool = SkillPackageResolvedToolInfo;
+export type ResolvedToolsInfo = SkillPackageResolvedToolsInfo;
 export type ValvesSchema = NonNullable<SkillPackageValvesInfo['valves_schema']>;
 export type ValvesInputType = 'json' | 'number' | 'string' | 'switch';
 
@@ -92,6 +94,18 @@ export function getToolTypeText(type: null | string | undefined): string {
 
 export function getToolRequiredParamCount(tool: ResolvedTool): number {
   return tool.parameters.filter((item) => item.required).length;
+}
+
+export function getResolutionAlertType(
+  status: ResolvedToolsInfo['resolution_status'] | undefined,
+): 'error' | 'info' | 'warning' {
+  if (status === 'unavailable') {
+    return 'error';
+  }
+  if (status === 'degraded') {
+    return 'warning';
+  }
+  return 'info';
 }
 
 export function isSecretKey(key: string): boolean {

@@ -126,24 +126,8 @@ class AdminSkillPackageController(GlobalController):
             用于创建智能体时显示推荐绑定列表。
             Used to display recommended binding list when creating agents.
             """
-            from sqlalchemy import and_, select
-
-            stmt = (
-                select(SkillPackage)
-                .where(
-                    and_(
-                        SkillPackage.is_recommended.is_(True),
-                        SkillPackage.is_active.is_(True),
-                        SkillPackage.is_deleted.is_(False),
-                    )
-                )
-                .order_by(SkillPackage.sort_order)
-            )
-
-            result = await db.execute(stmt)
-            pkgs = list(result.scalars().all())
-
             service = AdminSkillPackageService(db)
+            pkgs = await service.list_recommended_packages()
             pkg_ids = [p.id for p in pkgs]
             skill_counts = (
                 await service.get_skill_counts_batch(pkg_ids) if pkg_ids else {}

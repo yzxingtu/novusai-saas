@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import { IconifyIcon } from '@vben/icons';
 
-import { Empty, Spin, Tag } from 'ant-design-vue';
+import { Alert, Empty, Spin, Tag } from 'ant-design-vue';
 
 import { $t } from '#/locales';
 
@@ -9,10 +9,12 @@ import { useSkillPackageDetailContext } from './detail-context';
 
 const {
   getToolRequiredParamCount,
+  getResolutionAlertType,
   getToolTypeColor,
   getToolTypeIcon,
   getToolTypeText,
   resolvedTools,
+  resolvedToolsInfo,
   toolsLoading,
 } = useSkillPackageDetailContext();
 </script>
@@ -30,6 +32,28 @@ const {
     </div>
 
     <Spin :spinning="toolsLoading">
+      <Alert
+        v-if="
+          resolvedToolsInfo &&
+          (resolvedToolsInfo.resolution_status === 'degraded' ||
+            resolvedToolsInfo.resolution_status === 'unavailable')
+        "
+        :message="
+          $t(
+            `admin.ai.skillPackage.detail.resolution.${resolvedToolsInfo.resolution_status}`,
+            {
+              count: resolvedToolsInfo.resolution_issue_count,
+              reason:
+                resolvedToolsInfo.resolution_issues[0]?.code ||
+                resolvedToolsInfo.resolution_status,
+            },
+          )
+        "
+        :type="getResolutionAlertType(resolvedToolsInfo.resolution_status)"
+        class="mb-4"
+        show-icon
+      />
+
       <div v-if="resolvedTools.length === 0" class="py-12">
         <Empty :description="$t('admin.ai.skillPackage.detail.noTools')" />
       </div>

@@ -3,6 +3,7 @@
 """
 
 from sqlalchemy import and_, func, or_, select
+from sqlalchemy.orm import selectinload
 
 from app.core.base_repository import BaseRepository, TenantRepository
 from app.models.ai.skill import Skill
@@ -218,7 +219,11 @@ class SkillRepository(TenantRepository[Skill]):
         if not self._is_package_visible(pkg):
             return []
 
-        stmt = select(Skill).where(Skill.package_id == package_id)
+        stmt = (
+            select(Skill)
+            .options(selectinload(Skill.package))
+            .where(Skill.package_id == package_id)
+        )
 
         if not include_deleted:
             stmt = stmt.where(Skill.is_deleted.is_(False))
@@ -340,7 +345,11 @@ class AdminSkillRepository(BaseRepository[Skill]):
         Used by non-paginated flows (for example tool resolution) to avoid
         truncation caused by query_list default pagination.
         """
-        stmt = select(Skill).where(Skill.package_id == package_id)
+        stmt = (
+            select(Skill)
+            .options(selectinload(Skill.package))
+            .where(Skill.package_id == package_id)
+        )
 
         if not include_deleted:
             stmt = stmt.where(Skill.is_deleted.is_(False))

@@ -77,6 +77,45 @@ class Tools:
 
 
 @pytest.mark.asyncio
+async def test_plugin_skill_with_unloaded_package_relation_uses_db_source_plugin(
+    monkeypatch,
+) -> None:
+    """A noload package relationship must not hide plugin-owned skill failures."""
+
+    skill = SimpleNamespace(
+        id=151,
+        name="实时天气查询",
+        type="toolkit",
+        package_id=77,
+        key="weather-widget:weather-realtime",
+        source_ref="weather-widget:weather-realtime",
+        config={},
+        toolkit_content=None,
+        timeout=30,
+        is_active=True,
+        is_deleted=False,
+    )
+
+    resolver = SkillResolver(db=None)
+    resolver._load_source_plugins = AsyncMock(return_value={77: "weather-widget"})
+    registry_stub = SimpleNamespace(get_plugin_skill_resolver=lambda *_args: None)
+    monkeypatch.setattr(
+        "app.plugins.registry.ExtensionRegistry.get_instance",
+        lambda: registry_stub,
+    )
+
+    result = await resolver.resolve([skill])
+
+    assert result.tools == []
+    assert [issue.code for issue in result.resolution_issues] == [
+        "plugin_resolver_missing"
+    ]
+    assert result.resolution_issues[0].skill_id == 151
+    assert result.resolution_issues[0].source_plugin == "weather-widget"
+    assert "resolver is unavailable" in result.warnings[0]
+
+
+@pytest.mark.asyncio
 async def test_plugin_skill_without_registered_resolver_does_not_use_builtin_fallback(
     monkeypatch,
 ) -> None:

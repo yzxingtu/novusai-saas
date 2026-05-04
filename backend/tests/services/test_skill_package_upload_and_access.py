@@ -1,4 +1,8 @@
-"""Skill package upload flow and tenant visibility tests."""
+"""Test type: structural
+Scope: skill package upload orchestration and tenant visibility repository seams.
+Real dependencies: upload helper and repository access filters.
+Mocked dependencies: package extraction, conversion, storage, and repository IO.
+"""
 
 from __future__ import annotations
 
@@ -21,7 +25,6 @@ class _DummyUploadFile:
 
 
 class TestSkillPackageUpload:
-
     @pytest.mark.asyncio
     async def test_upload_creates_toolkit_package_without_scope_or_source_plugin(
         self,
@@ -93,7 +96,6 @@ class TestSkillPackageUpload:
 
 
 class TestSkillPackageTenantAccess:
-
     @pytest.mark.asyncio
     async def test_tenant_get_by_id_allows_platform_package_with_legacy_audience(
         self,

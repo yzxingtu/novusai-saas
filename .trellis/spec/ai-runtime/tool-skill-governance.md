@@ -43,6 +43,16 @@ backend boundary instead of page perception:
   capabilities.
 - Builtin runtime tools may cover platform-owned capabilities such as native
   search, current time, memory, variables, and knowledge retrieval.
+- Skill/package defects in new-system live paths must be corrected at the owner
+  contract boundary rather than papered over in downstream diagnostics,
+  read-models, or frontend compatibility logic. Temporary compatibility patches
+  need an explicit removal plan and must not become the primary behavior.
+- Catalog/package previews and agent runtime resolution must share the same
+  resolver failure semantics. Catalog preview metadata is a read-only
+  `catalog_resolution` view, not runtime truth, but plugin-owned skills that
+  cannot produce executable tools must still surface structured
+  `resolution_issues` such as `plugin_resolver_missing` instead of silently
+  appearing as an empty package.
 - Plugin-owned skills must be resolved through a plugin skill contract, not by
   silently falling back to canonical toolkit/builtin/http/email/code resolvers.
   If the plugin resolver or executor is missing, failed, or returns no executable

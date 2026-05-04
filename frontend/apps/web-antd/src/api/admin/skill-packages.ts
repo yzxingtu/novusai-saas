@@ -219,9 +219,28 @@ export interface SkillPackageResolvedToolInfo {
   tool_type?: string;
 }
 
+export interface SkillPackageResolutionIssue {
+  code: string;
+  message: string;
+  metadata?: Record<string, unknown>;
+  package_id?: number;
+  package_name?: string;
+  severity?: string;
+  skill_id?: number;
+  skill_name?: string;
+  skill_type?: string;
+  source_plugin?: string;
+  stage?: string;
+}
+
 export interface SkillPackageResolvedToolsInfo {
   package_id: number;
   package_name: string;
+  preview_mode: 'catalog_resolution';
+  resolution_issue_count: number;
+  resolution_issues: SkillPackageResolutionIssue[];
+  resolution_status: 'available' | 'degraded' | 'empty' | 'unavailable';
+  runtime_truth: boolean;
   source_plugin: null | string;
   tool_count: number;
   tools: SkillPackageResolvedToolInfo[];
