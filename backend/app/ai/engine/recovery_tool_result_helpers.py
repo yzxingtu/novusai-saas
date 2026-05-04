@@ -430,6 +430,26 @@ def budgeted_web_research_response_candidates(
     return candidates
 
 
+def _looks_like_low_information_web_research_response(text: str) -> bool:
+    normalized_text = str(text or "").strip()
+    if not normalized_text:
+        return True
+
+    normalized_comparison = RecoveryResultNormalizer._normalize_comparison_text(
+        normalized_text
+    )
+    if not normalized_comparison:
+        return True
+    if len(normalized_comparison) <= 8:
+        return True
+    if normalized_comparison.isdigit():
+        return True
+
+    numeric_tokens = re.findall(r"(?<!\w)\d+(?:\.\d+)?(?!\w)", normalized_text)
+    long_word_tokens = re.findall(r"[A-Za-z\u4e00-\u9fff]{3,}", normalized_text)
+    return bool(len(numeric_tokens) >= 3 and not long_word_tokens)
+
+
 def should_replace_budgeted_web_research_response(
     *,
     response_text: str,
@@ -449,7 +469,13 @@ def should_replace_budgeted_web_research_response(
     if not normalized_response:
         return True
 
-    for candidate in budgeted_web_research_response_candidates(tool_results):
+    evidence_candidates = budgeted_web_research_response_candidates(tool_results)
+    if evidence_candidates and _looks_like_low_information_web_research_response(
+        raw_response
+    ):
+        return True
+
+    for candidate in evidence_candidates:
         normalized_candidate = RecoveryResultNormalizer._normalize_comparison_text(
             candidate
         )

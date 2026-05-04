@@ -1749,6 +1749,129 @@ async def test_turn_executor_promotes_budgeted_web_research_falls_back_to_tool_e
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "synthesis_text",
+    [
+        pytest.param("猫", id="single_short_unrelated_token"),
+        pytest.param(
+            "59.68 65.71 20.54 27.41 26.12 36.40",
+            id="numeric_table_fragment",
+        ),
+    ],
+)
+async def test_turn_executor_replaces_low_information_budget_synthesis_with_tool_evidence(
+    synthesis_text: str,
+) -> None:
+    # behavioral: budget synthesis may return a short unrelated token or raw
+    # numeric table fragments; accepted fetch_url evidence must replace it.
+    tools = [ToolDefinition(name="fetch_url", description="Fetch")]
+    intents = [
+        _build_intent(
+            intent_id="intent-web",
+            kind="web_research",
+            family="web_research",
+            allowed_tool_names=["fetch_url"],
+        )
+    ]
+    prep = _build_prep(
+        tools=tools,
+        intents=intents,
+        tool_use_policy=ToolUsePolicy(
+            family="web_research",
+            mode="required",
+            allowed_tool_names=["fetch_url"],
+            retry_on_contract_breach=False,
+            reason="web_research",
+        ),
+    )
+    state = ExecutionStateMachine.from_prepared_execution(prep)
+    io = _FakeIOAdapter(
+        model_rounds=[
+            _assistant_response(
+                "",
+                tool_calls=[
+                    {
+                        "id": "call_fetch",
+                        "type": "function",
+                        "function": {
+                            "name": "fetch_url",
+                            "arguments": '{"url":"https://artificialanalysis.ai/leaderboards/models"}',
+                        },
+                    }
+                ],
+            ),
+            _assistant_response(synthesis_text),
+        ],
+        tool_batch=ToolBatchResult(
+            response=ChatResponse(
+                message=ChatMessage(role="assistant", content=""),
+                total_tokens=8,
+                output_tokens=8,
+            ),
+            tool_results=[
+                ToolResult(
+                    tool_call_id="call_fetch",
+                    name="fetch_url",
+                    success=True,
+                    output=(
+                        "Content from https://artificialanalysis.ai/leaderboards/models:\n"
+                        "Title: Artificial Analysis LLM Leaderboard\n"
+                        "Description: Comparison and ranking of AI models across intelligence, price, performance and speed.\n\n"
+                        "Artificial Analysis LLM Leaderboard ranks frontier language models.\n"
+                        "1. GPT-5.5 intelligence score 72.\n"
+                        "2. Gemini 3 Pro intelligence score 71.\n"
+                        "3. Claude Opus 4.6 intelligence score 69.\n"
+                    ),
+                    summary="Artificial Analysis LLM Leaderboard",
+                    summary_payload={
+                        "fetch_url": True,
+                        "ok": True,
+                        "requested_url": "https://artificialanalysis.ai/leaderboards/models",
+                        "final_url": "https://artificialanalysis.ai/leaderboards/models",
+                        "title": "Artificial Analysis LLM Leaderboard",
+                        "description": (
+                            "Comparison and ranking of AI models across "
+                            "intelligence, price, performance and speed."
+                        ),
+                        "summary": "Artificial Analysis LLM Leaderboard",
+                    },
+                )
+            ],
+            total_tokens=8,
+            completion_tokens_used=8,
+        ),
+    )
+
+    with patch(
+        "app.ai.engine.turn_executor.RecoveryManager.decide",
+        return_value=RecoveryDecision(
+            action="return_partial",
+            target_intent_id="intent-web",
+            reason="completion_budget_exceeded",
+            provider_failure_kind="budget_exit",
+        ),
+    ):
+        result = await TurnExecutor.run(
+            state=state,
+            io=io,
+            prep=prep,
+            request=SimpleNamespace(input_variables={}, conversation_id=2293),
+            agent=SimpleNamespace(id=1),
+        )
+
+    assert result.partial is False
+    assert result.completion_reason == "completed"
+    assert result.final_output_source == "recovery_evidence"
+    assert synthesis_text not in result.output
+    assert "GPT-5.5 intelligence score 72" in result.output
+    assert (
+        state.preparation_diagnostics["budget_synthesis_replaced_with_fetch_evidence"]
+        is True
+    )
+    assert io.finalize_completed_calls
+
+
+@pytest.mark.asyncio
 async def test_turn_executor_recovers_retry_budgeted_web_search_evidence() -> None:
     """Regression for conversation 2269: search-only turns may recover search evidence."""
     tools = [

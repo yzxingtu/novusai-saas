@@ -979,13 +979,21 @@ async def finalize_turn_execution(
                 or ""
             ).strip()
             if synthesis_text:
-                output = synthesis_text
                 total_tokens += int(synthesis_round.total_tokens or 0)
                 completion_tokens_used += int(
                     synthesis_round.completion_tokens_used or 0
                 )
                 state.register_completion_tokens(completion_tokens_used)
-                final_output_source = "assistant"
+                if RecoveryManager.should_replace_budgeted_web_research_response(
+                    response_text=synthesis_text,
+                    tool_results=tool_results,
+                ):
+                    state.preparation_diagnostics[
+                        "budget_synthesis_replaced_with_fetch_evidence"
+                    ] = True
+                else:
+                    output = synthesis_text
+                    final_output_source = "assistant"
         if not str(output or "").strip():
             (
                 output,
