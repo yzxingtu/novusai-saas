@@ -12,6 +12,7 @@ EvidenceStatus = Literal["completed", "partial", "failed"]
 PageStatus = Literal["completed", "failed", "blocked", "skipped"]
 AnswerQuality = Literal["body", "summary", "snippet", "none"]
 AnswerSource = Literal["fetched_body", "fetched_summary", "search_snippet", "none"]
+RelevanceStatus = Literal["relevant", "low_relevance", "unscored"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,6 +48,12 @@ class PageEvidence:
     provider: str
     failure_kind: str | None = None
     raw: Mapping[str, Any] | None = None
+    relevance_status: RelevanceStatus = "unscored"
+    relevance_score: float = 0.0
+    relevance_profile: str | None = None
+    relevance_reason: str | None = None
+    relevance_matched_terms: list[str] = field(default_factory=list)
+    relevance_required_terms: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,10 +73,13 @@ class WebResearchDiagnostics:
     evidence_status: EvidenceStatus
     candidate_urls: list[str]
     fetched_urls: list[str]
+    rejected_urls: list[str]
     evidence_quality: AnswerQuality
     answer_source: AnswerSource
     failure_kind: str | None = None
     provider_disable_reason: str | None = None
+    relevance_profile: str | None = None
+    relevance_rejection_count: int = 0
     raw: Mapping[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -100,6 +110,7 @@ __all__ = [
     "EvidenceStatus",
     "PageEvidence",
     "PageStatus",
+    "RelevanceStatus",
     "SearchEvidenceItem",
     "SearchResultSet",
     "WebResearchDiagnostics",

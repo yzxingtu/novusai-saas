@@ -6,6 +6,8 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Any
+
 from app.ai.tools.types import ToolDefinition
 from app.ai.types import ChatMessage
 

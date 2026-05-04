@@ -11,6 +11,7 @@ from app.core.i18n import _
 
 from .recovery_result_normalizer import RecoveryResultNormalizer
 from .recovery_tool_result_helpers import (
+    _fetch_url_payload_is_accepted_for_web_research,
     extract_fetch_url_candidate_urls,
     latest_successful_tool_result,
     tool_attempted,
@@ -40,10 +41,13 @@ _WEB_RESEARCH_DIAGNOSTIC_KEYS = (
     "evidence_status",
     "candidate_urls",
     "fetched_urls",
+    "rejected_urls",
     "evidence_quality",
     "answer_source",
     "web_research_failure_kind",
     "web_research_failure_layer",
+    "web_research_relevance_profile",
+    "web_research_relevance_rejection_count",
     "web_research_provider_disable_reason",
 )
 _WEB_RESEARCH_EVIDENCE_CONTAINER_KEYS = (
@@ -214,6 +218,7 @@ def _project_from_canonical_evidence(value: Any) -> dict[str, Any]:
     fetched_urls = _dedupe_text(
         _as_list(diagnostics.get("fetched_urls"))
     ) or _urls_from_pages(payload.get("fetched_pages"))
+    rejected_urls = _dedupe_text(_as_list(diagnostics.get("rejected_urls")))
     evidence_quality = _as_text(diagnostics.get("evidence_quality")) or _as_text(
         payload.get("answer_quality")
     )
@@ -234,16 +239,27 @@ def _project_from_canonical_evidence(value: Any) -> dict[str, Any]:
         "evidence_status": evidence_status,
         "candidate_urls": candidate_urls,
         "fetched_urls": fetched_urls,
+        "rejected_urls": rejected_urls,
         "evidence_quality": evidence_quality,
         "answer_source": answer_source,
         "web_research_failure_kind": failure_kind,
         "web_research_failure_layer": _web_research_failure_layer(failure_kind),
+        "web_research_relevance_profile": _as_text(
+            diagnostics.get("relevance_profile")
+        ),
+        "web_research_relevance_rejection_count": diagnostics.get(
+            "relevance_rejection_count"
+        ),
         "web_research_provider_disable_reason": provider_disable_reason,
     }
     return {key: value for key, value in projected.items() if value not in (None, [])}
 
 
-def _project_from_existing_fields(source: Mapping[str, Any]) -> dict[str, Any]:
+def _project_from_existing_fields(
+    source: Mapping[str, Any],
+    *,
+    allow_generic_failure_kind: bool = False,
+) -> dict[str, Any]:
     payload = _as_dict(source)
     projected = {
         "web_research_pipeline_id": _as_text(
@@ -254,17 +270,27 @@ def _project_from_existing_fields(source: Mapping[str, Any]) -> dict[str, Any]:
         "evidence_status": _as_text(payload.get("evidence_status")),
         "candidate_urls": _dedupe_text(_as_list(payload.get("candidate_urls"))),
         "fetched_urls": _dedupe_text(_as_list(payload.get("fetched_urls"))),
+        "rejected_urls": _dedupe_text(_as_list(payload.get("rejected_urls"))),
         "evidence_quality": _as_text(payload.get("evidence_quality")),
         "answer_source": _as_text(payload.get("answer_source")),
         "web_research_failure_kind": _as_text(
             payload.get("web_research_failure_kind")
             or payload.get("web_research_runtime_failure_kind")
+            or (payload.get("failure_kind") if allow_generic_failure_kind else None)
         ),
         "web_research_provider_disable_reason": (
             normalize_web_research_provider_reason(
                 payload.get("web_research_provider_disable_reason")
                 or payload.get("provider_disable_reason")
             )
+        ),
+        "web_research_relevance_profile": _as_text(
+            payload.get("web_research_relevance_profile")
+            or payload.get("relevance_profile")
+        ),
+        "web_research_relevance_rejection_count": payload.get(
+            "web_research_relevance_rejection_count",
+            payload.get("relevance_rejection_count"),
         ),
     }
     if projected["web_research_failure_kind"]:
@@ -364,7 +390,10 @@ def _find_canonical_web_research_projection(
 
     for payload in metadata_payloads:
         for key in _WEB_RESEARCH_DIAGNOSTICS_CONTAINER_KEYS:
-            projected = _project_from_existing_fields(_as_dict(payload.get(key)))
+            projected = _project_from_existing_fields(
+                _as_dict(payload.get(key)),
+                allow_generic_failure_kind=True,
+            )
             if projected:
                 return projected
 
@@ -418,6 +447,64 @@ def _fetch_answer_quality(payload: dict[str, Any]) -> str:
     return "none"
 
 
+def _fetch_rejected_urls(summary_payload: dict[str, Any]) -> list[str]:
+    urls: list[Any] = []
+    urls.extend(_as_list(summary_payload.get("rejected_urls")))
+    evidence = _as_dict(summary_payload.get("web_research_evidence"))
+    diagnostics = _as_dict(evidence.get("diagnostics"))
+    urls.extend(_as_list(diagnostics.get("rejected_urls")))
+    for raw_page in _as_list(evidence.get("fetched_pages")):
+        page = _as_dict(raw_page)
+        if (
+            page.get("failure_kind") == "low_query_relevance"
+            or page.get("relevance_status") == "low_relevance"
+        ):
+            urls.append(page.get("url"))
+    return _dedupe_text(urls)
+
+
+def _fetch_relevance_profile(summary_payload: dict[str, Any]) -> str | None:
+    evidence = _as_dict(summary_payload.get("web_research_evidence"))
+    diagnostics = _as_dict(evidence.get("diagnostics"))
+    for candidate in (
+        summary_payload.get("relevance_profile"),
+        diagnostics.get("relevance_profile"),
+    ):
+        text = _as_text(candidate)
+        if text:
+            return text
+    for raw_page in _as_list(evidence.get("fetched_pages")):
+        text = _as_text(_as_dict(raw_page).get("relevance_profile"))
+        if text:
+            return text
+    return None
+
+
+def _fetch_unaccepted_failure_kind(summary_payload: dict[str, Any]) -> str:
+    evidence = _as_dict(summary_payload.get("web_research_evidence"))
+    diagnostics = _as_dict(evidence.get("diagnostics"))
+    for candidate in (
+        summary_payload.get("relevance_reason"),
+        summary_payload.get("failure_kind"),
+        diagnostics.get("failure_kind"),
+        evidence.get("failure_kind"),
+    ):
+        text = _as_text(candidate)
+        if text:
+            return text
+    for raw_page in _as_list(evidence.get("fetched_pages")):
+        page = _as_dict(raw_page)
+        for candidate in (page.get("relevance_reason"), page.get("failure_kind")):
+            text = _as_text(candidate)
+            if text:
+                return text
+        if page.get("relevance_status") == "low_relevance":
+            return "low_query_relevance"
+    if _fetch_rejected_urls(summary_payload):
+        return "low_query_relevance"
+    return "no_answer_quality_evidence"
+
+
 def _project_from_tool_results(
     *,
     tool_results: list[Any] | None,
@@ -425,11 +512,13 @@ def _project_from_tool_results(
 ) -> dict[str, Any]:
     candidate_urls = _urls_from_intent_metadata(intent_plan)
     fetched_urls: list[str] = []
+    rejected_urls: list[str] = []
     search_provider: str | None = None
     fetch_provider: str | None = None
     search_status: str | None = None
     search_failure: str | None = None
     fetch_failure: str | None = None
+    relevance_profile: str | None = None
     evidence_quality = "none"
     saw_web_search = False
     saw_fetch = False
@@ -466,6 +555,15 @@ def _project_from_tool_results(
             fetch_provider = "builtin-fetch-url"
             summary = _summary_payload(result)
             if bool(result.get("success")) and summary.get("ok") is not False:
+                if not _fetch_url_payload_is_accepted_for_web_research(summary):
+                    fetch_failure = _fetch_unaccepted_failure_kind(summary)
+                    rejected_urls = _dedupe_text(
+                        [*rejected_urls, *_fetch_rejected_urls(summary)]
+                    )
+                    relevance_profile = relevance_profile or _fetch_relevance_profile(
+                        summary
+                    )
+                    continue
                 url = _fetch_url_from_payload(result)
                 if url and url not in fetched_urls:
                     fetched_urls.append(url)
@@ -515,6 +613,9 @@ def _project_from_tool_results(
         "answer_source": _canonical_answer_source(evidence_quality),
         "web_research_failure_kind": failure_kind,
         "web_research_failure_layer": _web_research_failure_layer(failure_kind),
+        "rejected_urls": rejected_urls,
+        "web_research_relevance_profile": relevance_profile,
+        "web_research_relevance_rejection_count": len(rejected_urls),
     }
     return {key: value for key, value in projected.items() if value not in (None, [])}
 

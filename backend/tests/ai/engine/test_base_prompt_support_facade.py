@@ -1,3 +1,8 @@
+"""
+Test type: structural
+Scope: base prompt support facade exports and mixin composition.
+"""
+
 from __future__ import annotations
 
 import app.ai.engine.base_helpers as base_helpers
@@ -49,8 +54,8 @@ def test_base_prompt_support_facade_bindings_match_helpers() -> None:
         is base_helpers.tool_call_operation_name
     )
     assert (
-        BaseEnginePromptSupport._truncate_tool_calls_after_navigation
-        is base_helpers.truncate_tool_calls_after_navigation
+        BaseEnginePromptSupport._keep_tool_calls_for_round
+        is base_helpers.keep_tool_calls_for_round
     )
     assert BaseEnginePromptSupport._truncate_preview is base_helpers.truncate_preview
     assert (

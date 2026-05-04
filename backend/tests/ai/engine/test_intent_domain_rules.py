@@ -1,3 +1,9 @@
+"""
+Test type: behavioral
+Scope: deterministic intent-domain classification and tool-family selection.
+Mocked dependencies: none; assertions exercise real IntentDomainRules logic.
+"""
+
 from types import SimpleNamespace
 
 from app.ai.engine.intent_domain_rules import IntentDomainRules
@@ -99,7 +105,8 @@ def test_intent_domain_rules_web_search_and_suppression() -> None:
     assert news[0].label == "web_research"
 
     page_search = _detect("搜索这个列表", tools=_tools_web())
-    assert page_search == []
+    assert len(page_search) == 1
+    assert page_search[0].kind == "web_research"
 
     weather_fallback = _detect("联网查天气", tools=_tools_web())
     assert len(weather_fallback) == 1

@@ -90,10 +90,17 @@ def _build_ai_conversation_compact_diagnostics(snapshot: dict) -> dict:
         "evidence_status": diagnostics.get("evidence_status"),
         "candidate_urls": _normalize_cli_string_list(diagnostics.get("candidate_urls")),
         "fetched_urls": _normalize_cli_string_list(diagnostics.get("fetched_urls")),
+        "rejected_urls": _normalize_cli_string_list(diagnostics.get("rejected_urls")),
         "evidence_quality": diagnostics.get("evidence_quality"),
         "answer_source": diagnostics.get("answer_source"),
         "web_research_failure_kind": diagnostics.get("web_research_failure_kind"),
         "web_research_failure_layer": diagnostics.get("web_research_failure_layer"),
+        "web_research_relevance_profile": diagnostics.get(
+            "web_research_relevance_profile"
+        ),
+        "web_research_relevance_rejection_count": diagnostics.get(
+            "web_research_relevance_rejection_count"
+        ),
         "web_research_provider_disable_reason": diagnostics.get(
             "web_research_provider_disable_reason"
         ),
@@ -139,10 +146,22 @@ def _render_ai_conversation_diagnostics_text(snapshot: dict) -> str:
         )
     candidate_urls = _normalize_cli_string_list(compact.get("candidate_urls"))
     fetched_urls = _normalize_cli_string_list(compact.get("fetched_urls"))
+    rejected_urls = _normalize_cli_string_list(compact.get("rejected_urls"))
     if candidate_urls:
         lines.append("web_research_candidate_urls={}".format(", ".join(candidate_urls)))
     if fetched_urls:
         lines.append("web_research_fetched_urls={}".format(", ".join(fetched_urls)))
+    if rejected_urls:
+        lines.append("web_research_rejected_urls={}".format(", ".join(rejected_urls)))
+    if compact.get("web_research_relevance_profile") or compact.get(
+        "web_research_relevance_rejection_count"
+    ):
+        lines.append(
+            "web_research_relevance profile={profile} rejected={rejected}".format(
+                profile=compact.get("web_research_relevance_profile") or "-",
+                rejected=compact.get("web_research_relevance_rejection_count") or 0,
+            )
+        )
     if compact.get("web_research_failure_kind"):
         lines.append(
             "web_research_failure kind={kind} layer={layer}".format(

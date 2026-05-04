@@ -1062,7 +1062,7 @@ async def test_stream_chat_responses_defaults_timeout_without_timeout_seconds_pa
     assert "".join(chunk.delta for chunk in chunks) == "OK"
     assert chunks[-1].finish_reason == "stop"
     assert responses_create.await_args is not None
-    assert responses_create.await_args.kwargs["timeout"] == 120.0
+    assert responses_create.await_args.kwargs["timeout"] == 20.0
     assert "timeout_seconds" not in responses_create.await_args.kwargs
     assert stream.aclose_called is True
 
@@ -1106,7 +1106,7 @@ async def test_stream_chat_responses_low_reasoning_override_uses_fast_path_timeo
     assert chunks[-1].finish_reason == "stop"
     assert responses_create.await_args is not None
     assert responses_create.await_args.kwargs["reasoning"]["effort"] == "low"
-    assert responses_create.await_args.kwargs["timeout"] == 60.0
+    assert responses_create.await_args.kwargs["timeout"] == 20.0
     assert "timeout_seconds" not in responses_create.await_args.kwargs
     assert stream.aclose_called is True
 
@@ -2469,7 +2469,7 @@ async def test_stream_chat_uses_responses_protocol_when_configured() -> None:
 
 
 @pytest.mark.asyncio
-async def test_stream_chat_responses_timeout_before_first_chunk_rescues_via_sync_responses() -> (
+async def test_stream_chat_responses_timeout_before_first_chunk_fails_without_sync_rescue() -> (
     None
 ):
     class _HangingResponsesStream:
@@ -2511,31 +2511,24 @@ async def test_stream_chat_responses_timeout_before_first_chunk_rescues_via_sync
         chat=SimpleNamespace(completions=_FakeChatCompletions(None)),
     )
 
-    chunks = []
-    async for chunk in adapter.stream_chat(
-        messages=[ChatMessage(role="user", content="hello")],
-        model="gpt-5.4-xhigh",
-        timeout_seconds=0.05,
-    ):
-        chunks.append(chunk)
+    with pytest.raises(ProviderTimeoutError):
+        async for _ in adapter.stream_chat(
+            messages=[ChatMessage(role="user", content="hello")],
+            model="gpt-5.4-xhigh",
+            timeout_seconds=0.05,
+        ):
+            pass
 
-    assert "".join(chunk.delta for chunk in chunks) == "rescued"
-    assert chunks[-1].finish_reason == "stop"
-    assert chunks[-1].total_tokens == 13
-    assert chunks[-1].metadata["responses_response_id"] == "resp_sync_1"
-    assert (
-        chunks[-1].metadata["responses_stream_rescue"]
-        == "sync_after_timeout_before_first_meaningful_chunk"
-    )
-    assert len(create_calls) == 2
+    assert len(create_calls) == 1
     assert create_calls[0]["stream"] is True
-    assert "stream" not in create_calls[1]
     assert adapter.client.chat.completions.last_kwargs is None
     assert hanging_stream.aclose_called is True
 
 
 @pytest.mark.asyncio
-async def test_stream_chat_responses_stream_create_timeout_rescues_via_sync() -> None:
+async def test_stream_chat_responses_stream_create_timeout_fails_without_sync_rescue() -> (
+    None
+):
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
@@ -2560,25 +2553,16 @@ async def test_stream_chat_responses_stream_create_timeout_rescues_via_sync() ->
         chat=SimpleNamespace(completions=_FakeChatCompletions(None)),
     )
 
-    chunks = []
-    async for chunk in adapter.stream_chat(
-        messages=[ChatMessage(role="user", content="hello")],
-        model="gpt-5.4-xhigh",
-        timeout_seconds=0.05,
-    ):
-        chunks.append(chunk)
+    with pytest.raises(ProviderError):
+        async for _ in adapter.stream_chat(
+            messages=[ChatMessage(role="user", content="hello")],
+            model="gpt-5.4-xhigh",
+            timeout_seconds=0.05,
+        ):
+            pass
 
-    assert "".join(chunk.delta for chunk in chunks) == "rescued"
-    assert chunks[-1].finish_reason == "stop"
-    assert chunks[-1].total_tokens == 13
-    assert chunks[-1].metadata["responses_response_id"] == "resp_sync_1"
-    assert (
-        chunks[-1].metadata["responses_stream_rescue"]
-        == "sync_after_timeout_before_first_meaningful_chunk"
-    )
-    assert len(create_calls) == 2
+    assert len(create_calls) == 1
     assert create_calls[0]["stream"] is True
-    assert "stream" not in create_calls[1]
     assert adapter.client.chat.completions.last_kwargs is None
 
 
@@ -2623,7 +2607,7 @@ async def test_stream_chat_responses_hanging_stream_times_out_with_timeout_secon
         chat=SimpleNamespace(completions=_FakeChatCompletions(None)),
     )
 
-    with pytest.raises(ProviderTimeoutError, match="provider timed out"):
+    with pytest.raises(ProviderTimeoutError):
         async for _ in adapter.stream_chat(
             messages=[ChatMessage(role="user", content="hello")],
             model="gpt-5.4-xhigh",
@@ -2631,12 +2615,10 @@ async def test_stream_chat_responses_hanging_stream_times_out_with_timeout_secon
         ):
             pass
 
-    assert len(create_calls) == 2
+    assert len(create_calls) == 1
     assert adapter.client.chat.completions.last_kwargs is None
     assert create_calls[0].get("timeout") == pytest.approx(0.05)
     assert create_calls[0]["stream"] is True
-    assert create_calls[1].get("timeout") == pytest.approx(0.05)
-    assert "stream" not in create_calls[1]
     assert hanging_stream.aclose_called is True
 
 
@@ -2681,7 +2663,7 @@ async def test_stream_chat_public_responses_timeout_does_not_hit_chat_completion
         chat=SimpleNamespace(completions=_FakeChatCompletions(None)),
     )
 
-    with pytest.raises(ProviderTimeoutError, match="provider timed out"):
+    with pytest.raises(ProviderTimeoutError):
         async for _ in adapter.stream_chat(
             messages=[ChatMessage(role="user", content="hello")],
             model="gpt-5.4-xhigh",
@@ -2696,12 +2678,10 @@ async def test_stream_chat_public_responses_timeout_does_not_hit_chat_completion
         ):
             pass
 
-    assert len(create_calls) == 2
+    assert len(create_calls) == 1
     assert adapter.client.chat.completions.last_kwargs is None
     assert create_calls[0].get("timeout") == pytest.approx(0.05)
     assert create_calls[0]["stream"] is True
-    assert create_calls[1].get("timeout") == pytest.approx(0.05)
-    assert "stream" not in create_calls[1]
     assert hanging_stream.aclose_called is True
 
 

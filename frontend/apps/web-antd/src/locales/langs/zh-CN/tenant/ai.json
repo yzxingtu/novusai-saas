@@ -639,7 +639,14 @@
       "tool_failure": "工具失败",
       "orchestration_failure": "编排失败",
       "budget_exit": "预算退出",
-      "server_interrupt": "服务中断"
+      "server_interrupt": "服务中断",
+      "web_research_runtime": "联网研究失败",
+      "low_query_relevance": "来源相关性不足",
+      "blocked_url": "来源无法访问",
+      "fetch_failed": "抓取失败",
+      "fetch_not_attempted": "未执行抓取",
+      "no_answer_quality_evidence": "缺少可作答证据",
+      "search_failed": "搜索失败"
     },
     "budgetStatusOptions": {
       "ok": "正常",

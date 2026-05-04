@@ -176,7 +176,7 @@ async def test_conversation_engine_execute_hides_generic_exception_in_production
 
     assert result.success is False
     assert "secret provider stack" not in (result.error or "")
-    assert result.error == "服务器内部错误"
+    assert result.error == "服务器内部错误 [trace_id=trace-conversation-prod]"
     assert result.diagnostics is not None
 
 

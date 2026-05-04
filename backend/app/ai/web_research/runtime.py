@@ -22,6 +22,7 @@ from app.ai.web_research.normalization import (
     build_web_research_evidence,
     normalize_page_evidence,
 )
+from app.ai.web_research.relevance import apply_page_relevance_gate
 from app.ai.web_research.routing import WebResearchProviderRouter
 from app.ai.web_research.selection import (
     FetchCandidateSelection,
@@ -74,6 +75,8 @@ class WebResearchRuntime:
             require_fetch=run_options.require_fetch,
         )
         fetched_pages = await self._fetch_candidates(
+            query,
+            search_results,
             candidate_selection,
             run_options,
             fetch_provider,
@@ -136,6 +139,8 @@ class WebResearchRuntime:
 
     async def _fetch_candidates(
         self,
+        query: str,
+        search_results: SearchResultSet,
         candidate_selection: FetchCandidateSelection,
         options: WebResearchRunOptions,
         fetch_provider: FetchProvider,
@@ -144,6 +149,9 @@ class WebResearchRuntime:
         if not candidate_selection.selected_urls:
             return pages
 
+        search_items_by_url = {
+            item.url.strip(): item for item in search_results.items if item.url.strip()
+        }
         for url in candidate_selection.selected_urls:
             try:
                 page = await fetch_provider.fetch(
@@ -162,7 +170,14 @@ class WebResearchRuntime:
                     failure_kind="fetch_exception",
                     raw={"error": str(exc)},
                 )
+            page = apply_page_relevance_gate(
+                query=query,
+                page=page,
+                search_item=search_items_by_url.get(url),
+            )
             pages.append(page)
+            if page.status == "completed" and page.answer_quality != "none":
+                break
         return pages
 
 

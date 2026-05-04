@@ -1,3 +1,9 @@
+"""
+Test type: behavioral
+Scope: stream runtime contract assembly and terminal state behavior.
+Mocked dependencies: local callbacks only; runtime contract logic runs real.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -44,8 +50,8 @@ def _build_runtime_kwargs() -> dict[str, Any]:
 class _ExplicitHooks:
     calls: list[str]
 
-    def truncate_tool_calls_after_navigation(self, tool_calls):
-        self.calls.append("truncate")
+    def keep_tool_calls_for_round(self, tool_calls):
+        self.calls.append("keep")
         return list(tool_calls), False
 
     def should_retry_tool_contract_breach(self, **kwargs):
@@ -92,7 +98,7 @@ class _BaseEngineStub(BaseEngine):
         raise NotImplementedError
 
     @classmethod
-    def _truncate_tool_calls_after_navigation(cls, _tool_calls):
+    def _keep_tool_calls_for_round(cls, _tool_calls):
         return [{"id": "base"}], True
 
     @classmethod
@@ -127,12 +133,14 @@ class _BaseEngineStub(BaseEngine):
 
 
 @pytest.mark.asyncio
-async def test_build_stream_runtime_contract_prefers_explicit_hooks_over_legacy_names() -> None:
+async def test_build_stream_runtime_contract_prefers_explicit_hooks_over_legacy_names() -> (
+    None
+):
     hook_calls: list[str] = []
     engine = SimpleNamespace(
         stream_runtime_hooks=_ExplicitHooks(calls=hook_calls),
-        _should_retry_tool_contract_breach=lambda **kwargs: (
-            (_ for _ in ()).throw(AssertionError(f"unexpected legacy path: {kwargs}"))
+        _should_retry_tool_contract_breach=lambda **kwargs: (_ for _ in ()).throw(
+            AssertionError(f"unexpected legacy path: {kwargs}")
         ),
     )
 
@@ -161,7 +169,9 @@ async def test_build_stream_runtime_contract_prefers_explicit_hooks_over_legacy_
 
 
 @pytest.mark.asyncio
-async def test_build_stream_runtime_contract_uses_base_engine_bridge_before_legacy_duck_typing() -> None:
+async def test_build_stream_runtime_contract_uses_base_engine_bridge_before_legacy_duck_typing() -> (
+    None
+):
     engine = _BaseEngineStub()
     engine.stream_runtime_hooks = BaseEngineStreamRuntimeHooks(
         engine=engine,
@@ -171,7 +181,7 @@ async def test_build_stream_runtime_contract_uses_base_engine_bridge_before_lega
     contract = build_stream_runtime_contract(engine)
 
     retry = contract.should_retry_tool_contract_breach(
-        response=None,
+        response=ChatResponse(message=ChatMessage(role="assistant", content="retry")),
         current_policy=ToolUsePolicy(),
         tools=[],
         input_variables=None,
@@ -184,12 +194,14 @@ async def test_build_stream_runtime_contract_uses_base_engine_bridge_before_lega
         input_variables=None,
     )
     restricted = contract.restrict_tools_to_names(["a", "b"], ["a"])
-    contract.log_tool_contract_diagnostics(breach_type="tool_contract", retry_result="base")
+    contract.log_tool_contract_diagnostics(
+        breach_type="tool_contract", retry_result="base"
+    )
 
     partial = await contract.finalize_partial_output(**_build_runtime_kwargs())
     completed = await contract.finalize_completed_output(**_build_runtime_kwargs())
 
-    assert contract.truncate_tool_calls_after_navigation([{"id": "x"}]) == (
+    assert contract.keep_tool_calls_for_round([{"id": "x"}]) == (
         [{"id": "base"}],
         True,
     )
@@ -211,7 +223,7 @@ async def test_build_stream_runtime_contract_uses_default_helpers_without_implic
 ):
     class _ImplicitHelperStub:
         @staticmethod
-        def _truncate_tool_calls_after_navigation(tool_calls):
+        def _keep_tool_calls_for_round(tool_calls):
             return list(tool_calls), False
 
         @staticmethod
@@ -253,13 +265,15 @@ async def test_build_stream_runtime_contract_uses_default_helpers_without_implic
 
     assert partial == ("ok", 7, 7)
     assert completed == ("ok", 7, 7)
-    assert contract.truncate_tool_calls_after_navigation([{"id": "x"}]) == (
+    assert contract.keep_tool_calls_for_round([{"id": "x"}]) == (
         [{"id": "x"}],
         False,
     )
 
 
-def test_build_stream_runtime_contract_uses_default_helpers_when_engine_is_empty() -> None:
+def test_build_stream_runtime_contract_uses_default_helpers_when_engine_is_empty() -> (
+    None
+):
     class _EmptyEngine:
         pass
 

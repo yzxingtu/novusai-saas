@@ -345,19 +345,21 @@ async def test_runtime_uses_builtin_candidate_urls_for_fetch_calls() -> None:
             success=True,
             output=(
                 f"Content from {url}:\n"
-                "Title: Primary leaderboard\n\n"
-                "Fetched model ranking body."
+                "Title: Primary LLM leaderboard\n\n"
+                "2026 model ranking body: 1. Gemini score 74; "
+                "2. GPT score 73; 3. Claude score 71; "
+                "4. DeepSeek score 68."
             ),
-            summary="Primary leaderboard",
+            summary="Primary LLM leaderboard",
             summary_payload={
                 "fetch_url": True,
                 "ok": True,
                 "error_type": "",
                 "requested_url": url,
                 "final_url": url,
-                "title": "Primary leaderboard",
+                "title": "Primary LLM leaderboard",
                 "description": None,
-                "summary": "Primary leaderboard",
+                "summary": "Primary LLM leaderboard",
             },
         )
 
@@ -388,5 +390,5 @@ async def test_runtime_uses_builtin_candidate_urls_for_fetch_calls() -> None:
         "https://example.com/secondary",
     ]
     assert evidence.diagnostics.fetched_urls == ["https://example.com/leaderboard"]
-    assert evidence.fetched_pages[0].body_text == "Fetched model ranking body."
+    assert "Gemini score 74" in evidence.fetched_pages[0].body_text
     assert evidence.citations[0].url == "https://example.com/leaderboard"

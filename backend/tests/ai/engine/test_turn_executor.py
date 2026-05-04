@@ -23,10 +23,12 @@ from app.ai.engine.recovery_web_research_gate import (
     WEB_RESEARCH_TERMINAL_NO_RESULT,
     WEB_RESEARCH_TERMINAL_SEARCH_UNAVAILABLE,
 )
+from app.ai.engine.turn_diagnostics import TurnDiagnostics
 from app.ai.engine.turn_executor import (
     ModelRoundResult,
     ToolBatchResult,
     TurnExecutor,
+    should_return_partial_for_unaccepted_web_research_evidence,
 )
 from app.ai.engine.types import IntentPlan, ToolUsePolicy
 from app.ai.tools.types import ToolDefinition, ToolResult
@@ -241,9 +243,65 @@ def _completed_web_research_evidence() -> WebResearchEvidence:
             evidence_status="completed",
             candidate_urls=["https://example.com/ranking"],
             fetched_urls=["https://example.com/ranking"],
+            rejected_urls=[],
             evidence_quality="body",
             answer_source="fetched_body",
             provider_disable_reason="optional_provider_skipped:builtin_default",
+        ),
+    )
+
+
+def _low_relevance_web_research_evidence() -> WebResearchEvidence:
+    return WebResearchEvidence(
+        query="查一下大模型排行榜 2026 水平排行",
+        status="partial",
+        search_provider="builtin:web_search",
+        fetch_provider="builtin:fetch_url",
+        search_results=[
+            SearchEvidenceItem(
+                title="AI 投毒与 GEO 黑产",
+                url="https://baijiahao.baidu.com/s?id=1860091565873698107",
+                snippet="讨论 AI 投毒、GEO、OpenClaw 与 token 调用量。",
+                rank=1,
+                provider="builtin:web_search",
+            )
+        ],
+        fetched_pages=[
+            PageEvidence(
+                url="https://baijiahao.baidu.com/s?id=1860091565873698107",
+                status="skipped",
+                title="AI 投毒与 GEO 黑产",
+                body_text="3·15 晚会曝光 AI 投毒黑产，OpenClaw 带来安全挑战。",
+                summary="AI 投毒、GEO、OpenClaw、token 调用量。",
+                description="不是大模型排行榜。",
+                answer_quality="none",
+                provider="builtin:fetch_url",
+                failure_kind="low_query_relevance",
+                relevance_status="rejected",
+                relevance_score=0.1,
+                relevance_profile="llm_leaderboard",
+                relevance_reason="low_query_relevance",
+                relevance_matched_terms=[],
+                relevance_required_terms=["leaderboard", "model"],
+            )
+        ],
+        citations=[],
+        answer_quality="none",
+        failure_kind="low_query_relevance",
+        diagnostics=WebResearchDiagnostics(
+            pipeline_id="test-pipeline-low-relevance",
+            search_provider="builtin:web_search",
+            fetch_provider="builtin:fetch_url",
+            evidence_status="partial",
+            candidate_urls=["https://baijiahao.baidu.com/s?id=1860091565873698107"],
+            fetched_urls=[],
+            rejected_urls=["https://baijiahao.baidu.com/s?id=1860091565873698107"],
+            evidence_quality="none",
+            answer_source="none",
+            failure_kind="low_query_relevance",
+            provider_disable_reason="optional_provider_skipped:builtin_default",
+            relevance_profile="llm_leaderboard",
+            relevance_rejection_count=1,
         ),
     )
 
@@ -255,6 +313,15 @@ class _FakeWebResearchRuntime:
     async def run(self, query, options):
         self.run_calls.append({"query": query, "options": options})
         return _completed_web_research_evidence()
+
+
+class _LowRelevanceWebResearchRuntime:
+    def __init__(self, **_kwargs) -> None:
+        self.run_calls: list[dict[str, object]] = []
+
+    async def run(self, query, options):
+        self.run_calls.append({"query": query, "options": options})
+        return _low_relevance_web_research_evidence()
 
 
 @pytest.mark.asyncio
@@ -688,6 +755,153 @@ async def test_turn_executor_runs_platform_web_research_for_follow_on_web_intent
 
 
 @pytest.mark.asyncio
+# Test type: behavioral; regression guard for BUG-2026-05-05-2285. The WebResearch
+# runtime is fixture-backed, while TurnExecutor state transitions and final output
+# policy run real.
+async def test_turn_executor_marks_low_relevance_platform_web_research_as_partial() -> (
+    None
+):
+    tools = [
+        ToolDefinition(name="web_search", description="Search"),
+        ToolDefinition(name="fetch_url", description="Fetch"),
+    ]
+    intents = [
+        _build_intent(
+            intent_id="intent-web",
+            kind="web_research",
+            family="web_research",
+            allowed_tool_names=["web_search", "fetch_url"],
+        )
+    ]
+    intents[0].metadata = {
+        "web_research_runtime": "platform",
+        "search_provider": "builtin_web_search",
+        "fetch_provider": "builtin_fetch_url",
+    }
+    prep = _build_prep(
+        tools=tools,
+        intents=intents,
+        tool_use_policy=ToolUsePolicy(
+            family="web_research",
+            mode="required",
+            allowed_tool_names=["web_search", "fetch_url"],
+            retry_on_contract_breach=False,
+            reason="web_research:builtin_pipeline",
+        ),
+    )
+    state = ExecutionStateMachine.from_prepared_execution(prep)
+    io = _FakeIOAdapter(model_rounds=[])
+
+    with patch(
+        "app.ai.engine.turn_executor.WebResearchRuntime",
+        _LowRelevanceWebResearchRuntime,
+    ):
+        result = await TurnExecutor.run(
+            state=state,
+            io=io,
+            prep=prep,
+            request=SimpleNamespace(
+                input_variables={},
+                conversation_id=2285,
+                tenant_id=0,
+                agent_id=59,
+            ),
+            agent=SimpleNamespace(id=59),
+        )
+
+    assert result.partial is True
+    assert result.completion_reason == "low_query_relevance"
+    assert result.final_output_source == "partial_output"
+    assert "足够相关、可核实" in result.output
+    assert state.current_state == "partial_exit"
+    assert state.intent_plan[0].status == "failed"
+    assert state.intent_plan[0].metadata["web_research_evidence_unaccepted"] is True
+    assert state.preparation_diagnostics["web_research_evidence_unaccepted"] is True
+    assert state.preparation_diagnostics["answer_source"] == "none"
+    assert state.preparation_diagnostics["rejected_urls"] == [
+        "https://baijiahao.baidu.com/s?id=1860091565873698107"
+    ]
+    assert state.recovery_history[-1].reason == "low_query_relevance"
+    assert io.finalize_completed_calls == []
+    assert io.call_history == []
+
+
+def test_turn_diagnostics_downgrades_unaccepted_web_research_even_when_state_completed() -> (
+    None
+):
+    intent = _build_intent(
+        intent_id="intent-web",
+        kind="web_research",
+        family="web_research",
+        allowed_tool_names=["web_search", "fetch_url"],
+    )
+    intent.status = "failed"
+    diagnostics = TurnDiagnostics.build_payload(
+        execution_path="normal",
+        budget=None,
+        intents=[intent],
+        recovery_history=[],
+        provider_events=[],
+        provider_failure_kind="none",
+        candidate_tool_names=["web_search", "fetch_url"],
+        all_tool_names=["web_search", "fetch_url"],
+        preparation_diagnostics={
+            "web_research_evidence_unaccepted": True,
+            "evidence_status": "partial",
+            "answer_source": "none",
+            "web_research_failure_kind": "low_query_relevance",
+        },
+        current_state="completed",
+        state_history=["prepared", "completed"],
+        turn_events=[],
+    )
+
+    assert diagnostics["conversation_outcome"] == "partial"
+    assert diagnostics["web_research_evidence_unaccepted"] is True
+    assert diagnostics["web_research_failure_kind"] == "low_query_relevance"
+
+
+def test_unaccepted_web_research_detects_blocked_fetch_url_tool_failure() -> None:
+    tools = [
+        ToolDefinition(name="web_search", description="Search"),
+        ToolDefinition(name="fetch_url", description="Fetch"),
+    ]
+    prep = _build_prep(
+        tools=tools,
+        intents=[
+            _build_intent(
+                intent_id="intent-web",
+                kind="web_research",
+                family="web_research",
+                allowed_tool_names=["web_search", "fetch_url"],
+            )
+        ],
+        tool_use_policy=ToolUsePolicy(
+            family="web_research",
+            mode="required",
+            allowed_tool_names=["web_search", "fetch_url"],
+            retry_on_contract_breach=False,
+            reason="web_research",
+        ),
+    )
+    state = ExecutionStateMachine.from_prepared_execution(prep)
+    reason = should_return_partial_for_unaccepted_web_research_evidence(
+        state=state,
+        tool_results=[
+            ToolResult(
+                tool_call_id="call_fetch",
+                name="fetch_url",
+                success=False,
+                error="blocked",
+                error_type="blocked_url",
+            )
+        ],
+    )
+
+    assert reason == "blocked_url"
+
+
+@pytest.mark.asyncio
 async def test_turn_executor_retries_web_research_with_fetch_url_after_search_only_round() -> (
     None
 ):
@@ -1079,9 +1293,10 @@ async def test_turn_executor_allows_final_follow_up_after_fetch_candidates_exhau
         agent=SimpleNamespace(id=1),
     )
 
-    assert result.partial is False
+    assert result.partial is True
     assert result.output == build_untrusted_final_output_fallback()
-    assert result.final_output_source == "tool_evidence_completed"
+    assert result.completion_reason == "candidate_urls_exhausted"
+    assert result.final_output_source == "partial_output"
     assert state.preparation_diagnostics["stripped_untrusted_final_output"] is True
     assert not io.finalize_calls
     assert state.provider_failure_kind == "none"
@@ -1870,10 +2085,12 @@ async def test_turn_executor_completes_web_search_no_results_without_auto_fetch(
     assert result.output == build_untrusted_final_output_fallback(
         auto_fetch_gate_reason="search_no_results_completed"
     )
-    assert result.final_output_source == "tool_evidence_completed"
+    assert result.partial is True
+    assert result.completion_reason == "search_no_results_completed"
+    assert result.final_output_source == "partial_output"
     assert state.preparation_diagnostics["stripped_untrusted_final_output"] is True
     assert state.preparation_diagnostics["post_tool_completion_state"] == (
-        "completed_no_result"
+        "partial_output"
     )
     assert (
         state.preparation_diagnostics[WEB_RESEARCH_TERMINAL_CONTRACT_KEY]
@@ -1889,11 +2106,12 @@ async def test_turn_executor_completes_web_search_no_results_without_auto_fetch(
         and event.data.get("round_kind") == "post_tool_follow_up_retry"
         for event in state.turn_events
     )
-    assert state.intent_plan[0].status == "completed"
+    assert state.intent_plan[0].status == "failed"
     assert state.intent_plan[0].metadata.get("requires_fetch_url") is None
     assert state.intent_plan[0].metadata["auto_fetch_gate_reason"] == (
         "search_no_results_completed"
     )
+    assert state.intent_plan[0].metadata["web_research_evidence_unaccepted"] is True
 
 
 @pytest.mark.asyncio
@@ -1969,21 +2187,22 @@ async def test_turn_executor_does_not_promote_search_not_successful_tool_evidenc
     assert result.output == build_untrusted_final_output_fallback(
         auto_fetch_gate_reason="search_not_successful"
     )
-    assert result.final_output_source == "tool_evidence_completed"
+    assert result.partial is True
+    assert result.completion_reason == "search_not_successful"
+    assert result.final_output_source == "partial_output"
     assert state.preparation_diagnostics["auto_fetch_gate_reason"] == (
         "search_not_successful"
     )
     assert state.preparation_diagnostics["post_tool_completion_state"] == (
-        "search_not_successful"
+        "partial_output"
     )
     assert (
         state.preparation_diagnostics[WEB_RESEARCH_TERMINAL_CONTRACT_KEY]
         == WEB_RESEARCH_TERMINAL_SEARCH_UNAVAILABLE
     )
-    assert (
-        state.preparation_diagnostics["search_not_successful_untrusted_output"] is True
-    )
     assert state.preparation_diagnostics["stripped_untrusted_final_output"] is True
+    assert state.intent_plan[0].status == "failed"
+    assert state.intent_plan[0].metadata["web_research_evidence_unaccepted"] is True
 
 
 @pytest.mark.asyncio

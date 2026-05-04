@@ -14,6 +14,7 @@ from app.ai.web_research.evidence import (
     EvidenceStatus,
     PageEvidence,
     PageStatus,
+    RelevanceStatus,
     SearchEvidenceItem,
     SearchResultSet,
     WebResearchDiagnostics,
@@ -53,6 +54,12 @@ def normalize_page_evidence(
     provider: str,
     failure_kind: str | None = None,
     raw: Mapping[str, Any] | None = None,
+    relevance_status: RelevanceStatus = "unscored",
+    relevance_score: float = 0.0,
+    relevance_profile: str | None = None,
+    relevance_reason: str | None = None,
+    relevance_matched_terms: Sequence[str] | None = None,
+    relevance_required_terms: Sequence[str] | None = None,
 ) -> PageEvidence:
     return PageEvidence(
         url=url.strip(),
@@ -65,6 +72,12 @@ def normalize_page_evidence(
         provider=provider,
         failure_kind=failure_kind,
         raw=raw,
+        relevance_status=relevance_status,
+        relevance_score=float(relevance_score or 0.0),
+        relevance_profile=relevance_profile,
+        relevance_reason=relevance_reason,
+        relevance_matched_terms=list(relevance_matched_terms or []),
+        relevance_required_terms=list(relevance_required_terms or []),
     )
 
 
@@ -99,7 +112,22 @@ def build_web_research_evidence(
         status=status,
         require_fetch=require_fetch,
     )
-    fetched_urls = [page.url for page in pages if page.status == "completed"]
+    fetched_urls = [
+        page.url
+        for page in pages
+        if page.status == "completed" and page.answer_quality != "none"
+    ]
+    rejected_urls = [
+        page.url
+        for page in pages
+        if page.failure_kind == "low_query_relevance"
+        or page.relevance_status == "low_relevance"
+    ]
+    relevance_profiles = [
+        page.relevance_profile
+        for page in pages
+        if page.relevance_profile and page.relevance_profile != "generic"
+    ]
     diagnostics = WebResearchDiagnostics(
         pipeline_id=pipeline_id,
         search_provider=search_results.provider,
@@ -107,10 +135,13 @@ def build_web_research_evidence(
         evidence_status=status,
         candidate_urls=list(candidate_urls),
         fetched_urls=fetched_urls,
+        rejected_urls=rejected_urls,
         evidence_quality=quality,
         answer_source=answer_source_for_quality(quality),
         failure_kind=failure_kind,
         provider_disable_reason=provider_disable_reason,
+        relevance_profile=relevance_profiles[0] if relevance_profiles else None,
+        relevance_rejection_count=len(rejected_urls),
         raw=dict(raw_diagnostics or {}),
     )
     return WebResearchEvidence(
@@ -158,13 +189,11 @@ def determine_evidence_status(
 ) -> EvidenceStatus:
     if search_results.status == "failed" and not search_results.items:
         return "failed"
+    if answer_quality != "none":
+        return "completed" if search_results.status == "completed" else "partial"
     if answer_quality == "none":
         return "partial" if search_results.items else "failed"
-    if require_fetch and fetched_pages:
-        return "completed" if _all_pages_completed(fetched_pages) else "partial"
-    if require_fetch and not fetched_pages:
-        return "partial"
-    return "completed" if search_results.status == "completed" else "partial"
+    return "partial"
 
 
 def determine_failure_kind(
@@ -255,10 +284,6 @@ def _search_answer_quality(
     if allow_snippet_quality and snippet.strip():
         return "snippet"
     return "none"
-
-
-def _all_pages_completed(fetched_pages: Sequence[PageEvidence]) -> bool:
-    return all(page.status == "completed" for page in fetched_pages)
 
 
 __all__ = [

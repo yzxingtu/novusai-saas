@@ -2036,6 +2036,40 @@ def test_build_done_event_payload_uses_turn_flow_final_stage_status(
     assert payload["final_stage_status"] == expected_status
 
 
+def test_build_done_event_payload_does_not_default_partial_without_turn_flow_to_completed() -> (
+    None
+):
+    artifacts = stream_finalization_pipeline.StreamFinalizationArtifacts(
+        result=SimpleNamespace(
+            total_tokens=9,
+            duration_ms=12,
+            context_compacted=False,
+            memory_flush_triggered=False,
+            memory_recalled=False,
+            prune_stats=None,
+            rag_source_kinds=[],
+            turn_record={"turn_outcome": "partial"},
+            completion_reason="low_query_relevance",
+            partial=True,
+            interrupted=False,
+        ),
+        diagnostics_payload={},
+        response_metadata={},
+        resolved_protocol_path="responses",
+    )
+
+    payload = build_done_event_payload(
+        request=SimpleNamespace(conversation_id=56),
+        artifacts=artifacts,
+        on_complete_extra=None,
+    )
+
+    assert payload["turn_flow_complete"] is True
+    assert payload["completion_reason"] == "low_query_relevance"
+    assert payload["turn_outcome"] == "partial"
+    assert payload["final_stage_status"] == "error"
+
+
 def test_hydrate_artifacts_turn_flow_from_canonical_tool_calls_updates_done_payload() -> (
     None
 ):

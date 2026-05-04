@@ -156,6 +156,8 @@ class DefaultStreamRuntimeHooks:
         tools: list[Any],
         input_variables: dict[str, Any] | None,
     ) -> tuple[bool, ToolUsePolicy | None, str]:
+        if response is None:
+            return False, None, ""
         return _should_retry_tool_contract_breach_impl(
             response=response,
             current_policy=current_policy,
@@ -173,6 +175,8 @@ class DefaultStreamRuntimeHooks:
         input_variables: dict[str, Any] | None,
         continuation: Any,
     ) -> tuple[bool, ToolUsePolicy | None, str]:
+        if response is None:
+            return False, None, ""
         return _should_retry_web_research_contract_breach_impl(
             messages=messages,
             response=response,
@@ -296,6 +300,8 @@ class BaseEngineStreamRuntimeHooks:
         tools: list[Any],
         input_variables: dict[str, Any] | None,
     ) -> tuple[bool, ToolUsePolicy | None, str]:
+        if response is None:
+            return False, None, ""
         return self.engine._should_retry_tool_contract_breach(
             response=response,
             current_policy=current_policy,
@@ -313,6 +319,8 @@ class BaseEngineStreamRuntimeHooks:
         input_variables: dict[str, Any] | None,
         continuation: Any,
     ) -> tuple[bool, ToolUsePolicy | None, str]:
+        if response is None:
+            return False, None, ""
         return self.engine._should_retry_web_research_contract_breach(
             messages=messages,
             response=response,

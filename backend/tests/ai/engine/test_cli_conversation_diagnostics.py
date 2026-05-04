@@ -8,6 +8,9 @@ Mock strategy: no external services; CLI projection helpers run directly.
 from __future__ import annotations
 
 from app.ai.engine.execution_state_machine import ExecutionStateMachine
+from app.ai.engine.recovery_web_research_gate import (
+    project_canonical_web_research_diagnostics,
+)
 from app.ai.engine.types import (
     ExecutionBudget,
     IntentPlan,
@@ -443,6 +446,7 @@ def test_cli_diagnostics_projects_canonical_web_research_without_fetch_invention
     assert compact["search_provider"] == "builtin-web-search"
     assert compact["fetch_provider"] == "builtin-fetch-url"
     assert compact["evidence_status"] == "partial"
+    assert compact["final_output_source"] == "partial_output"
     assert compact["candidate_urls"] == ["https://example.com/ranking"]
     assert compact["fetched_urls"] == []
     assert compact["web_research_failure_kind"] == "fetch_not_attempted"
@@ -570,6 +574,125 @@ def test_cli_diagnostics_prefers_turn_flow_web_research_evidence_over_stale_fiel
     assert "evidence_status=completed" in text
     assert "web_research_fetched_urls=https://source.example/ranking" in text
     assert "fetch_not_attempted" not in text
+
+
+def test_cli_diagnostics_projects_web_research_relevance_rejections() -> None:
+    snapshot = {
+        "conversation": {"id": 2285},
+        "diagnostics": {
+            "source": "assistant_turn_record",
+            "turn_outcome": "success",
+            "termination_reason": "completed",
+            "final_output_source": "tool_evidence_completed",
+            "turn_record": {
+                "metadata": {
+                    "turn_diagnostics": {
+                        "web_research_evidence": {
+                            "query": "大模型排行榜 2026",
+                            "status": "partial",
+                            "search_provider": "builtin:web_search",
+                            "fetch_provider": "builtin:fetch_url",
+                            "search_results": [],
+                            "fetched_pages": [],
+                            "citations": [],
+                            "answer_quality": "none",
+                            "failure_kind": "low_query_relevance",
+                            "diagnostics": {
+                                "pipeline_id": "wr-2285",
+                                "search_provider": "builtin:web_search",
+                                "fetch_provider": "builtin:fetch_url",
+                                "evidence_status": "partial",
+                                "candidate_urls": [
+                                    "https://baijiahao.baidu.com/s?id=1860091565873698107"
+                                ],
+                                "fetched_urls": [],
+                                "rejected_urls": [
+                                    "https://baijiahao.baidu.com/s?id=1860091565873698107"
+                                ],
+                                "evidence_quality": "none",
+                                "answer_source": "none",
+                                "failure_kind": "low_query_relevance",
+                                "relevance_profile": "llm_leaderboard",
+                                "relevance_rejection_count": 1,
+                            },
+                        }
+                    }
+                },
+            },
+        },
+    }
+
+    compact = _build_ai_conversation_compact_diagnostics(snapshot)
+    text = _render_ai_conversation_diagnostics_text(snapshot)
+
+    assert compact["evidence_status"] == "partial"
+    assert compact["final_output_source"] == "partial_output"
+    assert compact["fetched_urls"] == []
+    assert compact["rejected_urls"] == [
+        "https://baijiahao.baidu.com/s?id=1860091565873698107"
+    ]
+    assert compact["answer_source"] == "none"
+    assert compact["web_research_failure_kind"] == "low_query_relevance"
+    assert compact["web_research_relevance_profile"] == "llm_leaderboard"
+    assert compact["web_research_relevance_rejection_count"] == 1
+    assert "web_research_rejected_urls=https://baijiahao.baidu.com" in text
+    assert "web_research_relevance profile=llm_leaderboard rejected=1" in text
+
+
+def test_web_research_tool_result_projection_rejects_low_relevance_fetch() -> None:
+    projected = project_canonical_web_research_diagnostics(
+        intent_plan=[
+            {
+                "family": "web_research",
+                "metadata": {
+                    "fetch_url_candidate_urls": [
+                        "https://baijiahao.baidu.com/s?id=1860091565873698107"
+                    ]
+                },
+            }
+        ],
+        tool_results=[
+            {
+                "name": "web_search",
+                "success": True,
+                "summary_payload": {
+                    "status": "success",
+                    "provider": "builtin:web_search",
+                    "items": [
+                        {"url": "https://baijiahao.baidu.com/s?id=1860091565873698107"}
+                    ],
+                },
+            },
+            {
+                "name": "fetch_url",
+                "success": True,
+                "output": "AI投毒、GEO、OpenClaw 安全风险，并非排行榜内容。",
+                "summary_payload": {
+                    "ok": True,
+                    "url": "https://baijiahao.baidu.com/s?id=1860091565873698107",
+                    "relevance_status": "low_relevance",
+                    "relevance_reason": "low_query_relevance",
+                    "relevance_profile": "llm_leaderboard",
+                    "rejected_urls": [
+                        "https://baijiahao.baidu.com/s?id=1860091565873698107"
+                    ],
+                    "fetched_urls": [],
+                    "answer_source": "none",
+                    "evidence_quality": "none",
+                },
+            },
+        ],
+    )
+
+    assert projected["evidence_status"] == "partial"
+    assert projected.get("fetched_urls", []) == []
+    assert projected["rejected_urls"] == [
+        "https://baijiahao.baidu.com/s?id=1860091565873698107"
+    ]
+    assert projected["answer_source"] == "none"
+    assert projected["web_research_failure_kind"] == "low_query_relevance"
+    assert projected["web_research_relevance_profile"] == "llm_leaderboard"
+    assert projected["web_research_relevance_rejection_count"] == 1
 
 
 def test_cli_compact_diagnostics_hydrates_required_fields_from_nested_turn_record() -> (

@@ -517,6 +517,57 @@ def test_update_intent_statuses_does_not_promote_failed_fetch_url_evidence() -> 
     assert "partial_result" not in (updated[0].metadata or {})
 
 
+def test_update_intent_statuses_does_not_promote_low_relevance_fetch_url_evidence() -> (
+    None
+):
+    updated = RecoveryManager.update_intent_statuses(
+        [_web_research_intent()],
+        messages=[],
+        tool_results=[
+            ToolResult(
+                tool_call_id="tc-fetch-low-relevance",
+                name="fetch_url",
+                success=True,
+                output=(
+                    "Content from https://baijiahao.baidu.com/s?id=1860091565873698107:\n"
+                    "Title: 2026大模型创新TOP100\n\n"
+                    "AI信息操控。3·15晚会曝光AI大模型投毒黑产，"
+                    "GEO服务商通过软文影响AI推荐，随后讨论OpenClaw和token调用量。"
+                ),
+                summary="2026大模型创新TOP100",
+                summary_payload={
+                    "fetch_url": True,
+                    "ok": True,
+                    "title": "2026大模型创新TOP100",
+                    "summary": "2026大模型创新TOP100",
+                    "relevance_status": "low_relevance",
+                    "relevance_reason": "low_query_relevance",
+                    "web_research_evidence": {
+                        "status": "partial",
+                        "answer_quality": "none",
+                        "failure_kind": "low_query_relevance",
+                        "diagnostics": {
+                            "evidence_status": "partial",
+                            "answer_source": "none",
+                            "failure_kind": "low_query_relevance",
+                            "fetched_urls": [],
+                            "rejected_urls": [
+                                "https://baijiahao.baidu.com/s?id=1860091565873698107"
+                            ],
+                        },
+                    },
+                },
+            )
+        ],
+    )
+
+    assert updated[0].status == "pending"
+    assert updated[0].completed_by_tool_names == []
+    assert updated[0].cached_result is None
+    assert "partial_result" not in (updated[0].metadata or {})
+    assert updated[0].metadata["fetch_url_answer_quality"] == "missing"
+
+
 def test_update_intent_statuses_does_not_complete_title_only_fetch_url_evidence() -> (
     None
 ):

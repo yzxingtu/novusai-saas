@@ -72,6 +72,59 @@ def _is_generic_fetch_summary(text: str) -> bool:
     return bool(_GENERIC_FETCH_SUMMARY_RE.match(str(text or "").strip()))
 
 
+def _fetch_url_payload_is_accepted_for_web_research(
+    summary_payload: dict[str, object],
+) -> bool:
+    if summary_payload.get("ok") is False:
+        return False
+    top_level_failure_kind = str(summary_payload.get("failure_kind") or "").strip()
+    if top_level_failure_kind == "low_query_relevance":
+        return False
+    if str(summary_payload.get("relevance_status") or "").strip() == "low_relevance":
+        return False
+    if (
+        str(summary_payload.get("relevance_reason") or "").strip()
+        == "low_query_relevance"
+    ):
+        return False
+    top_level_answer_source = str(summary_payload.get("answer_source") or "").strip()
+    top_level_evidence_quality = str(
+        summary_payload.get("evidence_quality") or ""
+    ).strip()
+    if top_level_answer_source == "none" or top_level_evidence_quality == "none":
+        return False
+    top_level_rejected_urls = summary_payload.get("rejected_urls")
+    top_level_fetched_urls = summary_payload.get("fetched_urls")
+    if (
+        isinstance(top_level_rejected_urls, list)
+        and top_level_rejected_urls
+        and not top_level_fetched_urls
+    ):
+        return False
+
+    evidence = summary_payload.get("web_research_evidence")
+    if not isinstance(evidence, dict):
+        return True
+
+    diagnostics = (
+        evidence.get("diagnostics")
+        if isinstance(evidence.get("diagnostics"), dict)
+        else {}
+    )
+    answer_quality = str(evidence.get("answer_quality") or "").strip()
+    answer_source = str(diagnostics.get("answer_source") or "").strip()
+    failure_kind = str(
+        diagnostics.get("failure_kind") or evidence.get("failure_kind") or ""
+    ).strip()
+    rejected_urls = diagnostics.get("rejected_urls")
+    fetched_urls = diagnostics.get("fetched_urls")
+    if answer_quality == "none" or answer_source == "none":
+        return False
+    if failure_kind == "low_query_relevance":
+        return False
+    return not (isinstance(rejected_urls, list) and rejected_urls and not fetched_urls)
+
+
 def _is_useful_fetch_body_line(
     line: str,
     *,
@@ -197,7 +250,7 @@ def extract_fetch_url_user_preview(
     )
     if not summary_payload.get("fetch_url"):
         return None
-    if summary_payload.get("ok") is False:
+    if not _fetch_url_payload_is_accepted_for_web_research(summary_payload):
         return None
 
     title = str(summary_payload.get("title") or "").strip()
@@ -359,7 +412,7 @@ def budgeted_web_research_response_candidates(
             if isinstance(result.summary_payload, dict)
             else {}
         )
-        if payload.get("ok") is False:
+        if not _fetch_url_payload_is_accepted_for_web_research(payload):
             continue
         raw_title = str(payload.get("title") or "").strip()
         description = str(payload.get("description") or "").strip()
@@ -539,7 +592,7 @@ def intent_result_from_tool_results(
                     if isinstance(result.summary_payload, dict)
                     else {}
                 )
-                if payload.get("ok") is False:
+                if not _fetch_url_payload_is_accepted_for_web_research(payload):
                     continue
                 preview = extract_fetch_url_user_preview(
                     result,

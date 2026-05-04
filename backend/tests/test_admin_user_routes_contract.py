@@ -1,3 +1,8 @@
+"""
+Test type: structural
+Scope: admin user route contract and transport-level response shape.
+"""
+
 from __future__ import annotations
 
 import importlib.util
@@ -73,9 +78,7 @@ def test_admin_user_routes_delegate_to_services(monkeypatch) -> None:
         org_node=None,
     )
     admin_service = SimpleNamespace(
-        get_identity_select_options=AsyncMock(
-            return_value={"items": [], "total": 0}
-        ),
+        get_identity_select_options=AsyncMock(return_value={"items": [], "total": 0}),
         get_identity_detail=AsyncMock(return_value=admin),
     )
     auth_service = SimpleNamespace(
@@ -87,7 +90,10 @@ def test_admin_user_routes_delegate_to_services(monkeypatch) -> None:
     monkeypatch.setattr(
         admin_module,
         "serialize_admin_identity_detail",
-        lambda payload_admin: {"id": payload_admin.id, "username": payload_admin.username},
+        lambda payload_admin, **_kwargs: {
+            "id": payload_admin.id,
+            "username": payload_admin.username,
+        },
     )
 
     app = _build_test_app(SimpleNamespace(), admin_module)

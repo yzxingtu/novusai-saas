@@ -16,6 +16,7 @@ from app.ai.web_research.evidence import (
     EvidenceStatus,
     PageEvidence,
     PageStatus,
+    RelevanceStatus,
     SearchEvidenceItem,
     SearchResultSet,
     WebResearchDiagnostics,
@@ -28,6 +29,12 @@ from app.ai.web_research.normalization import (
     determine_evidence_answer_quality,
     normalize_page_evidence,
     normalize_search_item,
+)
+from app.ai.web_research.relevance import (
+    EvidenceRelevance,
+    apply_page_relevance_gate,
+    detect_query_profile,
+    evaluate_page_relevance,
 )
 from app.ai.web_research.routing import ProviderResolution, WebResearchProviderRouter
 from app.ai.web_research.runtime import WebResearchRuntime
@@ -46,6 +53,7 @@ __all__ = [
     "FetchProvider",
     "PageEvidence",
     "PageStatus",
+    "RelevanceStatus",
     "SearchEvidenceItem",
     "SearchOptions",
     "SearchProvider",
@@ -59,9 +67,13 @@ __all__ = [
     "WebResearchRunOptions",
     "WebResearchRuntime",
     "answer_source_for_quality",
+    "apply_page_relevance_gate",
     "build_citations",
     "build_web_research_evidence",
+    "detect_query_profile",
     "determine_evidence_answer_quality",
+    "EvidenceRelevance",
+    "evaluate_page_relevance",
     "normalize_page_evidence",
     "normalize_search_item",
     "select_fetch_candidates",

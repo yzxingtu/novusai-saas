@@ -1,11 +1,16 @@
+"""
+Test type: structural
+Scope: split base helper facade contracts after runtime refactors.
+"""
+
 from app.ai.engine.base_helpers import (
+    keep_tool_calls_for_round,
     messages_to_dicts,
-    truncate_tool_calls_after_navigation,
 )
 from app.ai.types import ChatMessage
 
 
-def test_truncate_tool_calls_after_navigation_is_noop_after_data_ops_retirement() -> None:
+def test_keep_tool_calls_for_round_is_noop_after_data_ops_retirement() -> None:
     tool_calls = [
         {
             "id": "c1",
@@ -33,13 +38,10 @@ def test_truncate_tool_calls_after_navigation_is_noop_after_data_ops_retirement(
         },
     ]
 
-    truncated, trimmed = truncate_tool_calls_after_navigation(
-        tool_calls,
-        navigation_operation_names={"crm_update_record"},
-    )
+    prepared_tool_calls, changed = keep_tool_calls_for_round(tool_calls)
 
-    assert trimmed is False
-    assert [tool_call["id"] for tool_call in truncated] == ["c1", "c2", "c3"]
+    assert changed is False
+    assert [tool_call["id"] for tool_call in prepared_tool_calls] == ["c1", "c2", "c3"]
 
 
 def test_messages_to_dicts_serializes_chat_messages() -> None:

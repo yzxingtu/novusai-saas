@@ -307,23 +307,21 @@ async def persist_session_memory(
     explicit_memory_save = message_requests_memory_save(message)
     if not request.conversation_id or not request.user_id:
         return None
+    if memory_policy.external_context_polluted:
+        logger.info(
+            "Skip memory capture for polluted turn: tenant={} agent={} user={} conversation={} reason={}",
+            tenant_id,
+            request.agent_id,
+            request.user_id,
+            request.conversation_id,
+            memory_policy.external_context_reason or "external_context_polluted",
+        )
+        return None
     if (
         memory_policy.session_memory_state != "enabled"
         and memory_policy.long_term_memory_capture_state != "enabled"
         and not explicit_memory_save
     ):
-        if (
-            memory_policy.long_term_memory_capture_state
-            == "suppressed_external_context"
-        ):
-            logger.info(
-                "Skip long-term memory capture for polluted turn: tenant={} agent={} user={} conversation={} reason={}",
-                tenant_id,
-                request.agent_id,
-                request.user_id,
-                request.conversation_id,
-                memory_policy.external_context_reason or "external_context_polluted",
-            )
         return None
 
     delta = await extract_delta(
@@ -334,7 +332,7 @@ async def persist_session_memory(
     if not any(delta.values()):
         return None
 
-    if memory_policy.session_memory_state == "enabled" or explicit_memory_save:
+    if memory_policy.session_memory_state == "enabled":
         memory_svc = session_memory_service_cls(tenant_id)
         try:
             await memory_svc.upsert_state(
@@ -357,6 +355,25 @@ async def persist_session_memory(
                 str(exc),
             )
 
+        try:
+            await persist_conversation_memory_state(
+                db=db,
+                tenant_id=tenant_id,
+                request=request,
+                event_id=event_id,
+                delta=delta,
+                metadata={"scene": request.memory_scene},
+            )
+        except Exception as exc:
+            logger.warning(
+                "Conversation memory metadata write degraded: tenant={} agent={} user={} conversation={} err={}",
+                tenant_id,
+                request.agent_id,
+                request.user_id,
+                request.conversation_id,
+                str(exc),
+            )
+    elif explicit_memory_save:
         try:
             await persist_conversation_memory_state(
                 db=db,

@@ -41,6 +41,15 @@ _TERMINAL_FAILURE_COMPLETION_REASONS = frozenset(
         "tool_round_failed",
         "stream_execution_error",
         "terminal_failure",
+        "low_query_relevance",
+        "web_research_evidence_incomplete",
+        "candidate_urls_exhausted",
+        "fetch_not_attempted",
+        "fetch_failed",
+        "no_answer_quality_evidence",
+        "search_not_successful",
+        "search_no_results_completed",
+        "blocked_url",
     }
 )
 _TERMINAL_FAILURE_KINDS = frozenset(
@@ -55,6 +64,20 @@ _TERMINAL_FAILURE_KINDS = frozenset(
         "tool_execution_error",
         "tool_timeout",
         "stream_execution_error",
+    }
+)
+_WEB_RESEARCH_TERMINAL_FAILURE_REASONS = frozenset(
+    {
+        "blocked_url",
+        "candidate_urls_exhausted",
+        "fetch_failed",
+        "fetch_not_attempted",
+        "low_query_relevance",
+        "no_answer_quality_evidence",
+        "search_failed",
+        "search_no_results_completed",
+        "search_not_successful",
+        "web_research_evidence_incomplete",
     }
 )
 _SAFE_TURN_FAILURE_MESSAGE = "The assistant could not finish this turn. Please retry."
@@ -151,8 +174,20 @@ def _resolved_failure_kind(
 ) -> str:
     candidates = (
         diagnostics_payload.get("failure_kind"),
+        diagnostics_payload.get("web_research_failure_kind"),
+        _as_dict(diagnostics_payload.get("web_research_diagnostics")).get(
+            "failure_kind"
+        ),
+        _as_dict(diagnostics_payload.get("web_research_diagnostics")).get(
+            "web_research_failure_kind"
+        ),
         _as_dict(diagnostics_payload.get("failures")).get("failure_kind"),
         turn_record.get("failure_kind"),
+        turn_record.get("web_research_failure_kind"),
+        _as_dict(turn_record.get("web_research_diagnostics")).get("failure_kind"),
+        _as_dict(turn_record.get("web_research_diagnostics")).get(
+            "web_research_failure_kind"
+        ),
         _as_dict(turn_record.get("failures")).get("failure_kind"),
     )
     for candidate in candidates:
@@ -160,6 +195,96 @@ def _resolved_failure_kind(
         if normalized and normalized != "none":
             return normalized
     return ""
+
+
+def _web_research_projection_sources(
+    *,
+    diagnostics_payload: Mapping[str, Any],
+    turn_record: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    record_metadata = _as_dict(turn_record.get("metadata"))
+    diagnostics_metadata = _as_dict(diagnostics_payload.get("metadata"))
+    sources = [
+        _as_dict(diagnostics_payload),
+        _as_dict(diagnostics_payload.get("web_research_diagnostics")),
+        _as_dict(diagnostics_payload.get("turn_diagnostics")),
+        _as_dict(diagnostics_payload.get("orchestration")),
+        diagnostics_metadata,
+        _as_dict(diagnostics_metadata.get("turn_diagnostics")),
+        _as_dict(diagnostics_metadata.get("orchestration")),
+        _as_dict(turn_record),
+        _as_dict(turn_record.get("web_research_diagnostics")),
+        record_metadata,
+        _as_dict(record_metadata.get("turn_diagnostics")),
+        _as_dict(record_metadata.get("orchestration")),
+    ]
+    return [source for source in sources if source]
+
+
+def _has_web_research_unaccepted_signal(
+    *,
+    diagnostics_payload: Mapping[str, Any],
+    turn_record: Mapping[str, Any],
+) -> bool:
+    for source in _web_research_projection_sources(
+        diagnostics_payload=diagnostics_payload,
+        turn_record=turn_record,
+    ):
+        if bool(source.get("web_research_evidence_unaccepted")):
+            return True
+        failure_kind = _normalize_token(
+            source.get("web_research_failure_kind")
+            or source.get("failure_kind")
+            or source.get("partial_exit_reason")
+        )
+        if failure_kind in _WEB_RESEARCH_TERMINAL_FAILURE_REASONS:
+            return True
+        evidence_status = _normalize_token(source.get("evidence_status"))
+        answer_source = _normalize_token(source.get("answer_source"))
+        has_web_fields = any(
+            key in source
+            for key in (
+                "web_research_pipeline_id",
+                "web_research_failure_kind",
+                "candidate_urls",
+                "fetched_urls",
+                "rejected_urls",
+                "web_research_relevance_profile",
+                "web_research_relevance_rejection_count",
+            )
+        )
+        if (
+            has_web_fields
+            and evidence_status in {"partial", "failed"}
+            and answer_source in {"", "none"}
+        ):
+            return True
+    return False
+
+
+def _resolved_web_research_failure_reason(
+    *,
+    diagnostics_payload: Mapping[str, Any],
+    turn_record: Mapping[str, Any],
+    failure_kind: str,
+) -> str:
+    if failure_kind:
+        return failure_kind
+    for source in _web_research_projection_sources(
+        diagnostics_payload=diagnostics_payload,
+        turn_record=turn_record,
+    ):
+        for key in (
+            "web_research_failure_kind",
+            "failure_kind",
+            "partial_exit_reason",
+            "completion_reason",
+            "termination_reason",
+        ):
+            candidate = _normalize_token(source.get(key))
+            if candidate and candidate != "none" and candidate != "completed":
+                return candidate
+    return "web_research_evidence_incomplete"
 
 
 def _is_terminal_failure(
@@ -316,23 +441,34 @@ def build_web_research_diagnostic_evidence_items(
     answer_source = _as_text(diagnostics.get("answer_source"))
     evidence_quality = _as_text(diagnostics.get("evidence_quality"))
     fetched_urls = _as_list(diagnostics.get("fetched_urls"))
-    candidate_urls = _as_list(diagnostics.get("candidate_urls"))
-    urls = _as_list(fetched_urls) or _as_list(candidate_urls)
-    if not urls:
+    failure_kind = _as_text(diagnostics.get("web_research_failure_kind")) or _as_text(
+        diagnostics.get("failure_kind")
+    )
+    unaccepted_flag = diagnostics.get("web_research_evidence_unaccepted")
+    unaccepted_text = (_as_text(unaccepted_flag) or "").lower()
+    has_unaccepted_signal = (
+        unaccepted_flag is True
+        or unaccepted_text == "true"
+        or evidence_status in {"partial", "failed"}
+        and (
+            answer_source == "none"
+            or evidence_quality == "none"
+            or failure_kind in _WEB_RESEARCH_TERMINAL_FAILURE_REASONS
+        )
+    )
+    if has_unaccepted_signal or not fetched_urls:
         return []
 
     items: list[TurnEvidenceItem] = []
-    for index, raw_url in enumerate(urls):
+    for index, raw_url in enumerate(fetched_urls):
         url = _as_text(raw_url)
         if not url:
             continue
-        fetched = url in {_as_text(item) for item in fetched_urls}
-        title_prefix = "Fetched source" if fetched else "Candidate source"
         items.append(
             TurnEvidenceItem(
-                id=f"web_research_{'fetched' if fetched else 'candidate'}_{index + 1}",
+                id=f"web_research_fetched_{index + 1}",
                 kind="web",
-                title=f"{title_prefix} {index + 1}",
+                title=f"Fetched source {index + 1}",
                 url=url,
                 badge=evidence_status,
                 snippet=answer_source or evidence_quality,
@@ -742,10 +878,29 @@ def build_turn_flow_view_model(
         diagnostics_payload=diagnostics,
         turn_record=record,
     )
-    terminal_failure = _is_terminal_failure(
-        completion_reason=resolved_completion_reason,
-        turn_outcome=turn_outcome,
-        failure_kind=failure_kind,
+    web_research_unaccepted = _has_web_research_unaccepted_signal(
+        diagnostics_payload=diagnostics,
+        turn_record=record,
+    )
+    if web_research_unaccepted and _normalize_token(resolved_completion_reason) in {
+        "",
+        "completed",
+        "stop",
+    }:
+        resolved_completion_reason = _resolved_web_research_failure_reason(
+            diagnostics_payload=diagnostics,
+            turn_record=record,
+            failure_kind=failure_kind,
+        )
+    if web_research_unaccepted and not failure_kind:
+        failure_kind = _normalize_token(resolved_completion_reason)
+    terminal_failure = (
+        _is_terminal_failure(
+            completion_reason=resolved_completion_reason,
+            turn_outcome=turn_outcome,
+            failure_kind=failure_kind,
+        )
+        or web_research_unaccepted
     )
     untrusted_failure_output = bool(
         terminal_failure and final_output_source == "partial_output"

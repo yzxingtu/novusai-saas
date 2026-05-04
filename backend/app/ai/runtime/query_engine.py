@@ -463,7 +463,7 @@ class ConversationQueryEngine:
                 session.mark_failed()
                 raise
 
-            if self.strict_contract and observed.blocks_fallback:
+            if self.strict_contract:
                 ToolExecutor.enforce_required_contract(
                     tool_choice=attempt_command.tool_choice,
                     output_text=observed.output_text,

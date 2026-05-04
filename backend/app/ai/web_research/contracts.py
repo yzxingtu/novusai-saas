@@ -28,7 +28,7 @@ class WebResearchRunOptions:
     search_provider_id: str | None = None
     fetch_provider_id: str | None = None
     max_search_results: int = 5
-    max_fetches: int = 1
+    max_fetches: int = 3
     require_fetch: bool = True
     allow_snippet_quality: bool = False
     pipeline_id: str | None = None

@@ -397,7 +397,7 @@ async def test_runtime_projects_skipped_unsafe_candidate_before_fetching_next_ur
         "search:unsafe candidate:max=5",
         "fetch:https://example.com/fetchable",
     ]
-    assert evidence.status == "partial"
+    assert evidence.status == "completed"
     assert evidence.answer_quality == "body"
     assert evidence.fetched_pages[0].status == "skipped"
     assert evidence.fetched_pages[0].failure_kind == "candidate_unsupported_scheme"

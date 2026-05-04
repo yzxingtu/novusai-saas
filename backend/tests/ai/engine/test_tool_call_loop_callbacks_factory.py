@@ -1,3 +1,8 @@
+"""
+Test type: structural
+Scope: tool-call loop callback factory wiring and exported callable contract.
+"""
+
 from app.ai.engine.tool_call_loop_callbacks_factory import (
     build_tool_call_loop_callbacks,
 )
@@ -11,7 +16,7 @@ def test_build_tool_call_loop_callbacks_keeps_callables() -> None:
     def _ordered_requested_families_from_intents(**_kwargs):
         return ["time"]
 
-    def _truncate_tool_calls_after_navigation(tool_calls):
+    def _keep_tool_calls_for_round(tool_calls):
         return tool_calls, False
 
     def _mark_multi_family_progress(**_kwargs):
@@ -22,9 +27,6 @@ def test_build_tool_call_loop_callbacks_keeps_callables() -> None:
             message=ChatMessage(role="assistant", content=str(total_tokens)),
             total_tokens=total_tokens,
         )
-
-    def _build_page_no_progress_recovery(**_kwargs):
-        return [], {}
 
     def _messages_have_blocking_pending_interaction(_messages):
         return False
@@ -51,7 +53,6 @@ def test_build_tool_call_loop_callbacks_keeps_callables() -> None:
         return ChatResponse(message=ChatMessage(role="assistant", content="ok"))
 
     policy = ToolCallLoopPolicy(
-        build_page_no_progress_recovery=_build_page_no_progress_recovery,
         messages_have_blocking_pending_interaction=_messages_have_blocking_pending_interaction,
         first_incomplete_requested_family=_first_incomplete_requested_family,
         allowed_tool_names_for_family=_allowed_tool_names_for_family,
@@ -64,7 +65,7 @@ def test_build_tool_call_loop_callbacks_keeps_callables() -> None:
     callbacks = build_tool_call_loop_callbacks(
         policy=policy,
         ordered_requested_families_from_intents=_ordered_requested_families_from_intents,
-        truncate_tool_calls_after_navigation=_truncate_tool_calls_after_navigation,
+        keep_tool_calls_for_round=_keep_tool_calls_for_round,
         mark_multi_family_progress=_mark_multi_family_progress,
         budget_exit_response=_budget_exit_response,
         call_followup_llm=_call_followup_llm,
@@ -74,13 +75,9 @@ def test_build_tool_call_loop_callbacks_keeps_callables() -> None:
         callbacks.ordered_requested_families_from_intents
         is _ordered_requested_families_from_intents
     )
-    assert (
-        callbacks.truncate_tool_calls_after_navigation
-        is _truncate_tool_calls_after_navigation
-    )
+    assert callbacks.keep_tool_calls_for_round is _keep_tool_calls_for_round
     assert callbacks.mark_multi_family_progress is _mark_multi_family_progress
     assert callbacks.budget_exit_response is _budget_exit_response
-    assert callbacks.build_page_no_progress_recovery is _build_page_no_progress_recovery
     assert (
         callbacks.messages_have_blocking_pending_interaction
         is _messages_have_blocking_pending_interaction

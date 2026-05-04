@@ -63,11 +63,40 @@ def resolve_done_turn_outcome(
     diagnostics_payload: dict[str, Any] | None,
     turn_record: dict[str, Any] | None,
 ) -> Any:
-    if isinstance(diagnostics_payload, dict) and diagnostics_payload.get("turn_outcome"):
+    if isinstance(diagnostics_payload, dict) and diagnostics_payload.get(
+        "turn_outcome"
+    ):
         return diagnostics_payload.get("turn_outcome")
     if isinstance(turn_record, dict):
         return turn_record.get("turn_outcome")
     return None
+
+
+def _as_dict(value: Any) -> dict[str, Any]:
+    return dict(value) if isinstance(value, dict) else {}
+
+
+def _as_list(value: Any) -> list[Any]:
+    return list(value) if isinstance(value, list) else []
+
+
+def resolve_done_final_stage_status(
+    *,
+    turn_flow: dict[str, Any] | None,
+    result: ExecutionResult,
+) -> str:
+    if _as_list(_as_dict(turn_flow).get("timeline")):
+        return resolve_final_stage_status(turn_flow)
+    if bool(getattr(result, "interrupted", False)):
+        return "interrupted"
+    completion_reason = str(getattr(result, "completion_reason", "") or "").strip()
+    if bool(getattr(result, "partial", False)) or completion_reason not in {
+        "",
+        "completed",
+        "stop",
+    }:
+        return "error"
+    return resolve_final_stage_status(turn_flow)
 
 
 def build_done_event_payload(
@@ -90,7 +119,10 @@ def build_done_event_payload(
         "trace_id": trace_id_var.get() or None,
         "completion_reason": completion_reason,
         "turn_flow_complete": True,
-        "final_stage_status": resolve_final_stage_status(turn_flow),
+        "final_stage_status": resolve_done_final_stage_status(
+            turn_flow=turn_flow if isinstance(turn_flow, dict) else None,
+            result=artifacts.result,
+        ),
         "total_tokens": artifacts.result.total_tokens,
         "duration_ms": artifacts.result.duration_ms,
         "context_compacted": artifacts.result.context_compacted,
@@ -128,5 +160,6 @@ __all__ = [
     "StreamFinalizationArtifacts",
     "build_done_event_payload",
     "build_result_turn_record",
+    "resolve_done_final_stage_status",
     "resolve_done_turn_outcome",
 ]

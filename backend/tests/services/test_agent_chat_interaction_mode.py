@@ -1,9 +1,15 @@
-"""Agent chat interaction mode contract tests / 交互模式契约测试."""
+"""
+Test type: structural
+Scope: agent chat interaction mode schema and migration contract tests.
+"""
 
 from __future__ import annotations
 
 import importlib.util
 from pathlib import Path
+
+import pytest
+from pydantic import ValidationError
 
 
 def _load_migration_module():
@@ -23,15 +29,11 @@ def _load_migration_module():
     return module
 
 
-def test_agent_chat_request_ignores_removed_interaction_mode_field():
+def test_agent_chat_request_rejects_removed_interaction_mode_field():
     from app.schemas.ai.agent_chat import AgentChatRequest
 
-    request = AgentChatRequest(message="hello", interaction_mode="confirm")
-
-    payload = request.model_dump(exclude_none=True)
-
-    assert payload["message"] == "hello"
-    assert "interaction_mode" not in payload
+    with pytest.raises(ValidationError):
+        AgentChatRequest(message="hello", interaction_mode="confirm")
 
 
 def test_interaction_mode_migration_normalizes_removed_values():
@@ -106,8 +108,7 @@ def test_interaction_mode_migration_normalizes_nested_metadata_payloads():
 
     assert changed is True
     assert (
-        payload["context_diagnostics"]["interaction_mode_effective"]
-        == "trusted_auto"
+        payload["context_diagnostics"]["interaction_mode_effective"] == "trusted_auto"
     )
     assert payload["last_run_summary"]["interaction_mode_effective"] == "trusted_auto"
     assert payload["last_run_summary"]["downgraded_from"] == "trusted_auto"

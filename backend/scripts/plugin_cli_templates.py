@@ -114,7 +114,7 @@ _SKILL_PLUGIN_YAML_EXT = """
 extensions:
   skills:
     - name: {name}-query
-      type: {name}
+      type: toolkit
       display_name:
         zh-CN: "{display_name}"
         en: "{display_name_en}"
@@ -147,7 +147,7 @@ _FULLMOD_YAML_FRONTEND_EXT = """
       manifest: "plugin.manifest.json"
 """
 
-_FE_INDEX_TS = '''/**
+_FE_INDEX_TS = """/**
  * {display_name} 插件前端入口
  * registerLocale() 只负责页面内部文案；菜单标题与页面标题仍来自 plugin.yaml 的
  * pages[*].title / pages[*].menu.title。
@@ -172,9 +172,9 @@ export function setup(): void {{
 }}
 
 export {{ {class_name}Page }};
-'''
+"""
 
-_FE_LOCALES_TS = '''/**
+_FE_LOCALES_TS = """/**
  * {display_name} 插件 i18n
  * 这里的 key 传相对 key，例如 {{ title, description }}；
  * 不要再写完整前缀 plugin.{name}.title，prefix 由宿主在 registerLocale() 时包裹。
@@ -188,9 +188,9 @@ export const enUS: Record<string, string> = {{
   title: "{display_name_en}",
   description: "{display_name_en} plugin",
 }};
-'''
+"""
 
-_FE_TYPES_TS = '''/**
+_FE_TYPES_TS = """/**
  * 宿主共享 API 类型声明（仅用于类型提示，不打入 bundle）
  */
 export interface NovusPluginSharedAPI {{
@@ -204,9 +204,9 @@ export interface NovusPluginSharedAPI {{
   // Only registers plugin-internal i18n messages; it does not change manifest-derived menu/page titles.
   registerLocale: (locale: string, prefix: string, messages: Record<string, unknown>) => void;
 }}
-'''
+"""
 
-_FE_PAGE_VUE = '''<script lang="ts" setup>
+_FE_PAGE_VUE = """<script lang="ts" setup>
 import {{ $t }} from '@novus/plugin-shared';
 </script>
 
@@ -233,9 +233,9 @@ import {{ $t }} from '@novus/plugin-shared';
   line-height: 1.6;
 }}
 </style>
-'''
+"""
 
-_FE_PACKAGE_JSON = '''{{
+_FE_PACKAGE_JSON = """{{
   "name": "@novus-plugin/{name}",
   "version": "1.0.0",
   "private": true,
@@ -250,9 +250,9 @@ _FE_PACKAGE_JSON = '''{{
     "vue": "^3.5.0"
   }}
 }}
-'''
+"""
 
-_FE_VITE_CONFIG_TS = '''/**
+_FE_VITE_CONFIG_TS = """/**
  * 插件前端 UMD 构建配置
  *
  * 正式运行时由 dist/plugin.manifest.json 声明入口与资源，不再固定依赖 dist/index.js。
@@ -288,7 +288,7 @@ export default defineConfig({{
     minify: 'esbuild',
   }},
 }});
-'''
+"""
 
 _FE_GITIGNORE = """node_modules/
 dist/

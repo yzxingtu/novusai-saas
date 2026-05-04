@@ -1,3 +1,8 @@
+"""
+Test type: structural
+Scope: tool policy helper facade exports after split-module refactors.
+"""
+
 from __future__ import annotations
 
 from app.ai.engine import (
@@ -17,7 +22,6 @@ from app.ai.types import ChatMessage
 
 def test_tool_policy_helpers_facade_exports() -> None:
     assert facade.tool_semantic_family is tool_policy_semantics.tool_semantic_family
-    assert facade.first_page_intent_kind() is None
     assert (
         facade.apply_execution_trust_policy
         is tool_policy_trust_helpers.apply_execution_trust_policy

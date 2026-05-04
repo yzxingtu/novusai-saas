@@ -639,7 +639,14 @@
       "tool_failure": "Tool Failure",
       "orchestration_failure": "Orchestration Failure",
       "budget_exit": "Budget Exit",
-      "server_interrupt": "Server Interrupt"
+      "server_interrupt": "Server Interrupt",
+      "web_research_runtime": "Web Research Failure",
+      "low_query_relevance": "Low Query Relevance",
+      "blocked_url": "Source Blocked",
+      "fetch_failed": "Fetch Failed",
+      "fetch_not_attempted": "Fetch Not Attempted",
+      "no_answer_quality_evidence": "No Answer-Quality Evidence",
+      "search_failed": "Search Failed"
     },
     "budgetStatusOptions": {
       "ok": "OK",

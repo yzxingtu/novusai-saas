@@ -9,7 +9,7 @@ from typing import Any
 from app.ai.tools.types import ToolResult
 from app.ai.types import ChatMessage, ChatResponse
 from app.core.i18n import _
-from app.core.response import resolve_public_error_message
+from app.core.response import build_public_error_text
 
 from .conversation_result_projector import build_execution_result, build_turn_projection
 from .execution_state_machine import ExecutionStateMachine
@@ -331,9 +331,9 @@ def build_sync_exception_result(
         error=(
             ""
             if recovered_from_provider_failure
-            else resolve_public_error_message(
-                exc,
-                fallback_message=_("common.server_error"),
+            else build_public_error_text(
+                message=_("common.server_error"),
+                exc=exc,
             )
         ),
         partial=bool(partial_output) and not recovered_from_provider_failure,

@@ -19,7 +19,7 @@ from app.ai.web_research import (
 
 def test_public_facade_exports_core_contracts() -> None:
     options = WebResearchRunOptions(pipeline_id="pipeline-structural")
-    assert options.max_fetches == 1
+    assert options.max_fetches == 3
     assert PageEvidence.__name__ == "PageEvidence"
     assert SearchEvidenceItem.__name__ == "SearchEvidenceItem"
 

@@ -1,3 +1,9 @@
+"""
+Test type: behavioral
+Scope: conversation timeline service delegation and message grouping behavior.
+Mocked dependencies: repository/db seams only; service logic runs real.
+"""
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -20,9 +26,13 @@ async def test_conversation_service_get_timeline_delegates_to_timeline_service(m
         return_value=SimpleNamespace(id=10, metadata_={}),
     )
     service._message_repo = MagicMock()
-    service._message_repo.get_by_conversation = AsyncMock(return_value=[SimpleNamespace(id=1)])
+    service._message_repo.get_by_conversation = AsyncMock(
+        return_value=[SimpleNamespace(id=1)]
+    )
     service._timeline_service = MagicMock()
-    service._timeline_service.get_conversation_timeline = AsyncMock(return_value=[{"ok": True}])
+    service._timeline_service.get_conversation_timeline = AsyncMock(
+        return_value=[{"ok": True}]
+    )
 
     timeline = await service.get_conversation_timeline(10, user_id=1)
 
@@ -59,7 +69,7 @@ async def test_conversation_service_persist_chat_messages_delegates_to_persisten
     result = SimpleNamespace(messages=[{"role": "assistant", "content": "ok"}])
 
     with patch(
-        "app.services.ai.conversation_service.ConversationMessagePersistenceService.persist_chat_messages",
+        "app.services.ai.conversation_facade_mixins.persist_chat_messages_persist",
         new=AsyncMock(return_value=([], 2)),
     ) as mock_persist:
         persisted = await service.persist_chat_messages(
@@ -193,9 +203,7 @@ async def test_conversation_timeline_service_get_timeline_includes_summary(mock_
     assert all("interaction_mode_effective" not in item for item in items)
 
     message_item = next(item for item in items if item["type"] == "message:assistant")
-    assert message_item["detail_payload"]["metadata"] == {
-        "nested": {"keep": "value"}
-    }
+    assert message_item["detail_payload"]["metadata"] == {"nested": {"keep": "value"}}
 
     decision_item = next(item for item in items if item["type"] == "execution_decision")
     assert decision_item["detail_payload"] == {

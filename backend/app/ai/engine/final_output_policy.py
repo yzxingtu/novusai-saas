@@ -22,8 +22,17 @@ def is_trusted_assistant_final_output_source(final_output_source: str | None) ->
 def build_untrusted_final_output_fallback(
     *,
     auto_fetch_gate_reason: str | None = None,
+    failure_kind: str | None = None,
 ) -> str:
     gate_reason = str(auto_fetch_gate_reason or "").strip()
+    normalized_failure_kind = str(failure_kind or "").strip()
+    if normalized_failure_kind == "low_query_relevance":
+        return str(
+            _(
+                "我找到了候选来源，但没有拿到与问题足够相关、可核实的内容，因此不生成结论。"
+            )
+            or ""
+        ).strip()
     if gate_reason == "search_no_results_completed":
         return str(_("我暂时没有找到可直接核实的搜索结果。") or "").strip()
     if gate_reason == "search_not_successful":

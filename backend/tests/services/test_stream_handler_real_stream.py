@@ -2003,6 +2003,93 @@ async def test_stream_handler_clears_preview_before_replaying_tool_evidence_outp
 
 
 @pytest.mark.asyncio
+async def test_stream_handler_done_marks_unaccepted_web_research_as_partial_failure():
+    """Test type: behavioral. BUG-2026-05-05-2285 SSE terminal state guard."""
+    from app.ai.engine.types import ExecutionResult
+
+    captured: list[ExecutionResult] = []
+    completed = asyncio.Event()
+
+    async def on_complete(result: ExecutionResult) -> None:
+        captured.append(result)
+        completed.set()
+
+    engine = _FakeEngine()
+    handler = _build_handler(engine)
+    handler.on_complete = on_complete
+
+    fallback = (
+        "我找到了候选来源，但没有拿到与问题足够相关、可核实的内容，因此不生成结论。"
+    )
+
+    async def _fake_run_with_turn_executor() -> TurnExecutionResult:
+        handler._runtime_turn_record = {
+            "turn_outcome": "partial",
+            "failure_kind": "web_research_runtime",
+            "protocol_path": "responses",
+        }
+        handler._state.preparation_diagnostics.update(
+            {
+                "final_output_source": "partial_output",
+                "partial_exit_reason": "low_query_relevance",
+                "web_research_evidence_unaccepted": True,
+                "untrusted_final_output_fallback_applied": True,
+                "web_research_diagnostics": {
+                    "evidence_status": "partial",
+                    "answer_source": "none",
+                    "failure_kind": "low_query_relevance",
+                    "rejected_urls": [
+                        "https://baijiahao.baidu.com/s?id=1860091565873698107"
+                    ],
+                    "relevance_profile": "llm_leaderboard",
+                    "relevance_rejection_count": 1,
+                },
+            }
+        )
+        handler._state.transition("partial_exit")
+        return TurnExecutionResult(
+            output=fallback,
+            total_tokens=0,
+            completion_tokens_used=0,
+            tool_results=[],
+            response=ChatResponse(
+                message=ChatMessage(role="assistant", content=fallback),
+                total_tokens=0,
+                output_tokens=0,
+            ),
+            partial=True,
+            paused_for_consent=False,
+            completion_reason="low_query_relevance",
+            final_output_source="partial_output",
+            action_buttons=None,
+        )
+
+    handler._run_with_turn_executor = _fake_run_with_turn_executor  # type: ignore[method-assign]
+
+    events: list[dict] = []
+    async for raw in handler.generate():
+        if raw.strip().startswith("data: {"):
+            events.append(_parse_sse_payload(raw))
+
+    await asyncio.wait_for(completed.wait(), timeout=1)
+
+    done_payload = next(event for event in events if event.get("event") == "done")
+    message_text = "".join(
+        event.get("delta", "") for event in events if event.get("event") == "message"
+    )
+    assert "足够相关、可核实" in message_text
+    assert len(captured) == 1
+    assert captured[0].success is False
+    assert captured[0].partial is True
+    assert captured[0].turn_record["turn_outcome"] == "partial"
+    assert captured[0].turn_record["final_output_source"] == "partial_output"
+    assert done_payload["completion_reason"] == "low_query_relevance"
+    assert done_payload["termination_reason"] == "low_query_relevance"
+    assert done_payload["turn_outcome"] == "partial"
+    assert done_payload["final_stage_status"] == "error"
+
+
+@pytest.mark.asyncio
 async def test_stream_handler_preserves_streamed_output_when_final_text_is_truncated_prefix():
     from app.ai.engine.types import ExecutionResult
 
@@ -2196,13 +2283,19 @@ async def test_stream_handler_no_result_completion_skips_auto_fetch_url():
     assert not any(event.get("event") == "clear_content" for event in events)
     assert len(captured) == 1
     assert captured[0].output == message_text
-    assert captured[0].turn_record["final_output_source"] == "tool_evidence_completed"
-    assert (
-        captured[0].turn_record["post_tool_completion_state"] == "completed_no_result"
-    )
+    assert captured[0].success is False
+    assert captured[0].partial is True
+    assert captured[0].completion_reason == "search_no_results_completed"
+    assert captured[0].turn_record["turn_outcome"] == "partial"
+    assert captured[0].turn_record["final_output_source"] == "partial_output"
+    assert captured[0].turn_record["post_tool_completion_state"] == "partial_output"
     assert captured[0].turn_record["auto_fetch_gate_reason"] == (
         "search_no_results_completed"
     )
+    done_payload = next(event for event in events if event.get("event") == "done")
+    assert done_payload["turn_outcome"] == "partial"
+    assert done_payload["completion_reason"] == "search_no_results_completed"
+    assert done_payload["final_stage_status"] == "error"
 
 
 @pytest.mark.asyncio

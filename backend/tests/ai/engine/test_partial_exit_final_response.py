@@ -353,13 +353,13 @@ async def test_finalize_turn_execution_replaces_untrusted_tool_evidence_with_saf
     expected_fallback = build_untrusted_final_output_fallback(
         auto_fetch_gate_reason="search_not_successful"
     )
-    assert partial is False
+    assert partial is True
     assert paused_for_consent is False
-    assert final_output_source == "tool_evidence_completed"
+    assert final_output_source == "partial_output"
     assert output == expected_fallback
     assert (finalized_response.message.content or "").strip() == expected_fallback
     assert state.preparation_diagnostics["post_tool_completion_state"] == (
-        "search_not_successful"
+        "partial_output"
     )
     assert (
         state.preparation_diagnostics[WEB_RESEARCH_TERMINAL_CONTRACT_KEY]

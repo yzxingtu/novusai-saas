@@ -395,6 +395,12 @@ def _fetch_tool_results_from_evidence(
             "answer_quality": page.answer_quality,
             "status": page.status,
             "provider": page.provider,
+            "relevance_status": page.relevance_status,
+            "relevance_score": page.relevance_score,
+            "relevance_profile": page.relevance_profile,
+            "relevance_reason": page.relevance_reason,
+            "relevance_matched_terms": list(page.relevance_matched_terms),
+            "relevance_required_terms": list(page.relevance_required_terms),
             "web_research_evidence": evidence.to_dict(),
         }
         if page.failure_kind:
@@ -554,6 +560,182 @@ def has_completed_fetch_url_body_evidence(
         and str(intent.family or "").strip() == "web_research"
         and "fetch_url" in set(intent.completed_by_tool_names or [])
     )
+
+
+_UNACCEPTED_WEB_RESEARCH_GATE_REASONS = frozenset(
+    {
+        "search_not_successful",
+        "search_no_results_completed",
+        "candidate_urls_exhausted",
+        "fetch_already_attempted",
+        "blocked_url",
+        "fetch_failed",
+        "fetch_not_attempted",
+        "low_query_relevance",
+        "no_answer_quality_evidence",
+        "search_failed",
+    }
+)
+
+
+def _tool_result_web_research_failure_reason(tool_results: list[ToolResult]) -> str:
+    for result in reversed(tool_results or []):
+        tool_name = str(getattr(result, "name", "") or "").strip()
+        if tool_name not in {"web_search", "fetch_url"}:
+            continue
+        summary_payload = getattr(result, "summary_payload", None)
+        if not isinstance(summary_payload, dict):
+            summary_payload = {}
+        reason = str(
+            getattr(result, "error_type", "")
+            or summary_payload.get("error_type")
+            or summary_payload.get("failure_reason")
+            or summary_payload.get("status")
+            or ""
+        ).strip()
+        if reason == "search_candidates_exhausted":
+            return "candidate_urls_exhausted"
+        if tool_name == "web_search" and reason == "no_results":
+            return "search_no_results_completed"
+        if reason and reason not in {"success", "ok"}:
+            return reason
+    return ""
+
+
+def _web_research_failure_reason(
+    state: ExecutionStateMachine,
+    *,
+    tool_results: list[ToolResult],
+) -> str:
+    diagnostics = dict(state.preparation_diagnostics or {})
+    web_diagnostics = diagnostics.get("web_research_diagnostics")
+    if isinstance(web_diagnostics, dict):
+        for key in ("failure_kind", "web_research_failure_kind"):
+            reason = str(web_diagnostics.get(key) or "").strip()
+            if reason:
+                return reason
+    for key in ("web_research_failure_kind", "failure_kind"):
+        reason = str(diagnostics.get(key) or "").strip()
+        if reason and reason != "none":
+            return reason
+    tool_failure_reason = _tool_result_web_research_failure_reason(tool_results)
+    if tool_failure_reason:
+        return tool_failure_reason
+    auto_fetch_gate_reason = latest_auto_fetch_gate_reason(state)
+    if auto_fetch_gate_reason:
+        return auto_fetch_gate_reason
+    return "web_research_evidence_incomplete"
+
+
+def _has_web_research_runtime_signal(state: ExecutionStateMachine) -> bool:
+    diagnostics = dict(state.preparation_diagnostics or {})
+    if (
+        "web_research_diagnostics" in diagnostics
+        or "web_research_evidence" in diagnostics
+        or "evidence_status" in diagnostics
+        or "answer_source" in diagnostics
+    ):
+        return True
+    return any(
+        str(event.get("kind") or "").strip() == "web_research_runtime"
+        for event in state.provider_events
+        if isinstance(event, dict)
+    )
+
+
+def should_return_partial_for_unaccepted_web_research_evidence(
+    *,
+    state: ExecutionStateMachine,
+    tool_results: list[ToolResult],
+) -> str | None:
+    if has_completed_fetch_url_body_evidence(state=state, tool_results=tool_results):
+        return None
+    diagnostics = dict(state.preparation_diagnostics or {})
+    web_diagnostics = diagnostics.get("web_research_diagnostics")
+    if isinstance(web_diagnostics, dict):
+        merged_diagnostics = {**diagnostics, **web_diagnostics}
+    else:
+        merged_diagnostics = diagnostics
+
+    evidence_status = str(merged_diagnostics.get("evidence_status") or "").strip()
+    answer_source = str(merged_diagnostics.get("answer_source") or "").strip()
+    failure_kind = str(
+        merged_diagnostics.get("web_research_failure_kind")
+        or merged_diagnostics.get("failure_kind")
+        or ""
+    ).strip()
+    auto_fetch_gate_reason = latest_auto_fetch_gate_reason(state)
+    tool_failure_reason = _tool_result_web_research_failure_reason(tool_results)
+    has_web_signal = _has_web_research_runtime_signal(state) or bool(
+        auto_fetch_gate_reason or tool_failure_reason
+    )
+    if not has_web_signal:
+        return None
+    if evidence_status == "completed" and answer_source not in {"", "none"}:
+        return None
+    if (
+        evidence_status in {"partial", "failed"}
+        or answer_source in {"none", ""}
+        or failure_kind
+        or auto_fetch_gate_reason in _UNACCEPTED_WEB_RESEARCH_GATE_REASONS
+        or tool_failure_reason
+    ):
+        return _web_research_failure_reason(state, tool_results=tool_results)
+    return None
+
+
+def mark_web_research_intents_failed_for_unaccepted_evidence(
+    state: ExecutionStateMachine,
+    *,
+    reason: str,
+) -> None:
+    for intent in state.intent_plan:
+        if str(intent.family or "").strip() != "web_research":
+            continue
+        intent.metadata = dict(intent.metadata or {})
+        intent.status = "failed"
+        intent.completed_by_tool_names = []
+        intent.metadata["failure_reason"] = reason
+        intent.metadata["web_research_evidence_unaccepted"] = True
+
+
+def record_web_research_partial_exit(
+    state: ExecutionStateMachine,
+    *,
+    reason: str,
+) -> None:
+    target_intent_id = next(
+        (
+            intent.intent_id
+            for intent in state.intent_plan
+            if str(intent.family or "").strip() == "web_research"
+            and intent.status != "completed"
+        ),
+        None,
+    )
+    unfinished_intent_ids = [
+        intent.intent_id for intent in state.intent_plan if intent.status != "completed"
+    ]
+    decision = RecoveryDecision(
+        action="return_partial",
+        target_intent_id=target_intent_id,
+        retry_family="web_research",
+        unfinished_intent_ids=unfinished_intent_ids,
+        reason=reason,
+        provider_failure_kind="none",
+        metadata={"web_research_evidence_unaccepted": True},
+    )
+    state.recovery_events.append(
+        {
+            "kind": "partial_output",
+            "action": "return_partial",
+            "target_intent_id": target_intent_id,
+            "reason": reason,
+            "web_research_evidence_unaccepted": True,
+        }
+    )
+    decision.metadata["source_recovery_event_seq"] = len(state.recovery_events)
+    state.recovery_history.append(decision)
 
 
 def intent_missing_args(intent: Any | None) -> list[str]:
@@ -853,6 +1035,40 @@ async def finalize_turn_execution(
             final_output_source = "budget_fallback"
         else:
             final_output_source = "partial_output"
+    elif (
+        unaccepted_web_research_reason
+        := should_return_partial_for_unaccepted_web_research_evidence(
+            state=state,
+            tool_results=tool_results,
+        )
+    ):
+        partial = True
+        completion_reason = unaccepted_web_research_reason
+        final_output_source = "partial_output"
+        mark_web_research_intents_failed_for_unaccepted_evidence(
+            state,
+            reason=completion_reason,
+        )
+        record_web_research_partial_exit(state, reason=completion_reason)
+        state.preparation_diagnostics.update(
+            {
+                "partial_exit_reason": completion_reason,
+                "web_research_evidence_unaccepted": True,
+                "untrusted_final_output_fallback_applied": True,
+                "stripped_untrusted_final_output": True,
+            }
+        )
+        if latest_auto_fetch_gate_reason(state) == "search_not_successful":
+            state.preparation_diagnostics["search_not_successful_untrusted_output"] = (
+                True
+            )
+        output = build_untrusted_final_output_fallback(
+            auto_fetch_gate_reason=latest_auto_fetch_gate_reason(state),
+            failure_kind=completion_reason,
+        )
+        if response is not None and getattr(response, "message", None) is not None:
+            response.message.content = output
+        state.transition("partial_exit")
     else:
         state.transition("completed")
         if not str(output or "").strip() and state.intent_plan:
@@ -1094,7 +1310,7 @@ class _TurnRunLoop:
             query,
             WebResearchRunOptions(
                 max_search_results=5,
-                max_fetches=1,
+                max_fetches=3,
                 require_fetch=True,
                 provider_disable_reason="optional_provider_skipped:builtin_default",
                 diagnostics={
@@ -1126,9 +1342,16 @@ class _TurnRunLoop:
                 "evidence_status": evidence.status,
                 "candidate_urls": list(evidence.diagnostics.candidate_urls),
                 "fetched_urls": list(evidence.diagnostics.fetched_urls),
+                "rejected_urls": list(evidence.diagnostics.rejected_urls),
                 "evidence_quality": evidence.answer_quality,
                 "answer_source": evidence.diagnostics.answer_source,
                 "web_research_failure_kind": evidence.failure_kind,
+                "web_research_relevance_profile": (
+                    evidence.diagnostics.relevance_profile
+                ),
+                "web_research_relevance_rejection_count": (
+                    evidence.diagnostics.relevance_rejection_count
+                ),
                 "web_research_provider_disable_reason": (
                     evidence.diagnostics.provider_disable_reason
                 ),
@@ -1139,6 +1362,15 @@ class _TurnRunLoop:
             turn_messages=self.turn_messages,
             tool_results=self.tool_results,
         )
+        unaccepted_reason = should_return_partial_for_unaccepted_web_research_evidence(
+            state=self.state,
+            tool_results=self.tool_results,
+        )
+        if unaccepted_reason:
+            mark_web_research_intents_failed_for_unaccepted_evidence(
+                self.state,
+                reason=unaccepted_reason,
+            )
         self.response = ChatResponse(
             message=ChatMessage(role="assistant", content=""),
             total_tokens=0,

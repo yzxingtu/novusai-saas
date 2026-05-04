@@ -1,3 +1,9 @@
+"""
+Test type: behavioral
+Scope: tool-call loop runtime control flow, budget, and tool execution states.
+Mocked dependencies: local tool/model seams only; policy/runtime logic runs real.
+"""
+
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -57,23 +63,21 @@ def _make_response(tool_calls: list[dict[str, object]] | None = None) -> ChatRes
 def _make_callbacks(
     *,
     call_followup_llm=None,
-    truncate_tool_calls_after_navigation=None,
+    keep_tool_calls_for_round=None,
 ) -> runtime_mod.ToolCallLoopCallbacks:
     async def _default_followup_llm(_tools, _policy):
         return _make_response()
 
     return runtime_mod.ToolCallLoopCallbacks(
         ordered_requested_families_from_intents=lambda **_kwargs: [],
-        truncate_tool_calls_after_navigation=(
-            truncate_tool_calls_after_navigation
-            or (lambda tool_calls: (tool_calls, False))
+        keep_tool_calls_for_round=(
+            keep_tool_calls_for_round or (lambda tool_calls: (tool_calls, False))
         ),
         mark_multi_family_progress=lambda **_kwargs: None,
         budget_exit_response=lambda total_tokens: ChatResponse(
             message=ChatMessage(role="assistant", content=f"budget:{total_tokens}"),
             total_tokens=total_tokens,
         ),
-        build_page_no_progress_recovery=lambda **_kwargs: ([], {}),
         messages_have_blocking_pending_interaction=lambda _messages: False,
         first_incomplete_requested_family=lambda _ordered, _completed: None,
         allowed_tool_names_for_family=lambda _family, _tools, _input: [],
