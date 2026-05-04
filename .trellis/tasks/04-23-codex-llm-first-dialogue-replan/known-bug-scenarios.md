@@ -297,13 +297,25 @@ commits。PR 审核（parent agent 或人类 reviewer）必须核对这条引用
   - Low-relevance pages must be recorded as rejected/skipped evidence with
     `failure_kind=low_query_relevance`; if no accepted evidence remains, the turn
     must finish as partial/failed rather than success/completed.
-- **status**: `red_test_written`
+- **status**: `fixed_with_green_test`
 - **notes**:
   - RED regression added at:
     `backend/tests/regressions/test_bug_2026_05_05_2285_irrelevant_web_research_evidence.py`.
-  - The first RED commit intentionally contains only the known-bug entry and
-    regression test. The GREEN commit must add relevance gating, status
-    projection, smoke artifact, and task/spec corrections.
+  - RED commit:
+    `dd45f86fd test(ai): reproduce 2285 irrelevant web research evidence`.
+  - GREEN implementation commit:
+    `6be3a378b808687a5503bd850e07230f1a3eb926` (`fix(ai): reject irrelevant web research evidence`).
+  - The fix adds deterministic WebResearch query-relevance gating, rejects
+    low-relevance fetched pages before they can become `fetched_urls`,
+    citations, `recovery_evidence`, or completed state, and downgrades stale
+    historical projections for conversation 2285 to failed/partial.
+  - Fresh real-dialogue smoke conversation `2290` rejected the same
+    low-relevance Baijiahao page with `failure_kind=low_query_relevance`,
+    `fetched_urls=[]`, `answer_source=none`, and
+    `final_output_source=partial_output`.
+  - Playwright verification opened admin conversation `2290`; the detail drawer
+    rendered `失败归因=来源相关性不足`, intent `web_research=failed`, provider
+    event `evidence_status=partial`, and the assistant message card `异常`.
 
 ---
 

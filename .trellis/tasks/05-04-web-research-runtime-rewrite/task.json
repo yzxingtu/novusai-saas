@@ -1,0 +1,130 @@
+{
+  "id": "05-04-web-research-runtime-rewrite",
+  "name": "05-04-web-research-runtime-rewrite",
+  "title": "Rewrite WebResearch runtime around provider-neutral search/fetch evidence pipeline",
+  "description": "Replace native-first web search orchestration with a platform-owned WebResearch pipeline: search provider -> fetch provider -> unified evidence -> answer/recovery. Builtin web_search + fetch_url are the default path; hosted/native search is optional provider capability only.",
+  "status": "completed",
+  "dev_type": "ai",
+  "scope": "AI runtime web_research orchestration, provider search contracts, evidence projection, CLI diagnostics, tests, and canonical specs",
+  "priority": "P0",
+  "creator": "yudi",
+  "assignee": "codex-main-auditor",
+  "createdAt": "2026-05-04",
+  "completedAt": "2026-05-05",
+  "branch": "codex/admin-account-ai-availability",
+  "base_branch": "codex/admin-account-ai-availability",
+  "worktree_path": null,
+  "execution_path": "deep",
+  "mode": "new-system-only",
+  "supersedes": [
+    "05-02-ai-native-web-search-audit"
+  ],
+  "required_artifacts": [
+    "prd.md",
+    "info.md"
+  ],
+  "context_files": [
+    "implement.jsonl",
+    "check.jsonl"
+  ],
+  "verification_mode": "command",
+  "commit": "6be3a378b808687a5503bd850e07230f1a3eb926",
+  "pr_url": null,
+  "subtasks": [
+    {
+      "id": "A1-provider-capabilities",
+      "owner": "subagent",
+      "status": "verified"
+    },
+    {
+      "id": "A2-webresearch-core",
+      "owner": "subagent",
+      "status": "verified"
+    },
+    {
+      "id": "A3-builtin-providers",
+      "owner": "subagent",
+      "status": "verified"
+    },
+    {
+      "id": "A4-turn-integration",
+      "owner": "subagent",
+      "status": "verified"
+    },
+    {
+      "id": "A5-observability-readmodels",
+      "owner": "subagent",
+      "status": "verified"
+    },
+    {
+      "id": "A6-tests-spec",
+      "owner": "subagent",
+      "status": "verified"
+    }
+  ],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    ".trellis/spec/ai-runtime/tool-skill-governance.md",
+    ".trellis/spec/ai-runtime/provider-contracts.md",
+    ".trellis/spec/ai-runtime/execution-state-machine.md",
+    ".trellis/spec/ai-runtime/recovery-stop-loss.md",
+    "backend/app/ai/web_search",
+    "backend/app/ai/web_research",
+    "backend/app/ai/engine",
+    "backend/app/ai/runtime/query_engine.py",
+    "backend/app/ai/adapters/openai_compatible",
+    "backend/app/services/ai",
+    "backend/app/cli_commands",
+    "backend/tests/ai",
+    "backend/tests/regressions"
+  ],
+  "notes": "User explicitly requested deep refactor, no legacy compatibility preservation, old code may be deleted, and six subagents may implement while main thread audits. The earlier 2284 smoke only proved builtin search/fetch execution and is superseded for final acceptance by BUG-2026-05-05-2285. Final acceptance now requires query-relevance gating: historical 2285 and fresh real-dialogue 2290 both reject low-relevance evidence, keep fetched_urls empty, set answer_source=none, and project partial/error instead of completed/success.",
+  "meta": {
+    "web_research_default": "builtin_web_search_fetch_url",
+    "hosted_native_search": "optional_search_provider_only",
+    "openai_compatible_hosted_search_default": "disabled",
+    "pipeline_owner": "platform_runtime",
+    "verified_at": "2026-05-05",
+    "verified_test_matrix": "full backend pytest 2950 passed, 4 skipped, 2 warnings; targeted WebResearch/projection suites passed; test files checked for Test type annotations",
+    "prompt_contracts": "passed",
+    "ruff_touched_paths": "passed",
+    "cli_conversation_replay": "2281 tail=1 and 2282 tail=4 diagnostics checked",
+    "cli_runtime_smoke": "agent_id=59 green",
+    "real_dialogue_smoke": "pass",
+    "real_dialogue_conversation_id": 2290,
+    "real_dialogue_smoke_prompt": "查一下大模型排行榜 2026  水平排行！",
+    "playwright_smoke": "pass; admin conversations UI opened conversation 2290 and rendered failure attribution as 来源相关性不足, web_research failed, provider event evidence_status=partial answer_source=none, retry return_partial low_query_relevance, and assistant message card 异常; console has no missing i18n key after frontend locale fix",
+    "frontend_typecheck": "pnpm --dir frontend check:type:antd passed",
+    "frontend_locale_prettier": "prettier --check passed for touched admin/tenant ai locale JSON files",
+    "frontend_lint": "pnpm --dir frontend lint still fails on pre-existing unrelated stylelint/prettier issues in AI chat CSS/Vue and docs files; touched locale JSON files pass targeted checks",
+    "playwright_screenshot": ".trellis/tasks/05-04-web-research-runtime-rewrite/smoke-runs/2026-05-05-webresearch-2285-relevance/webresearch-2290-low-relevance-detail-translated.png",
+    "cross_layer_audit": "pass after follow-up fixes; backend projection fallbacks no longer relabel low-relevance fetch evidence as completed, turn-flow no longer treats rejected candidates as retrieved evidence, frontend admin/tenant locales include WebResearch failure kinds",
+    "removed_legacy_files": [
+      "backend/app/ai/web_search/runtime_fallback_flags.py",
+      "backend/app/ai/web_search/orchestration/native_provider.py"
+    ],
+    "superseded_smoke_2284": {
+      "reason": "Proved builtin search/fetch execution only; invalidated as final acceptance by BUG-2026-05-05-2285 relevance failure.",
+      "conversation_id": 2284,
+      "evidence_status": "completed",
+      "answer_source": "fetched_body"
+    },
+    "real_dialogue_smoke_diagnostics": {
+      "web_research_pipeline_id": "web-research-1",
+      "search_provider": "builtin:web_search",
+      "fetch_provider": "builtin:fetch_url",
+      "evidence_status": "partial",
+      "fetched_urls": [],
+      "rejected_urls": [
+        "https://baijiahao.baidu.com/s?id=1860091565873698107&wfr=spider&for=pc"
+      ],
+      "evidence_quality": "none",
+      "answer_source": "none",
+      "final_output_source": "partial_output",
+      "web_research_failure_kind": "low_query_relevance",
+      "web_research_relevance_profile": "llm_leaderboard",
+      "web_research_relevance_rejection_count": 1
+    }
+  }
+}
