@@ -1,4 +1,8 @@
-"""Plugin extension registrar bridge tests. / 插件扩展注册桥接测试。"""
+"""Test type: behavioral
+Scope: plugin extension registrar and runtime registry contracts.
+Real dependencies: PluginManifest validation and ExtensionRegistry state.
+Mocked dependencies: handler loading only.
+"""
 
 from __future__ import annotations
 
@@ -128,3 +132,75 @@ def test_register_all_extensions_records_runtime_extension_failures(
             "type": "middleware",
         },
     ]
+
+
+def test_registry_keeps_plugin_skill_resolvers_by_skill_name() -> None:
+    from app.plugins.registry import ExtensionRegistry
+
+    ExtensionRegistry.reset()
+    registry = ExtensionRegistry.get_instance()
+
+    def alpha_resolver(*_args, **_kwargs):
+        return ["alpha"]
+
+    def beta_resolver(*_args, **_kwargs):
+        return ["beta"]
+
+    registry.register_skill(
+        "demo-plugin",
+        "toolkit",
+        alpha_resolver,
+        skill_name="alpha-skill",
+    )
+    registry.register_skill(
+        "demo-plugin",
+        "toolkit",
+        beta_resolver,
+        skill_name="beta-skill",
+    )
+
+    assert registry.get_plugin_skill_resolver("demo-plugin", "alpha-skill") is (
+        alpha_resolver
+    )
+    assert registry.get_plugin_skill_resolver("demo-plugin", "beta-skill") is (
+        beta_resolver
+    )
+    assert registry.get_plugin_skill_resolver("demo-plugin", "missing-skill") is None
+    assert registry.get_plugin_skill_resolver("demo-plugin") is alpha_resolver
+
+    registry.unregister_all("demo-plugin")
+
+    assert registry.get_plugin_skill_resolver("demo-plugin", "alpha-skill") is None
+    assert registry.get_plugin_skill_resolver("demo-plugin", "beta-skill") is None
+    assert registry.get_plugin_skill_resolver("demo-plugin") is None
+
+
+def test_registry_unregister_by_type_clears_plugin_skill_facade() -> None:
+    from app.plugins.registry import ExtensionRegistry
+
+    ExtensionRegistry.reset()
+    registry = ExtensionRegistry.get_instance()
+
+    def alpha_resolver(*_args, **_kwargs):
+        return ["alpha"]
+
+    def beta_resolver(*_args, **_kwargs):
+        return ["beta"]
+
+    registry.register_skill(
+        "demo-plugin",
+        "toolkit",
+        alpha_resolver,
+        skill_name="alpha-skill",
+    )
+    registry.register_skill(
+        "demo-plugin",
+        "toolkit",
+        beta_resolver,
+        skill_name="beta-skill",
+    )
+
+    assert registry.unregister_by_type("demo-plugin", "skill") == 2
+    assert registry.get_plugin_skill_resolver("demo-plugin", "alpha-skill") is None
+    assert registry.get_plugin_skill_resolver("demo-plugin", "beta-skill") is None
+    assert registry.get_plugin_skill_resolver("demo-plugin") is None

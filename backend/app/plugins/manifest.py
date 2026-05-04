@@ -68,7 +68,7 @@ class SkillExtensionSchema(BaseModel):
     type: str = "toolkit"
     display_name: I18nText = Field(default_factory=dict)
     description: I18nText = Field(default_factory=dict)
-    entry_point: str = ""
+    entry_point: str
     config_schema: dict | None = None
     preview_tool_names: list[str] = Field(default_factory=list)
     preview_semantic_families: list[str] = Field(default_factory=list)
@@ -76,9 +76,17 @@ class SkillExtensionSchema(BaseModel):
     @field_validator("entry_point")
     @classmethod
     def validate_entry_point(cls, v: str) -> str:
-        if not v:  # entry_point is optional / entry_point 是可选的
-            return v
+        if not str(v or "").strip():
+            raise ValueError("skill.entry_point is required")
         return _validate_handler_path(v, "skill.entry_point")
+
+    @field_validator("name", "type")
+    @classmethod
+    def validate_required_text(cls, v: str) -> str:
+        text = str(v or "").strip()
+        if not text:
+            raise ValueError("skill name and type are required")
+        return text
 
     @field_validator("preview_tool_names", mode="before")
     @classmethod

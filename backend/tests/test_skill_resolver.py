@@ -24,10 +24,10 @@ from app.ai.tools.types import ToolDefinition
 
 
 @pytest.mark.asyncio
-async def test_plugin_skill_without_registered_resolver_falls_back_to_canonical_toolkit(
+async def test_plugin_skill_without_registered_resolver_is_unavailable(
     monkeypatch,
 ) -> None:
-    """Plugin-packaged toolkit skills should still resolve via canonical toolkit parsing."""
+    """Plugin-owned toolkit skills must fail closed when registry has no resolver."""
 
     skill = SimpleNamespace(
         id=101,
@@ -42,6 +42,8 @@ async def test_plugin_skill_without_registered_resolver_falls_back_to_canonical_
             is_deleted=False,
             valves_config=None,
         ),
+        key="weather-widget:weather_tools",
+        source_ref="weather-widget:weather_tools",
         config=None,
         toolkit_content="""
 class Tools:
@@ -57,7 +59,7 @@ class Tools:
     resolver = SkillResolver(db=None)
     resolver._load_source_plugins = AsyncMock(return_value={77: "weather-widget"})
 
-    registry_stub = SimpleNamespace(get_plugin_skill_resolver=lambda _plugin_name: None)
+    registry_stub = SimpleNamespace(get_plugin_skill_resolver=lambda *_args: None)
     monkeypatch.setattr(
         "app.plugins.registry.ExtensionRegistry.get_instance",
         lambda: registry_stub,
@@ -65,18 +67,20 @@ class Tools:
 
     result = await resolver.resolve([skill])
 
-    assert [tool.name for tool in result.tools] == ["get_current_weather"]
-    assert result.tools[0].source_skill_id == 101
-    assert result.tools[0].source_skill_name == "weather_tools"
-    assert result.tools[0].source_skill_type == "toolkit"
-    assert result.tools[0].source_plugin == "weather-widget"
+    assert result.tools == []
+    assert [issue.code for issue in result.resolution_issues] == [
+        "plugin_resolver_missing"
+    ]
+    assert result.resolution_issues[0].source_plugin == "weather-widget"
+    assert result.resolution_issues[0].skill_id == 101
+    assert "resolver is unavailable" in result.warnings[0]
 
 
 @pytest.mark.asyncio
-async def test_plugin_skill_without_registered_resolver_falls_back_to_canonical_builtin(
+async def test_plugin_skill_without_registered_resolver_does_not_use_builtin_fallback(
     monkeypatch,
 ) -> None:
-    """Plugin-packaged builtin skills should fall back to builtin tool resolution."""
+    """Plugin-owned builtin skills must not silently use canonical builtin fallback."""
 
     skill = SimpleNamespace(
         id=102,
@@ -91,6 +95,8 @@ async def test_plugin_skill_without_registered_resolver_falls_back_to_canonical_
             is_deleted=False,
             valves_config=None,
         ),
+        key="weather-widget:weather_builtin",
+        source_ref="weather-widget:weather_builtin",
         config={
             "tools": [
                 {
@@ -107,7 +113,7 @@ async def test_plugin_skill_without_registered_resolver_falls_back_to_canonical_
     resolver = SkillResolver(db=None)
     resolver._load_source_plugins = AsyncMock(return_value={88: "weather-widget"})
 
-    registry_stub = SimpleNamespace(get_plugin_skill_resolver=lambda _plugin_name: None)
+    registry_stub = SimpleNamespace(get_plugin_skill_resolver=lambda *_args: None)
     monkeypatch.setattr(
         "app.plugins.registry.ExtensionRegistry.get_instance",
         lambda: registry_stub,
@@ -115,15 +121,16 @@ async def test_plugin_skill_without_registered_resolver_falls_back_to_canonical_
 
     result = await resolver.resolve([skill])
 
-    assert [tool.name for tool in result.tools] == ["get_current_weather"]
-    assert result.tools[0].source_skill_id == 102
-    assert result.tools[0].source_skill_name == "weather_builtin"
-    assert result.tools[0].source_skill_type == "builtin"
-    assert result.tools[0].source_plugin == "weather-widget"
+    assert result.tools == []
+    assert [issue.code for issue in result.resolution_issues] == [
+        "plugin_resolver_missing"
+    ]
+    assert result.resolution_issues[0].source_plugin == "weather-widget"
+    assert result.resolution_issues[0].skill_id == 102
 
 
 @pytest.mark.asyncio
-async def test_resolve_one_falls_back_to_toolkit_when_source_plugin_has_no_resolver(
+async def test_resolve_one_records_issue_when_source_plugin_has_no_resolver(
     monkeypatch,
 ) -> None:
     skill = SimpleNamespace(
@@ -131,6 +138,8 @@ async def test_resolve_one_falls_back_to_toolkit_when_source_plugin_has_no_resol
         name="weather_tools",
         type="toolkit",
         package_id=77,
+        key="weather-widget:weather_tools",
+        source_ref="weather-widget:weather_tools",
         config=None,
         timeout=30,
         is_active=True,
@@ -138,27 +147,65 @@ async def test_resolve_one_falls_back_to_toolkit_when_source_plugin_has_no_resol
     )
 
     resolver = SkillResolver(db=None)
-    registry_stub = SimpleNamespace(get_plugin_skill_resolver=lambda _plugin_name: None)
+    registry_stub = SimpleNamespace(get_plugin_skill_resolver=lambda *_args: None)
     monkeypatch.setattr(
         "app.plugins.registry.ExtensionRegistry.get_instance",
         lambda: registry_stub,
     )
 
-    def _append_forecast_tool(*, skill, config, result):
-        del skill, config
-        result.tools.append(SimpleNamespace(name="get_weather_forecast"))
-
-    resolver._resolve_toolkit = MagicMock(  # type: ignore[method-assign]
-        side_effect=_append_forecast_tool
-    )
+    resolver._resolve_toolkit = MagicMock()  # type: ignore[method-assign]
 
     result = SkillResolveResult()
     await resolver._resolve_one(
         skill, config={}, result=result, source_plugin="weather-widget"
     )
 
-    assert [tool.name for tool in result.tools] == ["get_weather_forecast"]
-    resolver._resolve_toolkit.assert_called_once()
+    assert result.tools == []
+    assert [issue.code for issue in result.resolution_issues] == [
+        "plugin_resolver_missing"
+    ]
+    resolver._resolve_toolkit.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_plugin_skill_without_stable_identity_does_not_use_plugin_fallback(
+    monkeypatch,
+) -> None:
+    skill = SimpleNamespace(
+        id=103,
+        name="Legacy Display Name",
+        type="toolkit",
+        package_id=77,
+        key=None,
+        source_ref=None,
+        config=None,
+        timeout=30,
+        is_active=True,
+        is_deleted=False,
+    )
+    registry_stub = SimpleNamespace(
+        get_plugin_skill_resolver=lambda *_args: (
+            lambda *_resolver_args: [
+                ToolDefinition(name="legacy_tool", description="legacy")
+            ]
+        )
+    )
+    monkeypatch.setattr(
+        "app.plugins.registry.ExtensionRegistry.get_instance",
+        lambda: registry_stub,
+    )
+
+    result = SkillResolveResult()
+    resolver = SkillResolver(db=None)
+    await resolver._resolve_one(
+        skill, config={}, result=result, source_plugin="legacy-plugin"
+    )
+
+    assert result.tools == []
+    assert [issue.code for issue in result.resolution_issues] == [
+        "plugin_skill_identity_missing"
+    ]
+    assert "stable source_ref/key identity" in result.warnings[0]
 
 
 def test_selected_skill_names_merges_descriptor_and_tool_sources() -> None:
@@ -404,6 +451,8 @@ def _make_runtime_skill(
         name=name,
         type=skill_type,
         package_id=package.id,
+        key=f"{source_plugin}:{name}" if source_plugin else None,
+        source_ref=f"{source_plugin}:{name}" if source_plugin else None,
         config=config,
         timeout=30,
         is_active=True,
@@ -947,6 +996,87 @@ async def test_resolve_for_agent_prefilters_plugin_tool_mentions_from_manifest_p
     await resolve_for_agent(db, agent, tenant_id=9, request=request)
 
     assert [skill.name for skill in captured["skills"]] == ["Assistant Extension"]
+
+
+@pytest.mark.asyncio
+async def test_resolve_for_agent_marks_plugin_skill_unavailable_when_resolver_missing(
+    monkeypatch,
+) -> None:
+    neutral_plugin_skill = _make_runtime_skill(
+        skill_id=711,
+        name="Assistant Extension",
+        skill_type="toolkit",
+        package_name="neutral.package",
+        source_plugin="neutral-plugin",
+    )
+    grant_result = MagicMock()
+    grant_result.scalars.return_value.all.return_value = [
+        _make_grant(neutral_plugin_skill)
+    ]
+    plugin_preview_result = MagicMock()
+    plugin_preview_result.all.return_value = [
+        (
+            "neutral-plugin",
+            {
+                "extensions": {
+                    "skills": [
+                        {
+                            "name": "assistant-extension",
+                            "type": "toolkit",
+                            "display_name": {"en": "Assistant Extension"},
+                            "entry_point": "skills.neutral_plugin",
+                            "preview_tool_names": ["crm_lookup"],
+                        }
+                    ]
+                }
+            },
+        )
+    ]
+    source_plugin_result = [
+        SimpleNamespace(
+            id=neutral_plugin_skill.package_id, source_plugin="neutral-plugin"
+        )
+    ]
+    db = MagicMock()
+    db.execute = AsyncMock(
+        side_effect=[grant_result, plugin_preview_result, source_plugin_result]
+    )
+    registry_stub = SimpleNamespace(get_plugin_skill_resolver=lambda *_args: None)
+    monkeypatch.setattr(
+        "app.plugins.registry.ExtensionRegistry.get_instance",
+        lambda: registry_stub,
+    )
+    agent = SimpleNamespace(id=1, name="Support Agent", owner_tenant_id=9)
+    request = SimpleNamespace(
+        messages=[
+            SimpleNamespace(role="user", content="Please call crm_lookup for me.")
+        ]
+    )
+
+    resolved = await resolve_for_agent(db, agent, tenant_id=9, request=request)
+
+    assert resolved is not None
+    assert [issue.code for issue in resolved.resolution_issues] == [
+        "plugin_resolver_missing"
+    ]
+    plugin_descriptors = [
+        descriptor
+        for descriptor in resolved.capability_descriptors
+        if descriptor.name == "Assistant Extension"
+    ]
+    assert len(plugin_descriptors) == 1
+    metadata = plugin_descriptors[0].metadata
+    assert metadata["startup_preview_tool_names"] == ["crm_lookup"]
+    assert metadata["resolved_tool_names"] == []
+    assert metadata["has_execution_tools"] is False
+    assert metadata["resolution_status"] == "unavailable"
+    assert metadata["resolution_reason"] == "plugin_resolver_missing"
+    assert [tool.name for tool in resolved.tools] == [
+        "get_current_time",
+        "web_search",
+        "fetch_url",
+    ]
+    assert resolved.selected_skill_names == []
 
 
 @pytest.mark.asyncio

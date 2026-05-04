@@ -9,6 +9,7 @@ from collections import defaultdict
 from typing import Any
 
 from app.ai.runtime import AIRuntimeInventoryService
+from app.ai.skills.resolution_contracts import SkillResolveIssue, issue_matches_skill
 from app.ai.skills.resolver import SkillResolveResult
 from app.ai.tools.types import ToolDefinition
 from app.models.ai.agent import Agent
@@ -38,11 +39,43 @@ def _normalized_skill_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
     ):
         if key in normalized:
             normalized[key] = _stable_unique_texts(
-                filter_invalid_ai_runtime_references(
-                    list(normalized.get(key) or [])
-                )
+                filter_invalid_ai_runtime_references(list(normalized.get(key) or []))
             )
     return normalized
+
+
+def _issue_payload(issue: SkillResolveIssue | Any) -> dict[str, Any]:
+    if hasattr(issue, "to_dict"):
+        return issue.to_dict()
+    return dict(issue or {})
+
+
+def _skill_resolution_issues(
+    *,
+    skill_result: SkillResolveResult,
+    skill_id: Any | None = None,
+    skill_name: str = "",
+) -> list[SkillResolveIssue]:
+    return [
+        issue
+        for issue in list(getattr(skill_result, "resolution_issues", []) or [])
+        if issue_matches_skill(issue, skill_id=skill_id, skill_name=skill_name)
+    ]
+
+
+def _resolution_status_from_issues(
+    *,
+    metadata: dict[str, Any],
+    issues: list[SkillResolveIssue],
+) -> tuple[str | None, str | None]:
+    metadata_status = str(metadata.get("resolution_status") or "").strip()
+    metadata_reason = str(metadata.get("resolution_reason") or "").strip()
+    if metadata_status:
+        return metadata_status, metadata_reason or None
+    if not issues:
+        return None, None
+    status = "degraded" if bool(metadata.get("has_execution_tools")) else "unavailable"
+    return status, issues[0].code
 
 
 def build_skill_items(
@@ -70,6 +103,23 @@ def build_skill_items(
             enriched_item["metadata"] = {
                 **dict(enriched_item.get("metadata") or {}),
                 **metadata,
+            }
+        issues = _skill_resolution_issues(
+            skill_result=skill_result,
+            skill_id=metadata.get("skill_id"),
+            skill_name=skill_name,
+        )
+        status, reason = _resolution_status_from_issues(
+            metadata=metadata,
+            issues=issues,
+        )
+        if status in {"degraded", "unavailable"}:
+            enriched_item["status"] = status
+            enriched_item["reason"] = reason
+            enriched_item["metadata"] = {
+                **dict(enriched_item.get("metadata") or {}),
+                "resolution_issues": [_issue_payload(issue) for issue in issues]
+                or list(metadata.get("resolution_issues") or []),
             }
         source = str(getattr(descriptor, "source", "") or "").strip()
         if source:
@@ -197,6 +247,7 @@ def build_extension_items(
             "package_names": [],
             "startup_preview_tool_names": [],
             "startup_preview_semantic_families": [],
+            "resolution_issues": [],
         }
     )
 
@@ -241,28 +292,59 @@ def build_extension_items(
         ):
             if family not in bucket["startup_preview_semantic_families"]:
                 bucket["startup_preview_semantic_families"].append(family)
+        for issue in list(metadata.get("resolution_issues") or []):
+            if issue not in bucket["resolution_issues"]:
+                bucket["resolution_issues"].append(issue)
 
-    return [
-        {
-            "name": plugin_name,
-            "kind": "extension",
-            "status": "available",
-            "reason": None,
-            "metadata": {
-                "tool_names": sorted(bucket["tool_names"]),
-                "skill_names": sorted(bucket["skill_names"]),
-                "package_names": sorted(bucket["package_names"]),
-                "startup_preview_tool_names": sorted(
-                    bucket["startup_preview_tool_names"]
-                ),
-                "startup_preview_semantic_families": sorted(
-                    bucket["startup_preview_semantic_families"]
-                ),
-            },
-            "source": "plugin_runtime",
+    for issue in list(getattr(skill_result, "resolution_issues", []) or []):
+        plugin_name = str(getattr(issue, "source_plugin", "") or "").strip()
+        if not plugin_name:
+            continue
+        bucket = extensions[plugin_name]
+        issue_payload = _issue_payload(issue)
+        if issue_payload not in bucket["resolution_issues"]:
+            bucket["resolution_issues"].append(issue_payload)
+        if issue.skill_name and issue.skill_name not in bucket["skill_names"]:
+            bucket["skill_names"].append(issue.skill_name)
+        if issue.package_name and issue.package_name not in bucket["package_names"]:
+            bucket["package_names"].append(issue.package_name)
+
+    items: list[dict[str, Any]] = []
+    for plugin_name, bucket in sorted(extensions.items()):
+        issues = list(bucket["resolution_issues"] or [])
+        tool_names = sorted(bucket["tool_names"])
+        if tool_names and not issues:
+            status = "available"
+            reason = None
+        elif tool_names:
+            status = "degraded"
+            reason = str((issues[0] or {}).get("code") or "plugin_runtime_degraded")
+        else:
+            status = "unavailable"
+            reason = str((issues[0] or {}).get("code") or "no_resolved_plugin_tools")
+
+        metadata = {
+            "tool_names": tool_names,
+            "skill_names": sorted(bucket["skill_names"]),
+            "package_names": sorted(bucket["package_names"]),
+            "startup_preview_tool_names": sorted(bucket["startup_preview_tool_names"]),
+            "startup_preview_semantic_families": sorted(
+                bucket["startup_preview_semantic_families"]
+            ),
         }
-        for plugin_name, bucket in sorted(extensions.items())
-    ]
+        if issues:
+            metadata["resolution_issues"] = issues
+        items.append(
+            {
+                "name": plugin_name,
+                "kind": "extension",
+                "status": status,
+                "reason": reason,
+                "metadata": metadata,
+                "source": "plugin_runtime",
+            }
+        )
+    return items
 
 
 def shape_manifest_payload(

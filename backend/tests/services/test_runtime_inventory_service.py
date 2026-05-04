@@ -1,3 +1,9 @@
+"""Test type: behavioral
+Scope: Runtime inventory shaping from resolver-produced skill/tool facts.
+Real dependencies: RuntimeCapabilityManifest DTOs and inventory support helpers.
+Mocked dependencies: resolve_for_agent is patched only in the service-load sentinel.
+"""
+
 from __future__ import annotations
 
 from types import SimpleNamespace
@@ -7,7 +13,7 @@ import pytest
 
 from app.ai.runtime.manifest import RuntimeCapabilityItem, RuntimeCapabilityManifest
 from app.ai.runtime.types import CapabilityDescriptor
-from app.ai.skills.resolver import SkillResolveResult
+from app.ai.skills.resolver import SkillResolveIssue, SkillResolveResult
 from app.ai.tools.types import ToolDefinition
 from app.services.ai.runtime_inventory_service_support import (
     build_empty_manifest,
@@ -159,6 +165,97 @@ def test_shape_manifest_payload_projects_skill_catalog_preview_metadata() -> Non
     assert payload["boundaries"]["selection_semantics"] == "inventory_snapshot"
     assert payload["boundaries"]["selection_live"] is False
     assert payload["boundaries"]["live_turn_bound"] is False
+
+
+def test_shape_manifest_payload_marks_plugin_extension_unavailable_from_resolution_issue() -> (
+    None
+):
+    manifest = RuntimeCapabilityManifest(
+        scope="turn",
+        tenant_id=9,
+        agent_id=1,
+        provider=None,
+        model=None,
+        tools=[],
+        skills=[
+            RuntimeCapabilityItem(
+                name="Assistant Extension",
+                kind="capability_pack",
+                status="available",
+                source="skill_resolver",
+            )
+        ],
+        sources=[],
+    )
+    issue = SkillResolveIssue(
+        code="plugin_resolver_missing",
+        message="Plugin 'neutral-plugin' resolver is unavailable",
+        severity="error",
+        skill_id=901,
+        skill_name="Assistant Extension",
+        skill_type="toolkit",
+        package_name="neutral.package",
+        source_plugin="neutral-plugin",
+    )
+    skill_result = SkillResolveResult(
+        tools=[],
+        resolution_issues=[issue],
+        capability_descriptors=[
+            CapabilityDescriptor(
+                name="Assistant Extension",
+                kind="capability_pack",
+                source="skill_package:neutral.package",
+                metadata={
+                    "skill_id": 901,
+                    "skill_type": "toolkit",
+                    "package_name": "neutral.package",
+                    "source_plugin": "neutral-plugin",
+                    "startup_preview_tool_names": ["crm_lookup"],
+                    "resolved_tool_names": [],
+                    "resolved_tool_count": 0,
+                    "has_execution_tools": False,
+                    "resolution_status": "unavailable",
+                    "resolution_reason": "plugin_resolver_missing",
+                    "resolution_issues": [issue.to_dict()],
+                },
+            )
+        ],
+    )
+    agent = SimpleNamespace(name="Support Agent", owner_tenant_id=9, model=None)
+
+    payload = shape_manifest_payload(
+        scope="runtime",
+        tenant_id=9,
+        agent=agent,
+        manifest=manifest,
+        kb_bindings=[],
+        skill_result=skill_result,
+        tools=[],
+    )
+
+    assert payload["skills"][0]["status"] == "unavailable"
+    assert payload["skills"][0]["reason"] == "plugin_resolver_missing"
+    assert payload["skills"][0]["metadata"]["resolution_issues"][0]["code"] == (
+        "plugin_resolver_missing"
+    )
+    assert payload["extensions"] == [
+        {
+            "name": "neutral-plugin",
+            "kind": "extension",
+            "status": "unavailable",
+            "reason": "plugin_resolver_missing",
+            "metadata": {
+                "tool_names": [],
+                "skill_names": ["Assistant Extension"],
+                "package_names": ["neutral.package"],
+                "startup_preview_tool_names": ["crm_lookup"],
+                "startup_preview_semantic_families": [],
+                "resolution_issues": [issue.to_dict()],
+            },
+            "source": "plugin_runtime",
+        }
+    ]
+    assert payload["summary"]["extension_names"] == ["neutral-plugin"]
 
 
 def test_build_empty_manifest_marks_inventory_snapshot_as_non_live() -> None:

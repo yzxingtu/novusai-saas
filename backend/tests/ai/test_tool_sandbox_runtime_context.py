@@ -1,6 +1,13 @@
+"""Test type: behavioral
+Scope: ToolSandbox runtime context propagation and executor ownership guards.
+Real dependencies: ToolSandbox executor selection and ExecutionContext assembly.
+Mocked dependencies: plugin registry lookup only, never tool execution result.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -149,3 +156,39 @@ async def test_tool_sandbox_rejects_invalid_runtime_tools_even_if_defined() -> N
 
     assert result.success is False
     assert result.error_type == "invalid_runtime_tool"
+
+
+@pytest.mark.asyncio
+async def test_tool_sandbox_plugin_tool_missing_executor_does_not_use_generic_fallback(
+    monkeypatch,
+) -> None:
+    sandbox = ToolSandbox(
+        tenant_id=100,
+        agent_id=200,
+        config=SandboxConfig(),
+    )
+    capture = _CaptureExecutor()
+    sandbox._named_executors["plugin_tool"] = capture
+    registry_stub = SimpleNamespace(get_plugin_executor=lambda *_args: None)
+    monkeypatch.setattr(
+        "app.plugins.registry.ExtensionRegistry.get_instance",
+        lambda: registry_stub,
+    )
+
+    result = await sandbox.execute(
+        tool_call_id="tc-plugin-missing-executor",
+        name="plugin_tool",
+        arguments={},
+        definitions=[
+            ToolDefinition(
+                name="plugin_tool",
+                description="plugin-owned tool",
+                source_plugin="weather-widget",
+            )
+        ],
+    )
+
+    assert result.success is False
+    assert result.error_type == "plugin_executor_unavailable"
+    assert "plugin:weather-widget" in result.error
+    assert capture.last_context is None

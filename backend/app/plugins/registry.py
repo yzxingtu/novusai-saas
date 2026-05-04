@@ -24,6 +24,7 @@ logger = get_logger(__name__)
 
 _PLUGIN_MENU_ACTION_MAX_LEN = 50
 
+
 class _RegistryRuntimeBridge:
     """Runtime-only bridge: async consumer execution + middleware projection."""
 
@@ -192,7 +193,9 @@ class ExtensionRegistry(RegistryRuntimeExtensionsMixin):
     def __init__(self) -> None:
         self._registry: dict[str, list[RegisteredExtension]] = {}
         self._plugin_skill_resolvers: dict[str, Callable] = {}
+        self._plugin_skill_resolvers_by_key: dict[tuple[str, str], Callable] = {}
         self._plugin_executors: dict[str, Callable] = {}
+        self._plugin_executors_by_key: dict[tuple[str, str], Callable] = {}
         self._plugin_webhooks: dict[str, dict[str, Any]] = {}
         self._plugin_notifications: dict[str, dict[str, Any]] = {}
         self._plugin_permissions: dict[str, dict[str, Any]] = {}
@@ -254,6 +257,16 @@ class ExtensionRegistry(RegistryRuntimeExtensionsMixin):
         self._plugin_permission_titles.pop(plugin_name, None)
         self._plugin_skill_resolvers.pop(plugin_name, None)
         self._plugin_executors.pop(plugin_name, None)
+        self._plugin_skill_resolvers_by_key = {
+            key: value
+            for key, value in self._plugin_skill_resolvers_by_key.items()
+            if key[0] != plugin_name
+        }
+        self._plugin_executors_by_key = {
+            key: value
+            for key, value in self._plugin_executors_by_key.items()
+            if key[0] != plugin_name
+        }
 
         if self._plugin_permissions:
             self._plugin_permissions = {
@@ -350,14 +363,14 @@ class ExtensionRegistry(RegistryRuntimeExtensionsMixin):
         skill_type: str,
         resolver: Callable,
         executor: type | Callable | None = None,
+        skill_name: str | None = None,
     ) -> None:
         """
         Register plugin skill.
         / 注册插件技能
 
-        Registers resolver and executor keyed by plugin_name,
-        allowing plugin skills to use standard types (e.g. toolkit) without conflicting with built-in resolvers.
-        / 以 plugin_name 为 key 注册 resolver 和 executor。
+        Registers resolver and executor keyed by plugin_name + skill_name.
+        / 以 plugin_name + skill_name 为 key 注册 resolver 和 executor。
 
         Args:
             plugin_name: Plugin name (registration key) / 插件名（注册 key）
@@ -366,7 +379,12 @@ class ExtensionRegistry(RegistryRuntimeExtensionsMixin):
             executor: Tool executor class or instance; class is instantiated and cached at registration
                       / 工具执行器类或实例
         """
-        self._plugin_skill_resolvers[plugin_name] = resolver
+        normalized_skill_name = str(skill_name or "").strip()
+        if normalized_skill_name:
+            self._plugin_skill_resolvers_by_key[
+                (plugin_name, normalized_skill_name)
+            ] = resolver
+        self._plugin_skill_resolvers.setdefault(plugin_name, resolver)
         if executor:
             # Class → instantiate and cache, avoid creating new instance on every tool call / 类→实例化并缓存，避免每次调用新建
             # / 类 → 实例化后缓存
@@ -381,22 +399,99 @@ class ExtensionRegistry(RegistryRuntimeExtensionsMixin):
                     )
                     executor = None
             if executor:
-                self._plugin_executors[plugin_name] = executor
-        self._track(plugin_name, "skill", plugin_name)
+                if normalized_skill_name:
+                    self._plugin_executors_by_key[
+                        (plugin_name, normalized_skill_name)
+                    ] = executor
+                self._plugin_executors.setdefault(plugin_name, executor)
+        track_key = (
+            f"{plugin_name}:{normalized_skill_name}"
+            if normalized_skill_name
+            else plugin_name
+        )
+        self._track(plugin_name, "skill", track_key)
         logger.info(
-            "Plugin {} registered skill resolver (type={})", plugin_name, skill_type
+            "Plugin {} registered skill resolver (skill={}, type={})",
+            plugin_name,
+            normalized_skill_name or "*",
+            skill_type,
         )
 
     def _unregister_skill(self, ext: RegisteredExtension) -> None:
-        self._plugin_skill_resolvers.pop(ext.key, None)
-        self._plugin_executors.pop(ext.key, None)
+        key = str(ext.key or "").strip()
+        if ":" in key:
+            plugin_name, skill_name = key.split(":", 1)
+            removed_resolver = self._plugin_skill_resolvers_by_key.pop(
+                (plugin_name, skill_name),
+                None,
+            )
+            removed_executor = self._plugin_executors_by_key.pop(
+                (plugin_name, skill_name),
+                None,
+            )
+            self._refresh_plugin_skill_facade(
+                plugin_name,
+                removed_resolver=removed_resolver,
+                removed_executor=removed_executor,
+            )
+            return
+        self._plugin_skill_resolvers.pop(key, None)
+        self._plugin_executors.pop(key, None)
 
-    def get_plugin_skill_resolver(self, plugin_name: str) -> Callable | None:
+    def _refresh_plugin_skill_facade(
+        self,
+        plugin_name: str,
+        *,
+        removed_resolver: Callable | None,
+        removed_executor: Any | None,
+    ) -> None:
+        if self._plugin_skill_resolvers.get(plugin_name) is removed_resolver:
+            self._plugin_skill_resolvers.pop(plugin_name, None)
+            for (
+                candidate_plugin,
+                _skill_name,
+            ), resolver in self._plugin_skill_resolvers_by_key.items():
+                if candidate_plugin == plugin_name:
+                    self._plugin_skill_resolvers[plugin_name] = resolver
+                    break
+
+        if (
+            removed_executor
+            and self._plugin_executors.get(plugin_name) is removed_executor
+        ):
+            self._plugin_executors.pop(plugin_name, None)
+            for (
+                candidate_plugin,
+                _skill_name,
+            ), executor in self._plugin_executors_by_key.items():
+                if candidate_plugin == plugin_name:
+                    self._plugin_executors[plugin_name] = executor
+                    break
+
+    def get_plugin_skill_resolver(
+        self,
+        plugin_name: str,
+        skill_name: str | None = None,
+    ) -> Callable | None:
         """Get plugin skill resolver (lookup by plugin name) / 获取插件技能解析器"""
+        normalized_skill_name = str(skill_name or "").strip()
+        if normalized_skill_name:
+            return self._plugin_skill_resolvers_by_key.get(
+                (plugin_name, normalized_skill_name)
+            )
         return self._plugin_skill_resolvers.get(plugin_name)
 
-    def get_plugin_executor(self, plugin_name: str) -> Any:
+    def get_plugin_executor(
+        self,
+        plugin_name: str,
+        skill_name: str | None = None,
+    ) -> Any:
         """Get plugin tool executor instance (lookup by plugin name) / 获取插件工具执行器实例"""
+        normalized_skill_name = str(skill_name or "").strip()
+        if normalized_skill_name:
+            return self._plugin_executors_by_key.get(
+                (plugin_name, normalized_skill_name)
+            )
         return self._plugin_executors.get(plugin_name)
 
     # ── 5. Event / 事件 ──

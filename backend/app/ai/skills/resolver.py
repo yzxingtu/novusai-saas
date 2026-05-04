@@ -27,6 +27,7 @@ from app.ai.events.hooks import HookPoint, get_hook_registry
 from app.ai.runtime.types import CapabilityDescriptor, collect_selected_skill_names
 from app.ai.skills import resolver_parts as parts
 from app.ai.skills.activation import TurnSkillActivation
+from app.ai.skills.resolution_contracts import SkillResolveIssue, issue_matches_skill
 from app.ai.tools.semantic_defaults import tool_family_from_name
 from app.ai.tools.types import ToolDefinition, ToolParameter
 from app.core.logging import LogManager
@@ -141,6 +142,7 @@ class SkillResolveResult:
     tool_consent_modes: dict[str, str] = field(default_factory=dict)
     capability_descriptors: list[CapabilityDescriptor] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    resolution_issues: list[SkillResolveIssue] = field(default_factory=list)
     turn_activation: TurnSkillActivation | None = None
     inventory_selected_tool_names_override: list[str] | None = None
     inventory_selected_skill_names_override: list[str] | None = None
@@ -148,27 +150,37 @@ class SkillResolveResult:
     @property
     def inventory_selected_tool_names(self) -> list[str]:
         if self.inventory_selected_tool_names_override is not None:
-            return _live_runtime_references(list(self.inventory_selected_tool_names_override))
-        return _live_runtime_references([
-            str(getattr(tool, "name", "") or "").strip()
-            for tool in self.tools
-            if str(getattr(tool, "name", "") or "").strip()
-        ])
+            return _live_runtime_references(
+                list(self.inventory_selected_tool_names_override)
+            )
+        return _live_runtime_references(
+            [
+                str(getattr(tool, "name", "") or "").strip()
+                for tool in self.tools
+                if str(getattr(tool, "name", "") or "").strip()
+            ]
+        )
 
     @property
     def inventory_selected_skill_names(self) -> list[str]:
         if self.inventory_selected_skill_names_override is not None:
-            return _live_runtime_references(list(self.inventory_selected_skill_names_override))
-        return _live_runtime_references(collect_selected_skill_names(
-            descriptors=self.capability_descriptors,
-            tools=self.tools,
-        ))
+            return _live_runtime_references(
+                list(self.inventory_selected_skill_names_override)
+            )
+        return _live_runtime_references(
+            collect_selected_skill_names(
+                descriptors=self.capability_descriptors,
+                tools=self.tools,
+            )
+        )
 
     @property
     def selected_skill_names(self) -> list[str]:
         activation = self.turn_activation
         if activation is not None and activation.applied:
-            return _live_runtime_references(list(activation.activated_skill_names or []))
+            return _live_runtime_references(
+                list(activation.activated_skill_names or [])
+            )
         return self.inventory_selected_skill_names
 
     @property
@@ -177,6 +189,34 @@ class SkillResolveResult:
         if activation is not None and activation.applied:
             return _live_runtime_references(list(activation.activated_tool_names or []))
         return self.inventory_selected_tool_names
+
+
+def _apply_resolution_issues_to_descriptors(result: SkillResolveResult) -> None:
+    if not result.resolution_issues or not result.capability_descriptors:
+        return
+
+    for descriptor in result.capability_descriptors:
+        metadata = dict(getattr(descriptor, "metadata", {}) or {})
+        skill_id = metadata.get("skill_id")
+        skill_name = str(getattr(descriptor, "name", "") or "").strip()
+        issues = [
+            issue
+            for issue in result.resolution_issues
+            if issue_matches_skill(issue, skill_id=skill_id, skill_name=skill_name)
+        ]
+        if not issues:
+            continue
+
+        has_execution_tools = bool(metadata.get("resolved_tool_count"))
+        status = "degraded" if has_execution_tools else "unavailable"
+        issue_payloads = [issue.to_dict() for issue in issues]
+        descriptor.metadata = {
+            **metadata,
+            "has_execution_tools": has_execution_tools,
+            "resolution_status": status,
+            "resolution_reason": issue_payloads[0].get("code"),
+            "resolution_issues": issue_payloads,
+        }
 
 
 @dataclass(frozen=True)
@@ -258,21 +298,25 @@ def _preview_tool_names_for_skill(
                 str(exc),
             )
             return []
-        return _live_runtime_references([
-            str(getattr(tool_meta, "name", "") or "").strip()
-            for tool_meta in list(getattr(meta, "tools", []) or [])
-            if str(getattr(tool_meta, "name", "") or "").strip()
-        ])
+        return _live_runtime_references(
+            [
+                str(getattr(tool_meta, "name", "") or "").strip()
+                for tool_meta in list(getattr(meta, "tools", []) or [])
+                if str(getattr(tool_meta, "name", "") or "").strip()
+            ]
+        )
     if skill_type == "builtin":
         tools_config = config.get("tools")
         if isinstance(tools_config, list):
-            return _live_runtime_references([
-                str((tool_cfg or {}).get("name") or "").strip()
-                for tool_cfg in tools_config
-                if str((tool_cfg or {}).get("name") or "").strip()
-                and str((tool_cfg or {}).get("name") or "").strip()
-                not in _RUNTIME_BUILTIN_TOOL_NAMES
-            ])
+            return _live_runtime_references(
+                [
+                    str((tool_cfg or {}).get("name") or "").strip()
+                    for tool_cfg in tools_config
+                    if str((tool_cfg or {}).get("name") or "").strip()
+                    and str((tool_cfg or {}).get("name") or "").strip()
+                    not in _RUNTIME_BUILTIN_TOOL_NAMES
+                ]
+            )
         tool_name = str(getattr(skill, "name", "") or "").strip()
         if tool_name in _RUNTIME_BUILTIN_TOOL_NAMES:
             return []
@@ -1017,6 +1061,7 @@ async def resolve_for_agent(
         descriptors=resolve_result.capability_descriptors,
         tools=resolve_result.tools,
     )
+    _apply_resolution_issues_to_descriptors(resolve_result)
 
     logger.info(
         "Resolved skills for agent={}: skill_ids={}, tools={}, warnings={}",
@@ -1030,6 +1075,7 @@ async def resolve_for_agent(
 
 __all__ = [
     "SkillResolver",
+    "SkillResolveIssue",
     "SkillResolveResult",
     "build_skill_capability_descriptors",
     "enrich_skill_capability_descriptors_with_tools",

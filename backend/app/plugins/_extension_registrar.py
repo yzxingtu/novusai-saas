@@ -184,6 +184,7 @@ def register_all_extensions(
                 skill_ext.type,
                 resolver_func,
                 executor_cls,
+                skill_name=skill_ext.name,
             )
         elif skill_ext.entry_point:
             _record_failure(plugin_name, "skill", skill_ext.entry_point)

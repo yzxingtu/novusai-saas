@@ -54,10 +54,22 @@ async def enrich_plugin_skill_info(
 
     # 从插件 registry 获取 resolver 并调用 / Get resolver from plugin registry and invoke
     try:
+        from app.ai.skills.plugin_identity import plugin_skill_lookup_name
         from app.plugins.registry import ExtensionRegistry
 
         registry = ExtensionRegistry.get_instance()
-        resolver_func = registry.get_plugin_skill_resolver(source_plugin)
+        skill_lookup_name = plugin_skill_lookup_name(skill, source_plugin)
+        if not skill_lookup_name:
+            logger.warning(
+                "Skip resolving plugin tools for skill {}: missing plugin skill identity",
+                skill.id,
+            )
+            return
+
+        resolver_func = registry.get_plugin_skill_resolver(
+            source_plugin,
+            skill_lookup_name,
+        )
         if resolver_func is None:
             return
 

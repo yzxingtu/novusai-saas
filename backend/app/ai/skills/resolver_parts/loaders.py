@@ -5,6 +5,11 @@ from collections.abc import Callable
 from typing import Any
 
 from app.ai.prompt_contracts import render_prompt_contract
+from app.ai.skills.plugin_identity import plugin_skill_lookup_name
+from app.ai.skills.resolution_contracts import (
+    append_skill_resolve_issue,
+    make_skill_resolve_issue,
+)
 from app.ai.text_semantics import extract_double_brace_placeholders
 from app.ai.tools.types import ToolDefinition, ToolParameter
 from app.core.logging import LogManager
@@ -123,6 +128,18 @@ def resolve_toolkit_skill(
 ) -> None:
     toolkit_content = getattr(skill, "toolkit_content", None) or ""
     if not toolkit_content:
+        append_skill_resolve_issue(
+            result,
+            make_skill_resolve_issue(
+                skill=skill,
+                code="toolkit_content_missing",
+                message=(
+                    f"Skill '{getattr(skill, 'name', '')}' "
+                    f"(id={getattr(skill, 'id', None)}) has no toolkit_content"
+                ),
+                severity="error",
+            ),
+        )
         logger.warning(
             "Toolkit skill {} ({}) has no toolkit_content",
             skill.id,
@@ -375,15 +392,56 @@ async def resolve_plugin_skill(
     from app.plugins.registry import ExtensionRegistry
 
     registry = ExtensionRegistry.get_instance()
-    resolver_func = registry.get_plugin_skill_resolver(source_plugin)
-    if resolver_func is None:
+    skill_lookup_name = plugin_skill_lookup_name(skill, source_plugin)
+    if not skill_lookup_name:
+        append_skill_resolve_issue(
+            result,
+            make_skill_resolve_issue(
+                skill=skill,
+                code="plugin_skill_identity_missing",
+                message=(
+                    f"Plugin '{source_plugin}' skill "
+                    f"'{getattr(skill, 'name', '')}' "
+                    "has no stable source_ref/key identity"
+                ),
+                severity="error",
+                source_plugin=source_plugin,
+            ),
+        )
         logger.warning(
-            "No plugin resolver for plugin '{}' (skill={}, type={}); falling back to canonical skill-type resolver",
+            "Plugin skill identity missing for plugin '{}' (skill={}, type={})",
             source_plugin,
             skill.id,
             skill.type,
         )
-        return False
+        return True
+
+    resolver_func = registry.get_plugin_skill_resolver(
+        source_plugin,
+        skill_lookup_name,
+    )
+    if resolver_func is None:
+        append_skill_resolve_issue(
+            result,
+            make_skill_resolve_issue(
+                skill=skill,
+                code="plugin_resolver_missing",
+                message=(
+                    f"Plugin '{source_plugin}' resolver is unavailable for "
+                    f"skill '{getattr(skill, 'name', '')}' "
+                    f"(id={getattr(skill, 'id', None)})"
+                ),
+                severity="error",
+                source_plugin=source_plugin,
+            ),
+        )
+        logger.warning(
+            "No plugin resolver for plugin '{}' (skill={}, type={}); plugin-owned skill is unavailable",
+            source_plugin,
+            skill.id,
+            skill.type,
+        )
+        return True
 
     try:
         tool_defs = (
@@ -391,20 +449,69 @@ async def resolve_plugin_skill(
             if asyncio.iscoroutinefunction(resolver_func)
             else resolver_func(skill, config)
         )
-        if isinstance(tool_defs, list):
-            for td in tool_defs:
-                td.source_skill_id = skill.id
-                td.source_skill_name = skill.name
-                td.source_skill_type = skill.type
-                td.source_plugin = source_plugin
-                result.tools.append(td)
-            logger.info(
-                "Plugin '{}' skill '{}' resolved {} tools",
-                source_plugin,
-                skill.name,
-                len(tool_defs),
+        if not isinstance(tool_defs, list):
+            append_skill_resolve_issue(
+                result,
+                make_skill_resolve_issue(
+                    skill=skill,
+                    code="plugin_resolver_invalid_result",
+                    message=(
+                        f"Plugin '{source_plugin}' resolver returned "
+                        f"{type(tool_defs).__name__} for skill "
+                        f"'{getattr(skill, 'name', '')}'"
+                    ),
+                    severity="error",
+                    source_plugin=source_plugin,
+                ),
             )
+            return True
+
+        if not tool_defs:
+            append_skill_resolve_issue(
+                result,
+                make_skill_resolve_issue(
+                    skill=skill,
+                    code="plugin_resolver_returned_no_tools",
+                    message=(
+                        f"Plugin '{source_plugin}' resolver returned no tools "
+                        f"for skill '{getattr(skill, 'name', '')}'"
+                    ),
+                    severity="error",
+                    source_plugin=source_plugin,
+                ),
+            )
+            return True
+
+        for td in tool_defs:
+            td.config = {
+                **dict(getattr(td, "config", {}) or {}),
+                "plugin_skill_name": skill_lookup_name,
+            }
+            td.source_skill_id = skill.id
+            td.source_skill_name = skill.name
+            td.source_skill_type = skill.type
+            td.source_plugin = source_plugin
+            result.tools.append(td)
+        logger.info(
+            "Plugin '{}' skill '{}' resolved {} tools",
+            source_plugin,
+            skill.name,
+            len(tool_defs),
+        )
     except Exception as exc:
+        append_skill_resolve_issue(
+            result,
+            make_skill_resolve_issue(
+                skill=skill,
+                code="plugin_resolver_failed",
+                message=(
+                    f"Plugin '{source_plugin}' resolver failed for skill "
+                    f"'{getattr(skill, 'name', '')}': {exc}"
+                ),
+                severity="error",
+                source_plugin=source_plugin,
+            ),
+        )
         logger.error(
             "Plugin skill resolver failed for '{}' (plugin={}): {}",
             skill.name,

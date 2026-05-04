@@ -43,6 +43,16 @@ backend boundary instead of page perception:
   capabilities.
 - Builtin runtime tools may cover platform-owned capabilities such as native
   search, current time, memory, variables, and knowledge retrieval.
+- Plugin-owned skills must be resolved through a plugin skill contract, not by
+  silently falling back to canonical toolkit/builtin/http/email/code resolvers.
+  If the plugin resolver or executor is missing, failed, or returns no executable
+  tools, the skill is `unavailable` or `degraded` with structured runtime
+  diagnostics. Catalog/manifest preview metadata is only `declared` capability
+  evidence; it must not by itself make a plugin skill or extension `available`.
+- Plugin skill identity is `plugin_name + manifest skill name`. Lifecycle sync
+  must persist that identity on `Skill.key` / `Skill.source_ref`, registry lookup
+  must be keyed by the same identity, and runtime execution must fail closed when
+  a plugin-owned skill lacks that stable identity.
 - UI/page operation tools are not valid builtin or installable tools for AI
   dialogue. Public request and sandbox boundaries must reject them.
 - Rich text editing should use explicit editor/domain operations or future

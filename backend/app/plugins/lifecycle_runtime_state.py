@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from app.ai.skills.plugin_identity import make_plugin_skill_identity
 from app.core.logging import get_logger
 from app.enums.plugin import PluginStatusEnum
+from app.enums.skill import SkillSourceTypeEnum
 from app.plugins.exceptions import PluginDependencyError
 from app.plugins.preview import resolve_i18n
 
@@ -18,6 +20,7 @@ logger = get_logger(__name__)
 
 class LifecycleRuntimeStateMixin:
     """Permission/runtime-state helpers extracted from PluginLifecycle."""
+
     async def _set_plugin_permissions_enabled(
         self, plugin_name: str, is_enabled: bool
     ) -> None:
@@ -406,21 +409,37 @@ class LifecycleRuntimeStateMixin:
         # Create or update Skill record for each skill extension
         # / 对每个 skill extension 创建或更新 Skill 记录
         for skill_ext in skill_extensions:
-            # Match by name first, then by type, then take the first one
-            # / 先按 name 匹配，再按 type 匹配，最后取第一个
+            skill_key, source_ref = make_plugin_skill_identity(
+                plugin_name,
+                skill_ext.name,
+            )
+            # Prefer the stable plugin skill identity; legacy rows fall back to
+            # name/type matching until an explicit repair sync updates them.
             existing_skill = next(
                 (
                     s
                     for s in existing_skills
-                    if s.name
-                    == (
-                        resolve_i18n(skill_ext.display_name)
-                        if skill_ext.display_name
-                        else skill_ext.name
-                    )
+                    if str(getattr(s, "source_ref", "") or "").strip() == source_ref
+                    or str(getattr(s, "key", "") or "").strip() == skill_key
                 ),
-                next((s for s in existing_skills if s.type == skill_ext.type), None),
+                None,
             )
+            if existing_skill is None:
+                existing_skill = next(
+                    (
+                        s
+                        for s in existing_skills
+                        if s.name
+                        == (
+                            resolve_i18n(skill_ext.display_name)
+                            if skill_ext.display_name
+                            else skill_ext.name
+                        )
+                    ),
+                    next(
+                        (s for s in existing_skills if s.type == skill_ext.type), None
+                    ),
+                )
             if (
                 existing_skill is None
                 and len(existing_skills) == 1
@@ -441,8 +460,12 @@ class LifecycleRuntimeStateMixin:
                 skill = Skill(
                     package_id=package.id,
                     name=skill_display,
+                    key=skill_key,
                     description=skill_desc,
                     type=skill_ext.type,
+                    source_type=SkillSourceTypeEnum.PLUGIN.value,
+                    source_ref=source_ref,
+                    version=str(getattr(manifest, "version", "") or "1.0.0"),
                     config=skill_ext.config_schema or {},
                     is_system=True,
                     is_active=active,
@@ -460,6 +483,15 @@ class LifecycleRuntimeStateMixin:
                 existing_skill.name = skill_display
                 existing_skill.description = skill_desc
                 existing_skill.type = skill_ext.type
+                existing_skill.key = skill_key
+                existing_skill.source_type = SkillSourceTypeEnum.PLUGIN.value
+                existing_skill.source_ref = source_ref
+                existing_skill.version = str(
+                    getattr(manifest, "version", "")
+                    or getattr(existing_skill, "version", "")
+                    or "1.0.0"
+                )
+                existing_skill.config = skill_ext.config_schema or {}
 
         await self._db.flush()
 

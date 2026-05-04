@@ -287,14 +287,20 @@ class ToolSandbox:
                 error=reason,
             )
 
-        # 4. Get executor (plugin priority → builtin fallback) / 获取执行器
+        # 4. Get executor / 获取执行器
         executor = None
         if definition.source_plugin:
+            plugin_skill_name = ""
+            if isinstance(getattr(definition, "config", None), dict):
+                plugin_skill_name = str(
+                    definition.config.get("plugin_skill_name") or ""
+                ).strip()
             try:
                 from app.plugins.registry import ExtensionRegistry
 
                 executor = ExtensionRegistry.get_instance().get_plugin_executor(
-                    definition.source_plugin
+                    definition.source_plugin,
+                    plugin_skill_name,
                 )
             except Exception as pe:
                 logger.warning(
@@ -302,7 +308,18 @@ class ToolSandbox:
                     definition.source_plugin,
                     pe,
                 )
-        if not executor:
+            if not executor:
+                return ToolResult(
+                    tool_call_id=tool_call_id,
+                    name=name,
+                    success=False,
+                    error=_(
+                        "tool.error.no_executor",
+                        tool_type=f"plugin:{definition.source_plugin}",
+                    ),
+                    error_type="plugin_executor_unavailable",
+                )
+        else:
             executor = self._named_executors.get(name) or self._executors.get(
                 definition.tool_type
             )

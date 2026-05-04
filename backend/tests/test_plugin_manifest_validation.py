@@ -1,4 +1,8 @@
-"""插件 manifest 强校验回归测试。 / Plugin."""
+"""Test type: behavioral
+Scope: plugin manifest schema validation and startup preview metadata normalization.
+Real dependencies: PluginManifest pydantic validation.
+Mocked dependencies: none.
+"""
 
 from __future__ import annotations
 
@@ -300,3 +304,18 @@ def test_manifest_skill_extensions_accept_startup_preview_metadata() -> None:
     skill = manifest.extensions.skills[0]
     assert skill.preview_tool_names == ["crm_lookup"]
     assert skill.preview_semantic_families == ["data_ops"]
+
+
+def test_manifest_skill_extensions_require_entry_point() -> None:
+    payload = _base_manifest()
+    payload["extensions"] = {
+        "skills": [
+            {
+                "name": "neutral-skill",
+                "type": "toolkit",
+            }
+        ]
+    }
+
+    with pytest.raises(ValidationError, match="entry_point"):
+        PluginManifest.model_validate(payload)
