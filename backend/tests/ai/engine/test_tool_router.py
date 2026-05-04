@@ -80,7 +80,7 @@ def test_tool_router_web_fetch_ignores_stale_page_context() -> None:
     assert decision.intent_preferred_tools["intent-web_research"] == ["fetch_url"]
 
 
-def test_tool_router_generic_web_research_prefers_native_search() -> None:
+def test_tool_router_generic_web_research_uses_builtin_pipeline() -> None:
     intent = _intent("web_research", "web_research")
 
     decision = ToolRouter.route(
@@ -95,7 +95,7 @@ def test_tool_router_generic_web_research_prefers_native_search() -> None:
         user_text="联网查一下今天的开源模型发布",
     )
 
-    assert decision.candidate_tool_names() == []
+    assert decision.candidate_tool_names() == ["web_search", "fetch_url"]
     assert decision.intent_allowed_tools["intent-web_research"] == [
         "web_search",
         "fetch_url",
@@ -104,11 +104,11 @@ def test_tool_router_generic_web_research_prefers_native_search() -> None:
         "web_search",
         "fetch_url",
     ]
-    assert intent.metadata["native_search_preferred"] is True
-    assert intent.metadata["fallback_tool_names"] == ["web_search", "fetch_url"]
+    assert "native_search_preferred" not in intent.metadata
+    assert "fallback_tool_names" not in intent.metadata
 
 
-def test_tool_router_web_search_about_tools_still_prefers_native_search() -> None:
+def test_tool_router_web_search_about_tools_uses_builtin_pipeline() -> None:
     intent = _intent("web_research", "web_research")
 
     decision = ToolRouter.route(
@@ -123,15 +123,15 @@ def test_tool_router_web_search_about_tools_still_prefers_native_search() -> Non
         user_text="联网搜索最新 AI 工具发布，给我三个来源",
     )
 
-    assert decision.candidate_tool_names() == []
+    assert decision.candidate_tool_names() == ["web_search", "fetch_url"]
     assert decision.intent_allowed_tools["intent-web_research"] == [
         "web_search",
         "fetch_url",
     ]
-    assert intent.metadata["native_search_preferred"] is True
+    assert "native_search_preferred" not in intent.metadata
 
 
-def test_tool_router_search_tool_as_research_subject_prefers_native_search() -> None:
+def test_tool_router_search_tool_as_research_subject_uses_builtin_pipeline() -> None:
     intent = _intent("web_research", "web_research")
 
     decision = ToolRouter.route(
@@ -145,11 +145,11 @@ def test_tool_router_search_tool_as_research_subject_prefers_native_search() -> 
         user_text="搜索工具有哪些好用？请联网对比最新资料",
     )
 
-    assert decision.candidate_tool_names() == []
-    assert intent.metadata["native_search_preferred"] is True
+    assert decision.candidate_tool_names() == ["web_search", "fetch_url"]
+    assert "native_search_preferred" not in intent.metadata
 
 
-def test_tool_router_search_tool_howto_subject_prefers_native_search() -> None:
+def test_tool_router_search_tool_howto_subject_uses_builtin_pipeline() -> None:
     intent = _intent("web_research", "web_research")
 
     decision = ToolRouter.route(
@@ -163,15 +163,15 @@ def test_tool_router_search_tool_howto_subject_prefers_native_search() -> None:
         user_text="联网搜索如何使用搜索工具的最新资料",
     )
 
-    assert decision.candidate_tool_names() == []
+    assert decision.candidate_tool_names() == ["web_search", "fetch_url"]
     assert decision.intent_allowed_tools["intent-web_research"] == [
         "web_search",
         "fetch_url",
     ]
-    assert intent.metadata["native_search_preferred"] is True
+    assert "native_search_preferred" not in intent.metadata
 
 
-def test_tool_router_use_web_search_phrase_still_prefers_native_search() -> None:
+def test_tool_router_use_web_search_phrase_uses_builtin_pipeline() -> None:
     intent = _intent("web_research", "web_research")
 
     decision = ToolRouter.route(
@@ -185,13 +185,13 @@ def test_tool_router_use_web_search_phrase_still_prefers_native_search() -> None
         user_text="请使用联网搜索查今天的开源模型发布",
     )
 
-    assert decision.candidate_tool_names() == []
+    assert decision.candidate_tool_names() == ["web_search", "fetch_url"]
     assert decision.intent_allowed_tools["intent-web_research"] == [
         "web_search",
         "fetch_url",
     ]
-    assert intent.metadata["native_search_preferred"] is True
-    assert intent.metadata["fallback_tool_names"] == ["web_search", "fetch_url"]
+    assert "native_search_preferred" not in intent.metadata
+    assert "fallback_tool_names" not in intent.metadata
 
 
 def test_tool_router_explicit_builtin_search_request_uses_web_tools() -> None:

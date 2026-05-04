@@ -2,12 +2,19 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol
 
-from app.ai.tools.types import ToolResult
+from app.ai.tools.types import ExecutionContext, ToolResult
 from app.ai.types import ChatMessage, ChatResponse
+from app.ai.web_research import WebResearchEvidence, WebResearchRunOptions
+from app.ai.web_research.providers import (
+    BuiltinFetchUrlProvider,
+    BuiltinWebSearchProvider,
+)
+from app.ai.web_research.runtime import WebResearchRuntime
 
 from .execution_state_machine import ExecutionStateMachine
 from .final_output_policy import (
@@ -39,8 +46,8 @@ class ModelRoundResult:
     response: Any | None
     total_tokens: int = 0
     completion_tokens_used: int = 0
-    # True when the provider ran native web search (Responses API) and the
-    # response text was generated from those inline results.
+    # Retained as adapter diagnostics only. Platform WebResearch completion is
+    # driven by normalized web_search/fetch_url evidence, not provider text.
     native_search_observed: bool = False
 
 
@@ -252,6 +259,175 @@ def response_has_visible_content(response: ChatResponse | None) -> bool:
     return bool(str(response.message.content or "").strip())
 
 
+def _tool_names(tools: list[Any]) -> set[str]:
+    return {
+        str(getattr(tool, "name", "") or "").strip()
+        for tool in tools
+        if str(getattr(tool, "name", "") or "").strip()
+    }
+
+
+def should_run_platform_web_research_runtime(
+    *,
+    intent: Any | None,
+    tools: list[Any],
+) -> bool:
+    if intent is None:
+        return False
+    if str(getattr(intent, "family", "") or "").strip() != "web_research":
+        return False
+    if str(getattr(intent, "kind", "") or "").strip() != "web_research":
+        return False
+    if getattr(intent, "status", None) in {"completed", "failed", "skipped"}:
+        return False
+    metadata = dict(getattr(intent, "metadata", {}) or {})
+    if str(metadata.get("web_research_runtime") or "").strip() != "platform":
+        return False
+    if (
+        bool(metadata.get("fetch_only"))
+        or str(metadata.get("explicit_url") or "").strip()
+    ):
+        return False
+    available_tool_names = _tool_names(tools)
+    return {"web_search", "fetch_url"}.issubset(available_tool_names)
+
+
+def _web_research_query(intent: Any | None, messages: list[ChatMessage]) -> str:
+    source_text = str(getattr(intent, "source_text", "") or "").strip()
+    if source_text:
+        return source_text
+    for message in reversed(messages):
+        if message.role == "user" and str(message.content or "").strip():
+            return str(message.content or "").strip()
+    return ""
+
+
+def _web_research_execution_context(*, request: Any, agent: Any) -> ExecutionContext:
+    return ExecutionContext(
+        tenant_id=int(getattr(request, "tenant_id", 0) or 0),
+        agent_id=int(getattr(agent, "id", getattr(request, "agent_id", 0)) or 0),
+        user_id=getattr(request, "user_id", None),
+        user_role=str(getattr(request, "user_role", "") or ""),
+        permissions=set(getattr(request, "permissions", None) or set()),
+        db=getattr(request, "db", None),
+        consented_actions=set(getattr(request, "consented_actions", None) or []),
+        trust_policy_ref=getattr(request, "trust_policy_ref", None),
+        variables=dict(getattr(request, "input_variables", None) or {}),
+        conversation_id=getattr(request, "conversation_id", None),
+        interaction_mode=str(
+            getattr(request, "interaction_mode", "") or "trusted_auto"
+        ),
+    )
+
+
+def _search_tool_result_from_evidence(evidence: WebResearchEvidence) -> ToolResult:
+    payload_items = [
+        {
+            "title": item.title,
+            "url": item.url,
+            "snippet": item.snippet,
+            "rank": item.rank,
+            "provider": item.provider,
+            "answer_quality": item.answer_quality,
+        }
+        for item in evidence.search_results
+    ]
+    summary_payload: dict[str, Any] = {
+        "status": evidence.status if evidence.search_results else evidence.status,
+        "query": evidence.query,
+        "provider": evidence.search_provider,
+        "selected_backend": evidence.search_provider,
+        "result_count": len(payload_items),
+        "items": payload_items,
+        "web_research_evidence": evidence.to_dict(),
+    }
+    if evidence.failure_kind:
+        summary_payload["failure_reason"] = evidence.failure_kind
+    return ToolResult(
+        tool_call_id=(
+            f"{evidence.diagnostics.pipeline_id}:web_search"
+            if evidence.diagnostics.pipeline_id
+            else "web_research_runtime:web_search"
+        ),
+        name="web_search",
+        success=evidence.status != "failed" or bool(payload_items),
+        output=json.dumps(
+            {
+                "query": evidence.query,
+                "items": payload_items,
+                "status": evidence.status,
+            },
+            ensure_ascii=False,
+        ),
+        error=evidence.failure_kind or "",
+        error_type=evidence.failure_kind or "",
+        summary=f"{len(payload_items)} search result(s) for {evidence.query}",
+        summary_payload=summary_payload,
+    )
+
+
+def _fetch_output_from_page(page: Any) -> str:
+    parts: list[str] = [f"Content from {page.url}:"]
+    if page.title:
+        parts.append(f"Title: {page.title}")
+    if page.description:
+        parts.append(f"Description: {page.description}")
+    body = str(page.body_text or page.summary or "").strip()
+    if body:
+        parts.extend(["", body])
+    return "\n".join(parts).strip()
+
+
+def _fetch_tool_results_from_evidence(
+    evidence: WebResearchEvidence,
+) -> list[ToolResult]:
+    results: list[ToolResult] = []
+    for index, page in enumerate(evidence.fetched_pages, start=1):
+        success = page.status == "completed" and page.answer_quality != "none"
+        summary_payload: dict[str, Any] = {
+            "fetch_url": True,
+            "ok": success,
+            "url": page.url,
+            "final_url": page.url,
+            "title": page.title,
+            "description": page.description,
+            "summary": page.summary,
+            "answer_quality": page.answer_quality,
+            "status": page.status,
+            "provider": page.provider,
+            "web_research_evidence": evidence.to_dict(),
+        }
+        if page.failure_kind:
+            summary_payload["error_type"] = page.failure_kind
+        results.append(
+            ToolResult(
+                tool_call_id=(
+                    f"{evidence.diagnostics.pipeline_id}:fetch_url:{index}"
+                    if evidence.diagnostics.pipeline_id
+                    else f"web_research_runtime:fetch_url:{index}"
+                ),
+                name="fetch_url",
+                success=success,
+                output=_fetch_output_from_page(page) if success else "",
+                error=page.failure_kind or "",
+                error_type=page.failure_kind or "",
+                summary=page.summary or page.title or page.url,
+                result_link=page.url,
+                summary_payload=summary_payload,
+            )
+        )
+    return results
+
+
+def tool_results_from_web_research_evidence(
+    evidence: WebResearchEvidence,
+) -> list[ToolResult]:
+    return [
+        _search_tool_result_from_evidence(evidence),
+        *_fetch_tool_results_from_evidence(evidence),
+    ]
+
+
 def intent_retry_policy_reason(
     decision: RecoveryDecision,
     retry_intent: Any | None,
@@ -260,12 +436,6 @@ def intent_retry_policy_reason(
     if retry_intent is None:
         return decision_reason
 
-    metadata = dict(getattr(retry_intent, "metadata", {}) or {})
-    if str(
-        getattr(retry_intent, "family", "") or ""
-    ).strip() == "web_research" and bool(metadata.get("native_search_preferred")):
-        intent_kind = str(getattr(retry_intent, "kind", "") or "").strip()
-        return f"native_web_search_first:{intent_kind or 'web_research'}"
     return decision_reason
 
 
@@ -525,6 +695,24 @@ async def finalize_turn_execution(
         "partial_output",
         "budget_fallback",
     ] = "assistant"
+    if (
+        not partial
+        and not paused_for_consent
+        and has_completed_fetch_url_body_evidence(
+            state=state,
+            tool_results=tool_results,
+        )
+        and RecoveryManager.should_replace_budgeted_web_research_response(
+            response_text=str(output or ""),
+            tool_results=tool_results,
+        )
+    ):
+        output = ""
+        if response is not None and getattr(response, "message", None) is not None:
+            response.message.content = ""
+        state.preparation_diagnostics[
+            "assistant_preview_replaced_with_fetch_evidence"
+        ] = True
     if paused_for_consent:
         state.transition("awaiting_consent")
         completion_reason = decision.reason or "pause_for_consent"
@@ -775,6 +963,7 @@ class _TurnRunLoop:
     completion_tokens_used: int = field(init=False, default=0)
     decision: RecoveryDecision | None = field(init=False, default=None)
     ran_post_tool_follow_up: bool = field(init=False, default=False)
+    platform_web_research_ran: bool = field(init=False, default=False)
 
     def __post_init__(self) -> None:
         self.messages = self.prep.messages
@@ -823,20 +1012,6 @@ class _TurnRunLoop:
             self.total_tokens += total_tokens
             self.completion_tokens_used += completion_tokens_used
         self.state.register_completion_tokens(self.completion_tokens_used)
-        self._complete_native_search_if_observed(model_round)
-
-    def _complete_native_search_if_observed(
-        self,
-        model_round: ModelRoundResult,
-    ) -> None:
-        if (
-            getattr(model_round, "native_search_observed", False)
-            and response_has_visible_content(self.response)
-            and self.state.intent_plan
-        ):
-            self.state.intent_plan = RecoveryManager.complete_native_search_intents(
-                self.state.intent_plan
-            )
 
     def _register_budget_exit_if_needed(self) -> None:
         budget_exit_reason = self.state.budget_exit_reason()
@@ -873,6 +1048,106 @@ class _TurnRunLoop:
                 "cached_shortcircuit_intent_kind": getattr(intent, "kind", None),
             },
         )
+
+    async def _run_platform_web_research_runtime(
+        self,
+        *,
+        intent: Any | None = None,
+        tools: list[Any] | None = None,
+    ) -> bool:
+        active_intent = intent if intent is not None else self.intent
+        active_tools = list(
+            tools if tools is not None else self.prep.all_tools or self.tools
+        )
+        if not should_run_platform_web_research_runtime(
+            intent=active_intent,
+            tools=active_tools,
+        ):
+            return False
+
+        query = _web_research_query(active_intent, self.messages)
+        context = _web_research_execution_context(
+            request=self.request,
+            agent=self.agent,
+        )
+        runtime = WebResearchRuntime(
+            search_provider=BuiltinWebSearchProvider(context=context),
+            fetch_provider=BuiltinFetchUrlProvider(),
+        )
+        self.emit_round(
+            round_kind="web_research_runtime",
+            policy=ToolUsePolicy(
+                family="web_research",
+                mode="required",
+                allowed_tool_names=["web_search", "fetch_url"],
+                retry_on_contract_breach=False,
+                reason="platform_web_research_runtime",
+            ),
+            tools=self.io.restrict_tools_to_names(
+                active_tools,
+                ["web_search", "fetch_url"],
+            ),
+            intent=active_intent,
+            reason="platform_web_research_runtime",
+        )
+        evidence = await runtime.run(
+            query,
+            WebResearchRunOptions(
+                max_search_results=5,
+                max_fetches=1,
+                require_fetch=True,
+                provider_disable_reason="optional_provider_skipped:builtin_default",
+                diagnostics={
+                    "intent_id": getattr(active_intent, "intent_id", None),
+                    "conversation_id": getattr(self.request, "conversation_id", None),
+                },
+            ),
+        )
+        self.tool_results = tool_results_from_web_research_evidence(evidence)
+        if self.state.budget is not None:
+            self.state.register_tool_round()
+        self.state.provider_events.append(
+            {
+                "kind": "web_research_runtime",
+                "pipeline_id": evidence.diagnostics.pipeline_id,
+                "search_provider": evidence.search_provider,
+                "fetch_provider": evidence.fetch_provider,
+                "evidence_status": evidence.status,
+                "answer_source": evidence.diagnostics.answer_source,
+            }
+        )
+        self.state.preparation_diagnostics.update(
+            {
+                "web_research_evidence": evidence.to_dict(),
+                "web_research_diagnostics": evidence.diagnostics.to_dict(),
+                "web_research_pipeline_id": evidence.diagnostics.pipeline_id,
+                "search_provider": evidence.search_provider,
+                "fetch_provider": evidence.fetch_provider,
+                "evidence_status": evidence.status,
+                "candidate_urls": list(evidence.diagnostics.candidate_urls),
+                "fetched_urls": list(evidence.diagnostics.fetched_urls),
+                "evidence_quality": evidence.answer_quality,
+                "answer_source": evidence.diagnostics.answer_source,
+                "web_research_failure_kind": evidence.failure_kind,
+                "web_research_provider_disable_reason": (
+                    evidence.diagnostics.provider_disable_reason
+                ),
+            }
+        )
+        self.state.register_tool_results(
+            messages=self.messages,
+            turn_messages=self.turn_messages,
+            tool_results=self.tool_results,
+        )
+        self.response = ChatResponse(
+            message=ChatMessage(role="assistant", content=""),
+            total_tokens=0,
+            output_tokens=0,
+            finish_reason="stop",
+            metadata={"web_research_evidence": evidence.to_dict()},
+        )
+        self.platform_web_research_ran = True
+        return True
 
     async def _run_missing_args_clarification(self, intent: Any) -> None:
         missing_args = intent_missing_args(intent)
@@ -928,11 +1203,12 @@ class _TurnRunLoop:
 
     async def run(self) -> TurnExecutionResult:
         await self._run_initial_round()
-        await self._run_tool_batch_or_update_intents()
-        await self._run_contract_retry_round()
-        await self._run_intent_retry_loop()
-        await self._maybe_retry_web_research_contract()
-        await self._maybe_run_post_tool_follow_up_round()
+        if not self.platform_web_research_ran:
+            await self._run_tool_batch_or_update_intents()
+            await self._run_contract_retry_round()
+            await self._run_intent_retry_loop()
+            await self._maybe_retry_web_research_contract()
+            await self._maybe_run_post_tool_follow_up_round()
         return await self._finalize_result()
 
     async def _run_initial_round(self) -> None:
@@ -958,6 +1234,9 @@ class _TurnRunLoop:
             self._apply_cached_shortcircuit(shortcircuit_intent)
             return
 
+        if await self._run_platform_web_research_runtime():
+            return
+
         model_round = await self.io.call_llm(
             messages=self.messages,
             tools=self.active_tools or None,
@@ -977,6 +1256,7 @@ class _TurnRunLoop:
             intent=self.intent,
             response=self.response,
             tools=self.active_tools,
+            all_tools=self.prep.all_tools or self.tools,
             messages=self.messages,
             turn_messages=self.turn_messages,
             tool_use_policy=self.active_policy,
@@ -1068,6 +1348,12 @@ class _TurnRunLoop:
                     retry_result="retrying",
                     continuation=self.prep.continuation_context,
                 )
+            if await self._run_platform_web_research_runtime(
+                intent=retry_intent,
+                tools=retry_tools,
+            ):
+                self.decision = self._decide_recovery()
+                continue
             retry_round = await self.io.call_llm(
                 messages=self.messages,
                 tools=retry_tools or None,
@@ -1086,6 +1372,7 @@ class _TurnRunLoop:
                     io=self.io,
                     response=self.response,
                     tools=retry_tools,
+                    all_tools=self.prep.all_tools or self.tools,
                     messages=self.messages,
                     turn_messages=self.turn_messages,
                     tool_use_policy=retry_policy,
@@ -1125,6 +1412,7 @@ class _TurnRunLoop:
                         io=self.io,
                         response=fallback_response,
                         tools=retry_tools,
+                        all_tools=self.prep.all_tools or self.tools,
                         messages=self.messages,
                         turn_messages=self.turn_messages,
                         tool_use_policy=retry_policy,

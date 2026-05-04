@@ -4,95 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.ai.adapters.openai_compatible.capabilities import OpenAIProtocolCapabilities
-from app.ai.adapters.openai_compatible.support.model_request_runtime import (
-    OpenAIAdapterModelRequestMixin,
-)
-from app.ai.adapters.openai_compatible.support.native_web_search_policy import (
-    supports_native_web_search_model,
-)
-
 FAST_PATH_REASONING_EFFORT = "low"
-_HOSTED_WEB_SEARCH_CONTEXT_SIZE = "medium"
-
-
-def _tool_name(tool: Any) -> str:
-    if isinstance(tool, dict):
-        function = tool.get("function")
-        if isinstance(function, dict):
-            return str(function.get("name") or "").strip()
-        return str(tool.get("name") or "").strip()
-    return str(getattr(tool, "name", "") or "").strip()
-
-
-def _tool_names(tools: list[Any] | None) -> set[str]:
-    return {name for tool in (tools or []) if (name := _tool_name(tool))}
-
-
-def _runtime_context_supports_native_web_search(runtime_context: Any | None) -> bool:
-    if runtime_context is None:
-        return False
-
-    provider = getattr(runtime_context, "provider", None)
-    provider_type = str(getattr(provider, "type", "") or "").strip()
-    if provider_type != "openai_compatible":
-        return False
-
-    provider_config = (
-        dict(getattr(provider, "config", {}) or {})
-        if isinstance(getattr(provider, "config", None), dict)
-        else {}
-    )
-    web_search_config = provider_config.get("web_search")
-    if (
-        isinstance(web_search_config, dict)
-        and web_search_config.get("enabled") is False
-    ):
-        return False
-
-    capabilities = OpenAIProtocolCapabilities.from_provider_config(
-        provider_config=provider_config,
-        configured_wire_api=provider_config.get("wire_api"),
-    )
-    if not capabilities.supports_wire_api("responses"):
-        return False
-
-    ai_model = getattr(runtime_context, "ai_model", None)
-    model_config = getattr(ai_model, "config", None)
-    effective_model_request = (
-        OpenAIAdapterModelRequestMixin.resolve_effective_model_request(
-            model=str(getattr(runtime_context, "model_code", "") or ""),
-            model_config=model_config if isinstance(model_config, dict) else None,
-            wire_api="responses",
-        )
-    )
-    return supports_native_web_search_model(
-        str(effective_model_request.get("upstream_model") or "")
-    )
-
-
-def _policy_requests_native_web_search_first(
-    *,
-    tool_use_policy: Any | None,
-    tools: list[Any] | None,
-) -> bool:
-    if tool_use_policy is None:
-        return False
-    if str(
-        getattr(tool_use_policy, "family", "") or ""
-    ).strip() == "web_research" and str(
-        getattr(tool_use_policy, "reason", "") or ""
-    ).startswith("native_web_search_first:"):
-        allowed_tool_names = {
-            str(name or "").strip()
-            for name in (getattr(tool_use_policy, "allowed_tool_names", None) or [])
-            if str(name or "").strip()
-        }
-        if allowed_tool_names and "web_search" not in allowed_tool_names:
-            return False
-        available_tool_names = _tool_names(tools)
-        return not available_tool_names or "web_search" in available_tool_names
-    return False
 
 
 def build_model_request_overrides(
@@ -103,18 +15,7 @@ def build_model_request_overrides(
     runtime_context: Any | None = None,
 ) -> dict[str, Any]:
     """Apply lightweight model overrides for fast, text-only rounds."""
-
-    if _policy_requests_native_web_search_first(
-        tool_use_policy=tool_use_policy,
-        tools=tools,
-    ) and _runtime_context_supports_native_web_search(runtime_context):
-        return {
-            "_runtime_force_protocol_path": "responses",
-            "_runtime_hosted_web_search_required": True,
-            "_runtime_hosted_web_search_context_size": (
-                _HOSTED_WEB_SEARCH_CONTEXT_SIZE
-            ),
-        }
+    _ = tool_use_policy, runtime_context
 
     normalized_path = str(execution_path or "").strip().lower()
     if normalized_path != "fast":

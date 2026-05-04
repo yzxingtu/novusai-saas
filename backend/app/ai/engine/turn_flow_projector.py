@@ -305,6 +305,43 @@ def _tool_evidence_snippet(
     return f"{compact[: max_length - 3]}..."
 
 
+def build_web_research_diagnostic_evidence_items(
+    diagnostics_payload: dict[str, Any] | None,
+) -> list[TurnEvidenceItem]:
+    diagnostics = _as_dict(diagnostics_payload)
+    web_diagnostics = _as_dict(diagnostics.get("web_research_diagnostics"))
+    if web_diagnostics:
+        diagnostics = {**diagnostics, **web_diagnostics}
+    evidence_status = _as_text(diagnostics.get("evidence_status"))
+    answer_source = _as_text(diagnostics.get("answer_source"))
+    evidence_quality = _as_text(diagnostics.get("evidence_quality"))
+    fetched_urls = _as_list(diagnostics.get("fetched_urls"))
+    candidate_urls = _as_list(diagnostics.get("candidate_urls"))
+    urls = _as_list(fetched_urls) or _as_list(candidate_urls)
+    if not urls:
+        return []
+
+    items: list[TurnEvidenceItem] = []
+    for index, raw_url in enumerate(urls):
+        url = _as_text(raw_url)
+        if not url:
+            continue
+        fetched = url in {_as_text(item) for item in fetched_urls}
+        title_prefix = "Fetched source" if fetched else "Candidate source"
+        items.append(
+            TurnEvidenceItem(
+                id=f"web_research_{'fetched' if fetched else 'candidate'}_{index + 1}",
+                kind="web",
+                title=f"{title_prefix} {index + 1}",
+                url=url,
+                badge=evidence_status,
+                snippet=answer_source or evidence_quality,
+                source_ref="web_research",
+            )
+        )
+    return items
+
+
 def build_tool_evidence_items(
     tool_results: list[Any] | None,
 ) -> list[TurnEvidenceItem]:
@@ -485,7 +522,9 @@ def _tool_execution_stage(
         if tool_call_id
     ]
     if normalized_tool_results:
-        completed_count = sum(1 for result in normalized_tool_results if result.get("success"))
+        completed_count = sum(
+            1 for result in normalized_tool_results if result.get("success")
+        )
         failed_count = len(normalized_tool_results) - completed_count
         round_count = max(round_count, len(normalized_tool_results))
     has_hosted_web_search_progress = _has_provider_event_kind(
@@ -503,10 +542,10 @@ def _tool_execution_stage(
         )
     elif has_hosted_web_search_progress and terminal_failure:
         status = "error"
-        summary = "Hosted web search timed out before results returned"
+        summary = "Provider search timed out before results returned"
     elif has_hosted_web_search_progress:
         status = "completed"
-        summary = "Hosted web search started and waited for provider results"
+        summary = "Provider search started and waited for results"
     elif tool_selection_stage.status == "completed":
         status = "completed"
         summary = "Tool selection completed without execution"
@@ -740,8 +779,16 @@ def build_turn_flow_view_model(
         rag_sources=rag_sources,
     )
     rag_evidence_items = build_turn_evidence_items(retrieval_sources)
+    web_research_items = build_web_research_diagnostic_evidence_items(diagnostics)
     tool_evidence_items = build_tool_evidence_items(tool_results)
-    evidence_items = [*rag_evidence_items, *tool_evidence_items]
+    known_urls = {
+        item.url for item in [*rag_evidence_items, *tool_evidence_items] if item.url
+    }
+    evidence_items = [
+        *rag_evidence_items,
+        *[item for item in web_research_items if item.url not in known_urls],
+        *tool_evidence_items,
+    ]
     turn_events = _extract_turn_events(diagnostics)
     tool_selection = _tool_selection_stage(diagnostics)
     timeline: list[TurnFlowStage] = [
@@ -771,7 +818,7 @@ def build_turn_flow_view_model(
             terminal_failure,
             tool_results=tool_results,
         ),
-        _retrieval_stage(rag_evidence_items),
+        _retrieval_stage(evidence_items),
         _answer_assembly_stage(
             output=trusted_output or safe_untrusted_fallback_output,
             interrupted=interrupted,
@@ -925,7 +972,7 @@ def build_tool_execution_result_event(
 
 
 def build_provider_search_turn_flow_event() -> dict[str, Any]:
-    summary = "Searching the web and waiting for provider-hosted results"
+    summary = "Running provider web search and waiting for results"
     return _canonical_stage_update_payload(
         stage_type="tool_execution",
         status="running",
@@ -993,4 +1040,5 @@ __all__ = [
     "build_tool_execution_started_event",
     "build_tool_selection_turn_flow_events",
     "resolve_final_stage_status",
+    "build_web_research_diagnostic_evidence_items",
 ]

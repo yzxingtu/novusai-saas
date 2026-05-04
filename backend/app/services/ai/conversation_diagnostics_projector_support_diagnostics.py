@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.ai.engine.recovery_web_research_gate import (
+    project_canonical_web_research_diagnostics,
+)
 from app.ai.json_safe import normalize_json_safe_dict
 from app.schemas.ai.invalid_ai_runtime_input import (
     DISALLOWED_AI_RUNTIME_INPUT_KEYS,
@@ -235,9 +238,7 @@ def _build_legacy_rag_evidence(
     source_ref = _to_non_empty_str(source.get("source_ref") or source.get("chunk_id"))
     return {
         "id": source_ref or f"ev_rag_{index + 1}",
-        "kind": _map_legacy_rag_kind(
-            source.get("kind") or source.get("source_kind")
-        ),
+        "kind": _map_legacy_rag_kind(source.get("kind") or source.get("source_kind")),
         "title": _to_non_empty_str(
             source.get("title")
             or source.get("source")
@@ -530,6 +531,28 @@ def _pick_string(*values: Any) -> str | None:
 
 def _pick_string_list(*values: Any) -> list[str]:
     return _normalize_string_list(_pick_truthy(*values))
+
+
+def _build_web_research_projection(
+    *,
+    metadata: dict[str, Any],
+    turn_record: dict[str, Any] | None,
+    turn_record_diagnostics: dict[str, Any],
+    context_diagnostics: dict[str, Any],
+    last_run_summary: dict[str, Any],
+    intent_plan: list[dict[str, Any]],
+) -> dict[str, Any]:
+    projection = project_canonical_web_research_diagnostics(
+        diagnostics_payload={
+            **last_run_summary,
+            **context_diagnostics,
+            **turn_record_diagnostics,
+            **metadata,
+        },
+        turn_record_payload=turn_record,
+        intent_plan=intent_plan,
+    )
+    return sanitize_diagnostics_payload(projection) or {}
 
 
 def resolve_live_selected_name_list(
@@ -959,8 +982,16 @@ def extract_turn_diagnostics_from_metadata(
         context_diagnostics.get("final_output_source"),
         last_run_summary.get("final_output_source"),
     )
+    web_research_projection = _build_web_research_projection(
+        metadata=metadata,
+        turn_record=turn_record,
+        turn_record_diagnostics=turn_record_diagnostics,
+        context_diagnostics=context_diagnostics,
+        last_run_summary=last_run_summary,
+        intent_plan=intent_plan,
+    )
 
-    return {
+    diagnostics = {
         "turn_record": turn_record,
         "turn_outcome": turn_outcome,
         "termination_reason": termination_reason,
@@ -1002,6 +1033,8 @@ def extract_turn_diagnostics_from_metadata(
         "sync_rescue": sync_rescue,
         "should_record_call_log": should_record_call_log,
     }
+    diagnostics.update(web_research_projection)
+    return diagnostics
 
 
 __all__ = [

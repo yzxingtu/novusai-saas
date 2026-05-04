@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
+from app.ai.adapters.openai_compatible.support.native_web_search_policy import (
+    provider_config_supports_hosted_web_search,
+)
 from app.ai.types import ChatMessage
 
 
@@ -181,44 +184,17 @@ def build_responses_reasoning_config(
     return {"summary": "auto"}
 
 
-def should_use_hosted_web_search_tool(
+def supports_explicit_hosted_web_search(
     adapter: RequestPayloadBuilderAdapterProtocol,
 ) -> bool:
-    # The chat runtime's `web_search` function is the canonical platform search
-    # tool: it records ledger evidence and can fall back to Baidu. Ordinary
-    # chat turns must not let provider/admin config rewrite it into a hosted
-    # Responses tool. Native hosted search is owned by the web-search runtime
-    # service and its dedicated request builder, not this generic transport path.
-    _ = adapter
-    return False
+    return provider_config_supports_hosted_web_search(
+        getattr(adapter, "provider_config", {}),
+    )
 
 
 def _hosted_web_search_tool(search_context_size: Any) -> dict[str, str]:
     context_size = str(search_context_size or "").strip() or "medium"
     return {"type": "web_search", "search_context_size": context_size}
-
-
-def _without_builtin_web_research_function_tools(
-    tools: list[dict[str, Any]],
-) -> list[dict[str, Any]]:
-    filtered: list[dict[str, Any]] = []
-    for tool in tools:
-        if not isinstance(tool, dict):
-            filtered.append(tool)
-            continue
-        if tool.get("type") != "function":
-            filtered.append(tool)
-            continue
-        function = tool.get("function")
-        name = (
-            str(function.get("name") or "").strip()
-            if isinstance(function, dict)
-            else str(tool.get("name") or "").strip()
-        )
-        if name in {"web_search", "fetch_url"}:
-            continue
-        filtered.append(tool)
-    return filtered
 
 
 def _hosted_web_search_tools_only(
@@ -231,21 +207,13 @@ def _hosted_web_search_tools_only(
     ]
 
 
-def convert_tools_for_responses(
-    tools: list[dict],
-    *,
-    rewrite_web_search: bool = False,
-) -> list[dict]:
+def convert_tools_for_responses(tools: list[dict]) -> list[dict]:
     converted: list[dict] = []
-    has_web_search_function = False
 
     for tool in tools:
         if tool.get("type") == "function" and isinstance(tool.get("function"), dict):
             function = tool["function"]
             func_name = function.get("name", "")
-            if func_name == "web_search" and rewrite_web_search:
-                has_web_search_function = True
-                continue
             converted.append(
                 {
                     "type": "function",
@@ -257,8 +225,6 @@ def convert_tools_for_responses(
             continue
         converted.append(tool)
 
-    if has_web_search_function:
-        converted.insert(0, {"type": "web_search", "search_context_size": "medium"})
     return converted
 
 
@@ -283,8 +249,11 @@ async def build_responses_request(
     explicit_reasoning = runtime_kwargs.pop("reasoning", None)
     effective_request = runtime_kwargs.pop("_effective_model_request", None)
     model_config = runtime_kwargs.pop("model_config", None)
-    hosted_web_search_required = bool(
+    hosted_web_search_requested = bool(
         runtime_kwargs.pop("_runtime_hosted_web_search_required", False)
+    )
+    hosted_web_search_required = (
+        hosted_web_search_requested and supports_explicit_hosted_web_search(adapter)
     )
     hosted_web_search_context_size = runtime_kwargs.pop(
         "_runtime_hosted_web_search_context_size",
@@ -339,14 +308,7 @@ async def build_responses_request(
         request_params["max_output_tokens"] = max_tokens
     if stream:
         request_params["stream"] = True
-    converted_tools = (
-        convert_tools_for_responses(
-            tools,
-            rewrite_web_search=should_use_hosted_web_search_tool(adapter),
-        )
-        if tools
-        else []
-    )
+    converted_tools = convert_tools_for_responses(tools) if tools else []
     if hosted_web_search_required:
         converted_tools = _hosted_web_search_tools_only(converted_tools)
         if not any(
@@ -382,6 +344,6 @@ __all__ = [
     "build_responses_reasoning_config",
     "build_responses_request",
     "convert_tools_for_responses",
-    "should_use_hosted_web_search_tool",
+    "supports_explicit_hosted_web_search",
     "supports_responses_reasoning_summary",
 ]

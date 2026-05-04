@@ -114,7 +114,7 @@ def test_prepare_protocol_execution_context_maps_non_stream_timeout_seconds_to_t
     assert "timeout_seconds" not in context["kwargs"]
 
 
-def test_prepare_protocol_execution_context_bounds_non_stream_hosted_search_timeout() -> (
+def test_prepare_protocol_execution_context_preserves_explicit_hosted_search_timeout() -> (
     None
 ):
     adapter = _RuntimeContextAdapterStub()

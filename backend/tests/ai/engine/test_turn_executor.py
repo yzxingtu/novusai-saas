@@ -1,9 +1,10 @@
 """
-Test type: structural
-Scope: TurnExecutor orchestration contract with fake transport adapters.
+Test type: structural / behavioral
+Scope: TurnExecutor orchestration contract with fake transport adapters and
+deterministic WebResearch evidence replay.
 Real dependencies: ExecutionStateMachine and RecoveryManager run real control-flow logic.
-Mocked dependencies: LLM/tool transport via _FakeIOAdapter; these tests validate
-the turn loop contract, not real-dialogue behavior.
+Mocked dependencies: LLM/tool transport via _FakeIOAdapter; WebResearchRuntime is
+patched only with normalized evidence fixtures so tests do not self-fulfill LLM text.
 """
 
 from __future__ import annotations
@@ -30,6 +31,13 @@ from app.ai.engine.turn_executor import (
 from app.ai.engine.types import IntentPlan, ToolUsePolicy
 from app.ai.tools.types import ToolDefinition, ToolResult
 from app.ai.types import ChatMessage, ChatResponse
+from app.ai.web_research import (
+    CitationEvidence,
+    PageEvidence,
+    SearchEvidenceItem,
+    WebResearchDiagnostics,
+    WebResearchEvidence,
+)
 
 
 class _FakeIOAdapter:
@@ -186,6 +194,67 @@ def _assistant_response(
         total_tokens=total_tokens,
         completion_tokens_used=total_tokens,
     )
+
+
+def _completed_web_research_evidence() -> WebResearchEvidence:
+    return WebResearchEvidence(
+        query="查一下大模型排行榜 2026 水平排行",
+        status="completed",
+        search_provider="builtin:web_search",
+        fetch_provider="builtin:fetch_url",
+        search_results=[
+            SearchEvidenceItem(
+                title="2026 大模型排行榜",
+                url="https://example.com/ranking",
+                snippet="榜单摘要",
+                rank=1,
+                provider="builtin:web_search",
+            )
+        ],
+        fetched_pages=[
+            PageEvidence(
+                url="https://example.com/ranking",
+                status="completed",
+                title="2026 大模型排行榜",
+                body_text="2026 榜单正文显示多个模型排名和来源说明。",
+                summary="2026 榜单摘要",
+                description="榜单说明",
+                answer_quality="body",
+                provider="builtin:fetch_url",
+            )
+        ],
+        citations=[
+            CitationEvidence(
+                title="2026 大模型排行榜",
+                url="https://example.com/ranking",
+                provider="builtin:fetch_url",
+                source="page",
+                rank=1,
+            )
+        ],
+        answer_quality="body",
+        failure_kind=None,
+        diagnostics=WebResearchDiagnostics(
+            pipeline_id="test-pipeline",
+            search_provider="builtin:web_search",
+            fetch_provider="builtin:fetch_url",
+            evidence_status="completed",
+            candidate_urls=["https://example.com/ranking"],
+            fetched_urls=["https://example.com/ranking"],
+            evidence_quality="body",
+            answer_source="fetched_body",
+            provider_disable_reason="optional_provider_skipped:builtin_default",
+        ),
+    )
+
+
+class _FakeWebResearchRuntime:
+    def __init__(self, **_kwargs) -> None:
+        self.run_calls: list[dict[str, object]] = []
+
+    async def run(self, query, options):
+        self.run_calls.append({"query": query, "options": options})
+        return _completed_web_research_evidence()
 
 
 @pytest.mark.asyncio
@@ -390,11 +459,11 @@ async def test_turn_executor_contract_breach_without_evidence_avoids_completed_p
         ),
         total_tokens=9,
         completion_tokens_used=9,
-        native_search_observed=True,
     )
     io = _FakeIOAdapter(
         model_rounds=[
             first_round,
+            _assistant_response(""),
             _assistant_response(""),
         ],
         post_tool_contract_breach=(
@@ -423,12 +492,12 @@ async def test_turn_executor_contract_breach_without_evidence_avoids_completed_p
         agent=SimpleNamespace(id=1),
     )
 
-    assert result.output == "这次处理没有成功生成最终答复，请再试一次。"
+    assert result.output == "finalized partial output"
     assert "已根据现有工具结果完成" not in result.output
     assert result.final_output_source == "partial_output"
-    assert len(io.call_history) == 2
+    assert len(io.call_history) == 3
     assert io.call_history[1]["breach_retry_result"] == "contract_retry"
-    assert io.finalize_completed_calls
+    assert io.finalize_calls
     assert state.preparation_diagnostics["contract_breach_type"] == (
         "unfinished_multi_intent_reply"
     )
@@ -506,9 +575,9 @@ async def test_turn_executor_marks_intent_retry_round() -> None:
 
 
 @pytest.mark.asyncio
-# Test type: structural; fake IO supplies model rounds and only guards
-# retry-policy propagation for the follow-on native-search intent.
-async def test_turn_executor_preserves_native_search_first_for_follow_on_web_intent() -> (
+# Test type: behavioral; WebResearchRuntime is replaced by deterministic evidence
+# fixture while the turn loop, state transitions, and evidence recovery run real.
+async def test_turn_executor_runs_platform_web_research_for_follow_on_web_intent() -> (
     None
 ):
     tools = [
@@ -531,8 +600,9 @@ async def test_turn_executor_preserves_native_search_first_for_follow_on_web_int
         ),
     ]
     intents[1].metadata = {
-        "native_search_preferred": True,
-        "fallback_tool_names": ["web_search", "fetch_url"],
+        "web_research_runtime": "platform",
+        "search_provider": "builtin_web_search",
+        "fetch_provider": "builtin_fetch_url",
     }
     prep = _build_prep(
         tools=tools,
@@ -560,20 +630,7 @@ async def test_turn_executor_preserves_native_search_first_for_follow_on_web_int
                         },
                     }
                 ],
-            ),
-            ModelRoundResult(
-                response=ChatResponse(
-                    message=ChatMessage(
-                        role="assistant",
-                        content="原生搜索结果：今天有多家来源更新了相关新闻。",
-                    ),
-                    total_tokens=12,
-                    output_tokens=12,
-                ),
-                total_tokens=12,
-                completion_tokens_used=12,
-                native_search_observed=True,
-            ),
+            )
         ],
         tool_batch=ToolBatchResult(
             response=ChatResponse(
@@ -594,31 +651,38 @@ async def test_turn_executor_preserves_native_search_first_for_follow_on_web_int
         ),
     )
 
-    result = await TurnExecutor.run(
-        state=state,
-        io=io,
-        prep=prep,
-        request=SimpleNamespace(input_variables={}, conversation_id=28),
-        agent=SimpleNamespace(id=1),
-    )
+    with patch(
+        "app.ai.engine.turn_executor.WebResearchRuntime", _FakeWebResearchRuntime
+    ):
+        result = await TurnExecutor.run(
+            state=state,
+            io=io,
+            prep=prep,
+            request=SimpleNamespace(
+                input_variables={},
+                conversation_id=28,
+                tenant_id=1,
+                agent_id=1,
+            ),
+            agent=SimpleNamespace(id=1),
+        )
 
-    assert result.output == "原生搜索结果：今天有多家来源更新了相关新闻。"
-    assert len(io.call_history) == 2
-    retry_policy = io.call_history[1]["tool_use_policy"]
-    assert retry_policy.reason == "native_web_search_first:web_research"
-    assert [tool.name for tool in io.call_history[1]["tools"]] == [
+    assert "2026 榜单正文显示多个模型排名和来源说明" in result.output
+    assert len(io.call_history) == 1
+    assert state.intent_plan[0].status == "completed"
+    assert state.intent_plan[1].status == "completed"
+    assert state.intent_plan[1].completed_by_tool_names == ["fetch_url"]
+    assert state.preparation_diagnostics["web_research_pipeline_id"] == "test-pipeline"
+    assert state.preparation_diagnostics["answer_source"] == "fetched_body"
+    assert [result.name for result in result.tool_results] == [
         "web_search",
         "fetch_url",
     ]
-    assert state.intent_plan[0].status == "completed"
-    assert state.intent_plan[1].status == "completed"
-    assert state.intent_plan[1].completed_by_tool_names == ["native_web_search"]
     assert any(
         event.kind == "turn.round_started"
-        and event.data.get("round_kind") == "intent_retry"
+        and event.data.get("round_kind") == "web_research_runtime"
         and event.data.get("intent_id") == "intent-web"
-        and event.data.get("tool_use_policy_reason")
-        == "native_web_search_first:web_research"
+        and event.data.get("tool_use_policy_reason") == "platform_web_research_runtime"
         for event in state.turn_events
     )
 
@@ -647,7 +711,7 @@ async def test_turn_executor_retries_web_research_with_fetch_url_after_search_on
             mode="required",
             allowed_tool_names=["web_search", "fetch_url"],
             retry_on_contract_breach=False,
-            reason="native_web_search_first:web_research",
+            reason="web_research:builtin_pipeline",
         ),
     )
     state = ExecutionStateMachine.from_prepared_execution(prep)
@@ -740,7 +804,7 @@ async def test_turn_executor_synthesizes_fetch_url_when_required_retry_omits_too
             mode="required",
             allowed_tool_names=["web_search", "fetch_url"],
             retry_on_contract_breach=False,
-            reason="native_web_search_first:web_research",
+            reason="web_research:builtin_pipeline",
         ),
     )
     state = ExecutionStateMachine.from_prepared_execution(prep)
@@ -889,7 +953,7 @@ async def test_turn_executor_allows_final_follow_up_after_fetch_candidates_exhau
             mode="required",
             allowed_tool_names=["web_search", "fetch_url"],
             retry_on_contract_breach=False,
-            reason="native_web_search_first:web_research",
+            reason="web_research:builtin_pipeline",
         ),
     )
     state = ExecutionStateMachine.from_prepared_execution(prep)
@@ -1492,7 +1556,7 @@ async def test_turn_executor_recovers_retry_budgeted_web_search_evidence() -> No
             mode="required",
             allowed_tool_names=["web_search", "fetch_url"],
             retry_on_contract_breach=False,
-            reason="native_web_search_first:web_research",
+            reason="web_research:builtin_pipeline",
         ),
     )
     state = ExecutionStateMachine.from_prepared_execution(prep)
@@ -1977,9 +2041,8 @@ async def test_turn_executor_requests_weather_city_before_tool_retry_when_city_m
 
 
 @pytest.mark.asyncio
-async def test_turn_executor_native_search_marks_web_research_intent_complete() -> None:
-    """When Responses API native search produces visible content, the web_research
-    intent should be marked complete without triggering a recovery retry."""
+async def test_turn_executor_platform_web_research_marks_intent_complete() -> None:
+    """Platform WebResearch evidence completes the intent without an LLM retry."""
     tools = [
         ToolDefinition(name="web_search", description="Search"),
         ToolDefinition(name="fetch_url", description="Fetch"),
@@ -2000,60 +2063,42 @@ async def test_turn_executor_native_search_marks_web_research_intent_complete() 
             mode="required",
             allowed_tool_names=["web_search", "fetch_url"],
             retry_on_contract_breach=False,
-            reason="native_web_search_first:web_research",
+            reason="intent:web_research",
         ),
     )
+    intents[0].metadata = {
+        "web_research_runtime": "platform",
+        "search_provider": "builtin_web_search",
+        "fetch_provider": "builtin_fetch_url",
+    }
     state = ExecutionStateMachine.from_prepared_execution(prep)
 
-    # Native search: ModelRoundResult with visible content and native_search_observed=True
-    native_round = ModelRoundResult(
-        response=ChatResponse(
-            message=ChatMessage(
-                role="assistant",
-                content="截至 2026年4月8日，湖南学生放假时间如下：长沙暑假7月12日开始。",
-            ),
-            total_tokens=50,
-            output_tokens=50,
-        ),
-        total_tokens=50,
-        completion_tokens_used=50,
-        native_search_observed=True,
-    )
-
-    class _NativeSearchAdapter(_FakeIOAdapter):
-        async def call_llm(self, **kwargs):
-            self.call_history.append(dict(kwargs))
-            return native_round
-
-    io = _NativeSearchAdapter(model_rounds=[])
+    io = _FakeIOAdapter(model_rounds=[])
 
     with patch(
-        "app.ai.engine.turn_executor.RecoveryManager.decide",
-        wraps=RecoveryManager.decide,
+        "app.ai.engine.turn_executor.WebResearchRuntime", _FakeWebResearchRuntime
     ):
         result = await TurnExecutor.run(
             state=state,
             io=io,
             prep=prep,
-            request=SimpleNamespace(input_variables={}, conversation_id=1089),
+            request=SimpleNamespace(
+                input_variables={},
+                conversation_id=1089,
+                tenant_id=1,
+                agent_id=1,
+            ),
             agent=SimpleNamespace(id=1),
         )
 
-    # Intent should be marked completed via native search
     assert state.intent_plan[0].status == "completed"
-    assert state.intent_plan[0].completed_by_tool_names == ["native_web_search"]
-    # Only 1 LLM call — no recovery retry
-    assert len(io.call_history) == 1
-    assert [tool.name for tool in io.call_history[0]["tools"]] == [
+    assert state.intent_plan[0].completed_by_tool_names == ["fetch_url"]
+    assert len(io.call_history) == 0
+    assert io.tool_call_history == []
+    assert [tool_result.name for tool_result in result.tool_results] == [
         "web_search",
         "fetch_url",
     ]
-    assert (
-        io.call_history[0]["tool_use_policy"].reason
-        == "native_web_search_first:web_research"
-    )
-    assert io.tool_call_history == []
-    # Response is the synthesis from native search
-    assert "长沙暑假7月12日开始" in result.output
+    assert "2026 榜单正文显示多个模型排名和来源说明" in result.output
     assert result.partial is False
-    assert result.final_output_source == "assistant"
+    assert result.final_output_source == "recovery_evidence"

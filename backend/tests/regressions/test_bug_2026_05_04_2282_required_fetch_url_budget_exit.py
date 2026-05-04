@@ -155,8 +155,7 @@ def _web_research_intent() -> IntentPlan:
         completion_signals=["fetch_url"],
         metadata={
             "routing_mode": "structured_semantic",
-            "native_search_preferred": True,
-            "fallback_tool_names": ["web_search", "fetch_url"],
+            "web_research_pipeline": "builtin_search_fetch",
         },
     )
 
@@ -173,7 +172,7 @@ def _prepared_execution(tools: list[ToolDefinition], intents: list[IntentPlan]):
             mode="required",
             allowed_tool_names=["web_search", "fetch_url"],
             retry_on_contract_breach=False,
-            reason="native_web_search_first:web_research",
+            reason="web_research:builtin_pipeline",
         ),
         execution_budget=BudgetGuard.build_default("normal", intent_count=len(intents)),
         execution_path="normal",

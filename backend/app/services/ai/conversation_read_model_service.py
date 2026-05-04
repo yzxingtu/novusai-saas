@@ -11,6 +11,9 @@ from unittest.mock import Mock
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.ai.engine.recovery_web_research_gate import (
+    project_canonical_web_research_diagnostics,
+)
 from app.ai.json_safe import normalize_json_safe_dict
 from app.ai.text_semantics import extract_public_attachment_reference
 from app.ai.types import ChatMessage
@@ -178,6 +181,7 @@ class ConversationReadModelService:
         msg_dict["provider_id"] = runtime_meta.get("provider_id")
         msg_dict["provider_name"] = runtime_meta.get("provider_name")
         msg_dict = sanitize_assistant_error_payload(msg_dict)
+        msg_dict = self.patch_web_research_diagnostics_payload(msg_dict)
         msg_dict = patch_recovery_evidence_answer_payload(msg_dict)
         turn_flow = ConversationTurnFlowProjector.project_from_message_payload(msg_dict)
         if turn_flow is not None:
@@ -253,6 +257,9 @@ class ConversationReadModelService:
                 "metadata": metadata_payload,
             }
             message_payload = sanitize_assistant_error_payload(message_payload)
+            message_payload = self.patch_web_research_diagnostics_payload(
+                message_payload
+            )
             message_payload = patch_recovery_evidence_answer_payload(message_payload)
             projected_turn_flow = (
                 ConversationTurnFlowProjector.project_from_message_payload(
@@ -352,6 +359,66 @@ class ConversationReadModelService:
             raw_effective_mode
         )
         return interaction_mode_requested, interaction_mode_effective
+
+    @staticmethod
+    def patch_web_research_diagnostics_payload(
+        message: dict[str, Any],
+    ) -> dict[str, Any]:
+        if not isinstance(message, dict) or message.get("role") != "assistant":
+            return message
+        metadata = (
+            dict(message.get("metadata") or {})
+            if isinstance(message.get("metadata"), dict)
+            else {}
+        )
+        turn_record = (
+            dict(metadata.get("turn_record") or {})
+            if isinstance(metadata.get("turn_record"), dict)
+            else {}
+        )
+        turn_record_metadata = (
+            dict(turn_record.get("metadata") or {})
+            if isinstance(turn_record.get("metadata"), dict)
+            else {}
+        )
+        diagnostics_payload: dict[str, Any] = {}
+        for candidate in (
+            metadata.get("context_diagnostics"),
+            metadata.get("last_run_summary"),
+            turn_record_metadata.get("turn_diagnostics"),
+            turn_record,
+        ):
+            if isinstance(candidate, dict):
+                diagnostics_payload.update(candidate)
+        projection = project_canonical_web_research_diagnostics(
+            diagnostics_payload=diagnostics_payload,
+            turn_record_payload=turn_record,
+        )
+        if not projection:
+            return message
+
+        patched = dict(message)
+        metadata.update(
+            {"web_research_diagnostics": projection["web_research_diagnostics"]}
+        )
+        context_diagnostics = (
+            dict(metadata.get("context_diagnostics") or {})
+            if isinstance(metadata.get("context_diagnostics"), dict)
+            else {}
+        )
+        context_diagnostics.update(projection)
+        metadata["context_diagnostics"] = context_diagnostics
+        if turn_record:
+            turn_record.update(projection)
+            turn_metadata = dict(turn_record.get("metadata") or {})
+            turn_diagnostics = dict(turn_metadata.get("turn_diagnostics") or {})
+            turn_diagnostics.update(projection)
+            turn_metadata["turn_diagnostics"] = turn_diagnostics
+            turn_record["metadata"] = turn_metadata
+            metadata["turn_record"] = turn_record
+        patched["metadata"] = metadata
+        patched["web_research_diagnostics"] = projection["web_research_diagnostics"]
+        return patched
 
     @staticmethod
     def build_error_only_runtime_projection(

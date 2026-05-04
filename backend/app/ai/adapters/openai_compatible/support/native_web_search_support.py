@@ -14,6 +14,7 @@ from app.ai.adapters.openai_compatible.support.native_web_search_policy import (
     map_native_web_search_error as map_native_web_search_error_impl,
 )
 from app.ai.adapters.openai_compatible.support.native_web_search_policy import (
+    provider_config_supports_hosted_web_search,
     supports_native_web_search_model,
 )
 from app.ai.adapters.openai_compatible.support.native_web_search_runner import (
@@ -86,6 +87,10 @@ class OpenAIAdapterNativeWebSearchMixin:
         )
 
     def supports_native_web_search(self, model: str) -> bool:
+        if not provider_config_supports_hosted_web_search(
+            getattr(self, "provider_config", {}),
+        ):
+            return False
         capabilities = getattr(self, "protocol_capabilities", None)
         if capabilities is not None:
             supports_responses = bool(capabilities.supports_wire_api("responses"))
@@ -108,22 +113,29 @@ class OpenAIAdapterNativeWebSearchMixin:
         backend_key: str | None = None,
     ) -> SearchProviderRun:
         logical_model = str(model or "").strip()
-        effective_model = self._native_web_search_upstream_model(logical_model)
         effective_provider = str(provider_label or "openai_compatible")
-        effective_backend_key = (
-            backend_key or f"native:{effective_provider}:{effective_model}"
-        )
         if not self.supports_native_web_search(logical_model):
+            effective_backend_key = (
+                backend_key
+                or f"native:{effective_provider}:{logical_model or 'unknown'}"
+            )
             return SearchProviderRun(
                 provider=effective_provider,
                 provider_mode=PROVIDER_MODE_NATIVE,
                 backend_key=effective_backend_key,
                 status=STATUS_UNSUPPORTED,
                 items=[],
-                failure_reason="responses api or model family does not support native web search",
+                failure_reason=(
+                    "provider config does not explicitly declare hosted native "
+                    "web search support and smoke evidence for this responses model"
+                ),
                 attempted_backends=[effective_backend_key],
             )
 
+        effective_model = self._native_web_search_upstream_model(logical_model)
+        effective_backend_key = (
+            backend_key or f"native:{effective_provider}:{effective_model}"
+        )
         return await self._native_web_search_via_responses(
             query=query,
             max_results=max_results,

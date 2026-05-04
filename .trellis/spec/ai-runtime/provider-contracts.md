@@ -68,11 +68,26 @@ and must not be forwarded downstream as ordinary provider kwargs.
   model pool. Absence of a per-model chain is not a valid reason to skip
   runtime failover when another active model satisfies the turn capability
   requirements.
+- Provider-native or hosted web search is not a generic LLM/provider property.
+  It is an optional `SearchProvider` capability selected by the platform
+  WebResearch runtime. Provider adapters must not enable hosted search merely
+  because the wire API is `responses` or the model name appears compatible.
+- `openai_compatible` providers default to
+  `supports_hosted_web_search=false`. Enabling hosted search requires explicit
+  provider capability/config plus real smoke or approved replay evidence for
+  that upstream provider/model/protocol combination.
+- Optional search providers must return normalized WebResearch evidence or a
+  typed provider failure/skip reason. Adapter-specific events such as
+  `response.web_search_call.*` stay provider diagnostics until normalized.
 
 ## Ownership
 
 - The runtime kernel owns protocol planning and fallback decisions.
 - Adapters execute one protocol step; they do not invent fallback chains.
+- The WebResearch runtime owns search-provider selection and
+  `search -> fetch -> evidence -> answer` progression. Adapters may expose
+  optional provider-native search operations, but they must not decide whether
+  builtin `web_search` / `fetch_url` should run after provider failure.
 - Guard semantics are defined by the runtime kernel and must not be redefined
 per adapter.
 - Transitional low-level compat helpers may remain internal implementation
@@ -87,6 +102,9 @@ from adapter-local metadata.
 ## Prohibited Patterns
 
 - Adapter-local fallback chains that bypass the runtime planner.
+- Hosted-search-first fallback chains that route ordinary `web_research`
+  through provider native search before builtin search/fetch.
+- Hosted/native web search enabled by default for OpenAI-compatible gateways.
 - Treating the legacy no-contract fallback chain as the canonical rule.
 - Allowing callers to disable runtime guards at adapter entrypoints.
 - Using top-level `wire_api` to override an explicit protocol contract.

@@ -53,28 +53,6 @@ def _register_tool_round_delta(
         state.register_tool_round()
 
 
-def _response_has_visible_content(response: ChatResponse | None) -> bool:
-    if response is None:
-        return False
-    return bool(str(response.message.content or "").strip())
-
-
-def _complete_native_search_if_observed(
-    *,
-    state: ExecutionStateMachine,
-    response: ChatResponse | None,
-    model_round: Any,
-) -> None:
-    if (
-        getattr(model_round, "native_search_observed", False)
-        and _response_has_visible_content(response)
-        and state.intent_plan
-    ):
-        state.intent_plan = RecoveryManager.complete_native_search_intents(
-            state.intent_plan
-        )
-
-
 async def execute_tool_batch(
     *,
     state: ExecutionStateMachine,
@@ -705,11 +683,6 @@ async def run_contract_retry_round(
         total_tokens += int(retry_round.total_tokens or 0)
         completion_tokens_used += int(retry_round.completion_tokens_used or 0)
         state.register_completion_tokens(completion_tokens_used)
-        _complete_native_search_if_observed(
-            state=state,
-            response=response,
-            model_round=retry_round,
-        )
         if getattr(response, "tool_calls", None) and retry_tools:
             (
                 response,
@@ -880,11 +853,6 @@ async def maybe_retry_web_research_contract(
     total_tokens += int(retry_round.total_tokens or 0)
     completion_tokens_used += int(retry_round.completion_tokens_used or 0)
     state.register_completion_tokens(completion_tokens_used)
-    _complete_native_search_if_observed(
-        state=state,
-        response=response,
-        model_round=retry_round,
-    )
     return response, total_tokens, completion_tokens_used, True, active_policy
 
 

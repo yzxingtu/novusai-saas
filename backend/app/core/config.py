@@ -145,7 +145,7 @@ class Settings(BaseSettings):
     # ========================================
     AI_CACHE_TTL: int = 3600  # AI 响应缓存 TTL（秒）/ AI response cache TTL (seconds), only effective when temperature=0
     WEB_SEARCH_DEFAULT_ENABLED: bool = True
-    WEB_SEARCH_DEFAULT_STRATEGY: str = "native_first_fallback_public"
+    WEB_SEARCH_DEFAULT_STRATEGY: str = "builtin_public"
     WEB_SEARCH_DEFAULT_MAX_RESULTS_CAP: int = 8
     WEB_SEARCH_DEFAULT_NATIVE_TIMEOUT_SECONDS: int = 20
     WEB_SEARCH_DEFAULT_PUBLIC_TIMEOUT_SECONDS: int = 15

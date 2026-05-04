@@ -1,6 +1,6 @@
 """
-Web search orchestrator and native search provider.
-联网搜索编排器与原生搜索提供器。
+Builtin public web_search orchestrator.
+内置公共联网搜索编排器。
 """
 
 from __future__ import annotations
@@ -10,8 +10,6 @@ from typing import TYPE_CHECKING
 
 from app.ai.gateway import AIGateway  # noqa: F401
 from app.ai.page_locale import resolve_page_locale
-from app.ai.web_search.orchestration import native_provider as _native_provider
-from app.ai.web_search.orchestration.native_provider import NativeModelSearchProvider
 from app.ai.web_search.orchestrator_support.config_resolver import (
     _ResolvedWebSearchConfig,
     resolve_web_search_config,
@@ -31,15 +29,8 @@ from app.ai.web_search.public_html import (
     _normalize_text,
 )
 from app.ai.web_search.types import (
-    PROVIDER_MODE_NATIVE,
-    STATUS_NO_RESULTS,
-    STATUS_PARSE_ERROR,
-    STATUS_POLICY_FILTERED,
-    STATUS_SUCCESS,
-    STATUS_TIMEOUT,
     STATUS_UNSUPPORTED,
     STATUS_UPSTREAM_ERROR,
-    WEB_SEARCH_POLICY_NATIVE_FIRST_BAIDU_FALLBACK,
     SearchProviderRun,
     WebSearchExecution,
     WebSearchExecutionMeta,
@@ -54,18 +45,6 @@ if TYPE_CHECKING:
 logger = LogManager.get_logger("ai.web_search")
 
 _DUPLICATE_QUERY_SIGNATURES: set[tuple[int, str, str, str, str, str, int]] = set()
-_NATIVE_BACKEND_FAIL_STREAK = _native_provider._NATIVE_BACKEND_FAIL_STREAK
-_NATIVE_BACKEND_DISABLED = _native_provider._NATIVE_BACKEND_DISABLED
-_NATIVE_BACKEND_CACHE = _native_provider._NATIVE_BACKEND_CACHE
-
-_NATIVE_RETRYABLE_FAILURES = {
-    STATUS_TIMEOUT,
-    STATUS_UPSTREAM_ERROR,
-    STATUS_PARSE_ERROR,
-    STATUS_NO_RESULTS,
-    STATUS_POLICY_FILTERED,
-    STATUS_UNSUPPORTED,
-}
 
 _SEARCH_ENGINE_HOSTS = frozenset({"www.baidu.com", "baidu.com"})
 _MIN_STAGE_TIMEOUT_SECONDS = 1
@@ -173,165 +152,25 @@ class WebSearchOrchestrator:
                 seen_signatures=_DUPLICATE_QUERY_SIGNATURES,
             )
 
-        if resolved_config.policy != WEB_SEARCH_POLICY_NATIVE_FIRST_BAIDU_FALLBACK:
-            return _support_build_execution(
-                query=rewritten_query,
-                items=[],
-                meta=WebSearchExecutionMeta(
-                    status=STATUS_UNSUPPORTED,
-                    attempted_backends=[],
-                    selected_backend=None,
-                    used_fallback=False,
-                    failure_reason=f"unsupported web search policy: {resolved_config.policy}",
-                    latency_ms=int((time.perf_counter() - start) * 1000),
-                    provider=None,
-                    provider_mode=None,
-                    provider_chain=[],
-                    cache_hit=False,
-                ),
-                duplicate_signature=duplicate_signature,
-                search_engine_hosts=_SEARCH_ENGINE_HOSTS,
-                seen_signatures=_DUPLICATE_QUERY_SIGNATURES,
-            )
-
-        attempted_backends: list[str] = []
-        provider_chain: list[str] = []
-        selected_run: SearchProviderRun | None = None
-        native_run: SearchProviderRun | None = None
-        public_run: SearchProviderRun | None = None
-        used_fallback = False
-        fallback_reason: str | None = None
-        native_failure_kind: str | None = None
-
-        skip_runtime_native_after_hosted_failure = bool(
-            getattr(context, "web_search_skip_native_provider", False)
+        public_provider = PublicHtmlSearchProvider(
+            providers=[resolved_config.public_provider],
         )
-        skip_runtime_native_reason = str(
-            getattr(context, "web_search_skip_native_reason", "") or ""
-        ).strip()
-        should_attempt_runtime_native_without_db = (
-            resolved_config.provider is None
-            and resolved_config.model is None
-            and resolved_config.native_readiness_reason
-            == "runtime_db_unavailable_for_native_readiness_resolution"
+        timeout_seconds = _clamp_stage_timeout_seconds(
+            resolved_config.public_timeout_seconds,
+            context=context,
         )
-
-        if skip_runtime_native_after_hosted_failure:
-            native_run = SearchProviderRun(
-                provider=provider_label,
-                provider_mode=PROVIDER_MODE_NATIVE,
-                backend_key=None,
-                status=STATUS_UNSUPPORTED,
-                items=[],
-                failure_reason=(
-                    skip_runtime_native_reason
-                    or "native provider skipped after hosted web search failure"
-                ),
-                attempted_backends=[],
-                native_attempted=False,
-            )
-        elif (
-            resolved_config.provider is None or resolved_config.model is None
-        ) and not should_attempt_runtime_native_without_db:
-            native_run = SearchProviderRun(
-                provider=provider_label,
-                provider_mode=PROVIDER_MODE_NATIVE,
-                backend_key=None,
-                status=STATUS_UNSUPPORTED,
-                items=[],
-                failure_reason=(
-                    resolved_config.native_readiness_reason
-                    or "native readiness target unavailable"
-                ),
-                attempted_backends=[],
-                native_attempted=False,
-            )
-        else:
-            native_provider = NativeModelSearchProvider()
-            native_timeout_seconds = _clamp_stage_timeout_seconds(
-                resolved_config.native_timeout_seconds,
-                context=context,
-            )
-            native_run = await native_provider.search(
-                query=rewritten_query,
-                max_results=effective_max_results,
-                locale=locale,
-                timeout_seconds=native_timeout_seconds,
-                context=context,
-                strategy=resolved_config.policy,
-                runtime_provider_label=provider_label,
-                runtime_model_code=model_code,
-                provider_id_override=(
-                    int(resolved_config.provider.id)
-                    if resolved_config.provider is not None
-                    else None
-                ),
-                model_id_override=(
-                    int(resolved_config.model.id)
-                    if resolved_config.model is not None
-                    else None
-                ),
-                model_code_override=(
-                    str(getattr(resolved_config.model, "code", "") or "")
-                    if resolved_config.model is not None
-                    else None
-                ),
-            )
-        attempted_backends.extend(native_run.attempted_backends)
-        provider_chain.extend(native_run.attempted_backends)
-        if native_run.status == STATUS_SUCCESS and native_run.items:
-            selected_run = native_run
-        else:
-            native_failure_kind = native_run.status
-            should_fallback = native_run.status in _NATIVE_RETRYABLE_FAILURES and (
-                bool(native_run.native_attempted)
-                or (
-                    native_run.status == STATUS_UNSUPPORTED
-                    and not bool(native_run.native_attempted)
-                )
-            )
-            if should_fallback:
-                used_fallback = True
-                fallback_reason = (
-                    f"native_{native_run.status}"
-                    if native_run.native_attempted
-                    else (
-                        "native_not_attempted:"
-                        f"{native_run.failure_reason or native_run.status}"
-                    )
-                )
-                logger.info(
-                    "web_search orchestrator fallback: native_status={} native_backend={} native_attempted={} reason={}",
-                    native_run.status,
-                    native_run.backend_key or "",
-                    bool(native_run.native_attempted),
-                    native_run.failure_reason or "",
-                )
-                fallback_timeout_seconds = _clamp_stage_timeout_seconds(
-                    resolved_config.fallback_timeout_seconds,
-                    context=context,
-                )
-                public_provider = PublicHtmlSearchProvider(
-                    providers=[resolved_config.fallback_provider],
-                )
-                public_run = await public_provider.search(
-                    query=rewritten_query,
-                    max_results=effective_max_results,
-                    locale=locale,
-                    timeout_seconds=fallback_timeout_seconds,
-                    context=context,
-                    strategy=resolved_config.policy,
-                    runtime_provider_label=provider_label,
-                    runtime_model_code=model_code,
-                )
-                attempted_backends.extend(public_run.attempted_backends)
-                provider_chain.extend(public_run.attempted_backends)
-                selected_run = public_run
-            else:
-                selected_run = native_run
-
+        selected_run = await public_provider.search(
+            query=rewritten_query,
+            max_results=effective_max_results,
+            locale=locale,
+            timeout_seconds=timeout_seconds,
+            context=context,
+            strategy=resolved_config.policy,
+            runtime_provider_label=provider_label,
+            runtime_model_code=model_code,
+        )
         if selected_run is None:
-            selected_run = native_run or SearchProviderRun(
+            selected_run = SearchProviderRun(
                 provider=None,
                 provider_mode=None,
                 backend_key=None,
@@ -340,35 +179,18 @@ class WebSearchOrchestrator:
                 failure_reason="web_search did not select a backend",
             )
 
-        failure_reason = selected_run.failure_reason
-        if (
-            failure_reason is None
-            and selected_run.status != STATUS_SUCCESS
-            and native_run is not None
-            and public_run is not None
-        ):
-            reasons = [
-                reason
-                for reason in (
-                    native_run.failure_reason,
-                    public_run.failure_reason,
-                )
-                if reason
-            ]
-            failure_reason = "; ".join(reasons) or None
-
         meta = WebSearchExecutionMeta(
             status=selected_run.status,
-            attempted_backends=list(attempted_backends),
+            attempted_backends=list(selected_run.attempted_backends),
             selected_backend=selected_run.backend_key,
-            used_fallback=used_fallback,
-            failure_reason=failure_reason,
+            used_fallback=False,
+            failure_reason=selected_run.failure_reason,
             latency_ms=int((time.perf_counter() - start) * 1000),
             provider=selected_run.provider,
             provider_mode=selected_run.provider_mode,
-            provider_chain=list(provider_chain),
-            fallback_reason=fallback_reason,
-            native_failure_kind=native_failure_kind,
+            provider_chain=list(selected_run.attempted_backends),
+            fallback_reason=None,
+            native_failure_kind=None,
             cache_hit=bool(selected_run.cache_hit),
         )
         return _support_build_execution(
@@ -396,7 +218,6 @@ async def run_web_search(
 
 
 __all__ = [
-    "NativeModelSearchProvider",
     "WebSearchOrchestrator",
     "run_web_search",
 ]

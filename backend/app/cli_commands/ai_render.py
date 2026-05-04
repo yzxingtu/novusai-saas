@@ -26,6 +26,7 @@ _BACKEND_DIR = S._BACKEND_DIR
 settings = S.settings
 _json_default = S._json_default
 
+
 def _build_ai_conversation_compact_diagnostics(snapshot: dict) -> dict:
     snapshot = _hydrate_ai_conversation_snapshot(snapshot)
     conversation = snapshot.get("conversation") or {}
@@ -83,6 +84,19 @@ def _build_ai_conversation_compact_diagnostics(snapshot: dict) -> dict:
         "budget_status": diagnostics.get("budget_status"),
         "budget_exit_reason": diagnostics.get("budget_exit_reason"),
         "final_output_source": diagnostics.get("final_output_source"),
+        "web_research_pipeline_id": diagnostics.get("web_research_pipeline_id"),
+        "search_provider": diagnostics.get("search_provider"),
+        "fetch_provider": diagnostics.get("fetch_provider"),
+        "evidence_status": diagnostics.get("evidence_status"),
+        "candidate_urls": _normalize_cli_string_list(diagnostics.get("candidate_urls")),
+        "fetched_urls": _normalize_cli_string_list(diagnostics.get("fetched_urls")),
+        "evidence_quality": diagnostics.get("evidence_quality"),
+        "answer_source": diagnostics.get("answer_source"),
+        "web_research_failure_kind": diagnostics.get("web_research_failure_kind"),
+        "web_research_failure_layer": diagnostics.get("web_research_failure_layer"),
+        "web_research_provider_disable_reason": diagnostics.get(
+            "web_research_provider_disable_reason"
+        ),
         "contract_breach_type": diagnostics.get("contract_breach_type"),
         "tool_leak_detected": bool(diagnostics.get("tool_leak_detected")),
         "recovered_via_retry": diagnostics.get("recovered_via_retry"),
@@ -112,9 +126,41 @@ def _render_ai_conversation_diagnostics_text(snapshot: dict) -> str:
     ]
     if compact.get("final_output_source"):
         lines.append(f"final_output_source={compact.get('final_output_source')}")
+    if compact.get("web_research_pipeline_id") or compact.get("evidence_status"):
+        lines.append(
+            "web_research pipeline_id={pipeline_id} search_provider={search_provider} fetch_provider={fetch_provider} evidence_status={evidence_status} evidence_quality={evidence_quality} answer_source={answer_source}".format(
+                pipeline_id=compact.get("web_research_pipeline_id") or "-",
+                search_provider=compact.get("search_provider") or "-",
+                fetch_provider=compact.get("fetch_provider") or "-",
+                evidence_status=compact.get("evidence_status") or "-",
+                evidence_quality=compact.get("evidence_quality") or "-",
+                answer_source=compact.get("answer_source") or "-",
+            )
+        )
+    candidate_urls = _normalize_cli_string_list(compact.get("candidate_urls"))
+    fetched_urls = _normalize_cli_string_list(compact.get("fetched_urls"))
+    if candidate_urls:
+        lines.append("web_research_candidate_urls={}".format(", ".join(candidate_urls)))
+    if fetched_urls:
+        lines.append("web_research_fetched_urls={}".format(", ".join(fetched_urls)))
+    if compact.get("web_research_failure_kind"):
+        lines.append(
+            "web_research_failure kind={kind} layer={layer}".format(
+                kind=compact.get("web_research_failure_kind"),
+                layer=compact.get("web_research_failure_layer") or "-",
+            )
+        )
+    if compact.get("web_research_provider_disable_reason"):
+        lines.append(
+            "web_research_provider_disable_reason={}".format(
+                compact.get("web_research_provider_disable_reason")
+            )
+        )
     selected_tools = _normalize_cli_string_list(compact.get("selected_tool_names"))
     lines.append(
-        "selected_tools={}".format(", ".join(selected_tools) if selected_tools else "[]")
+        "selected_tools={}".format(
+            ", ".join(selected_tools) if selected_tools else "[]"
+        )
     )
     selected_skills = _normalize_cli_string_list(compact.get("selected_skill_names"))
     if selected_skills:
@@ -135,9 +181,7 @@ def _render_ai_conversation_diagnostics_text(snapshot: dict) -> str:
         lines.append(f"path_decision={_compact_json_text(path_decision)}")
     capability_injection = _normalize_cli_dict(compact.get("capability_injection"))
     if capability_injection:
-        lines.append(
-            f"capability_injection={_compact_json_text(capability_injection)}"
-        )
+        lines.append(f"capability_injection={_compact_json_text(capability_injection)}")
     tool_filtering = _normalize_cli_dict(compact.get("tool_filtering"))
     if tool_filtering:
         lines.append(f"tool_filtering={_compact_json_text(tool_filtering)}")
@@ -437,9 +481,7 @@ def _render_ai_conversation_text(
             if call_log_sync_rescue is not None:
                 lines.append(f"  sync_rescue: {call_log_sync_rescue}")
             if item.get("last_tool_name"):
-                lines.append(
-                    "  last_step: tool={}".format(item.get("last_tool_name"))
-                )
+                lines.append("  last_step: tool={}".format(item.get("last_tool_name")))
             if item.get("interrupted_stage"):
                 lines.append(
                     "  interrupted_stage: {}".format(item.get("interrupted_stage"))
@@ -566,7 +608,9 @@ def _render_ai_runtime_section(title: str, payload: object) -> str:
             lines.append(f"{key}: {payload.get(key)}")
         return "\n".join(lines)
     if isinstance(payload, list):
-        lines.append(json.dumps(payload, ensure_ascii=False, indent=2, default=_json_default))
+        lines.append(
+            json.dumps(payload, ensure_ascii=False, indent=2, default=_json_default)
+        )
         return "\n".join(lines)
     lines.append(str(payload))
     return "\n".join(lines)

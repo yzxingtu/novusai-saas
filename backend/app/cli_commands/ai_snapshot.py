@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+from app.ai.engine.recovery_web_research_gate import (
+    project_canonical_web_research_diagnostics,
+)
 from app.cli_commands import state as S
 from app.cli_commands.ai_norm import (
     _extract_turn_diagnostics_from_call_log_metadata,
@@ -28,6 +31,23 @@ from app.services.ai.turn_failure_normalizer import (
 
 _BACKEND_DIR = S._BACKEND_DIR
 settings = S.settings
+
+_WEB_RESEARCH_PROJECTION_KEYS = frozenset(
+    {
+        "web_research_pipeline_id",
+        "search_provider",
+        "fetch_provider",
+        "evidence_status",
+        "candidate_urls",
+        "fetched_urls",
+        "evidence_quality",
+        "answer_source",
+        "web_research_failure_kind",
+        "web_research_failure_layer",
+        "web_research_provider_disable_reason",
+        "web_research_diagnostics",
+    }
+)
 
 
 def _format_cli_dt(dt: object) -> object:
@@ -1585,6 +1605,23 @@ def _hydrate_ai_conversation_snapshot(snapshot: dict) -> dict:
         ),
         None,
     )
+    web_research_projection = project_canonical_web_research_diagnostics(
+        diagnostics_payload={
+            **latest_call_log_diagnostics,
+            **assistant_last_run_summary,
+            **assistant_context_diagnostics,
+            **turn_record_diagnostics,
+            **diagnostics,
+        },
+        turn_record_payload=turn_record,
+        intent_plan=diagnostics.get("intent_plan"),
+    )
+    for key, value in web_research_projection.items():
+        if key in _WEB_RESEARCH_PROJECTION_KEYS:
+            diagnostics[key] = value
+            continue
+        if value not in (None, []) and diagnostics.get(key) in (None, []):
+            diagnostics[key] = value
     diagnostics["source"] = _first_string(
         diagnostics.get("source"),
         "assistant_turn_record" if assistant_turn_record else None,

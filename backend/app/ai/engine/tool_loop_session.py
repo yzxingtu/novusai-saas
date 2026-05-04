@@ -11,9 +11,6 @@ from typing import Any
 from app.ai.prompt_contracts import render_prompt_contract
 from app.ai.tools.types import ToolDefinition, ToolResult
 from app.ai.types import ChatMessage, ChatResponse
-from app.ai.web_search.runtime_fallback_flags import (
-    runtime_info_with_web_search_fallback_flags,
-)
 from app.core.logging import LogManager
 
 from .intent_plan_accessors import resolve_intent_plan_from_input_variables
@@ -112,10 +109,7 @@ def sync_sandbox_runtime_model_info(
     turn_record = (
         metadata.get("runtime_turn_record") if isinstance(metadata, dict) else None
     )
-    runtime_model_info = runtime_info_with_web_search_fallback_flags(
-        runtime_model_info if isinstance(runtime_model_info, dict) else None,
-        turn_record=turn_record,
-    )
+    _ = turn_record
     sandbox.set_runtime_model_info(runtime_model_info)
 
 

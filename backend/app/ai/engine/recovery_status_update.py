@@ -12,7 +12,10 @@ from .recovery_tool_result_helpers import (
     intent_result_from_tool_results,
     successful_tool_names,
 )
-from .recovery_web_research_gate import RecoveryWebResearchGate
+from .recovery_web_research_gate import (
+    RecoveryWebResearchGate,
+    project_canonical_web_research_diagnostics,
+)
 from .system_prompt_intent_helpers import (
     intent_completion_matches as resolve_intent_completion_matches,
 )
@@ -149,6 +152,27 @@ def update_intent_statuses(
             clone.completed_by_tool_names = []
             clone.metadata["pending_consent"] = dict(pending_payload)
             pending_consent_assigned = True
+
+        if str(clone.family or "").strip() == "web_research":
+            web_research_projection = project_canonical_web_research_diagnostics(
+                diagnostics_payload={"intent_plan": [clone.to_dict()]},
+                intent_plan=[clone],
+                tool_results=tool_results,
+            )
+            if web_research_projection:
+                clone.metadata.update(
+                    {
+                        "web_research_diagnostics": web_research_projection[
+                            "web_research_diagnostics"
+                        ],
+                        "web_research_evidence_status": web_research_projection.get(
+                            "evidence_status"
+                        ),
+                        "web_research_answer_source": web_research_projection.get(
+                            "answer_source"
+                        ),
+                    }
+                )
 
         updated.append(clone)
     return updated

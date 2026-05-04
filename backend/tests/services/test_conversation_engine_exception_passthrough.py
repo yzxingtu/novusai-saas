@@ -1,6 +1,6 @@
 """
 Test type: behavioral
-Scope: ConversationEngine exception passthrough, retry policy, and native search repair.
+Scope: ConversationEngine exception passthrough, retry policy, and web research repair.
 Mocked dependencies: Redis module import seam and LLM adapter calls via focused AsyncMock.
 """
 
@@ -53,7 +53,6 @@ sys.modules.setdefault("redis.exceptions", redis_exceptions_module)
 
 from app.ai.engine import conversation_sync_io_adapter as sync_io_adapter
 from app.ai.engine.conversation import ConversationEngine
-from app.ai.engine.final_output_policy import build_untrusted_final_output_fallback
 from app.ai.engine.turn_executor import ToolBatchResult
 from app.ai.engine.types import (
     ExecutionBudget,
@@ -327,9 +326,9 @@ async def test_conversation_engine_retries_capability_denial_with_required_tool_
 
     result = await engine.execute(agent, request)
 
-    assert result.success is False
-    assert result.partial is True
-    assert "GPT overview" in result.output
+    assert result.success is True
+    assert result.partial is False
+    assert "GPT background from web search" in result.output
     assert len(engine._call_llm.await_args_list) == 2
     assert engine._call_llm.await_args_list[0].kwargs["tool_use_policy"].mode == "auto"
     assert (
@@ -489,16 +488,15 @@ async def test_conversation_engine_retries_summary_without_fetch_with_fetch_url(
     result = await engine.execute(agent, request)
 
     assert result.success is True
-    assert result.output == build_untrusted_final_output_fallback(
-        auto_fetch_gate_reason="candidate_urls_ready"
-    )
-    assert len(engine._call_llm.await_args_list) == 2
-    assert engine._call_llm.await_args_list[1].kwargs["tool_use_policy"].reason == (
-        "unfinished_intent_retry"
+    assert result.output == "正文内容"
+    assert len(engine._call_llm.await_args_list) == 1
+    assert engine._call_llm.await_args_list[0].kwargs["tool_use_policy"].mode == (
+        "required"
     )
     assert [
-        tool.name for tool in engine._call_llm.await_args_list[1].kwargs["tools"]
+        tool.name for tool in engine._call_llm.await_args_list[0].kwargs["tools"]
     ] == [
+        "web_search",
         "fetch_url",
     ]
 
@@ -736,28 +734,10 @@ async def test_conversation_engine_repairs_title_only_answer_after_fetch(
     result = await engine.execute(agent, request)
 
     assert result.success is True
-    assert "春假和秋假通常各安排 2 至 3 天" in result.output
-    assert len(engine._call_llm.await_args_list) == 3
-    assert engine._call_llm.await_args_list[2].kwargs["tools"] is None
-    assert engine._call_llm.await_args_list[2].kwargs[
-        "tool_use_policy"
-    ] == ToolUsePolicy(
-        family="none",
-        mode="none",
-        allowed_tool_names=[],
-        retry_on_contract_breach=False,
-        reason="web_research_title_only_after_fetch",
-    )
-    repair_messages = engine._call_llm.await_args_list[2].kwargs["messages"]
-    assert any(
-        msg.role == "system"
-        and "previous assistant draft did not satisfy the tool-use contract"
-        in (msg.content or "").lower()
-        for msg in repair_messages
-    )
-    assert result.turn_record["contract_breach_type"] == (
-        "web_research_title_only_after_fetch"
-    )
+    assert "湖南中小学生即将迎来春秋假" in result.output
+    assert result.output != page_title
+    assert len(engine._call_llm.await_args_list) == 1
+    assert result.turn_record["final_output_source"] == "recovery_evidence"
 
 
 @pytest.mark.asyncio
@@ -1129,7 +1109,7 @@ def test_analyze_post_tool_contract_breach_accepts_native_web_research_answer() 
                 mode="required",
                 allowed_tool_names=["web_search", "fetch_url"],
                 retry_on_contract_breach=False,
-                reason="native_web_search_first:web_research",
+                reason="web_research:builtin_pipeline",
             ),
             tools=tools,
             input_variables={},

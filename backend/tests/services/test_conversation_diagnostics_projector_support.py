@@ -93,6 +93,81 @@ def test_extract_turn_diagnostics_keeps_budget_and_retry_projection() -> None:
     ]
 
 
+def test_extract_turn_diagnostics_prefers_completed_web_research_evidence() -> None:
+    completed_evidence = {
+        "query": "大模型排行榜 2026",
+        "status": "completed",
+        "search_provider": "builtin:web_search",
+        "fetch_provider": "builtin:fetch_url",
+        "search_results": [
+            {"title": "Ranking", "url": "https://search.example/ranking"}
+        ],
+        "fetched_pages": [
+            {
+                "title": "Ranking",
+                "url": "https://source.example/ranking",
+                "status": "completed",
+                "answer_quality": "body",
+            }
+        ],
+        "answer_quality": "body",
+        "failure_kind": None,
+        "diagnostics": {
+            "pipeline_id": "web-research-1",
+            "search_provider": "builtin:web_search",
+            "fetch_provider": "builtin:fetch_url",
+            "evidence_status": "completed",
+            "candidate_urls": ["https://search.example/ranking"],
+            "fetched_urls": ["https://source.example/ranking"],
+            "evidence_quality": "body",
+            "answer_source": "fetched_body",
+            "provider_disable_reason": "optional_provider_skipped:builtin_default",
+        },
+    }
+
+    payload = extract_turn_diagnostics_from_metadata(
+        {
+            "evidence_status": "partial",
+            "candidate_urls": ["https://stale.example/search-only"],
+            "web_research_failure_kind": "fetch_not_attempted",
+            "web_research_provider_disable_reason": "fetch_already_attempted",
+            "turn_record": {
+                "turn_outcome": "success",
+                "termination_reason": "completed",
+                "evidence_status": "partial",
+                "candidate_urls": ["https://stale.example/search-only"],
+                "web_research_failure_kind": "fetch_not_attempted",
+                "web_research_provider_disable_reason": "fetch_already_attempted",
+                "turn_flow": {
+                    "evidence": [
+                        {
+                            "id": "web-research-1:fetch_url:1",
+                            "summary_payload": {
+                                "web_research_evidence": completed_evidence
+                            },
+                        }
+                    ]
+                },
+            },
+        }
+    )
+
+    assert payload["web_research_pipeline_id"] == "web-research-1"
+    assert payload["search_provider"] == "builtin:web_search"
+    assert payload["fetch_provider"] == "builtin:fetch_url"
+    assert payload["evidence_status"] == "completed"
+    assert payload["candidate_urls"] == ["https://search.example/ranking"]
+    assert payload["fetched_urls"] == ["https://source.example/ranking"]
+    assert payload["evidence_quality"] == "body"
+    assert payload["answer_source"] == "fetched_body"
+    assert payload["web_research_failure_kind"] is None
+    assert payload["web_research_failure_layer"] is None
+    assert (
+        payload["web_research_provider_disable_reason"]
+        == "optional_provider_skipped:builtin_default"
+    )
+
+
 def test_extract_turn_diagnostics_projects_compact_runtime_decision_fields() -> None:
     payload = extract_turn_diagnostics_from_metadata(
         {

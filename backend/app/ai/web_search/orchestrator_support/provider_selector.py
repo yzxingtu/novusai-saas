@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from urllib.parse import urlparse
 
-from app.ai.web_search.types import DEFAULT_FALLBACK_PROVIDER
+from app.ai.web_search.types import DEFAULT_PUBLIC_PROVIDER
 from app.core.config import settings
 from app.schemas.ai.provider import (
     AIProviderWebSearchConfig,
@@ -52,9 +52,10 @@ def default_web_search_config() -> AIProviderWebSearchConfig:
     return AIProviderWebSearchConfig(
         enabled=bool(settings.WEB_SEARCH_DEFAULT_ENABLED),
         max_results_cap=int(settings.WEB_SEARCH_DEFAULT_MAX_RESULTS_CAP),
-        native_timeout_seconds=int(settings.WEB_SEARCH_DEFAULT_NATIVE_TIMEOUT_SECONDS),
-        fallback_provider=DEFAULT_FALLBACK_PROVIDER,
-        fallback_timeout_seconds=int(settings.WEB_SEARCH_DEFAULT_PUBLIC_TIMEOUT_SECONDS),
+        fallback_provider=DEFAULT_PUBLIC_PROVIDER,
+        fallback_timeout_seconds=int(
+            settings.WEB_SEARCH_DEFAULT_PUBLIC_TIMEOUT_SECONDS
+        ),
     )
 
 
@@ -62,9 +63,7 @@ def normalize_provider_web_search_settings(
     provider_config: dict | None,
 ) -> AIProviderWebSearchConfig:
     raw_web_search = (
-        provider_config.get("web_search")
-        if isinstance(provider_config, dict)
-        else None
+        provider_config.get("web_search") if isinstance(provider_config, dict) else None
     )
     defaults = default_web_search_config()
     return normalize_provider_web_search_config(

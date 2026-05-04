@@ -15,6 +15,7 @@ from app.ai.runtime.manifest import RuntimeCapabilityItem, RuntimeCapabilityMani
 from app.ai.runtime.types import CapabilityDescriptor
 from app.ai.skills.resolver import SkillResolveIssue, SkillResolveResult
 from app.ai.tools.types import ToolDefinition
+from app.services.ai.runtime_diagnostics_support import RuntimeDiagnosticsCheckSupport
 from app.services.ai.runtime_inventory_service_support import (
     build_empty_manifest,
     shape_manifest_payload,
@@ -165,6 +166,130 @@ def test_shape_manifest_payload_projects_skill_catalog_preview_metadata() -> Non
     assert payload["boundaries"]["selection_semantics"] == "inventory_snapshot"
     assert payload["boundaries"]["selection_live"] is False
     assert payload["boundaries"]["live_turn_bound"] is False
+
+
+def test_shape_manifest_payload_projects_web_research_from_inventory_snapshot() -> None:
+    manifest = RuntimeCapabilityManifest(
+        scope="turn",
+        tenant_id=9,
+        agent_id=1,
+        provider=None,
+        model=None,
+        tools=[],
+        skills=[],
+        web_research=[
+            RuntimeCapabilityItem(
+                name="web_research",
+                kind="execution_tool",
+                status="unavailable",
+                reason="web_research_tools_unavailable",
+                metadata={"has_web_search": False, "has_fetch_url": False},
+                source="tool_registry",
+            )
+        ],
+        disabled_capabilities=[
+            RuntimeCapabilityItem(
+                name="web_research",
+                kind="execution_tool",
+                status="unavailable",
+                reason="web_research_tools_unavailable",
+                metadata={"has_web_search": False, "has_fetch_url": False},
+                source="tool_registry",
+            )
+        ],
+        sources=[
+            {
+                "kind": "skill",
+                "name": "skill_resolver",
+                "active": True,
+                "metadata": {
+                    "inventory_selected_tool_names": [
+                        "get_current_time",
+                        "web_search",
+                        "fetch_url",
+                    ],
+                    "inventory_selected_skill_names": ["web_search"],
+                    "turn_skill_activation_applied": False,
+                    "turn_skill_activation_reason": None,
+                },
+            }
+        ],
+    )
+    agent = SimpleNamespace(name="Search Agent", owner_tenant_id=9, model=None)
+
+    payload = shape_manifest_payload(
+        scope="runtime",
+        tenant_id=9,
+        agent=agent,
+        manifest=manifest,
+        kb_bindings=[],
+        skill_result=SkillResolveResult(),
+        tools=[],
+    )
+
+    web_research = payload["web_research"][0]
+    assert web_research["status"] == "available"
+    assert web_research["reason"] is None
+    assert web_research["metadata"] == {
+        "has_web_search": True,
+        "has_fetch_url": True,
+        "availability_basis": "inventory_selected_tools",
+    }
+    assert payload["disabled_capabilities"] == []
+    assert payload["summary"]["web_research_pair_complete"] is True
+    assert payload["summary"]["web_research_status"] == "available"
+    assert payload["summary"]["inventory_selected_tool_names"] == [
+        "get_current_time",
+        "web_search",
+        "fetch_url",
+    ]
+    assert payload["summary"]["inventory_selected_skill_names"] == ["web_search"]
+    assert payload["summary"]["selection_live"] is False
+
+
+def test_runtime_smoke_checks_use_inventory_counts_for_snapshot() -> None:
+    checks = RuntimeDiagnosticsCheckSupport().build_manifest_checks(
+        {
+            "summary": {
+                "tool_count": 0,
+                "skill_count": 0,
+                "inventory_tool_count": 3,
+                "inventory_skill_count": 1,
+                "selection_live": False,
+            },
+            "provider": {},
+            "model": {},
+            "web_research": [
+                {
+                    "name": "web_research",
+                    "status": "available",
+                    "reason": None,
+                    "metadata": {
+                        "has_web_search": True,
+                        "has_fetch_url": True,
+                    },
+                }
+            ],
+            "memory": [],
+            "knowledge_bases": [],
+        },
+        require_agent=False,
+    )
+
+    by_name = {check["name"]: check for check in checks}
+    assert by_name["tools"]["status"] == "available"
+    assert by_name["tools"]["metadata"] == {
+        "tool_count": 0,
+        "inventory_tool_count": 3,
+        "selection_live": False,
+    }
+    assert by_name["skills"]["status"] == "available"
+    assert by_name["skills"]["metadata"] == {
+        "skill_count": 0,
+        "inventory_skill_count": 1,
+        "selection_live": False,
+    }
+    assert by_name["web_research_contract"]["status"] == "available"
 
 
 def test_shape_manifest_payload_marks_plugin_extension_unavailable_from_resolution_issue() -> (

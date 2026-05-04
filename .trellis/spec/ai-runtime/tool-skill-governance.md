@@ -41,7 +41,7 @@ backend boundary instead of page perception:
 
 - Skill packs remain installable, governable, and callable extension
   capabilities.
-- Builtin runtime tools may cover platform-owned capabilities such as native
+- Builtin runtime tools may cover platform-owned capabilities such as web
   search, current time, memory, variables, and knowledge retrieval.
 - Skill/package defects in new-system live paths must be corrected at the owner
   contract boundary rather than papered over in downstream diagnostics,
@@ -71,46 +71,36 @@ backend boundary instead of page perception:
 ## Web Search Governance
 
 - Generic current-information requests such as "联网查一下最新消息", "search
-  today's news", or other `web_research` intents must prefer provider-native
-  Responses hosted web search when the active `openai_compatible` provider
-  declares Responses support and the effective upstream model supports hosted
-  search.
-- Builtin or skill-pack web tools (`web_search`, `fetch_url`) are fallback
-  execution paths. They may be exposed on the first model round only when
-  native hosted search is unavailable, or when the user explicitly asks for the
-  builtin/tool/skill path, for example by naming `web_search`, `fetch_url`,
-  "联网搜索技能", or "search tool".
-- Explicit builtin web-search requests require the user to ask to use or call
-  the builtin/search tool/skill, or to name `web_search` / `fetch_url`
-  directly. Mentions of "tool", "skill", or "call" as the research subject,
-  such as "联网搜索最新 AI 工具" or "search how to call a tool", still follow
-  the native-first path.
-- Native-first turns may retain builtin web tool definitions as fallback schema
-  in the runtime plan, but the OpenAI Responses payload must strip those
-  function tools and any unrelated function tools when hosted search is forced,
-  sending only the provider hosted `web_search` tool with required tool choice.
-- Native-first overrides apply only to search rounds where `web_search` is still
-  an allowed tool. Follow-up rounds that are narrowed to `fetch_url` must not be
-  re-promoted to hosted search; they should call the retained builtin
-  `fetch_url` tool directly.
-- If forced hosted search fails before meaningful output, times out, loses
-  provider connectivity, or emits only progress without meaningful output,
-  runtime-v2 may fall back to the retained builtin `web_search` / `fetch_url`
-  function-tool schema. Providers that also allow `chat_completions` may use
-  that protocol for the builtin fallback; Responses-only providers must retry
-  the same Responses protocol with the hosted-search override disabled rather
-  than violating `allowed_wire_apis`. The fallback history reason must start
-  with `hosted_web_search_unavailable:`.
-- Responses create-stage calls and required-tool streams must be bounded even
-  when an upstream-compatible SDK omits or cannot normalize a timeout. A
-  required-tool stream that produces no tool call or text before its deadline
-  must raise a typed timeout so runtime recovery can fall back or close
-  gracefully instead of waiting for the browser-side SSE timeout.
-- Native Responses evidence is the `web_search_call` output item,
-  `response.web_search_call.*` stream progress, URL citations in provider
-  output, or `response.tool_usage.web_search.num_requests > 0`. That evidence
-  must complete `web_research` recovery intents and must not trigger a second
-  builtin search retry.
+  today's news", or other `web_research` intents must use the platform-owned
+  WebResearch pipeline by default:
+  `search -> fetch -> evidence -> answer`.
+- The default search and fetch providers are the platform builtin
+  `web_search` and `fetch_url` toolchain. They are first-class runtime
+  providers, not a fallback after hosted search fails.
+- The platform runtime owns progression through the chain. Once search results
+  produce candidate URLs for a required `web_research` intent, runtime must
+  fetch the selected candidate through the configured fetch provider instead of
+  waiting for an LLM/provider continuation to decide whether `fetch_url` should
+  happen.
+- OpenAI, Gemini, Claude, Mistral, or other provider-native/hosted web search
+  implementations are optional `SearchProvider` adapters. They may be selected
+  only by explicit provider capability/config and must emit the same normalized
+  evidence schema as builtin search.
+- `openai_compatible` providers must not enable hosted/native web search by
+  default. Hosted search is available only when explicit config, model/protocol
+  capability, and real smoke or approved replay evidence prove support.
+- Provider-native search progress events such as OpenAI
+  `response.web_search_call.*` are provider diagnostics. They are not canonical
+  completion evidence until normalized into the WebResearch evidence schema.
+- Runtime must not implement a hosted-search-first fallback chain where provider
+  timeout/progress-only output later synthesizes builtin `web_search` calls.
+  Builtin search is the default provider path, so hosted search failure should
+  be represented as optional-provider failure/skip diagnostics rather than the
+  normal route to builtin execution.
+- Raw search snippets, redirect links, or provider preamble text are not
+  answer-quality evidence for required `web_research` when fetch evidence is
+  available or required. Final answer synthesis and recovery must consume
+  normalized evidence, preferably fetched body evidence.
 
 ## Required Guards
 

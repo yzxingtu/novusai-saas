@@ -373,18 +373,6 @@ class ToolSandbox:
                 and self._runtime_model_info.get("model_code") is not None
                 else None
             ),
-            web_search_skip_native_provider=(
-                bool(self._runtime_model_info.get("web_search_skip_native_provider"))
-                if isinstance(self._runtime_model_info, dict)
-                else False
-            ),
-            web_search_skip_native_reason=(
-                str(self._runtime_model_info.get("web_search_skip_native_reason") or "")
-                if isinstance(self._runtime_model_info, dict)
-                and self._runtime_model_info.get("web_search_skip_native_reason")
-                is not None
-                else None
-            ),
         )
 
         # 5.5 Executor-level parameter validation / 执行器级参数校验

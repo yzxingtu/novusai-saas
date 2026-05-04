@@ -50,12 +50,18 @@ _GENERIC_FAILURE_TERMINATION_REASONS = frozenset(
     {"error", "failed", "terminal_failure"}
 )
 _FAILURE_KIND_SIGNAL_ALIASES = {
+    "provider_error": "provider_gateway_error",
+    "provider_error_error": "provider_gateway_error",
+    "provider_timeout_error": "provider_timeout",
+    "provider_timeout": "provider_timeout",
     "provider_connection_error": "provider_unavailable",
     "provider_connection": "provider_unavailable",
     "provider_connection_error_error": "provider_unavailable",
-    "provider_timeout_error": "provider_timeout",
     "provider_rate_limit_error": "provider_rate_limit",
     "provider_bad_response_error": "provider_bad_response",
+    "fetch_not_attempted": "web_research_fetch_not_attempted",
+    "missing_fetch_evidence": "web_research_fetch_not_attempted",
+    "no_answer_quality_evidence": "web_research_no_answer_quality_evidence",
 }
 _FAILURE_TERMINATION_BY_KIND = {
     "provider_timeout": "provider_timeout",
@@ -210,6 +216,35 @@ def detects_raw_search_only_recovery_finalized(
     intent_plan = payload.get("intent_plan")
     if _has_fetch_url_completed_intent(intent_plan):
         return False
+    web_research_diagnostics = _as_dict(payload.get("web_research_diagnostics"))
+    web_research_failure_kind = _as_text(
+        payload.get("web_research_failure_kind")
+        or web_research_diagnostics.get("web_research_failure_kind")
+        or web_research_diagnostics.get("failure_kind")
+    )
+    if web_research_failure_kind in {
+        "fetch_not_attempted",
+        "missing_fetch_evidence",
+        "web_research_fetch_not_attempted",
+    }:
+        return True
+    evidence_status = _as_text(
+        payload.get("evidence_status")
+        or web_research_diagnostics.get("evidence_status")
+    )
+    candidate_urls = payload.get("candidate_urls") or web_research_diagnostics.get(
+        "candidate_urls"
+    )
+    fetched_urls = payload.get("fetched_urls") or web_research_diagnostics.get(
+        "fetched_urls"
+    )
+    if (
+        evidence_status == "partial"
+        and isinstance(candidate_urls, list)
+        and candidate_urls
+        and not (isinstance(fetched_urls, list) and fetched_urls)
+    ):
+        return True
     return bool(
         isinstance(intent_plan, list)
         and any(
@@ -259,6 +294,7 @@ def infer_failure_kind_from_diagnostics(
     turn_record_metadata = _as_dict(turn_record.get("metadata"))
     failures = _as_dict(payload.get("failures"))
     turn_record_failures = _as_dict(turn_record.get("failures"))
+    web_research_diagnostics = _as_dict(payload.get("web_research_diagnostics"))
 
     candidates: list[Any] = [
         payload.get("failure_kind"),
@@ -273,6 +309,9 @@ def infer_failure_kind_from_diagnostics(
         turn_record_metadata.get("protocol_fallback_blocked_reason"),
         turn_record_metadata.get("stream_failure_error_type"),
         turn_record_metadata.get("stream_failure_reason"),
+        payload.get("web_research_failure_kind"),
+        web_research_diagnostics.get("web_research_failure_kind"),
+        web_research_diagnostics.get("failure_kind"),
     ]
 
     for provider_events in (

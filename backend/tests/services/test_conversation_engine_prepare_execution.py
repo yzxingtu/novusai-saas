@@ -259,7 +259,7 @@ async def test_prepare_execution_uses_current_user_text_for_optimizer_before_res
         mode="required",
         allowed_tool_names=["web_search", "fetch_url"],
         retry_on_contract_breach=True,
-        reason="native_web_search_first:web_research",
+        reason="intent:web_research",
     )
 
 
@@ -1142,7 +1142,7 @@ async def test_prepare_execution_prefers_web_research_on_first_turn_even_with_pa
             "fetch_url",
         ],
         retry_on_contract_breach=True,
-        reason="native_web_search_first:web_research",
+        reason="intent:web_research",
     )
     assert [tool.name for tool in prep.tools] == [
         "web_search",
@@ -2658,7 +2658,7 @@ async def test_prepare_execution_builds_deep_structured_plan_for_666_style_turn(
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_preserves_native_first_for_web_first_multi_intent_turn() -> (
+async def test_prepare_execution_keeps_builtin_web_tools_for_web_first_multi_intent_turn() -> (
     None
 ):
     engine = ConversationEngine(
@@ -2698,13 +2698,17 @@ async def test_prepare_execution_preserves_native_first_for_web_first_multi_inte
         "weather_query",
     ]
     assert prep.active_intent_id == "intent-1"
-    assert [tool.name for tool in prep.tools] == ["web_search", "fetch_url"]
+    assert [tool.name for tool in prep.tools] == [
+        "web_search",
+        "fetch_url",
+        "get_current_weather",
+    ]
     assert prep.tool_use_policy == ToolUsePolicy(
         family="web_research",
         mode="required",
-        allowed_tool_names=["web_search", "fetch_url"],
+        allowed_tool_names=["web_search", "fetch_url", "get_current_weather"],
         retry_on_contract_breach=True,
-        reason="native_web_search_first:web_research",
+        reason="intent:web_research",
     )
 
 

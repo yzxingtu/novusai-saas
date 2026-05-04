@@ -187,7 +187,7 @@ Do not consume retry budget solely because a tool is waiting for consent.
 |---|---|
 | Ordinary `web_research` request | Run platform WebResearch pipeline with builtin search/fetch default |
 | Optional hosted search disabled or unsupported | Skip optional provider with diagnostics and continue builtin default path |
-| Optional hosted search emits progress-only or text-only output | Do not complete intent; require normalized evidence or fallback to builtin default as a platform provider choice |
+| Optional hosted search emits progress-only or text-only output | Do not complete intent; require normalized evidence; builtin search remains the default provider path, not a query-engine fallback synthesized from hosted progress |
 | Search results contain candidate URLs and fetch is required | Fetch deterministically without another provider/model continuation |
 | Ordinary non-web provider 5xx | Preserve provider failure semantics; do not synthesize tool calls |
 

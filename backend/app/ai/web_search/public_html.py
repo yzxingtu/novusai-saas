@@ -1,5 +1,5 @@
 """
-Public HTML search fallback provider. / 公共 HTML 搜索回退提供器。
+Public HTML search provider. / 公共 HTML 搜索提供器。
 """
 
 from __future__ import annotations

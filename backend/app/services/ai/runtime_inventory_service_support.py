@@ -30,6 +30,106 @@ def _stable_unique_texts(values: list[Any]) -> list[str]:
     return normalized
 
 
+def _inventory_selected_tool_names(payload: dict[str, Any]) -> list[str]:
+    names: list[Any] = []
+    for source in payload.get("sources") or []:
+        if not isinstance(source, dict):
+            continue
+        metadata = source.get("metadata")
+        if not isinstance(metadata, dict):
+            continue
+        names.extend(list(metadata.get("inventory_selected_tool_names") or []))
+    return _stable_unique_texts(filter_invalid_ai_runtime_references(names))
+
+
+def _inventory_selected_skill_names(payload: dict[str, Any]) -> list[str]:
+    names: list[Any] = []
+    for source in payload.get("sources") or []:
+        if not isinstance(source, dict):
+            continue
+        metadata = source.get("metadata")
+        if not isinstance(metadata, dict):
+            continue
+        names.extend(list(metadata.get("inventory_selected_skill_names") or []))
+    return _stable_unique_texts(filter_invalid_ai_runtime_references(names))
+
+
+def _web_research_pair_from_inventory(payload: dict[str, Any]) -> bool:
+    tool_names = set(_inventory_selected_tool_names(payload))
+    return {"web_search", "fetch_url"}.issubset(tool_names)
+
+
+def _project_inventory_web_research_availability(payload: dict[str, Any]) -> bool:
+    if not _web_research_pair_from_inventory(payload):
+        return False
+
+    web_research_items = [
+        dict(item)
+        for item in payload.get("web_research") or []
+        if isinstance(item, dict)
+    ]
+    if not web_research_items:
+        web_research_items = [
+            {
+                "name": "web_research",
+                "kind": "execution_tool",
+                "source": "tool_registry",
+            }
+        ]
+
+    projected_items: list[dict[str, Any]] = []
+    projected = False
+    for item in web_research_items:
+        if str(item.get("name") or "").strip() != "web_research":
+            projected_items.append(item)
+            continue
+        metadata = dict(item.get("metadata") or {})
+        metadata.update(
+            {
+                "has_web_search": True,
+                "has_fetch_url": True,
+                "availability_basis": "inventory_selected_tools",
+            }
+        )
+        item.update(
+            {
+                "status": "available",
+                "reason": None,
+                "metadata": metadata,
+            }
+        )
+        projected_items.append(item)
+        projected = True
+
+    if not projected:
+        projected_items.append(
+            {
+                "name": "web_research",
+                "kind": "execution_tool",
+                "status": "available",
+                "reason": None,
+                "metadata": {
+                    "has_web_search": True,
+                    "has_fetch_url": True,
+                    "availability_basis": "inventory_selected_tools",
+                },
+                "source": "tool_registry",
+            }
+        )
+    payload["web_research"] = projected_items
+    payload["disabled_capabilities"] = [
+        item
+        for item in payload.get("disabled_capabilities") or []
+        if not (
+            isinstance(item, dict)
+            and str(item.get("name") or "").strip() == "web_research"
+            and str(item.get("reason") or "").strip()
+            in {"web_research_tools_unavailable", "incomplete_research_tool_pair"}
+        )
+    ]
+    return True
+
+
 def _normalized_skill_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
     normalized = dict(metadata or {})
     for key in (
@@ -373,13 +473,20 @@ def shape_manifest_payload(
         tools=tools,
         skill_result=skill_result,
     )
+    inventory_web_research_pair = _project_inventory_web_research_availability(payload)
 
     summary = AIRuntimeInventoryService.build_compact_summary(manifest)
+    inventory_tool_names = _inventory_selected_tool_names(payload)
+    inventory_skill_names = _inventory_selected_skill_names(payload)
     summary.update(
         {
             "selection_semantics": "inventory_snapshot",
             "selection_live": False,
             "live_turn_bound": False,
+            "inventory_tool_count": len(inventory_tool_names),
+            "inventory_selected_tool_names": inventory_tool_names,
+            "inventory_skill_count": len(inventory_skill_names),
+            "inventory_selected_skill_names": inventory_skill_names,
             "tool_count": len(payload.get("tools") or []),
             "skill_count": len(payload.get("skills") or []),
             "knowledge_base_count": len(
@@ -414,6 +521,13 @@ def shape_manifest_payload(
             "manifest_version": payload.get("manifest_version"),
         }
     )
+    if inventory_web_research_pair:
+        summary["web_research_pair_complete"] = True
+        summary["web_research_status"] = "available"
+        continuation_families = _stable_unique_texts(
+            list(summary.get("continuation_capable_families") or []) + ["web_research"]
+        )
+        summary["continuation_capable_families"] = continuation_families
     payload["summary"] = summary
     payload.setdefault("boundaries", {})
     payload["boundaries"]["scope_context"] = scope

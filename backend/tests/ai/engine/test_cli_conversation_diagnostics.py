@@ -381,6 +381,197 @@ def test_cli_compact_diagnostics_builder_and_text_renderer_surface_key_orchestra
     assert "budget=" in text
 
 
+def test_cli_diagnostics_projects_canonical_web_research_without_fetch_invention() -> (
+    None
+):
+    snapshot = {
+        "conversation": {"id": 2282},
+        "diagnostics": {
+            "source": "assistant_turn_record",
+            "turn_outcome": "failed",
+            "termination_reason": "completed",
+            "protocol_path": "responses",
+            "final_output_source": "recovery_evidence",
+            "turn_record": {
+                "turn_outcome": "failed",
+                "termination_reason": "completed",
+                "metadata": {
+                    "turn_diagnostics": {
+                        "web_research_evidence": {
+                            "query": "大模型排行榜 2026",
+                            "status": "partial",
+                            "search_provider": "builtin-web-search",
+                            "fetch_provider": "builtin-fetch-url",
+                            "search_results": [
+                                {
+                                    "title": "Ranking",
+                                    "url": "https://example.com/ranking",
+                                    "snippet": "search-only snippet",
+                                    "rank": 1,
+                                    "provider": "builtin-web-search",
+                                }
+                            ],
+                            "fetched_pages": [],
+                            "citations": [],
+                            "answer_quality": "none",
+                            "failure_kind": "fetch_not_attempted",
+                            "diagnostics": {
+                                "pipeline_id": "wr-2282",
+                                "search_provider": "builtin-web-search",
+                                "fetch_provider": "builtin-fetch-url",
+                                "evidence_status": "partial",
+                                "candidate_urls": ["https://example.com/ranking"],
+                                "fetched_urls": [],
+                                "evidence_quality": "none",
+                                "answer_source": "none",
+                                "failure_kind": "fetch_not_attempted",
+                                "provider_disable_reason": (
+                                    "optional_provider_skipped:builtin_default"
+                                ),
+                            },
+                        }
+                    }
+                },
+            },
+        },
+    }
+
+    compact = _build_ai_conversation_compact_diagnostics(snapshot)
+    text = _render_ai_conversation_diagnostics_text(snapshot)
+
+    assert compact["web_research_pipeline_id"] == "wr-2282"
+    assert compact["search_provider"] == "builtin-web-search"
+    assert compact["fetch_provider"] == "builtin-fetch-url"
+    assert compact["evidence_status"] == "partial"
+    assert compact["candidate_urls"] == ["https://example.com/ranking"]
+    assert compact["fetched_urls"] == []
+    assert compact["web_research_failure_kind"] == "fetch_not_attempted"
+    assert compact["web_research_failure_layer"] == "evidence"
+    assert (
+        compact["web_research_provider_disable_reason"]
+        == "optional_provider_skipped:builtin_default"
+    )
+    assert "web_research pipeline_id=wr-2282" in text
+    assert "web_research_candidate_urls=https://example.com/ranking" in text
+    assert "web_research_fetched_urls" not in text
+    assert "native_web_search_first" not in text
+
+
+def test_cli_diagnostics_prefers_turn_flow_web_research_evidence_over_stale_fields() -> (
+    None
+):
+    completed_evidence = {
+        "query": "大模型排行榜 2026",
+        "status": "completed",
+        "search_provider": "builtin:web_search",
+        "fetch_provider": "builtin:fetch_url",
+        "search_results": [
+            {
+                "title": "Ranking",
+                "url": "https://search.example/ranking",
+                "snippet": "candidate",
+                "rank": 1,
+                "provider": "builtin:web_search",
+            }
+        ],
+        "fetched_pages": [
+            {
+                "title": "Ranking",
+                "url": "https://source.example/ranking",
+                "status": "completed",
+                "answer_quality": "body",
+                "provider": "builtin:fetch_url",
+            }
+        ],
+        "citations": [
+            {
+                "title": "Ranking",
+                "url": "https://source.example/ranking",
+                "provider": "builtin:fetch_url",
+                "source": "page",
+            }
+        ],
+        "answer_quality": "body",
+        "failure_kind": None,
+        "diagnostics": {
+            "pipeline_id": "web-research-1",
+            "search_provider": "builtin:web_search",
+            "fetch_provider": "builtin:fetch_url",
+            "evidence_status": "completed",
+            "candidate_urls": ["https://search.example/ranking"],
+            "fetched_urls": ["https://source.example/ranking"],
+            "evidence_quality": "body",
+            "answer_source": "fetched_body",
+            "failure_kind": None,
+            "provider_disable_reason": "optional_provider_skipped:builtin_default",
+        },
+    }
+    stale_projection = {
+        "evidence_status": "partial",
+        "candidate_urls": ["https://stale.example/search-only"],
+        "fetched_urls": [],
+        "web_research_failure_kind": "fetch_not_attempted",
+        "web_research_failure_layer": "evidence",
+        "web_research_provider_disable_reason": "fetch_already_attempted",
+    }
+    snapshot = {
+        "conversation": {"id": 2283},
+        "diagnostics": {
+            "source": "assistant_turn_record",
+            "turn_outcome": "success",
+            "termination_reason": "completed",
+            "final_output_source": "recovery_evidence",
+            **stale_projection,
+            "turn_record": {
+                "turn_outcome": "success",
+                "termination_reason": "completed",
+                **stale_projection,
+                "web_research_diagnostics": dict(stale_projection),
+                "turn_flow": {
+                    "evidence": [
+                        {
+                            "id": "web-research-1:fetch_url:1",
+                            "kind": "tool",
+                            "title": "fetch_url",
+                            "summary_payload": {
+                                "web_research_evidence": completed_evidence
+                            },
+                        }
+                    ]
+                },
+                "metadata": {
+                    "turn_diagnostics": {
+                        **stale_projection,
+                        "web_research_diagnostics": dict(stale_projection),
+                    }
+                },
+            },
+        },
+    }
+
+    compact = _build_ai_conversation_compact_diagnostics(snapshot)
+    text = _render_ai_conversation_diagnostics_text(snapshot)
+
+    assert compact["web_research_pipeline_id"] == "web-research-1"
+    assert compact["search_provider"] == "builtin:web_search"
+    assert compact["fetch_provider"] == "builtin:fetch_url"
+    assert compact["evidence_status"] == "completed"
+    assert compact["candidate_urls"] == ["https://search.example/ranking"]
+    assert compact["fetched_urls"] == ["https://source.example/ranking"]
+    assert compact["evidence_quality"] == "body"
+    assert compact["answer_source"] == "fetched_body"
+    assert compact["web_research_failure_kind"] is None
+    assert compact["web_research_failure_layer"] is None
+    assert (
+        compact["web_research_provider_disable_reason"]
+        == "optional_provider_skipped:builtin_default"
+    )
+    assert "web_research pipeline_id=web-research-1" in text
+    assert "evidence_status=completed" in text
+    assert "web_research_fetched_urls=https://source.example/ranking" in text
+    assert "fetch_not_attempted" not in text
+
+
 def test_cli_compact_diagnostics_hydrates_required_fields_from_nested_turn_record() -> (
     None
 ):

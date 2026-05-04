@@ -94,7 +94,7 @@ def test_protocol_turn_session_create_honors_forced_protocol_path() -> None:
         supports_video=False,
         extra_kwargs={
             "_runtime_force_protocol_path": "responses",
-            "_runtime_hosted_web_search_required": True,
+            "tenant_id": 9,
         },
     )
 
@@ -102,10 +102,10 @@ def test_protocol_turn_session_create_honors_forced_protocol_path() -> None:
     assert session.plan.protocol_chain == ["responses"]
     assert session.turn_record.protocol_path == "responses"
     assert "_runtime_force_protocol_path" not in session.command.extra_kwargs
-    assert session.command.extra_kwargs["_runtime_hosted_web_search_required"] is True
+    assert session.command.extra_kwargs["tenant_id"] == 9
 
 
-def test_protocol_turn_session_create_adds_hosted_search_builtin_fallback_chain() -> (
+def test_protocol_turn_session_create_does_not_add_hosted_search_fallback_chain() -> (
     None
 ):
     session = ProtocolTurnSession.create(
@@ -133,13 +133,13 @@ def test_protocol_turn_session_create_adds_hosted_search_builtin_fallback_chain(
         supports_video=False,
         extra_kwargs={
             "_runtime_force_protocol_path": "responses",
-            "_runtime_hosted_web_search_required": True,
+            "tenant_id": 9,
         },
     )
 
     assert session.plan.preferred_protocol == "responses"
-    assert session.plan.protocol_chain == ["responses", "chat_completions"]
-    assert session.command.extra_kwargs["_runtime_hosted_web_search_required"] is True
+    assert session.plan.protocol_chain == ["responses"]
+    assert session.command.extra_kwargs["tenant_id"] == 9
 
 
 def test_protocol_turn_session_append_fallback_uses_next_protocol() -> None:
@@ -206,7 +206,7 @@ def test_protocol_turn_session_finalize_stream_success_marks_protocol_fallback_r
     session.append_fallback(
         0,
         from_protocol="responses",
-        reason="hosted_web_search_unavailable:provider_timeout",
+        reason="responses_provider_timeout",
     )
 
     session.finalize_stream_success(emitted_chunk_count=2)
@@ -234,7 +234,7 @@ def test_protocol_turn_session_finalize_chat_success_marks_protocol_fallback_rec
     session.append_fallback(
         0,
         from_protocol="responses",
-        reason="hosted_web_search_unavailable:provider_timeout",
+        reason="responses_provider_timeout",
     )
     response = ChatResponse(
         message=ChatMessage(role="assistant", content="done"),

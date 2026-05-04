@@ -91,18 +91,28 @@ class _BuilderAdapterStub:
         return converted
 
 
-def test_convert_tools_for_responses_injects_native_web_search() -> None:
+def test_convert_tools_for_responses_preserves_builtin_web_search_function() -> None:
     converted = convert_tools_for_responses(
         [
             {"type": "function", "function": {"name": "web_search", "parameters": {}}},
             {"type": "function", "function": {"name": "fetch_url", "parameters": {}}},
-        ],
-        rewrite_web_search=True,
+        ]
     )
 
-    assert converted[0] == {"type": "web_search", "search_context_size": "medium"}
-    assert converted[1]["type"] == "function"
-    assert converted[1]["name"] == "fetch_url"
+    assert converted == [
+        {
+            "type": "function",
+            "name": "web_search",
+            "description": None,
+            "parameters": {},
+        },
+        {
+            "type": "function",
+            "name": "fetch_url",
+            "description": None,
+            "parameters": {},
+        },
+    ]
 
 
 def test_build_responses_reasoning_config_auto_summary_for_supported_model() -> None:
@@ -294,7 +304,7 @@ async def test_build_responses_request_keeps_runtime_web_search_when_provider_se
 
 
 @pytest.mark.asyncio
-async def test_build_responses_request_injects_required_hosted_search_override() -> (
+async def test_build_responses_request_does_not_inject_hosted_search_without_capability() -> (
     None
 ):
     adapter = _BuilderAdapterStub()
@@ -316,15 +326,33 @@ async def test_build_responses_request_injects_required_hosted_search_override()
     )
 
     assert request["tool_choice"] == "required"
-    assert request["tools"] == [{"type": "web_search", "search_context_size": "medium"}]
+    assert request["tools"] == [
+        {
+            "type": "function",
+            "name": "web_search",
+            "description": None,
+            "parameters": {},
+        },
+        {
+            "type": "function",
+            "name": "fetch_url",
+            "description": None,
+            "parameters": {},
+        },
+    ]
     assert request["reasoning"] == {"effort": "xhigh", "summary": "auto"}
 
 
 @pytest.mark.asyncio
-async def test_build_responses_request_strips_all_function_tools_for_hosted_search_override() -> (
+async def test_build_responses_request_allows_explicit_smoked_hosted_search_capability() -> (
     None
 ):
-    adapter = _BuilderAdapterStub()
+    adapter = _BuilderAdapterStub(
+        provider_config={
+            "supports_hosted_web_search": True,
+            "hosted_web_search": {"smoke_validated": True},
+        }
+    )
 
     request = await build_responses_request(
         adapter=adapter,
@@ -385,6 +413,51 @@ async def test_build_responses_request_ignores_legacy_hosted_search_rewrite_conf
             "description": None,
             "parameters": {},
         }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_build_responses_request_ignores_generic_web_search_enabled_even_with_smoke() -> (
+    None
+):
+    adapter = _BuilderAdapterStub(
+        provider_config={
+            "web_search": {
+                "enabled": True,
+                "smoke_validated": True,
+            }
+        }
+    )
+
+    request = await build_responses_request(
+        adapter=adapter,
+        messages=[ChatMessage(role="user", content="联网查一下今天的新闻")],
+        model="gpt-5.4-xhigh",
+        tools=[
+            {"type": "function", "function": {"name": "web_search", "parameters": {}}},
+            {"type": "function", "function": {"name": "fetch_url", "parameters": {}}},
+        ],
+        tool_choice="required",
+        kwargs={
+            "_runtime_hosted_web_search_required": True,
+            "_runtime_hosted_web_search_context_size": "medium",
+        },
+        reasoning_summary_model_prefixes=("gpt-5",),
+    )
+
+    assert request["tools"] == [
+        {
+            "type": "function",
+            "name": "web_search",
+            "description": None,
+            "parameters": {},
+        },
+        {
+            "type": "function",
+            "name": "fetch_url",
+            "description": None,
+            "parameters": {},
+        },
     ]
 
 

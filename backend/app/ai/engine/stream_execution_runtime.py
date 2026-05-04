@@ -12,9 +12,6 @@ from typing import TYPE_CHECKING, Any
 
 from app.ai.sse import SSEChunkEncoder
 from app.ai.types import ChatMessage, ChatResponse
-from app.ai.web_search.runtime_fallback_flags import (
-    runtime_info_with_web_search_fallback_flags,
-)
 from app.core.i18n import _
 from app.core.response import (
     build_error_event,
@@ -142,10 +139,6 @@ class StreamIOAdapter:
             return
         runtime_model_info = metadata.get("runtime_model_info")
         raw_turn_record = metadata.get("runtime_turn_record")
-        runtime_model_info = runtime_info_with_web_search_fallback_flags(
-            runtime_model_info if isinstance(runtime_model_info, dict) else None,
-            turn_record=raw_turn_record,
-        )
         if isinstance(runtime_model_info, dict):
             generation_view = self.handler._stream_generation_view()
             generation_view.runtime_model_info = dict(runtime_model_info)

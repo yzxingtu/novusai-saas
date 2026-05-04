@@ -163,8 +163,9 @@ def is_explicit_builtin_web_search_request(user_text: Any) -> bool:
     """
     Return true only when the user asks for the builtin/skill/tool search path.
 
-    Generic current-information requests such as "联网查一下最新消息" are not
-    explicit builtin requests; those should prefer provider-native web search.
+    Generic current-information requests such as "联网查一下最新消息" are handled by
+    the platform-owned WebResearch pipeline, whose default search path is the
+    builtin web_search/fetch_url toolchain.
     """
 
     normalized = normalize_web_search_request_text(user_text)

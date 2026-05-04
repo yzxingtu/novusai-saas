@@ -160,23 +160,37 @@ class RuntimeDiagnosticsCheckSupport:
             )
 
         tool_count = int(summary.get("tool_count") or 0)
+        inventory_tool_count = int(summary.get("inventory_tool_count") or 0)
+        effective_tool_count = max(tool_count, inventory_tool_count)
         skill_count = int(summary.get("skill_count") or 0)
+        inventory_skill_count = int(summary.get("inventory_skill_count") or 0)
+        effective_skill_count = max(skill_count, inventory_skill_count)
         checks.append(
             self.build_check_item(
                 "tools",
-                status="available" if tool_count > 0 else "degraded",
+                status="available" if effective_tool_count > 0 else "degraded",
                 blocking=False,
-                reason=None if tool_count > 0 else "no_runtime_tools_exposed",
-                metadata={"tool_count": tool_count},
+                reason=None if effective_tool_count > 0 else "no_runtime_tools_exposed",
+                metadata={
+                    "tool_count": tool_count,
+                    "inventory_tool_count": inventory_tool_count,
+                    "selection_live": bool(summary.get("selection_live")),
+                },
             )
         )
         checks.append(
             self.build_check_item(
                 "skills",
-                status="available" if skill_count > 0 else "degraded",
+                status="available" if effective_skill_count > 0 else "degraded",
                 blocking=False,
-                reason=None if skill_count > 0 else "no_runtime_skills_selected",
-                metadata={"skill_count": skill_count},
+                reason=None
+                if effective_skill_count > 0
+                else "no_runtime_skills_selected",
+                metadata={
+                    "skill_count": skill_count,
+                    "inventory_skill_count": inventory_skill_count,
+                    "selection_live": bool(summary.get("selection_live")),
+                },
             )
         )
 

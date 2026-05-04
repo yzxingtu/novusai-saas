@@ -1,3 +1,9 @@
+"""
+Test type: structural
+Scope: turn-flow view-model projection and canonical evidence fields.
+Mock strategy: no external services; projector helpers run directly.
+"""
+
 from __future__ import annotations
 
 from importlib import import_module
@@ -45,7 +51,9 @@ def test_build_turn_flow_view_model_contains_required_contract() -> None:
         "error_surface",
     }
     tool_selection_stage = next(
-        stage for stage in turn_flow["timeline"] if stage.get("type") == "tool_selection"
+        stage
+        for stage in turn_flow["timeline"]
+        if stage.get("type") == "tool_selection"
     )
     assert tool_selection_stage["status"] == "skipped"
     assert len(turn_flow["evidence"]) == 1
@@ -53,7 +61,9 @@ def test_build_turn_flow_view_model_contains_required_contract() -> None:
     assert turn_flow["completion_reason"] == "completed"
 
 
-def test_build_turn_flow_view_model_prefers_canonical_context_sources_over_rag_sources() -> None:
+def test_build_turn_flow_view_model_prefers_canonical_context_sources_over_rag_sources() -> (
+    None
+):
     turn_flow = build_turn_flow_view_model(
         diagnostics_payload={
             "context_sources": [
@@ -113,7 +123,9 @@ def test_build_turn_flow_view_model_prefers_canonical_context_sources_over_rag_s
     ]
 
 
-def test_build_turn_flow_view_model_projects_tool_results_into_canonical_evidence() -> None:
+def test_build_turn_flow_view_model_projects_tool_results_into_canonical_evidence() -> (
+    None
+):
     turn_flow = build_turn_flow_view_model(
         diagnostics_payload={
             "tool_filtering": {"all_tools_count": 15, "candidate_tools_count": 1},
@@ -151,7 +163,9 @@ def test_build_turn_flow_view_model_projects_tool_results_into_canonical_evidenc
     )
 
     tool_execution_stage = next(
-        stage for stage in turn_flow["timeline"] if stage.get("type") == "tool_execution"
+        stage
+        for stage in turn_flow["timeline"]
+        if stage.get("type") == "tool_execution"
     )
 
     assert tool_execution_stage["tool_call_ids"] == ["tc_weather_1"]
@@ -201,7 +215,9 @@ def test_build_turn_evidence_events_emits_retrieval_and_items() -> None:
     )
     assert (events[0].get("event")) == "turn_stage_update"
     assert (events[0].get("stage") or {}).get("type") == "retrieval"
-    evidence_events = [event for event in events if event.get("event") == "turn_evidence"]
+    evidence_events = [
+        event for event in events if event.get("event") == "turn_evidence"
+    ]
     assert len(evidence_events) == 2
 
 
@@ -235,7 +251,9 @@ def test_build_turn_flow_view_model_marks_partial_failure_as_error_terminal() ->
     )
 
     answer_assembly_stage = next(
-        stage for stage in turn_flow["timeline"] if stage.get("type") == "answer_assembly"
+        stage
+        for stage in turn_flow["timeline"]
+        if stage.get("type") == "answer_assembly"
     )
     final_stage = turn_flow["timeline"][-1]
 
@@ -244,12 +262,16 @@ def test_build_turn_flow_view_model_marks_partial_failure_as_error_terminal() ->
     assert final_stage["status"] == "error"
     assert (turn_flow["answer_card"] or {}).get("confidence_label") == "low"
     assert (turn_flow["error_surface"] or {}).get("message")
-    assert (turn_flow["error_surface"] or {}).get("failure_kind") == "provider_unavailable"
+    assert (turn_flow["error_surface"] or {}).get(
+        "failure_kind"
+    ) == "provider_unavailable"
     assert len(turn_flow["evidence"]) == 1
     assert turn_flow["evidence"][0]["id"] == "src_2"
 
 
-def test_build_turn_flow_view_model_marks_elapsed_budget_exit_as_error_terminal() -> None:
+def test_build_turn_flow_view_model_marks_elapsed_budget_exit_as_error_terminal() -> (
+    None
+):
     turn_flow = build_turn_flow_view_model(
         diagnostics_payload={
             "turn_outcome": "partial",
@@ -274,7 +296,9 @@ def test_build_turn_flow_view_model_marks_elapsed_budget_exit_as_error_terminal(
     )
 
     answer_assembly_stage = next(
-        stage for stage in turn_flow["timeline"] if stage.get("type") == "answer_assembly"
+        stage
+        for stage in turn_flow["timeline"]
+        if stage.get("type") == "answer_assembly"
     )
     final_stage = turn_flow["timeline"][-1]
 
@@ -284,7 +308,9 @@ def test_build_turn_flow_view_model_marks_elapsed_budget_exit_as_error_terminal(
     assert (turn_flow["error_surface"] or {}).get("message")
 
 
-def test_build_turn_flow_view_model_marks_hosted_web_search_timeout_as_tool_execution_error() -> None:
+def test_build_turn_flow_view_model_marks_hosted_web_search_timeout_as_tool_execution_error() -> (
+    None
+):
     turn_flow = build_turn_flow_view_model(
         diagnostics_payload={
             "turn_outcome": "partial",
@@ -305,17 +331,58 @@ def test_build_turn_flow_view_model_marks_hosted_web_search_timeout_as_tool_exec
     )
 
     tool_execution_stage = next(
-        stage for stage in turn_flow["timeline"] if stage.get("type") == "tool_execution"
+        stage
+        for stage in turn_flow["timeline"]
+        if stage.get("type") == "tool_execution"
     )
 
     assert tool_execution_stage["status"] == "error"
     assert (
         tool_execution_stage["summary"]
-        == "Hosted web search timed out before results returned"
+        == "Provider search timed out before results returned"
     )
 
 
-def test_build_turn_flow_view_model_ignores_untrusted_tool_evidence_answer_text() -> None:
+def test_build_turn_flow_view_model_counts_projected_web_research_evidence() -> None:
+    turn_flow = build_turn_flow_view_model(
+        diagnostics_payload={
+            "web_research_pipeline_id": "wr-1",
+            "search_provider": "builtin-web-search",
+            "fetch_provider": "builtin-fetch-url",
+            "evidence_status": "completed",
+            "candidate_urls": [
+                "https://example.com/ranking",
+                "https://example.com/secondary",
+            ],
+            "fetched_urls": ["https://example.com/ranking"],
+            "evidence_quality": "body",
+            "answer_source": "fetched_body",
+            "tool_filtering": {"all_tools_count": 2, "candidate_tools_count": 2},
+            "turn_events": [],
+        },
+        turn_record={"termination_reason": "completed"},
+        rag_sources=[],
+        output="基于已抓取页面生成的答案。",
+        completion_reason="completed",
+        interrupted=False,
+        error=None,
+    )
+
+    retrieval_stage = next(
+        stage for stage in turn_flow["timeline"] if stage.get("type") == "retrieval"
+    )
+
+    assert retrieval_stage["status"] == "completed"
+    assert retrieval_stage["metrics"] == {"source_count": 1}
+    assert retrieval_stage["source_refs"] == ["web_research_fetched_1"]
+    assert turn_flow["evidence"][0]["url"] == "https://example.com/ranking"
+    assert turn_flow["evidence"][0]["badge"] == "completed"
+    assert turn_flow["evidence"][0]["snippet"] == "fetched_body"
+
+
+def test_build_turn_flow_view_model_ignores_untrusted_tool_evidence_answer_text() -> (
+    None
+):
     turn_flow = build_turn_flow_view_model(
         diagnostics_payload={
             "final_output_source": "tool_evidence_completed",
@@ -337,7 +404,9 @@ def test_build_turn_flow_view_model_ignores_untrusted_tool_evidence_answer_text(
     )
 
     answer_assembly_stage = next(
-        stage for stage in turn_flow["timeline"] if stage.get("type") == "answer_assembly"
+        stage
+        for stage in turn_flow["timeline"]
+        if stage.get("type") == "answer_assembly"
     )
     answer_card = turn_flow["answer_card"] or {}
 
@@ -364,7 +433,9 @@ def test_build_turn_flow_view_model_surfaces_safe_untrusted_fallback_output() ->
     )
 
     answer_assembly_stage = next(
-        stage for stage in turn_flow["timeline"] if stage.get("type") == "answer_assembly"
+        stage
+        for stage in turn_flow["timeline"]
+        if stage.get("type") == "answer_assembly"
     )
     answer_card = turn_flow["answer_card"] or {}
 
@@ -379,7 +450,9 @@ def test_build_turn_flow_view_model_surfaces_safe_untrusted_fallback_output() ->
     ]
 
 
-def test_build_turn_flow_view_model_prefers_public_error_for_untrusted_failed_output() -> None:
+def test_build_turn_flow_view_model_prefers_public_error_for_untrusted_failed_output() -> (
+    None
+):
     turn_flow = build_turn_flow_view_model(
         diagnostics_payload={
             "final_output_source": "partial_output",

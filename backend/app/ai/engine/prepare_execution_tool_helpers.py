@@ -188,31 +188,6 @@ class PreparedExecutionToolPlan:
     active_intent_id: str | None
 
 
-def _restrict_tools_to_names_preferring_skill_source(
-    tools: list[ToolDefinition],
-    allowed_names: list[str],
-) -> list[ToolDefinition]:
-    selected: list[ToolDefinition] = []
-    for name in allowed_names:
-        normalized = str(name or "").strip()
-        if not normalized:
-            continue
-        matches = [tool for tool in tools if tool.name == normalized]
-        if not matches:
-            continue
-        selected.append(
-            next(
-                (
-                    tool
-                    for tool in matches
-                    if str(getattr(tool, "source_skill_name", "") or "").strip()
-                ),
-                matches[0],
-            )
-        )
-    return selected
-
-
 def plan_execution_tools(
     *,
     agent_id: int | None,
@@ -284,11 +259,6 @@ def plan_execution_tools(
             for intent in intent_plan
             if intent.family != "none" and intent.requires_tools
         ]
-        native_first_actionable = [
-            intent
-            for intent in actionable_intents
-            if bool((intent.metadata or {}).get("native_search_preferred"))
-        ]
         for intent in intent_plan:
             intent.metadata = dict(intent.metadata or {})
             allowed = list(routing.intent_allowed_tools.get(intent.intent_id, []))
@@ -306,7 +276,7 @@ def plan_execution_tools(
             )
             if intent.family == "none" or not intent.requires_tools:
                 intent.status = "completed"
-        if not tool_candidates and actionable_intents and not native_first_actionable:
+        if not tool_candidates and actionable_intents:
             fallback_allowed_names = _allowed_tool_names_for_families_impl(
                 explicit_requested_families,
                 all_tools,
@@ -339,68 +309,42 @@ def plan_execution_tools(
             (
                 intent
                 for intent in intent_plan
-                if intent.status != "completed"
-                and (
-                    intent.allowed_tool_names
-                    or bool((intent.metadata or {}).get("native_search_preferred"))
-                )
+                if intent.status != "completed" and intent.allowed_tool_names
             ),
             None,
         )
         if active_intent is not None:
-            native_search_preferred = bool(
-                (active_intent.metadata or {}).get("native_search_preferred")
+            allowed_tool_names = (
+                candidate_tool_names
+                if len(actionable_intents) > 1
+                else list(active_intent.allowed_tool_names)
             )
-            if native_search_preferred:
-                fallback_names = list(
-                    active_intent.allowed_tool_names
-                    or (active_intent.metadata or {}).get("fallback_tool_names")
-                    or []
+            tool_use_policy = ToolUsePolicy(
+                family=active_intent.family,
+                mode="required",
+                allowed_tool_names=allowed_tool_names,
+                retry_on_contract_breach=True,
+                reason=f"intent:{active_intent.kind}",
+            )
+            restored_tools, restored_explicit_family = (
+                _restore_explicit_family_tools_impl(
+                    selected_tools=tool_candidates,
+                    all_tools=all_tools,
+                    policy=tool_use_policy,
                 )
-                tool_candidates = _restrict_tools_to_names_preferring_skill_source(
-                    all_tools,
-                    fallback_names,
-                )
+            )
+            tool_candidates = restored_tools
+            if restored_explicit_family:
                 candidate_tool_names = [tool.name for tool in tool_candidates]
-                tool_use_policy = ToolUsePolicy(
-                    family=active_intent.family,
-                    mode="required" if candidate_tool_names else "none",
-                    allowed_tool_names=candidate_tool_names or fallback_names,
-                    retry_on_contract_breach=True,
-                    reason=f"native_web_search_first:{active_intent.kind}",
-                )
-            else:
-                allowed_tool_names = (
+                tool_use_policy.allowed_tool_names = (
                     candidate_tool_names
                     if len(actionable_intents) > 1
-                    else list(active_intent.allowed_tool_names)
+                    else [
+                        name
+                        for name in tool_use_policy.allowed_tool_names
+                        if name in candidate_tool_names
+                    ]
                 )
-                tool_use_policy = ToolUsePolicy(
-                    family=active_intent.family,
-                    mode="required",
-                    allowed_tool_names=allowed_tool_names,
-                    retry_on_contract_breach=True,
-                    reason=f"intent:{active_intent.kind}",
-                )
-                restored_tools, restored_explicit_family = (
-                    _restore_explicit_family_tools_impl(
-                        selected_tools=tool_candidates,
-                        all_tools=all_tools,
-                        policy=tool_use_policy,
-                    )
-                )
-                tool_candidates = restored_tools
-                if restored_explicit_family:
-                    candidate_tool_names = [tool.name for tool in tool_candidates]
-                    tool_use_policy.allowed_tool_names = (
-                        candidate_tool_names
-                        if len(actionable_intents) > 1
-                        else [
-                            name
-                            for name in tool_use_policy.allowed_tool_names
-                            if name in candidate_tool_names
-                        ]
-                    )
         tool_planner = {
             "intent": (
                 active_intent.kind if active_intent is not None else "direct_reply"

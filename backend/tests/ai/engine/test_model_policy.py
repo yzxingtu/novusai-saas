@@ -1,6 +1,6 @@
 """
 Test type: structural
-Scope: model request override policy for text, tool, and native-search turns.
+Scope: model request override policy for text, tool, and web-research turns.
 Mocked dependencies: local runtime-context namespaces only; policy code runs real.
 """
 
@@ -61,7 +61,7 @@ def test_build_model_request_overrides_supports_openai_tool_dict_shape() -> None
     assert overrides == {}
 
 
-def test_build_model_request_overrides_forces_responses_hosted_search_when_available() -> (
+def test_build_model_request_overrides_does_not_force_hosted_search_for_web_research() -> (
     None
 ):
     runtime_context = SimpleNamespace(
@@ -72,7 +72,8 @@ def test_build_model_request_overrides_forces_responses_hosted_search_when_avail
                 "protocol_capabilities": {
                     "allowed_wire_apis": ["chat_completions", "responses"],
                 },
-                "web_search": {"enabled": True},
+                "supports_hosted_web_search": True,
+                "hosted_web_search": {"smoke_validated": True},
             },
         ),
         ai_model=SimpleNamespace(config={}),
@@ -87,16 +88,12 @@ def test_build_model_request_overrides_forces_responses_hosted_search_when_avail
             mode="required",
             allowed_tool_names=["web_search", "fetch_url"],
             retry_on_contract_breach=True,
-            reason="native_web_search_first:web_research",
+            reason="web_research:builtin_pipeline",
         ),
         runtime_context=runtime_context,
     )
 
-    assert overrides == {
-        "_runtime_force_protocol_path": "responses",
-        "_runtime_hosted_web_search_required": True,
-        "_runtime_hosted_web_search_context_size": "medium",
-    }
+    assert overrides == {}
 
 
 def test_build_model_request_overrides_does_not_force_hosted_search_for_fetch_only_retry() -> (
@@ -125,7 +122,7 @@ def test_build_model_request_overrides_does_not_force_hosted_search_for_fetch_on
             mode="required",
             allowed_tool_names=["fetch_url"],
             retry_on_contract_breach=True,
-            reason="native_web_search_first:web_research",
+            reason="web_research:builtin_fetch_retry",
         ),
         runtime_context=runtime_context,
     )
@@ -156,7 +153,7 @@ def test_build_model_request_overrides_keeps_builtin_fallback_when_native_unavai
             mode="required",
             allowed_tool_names=["web_search", "fetch_url"],
             retry_on_contract_breach=True,
-            reason="native_web_search_first:web_research",
+            reason="web_research:builtin_pipeline",
         ),
         runtime_context=runtime_context,
     )

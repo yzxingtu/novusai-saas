@@ -59,27 +59,47 @@ class _FakeResponsesClient:
         return self
 
 
-def _make_adapter() -> OpenAIAdapter:
+def _make_adapter(*, supports_hosted_web_search: bool = False) -> OpenAIAdapter:
+    provider_config = {"wire_api": "responses"}
+    if supports_hosted_web_search:
+        provider_config["supports_hosted_web_search"] = True
+        provider_config["hosted_web_search"] = {"smoke_validated": True}
     return OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
-        provider_config={"wire_api": "responses"},
+        provider_config=provider_config,
     )
 
 
-def test_supports_native_web_search_requires_responses_and_supported_model_family() -> (
-    None
-):
+def test_supports_native_web_search_requires_explicit_provider_capability() -> None:
     adapter = _make_adapter()
 
-    assert adapter.supports_native_web_search("gpt-5.4") is True
-    assert adapter.supports_native_web_search("gpt-5.4-xhigh") is True
+    assert adapter.supports_native_web_search("gpt-5.4") is False
+
+    unsmoked_hosted_adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={
+            "wire_api": "responses",
+            "supports_hosted_web_search": True,
+        },
+    )
+    assert unsmoked_hosted_adapter.supports_native_web_search("gpt-5.4") is False
+
+    hosted_adapter = _make_adapter(supports_hosted_web_search=True)
+    assert hosted_adapter.supports_native_web_search("gpt-5.4") is True
+    assert hosted_adapter.supports_native_web_search("gpt-5.4-xhigh") is True
+    assert hosted_adapter.supports_native_web_search("deepseek-chat") is False
     assert adapter.supports_native_web_search("deepseek-chat") is False
 
     chat_adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
-        provider_config={"wire_api": "chat_completions"},
+        provider_config={
+            "wire_api": "chat_completions",
+            "supports_hosted_web_search": True,
+            "hosted_web_search": {"smoke_validated": True},
+        },
     )
     assert chat_adapter.supports_native_web_search("gpt-5.4") is False
 
@@ -88,6 +108,8 @@ def test_supports_native_web_search_requires_responses_and_supported_model_famil
         base_url="https://api.example.com",
         provider_config={
             "wire_api": "chat_completions",
+            "supports_hosted_web_search": True,
+            "hosted_web_search": {"smoke_validated": True},
             "protocol_capabilities": {
                 "allowed_wire_apis": ["chat_completions", "responses"],
             },
@@ -100,8 +122,34 @@ def test_supports_native_web_search_requires_responses_and_supported_model_famil
 
 
 @pytest.mark.asyncio
-async def test_native_web_search_uses_effective_upstream_model_for_request() -> None:
+async def test_native_web_search_default_off_returns_unsupported_without_transport() -> (
+    None
+):
     adapter = _make_adapter()
+    create = AsyncMock(side_effect=AssertionError)
+    adapter.client = SimpleNamespace(responses=SimpleNamespace(create=create))
+
+    run = await adapter.native_web_search(
+        query="OpenAI",
+        max_results=5,
+        locale="en",
+        timeout_seconds=20,
+        model="gpt-5.4",
+        provider_label="openai",
+    )
+
+    assert run.status == STATUS_UNSUPPORTED
+    assert run.backend_key == "native:openai:gpt-5.4"
+    assert (
+        run.failure_reason
+        == "provider config does not explicitly declare hosted native web search support and smoke evidence for this responses model"
+    )
+    assert create.await_count == 0
+
+
+@pytest.mark.asyncio
+async def test_native_web_search_uses_effective_upstream_model_for_request() -> None:
+    adapter = _make_adapter(supports_hosted_web_search=True)
     response = SimpleNamespace(
         status="completed",
         output=[
@@ -145,7 +193,7 @@ async def test_native_web_search_uses_effective_upstream_model_for_request() -> 
 
 @pytest.mark.asyncio
 async def test_native_web_search_normalizes_url_citations_and_sources() -> None:
-    adapter = _make_adapter()
+    adapter = _make_adapter(supports_hosted_web_search=True)
     response = SimpleNamespace(
         status="completed",
         output=[
@@ -213,7 +261,7 @@ async def test_native_web_search_normalizes_url_citations_and_sources() -> None:
 async def test_native_web_search_applies_zero_sdk_retries_to_non_stream_request() -> (
     None
 ):
-    adapter = _make_adapter()
+    adapter = _make_adapter(supports_hosted_web_search=True)
     response = SimpleNamespace(
         status="completed",
         output=[
@@ -260,7 +308,7 @@ async def test_native_web_search_applies_zero_sdk_retries_to_non_stream_request(
 async def test_native_web_search_returns_parse_error_when_only_unverifiable_urls_exist() -> (
     None
 ):
-    adapter = _make_adapter()
+    adapter = _make_adapter(supports_hosted_web_search=True)
     response = SimpleNamespace(
         status="completed",
         output=[
@@ -306,7 +354,7 @@ async def test_native_web_search_returns_parse_error_when_only_unverifiable_urls
 
 @pytest.mark.asyncio
 async def test_native_web_search_marks_zero_request_responses_as_unsupported() -> None:
-    adapter = _make_adapter()
+    adapter = _make_adapter(supports_hosted_web_search=True)
     response = SimpleNamespace(
         status="completed",
         output=[],
@@ -338,7 +386,7 @@ async def test_native_web_search_marks_zero_request_responses_as_unsupported() -
 async def test_native_web_search_renders_prompt_contract_and_attempts_stream_fallback(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    adapter = _make_adapter()
+    adapter = _make_adapter(supports_hosted_web_search=True)
     empty_response = SimpleNamespace(
         status="completed",
         output=[],
@@ -411,7 +459,7 @@ async def test_native_web_search_renders_prompt_contract_and_attempts_stream_fal
 async def test_native_web_search_uses_stream_fallback_when_non_stream_returns_empty_completed_body() -> (
     None
 ):
-    adapter = _make_adapter()
+    adapter = _make_adapter(supports_hosted_web_search=True)
     empty_response = SimpleNamespace(
         status="completed",
         output=[],
@@ -471,7 +519,7 @@ async def test_native_web_search_uses_stream_fallback_when_non_stream_returns_em
 
 @pytest.mark.asyncio
 async def test_native_web_search_maps_400_errors_to_unsupported() -> None:
-    adapter = _make_adapter()
+    adapter = _make_adapter(supports_hosted_web_search=True)
     adapter.client = SimpleNamespace(
         responses=SimpleNamespace(
             create=AsyncMock(

@@ -32,7 +32,6 @@ from .recovery_prompt_builders import (
 )
 from .recovery_status_update import update_intent_statuses
 from .recovery_tool_result_helpers import should_replace_budgeted_web_research_response
-from .recovery_web_research_gate import RecoveryWebResearchGate
 from .types import RecoveryDecision
 
 
@@ -50,9 +49,6 @@ class RecoveryManager:
     )
     ensure_latest_assistant_pending_consent = staticmethod(
         _ensure_latest_assistant_pending_consent_impl
-    )
-    complete_native_search_intents = staticmethod(
-        RecoveryWebResearchGate.complete_native_search_intents
     )
     update_intent_statuses = staticmethod(update_intent_statuses)
     next_unfinished_intents = staticmethod(next_unfinished_intents)
