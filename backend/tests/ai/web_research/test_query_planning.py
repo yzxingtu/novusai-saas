@@ -194,10 +194,17 @@ def test_duplicate_trusted_seed_url_variants_are_deduplicated() -> None:
     assert [item.provider for item in planned.items[: len(trusted_urls)]] == [
         "platform:trusted_seed"
     ] * len(trusted_urls)
-    assert not any("utm_" in item.url.casefold() or "#" in item.url for item in planned.items)
-    assert not any("fbclid" in item.url.casefold() or "ref=" in item.url.casefold() for item in planned.items)
+    assert not any(
+        "utm_" in item.url.casefold() or "#" in item.url for item in planned.items
+    )
+    assert not any(
+        "fbclid" in item.url.casefold() or "ref=" in item.url.casefold()
+        for item in planned.items
+    )
     assert not any(item.url.startswith("http://") for item in planned.items)
-    assert not any("www.artificialanalysis.ai" in item.url.casefold() for item in planned.items)
+    assert not any(
+        "www.artificialanalysis.ai" in item.url.casefold() for item in planned.items
+    )
     assert not any("www.lmarena.ai" in item.url.casefold() for item in planned.items)
     assert planned_urls[-1] == "https://baijiahao.baidu.com/s?id=noisy-315"
     assert [item.rank for item in planned.items] == list(

@@ -125,7 +125,9 @@ def test_llm_leaderboard_seeds_precede_weak_or_low_trust_sources(query: str) -> 
     assert planned_urls.index("https://example.invalid/blog/unsourced-llm-top") >= len(
         trusted_urls
     )
-    assert [item.rank for item in planned.items] == list(range(1, len(planned.items) + 1))
+    assert [item.rank for item in planned.items] == list(
+        range(1, len(planned.items) + 1)
+    )
     assert planned.diagnostics["query_profile"] == "llm_leaderboard"
     assert planned.diagnostics["trusted_seed_count"] >= 2
     assert planned.diagnostics["minimum_relevant_sources"] == 2
