@@ -121,15 +121,19 @@ def apply_query_plan_to_search_results(
     return replace(search_results, items=items, diagnostics=diagnostics)
 
 
-_TRACKING_QUERY_KEYS = {
-    "fbclid",
-    "gclid",
-    "igshid",
-    "mc_cid",
-    "mc_eid",
-    "ref",
-    "spm",
-}
+_CANONICAL_URL_SCHEME = "https"
+_LEADING_WWW_PREFIX = "www."
+_TRACKING_QUERY_KEYS = frozenset(
+    {
+        "fbclid",
+        "gclid",
+        "igshid",
+        "mc_cid",
+        "mc_eid",
+        "ref",
+        "spm",
+    }
+)
 
 
 def _canonical_url_key(url: str) -> str:
@@ -140,22 +144,31 @@ def _canonical_url_key(url: str) -> str:
     if not parsed.scheme or not parsed.netloc:
         return raw.rstrip("/")
 
-    netloc = parsed.netloc.casefold()
-    if netloc.startswith("www."):
-        netloc = netloc.removeprefix("www.")
+    netloc = _canonical_netloc(parsed.netloc)
     path = parsed.path.rstrip("/") or "/"
     query = _canonical_query(parsed.query)
-    return urlunsplit(("https", netloc, path, query, ""))
+    return urlunsplit((_CANONICAL_URL_SCHEME, netloc, path, query, ""))
+
+
+def _canonical_netloc(netloc: str) -> str:
+    normalized = str(netloc or "").casefold()
+    if normalized.startswith(_LEADING_WWW_PREFIX):
+        return normalized.removeprefix(_LEADING_WWW_PREFIX)
+    return normalized
 
 
 def _canonical_query(query: str) -> str:
     kept: list[tuple[str, str]] = []
     for key, value in parse_qsl(query, keep_blank_values=True):
-        normalized_key = key.casefold()
-        if normalized_key.startswith("utm_") or normalized_key in _TRACKING_QUERY_KEYS:
+        if _is_tracking_query_key(key):
             continue
         kept.append((key, value))
     return urlencode(sorted(kept))
+
+
+def _is_tracking_query_key(key: str) -> bool:
+    normalized_key = str(key or "").casefold()
+    return normalized_key.startswith("utm_") or normalized_key in _TRACKING_QUERY_KEYS
 
 
 __all__ = [

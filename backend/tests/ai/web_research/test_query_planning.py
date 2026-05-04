@@ -161,14 +161,14 @@ def test_duplicate_trusted_seed_url_variants_are_deduplicated() -> None:
         items=[
             normalize_search_item(
                 title="Artificial Analysis tracking duplicate",
-                url="https://www.artificialanalysis.ai/leaderboards/models/?utm_source=search#models",
+                url="https://WWW.artificialanalysis.ai/leaderboards/models/?UTM_Source=search&Ref=qa#models",
                 snippet="Duplicate with tracking parameters.",
                 rank=1,
                 provider="public-search",
             ),
             normalize_search_item(
                 title="LMArena http duplicate",
-                url="http://lmarena.ai/leaderboard?utm_campaign=rankings",
+                url="http://www.lmarena.ai/leaderboard?utm_campaign=rankings&FBCLID=abc#arena",
                 snippet="Duplicate with http and tracking parameters.",
                 rank=2,
                 provider="public-search",
@@ -191,9 +191,14 @@ def test_duplicate_trusted_seed_url_variants_are_deduplicated() -> None:
     assert planned_urls[: len(trusted_urls)] == trusted_urls
     assert PRIMARY_TRUSTED_LEADERBOARD_URL in planned_urls
     assert SECONDARY_TRUSTED_LEADERBOARD_URL in planned_urls
-    assert not any("utm_" in item.url or "#" in item.url for item in planned.items)
+    assert [item.provider for item in planned.items[: len(trusted_urls)]] == [
+        "platform:trusted_seed"
+    ] * len(trusted_urls)
+    assert not any("utm_" in item.url.casefold() or "#" in item.url for item in planned.items)
+    assert not any("fbclid" in item.url.casefold() or "ref=" in item.url.casefold() for item in planned.items)
     assert not any(item.url.startswith("http://") for item in planned.items)
-    assert not any("www.artificialanalysis.ai" in item.url for item in planned.items)
+    assert not any("www.artificialanalysis.ai" in item.url.casefold() for item in planned.items)
+    assert not any("www.lmarena.ai" in item.url.casefold() for item in planned.items)
     assert planned_urls[-1] == "https://baijiahao.baidu.com/s?id=noisy-315"
     assert [item.rank for item in planned.items] == list(
         range(1, len(planned.items) + 1)
