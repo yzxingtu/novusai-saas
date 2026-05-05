@@ -105,6 +105,51 @@ def test_resolve_failure_projection_still_promotes_failed_turn_flow_without_fail
     assert projection["failure_kind"] == "provider_http_5xx"
 
 
+def test_resolve_failure_projection_keeps_safe_web_research_partial_from_error_flow() -> (
+    None
+):
+    projection = resolve_failure_projection(
+        diagnostics={
+            "turn_outcome": "partial",
+            "conversation_outcome": "partial",
+            "termination_reason": "insufficient_cross_checked_sources",
+            "partial_exit_reason": "insufficient_cross_checked_sources",
+            "final_output_source": "partial_output",
+            "web_research_failure_kind": "insufficient_cross_checked_sources",
+            "provider_events": [
+                {
+                    "kind": "web_research_runtime",
+                    "evidence_status": "partial",
+                    "answer_source": "none",
+                }
+            ],
+        },
+        turn_flow={
+            "timeline": [
+                {
+                    "id": "answer_assembly",
+                    "type": "answer_assembly",
+                    "status": "error",
+                },
+                {
+                    "id": "failed",
+                    "type": "failed",
+                    "status": "error",
+                },
+            ],
+            "completion_reason": "insufficient_cross_checked_sources",
+            "error_surface": {
+                "failure_kind": "insufficient_cross_checked_sources",
+            },
+        },
+    )
+
+    assert projection["turn_outcome"] == "partial"
+    assert projection["conversation_outcome"] == "partial"
+    assert projection["termination_reason"] == "insufficient_cross_checked_sources"
+    assert projection["failure_kind"] == "insufficient_cross_checked_sources"
+
+
 def test_resolve_failure_projection_keeps_partial_conversation_outcome_authoritative_over_successful_call_log_hint() -> (
     None
 ):

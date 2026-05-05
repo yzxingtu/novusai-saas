@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from typing import Any
+from urllib.parse import urlsplit
 
 from app.ai.web_research.evidence import (
     AnswerQuality,
@@ -94,17 +95,48 @@ def build_web_research_evidence(
     raw_diagnostics: Mapping[str, Any] | None = None,
 ) -> WebResearchEvidence:
     pages = list(fetched_pages)
+    raw = {
+        **dict(search_results.diagnostics or {}),
+        **dict(raw_diagnostics or {}),
+    }
+    accepted_pages = _accepted_fetched_pages(pages)
+    minimum_relevant_sources = _minimum_relevant_sources(raw)
+    relevant_page_count = len(accepted_pages)
+    accepted_source_count = len(
+        {
+            source_key
+            for source_key in (_source_key(page.url) for page in accepted_pages)
+            if source_key
+        }
+    )
+    source_count_failure = bool(
+        minimum_relevant_sources > 1
+        and 0 < accepted_source_count < minimum_relevant_sources
+    )
+    raw.update(
+        {
+            "minimum_relevant_sources": minimum_relevant_sources,
+            "accepted_source_count": accepted_source_count,
+            "relevant_source_count": relevant_page_count,
+        }
+    )
+    if source_count_failure:
+        raw["source_acceptance_failure_kind"] = "insufficient_cross_checked_sources"
     quality = determine_evidence_answer_quality(
         search_results.items,
         pages,
         require_fetch=require_fetch,
     )
+    if source_count_failure:
+        quality = "none"
     status = determine_evidence_status(
         search_results=search_results,
         fetched_pages=pages,
         answer_quality=quality,
         require_fetch=require_fetch,
     )
+    if source_count_failure:
+        status = "partial"
     failure_kind = determine_failure_kind(
         search_results=search_results,
         fetched_pages=pages,
@@ -112,11 +144,9 @@ def build_web_research_evidence(
         status=status,
         require_fetch=require_fetch,
     )
-    fetched_urls = [
-        page.url
-        for page in pages
-        if page.status == "completed" and page.answer_quality != "none"
-    ]
+    if source_count_failure:
+        failure_kind = "insufficient_cross_checked_sources"
+    fetched_urls = [page.url for page in accepted_pages]
     rejected_urls = [
         page.url
         for page in pages
@@ -142,7 +172,7 @@ def build_web_research_evidence(
         provider_disable_reason=provider_disable_reason,
         relevance_profile=relevance_profiles[0] if relevance_profiles else None,
         relevance_rejection_count=len(rejected_urls),
-        raw=dict(raw_diagnostics or {}),
+        raw=raw,
     )
     return WebResearchEvidence(
         query=query,
@@ -151,7 +181,9 @@ def build_web_research_evidence(
         fetch_provider=fetch_provider,
         search_results=list(search_results.items),
         fetched_pages=pages,
-        citations=build_citations(
+        citations=[]
+        if source_count_failure
+        else build_citations(
             search_results.items,
             pages,
             allow_search_result_citations=quality == "snippet",
@@ -178,6 +210,33 @@ def determine_evidence_answer_quality(
     if any(item.answer_quality == "snippet" for item in search_results):
         return "snippet"
     return "none"
+
+
+def _accepted_fetched_pages(
+    fetched_pages: Sequence[PageEvidence],
+) -> list[PageEvidence]:
+    return [
+        page
+        for page in fetched_pages
+        if page.status == "completed"
+        and page.answer_quality != "none"
+        and page.relevance_status != "low_relevance"
+    ]
+
+
+def _minimum_relevant_sources(raw_diagnostics: Mapping[str, Any]) -> int:
+    raw_value = dict(raw_diagnostics or {}).get("minimum_relevant_sources")
+    try:
+        return max(1, int(raw_value or 1))
+    except (TypeError, ValueError):
+        return 1
+
+
+def _source_key(url: str) -> str:
+    host = (urlsplit(str(url or "")).hostname or "").casefold()
+    if host.startswith("www."):
+        return host.removeprefix("www.")
+    return host
 
 
 def determine_evidence_status(

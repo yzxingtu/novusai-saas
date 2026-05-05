@@ -50,7 +50,9 @@ DEFAULT_RECOVERY_RESULT_MAX_LENGTH = 500
 FETCH_URL_RECOVERY_RESULT_MAX_LENGTH = 2000
 _FASHION_TREND_PROFILE = "fashion_trend_ranking"
 _LLM_LEADERBOARD_PROFILE = "llm_leaderboard"
+_AI_NEWS_PROFILE = "ai_news"
 _STRUCTURED_WEB_RESEARCH_PROFILES = {
+    _AI_NEWS_PROFILE,
     _FASHION_TREND_PROFILE,
     _LLM_LEADERBOARD_PROFILE,
 }
@@ -600,6 +602,16 @@ def _payload_source_label(payload: dict[str, object]) -> str:
         return "Marie Claire"
     if "whowhatwear." in netloc:
         return "Who What Wear"
+    if "reuters.com" in netloc:
+        return "Reuters"
+    if "theverge.com" in netloc:
+        return "The Verge"
+    if "techcrunch.com" in netloc:
+        return "TechCrunch"
+    if "openai.com" in netloc:
+        return "OpenAI"
+    if "nvidia.com" in netloc:
+        return "NVIDIA"
     if title:
         return title.split("|", 1)[0].split("_", 1)[0].strip()[:40]
     return netloc.removeprefix("www.") if netloc else ""
@@ -790,6 +802,106 @@ def _render_llm_leaderboard_answer(
     return "\n".join(lines)
 
 
+def _ai_news_fetched_page_payloads(
+    payload: dict[str, object],
+) -> list[dict[str, object]]:
+    evidence = _web_research_evidence_payload(payload)
+    fetched_pages = evidence.get("fetched_pages")
+    if not isinstance(fetched_pages, list):
+        return []
+    return [dict(page) for page in fetched_pages if isinstance(page, dict)]
+
+
+def _clean_ai_news_detail(title: str, detail: str) -> str:
+    cleaned = re.sub(r"\s+", " ", str(detail or "").strip())
+    if not cleaned:
+        return ""
+    title_text = str(title or "").strip()
+    if title_text and cleaned.casefold().startswith(title_text.casefold()):
+        cleaned = cleaned[len(title_text) :].lstrip(" -:：")
+    return RecoveryResultNormalizer._normalize_cached_result(
+        _first_sentence(cleaned),
+        max_length=120,
+    )
+
+
+def _first_sentence(text: str) -> str:
+    cleaned = re.sub(r"\s+", " ", str(text or "").strip())
+    match = re.search(r"[。！？.!?]", cleaned)
+    if match:
+        return cleaned[: match.end()]
+    return cleaned
+
+
+def _ai_news_body_fallback(page_payload: dict[str, object]) -> str:
+    body = str(page_payload.get("body_text") or "").strip()
+    if not body:
+        return ""
+    return RecoveryResultNormalizer._normalize_cached_result(
+        _first_sentence(body),
+        max_length=120,
+    )
+
+
+def _ai_news_item_from_payload(
+    result: ToolResult,
+    payload: dict[str, object],
+) -> tuple[str, str, str] | None:
+    page_payloads = _ai_news_fetched_page_payloads(payload)
+    page_payload = page_payloads[0] if page_payloads else {}
+    title = str(
+        payload.get("title") or page_payload.get("title") or result.summary or ""
+    ).strip()
+    if not title:
+        return None
+    detail = _clean_ai_news_detail(
+        title,
+        str(
+            payload.get("description")
+            or page_payload.get("description")
+            or page_payload.get("summary")
+            or payload.get("summary")
+            or ""
+        ),
+    )
+    if not detail:
+        detail = _ai_news_body_fallback(page_payload)
+    if not detail:
+        return None
+    return title, detail, _payload_source_label(payload)
+
+
+def _render_ai_news_answer(
+    intent: IntentPlan,
+    accepted_results: list[tuple[ToolResult, dict[str, object]]],
+) -> str | None:
+    items: list[tuple[str, str, str]] = []
+    seen_titles: set[str] = set()
+    for result, payload in accepted_results:
+        if _web_research_query_profile(payload) != _AI_NEWS_PROFILE:
+            continue
+        item = _ai_news_item_from_payload(result, payload)
+        if item is None:
+            continue
+        title, detail, source_label = item
+        normalized_title = RecoveryResultNormalizer._normalize_comparison_text(title)
+        if normalized_title in seen_titles:
+            continue
+        seen_titles.add(normalized_title)
+        items.append((title, detail, source_label))
+    if len(items) < 2:
+        return None
+
+    lines = ["今日 AI 新闻摘要："]
+    for index, (title, detail, source_label) in enumerate(items[:6], start=1):
+        source_suffix = f"（来源：{source_label}）" if source_label else ""
+        lines.append(f"{index}. {title}：{detail}{source_suffix}")
+    source_labels = _dedupe_preserve_order([item[2] for item in items])
+    if source_labels:
+        lines.append(f"来源：{'、'.join(source_labels)}。")
+    return "\n".join(lines)
+
+
 def _render_structured_web_research_answer(
     intent: IntentPlan,
     tool_results: list[ToolResult] | None,
@@ -797,6 +909,11 @@ def _render_structured_web_research_answer(
     if not _requires_structured_web_research_answer(intent, tool_results):
         return None
     accepted_results = _accepted_fetch_url_results(tool_results)
+    if any(
+        _web_research_query_profile(payload) == _AI_NEWS_PROFILE
+        for _result, payload in accepted_results
+    ):
+        return _render_ai_news_answer(intent, accepted_results)
     if not any(
         _web_research_query_profile(payload) == _FASHION_TREND_PROFILE
         for _result, payload in accepted_results

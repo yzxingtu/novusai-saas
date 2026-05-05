@@ -9,6 +9,7 @@ from app.core.i18n import _
 TRUSTED_FINAL_OUTPUT_SOURCES = frozenset(
     {
         "assistant",
+        "platform_fallback",
         # Deterministic recovery text built from completed tool/page evidence.
         "recovery_evidence",
     }
@@ -30,6 +31,13 @@ def build_untrusted_final_output_fallback(
         return str(
             _(
                 "我找到了候选来源，但没有拿到与问题足够相关、可核实的内容，因此不生成结论。"
+            )
+            or ""
+        ).strip()
+    if normalized_failure_kind == "insufficient_cross_checked_sources":
+        return str(
+            _(
+                "我找到了候选来源，但交叉验证不足，暂时不生成新闻结论。你可以稍后重试或换一个更具体的关键词。"
             )
             or ""
         ).strip()

@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from itertools import count
+from urllib.parse import urlsplit
 
 from app.ai.web_research.contracts import (
     FetchOptions,
@@ -180,7 +181,7 @@ class WebResearchRuntime:
             return pages
 
         minimum_relevant_sources = _minimum_relevant_sources(search_results)
-        relevant_source_count = 0
+        relevant_source_keys: set[str] = set()
         search_items_by_url = {
             item.url.strip(): item for item in search_results.items if item.url.strip()
         }
@@ -210,8 +211,10 @@ class WebResearchRuntime:
             )
             pages.append(page)
             if page.status == "completed" and page.answer_quality != "none":
-                relevant_source_count += 1
-                if relevant_source_count >= minimum_relevant_sources:
+                source_key = _source_key(page.url)
+                if source_key:
+                    relevant_source_keys.add(source_key)
+                if len(relevant_source_keys) >= minimum_relevant_sources:
                     break
         return pages
 
@@ -274,6 +277,13 @@ def _minimum_relevant_sources(search_results: SearchResultSet) -> int:
         return max(1, int(raw_value or 1))
     except (TypeError, ValueError):
         return 1
+
+
+def _source_key(url: str) -> str:
+    host = (urlsplit(str(url or "")).hostname or "").casefold()
+    if host.startswith("www."):
+        return host.removeprefix("www.")
+    return host
 
 
 def _merge_search_result_sets(

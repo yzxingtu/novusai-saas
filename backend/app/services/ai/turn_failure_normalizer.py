@@ -37,6 +37,7 @@ _COMPLETED_TERMINATION_REASONS = frozenset(
 )
 _NON_TERMINAL_PROGRESS_SIGNALS = frozenset(
     {
+        "web_research_runtime",
         "web_search_in_progress",
         "provider_search_in_progress",
         "search_in_progress",
@@ -44,7 +45,9 @@ _NON_TERMINAL_PROGRESS_SIGNALS = frozenset(
     }
 )
 _NO_FAILURE_KINDS = frozenset({"none"})
-_TRUSTED_FINAL_OUTPUT_SOURCES = frozenset({"assistant", "recovery_evidence"})
+_TRUSTED_FINAL_OUTPUT_SOURCES = frozenset(
+    {"assistant", "platform_fallback", "recovery_evidence"}
+)
 _INTERRUPTION_TERMINATION_REASONS = frozenset({"interrupted", "partial"})
 _GENERIC_FAILURE_TERMINATION_REASONS = frozenset(
     {"error", "failed", "terminal_failure"}
@@ -60,6 +63,7 @@ _FAILURE_KIND_SIGNAL_ALIASES = {
     "provider_rate_limit_error": "provider_rate_limit",
     "provider_bad_response_error": "provider_bad_response",
     "fetch_not_attempted": "web_research_fetch_not_attempted",
+    "insufficient_cross_checked_sources": "insufficient_cross_checked_sources",
     "missing_fetch_evidence": "web_research_fetch_not_attempted",
     "no_answer_quality_evidence": "web_research_no_answer_quality_evidence",
 }
@@ -74,6 +78,17 @@ _FAILURE_TERMINATION_BY_KIND = {
     "tool_execution_error": "tool_error",
     "server_interrupt": "interrupted",
 }
+_SAFE_PARTIAL_FAILURE_KINDS = frozenset(
+    {
+        "candidate_urls_exhausted",
+        "insufficient_cross_checked_sources",
+        "low_query_relevance",
+        "web_research_no_answer_quality_evidence",
+        "no_answer_quality_evidence",
+        "search_no_results_completed",
+        "search_not_successful",
+    }
+)
 
 
 def _as_text(value: Any) -> str | None:
@@ -298,6 +313,7 @@ def infer_failure_kind_from_diagnostics(
 
     candidates: list[Any] = [
         payload.get("failure_kind"),
+        payload.get("partial_exit_reason"),
         payload.get("provider_failure_kind"),
         payload.get("error_type"),
         failures.get("failure_kind"),
@@ -369,6 +385,26 @@ def infer_failure_kind_from_diagnostics(
         return "provider_timeout"
     if saw_generic_provider_error:
         return "provider_gateway_error"
+    return None
+
+
+def _safe_partial_failure_kind(
+    payload: Mapping[str, Any],
+    failure_kind: str | None,
+) -> str | None:
+    candidates = [
+        failure_kind,
+        payload.get("partial_exit_reason"),
+        payload.get("web_research_failure_kind"),
+        _as_dict(payload.get("web_research_diagnostics")).get(
+            "web_research_failure_kind"
+        ),
+        _as_dict(payload.get("web_research_diagnostics")).get("failure_kind"),
+    ]
+    for candidate in candidates:
+        normalized = normalize_failure_kind(candidate)
+        if normalized in _SAFE_PARTIAL_FAILURE_KINDS:
+            return normalized
     return None
 
 
@@ -711,6 +747,7 @@ def resolve_failure_projection(
         payload.get("termination_reason") or payload.get("completion_reason")
     )
     failure_kind = infer_failure_kind_from_diagnostics(payload)
+    safe_partial_failure_kind = _safe_partial_failure_kind(payload, failure_kind)
     budget_exit_reason = _as_text(
         payload.get("budget_exit_reason")
         or _as_dict(payload.get("budget")).get("exit_reason")
@@ -787,9 +824,11 @@ def resolve_failure_projection(
                 if recovery_evidence_success or recovered_protocol_success
                 else explicit_turn_outcome or "success"
             )
-        elif not preserve_partial_after_failed_conversation:
+        elif not preserve_partial_after_failed_conversation and not (
+            explicit_turn_outcome == "partial" and safe_partial_failure_kind
+        ):
             turn_outcome = "failed"
-        failure_kind = turn_flow_failure_kind
+        failure_kind = safe_partial_failure_kind or turn_flow_failure_kind
     elif turn_flow_terminal_stage_status == "interrupted":
         if not authoritative_completed_success:
             turn_outcome = "partial"
@@ -860,6 +899,9 @@ def resolve_failure_projection(
         failure_kind = (
             budget_exit_reason or normalized_termination_reason or "budget_exit"
         )
+    if explicit_turn_outcome == "partial" and safe_partial_failure_kind:
+        turn_outcome = "partial"
+        failure_kind = safe_partial_failure_kind
 
     return {
         "turn_outcome": turn_outcome,

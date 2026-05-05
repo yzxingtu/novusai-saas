@@ -382,8 +382,21 @@ def _fetch_tool_results_from_evidence(
     evidence: WebResearchEvidence,
 ) -> list[ToolResult]:
     results: list[ToolResult] = []
+    evidence_accepted_for_answer = bool(
+        evidence.status == "completed"
+        and evidence.answer_quality != "none"
+        and evidence.diagnostics.answer_source != "none"
+        and not evidence.failure_kind
+    )
     for index, page in enumerate(evidence.fetched_pages, start=1):
-        success = page.status == "completed" and page.answer_quality != "none"
+        success = bool(
+            evidence_accepted_for_answer
+            and page.status == "completed"
+            and page.answer_quality != "none"
+        )
+        error_type = ""
+        if not success:
+            error_type = page.failure_kind or evidence.failure_kind or ""
         summary_payload: dict[str, Any] = {
             "fetch_url": True,
             "ok": success,
@@ -393,6 +406,8 @@ def _fetch_tool_results_from_evidence(
             "description": page.description,
             "summary": page.summary,
             "answer_quality": page.answer_quality,
+            "evidence_quality": evidence.answer_quality,
+            "answer_source": evidence.diagnostics.answer_source,
             "status": page.status,
             "provider": page.provider,
             "relevance_status": page.relevance_status,
@@ -403,8 +418,8 @@ def _fetch_tool_results_from_evidence(
             "relevance_required_terms": list(page.relevance_required_terms),
             "web_research_evidence": evidence.to_dict(),
         }
-        if page.failure_kind:
-            summary_payload["error_type"] = page.failure_kind
+        if error_type:
+            summary_payload["error_type"] = error_type
         results.append(
             ToolResult(
                 tool_call_id=(
@@ -415,8 +430,8 @@ def _fetch_tool_results_from_evidence(
                 name="fetch_url",
                 success=success,
                 output=_fetch_output_from_page(page) if success else "",
-                error=page.failure_kind or "",
-                error_type=page.failure_kind or "",
+                error=error_type,
+                error_type=error_type,
                 summary=page.summary or page.title or page.url,
                 result_link=page.url,
                 summary_payload=summary_payload,
@@ -573,6 +588,7 @@ _UNACCEPTED_WEB_RESEARCH_GATE_REASONS = frozenset(
         "fetch_not_attempted",
         "low_query_relevance",
         "no_answer_quality_evidence",
+        "insufficient_cross_checked_sources",
         "search_failed",
     }
 )
@@ -1143,6 +1159,8 @@ async def finalize_turn_execution(
         state.preparation_diagnostics["stripped_untrusted_final_output"] = True
         state.preparation_diagnostics["untrusted_final_output_fallback_applied"] = True
         output = fallback_output
+        final_output_source = "platform_fallback"
+        state.preparation_diagnostics["final_output_source"] = final_output_source
         if response is not None and getattr(response, "message", None) is not None:
             response.message.content = fallback_output
 

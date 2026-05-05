@@ -18,6 +18,7 @@ from collections.abc import Callable
 import pytest
 
 from app.ai.engine.recovery_manager import RecoveryManager
+from app.ai.engine.turn_executor import tool_results_from_web_research_evidence
 from app.ai.engine.types import IntentPlan
 from app.ai.tools.types import ToolResult
 from app.ai.web_research import (
@@ -35,6 +36,10 @@ QUERY = "今日ai新闻查一下"
 NETEASE_STALE_URL = "https://www.163.com/dy/article/J1QO5JKJ05198CJN.html"
 OPENAI_NEWS_URL = "https://www.reuters.com/technology/artificial-intelligence/openai-search-2026-05-05/"
 NVIDIA_NEWS_URL = "https://www.theverge.com/ai/2026/5/5/nvidia-ai-chip-news"
+NVIDIA_HOME_URL = "https://www.nvidia.cn/"
+NVIDIA_HOME_TRACKING_URL = (
+    "https://www.nvidia.cn/?adid=techblog-costperformance&utm_source=edgehub"
+)
 
 
 class FakeSearchProvider:
@@ -182,6 +187,216 @@ async def test_2315_ai_news_needs_two_relevant_sources_before_completion() -> No
     assert evidence.diagnostics.fetched_urls == [OPENAI_NEWS_URL]
     assert evidence.diagnostics.raw["query_profile"] == "ai_news"
     assert evidence.diagnostics.raw["minimum_relevant_sources"] == 2
+
+
+@pytest.mark.asyncio
+async def test_2315_ai_news_does_not_count_same_host_variants_as_cross_check() -> None:
+    def search_handler(query: str, _options: SearchOptions) -> SearchResultSet:
+        return SearchResultSet(
+            query=query,
+            provider="fake-search",
+            items=[
+                normalize_search_item(
+                    title="NVIDIA 发布新的 AI 模型",
+                    url=NVIDIA_HOME_URL,
+                    snippet="2026年5月5日 NVIDIA 发布新的 AI 模型与人工智能新闻。",
+                    rank=1,
+                    provider="fake-search",
+                ),
+                normalize_search_item(
+                    title="NVIDIA 发布新的 AI 模型",
+                    url=NVIDIA_HOME_TRACKING_URL,
+                    snippet="2026年5月5日 NVIDIA 官网发布 AI 新闻。",
+                    rank=2,
+                    provider="fake-search",
+                ),
+            ],
+        )
+
+    def fetch_handler(url: str, _options: FetchOptions) -> PageEvidence:
+        return normalize_page_evidence(
+            url=url,
+            status="completed",
+            title="NVIDIA 发布新的 AI 模型",
+            description="2026年5月5日 NVIDIA 官网发布新的 AI 模型。",
+            summary="NVIDIA 发布新的 AI 模型。",
+            body_text="2026年5月5日，NVIDIA 发布新的 AI 模型与人工智能新闻。",
+            provider="fake-fetch",
+        )
+
+    runtime = WebResearchRuntime(
+        search_provider=FakeSearchProvider(search_handler),
+        fetch_provider=FakeFetchProvider(fetch_handler),
+    )
+
+    evidence = await runtime.run(
+        QUERY,
+        WebResearchRunOptions(pipeline_id="pipeline-2315-same-host-news"),
+    )
+
+    assert evidence.status == "partial"
+    assert evidence.answer_quality == "none"
+    assert evidence.failure_kind == "insufficient_cross_checked_sources"
+    assert evidence.diagnostics.fetched_urls == [
+        NVIDIA_HOME_URL,
+        NVIDIA_HOME_TRACKING_URL,
+    ]
+    assert evidence.diagnostics.raw["accepted_source_count"] == 1
+    assert evidence.diagnostics.raw["relevant_source_count"] == 2
+
+
+@pytest.mark.asyncio
+async def test_2315_ai_news_rejects_generic_vendor_homepage_without_freshness() -> None:
+    def search_handler(query: str, _options: SearchOptions) -> SearchResultSet:
+        return SearchResultSet(
+            query=query,
+            provider="fake-search",
+            items=[
+                normalize_search_item(
+                    title="人工智能计算领域的领导者 | NVIDIA",
+                    url=NVIDIA_HOME_URL,
+                    snippet="NVIDIA 官网展示人工智能、OpenAI、Gemini、发布、新闻等栏目。",
+                    rank=1,
+                    provider="fake-search",
+                )
+            ],
+        )
+
+    def fetch_handler(url: str, _options: FetchOptions) -> PageEvidence:
+        return normalize_page_evidence(
+            url=url,
+            status="completed",
+            title="人工智能计算领域的领导者 | NVIDIA",
+            description="NVIDIA 发明了 GPU，并推动了 AI、HPC 和机器人开发领域的进步。",
+            summary="NVIDIA 首页展示人工智能计算产品和多个技术栏目。",
+            body_text=(
+                "人工智能 全新发布 NVIDIA Nemotron 3 Omni 模型。"
+                "代理式 AI 在 NVIDIA，团队借助 OpenAI Codex 智能体提升人类创造力。"
+                "NVIDIA 和 Google Cloud 助力实现 AI 突破。"
+            ),
+            provider="fake-fetch",
+        )
+
+    runtime = WebResearchRuntime(
+        search_provider=FakeSearchProvider(search_handler),
+        fetch_provider=FakeFetchProvider(fetch_handler),
+    )
+
+    evidence = await runtime.run(
+        QUERY,
+        WebResearchRunOptions(pipeline_id="pipeline-2315-generic-homepage"),
+    )
+
+    assert evidence.status == "partial"
+    assert evidence.answer_quality == "none"
+    assert evidence.failure_kind == "low_query_relevance"
+    assert evidence.diagnostics.fetched_urls == []
+    assert evidence.diagnostics.rejected_urls == [NVIDIA_HOME_URL]
+    assert evidence.fetched_pages[0].relevance_profile == "ai_news"
+    assert "current_date_or_current_year_signal" in (
+        evidence.fetched_pages[0].relevance_required_terms
+    )
+
+
+@pytest.mark.asyncio
+async def test_2315_runtime_cross_checked_ai_news_renders_summary_not_dump() -> None:
+    body_by_url = {
+        OPENAI_NEWS_URL: (
+            "2026年5月5日，OpenAI 宣布新的 AI 搜索功能。"
+            "该功能面向 ChatGPT 的实时信息检索。"
+            "这是第一来源正文的第二段，包含很多背景细节，不应被整段转储。"
+        ),
+        NVIDIA_NEWS_URL: (
+            "2026年5月5日，NVIDIA 发布新的 AI 数据中心芯片路线图。"
+            "The Verge 报道该芯片面向生成式人工智能工作负载。"
+            "这是第二来源正文的第二段，包含很多背景细节，不应被整段转储。"
+        ),
+    }
+
+    def search_handler(query: str, _options: SearchOptions) -> SearchResultSet:
+        return SearchResultSet(
+            query=query,
+            provider="fake-search",
+            items=[
+                normalize_search_item(
+                    title="OpenAI 发布新的 AI 搜索功能",
+                    url=OPENAI_NEWS_URL,
+                    snippet="2026年5月5日 Reuters 报道 OpenAI 发布 AI 搜索功能。",
+                    rank=1,
+                    provider="fake-search",
+                ),
+                normalize_search_item(
+                    title="NVIDIA 发布新的 AI 数据中心芯片路线图",
+                    url=NVIDIA_NEWS_URL,
+                    snippet="2026年5月5日 The Verge 报道 NVIDIA 发布 AI 芯片路线图。",
+                    rank=2,
+                    provider="fake-search",
+                ),
+            ],
+        )
+
+    def fetch_handler(url: str, _options: FetchOptions) -> PageEvidence:
+        title = (
+            "OpenAI 发布新的 AI 搜索功能"
+            if url == OPENAI_NEWS_URL
+            else "NVIDIA 发布新的 AI 数据中心芯片路线图"
+        )
+        summary = (
+            "2026年5月5日 OpenAI 更新 ChatGPT 实时搜索能力。"
+            if url == OPENAI_NEWS_URL
+            else "2026年5月5日 NVIDIA 面向生成式 AI 工作负载更新芯片路线图。"
+        )
+        return normalize_page_evidence(
+            url=url,
+            status="completed",
+            title=title,
+            description=summary,
+            summary=f"{title} - {summary}",
+            body_text=body_by_url[url],
+            provider="fake-fetch",
+        )
+
+    runtime = WebResearchRuntime(
+        search_provider=FakeSearchProvider(search_handler),
+        fetch_provider=FakeFetchProvider(fetch_handler),
+    )
+
+    evidence = await runtime.run(
+        QUERY,
+        WebResearchRunOptions(pipeline_id="pipeline-2315-cross-checked-news"),
+    )
+    tool_results = tool_results_from_web_research_evidence(evidence)
+    updated = RecoveryManager.update_intent_statuses(
+        [_ai_news_intent()],
+        messages=[],
+        tool_results=tool_results,
+    )
+    output = RecoveryManager.build_completed_output(
+        updated,
+        tool_results=tool_results,
+        reason="partial_exit_recovery",
+    )
+
+    assert evidence.status == "completed"
+    assert evidence.answer_quality == "body"
+    assert evidence.failure_kind is None
+    assert evidence.diagnostics.answer_source == "fetched_body"
+    assert evidence.diagnostics.fetched_urls == [OPENAI_NEWS_URL, NVIDIA_NEWS_URL]
+    assert evidence.diagnostics.raw["accepted_source_count"] == 2
+    assert [
+        result.success for result in tool_results if result.name == "fetch_url"
+    ] == [
+        True,
+        True,
+    ]
+    assert updated[0].status == "completed"
+    assert "今日 AI 新闻摘要" in output
+    assert "OpenAI 发布新的 AI 搜索功能" in output
+    assert "NVIDIA 发布新的 AI 数据中心芯片路线图" in output
+    assert "来源：" in output
+    assert "整段转储" not in output
+    assert body_by_url[OPENAI_NEWS_URL] not in output
+    assert body_by_url[NVIDIA_NEWS_URL] not in output
 
 
 def _ai_news_fetch_result(

@@ -18,6 +18,12 @@ REQUIRED_TRUSTED_LEADERBOARD_URLS = {
     PRIMARY_TRUSTED_LEADERBOARD_URL,
     SECONDARY_TRUSTED_LEADERBOARD_URL,
 }
+AI_NEWS_LOW_TRUST_URL = "https://www.163.com/dy/article/J1QO5JKJ05198CJN.html"
+AI_NEWS_REUTERS_URL = (
+    "https://www.reuters.com/technology/artificial-intelligence/"
+    "openai-search-2026-05-05/"
+)
+AI_NEWS_VERGE_URL = "https://www.theverge.com/ai/2026/5/5/nvidia-ai-chip-news"
 
 
 def _assert_trusted_seed_contract(trusted_urls: list[str]) -> None:
@@ -45,6 +51,56 @@ def test_chinese_2026_llm_leaderboard_query_gets_trusted_seed_plan() -> None:
         and candidate.title == "LMArena Arena Leaderboard"
         for candidate in plan.trusted_seed_candidates
     )
+
+
+def test_current_ai_news_query_gets_cross_checked_news_plan() -> None:
+    plan = build_web_research_query_plan("今日ai新闻查一下")
+
+    assert plan.profile == "ai_news"
+    assert plan.trusted_seed_urls == []
+    assert plan.minimum_relevant_sources == 2
+    assert plan.source_quality_floor == "current_trusted_cross_checked_ai_news"
+    assert plan.search_queries[0] == "今日ai新闻查一下"
+    assert any("latest AI news today" in query for query in plan.search_queries)
+
+
+def test_ai_news_plan_prioritizes_trusted_current_sources_before_reposts() -> None:
+    plan = build_web_research_query_plan("今日ai新闻查一下")
+    search_results = SearchResultSet(
+        query="今日ai新闻查一下",
+        provider="public-search",
+        items=[
+            normalize_search_item(
+                title="财联社 AI daily早新闻",
+                url=AI_NEWS_LOW_TRUST_URL,
+                snippet="网易号转载，AAAI 2024、OpenAI 搜索等旧新闻。",
+                rank=1,
+                provider="public-search",
+            ),
+            normalize_search_item(
+                title="OpenAI launches new AI search features",
+                url=AI_NEWS_REUTERS_URL,
+                snippet="2026年5月5日 Reuters 报道 OpenAI 发布 AI 搜索功能。",
+                rank=2,
+                provider="public-search",
+            ),
+            normalize_search_item(
+                title="NVIDIA updates AI chip roadmap",
+                url=AI_NEWS_VERGE_URL,
+                snippet="The Verge 2026年5月5日 报道 NVIDIA 发布 AI 芯片路线图。",
+                rank=3,
+                provider="public-search",
+            ),
+        ],
+    )
+
+    planned = apply_query_plan_to_search_results(search_results, plan=plan)
+    planned_urls = [item.url for item in planned.items]
+
+    assert planned_urls[:2] == [AI_NEWS_REUTERS_URL, AI_NEWS_VERGE_URL]
+    assert planned_urls[-1] == AI_NEWS_LOW_TRUST_URL
+    assert planned.diagnostics["query_profile"] == "ai_news"
+    assert planned.diagnostics["minimum_relevant_sources"] == 2
 
 
 def test_trusted_seeds_are_ranked_before_noisy_public_search_results() -> None:

@@ -19,7 +19,10 @@ from app.ai.engine.conversation_result_projector import (
     build_turn_projection,
     coerce_turn_record_payload,
 )
-from app.ai.engine.final_output_policy import build_untrusted_final_output_fallback
+from app.ai.engine.final_output_policy import (
+    build_untrusted_final_output_fallback,
+    is_trusted_assistant_final_output_source,
+)
 from app.ai.engine.recovery_web_research_gate import (
     WEB_RESEARCH_TERMINAL_CONTRACT_KEY,
     WEB_RESEARCH_TERMINAL_NO_RESULT,
@@ -307,6 +310,13 @@ def test_build_untrusted_final_output_fallback_returns_safe_text() -> None:
 
     generic_fallback = build_untrusted_final_output_fallback()
     assert generic_fallback.strip()
+
+    cross_check = build_untrusted_final_output_fallback(
+        failure_kind="insufficient_cross_checked_sources"
+    )
+    assert "交叉验证不足" in cross_check
+    assert "新闻结论" in cross_check
+    assert is_trusted_assistant_final_output_source("platform_fallback")
 
 
 @pytest.mark.asyncio

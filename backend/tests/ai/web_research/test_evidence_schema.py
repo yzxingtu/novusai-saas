@@ -209,3 +209,52 @@ def test_evidence_serializes_canonical_diagnostics() -> None:
     assert payload["diagnostics"]["answer_source"] == "fetched_body"
     assert payload["diagnostics"]["candidate_urls"] == ["https://example.com/ranking"]
     assert payload["citations"][0]["source"] == "page"
+
+
+def test_evidence_requires_configured_cross_checked_source_count() -> None:
+    search_results = SearchResultSet(
+        query="今日ai新闻查一下",
+        provider="builtin-search",
+        items=[
+            normalize_search_item(
+                title="OpenAI news",
+                url="https://www.reuters.com/technology/ai/openai-news",
+                snippet="OpenAI AI news",
+                rank=1,
+                provider="builtin-search",
+            )
+        ],
+        diagnostics={"minimum_relevant_sources": 2},
+    )
+    page = normalize_page_evidence(
+        url="https://www.reuters.com/technology/ai/openai-news",
+        status="completed",
+        title="OpenAI news",
+        body_text="OpenAI announced an AI update.",
+        summary="OpenAI announced an AI update.",
+        description="",
+        provider="builtin-fetch",
+        relevance_status="relevant",
+        relevance_profile="ai_news",
+    )
+
+    evidence = build_web_research_evidence(
+        query="今日ai新闻查一下",
+        search_results=search_results,
+        fetched_pages=[page],
+        fetch_provider="builtin-fetch",
+        pipeline_id="pipeline-cross-check",
+        candidate_urls=["https://www.reuters.com/technology/ai/openai-news"],
+        require_fetch=True,
+        raw_diagnostics={"minimum_relevant_sources": 2},
+    )
+
+    assert evidence.status == "partial"
+    assert evidence.answer_quality == "none"
+    assert evidence.failure_kind == "insufficient_cross_checked_sources"
+    assert evidence.diagnostics.answer_source == "none"
+    assert evidence.diagnostics.fetched_urls == [
+        "https://www.reuters.com/technology/ai/openai-news"
+    ]
+    assert evidence.citations == []
+    assert evidence.diagnostics.raw["accepted_source_count"] == 1

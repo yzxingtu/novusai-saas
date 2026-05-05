@@ -132,6 +132,7 @@ def _web_research_failure_layer(kind: str | None) -> str | None:
     if normalized in {
         "fetch_not_attempted",
         "no_answer_quality_evidence",
+        "insufficient_cross_checked_sources",
         "raw_search_only_recovery_finalized",
         "missing_fetch_evidence",
     }:

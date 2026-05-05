@@ -32,8 +32,8 @@ from app.enums.common import UserRoleEnum
 from app.exceptions import BusinessException
 from app.schemas.ai.agent_chat import AgentChatResponse, InteractionMode
 from app.schemas.ai.invalid_ai_runtime_input import (
-    ensure_no_disallowed_ai_runtime_input,
     disallowed_ai_runtime_input_keys,
+    ensure_no_disallowed_ai_runtime_input,
     filter_invalid_ai_runtime_references,
     is_invalid_ai_runtime_reference,
 )
@@ -57,6 +57,32 @@ if TYPE_CHECKING:
     from app.services.ai.agent_chat_service import AgentChatService
 
 logger = LogManager.get_logger("ai.agent_chat_service")
+
+_SAFE_PARTIAL_OUTPUT_REASONS = frozenset(
+    {
+        "candidate_urls_exhausted",
+        "insufficient_cross_checked_sources",
+        "low_query_relevance",
+        "no_answer_quality_evidence",
+        "search_no_results_completed",
+        "search_not_successful",
+    }
+)
+
+
+def _promote_safe_partial_output(result: Any) -> bool:
+    if bool(getattr(result, "success", False)):
+        return False
+    if not bool(getattr(result, "partial", False)):
+        return False
+    if not str(getattr(result, "output", "") or "").strip():
+        return False
+    completion_reason = str(getattr(result, "completion_reason", "") or "").strip()
+    if completion_reason not in _SAFE_PARTIAL_OUTPUT_REASONS:
+        return False
+    result.success = True
+    result.error = ""
+    return True
 
 
 def _normalize_chat_variables(
@@ -279,6 +305,7 @@ class AgentChatCommandService:
         dispatcher = ExecutionDispatcher(service.db)
         result = await dispatcher.dispatch(request, pre_loaded_agent=agent)
 
+        _promote_safe_partial_output(result)
         if not result.success:
             raise BusinessException(
                 message=result.error or _("agent_chat.error.execution_failed")

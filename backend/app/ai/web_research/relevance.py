@@ -4,8 +4,10 @@ Deterministic query-to-evidence relevance gates for WebResearch.
 
 from __future__ import annotations
 
+import calendar
 import re
 from dataclasses import asdict, dataclass, replace
+from datetime import UTC, datetime
 from urllib.parse import urlparse
 
 from app.ai.web_research.evidence import (
@@ -128,6 +130,76 @@ _FASHION_TREND_TERMS = (
     "fall",
     "winter",
 )
+_AI_NEWS_SUBJECT_TERMS = (
+    "ai",
+    "人工智能",
+    "大模型",
+    "生成式人工智能",
+    "openai",
+    "chatgpt",
+    "anthropic",
+    "claude",
+    "gemini",
+    "google",
+    "deepmind",
+    "nvidia",
+    "英伟达",
+    "microsoft",
+    "微软",
+    "meta",
+    "llama",
+    "deepseek",
+    "qwen",
+    "千问",
+    "kimi",
+    "mistral",
+)
+_AI_NEWS_QUERY_TERMS = (
+    "新闻",
+    "资讯",
+    "快讯",
+    "消息",
+    "今日",
+    "今天",
+    "最新",
+    "current",
+    "today",
+    "latest",
+    "news",
+    "breaking",
+)
+_AI_NEWS_EVENT_TERMS = _AI_NEWS_QUERY_TERMS + (
+    "发布",
+    "宣布",
+    "报道",
+    "推出",
+    "上线",
+    "更新",
+    "融资",
+    "监管",
+    "announced",
+    "reported",
+    "launch",
+    "launched",
+    "released",
+    "updated",
+)
+_AI_NEWS_FRESHNESS_TERMS = (
+    "今日",
+    "今天",
+    "刚刚",
+    "最新",
+    "小时前",
+    "分钟前",
+    "天前",
+    "today",
+    "latest",
+    "breaking",
+    "hours ago",
+    "minutes ago",
+    "days ago",
+    "yesterday",
+)
 _FASHION_STYLE_TERMS = (
     "a字裙",
     "a-line",
@@ -193,6 +265,25 @@ _TRUSTED_LEADERBOARD_HOSTS = (
     "superclueai.com",
     "paperswithcode.com",
 )
+_TRUSTED_AI_NEWS_HOSTS = (
+    "reuters.com",
+    "apnews.com",
+    "bloomberg.com",
+    "cnbc.com",
+    "theverge.com",
+    "techcrunch.com",
+    "wired.com",
+    "technologyreview.com",
+    "openai.com",
+    "anthropic.com",
+    "deepmind.google",
+    "blog.google",
+    "nvidia.com",
+    "microsoft.com",
+    "meta.com",
+    "mistral.ai",
+    "deepseek.com",
+)
 _RANK_MARKER_RE = re.compile(
     r"(?i)(?:^|[\s\n，。；;:：])(?:#?\d{1,2}[.)、]|第[一二三四五六七八九十\d]{1,3}|top\s*\d{1,3})"
 )
@@ -239,6 +330,10 @@ def detect_query_profile(query: str) -> str:
         normalized, _LEADERBOARD_QUERY_TERMS
     ):
         return "llm_leaderboard"
+    if _contains_any(normalized, _AI_NEWS_SUBJECT_TERMS) and _contains_any(
+        normalized, _AI_NEWS_QUERY_TERMS
+    ):
+        return "ai_news"
     if _contains_any(normalized, _FASHION_SUBJECT_TERMS) and (
         _contains_any(normalized, _LEADERBOARD_QUERY_TERMS)
         or _contains_any(normalized, _FASHION_TREND_TERMS)
@@ -291,6 +386,15 @@ def evaluate_page_relevance(
             evidence_years=evidence_years,
             source_quality=source_quality,
         )
+    if profile == "ai_news":
+        return _evaluate_ai_news_relevance(
+            profile=profile,
+            text=text,
+            query=_normalize(query),
+            query_years=query_years,
+            evidence_years=evidence_years,
+            source_quality=source_quality,
+        )
     if profile == "leaderboard":
         return _evaluate_generic_leaderboard_relevance(
             profile=profile,
@@ -306,6 +410,85 @@ def evaluate_page_relevance(
         text=text,
         query_years=query_years,
         evidence_years=evidence_years,
+        source_quality=source_quality,
+    )
+
+
+def _evaluate_ai_news_relevance(
+    *,
+    profile: str,
+    text: str,
+    query: str,
+    query_years: set[str],
+    evidence_years: set[str],
+    source_quality: str,
+) -> EvidenceRelevance:
+    subject_matches = _matched_terms(text, _AI_NEWS_SUBJECT_TERMS)
+    event_matches = _matched_terms(text, _AI_NEWS_EVENT_TERMS)
+    freshness_matches = _matched_terms(text, _AI_NEWS_FRESHNESS_TERMS)
+    current_query = _contains_any(query, _AI_NEWS_QUERY_TERMS)
+    stale_years = _stale_evidence_years(evidence_years)
+    has_current_year = _current_year_text() in evidence_years
+    has_current_date = _has_current_date_signal(text)
+    has_freshness_signal = bool(
+        freshness_matches or has_current_year or has_current_date
+    )
+
+    score = 0.0
+    matched_terms: list[str] = []
+    required_terms: list[str] = []
+    if subject_matches:
+        score += 0.3
+        matched_terms.extend(subject_matches[:6])
+    else:
+        required_terms.append("ai_news_subject")
+    if event_matches:
+        score += 0.25
+        matched_terms.extend(event_matches[:6])
+    else:
+        required_terms.append("current_news_event_signal")
+    if query_years:
+        if query_years & evidence_years:
+            score += 0.1
+            matched_terms.extend(sorted(query_years & evidence_years))
+        else:
+            required_terms.append("query_year_match")
+    elif current_query and has_freshness_signal and not stale_years:
+        score += 0.12
+        matched_terms.extend(freshness_matches[:4])
+        if has_current_year:
+            matched_terms.append(_current_year_text())
+        if has_current_date:
+            matched_terms.append("current_date")
+    elif current_query:
+        required_terms.append("current_date_or_current_year_signal")
+    if source_quality == "trusted":
+        score += 0.25
+    elif source_quality == "low":
+        score -= 0.35
+        required_terms.append("trusted_current_news_source")
+    if current_query and stale_years:
+        score -= 0.3
+        required_terms.append("current_date_or_current_year_signal")
+    score = max(0.0, min(1.0, round(score, 3)))
+
+    if required_terms or score < _threshold_for_profile(profile):
+        return EvidenceRelevance(
+            status="low_relevance",
+            score=score,
+            profile=profile,
+            reason="low_query_relevance",
+            matched_terms=_dedupe(matched_terms),
+            required_terms=_dedupe(required_terms),
+            source_quality=source_quality,
+        )
+    return EvidenceRelevance(
+        status="relevant",
+        score=score,
+        profile=profile,
+        reason="query_relevance_passed",
+        matched_terms=_dedupe(matched_terms),
+        required_terms=[],
         source_quality=source_quality,
     )
 
@@ -575,6 +758,8 @@ def _with_relevance(page: PageEvidence, relevance: EvidenceRelevance) -> PageEvi
 def _threshold_for_profile(profile: str) -> float:
     if profile == "llm_leaderboard":
         return 0.58
+    if profile == "ai_news":
+        return 0.55
     if profile == "fashion_trend_ranking":
         return 0.5
     if profile == "leaderboard":
@@ -611,9 +796,54 @@ def _source_quality(url: str) -> str:
         for trusted in _TRUSTED_LEADERBOARD_HOSTS
     ):
         return "trusted"
+    if any(
+        host == trusted or host.endswith(f".{trusted}")
+        for trusted in _TRUSTED_AI_NEWS_HOSTS
+    ):
+        return "trusted"
     if any(host == low or host.endswith(f".{low}") for low in _LOW_TRUST_HOST_SUFFIXES):
         return "low"
     return "neutral"
+
+
+def _stale_evidence_years(evidence_years: set[str]) -> set[str]:
+    current_year = int(_current_year_text())
+    stale: set[str] = set()
+    for raw_year in evidence_years:
+        try:
+            year = int(raw_year)
+        except (TypeError, ValueError):
+            continue
+        if year < current_year:
+            stale.add(raw_year)
+    return stale
+
+
+def _current_year_text() -> str:
+    return str(datetime.now(UTC).year)
+
+
+def _has_current_date_signal(text: str) -> bool:
+    now = datetime.now(UTC)
+    month = now.month
+    day = now.day
+    compact_patterns = (
+        f"{month}月{day}日",
+        f"{month:02d}月{day:02d}日",
+        f"{now.year}-{month:02d}-{day:02d}",
+        f"{now.year}/{month:02d}/{day:02d}",
+    )
+    if any(pattern.casefold() in text for pattern in compact_patterns):
+        return True
+    month_abbr = calendar.month_abbr[month].casefold()
+    month_name = calendar.month_name[month].casefold()
+    english_patterns = (
+        f"{month_abbr} {day}",
+        f"{month_name} {day}",
+        f"{month_abbr} {day}, {now.year}",
+        f"{month_name} {day}, {now.year}",
+    )
+    return any(pattern and pattern in text for pattern in english_patterns)
 
 
 def _generic_query_subject_hits(query: str, text: str) -> int:

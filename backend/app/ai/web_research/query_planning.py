@@ -95,6 +95,14 @@ def build_web_research_query_plan(query: str) -> WebResearchQueryPlan:
             minimum_relevant_sources=2,
             source_quality_floor="relevant_fashion_trend_ranking",
         )
+    if profile == "ai_news":
+        return WebResearchQueryPlan(
+            profile=profile,
+            trusted_seed_candidates=[],
+            search_queries=_ai_news_search_queries(normalized_query),
+            minimum_relevant_sources=2,
+            source_quality_floor="current_trusted_cross_checked_ai_news",
+        )
     return WebResearchQueryPlan(
         profile=profile,
         trusted_seed_candidates=[],
@@ -237,6 +245,14 @@ def _ordered_organic_items(
     plan: WebResearchQueryPlan,
 ) -> list[SearchEvidenceItem]:
     items = sorted(search_results.items, key=lambda result: result.rank)
+    if plan.profile == "ai_news":
+        return sorted(
+            items,
+            key=lambda item: (
+                -_ai_news_candidate_score(item),
+                item.rank,
+            ),
+        )
     if plan.profile != "fashion_trend_ranking":
         return items
     return sorted(
@@ -300,6 +316,101 @@ def _fashion_candidate_score(item: SearchEvidenceItem) -> float:
     return score
 
 
+_AI_NEWS_TRUSTED_HOST_SUFFIXES = (
+    "reuters.com",
+    "apnews.com",
+    "bloomberg.com",
+    "cnbc.com",
+    "theverge.com",
+    "techcrunch.com",
+    "wired.com",
+    "technologyreview.com",
+    "openai.com",
+    "anthropic.com",
+    "deepmind.google",
+    "blog.google",
+    "nvidia.com",
+    "microsoft.com",
+    "meta.com",
+    "mistral.ai",
+    "deepseek.com",
+)
+_AI_NEWS_LOW_TRUST_HOST_SUFFIXES = (
+    "baijiahao.baidu.com",
+    "baijiahao.baidu.cn",
+    "toutiao.com",
+    "sohu.com",
+    "163.com",
+    "qq.com",
+)
+
+
+def _ai_news_candidate_score(item: SearchEvidenceItem) -> float:
+    text = f"{item.title} {item.snippet}".casefold()
+    host = _canonical_netloc(urlsplit(str(item.url or "")).netloc)
+    score = 0.0
+    if _host_matches(host, _AI_NEWS_TRUSTED_HOST_SUFFIXES):
+        score += 3.0
+    if _host_matches(host, _AI_NEWS_LOW_TRUST_HOST_SUFFIXES):
+        score -= 3.0
+    for term in (
+        "ai",
+        "人工智能",
+        "大模型",
+        "openai",
+        "chatgpt",
+        "anthropic",
+        "claude",
+        "gemini",
+        "nvidia",
+        "英伟达",
+        "deepseek",
+        "qwen",
+        "千问",
+    ):
+        if term in text:
+            score += 0.35
+    for term in (
+        "新闻",
+        "资讯",
+        "快讯",
+        "今日",
+        "今天",
+        "latest",
+        "today",
+        "news",
+        "breaking",
+        "announced",
+        "launch",
+        "发布",
+        "宣布",
+        "报道",
+    ):
+        if term in text:
+            score += 0.3
+    for penalty in (
+        "转载",
+        "软文",
+        "投毒",
+        "广告",
+        "黑产",
+        "营销",
+        "早新闻",
+        "daily早新闻",
+        "号",
+    ):
+        if penalty in text:
+            score -= 0.5
+    return score
+
+
+def _host_matches(host: str, suffixes: tuple[str, ...]) -> bool:
+    normalized = str(host or "").casefold()
+    return any(
+        normalized == suffix or normalized.endswith(f".{suffix}") for suffix in suffixes
+    )
+
+
 def _renumber_items(items: list[SearchEvidenceItem]) -> list[SearchEvidenceItem]:
     return [replace(item, rank=index) for index, item in enumerate(items, start=1)]
 
@@ -332,6 +443,16 @@ def _fashion_trend_search_queries(query: str, *, year: str) -> list[str]:
             query,
             english_query,
             chinese_query,
+        ]
+    )
+
+
+def _ai_news_search_queries(query: str) -> list[str]:
+    return _dedupe_text(
+        [
+            query,
+            "今日 AI 新闻 OpenAI NVIDIA 人工智能",
+            "latest AI news today OpenAI NVIDIA artificial intelligence",
         ]
     )
 
