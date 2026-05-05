@@ -714,10 +714,27 @@ commits。PR 审核（parent agent 或人类 reviewer）必须核对这条引用
   - A single stale or low-trust source must not complete the turn.
   - Completed AI-news research must be synthesized into a concise Chinese
     source-labeled summary; fetched article bodies must not be dumped directly.
-- **status**: `red_test_written`
+- **status**: `fixed_with_green_test`
 - **notes**:
-  - RED regression:
+  - RED regression commit:
+    `0540196cb test(ai): reproduce 2315 ai news raw dump failure`.
+  - GREEN implementation commit:
+    `30e13ce0c fix(ai): require cross-checked evidence for ai news research`.
+  - Regression coverage:
     `backend/tests/regressions/test_bug_2026_05_05_2315_ai_news_cross_check.py`.
+  - GREEN targeted matrix:
+    `python -m pytest tests\services\test_agent_chat_command_service_safe_partial.py tests\services\test_turn_failure_normalizer.py tests\regressions\test_bug_2026_05_05_2285_irrelevant_web_research_evidence.py tests\regressions\test_bug_2026_05_05_2293_llm_leaderboard_authority_fallback.py tests\regressions\test_bug_2026_05_05_2305_generic_trend_ranking_search_plan.py tests\regressions\test_bug_2026_05_05_2308_fashion_recovery_answer_quality.py tests\regressions\test_bug_2026_05_05_2311_llm_recovery_answer_quality.py tests\regressions\test_bug_2026_05_05_2315_ai_news_cross_check.py tests\ai\web_research tests\ai\engine\test_turn_executor.py tests\ai\engine\test_cli_conversation_diagnostics.py tests\ai\engine\test_conversation_result_projector.py -q`
+    passed `126`.
+  - Structural checks:
+    `python scripts\check_prompt_contracts.py`, targeted `ruff check`, and
+    targeted `ruff format --check` all passed from `backend/`.
+  - Fresh real-dialogue smoke:
+    conversation `2321`, same prompt family `今日ai新闻查一下`, projected
+    `turn_outcome=partial`, `evidence_status=partial`, `answer_source=none`,
+    `web_research_relevance_profile=ai_news`, and did not leak the rejected
+    NetEase/NVIDIA fetched body into the assistant answer.
+  - Smoke artifact:
+    `.trellis/tasks/05-04-web-research-runtime-rewrite/smoke-runs/2026-05-05-webresearch-2315-ai-news-cross-check/report.md`.
   - This bug is distinct from the 2305/2311 leaderboard/fashion rendering
     issues because the missing contract is current-news source diversity and
     synthesis.

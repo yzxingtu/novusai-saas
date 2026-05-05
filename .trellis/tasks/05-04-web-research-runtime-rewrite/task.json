@@ -134,6 +134,28 @@
         "playwright_screenshot": ".trellis/tasks/05-04-web-research-runtime-rewrite/smoke-runs/2026-05-05-webresearch-2311-llm-answer-quality/playwright-2312-llm-ranking-detail.png",
         "latest_playwright_ui_check": "pass; conversation 2314 detail drawer showed web_research completed, evidence_status=completed, answer_source=fetched_body, Chinese LLM leaderboard answer, and no console errors",
         "note": "Historical 2311 remains the raw-English/numeric-fragment bad-output anchor; fresh 2312 plus latest resmoke 2314 prove current llm_leaderboard answer rendering."
+      },
+      "ai_news_cross_check": {
+        "historical_bad_output_conversation_id": 2315,
+        "fresh_smoke_conversation_id": 2321,
+        "prompt": "今日ai新闻查一下",
+        "status": "pass",
+        "expected_terminal_shape": "safe_partial_when_cross_check_fails",
+        "turn_outcome": "partial",
+        "evidence_status": "partial",
+        "answer_source": "none",
+        "web_research_relevance_profile": "ai_news",
+        "fetched_urls": [],
+        "rejected_urls": [
+          "https://www.nvidia.cn/",
+          "https://www.nvidia.cn/?adid=techblog-costperformance&utm_source=edgehub"
+        ],
+        "red_commit": "0540196cb",
+        "green_commit": "30e13ce0c",
+        "report": ".trellis/tasks/05-04-web-research-runtime-rewrite/smoke-runs/2026-05-05-webresearch-2315-ai-news-cross-check/report.md",
+        "playwright_screenshot": ".trellis/tasks/05-04-web-research-runtime-rewrite/smoke-runs/2026-05-05-webresearch-2315-ai-news-cross-check/playwright-conversation-2321-detail.png",
+        "latest_playwright_ui_check": "pass; conversation 2321 detail drawer showed failure attribution, web_research failed intent state, provider event evidence_status=partial answer_source=none, assistant card 异常, and no raw NetEase or rejected NVIDIA homepage body text.",
+        "note": "Historical 2315 remains the stale NetEase raw-dump bad-output anchor; fresh 2321 proves current AI-news prompts fail closed when public search cannot provide cross-checked current evidence."
       }
     },
     "playwright_smoke": "pass; admin conversations UI opened conversation 2290 and rendered failure attribution as 来源相关性不足, web_research failed, provider event evidence_status=partial answer_source=none, retry return_partial low_query_relevance, and assistant message card 异常; console has no missing i18n key after frontend locale fix",
