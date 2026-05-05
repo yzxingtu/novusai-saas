@@ -6,7 +6,7 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 from app.ai.adapters.openai_compatible import attach_protocol_metadata
-from app.ai.exceptions import AIGatewayError, convert_openai_error
+from app.ai.exceptions import AIGatewayError, convert_openai_error, is_retryable
 from app.ai.types import ChatChunk, ChatMessage, ChatResponse
 from app.core.logging import LogManager
 
@@ -68,14 +68,25 @@ class OpenAIAdapterProtocolEntrypointsMixin:
             model=effective_error_model,
             wire_api=wire_api,
         )
-        logger.error(
-            "Protocol {} error: model={} error={}", operation, model, str(error)
-        )
-        raise convert_openai_error(
+        converted_error = convert_openai_error(
             error,
             provider_code="openai",
             model_code=model,
-        ) from error
+        )
+        log_fn = (
+            logger.warning
+            if isinstance(converted_error, AIGatewayError)
+            and is_retryable(converted_error)
+            else logger.error
+        )
+        log_fn(
+            "Protocol {} error: model={} code={} error={}",
+            operation,
+            model,
+            getattr(converted_error, "error_code", None),
+            str(converted_error),
+        )
+        raise converted_error from error
 
     async def execute_protocol_chat(
         self,

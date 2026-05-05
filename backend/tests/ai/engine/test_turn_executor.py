@@ -280,7 +280,7 @@ async def test_turn_executor_returns_precompleted_cached_shortcircuit_without_pr
 
 
 @pytest.mark.asyncio
-async def test_turn_executor_runs_post_tool_follow_up_when_batch_returns_no_final_text() -> (
+async def test_turn_executor_runs_time_shortcircuit_without_provider_call_for_conversation_2345() -> (
     None
 ):
     tools = [ToolDefinition(name="get_current_time", description="Time")]
@@ -310,19 +310,7 @@ async def test_turn_executor_runs_post_tool_follow_up_when_batch_returns_no_fina
     )
     state = ExecutionStateMachine.from_prepared_execution(prep)
     io = _FakeIOAdapter(
-        model_rounds=[
-            _assistant_response(
-                "",
-                tool_calls=[
-                    {
-                        "id": "call_time",
-                        "type": "function",
-                        "function": {"name": "get_current_time", "arguments": "{}"},
-                    }
-                ],
-            ),
-            _assistant_response("现在是 09:30。"),
-        ],
+        model_rounds=[],
         tool_batch=ToolBatchResult(
             response=None,
             tool_results=[
@@ -333,8 +321,8 @@ async def test_turn_executor_runs_post_tool_follow_up_when_batch_returns_no_fina
                     output="2026-04-07 09:30:00 Tuesday",
                 )
             ],
-            total_tokens=7,
-            completion_tokens_used=7,
+            total_tokens=0,
+            completion_tokens_used=0,
         ),
     )
 
@@ -349,7 +337,99 @@ async def test_turn_executor_runs_post_tool_follow_up_when_batch_returns_no_fina
         agent=SimpleNamespace(id=1),
     )
 
-    assert result.output == "现在是 09:30。"
+    assert result.output == "现在是 2026-04-07 09:30:00 Tuesday。"
+    assert result.total_tokens == 0
+    assert result.completion_tokens_used == 0
+    assert result.final_output_source == "recovery_evidence"
+    assert io.call_history == []
+    assert len(io.tool_call_history) == 1
+    assert (
+        io.tool_call_history[0]["response"].metadata[
+            "deterministic_shortcircuit_tool_call"
+        ]
+        is True
+    )
+    assert (
+        state.preparation_diagnostics["deterministic_shortcircuit_intent_kind"]
+        == "time_query"
+    )
+    assert all(
+        event.data.get("round_kind") != "normal_follow_up_round"
+        for event in state.turn_events
+        if event.kind == "turn.round_started"
+    )
+
+
+@pytest.mark.asyncio
+async def test_turn_executor_keeps_post_tool_follow_up_for_non_deterministic_tools() -> (
+    None
+):
+    tools = [ToolDefinition(name="crm_lookup", description="Lookup CRM record")]
+    intents = [
+        IntentPlan(
+            intent_id="intent-crm",
+            kind="crm_lookup",
+            family="crm",
+            order=1,
+            user_visible_label="CRM lookup",
+            source_text="查一下客户状态",
+            allowed_tool_names=["crm_lookup"],
+            preferred_tool_names=["crm_lookup"],
+        )
+    ]
+    prep = _build_prep(
+        tools=tools,
+        intents=intents,
+        tool_use_policy=ToolUsePolicy(
+            family="crm",
+            mode="required",
+            allowed_tool_names=["crm_lookup"],
+            retry_on_contract_breach=False,
+            reason="crm_lookup",
+        ),
+    )
+    state = ExecutionStateMachine.from_prepared_execution(prep)
+    io = _FakeIOAdapter(
+        model_rounds=[
+            _assistant_response(
+                "",
+                tool_calls=[
+                    {
+                        "id": "call_crm",
+                        "type": "function",
+                        "function": {"name": "crm_lookup", "arguments": "{}"},
+                    }
+                ],
+            ),
+            _assistant_response("客户状态是 active。"),
+        ],
+        tool_batch=ToolBatchResult(
+            response=None,
+            tool_results=[
+                ToolResult(
+                    tool_call_id="call_crm",
+                    name="crm_lookup",
+                    success=True,
+                    output="active",
+                )
+            ],
+            total_tokens=7,
+            completion_tokens_used=7,
+        ),
+    )
+
+    result = await TurnExecutor.run(
+        state=state,
+        io=io,
+        prep=prep,
+        request=SimpleNamespace(
+            input_variables={},
+            conversation_id=22,
+        ),
+        agent=SimpleNamespace(id=1),
+    )
+
+    assert result.output == "客户状态是 active。"
     assert len(io.call_history) == 2
     assert io.call_history[1]["breach_retry_result"] == "normal_follow_up_round"
     assert io.call_history[1]["tools"] is None

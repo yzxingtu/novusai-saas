@@ -16,6 +16,7 @@ from .final_output_policy import (
 )
 from .recovery_manager import RecoveryManager
 from .turn_executor_tool_batch import (
+    build_shortcircuit_fallback_response,
     execute_tool_batch,
     run_contract_retry_round,
     run_tool_batch_or_update_intents,
@@ -394,6 +395,10 @@ async def finalize_turn_execution(
             )
             if str(output or "").strip():
                 final_output_source = "tool_evidence_completed"
+                if state.preparation_diagnostics.get(
+                    "deterministic_shortcircuit_tool_call"
+                ):
+                    final_output_source = "recovery_evidence"
 
     state.preparation_diagnostics["final_output_source"] = final_output_source
     state.preparation_diagnostics["post_tool_completion_state"] = (
@@ -539,6 +544,28 @@ class _TurnRunLoop:
             },
         )
 
+    def _apply_deterministic_tool_shortcircuit(self) -> bool:
+        synthetic_response = build_shortcircuit_fallback_response(
+            intent=self.intent,
+            response=None,
+            tools=self.active_tools,
+            total_tokens=0,
+            completion_tokens_used=0,
+        )
+        if synthetic_response is None:
+            return False
+
+        synthetic_response.metadata = dict(synthetic_response.metadata or {})
+        synthetic_response.metadata["deterministic_shortcircuit_tool_call"] = True
+        self.state.preparation_diagnostics["deterministic_shortcircuit_tool_call"] = (
+            True
+        )
+        self.state.preparation_diagnostics["deterministic_shortcircuit_intent_kind"] = (
+            getattr(self.intent, "kind", None)
+        )
+        self.response = synthetic_response
+        return True
+
     async def _run_missing_args_clarification(self, intent: Any) -> None:
         missing_args = intent_missing_args(intent)
         decision = RecoveryDecision(
@@ -620,6 +647,9 @@ class _TurnRunLoop:
         shortcircuit_intent = cached_shortcircuit_intent(self.state)
         if shortcircuit_intent is not None:
             self._apply_cached_shortcircuit(shortcircuit_intent)
+            return
+
+        if self._apply_deterministic_tool_shortcircuit():
             return
 
         model_round = await self.io.call_llm(
@@ -789,6 +819,10 @@ class _TurnRunLoop:
             self.decision = self._decide_recovery()
 
     def _should_run_post_tool_follow_up_round(self) -> bool:
+        if self.state.preparation_diagnostics.get(
+            "deterministic_shortcircuit_tool_call"
+        ):
+            return False
         return bool(
             self.decision is None
             and self.tool_results

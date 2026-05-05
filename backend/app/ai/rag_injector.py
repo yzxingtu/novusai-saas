@@ -18,9 +18,25 @@ if TYPE_CHECKING:
 
 from app.ai.context.budget_manager import get_budget_limit
 from app.ai.types import ChatMessage
+from app.core.i18n import _
 from app.core.logging import LogManager
+from app.exceptions import BusinessException
 
 logger = LogManager.get_logger("ai.rag_injector")
+
+
+def _rag_unavailable_message_candidates() -> set[str]:
+    return {
+        str(_("ai.no_api_key") or "").strip(),
+        str(_("ai.api_key_unavailable") or "").strip(),
+        str(_("ai.error.embedding_model_not_configured") or "").strip(),
+        str(_("ai.error.embedding_provider_not_found") or "").strip(),
+    }
+
+
+def _is_rag_unavailable_error(exc: BusinessException) -> bool:
+    message = str(getattr(exc, "message", None) or exc).strip()
+    return bool(message and message in _rag_unavailable_message_candidates())
 
 
 def merge_kb_ids(
@@ -284,6 +300,20 @@ async def inject_rag_context(
 
         return messages, sources
 
+    except BusinessException as exc:
+        if _is_rag_unavailable_error(exc):
+            logger.info(
+                "RAG injection skipped for agent {}: {}",
+                agent.id,
+                str(exc),
+            )
+            return messages, None
+        logger.warning(
+            "RAG injection failed for agent {}: {}",
+            agent.id,
+            str(exc),
+        )
+        return messages, None
     except Exception as exc:
         logger.warning(
             "RAG injection failed for agent {}: {}",

@@ -1,12 +1,25 @@
+"""
+Test type: behavioral
+中文: 覆盖 OpenAI-compatible 协议入口的路由和可重试错误日志等级。
+EN: Covers OpenAI-compatible protocol entrypoint routing and retryable-error log levels.
+Scope: OpenAI-compatible protocol entrypoint routing and retryable-error logging.
+Real dependencies: protocol entrypoint branching and provider-error conversion
+control flow run real code.
+Mocked dependencies: provider protocol calls are local async fakes; no network call
+or hand-authored LLM response body is used for behavioral assertions.
+"""
+
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
 
 import app.ai.adapters.openai_compatible.support.protocol_entrypoints as protocol_entrypoints_module
 from app.ai.adapters.openai_adapter import OpenAIAdapter
+from app.ai.exceptions import ProviderConnectionError
 from app.ai.types import ChatChunk, ChatMessage, ChatResponse
 
 
@@ -173,6 +186,68 @@ async def test_execute_protocol_chat_responses_only_provider_never_hits_chat_com
         )
 
     adapter._chat_via_chat_completions.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_execute_protocol_chat_logs_retryable_connection_error_as_warning_for_conversation_2345(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    adapter = _make_adapter(
+        provider_config={
+            "wire_api": "responses",
+            "protocol_capabilities": {"allowed_wire_apis": ["responses"]},
+        }
+    )
+    captured_logs: dict[str, list[tuple[object, ...]]] = {
+        "warning": [],
+        "error": [],
+    }
+
+    async def _failing_responses(**kwargs):
+        _ = kwargs
+        raise RuntimeError("raw connection failed")
+
+    def _convert_retryable(error, **kwargs):
+        _ = kwargs
+        return ProviderConnectionError(str(error))
+
+    def _ignore_upstream_error(*_args, **_kwargs) -> None:
+        return None
+
+    adapter._chat_via_responses = _failing_responses  # type: ignore[method-assign]
+    adapter._log_upstream_error = _ignore_upstream_error  # type: ignore[method-assign]
+    monkeypatch.setattr(
+        protocol_entrypoints_module,
+        "convert_openai_error",
+        _convert_retryable,
+    )
+    monkeypatch.setattr(
+        protocol_entrypoints_module,
+        "logger",
+        SimpleNamespace(
+            warning=lambda *args: captured_logs["warning"].append(args),
+            error=lambda *args: captured_logs["error"].append(args),
+        ),
+    )
+
+    with pytest.raises(ProviderConnectionError, match="raw connection failed"):
+        await adapter.execute_protocol_chat(
+            wire_api="responses",
+            messages=[ChatMessage(role="user", content="hello")],
+            model="gpt-5.5",
+        )
+
+    assert captured_logs["error"] == []
+    assert captured_logs["warning"]
+    assert captured_logs["warning"][0][0] == (
+        "Protocol {} error: model={} code={} error={}"
+    )
+    assert captured_logs["warning"][0][1:] == (
+        "chat",
+        "gpt-5.5",
+        "provider_connection_error",
+        "raw connection failed",
+    )
 
 
 @pytest.mark.asyncio

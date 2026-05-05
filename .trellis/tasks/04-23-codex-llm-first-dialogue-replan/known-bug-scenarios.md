@@ -40,6 +40,37 @@ commits。PR 审核（parent agent 或人类 reviewer）必须核对这条引用
 
 ---
 
+### BUG-2026-05-06-2345-time-shortcircuit-provider-call 时间查询已命中 get_current_time，却仍然依赖上游模型
+
+- **reporter**: user
+- **report_date**: 2026-05-06
+- **reproduction_prompt**: `现在是几点钟 ？`
+- **preconditions**:
+  - `conversation_id=2345`
+  - agent: `猫娘智能体` (`agent_id=59`)
+  - only live runtime tool inventory: `get_current_time`
+  - intent plan: `time_query`, `family=time_ops`, `shortcircuit=true`
+- **current_wrong_behavior**:
+  - CLI diagnostics for conversation 2345 show `completed_by_tool_names=["get_current_time"]`
+  - the same turn still recorded `protocol_path="responses"`
+  - budget usage still included `prompt_tokens_used=1062` and `completion_tokens_used=124`
+  - final metadata showed `final_output_source="assistant"` and `post_tool_completion_state="llm_follow_up"`
+  - user-visible console also contained upstream provider connection/retry logs around the same dialogue sequence
+- **expected_behavior**:
+  - deterministic `time_query` should execute the platform built-in `get_current_time` directly
+  - no initial provider call is needed before the local tool runs
+  - no post-tool model follow-up is needed to format the final time answer
+  - final output should be deterministic trusted tool evidence, not upstream assistant text
+- **status**: `fixed_with_green_test`
+- **fixed_by_regression**:
+  - `backend/tests/regressions/test_bug_2026_05_06_2345_time_shortcircuit_provider_call.py`
+- **notes**:
+  - This fix is intentionally scoped to `time_query + get_current_time`.
+  - Generic business tools still keep the normal post-tool LLM follow-up path when they need natural-language synthesis.
+  - Retired online-search paths (`web_search`, `fetch_url`, hosted/native search) are not involved and must not be restored.
+
+---
+
 ### BUG-2026-04-24-001 上游 502 后用户卡死 3+ 分钟，最终被 HTTP 取消，无 partial / failover / interruption
 
 - **reporter**: user

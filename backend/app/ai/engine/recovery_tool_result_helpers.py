@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from app.ai.tools.types import ToolResult
 from app.ai.types import ChatMessage
+from app.core.i18n import _
 
 from .recovery_result_normalizer import RecoveryResultNormalizer
 from .types import IntentPlan
@@ -106,6 +107,12 @@ def intent_result_from_tool_results(
                     candidate
                 )
                 if normalized:
+                    if (
+                        str(intent.kind or "").strip() == "time_query"
+                        and name == "get_current_time"
+                        and not normalized.startswith("现在是")
+                    ):
+                        normalized = _("现在是 {time}。").format(time=normalized)
                     if normalized not in normalized_results:
                         normalized_results.append(normalized)
                     break
