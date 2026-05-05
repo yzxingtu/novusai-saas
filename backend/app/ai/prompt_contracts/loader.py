@@ -82,6 +82,11 @@ class PromptContractName(StrEnum):
         "hosted_web_search_candidate_instructions"
     )
 
+    # --- Rich-text editor AI actions / 富文本编辑器 AI 动作 ---
+    RICH_TEXT_AI_ACTION_SYSTEM = "rich_text_ai_action_system"
+    RICH_TEXT_AI_ACTION_USER = "rich_text_ai_action_user"
+    RICH_TEXT_AI_ACTION_ENVELOPE = "rich_text_ai_action_envelope"
+
 
 @dataclass(frozen=True)
 class PromptContractSpec:
@@ -238,6 +243,22 @@ _PROMPT_CONTRACTS: dict[str, PromptContractSpec] = {
             template_name="hosted_web_search_candidate_instructions.md",
             description="Instructions for hosted Responses API web search candidates.",
         )
+    ),
+    # --- Rich-text editor AI actions / 富文本编辑器 AI 动作 ---
+    PromptContractName.RICH_TEXT_AI_ACTION_SYSTEM.value: PromptContractSpec(
+        name=PromptContractName.RICH_TEXT_AI_ACTION_SYSTEM,
+        template_name="rich_text_ai_action_system.md",
+        description="System instructions for explicit rich-text editor AI actions.",
+    ),
+    PromptContractName.RICH_TEXT_AI_ACTION_USER.value: PromptContractSpec(
+        name=PromptContractName.RICH_TEXT_AI_ACTION_USER,
+        template_name="rich_text_ai_action_user.md",
+        description="User prompt body for explicit rich-text editor AI actions.",
+    ),
+    PromptContractName.RICH_TEXT_AI_ACTION_ENVELOPE.value: PromptContractSpec(
+        name=PromptContractName.RICH_TEXT_AI_ACTION_ENVELOPE,
+        template_name="rich_text_ai_action_envelope.md",
+        description="Ephemeral AgentChat request envelope for rich-text editor AI actions.",
     ),
 }
 

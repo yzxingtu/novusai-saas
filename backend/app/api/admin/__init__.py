@@ -38,7 +38,6 @@ from app.api.admin.ai_runtime import AdminAIRuntimeController
 from app.api.admin.ai_runtime import router as ai_runtime_router
 from app.api.admin.ai_usage import AdminAIUsageController
 from app.api.admin.ai_usage import router as ai_usage_router
-from app.api.admin.ai_writing import router as ai_writing_router
 from app.api.admin.analytics import router as analytics_router
 from app.api.admin.announcement import AdminAnnouncementController
 from app.api.admin.announcement import router as announcement_router
@@ -177,8 +176,8 @@ admin_router.include_router(preferences_router)
 admin_router.include_router(notification_templates_router)
 # 插件管理 / Plugin management
 admin_router.include_router(plugins_router)
-# AI 写作 / AI Writing
-admin_router.include_router(ai_writing_router)
+# 中文: 富文本 AI 独立写作路由已退役，不再挂载到公开 admin API。
+# EN: Standalone rich-text AI writing routes are retired and no longer mounted.
 # 缓存管理 / Cache management
 admin_router.include_router(cache_router)
 # 代码生成器 / Codegen (DEBUG only)

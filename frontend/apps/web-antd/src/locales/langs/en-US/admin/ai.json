@@ -1269,6 +1269,140 @@
       },
       "runtimeTruthHint": "SkillPackage provides grouping, source attribution, and catalog display; the agent runtime actually receives capabilities through direct skill grants, not package-level auto-binding."
     },
+    "richTextAi": {
+      "tab": "Document Writing Assistant",
+      "configBtn": "Document Writing Assistant",
+      "runtimeHint": "Document Writing Assistant uses system.ai_writing",
+      "runtimeDescription": "Rich-text right-click writing always calls /ai/writing/{action} through the agent bound to system.ai_writing in agent assignments. Configure the document writing assistant on the feature assignment page.",
+      "noAgent": "No agent bound",
+      "stats": {
+        "contextActions": "Context Actions",
+        "backendActions": "Backend Actions",
+        "formatPresets": "Format Presets",
+        "assignedAgent": "Assigned Agent"
+      },
+      "assignmentTitle": "Agent Assignment",
+      "assignmentDesc": "Bind an agent to system.ai_writing on the feature assignment page. The document writing assistant uses the resolved agent for continuation, rewriting, and content expansion.",
+      "featureCode": "Feature Code",
+      "primaryFeature": "Runtime Feature",
+      "resolvedFeature": "Resolved Feature",
+      "assignedAgent": "Current Assigned Agent",
+      "configureAgent": "Configure Agent",
+      "contractTitle": "Backend Contract",
+      "contractDesc": "Shared frontend types keep action/type names aligned with the backend ai_writing service and do not use editor DOM or page-runtime tools.",
+      "endpointPattern": "Example Endpoint",
+      "requestFields": "Request Fields",
+      "runtimeBoundary": "Runtime Boundary",
+      "noPageRuntime": "Do not inject page_context, page_session_id, ui_*, or editor_* tools. Selection text is explicitly submitted by the rich text component to the backend writing endpoint.",
+      "actionsTitle": "Default Action Templates",
+      "actionsDesc": "These templates can be reused by rich text context menus or future editor integrations. Runtime enablement is decided by the caller's permissions and editor state.",
+      "requiresSelection": "Requires Selection",
+      "selectionOptional": "Selection Optional",
+      "supportsFormat": "Supports Format",
+      "notInContextMenu": "Not in Context Menu",
+      "formatTitle": "Format Requirement Templates",
+      "formatDesc": "format_instruction is sent with the writing request to constrain formatted insertion, lists, headings, and plain-text output.",
+      "assignmentStatus": {
+        "active_assigned": "Active + Assigned",
+        "inactive": "Assignment Inactive",
+        "unassigned": "Unassigned",
+        "unresolved": "Resolve Failed"
+      },
+      "operationKinds": {
+        "assist": "Assist Chat",
+        "format": "Format",
+        "insert": "Insert/Add",
+        "summarize": "Summarize",
+        "transform": "Transform",
+        "translate": "Translate"
+      },
+      "applyModes": {
+        "append_to_document": "Append to Document",
+        "copy_only": "Copy Only",
+        "insert_after_selection": "Insert After Selection",
+        "insert_at_cursor": "Insert at Cursor",
+        "replace_selection": "Replace Selection"
+      },
+      "actions": {
+        "continue": {
+          "label": "Continue",
+          "description": "Naturally continues from surrounding context and can be used as the default add-after-selection action.",
+          "prompt": "Sends before_text, after_text, and context_title by default; backend action=continue."
+        },
+        "insert": {
+          "label": "Insert Content",
+          "description": "Creates new editor-ready content at the cursor from an explicit instruction.",
+          "prompt": "Requires instruction by default and may include before_text/after_text; backend action=insert."
+        },
+        "format": {
+          "label": "Add Formatting",
+          "description": "Applies requested headings, lists, quotes, or structured formatting to selected text without adding unsupported facts.",
+          "prompt": "Requires format_instruction or instruction by default; backend action=format."
+        },
+        "optimize": {
+          "label": "Optimize",
+          "description": "Improves clarity, concision, and readability while preserving meaning.",
+          "prompt": "Uses selected_text as the primary input; backend action=optimize."
+        },
+        "proofread": {
+          "label": "Proofread",
+          "description": "Fixes grammar, spelling, punctuation, and obvious wording mistakes without restructuring by default.",
+          "prompt": "Replaces the original selection by default; backend action=proofread."
+        },
+        "translate": {
+          "label": "Translate",
+          "description": "Translates selected text to the target language while preserving terms, numbers, and URLs.",
+          "prompt": "Uses target_lang to control output language; backend action=translate."
+        },
+        "summarize": {
+          "label": "Summarize",
+          "description": "Extracts key points from selected text and is suitable for insertion after the source content.",
+          "prompt": "Defaults to one-line summary plus bullet points; backend action=summarize."
+        },
+        "expand": {
+          "label": "Expand",
+          "description": "Adds details, examples, or arguments while preserving the original style.",
+          "prompt": "Replaces the original selection by default; backend action=expand."
+        },
+        "rewrite": {
+          "label": "Rewrite",
+          "description": "Rephrases selected text with different wording while preserving core meaning and similar length.",
+          "prompt": "Replaces the original selection by default; backend action=rewrite."
+        },
+        "custom": {
+          "label": "Custom Instruction",
+          "description": "Processes selection or context according to the user's instruction.",
+          "prompt": "Sends selected_text and instruction by default; backend action=custom."
+        },
+        "chat": {
+          "label": "Writing Chat",
+          "description": "Supports sidebar or conversational writing advice and is not in the context menu by default.",
+          "prompt": "Uses instruction and history by default; backend action=chat."
+        }
+      },
+      "formatPresets": {
+        "preserve_structure": {
+          "label": "Preserve Structure",
+          "description": "Keeps original paragraphs, lists, and heading hierarchy as much as possible.",
+          "instruction": "Preserve the original paragraph, list, heading, and emphasis structure."
+        },
+        "plain_text": {
+          "label": "Plain Text",
+          "description": "Outputs plain text without extra Markdown or HTML decoration.",
+          "instruction": "Output plain text only, without Markdown, HTML, or extra explanation."
+        },
+        "bullet_list": {
+          "label": "Bullet List",
+          "description": "Organizes the result as a concise bullet list.",
+          "instruction": "Use a bullet list; keep every item concise and actionable."
+        },
+        "structured_sections": {
+          "label": "Section Headings",
+          "description": "Outputs structured paragraphs with headings, suitable for expansion or plans.",
+          "instruction": "Use clear section headings and short paragraphs with consistent hierarchy."
+        }
+      }
+    },
     "valves": {
       "configBtn": "Env Config",
       "title": "Environment Variable Configuration",

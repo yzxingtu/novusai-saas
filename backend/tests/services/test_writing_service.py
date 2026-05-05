@@ -1,24 +1,17 @@
-"""Writing service unit tests / AI 写作服务单元测试。"""
+"""Test type: behavioral
+中文: 覆盖富文本 AI action 校验与全局 AgentChat 消息模板，不覆盖独立 SSE 写作流。
+EN: Covers rich-text AI action validation and global AgentChat message template
+behavior; no standalone writing SSE runtime is exercised.
+Real dependencies: rich-text prompt-contract rendering and AgentChatRequest schema.
+Mocked dependencies: none.
+"""
 
 from __future__ import annotations
-
-from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 
-async def _iter_chunks(chunks):
-    for chunk in chunks:
-        yield chunk
-
-
-def _build_sse_response(*chunks):
-    return SimpleNamespace(body_iterator=_iter_chunks(chunks))
-
-
 class TestBuildAiMessages:
-
     def test_build_ai_messages_truncates_inputs_and_keeps_last_10_history(self):
         from app.services.ai.writing_service import (
             MAX_AFTER_TEXT,
@@ -50,83 +43,101 @@ class TestBuildAiMessages:
         ]
         assert messages[-1]["content"] == "i" * MAX_INSTRUCTION
 
-    def test_build_ai_messages_uses_custom_defaults_for_unknown_feature(self):
+    def test_more_alias_maps_to_expand_contract(self):
+        from app.services.ai.writing_service import (
+            is_valid_writing_action,
+            normalize_writing_action,
+        )
+
+        assert is_valid_writing_action("more") is True
+        assert normalize_writing_action("more") == "expand"
+
+    def test_build_ai_messages_rejects_unknown_feature(self):
+        from app.exceptions import ValidationException
         from app.services.ai.writing_service import build_ai_messages
 
-        messages = build_ai_messages("unknown-feature")
+        with pytest.raises(ValidationException) as exc_info:
+            build_ai_messages("unknown-feature")
 
-        assert messages[0]["role"] == "system"
-        assert "自定义指令" in messages[0]["content"]
-        assert "Untitled" in messages[-1]["content"]
-        assert "(no selection)" in messages[-1]["content"]
+        assert exc_info.value.status_code == 422
+        assert "unknown-feature" in exc_info.value.message
+
+    def test_rewrite_requires_selected_text(self):
+        from app.exceptions import ValidationException
+        from app.services.ai.writing_service import build_ai_messages
+
+        with pytest.raises(ValidationException) as exc_info:
+            build_ai_messages("rewrite", selected_text="   ")
+
+        assert exc_info.value.data is not None
+        errors = exc_info.value.data["errors"]
+        assert errors == [
+            {
+                "loc": ["selected_text"],
+                "msg": exc_info.value.message,
+                "type": "value_error",
+            }
+        ]
+        assert "rewrite" in exc_info.value.message
 
 
-class TestStreamWritingFeature:
-
-    @pytest.mark.asyncio
-    async def test_stream_writing_feature_yields_message_deltas(self, mock_db):
-        from app.services.ai.writing_service import stream_writing_feature
-
-        chat_service = MagicMock()
-        chat_service.stream_chat_ephemeral = AsyncMock(
-            return_value=_build_sse_response(
-                b'data: {"event":"message","delta":"Hello "}\n\n',
-                b'data: {"event":"message","delta":"world"}\n\n',
-                b"data: [DONE]\n\n",
-            )
+class TestRichTextAgentChatMessage:
+    def test_builds_message_accepted_by_global_agent_chat_request(self) -> None:
+        from app.schemas.ai.agent_chat import AgentChatRequest
+        from app.services.ai.writing_service import (
+            FEATURE_CODE,
+            build_rich_text_agent_chat_message,
         )
 
-        with patch(
-            "app.services.ai.writing_service._resolve_writing_agent",
-            new=AsyncMock(return_value=42),
-        ), patch(
-            "app.services.ai.agent_chat_service.AgentChatService",
-            return_value=chat_service,
-        ):
-            chunks = [
-                chunk
-                async for chunk in stream_writing_feature(
-                    mock_db,
-                    tenant_id=7,
-                    feature="translate",
-                    body={
-                        "selected_text": "hello",
-                        "target_lang": "Chinese",
-                        "format_instruction": "return plain text",
-                    },
-                )
-            ]
-
-        assert "".join(chunks) == "Hello world"
-        chat_service.stream_chat_ephemeral.assert_awaited_once()
-        request_message = chat_service.stream_chat_ephemeral.await_args.kwargs["message"]
-        assert "[Task Instructions]" in request_message
-        assert "[Format Requirement]" in request_message
-        assert "[User Request]" in request_message
-
-    @pytest.mark.asyncio
-    async def test_stream_writing_feature_raises_on_error_event(self, mock_db):
-        from app.exceptions import BusinessException
-        from app.services.ai.writing_service import stream_writing_feature
-
-        chat_service = MagicMock()
-        chat_service.stream_chat_ephemeral = AsyncMock(
-            return_value=_build_sse_response(
-                b'data: {"error":true,"message":"upstream failed"}\n\n',
-            )
+        message = build_rich_text_agent_chat_message(
+            "rewrite",
+            {
+                "selected_text": "原始内容",
+                "before_text": "标题",
+                "after_text": "结尾",
+                "document_title": "Demo Doc",
+                "format_instruction": "保留项目符号",
+            },
+        )
+        request = AgentChatRequest.model_validate(
+            {
+                "message": message,
+                "selected_skill_names": ["novusdoc.rich_text_ai.actions"],
+            }
         )
 
-        with patch(
-            "app.services.ai.writing_service._resolve_writing_agent",
-            new=AsyncMock(return_value=9),
-        ), patch(
-            "app.services.ai.agent_chat_service.AgentChatService",
-            return_value=chat_service,
-        ), pytest.raises(BusinessException, match="upstream failed"):
-            async for _chunk in stream_writing_feature(
-                mock_db,
-                tenant_id=None,
-                feature="optimize",
-                body={"selected_text": "draft"},
-            ):
-                pass
+        assert FEATURE_CODE == "system.ai_writing"
+        assert request.message == message
+        assert "[Task Instructions]" in request.message
+        assert "[Format Requirement]" in request.message
+        assert "原始内容" in request.message
+        assert "保留项目符号" in request.message
+        assert "system.ai_writing" not in request.message
+        assert "plugin.novusdoc.rich_text_ai" not in request.message
+
+    def test_agent_chat_message_builder_rejects_page_context_fields_by_schema(
+        self,
+    ) -> None:
+        from pydantic import ValidationError
+
+        from app.api.admin.ai_writing import AIWritingRequest
+
+        with pytest.raises(ValidationError) as exc_info:
+            AIWritingRequest.model_validate(
+                {
+                    "selected_text": "hello",
+                    "page_context": {"url": "/admin/plugins/novusdoc/editor/9"},
+                }
+            )
+
+        errors = exc_info.value.errors()
+        assert len(errors) == 1
+        assert errors[0]["type"] == "extra_forbidden"
+        assert errors[0]["loc"] == ("page_context",)
+
+    def test_standalone_stream_runtime_is_not_exported(self) -> None:
+        import app.services.ai.writing_service as writing_service
+
+        assert "stream_writing_feature" not in writing_service.__all__
+        assert not hasattr(writing_service, "stream_writing_feature")
+        assert not hasattr(writing_service, "_resolve_writing_agent")

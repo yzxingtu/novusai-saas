@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from app.ai.prompt_contracts.loader import PromptContractName, _PROMPT_CONTRACTS
+from app.ai.prompt_contracts.loader import _PROMPT_CONTRACTS, PromptContractName
 
 
 def test_prompt_contract_registry_matches_enum_and_resource_files() -> None:

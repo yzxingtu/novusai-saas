@@ -1,3 +1,6 @@
+// Test type: behavioral
+// Verifies: NovusDoc editor/list permission gates and platform RichTextEditor aiWriting mount contract.
+// Mock strategy: transport/API modules and imperative editor mount are mocked; page permission and mount wiring run real.
 import { mount } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -24,9 +27,22 @@ const accessState = {
   codes: [] as string[],
 };
 
+const mockSelection = {
+  afterText: ' after',
+  beforeText: 'before ',
+  empty: false,
+  from: 3,
+  revision: 1,
+  selectedText: 'selected text',
+  to: 16,
+};
+
 const mockEditor = {
+  applyContent: vi.fn(),
   getJSON: vi.fn(() => ({})),
   getHTML: vi.fn(() => '<p></p>'),
+  getRevision: vi.fn(() => 1),
+  getSelectionSnapshot: vi.fn(() => mockSelection),
   getText: vi.fn(() => 'Sample text'),
   setContent: vi.fn(),
   focus: vi.fn(),
@@ -86,7 +102,7 @@ async function flushUi(ms = 0) {
 
 describe('NovusDoc permission bridge', () => {
   beforeEach(() => {
-    history.replaceState({}, '', '/tenant/plugins/novusdoc');
+    history.replaceState({}, '', '/tenant/plugins/novusdoc/editor/42');
     setAccessCodes([]);
     installSharedApi();
 
@@ -143,6 +159,13 @@ describe('NovusDoc permission bridge', () => {
     apiMocks.exportDocumentAsBlob.mockResolvedValue(new Blob(['doc']));
 
     Object.values(sharedSpies).forEach((spy) => spy.mockClear());
+    Object.values(mockEditor).forEach((value) => {
+      if (typeof value === 'function' && 'mockClear' in value) {
+        value.mockClear();
+      }
+    });
+    mockEditor.getSelectionSnapshot.mockReturnValue(mockSelection);
+    mockEditor.getText.mockReturnValue('Sample text');
   });
 
   afterEach(() => {
@@ -200,7 +223,7 @@ describe('NovusDoc permission bridge', () => {
     );
   });
 
-  it('mounts a read-only editor for view-only access', async () => {
+  it('mounts a read-only editor with platform AI writing disabled for view-only access', async () => {
     setAccessCodes(['plugin.novusdoc.novusdoc_portal:view']);
 
     const wrapper = mount(DocumentEditor, {
@@ -212,7 +235,17 @@ describe('NovusDoc permission bridge', () => {
     expect(apiMocks.getDoc).toHaveBeenCalledWith(42);
     expect(sharedSpies.mountRichTextEditor).toHaveBeenCalledWith(
       expect.any(HTMLElement),
-      expect.objectContaining({ editable: false }),
+      expect.objectContaining({
+        editable: false,
+        aiWriting: expect.objectContaining({
+          apiPrefix: '/tenant',
+          canConfigure: false,
+          documentTitle: 'Read only doc',
+          enabled: false,
+          featureCode: 'system.ai_writing',
+          i18nPrefix: 'plugin.novusdoc.ai',
+        }),
+      }),
     );
     expect(
       wrapper.get('[data-testid="novusdoc-editor-title"]').attributes(
@@ -223,6 +256,45 @@ describe('NovusDoc permission bridge', () => {
       false,
     );
     expect(wrapper.find('[data-testid="novusdoc-export-menu"]').exists()).toBe(
+      false,
+    );
+    expect(wrapper.find('[data-testid="novusdoc-ai-context-menu"]').exists()).toBe(
+      false,
+    );
+  });
+
+  it('mounts an editable editor with explicit system.ai_writing assignment config', async () => {
+    setAccessCodes([
+      'plugin.novusdoc.novusdoc_portal:view',
+      'plugin.novusdoc.novusdoc_portal:update',
+    ]);
+
+    const wrapper = mount(DocumentEditor, {
+      attachTo: document.body,
+      props: { id: '42' },
+    });
+    await flushUi(120);
+
+    expect(sharedSpies.mountRichTextEditor).toHaveBeenCalledWith(
+      expect.any(HTMLElement),
+      expect.objectContaining({
+        editable: true,
+        mode: 'full',
+        upload: true,
+        aiWriting: expect.objectContaining({
+          apiPrefix: '/tenant',
+          canConfigure: false,
+          documentTitle: 'Read only doc',
+          enabled: true,
+          featureCode: 'system.ai_writing',
+          i18nPrefix: 'plugin.novusdoc.ai',
+        }),
+      }),
+    );
+    expect(wrapper.find('[data-testid="novusdoc-toggle-status"]').exists()).toBe(
+      true,
+    );
+    expect(wrapper.find('[data-testid="novusdoc-ai-context-menu"]').exists()).toBe(
       false,
     );
   });

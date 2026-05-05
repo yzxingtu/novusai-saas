@@ -5,7 +5,11 @@
 
 import type { AnyExtension, JSONContent } from '@tiptap/core';
 
-import type { RichTextEditorSetContentOptions } from './types';
+import type {
+  RichTextEditorApplyContentOptions,
+  RichTextEditorSelectionSnapshot,
+  RichTextEditorSetContentOptions,
+} from './types';
 
 import { onBeforeUnmount, ref } from 'vue';
 
@@ -55,6 +59,117 @@ function countWords(text: string): number {
     }
   }
   return wc;
+}
+
+const SELECTION_BEFORE_CHARS = 2000;
+const SELECTION_AFTER_CHARS = 500;
+
+function textNode(text: string): JSONContent {
+  return { text, type: 'text' };
+}
+
+function paragraphNode(text: string): JSONContent {
+  const parts = text.split('\n');
+  const content: JSONContent[] = [];
+  parts.forEach((part, index) => {
+    if (part) {
+      content.push(textNode(part));
+    }
+    if (index < parts.length - 1) {
+      content.push({ type: 'hardBreak' });
+    }
+  });
+  return content.length > 0
+    ? { content, type: 'paragraph' }
+    : { type: 'paragraph' };
+}
+
+function headingNode(text: string, level: number): JSONContent {
+  return {
+    attrs: { level },
+    content: text ? [textNode(text)] : undefined,
+    type: 'heading',
+  };
+}
+
+function listItemNode(text: string): JSONContent {
+  return {
+    content: [paragraphNode(text)],
+    type: 'listItem',
+  };
+}
+
+function flushListBuffer(
+  nodes: JSONContent[],
+  listType: 'bulletList' | 'orderedList' | null,
+  items: string[],
+) {
+  if (!listType || items.length === 0) return;
+  nodes.push({
+    content: items.map((item) => listItemNode(item)),
+    type: listType,
+  });
+  items.length = 0;
+}
+
+function buildSafeEditorContent(raw: string): JSONContent[] {
+  const normalized = raw.replaceAll('\r\n', '\n').trim();
+  if (!normalized) return [];
+
+  const nodes: JSONContent[] = [];
+  const listItems: string[] = [];
+  let listType: 'bulletList' | 'orderedList' | null = null;
+
+  for (const rawLine of normalized.split('\n')) {
+    const line = rawLine.trim();
+    if (!line) {
+      flushListBuffer(nodes, listType, listItems);
+      listType = null;
+      continue;
+    }
+
+    const headingMatch = /^(#{1,3})\s+(.+)$/.exec(line);
+    if (headingMatch) {
+      const headingMarks = headingMatch[1] ?? '#';
+      const headingText = headingMatch[2] ?? line;
+      flushListBuffer(nodes, listType, listItems);
+      listType = null;
+      nodes.push(headingNode(headingText, headingMarks.length));
+      continue;
+    }
+
+    const bulletMatch = /^[-*•]\s+(.+)$/.exec(line);
+    if (bulletMatch) {
+      if (listType !== 'bulletList') {
+        flushListBuffer(nodes, listType, listItems);
+        listType = 'bulletList';
+      }
+      listItems.push(bulletMatch[1] ?? line);
+      continue;
+    }
+
+    const orderedMatch = /^\d+[.)]\s+(.+)$/.exec(line);
+    if (orderedMatch) {
+      if (listType !== 'orderedList') {
+        flushListBuffer(nodes, listType, listItems);
+        listType = 'orderedList';
+      }
+      listItems.push(orderedMatch[1] ?? line);
+      continue;
+    }
+
+    flushListBuffer(nodes, listType, listItems);
+    listType = null;
+    nodes.push(paragraphNode(line));
+  }
+
+  flushListBuffer(nodes, listType, listItems);
+  return nodes;
+}
+
+function clampSelectionPosition(pos: number, max: number): number {
+  if (!Number.isFinite(pos)) return max;
+  return Math.min(Math.max(Math.trunc(pos), 0), max);
 }
 
 export function useRichTextEditor(options: UseRichTextEditorOptions = {}) {
@@ -166,6 +281,86 @@ export function useRichTextEditor(options: UseRichTextEditorOptions = {}) {
     return editor.value?.getHTML() ?? '';
   }
 
+  function getSelectionSnapshot(): RichTextEditorSelectionSnapshot {
+    const ed = editor.value;
+    if (!ed) {
+      return {
+        afterText: '',
+        beforeText: '',
+        empty: true,
+        from: 0,
+        revision: revision.value,
+        selectedText: '',
+        to: 0,
+      };
+    }
+
+    const { from, to, empty } = ed.state.selection;
+    const docSize = ed.state.doc.content.size;
+    const safeFrom = clampSelectionPosition(from, docSize);
+    const safeTo = clampSelectionPosition(to, docSize);
+    const selectionStart = Math.min(safeFrom, safeTo);
+    const selectionEnd = Math.max(safeFrom, safeTo);
+
+    return {
+      afterText: ed.state.doc.textBetween(
+        selectionEnd,
+        Math.min(docSize, selectionEnd + SELECTION_AFTER_CHARS),
+        '\n',
+        '\n',
+      ),
+      beforeText: ed.state.doc.textBetween(
+        Math.max(0, selectionStart - SELECTION_BEFORE_CHARS),
+        selectionStart,
+        '\n',
+        '\n',
+      ),
+      empty: empty || selectionStart === selectionEnd,
+      from: selectionStart,
+      revision: revision.value,
+      selectedText:
+        selectionStart === selectionEnd
+          ? ''
+          : ed.state.doc.textBetween(selectionStart, selectionEnd, '\n', '\n'),
+      to: selectionEnd,
+    };
+  }
+
+  function applyContent(
+    content: string,
+    applyOptions: RichTextEditorApplyContentOptions = {},
+  ) {
+    const ed = editor.value;
+    const safeContent = buildSafeEditorContent(content);
+    if (!ed || safeContent.length === 0) return;
+
+    if (_updateTimer) {
+      clearTimeout(_updateTimer);
+      _updateTimer = null;
+    }
+
+    const docSize = ed.state.doc.content.size;
+    const selection = applyOptions.selection;
+    const fallbackFrom = ed.state.selection.from;
+    const fallbackTo = ed.state.selection.to;
+    const from = clampSelectionPosition(selection?.from ?? fallbackFrom, docSize);
+    const to = clampSelectionPosition(selection?.to ?? fallbackTo, docSize);
+    const replaceSelection = applyOptions.mode === 'replace';
+    const range = replaceSelection
+      ? { from: Math.min(from, to), to: Math.max(from, to) }
+      : {
+          from: selection && !selection.empty ? Math.max(from, to) : from,
+          to: selection && !selection.empty ? Math.max(from, to) : from,
+        };
+
+    ed.chain().focus().insertContentAt(range, safeContent).run();
+
+    if (applyOptions.emitUpdate === false) {
+      revision.value += 1;
+      emitEditorUpdate();
+    }
+  }
+
   function focus() {
     editor.value?.commands.focus();
   }
@@ -181,6 +376,8 @@ export function useRichTextEditor(options: UseRichTextEditorOptions = {}) {
     getJSON,
     getText,
     getHTML,
+    getSelectionSnapshot,
+    applyContent,
     focus,
   };
 }

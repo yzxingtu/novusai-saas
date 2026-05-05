@@ -29,6 +29,10 @@ from app.models.ai.execution_trust_policy import ExecutionTrustPolicy
 from app.repositories.ai.execution_trust_policy_repository import (
     ExecutionTrustPolicyRepository,
 )
+from app.schemas.ai.invalid_ai_runtime_input import (
+    is_invalid_ai_runtime_tool_family,
+    is_invalid_ai_runtime_tool_name,
+)
 
 
 class ExecutionTrustPolicyService(
@@ -67,9 +71,11 @@ class ExecutionTrustPolicyService(
                 str(name).strip()
                 for name in (row.allowed_tool_names or [])
                 if str(name).strip()
+                and not is_invalid_ai_runtime_tool_name(str(name).strip())
             )
-            if row.tool_family:
-                tool_families.add(str(row.tool_family).strip())
+            tool_family = str(row.tool_family or "").strip()
+            if tool_family and not is_invalid_ai_runtime_tool_family(tool_family):
+                tool_families.add(tool_family)
             if row.risk_level_cap and runtime_risk_rank(
                 row.risk_level_cap
             ) > runtime_risk_rank(risk_cap):

@@ -61,9 +61,10 @@ describe('chat-message-turn-flow display helpers', () => {
 
     expect(getTurnFlowForDisplay(message).timeline).toEqual([
       expect.objectContaining({
+        detailLines: ['**Inspect** current filters', 'Call query_records'],
         id: 'thinking-stage-1',
         status: 'running',
-        summary: 'Inspect current filters',
+        summary: undefined,
         type: 'thinking',
       }),
     ]);

@@ -1269,6 +1269,140 @@
       },
       "runtimeTruthHint": "SkillPackage 负责归组、来源和目录展示；智能体运行时真正获得能力的是直接 Skill 授予，而不是包级自动绑定。"
     },
+    "richTextAi": {
+      "tab": "文档写作助手",
+      "configBtn": "文档写作助手",
+      "runtimeHint": "文档写作助手使用 system.ai_writing",
+      "runtimeDescription": "富文本右键写作运行时统一通过 /ai/writing/{action} 调用 agent-assignments 中绑定到 system.ai_writing 的智能体；请在「功能分配」中配置文档写作助手。",
+      "noAgent": "未绑定智能体",
+      "stats": {
+        "contextActions": "右键动作",
+        "backendActions": "后端动作",
+        "formatPresets": "格式模板",
+        "assignedAgent": "绑定智能体"
+      },
+      "assignmentTitle": "智能体绑定",
+      "assignmentDesc": "在功能分配页为 system.ai_writing 指定智能体；文档写作助手会调用解析到的智能体持续写作、改写和扩展内容。",
+      "featureCode": "功能代码",
+      "primaryFeature": "运行功能码",
+      "resolvedFeature": "当前解析功能码",
+      "assignedAgent": "当前绑定智能体",
+      "configureAgent": "配置智能体",
+      "contractTitle": "后端调用契约",
+      "contractDesc": "前端共享类型与后端 ai_writing 服务保持同名 action/type，不使用编辑器 DOM 或页面运行时工具。",
+      "endpointPattern": "示例端点",
+      "requestFields": "请求字段",
+      "runtimeBoundary": "运行时边界",
+      "noPageRuntime": "不注入 page_context、page_session_id、ui_* 或 editor_* 工具；选区文本由富文本组件显式提交给后端写作接口。",
+      "actionsTitle": "默认动作模板",
+      "actionsDesc": "这些模板供富文本右键菜单或未来编辑器集成复用；启用状态由调用方按权限与编辑器状态决定。",
+      "requiresSelection": "需要选区",
+      "selectionOptional": "选区可选",
+      "supportsFormat": "支持格式要求",
+      "notInContextMenu": "非右键动作",
+      "formatTitle": "格式要求模板",
+      "formatDesc": "format_instruction 会随写作请求发送给后端，用于约束带格式插入、列表、标题和纯文本等输出。",
+      "assignmentStatus": {
+        "active_assigned": "已绑定启用",
+        "inactive": "绑定已停用",
+        "unassigned": "未绑定",
+        "unresolved": "解析失败"
+      },
+      "operationKinds": {
+        "assist": "辅助对话",
+        "format": "增加格式",
+        "insert": "新增/插入",
+        "summarize": "摘要",
+        "transform": "改写处理",
+        "translate": "翻译"
+      },
+      "applyModes": {
+        "append_to_document": "追加到文末",
+        "copy_only": "仅复制结果",
+        "insert_after_selection": "插入到选区后",
+        "insert_at_cursor": "插入到光标处",
+        "replace_selection": "替换选区"
+      },
+      "actions": {
+        "continue": {
+          "label": "续写",
+          "description": "根据光标前后文自然续写，也可作为在选区后新增内容的默认动作。",
+          "prompt": "默认发送 before_text、after_text 与 context_title，后端 action=continue。"
+        },
+        "insert": {
+          "label": "新增内容",
+          "description": "根据明确指令在光标处创建新的富文本就绪内容。",
+          "prompt": "默认需要 instruction，可携带 before_text/after_text，后端 action=insert。"
+        },
+        "format": {
+          "label": "增加格式",
+          "description": "按格式要求整理选中文本为标题、列表、引用或结构化片段，不添加无依据事实。",
+          "prompt": "默认需要 format_instruction 或 instruction，后端 action=format。"
+        },
+        "optimize": {
+          "label": "优化表达",
+          "description": "提升选中文本清晰度、简洁性和可读性，同时保持原意。",
+          "prompt": "默认以 selected_text 为主体，后端 action=optimize。"
+        },
+        "proofread": {
+          "label": "校对纠错",
+          "description": "修正语法、错别字、标点和明显用词错误，不主动重写结构。",
+          "prompt": "默认替换原选区，后端 action=proofread。"
+        },
+        "translate": {
+          "label": "翻译",
+          "description": "将选中文本翻译为目标语言，并保留术语、数字和 URL。",
+          "prompt": "默认使用 target_lang 控制目标语言，后端 action=translate。"
+        },
+        "summarize": {
+          "label": "生成摘要",
+          "description": "提炼选中文本核心要点，适合插入到原文后作为摘要块。",
+          "prompt": "默认输出一句话概括加要点列表，后端 action=summarize。"
+        },
+        "expand": {
+          "label": "扩写内容",
+          "description": "在保持原文风格基础上增加细节、例子或论据。",
+          "prompt": "默认替换原选区，后端 action=expand。"
+        },
+        "rewrite": {
+          "label": "改写",
+          "description": "用不同表达重写选中文本，同时保持核心含义和篇幅接近。",
+          "prompt": "默认替换原选区，后端 action=rewrite。"
+        },
+        "custom": {
+          "label": "自定义指令",
+          "description": "按用户输入的 instruction 处理选区或上下文。",
+          "prompt": "默认携带 selected_text 与 instruction，后端 action=custom。"
+        },
+        "chat": {
+          "label": "写作问答",
+          "description": "用于侧边栏或对话式写作建议，不默认进入右键菜单。",
+          "prompt": "默认使用 instruction 与 history，后端 action=chat。"
+        }
+      },
+      "formatPresets": {
+        "preserve_structure": {
+          "label": "保留原结构",
+          "description": "尽量保持原段落、列表和标题层级，只改变内容。",
+          "instruction": "保留原始段落、列表、标题和强调结构。"
+        },
+        "plain_text": {
+          "label": "纯文本",
+          "description": "输出无额外 Markdown 或 HTML 装饰的纯文本。",
+          "instruction": "仅输出纯文本，不要包含 Markdown、HTML 或额外说明。"
+        },
+        "bullet_list": {
+          "label": "要点列表",
+          "description": "将结果整理为简洁项目符号列表。",
+          "instruction": "用项目符号列表组织输出，每条保持简洁可执行。"
+        },
+        "structured_sections": {
+          "label": "标题分节",
+          "description": "输出带小标题的结构化段落，适合扩写或方案内容。",
+          "instruction": "使用清晰小标题和短段落组织输出，保持层级一致。"
+        }
+      }
+    },
     "valves": {
       "configBtn": "环境配置",
       "title": "环境变量配置",

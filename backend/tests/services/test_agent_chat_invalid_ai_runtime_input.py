@@ -11,8 +11,8 @@ from types import SimpleNamespace
 import pytest
 from pydantic import ValidationError
 
-from app.ai.engine.types import ExecutionRequest
 from app.ai.engine.system_prompt_rendering import build_system_message
+from app.ai.engine.types import ExecutionRequest
 from app.ai.tools.sandbox import ToolSandbox
 from app.ai.tools.types import ToolDefinition, to_openai_tools
 from app.ai.types import ChatMessage

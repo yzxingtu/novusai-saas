@@ -4,7 +4,7 @@
 导出格式 / Export format (v1):
 {
     "export_version": 1,
-    "package_info": { name, description, avatar, ... },
+    "package_info": { name, description, avatar, valves_config, ... },
     "skills": [ { name, type, description, config, toolkit_content, ... }, ... ],
     "valves_schema": { ... } | null,
 }
@@ -32,13 +32,23 @@ from app.repositories.ai.skill_repository import AdminSkillRepository
 logger = LogManager.get_logger("ai")
 
 EXPORT_VERSION = 1
+LEGACY_RICH_TEXT_PACKAGE_NAME = "NovusDoc Rich Text AI"
+LEGACY_RICH_TEXT_SKILL_KEY = "novusdoc.rich_text_ai.actions"
+RICH_TEXT_RUNTIME_FEATURE_CODE = "system.ai_writing"
 
 # 导出时技能字段白名单（排除运行时/ID/时间戳等） / Skill export field whitelist (excludes runtime/ID/timestamp fields)
 _SKILL_EXPORT_FIELDS = [
     "name",
+    "key",
     "description",
     "avatar",
     "type",
+    "source_type",
+    "source_ref",
+    "skill_md",
+    "version",
+    "status",
+    "is_readonly",
     "config",
     "toolkit_content",
     "toolkit_meta",
@@ -60,7 +70,68 @@ _PACKAGE_EXPORT_FIELDS = [
     "is_active",
     "sort_order",
     "source_plugin",
+    "valves_config",
 ]
+
+
+def _is_legacy_rich_text_package(
+    package_info: dict[str, Any],
+    skills_data: list[dict[str, Any]],
+) -> bool:
+    if package_info.get("name") == LEGACY_RICH_TEXT_PACKAGE_NAME:
+        return True
+    return any(
+        skill.get("key") == LEGACY_RICH_TEXT_SKILL_KEY
+        or skill.get("source_ref") == LEGACY_RICH_TEXT_SKILL_KEY
+        for skill in skills_data
+    )
+
+
+def _normalize_legacy_rich_text_import(
+    package_info: dict[str, Any],
+    skills_data: list[dict[str, Any]],
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """中文: 导入旧富文本包时强制转为内部隐藏项，避免再次出现在技能包目录。
+
+    EN: Force legacy rich-text imports to internal hidden items so they do not
+    reappear in the skill-package catalog.
+    """
+    if not _is_legacy_rich_text_package(package_info, skills_data):
+        return package_info, skills_data
+
+    normalized_package_info = dict(package_info)
+    valves_config = dict(normalized_package_info.get("valves_config") or {})
+    valves_config.update(
+        {
+            "internal": True,
+            "catalog_visible": False,
+            "runtime_feature_code": RICH_TEXT_RUNTIME_FEATURE_CODE,
+        }
+    )
+    normalized_package_info["valves_config"] = valves_config
+    normalized_package_info["is_recommended"] = False
+    normalized_package_info["is_active"] = False
+
+    normalized_skills: list[dict[str, Any]] = []
+    for skill_data in skills_data:
+        skill = dict(skill_data)
+        if (
+            skill.get("key") == LEGACY_RICH_TEXT_SKILL_KEY
+            or skill.get("source_ref") == LEGACY_RICH_TEXT_SKILL_KEY
+        ):
+            config = dict(skill.get("config") or {})
+            config.update(
+                {
+                    "internal": True,
+                    "catalog_only": True,
+                    "runtime_feature_code": RICH_TEXT_RUNTIME_FEATURE_CODE,
+                }
+            )
+            skill["config"] = config
+            skill["status"] = "disabled"
+            skill["is_active"] = False
+        normalized_skills.append(skill)
+    return normalized_package_info, normalized_skills
 
 
 async def export_skill_package(
@@ -135,6 +206,10 @@ async def import_skill_package(
             message=_("skill_package.error.invalid_export_format"),
         )
 
+    package_info, skills_data = _normalize_legacy_rich_text_import(
+        package_info,
+        skills_data,
+    )
     pkg_name = package_info["name"]
 
     if target_tenant_id is not None:
@@ -147,6 +222,7 @@ async def import_skill_package(
             pkg_name
         )
 
+    package_renamed = False
     if existing_pkg:
         if conflict_mode == "skip":
             return {
@@ -156,9 +232,11 @@ async def import_skill_package(
                 "skills_created": 0,
             }
         elif conflict_mode == "rename":
-            # 自动追加时间戳后缀 / Auto-append timestamp suffix
+            # 中文: 重命名导入通常表示同一稳定技能已存在，后续会清空 skill.key 以避免唯一键冲突。
+            # EN: Rename imports usually mean the same stable skill exists, so skill.key is cleared below to avoid unique conflicts.
             suffix = utc_now().strftime("%Y%m%d%H%M%S")
             pkg_name = f"{pkg_name}_{suffix}"
+            package_renamed = True
         else:
             raise BusinessException(
                 message=_("skill_package.error.name_exists"),
@@ -176,14 +254,18 @@ async def import_skill_package(
         sort_order=package_info.get("sort_order", 0),
         source_plugin=package_info.get("source_plugin"),
         valves_schema=export_data.get("valves_schema"),
+        valves_config=package_info.get("valves_config"),
     )
     db.add(new_pkg)
     await db.flush()  # 获取 new_pkg.id
 
     # 创建技能 / Create skills
     from app.enums.agent import SkillTypeEnum
+    from app.enums.skill import SkillSourceTypeEnum, SkillStatusEnum
 
     valid_skill_types = SkillTypeEnum.values()
+    valid_source_types = SkillSourceTypeEnum.values()
+    valid_statuses = SkillStatusEnum.values()
 
     skills_created = 0
     for skill_data in skills_data:
@@ -196,13 +278,32 @@ async def import_skill_package(
             )
             continue
 
+        source_type = skill_data.get("source_type") or SkillSourceTypeEnum.CUSTOM.value
+        if source_type not in valid_source_types:
+            source_type = SkillSourceTypeEnum.CUSTOM.value
+
+        status = skill_data.get("status") or SkillStatusEnum.ACTIVE.value
+        if status not in valid_statuses:
+            status = SkillStatusEnum.ACTIVE.value
+
+        skill_key = skill_data.get("key")
+        if package_renamed:
+            skill_key = None
+
         new_skill = Skill(
             package_id=new_pkg.id,
             tenant_id=target_tenant_id,
             name=skill_data.get("name", "Unnamed Skill"),
+            key=skill_key,
             description=skill_data.get("description"),
             avatar=skill_data.get("avatar"),
             type=skill_type,
+            source_type=source_type,
+            source_ref=skill_data.get("source_ref"),
+            skill_md=skill_data.get("skill_md"),
+            version=skill_data.get("version") or "1.0.0",
+            status=status,
+            is_readonly=bool(skill_data.get("is_readonly", False)),
             config=skill_data.get("config"),
             toolkit_content=skill_data.get("toolkit_content"),
             toolkit_meta=skill_data.get("toolkit_meta"),

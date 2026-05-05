@@ -21,6 +21,9 @@ class FeatureSchema(BaseModel):
     """Feature flag declaration / Feature Flag 声明"""
 
     code: str
+    runtime_feature_code: str = ""
+    legacy_runtime_feature_code: str = ""
+    fallback_policy: str = ""
     name: I18nText = Field(default_factory=dict)
     default: bool = True
     description: I18nText = Field(default_factory=dict)
@@ -56,6 +59,9 @@ class AIFeatureSchema(BaseModel):
     """AI feature declaration / AI 功能声明"""
 
     feature_code: str
+    runtime_feature_code: str = ""
+    legacy_runtime_feature_code: str = ""
+    fallback_policy: str = ""
     display_name: I18nText = Field(default_factory=dict)
     description: I18nText = Field(default_factory=dict)
     default_prompt: str = ""

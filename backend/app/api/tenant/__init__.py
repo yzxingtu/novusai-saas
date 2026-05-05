@@ -28,7 +28,6 @@ from app.api.tenant.ai_quotas import TenantAIQuotaController
 from app.api.tenant.ai_quotas import router as ai_quotas_router
 from app.api.tenant.ai_usage import TenantAIUsageController
 from app.api.tenant.ai_usage import router as ai_usage_router
-from app.api.tenant.ai_writing import router as ai_writing_router
 from app.api.tenant.analytics import router as analytics_router
 from app.api.tenant.announcement import TenantAnnouncementController
 from app.api.tenant.announcement import router as announcement_router
@@ -112,8 +111,8 @@ tenant_router.include_router(plugins_router)
 # 数据分析 / Analytics
 tenant_router.include_router(analytics_router)
 tenant_router.include_router(execution_decisions_router)
-# AI 写作 / AI Writing
-tenant_router.include_router(ai_writing_router)
+# 中文: 富文本 AI 独立写作路由已退役，不再挂载到公开 tenant API。
+# EN: Standalone rich-text AI writing routes are retired and no longer mounted.
 # 公告管理 / Announcement management
 tenant_router.include_router(announcement_router)
 

@@ -112,6 +112,7 @@ export const LUCIDE_ICON_NAMES = [
   "file-pen",
   "file-pen-line",
   "file-plus",
+  "file-plus-2",
   "file-question",
   "file-search",
   "file-spreadsheet",
@@ -141,6 +142,7 @@ export const LUCIDE_ICON_NAMES = [
   "hard-drive-download",
   "hard-hat",
   "hash",
+  "heading",
   "heading-1",
   "heading-2",
   "heading-3",
@@ -179,6 +181,7 @@ export const LUCIDE_ICON_NAMES = [
   "link-2",
   "list",
   "list-checks",
+  "list-collapse",
   "list-ordered",
   "list-tree",
   "loader-2",
@@ -224,6 +227,7 @@ export const LUCIDE_ICON_NAMES = [
   "package-open",
   "package-plus",
   "package-search",
+  "paintbrush-vertical",
   "palette",
   "panel-left",
   "panel-left-close",
@@ -252,7 +256,9 @@ export const LUCIDE_ICON_NAMES = [
   "receipt-text",
   "redo-2",
   "refresh-ccw",
+  "refresh-ccw-dot",
   "refresh-cw",
+  "remove-formatting",
   "repeat",
   "reply",
   "rocket",
@@ -287,6 +293,7 @@ export const LUCIDE_ICON_NAMES = [
   "smile",
   "snowflake",
   "sparkles",
+  "spell-check",
   "square",
   "square-check",
   "square-pen",
@@ -294,6 +301,7 @@ export const LUCIDE_ICON_NAMES = [
   "star",
   "stethoscope",
   "store",
+  "stretch-horizontal",
   "strikethrough",
   "subscript",
   "sun",
@@ -328,6 +336,7 @@ export const LUCIDE_ICON_NAMES = [
   "video",
   "wallet",
   "wand-2",
+  "wand-sparkles",
   "waypoints",
   "webhook",
   "wifi",
@@ -450,6 +459,7 @@ export const LUCIDE_ICON_IDS = [
   "lucide:file-pen",
   "lucide:file-pen-line",
   "lucide:file-plus",
+  "lucide:file-plus-2",
   "lucide:file-question",
   "lucide:file-search",
   "lucide:file-spreadsheet",
@@ -479,6 +489,7 @@ export const LUCIDE_ICON_IDS = [
   "lucide:hard-drive-download",
   "lucide:hard-hat",
   "lucide:hash",
+  "lucide:heading",
   "lucide:heading-1",
   "lucide:heading-2",
   "lucide:heading-3",
@@ -517,6 +528,7 @@ export const LUCIDE_ICON_IDS = [
   "lucide:link-2",
   "lucide:list",
   "lucide:list-checks",
+  "lucide:list-collapse",
   "lucide:list-ordered",
   "lucide:list-tree",
   "lucide:loader-2",
@@ -562,6 +574,7 @@ export const LUCIDE_ICON_IDS = [
   "lucide:package-open",
   "lucide:package-plus",
   "lucide:package-search",
+  "lucide:paintbrush-vertical",
   "lucide:palette",
   "lucide:panel-left",
   "lucide:panel-left-close",
@@ -590,7 +603,9 @@ export const LUCIDE_ICON_IDS = [
   "lucide:receipt-text",
   "lucide:redo-2",
   "lucide:refresh-ccw",
+  "lucide:refresh-ccw-dot",
   "lucide:refresh-cw",
+  "lucide:remove-formatting",
   "lucide:repeat",
   "lucide:reply",
   "lucide:rocket",
@@ -625,6 +640,7 @@ export const LUCIDE_ICON_IDS = [
   "lucide:smile",
   "lucide:snowflake",
   "lucide:sparkles",
+  "lucide:spell-check",
   "lucide:square",
   "lucide:square-check",
   "lucide:square-pen",
@@ -632,6 +648,7 @@ export const LUCIDE_ICON_IDS = [
   "lucide:star",
   "lucide:stethoscope",
   "lucide:store",
+  "lucide:stretch-horizontal",
   "lucide:strikethrough",
   "lucide:subscript",
   "lucide:sun",
@@ -666,6 +683,7 @@ export const LUCIDE_ICON_IDS = [
   "lucide:video",
   "lucide:wallet",
   "lucide:wand-2",
+  "lucide:wand-sparkles",
   "lucide:waypoints",
   "lucide:webhook",
   "lucide:wifi",
@@ -1095,6 +1113,10 @@ export const LUCIDE_ICON_SUBSET = {
     "file-plus": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z\"/><path d=\"M14 2v5a1 1 0 0 0 1 1h5M9 15h6m-3 3v-6\"/></g>"
     },
+    "file-plus-2": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M4 22h14a2 2 0 0 0 2-2V7l-5-5H6a2 2 0 0 0-2 2v4\"/><path d=\"M14 2v4a2 2 0 0 0 2 2h4M3 15h6m-3-3v6\"/></g>",
+      "hidden": true
+    },
     "file-question-mark": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2zm6-5h.01\"/><path d=\"M9.1 9a3 3 0 0 1 5.82 1c0 2-3 3-3 3\"/></g>"
     },
@@ -1180,6 +1202,9 @@ export const LUCIDE_ICON_SUBSET = {
     },
     "hash": {
       "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M4 9h16M4 15h16M10 3L8 21m8-18l-2 18\"/>"
+    },
+    "heading": {
+      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M6 12h12M6 20V4m12 16V4\"/>"
     },
     "heading-1": {
       "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M4 12h8m-8 6V6m8 12V6m5 6l3-2v8\"/>"
@@ -1292,6 +1317,9 @@ export const LUCIDE_ICON_SUBSET = {
     },
     "list-checks": {
       "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M13 5h8m-8 7h8m-8 7h8M3 17l2 2l4-4M3 7l2 2l4-4\"/>"
+    },
+    "list-collapse": {
+      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M10 5h11m-11 7h11m-11 7h11M3 10l3-3l-3-3m0 16l3-3l-3-3\"/>"
     },
     "list-ordered": {
       "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M11 5h10m-10 7h10m-10 7h10M4 4h1v5M4 9h2m.5 11H3.4c0-1 2.6-1.925 2.6-3.5a1.5 1.5 0 0 0-2.6-1.02\"/>"
@@ -1416,6 +1444,9 @@ export const LUCIDE_ICON_SUBSET = {
     "package-search": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M21 10V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l2-1.14M7.5 4.27l9 5.15\"/><path d=\"M3.29 7L12 12l8.71-5M12 22V12\"/><circle cx=\"18.5\" cy=\"15.5\" r=\"2.5\"/><path d=\"M20.27 17.27L22 19\"/></g>"
     },
+    "paintbrush-vertical": {
+      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M10 2v2m4-2v4m3-4a1 1 0 0 1 1 1v9H6V3a1 1 0 0 1 1-1zM6 12a1 1 0 0 0-1 1v1a2 2 0 0 0 2 2h2a1 1 0 0 1 1 1v2.9a2 2 0 1 0 4 0V17a1 1 0 0 1 1-1h2a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1\"/>"
+    },
     "palette": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M12 22a1 1 0 0 1 0-20a10 9 0 0 1 10 9a5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z\"/><circle cx=\"13.5\" cy=\"6.5\" r=\".5\" fill=\"currentColor\"/><circle cx=\"17.5\" cy=\"10.5\" r=\".5\" fill=\"currentColor\"/><circle cx=\"6.5\" cy=\"12.5\" r=\".5\" fill=\"currentColor\"/><circle cx=\"8.5\" cy=\"7.5\" r=\".5\" fill=\"currentColor\"/></g>"
     },
@@ -1494,8 +1525,14 @@ export const LUCIDE_ICON_SUBSET = {
     "refresh-ccw": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M21 12a9 9 0 0 0-9-9a9.75 9.75 0 0 0-6.74 2.74L3 8\"/><path d=\"M3 3v5h5m-5 4a9 9 0 0 0 9 9a9.75 9.75 0 0 0 6.74-2.74L21 16\"/><path d=\"M16 16h5v5\"/></g>"
     },
+    "refresh-ccw-dot": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M21 12a9 9 0 0 0-9-9a9.75 9.75 0 0 0-6.74 2.74L3 8\"/><path d=\"M3 3v5h5m-5 4a9 9 0 0 0 9 9a9.75 9.75 0 0 0 6.74-2.74L21 16\"/><path d=\"M16 16h5v5\"/><circle cx=\"12\" cy=\"12\" r=\"1\"/></g>"
+    },
     "refresh-cw": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M3 12a9 9 0 0 1 9-9a9.75 9.75 0 0 1 6.74 2.74L21 8\"/><path d=\"M21 3v5h-5m5 4a9 9 0 0 1-9 9a9.75 9.75 0 0 1-6.74-2.74L3 16\"/><path d=\"M8 16H3v5\"/></g>"
+    },
+    "remove-formatting": {
+      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M4 7V4h16v3M5 20h6m2-16L8 20m7-5l5 5m0-5l-5 5\"/>"
     },
     "repeat": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"m17 2l4 4l-4 4\"/><path d=\"M3 11v-1a4 4 0 0 1 4-4h14M7 22l-4-4l4-4\"/><path d=\"M21 13v1a4 4 0 0 1-4 4H3\"/></g>"
@@ -1599,6 +1636,9 @@ export const LUCIDE_ICON_SUBSET = {
     "sparkles": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594zM20 2v4m2-2h-4\"/><circle cx=\"4\" cy=\"20\" r=\"2\"/></g>"
     },
+    "spell-check": {
+      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"m6 16l6-12l6 12M8 12h8m0 8l2 2l4-4\"/>"
+    },
     "square": {
       "body": "<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" rx=\"2\"/>"
     },
@@ -1622,6 +1662,9 @@ export const LUCIDE_ICON_SUBSET = {
     },
     "store": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M15 21v-5a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v5m8.774-10.69a1.12 1.12 0 0 0-1.549 0a2.5 2.5 0 0 1-3.451 0a1.12 1.12 0 0 0-1.548 0a2.5 2.5 0 0 1-3.452 0a1.12 1.12 0 0 0-1.549 0a2.5 2.5 0 0 1-3.77-3.248l2.889-4.184A2 2 0 0 1 7 2h10a2 2 0 0 1 1.653.873l2.895 4.192a2.5 2.5 0 0 1-3.774 3.244\"/><path d=\"M4 10.95V19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8.05\"/></g>"
+    },
+    "stretch-horizontal": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><rect width=\"20\" height=\"6\" x=\"2\" y=\"4\" rx=\"2\"/><rect width=\"20\" height=\"6\" x=\"2\" y=\"14\" rx=\"2\"/></g>"
     },
     "strikethrough": {
       "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M16 4H9a3 3 0 0 0-2.83 4M14 12a4 4 0 0 1 0 8H6m-2-8h16\"/>"

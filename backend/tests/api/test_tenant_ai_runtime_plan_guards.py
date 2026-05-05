@@ -1,8 +1,8 @@
 """
 Test type: behavioral
 Regression for: tenant plan AI entitlement bypass through direct tenant AI APIs.
-Scope: Tenant AI gateway and writing routes must enforce the same account/plan
-availability guard before constructing downstream AI services.
+Scope: Tenant AI gateway and global AgentChat routes must enforce the same
+account/plan availability guard before constructing downstream AI services.
 Mock strategy: Dependencies and downstream services are sentinels; the guard
 decision is not mocked as allowed in the rejection cases.
 """
@@ -214,36 +214,43 @@ def test_tenant_ai_gateway_rejects_monthly_api_quota_before_internal_service(
     assert service_events == []
 
 
-def test_tenant_ai_writing_rejects_plan_disabled_before_stream_service(
+def test_tenant_agent_chat_rejects_plan_disabled_before_agent_or_chat_service(
     monkeypatch,
 ) -> None:
     module = _load_module(
-        "app/api/tenant/ai_writing.py",
-        "test_tenant_ai_writing_plan_guard",
+        "app/api/tenant/agent_chat.py",
+        "test_tenant_agent_chat_plan_guard",
     )
+    monkeypatch.setattr(module.TenantAgentChatController, "_instance", None)
+    monkeypatch.setattr(module.TenantAgentChatController, "_router", None)
 
     service_events: list[str] = []
 
-    async def unexpected_stream(*_args, **_kwargs):
-        service_events.append("stream_called")
-        yield "unexpected"
+    class UnexpectedAgentService:
+        def __init__(self, *_args):
+            service_events.append("agent_service_constructed")
+
+    class UnexpectedAgentChatService:
+        def __init__(self, *_args):
+            service_events.append("chat_service_constructed")
 
     monkeypatch.setattr(module, "AccountAIAccessService", _RejectingAccessService)
-    monkeypatch.setattr(module, "QuotaService", _UnexpectedQuotaService)
-    monkeypatch.setattr(module, "stream_writing_feature", unexpected_stream)
+    monkeypatch.setattr(module, "AgentService", UnexpectedAgentService)
+    monkeypatch.setattr(module, "AgentChatService", UnexpectedAgentChatService)
 
-    app = _build_app(module.router)
+    app = _build_app(module.TenantAgentChatController.get_router())
 
     with TestClient(app, raise_server_exceptions=False) as client:
         response = client.post(
-            "/ai/writing/continue",
-            json={"selected_text": "hello"},
+            "/ai/agent-chat/42/chat/stream",
+            json={"message": "[Task Instructions]\n续写富文本内容"},
         )
 
     body = response.json()
     assert response.status_code == 403
     assert body["code"] == TENANT_PLAN_AI_DISABLED_CODE
     assert body["reason"] == TENANT_PLAN_AI_DISABLED_REASON
+    assert body["feature"] == "ai_chat"
     assert service_events == []
 
 

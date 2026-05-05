@@ -2420,7 +2420,12 @@
         "repaired_successfully": "Plugin {plugin_name} repaired successfully",
         "repaired_and_restored": "Plugin repaired and restored"
     },
-    "ai_writing": {"invalid_feature": "Unsupported AI writing feature: {feature}"},
+    "ai_writing": {
+        "invalid_feature": "Unsupported AI writing feature: {feature}",
+        "selection_required": "The {action} action requires selected text",
+        "instruction_required": "The {action} action requires an instruction",
+        "input_required": "The {action} action requires an instruction or surrounding context"
+    },
     "crud_generation_record": {
         "field": {
             "operator_id": "Operator",

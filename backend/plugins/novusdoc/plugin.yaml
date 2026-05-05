@@ -20,6 +20,14 @@ dependencies:
   python: []
   plugins: []
 
+ai_requirements:
+  required_model_types:
+    - chat
+  min_context_window: 4096
+  features: []
+
+features: []
+
 pricing:
   type: free
 

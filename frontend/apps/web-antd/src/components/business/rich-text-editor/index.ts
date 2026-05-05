@@ -18,8 +18,10 @@ export type {
   AttachmentInfo,
   MountedEditor,
   MountOptions,
+  RichTextEditorApplyContentOptions,
   RichTextEditorExposed,
   RichTextEditorProps,
+  RichTextEditorSelectionSnapshot,
   RichTextEditorSetContentOptions,
 } from './types';
 export { useRichTextEditor } from './useRichTextEditor';
@@ -65,6 +67,7 @@ export function mountRichTextEditor(
   if (options.autofocus !== undefined) propsObj.autofocus = options.autofocus;
   if (options.extensions !== undefined)
     propsObj.extensions = options.extensions;
+  if (options.aiWriting !== undefined) propsObj.aiWriting = options.aiWriting;
   const Wrapper = defineComponent({
     setup() {
       return () =>
@@ -95,10 +98,22 @@ export function mountRichTextEditor(
     getJSON: () => (editorRef?.getJSON?.() as never) ?? null,
     getHTML: () => (editorRef?.getHTML?.() as string) ?? '',
     getText: () => (editorRef?.getText?.() as string) ?? '',
+    getSelectionSnapshot: () =>
+      editorRef?.getSelectionSnapshot?.() ?? {
+        afterText: '',
+        beforeText: '',
+        empty: true,
+        from: 0,
+        revision: 0,
+        selectedText: '',
+        to: 0,
+      },
     setContent: (
       content,
       setContentOptions?: RichTextEditorSetContentOptions,
     ) => editorRef?.setContent?.(content as never, setContentOptions),
+    applyContent: (content, applyOptions) =>
+      editorRef?.applyContent?.(content, applyOptions),
     focus: () => editorRef?.focus?.(),
     destroy: () => {
       if (app) {

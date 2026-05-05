@@ -2380,7 +2380,12 @@
         "repaired_successfully": "插件 {plugin_name} 修复成功",
         "repaired_and_restored": "插件已修复并恢复运行"
     },
-    "ai_writing": {"invalid_feature": "不支持的 AI 写作功能：{feature}"},
+    "ai_writing": {
+        "invalid_feature": "不支持的 AI 写作功能：{feature}",
+        "selection_required": "执行 {action} 操作需要先选择文本",
+        "instruction_required": "执行 {action} 操作需要填写指令",
+        "input_required": "执行 {action} 操作需要提供指令或上下文"
+    },
     "crud_generation_record": {
         "field": {
             "operator_id": "操作人",
