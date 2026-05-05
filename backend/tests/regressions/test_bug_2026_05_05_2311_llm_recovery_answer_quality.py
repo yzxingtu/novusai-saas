@@ -145,3 +145,22 @@ def test_bug_2026_05_05_2311_renders_chinese_llm_leaderboard_answer() -> None:
     assert "来源：Artificial Analysis" in output
     assert "Comparison and ranking the performance" not in output
     assert "65.59\n71.66" not in output
+
+
+def test_bug_2026_05_05_2311_marks_raw_english_leaderboard_excerpt_replaceable() -> (
+    None
+):
+    fetch_results = [_artificial_analysis_fetch_result()]
+    raw_excerpt = (
+        "Comparison and ranking the performance of over 100 AI models (LLMs) "
+        "across key metrics including intelligence, price, performance and speed.\n"
+        "65.59\n"
+        "71.66\n"
+        "28.17\n"
+        "34.88"
+    )
+
+    assert RecoveryManager.should_replace_budgeted_web_research_response(
+        response_text=raw_excerpt,
+        tool_results=fetch_results,
+    )

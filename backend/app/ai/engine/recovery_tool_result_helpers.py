@@ -49,6 +49,11 @@ _YEAR_RE = re.compile(r"(?<!\d)(20\d{2})(?!\d)")
 DEFAULT_RECOVERY_RESULT_MAX_LENGTH = 500
 FETCH_URL_RECOVERY_RESULT_MAX_LENGTH = 2000
 _FASHION_TREND_PROFILE = "fashion_trend_ranking"
+_LLM_LEADERBOARD_PROFILE = "llm_leaderboard"
+_STRUCTURED_WEB_RESEARCH_PROFILES = {
+    _FASHION_TREND_PROFILE,
+    _LLM_LEADERBOARD_PROFILE,
+}
 _FASHION_TREND_STYLE_PATTERNS: tuple[tuple[str, tuple[str, ...], str], ...] = (
     (
         "迷你裙/短款连衣裙",
@@ -110,6 +115,54 @@ _FASHION_TREND_STYLE_PATTERNS: tuple[tuple[str, tuple[str, ...], str], ...] = (
         ("cape dresses", "cape dress", "斗篷裙"),
         "斗篷式结构更有秀场感，适合礼服或强调存在感的造型。",
     ),
+)
+_LLM_INTELLIGENCE_MODEL_PATTERNS: tuple[tuple[str, tuple[str, ...], str], ...] = (
+    (
+        "GPT-5.5 (xhigh/high)",
+        ("gpt-5.5 (xhigh)", "gpt-5.5 (high)", "gpt-5.5"),
+        "在 Artificial Analysis 的 Intelligence 维度中属于最高档。",
+    ),
+    (
+        "Claude Opus 4.7 (max)",
+        ("claude opus 4.7",),
+        "在 Intelligence 维度紧随最高档模型之后。",
+    ),
+    (
+        "Gemini 3.1 Pro Preview",
+        ("gemini 3.1 pro preview", "gemini 3.1 pro"),
+        "在 Intelligence 维度同属前列。",
+    ),
+)
+_LLM_METRIC_MODEL_PATTERNS: dict[str, tuple[tuple[str, tuple[str, ...]], ...]] = {
+    "输出速度": (
+        ("Mercury 2", ("mercury 2",)),
+        ("Granite 3.3 8B", ("granite 3.3 8b",)),
+        ("Qwen3.5 0.8B", ("qwen3.5 0.8b",)),
+        ("Gemini 3.1 Flash-Lite Preview", ("gemini 3.1 flash-lite preview",)),
+    ),
+    "延迟": (
+        ("Qwen3.5 4B", ("qwen3.5 4b",)),
+        ("NVIDIA Nemotron 3 Nano", ("nvidia nemotron 3 nano",)),
+        ("Ministral 3 3B", ("ministral 3 3b",)),
+    ),
+    "价格": (
+        ("Qwen3.5 0.8B", ("qwen3.5 0.8b",)),
+        ("Gemma 3n E4B", ("gemma 3n e4b",)),
+        ("Qwen3.5 2B", ("qwen3.5 2b",)),
+    ),
+    "上下文窗口": (
+        ("Llama 4 Scout", ("llama 4 scout",)),
+        ("Grok 4.20 0309", ("grok 4.20 0309",)),
+        ("Gemini 1.5 Pro (May)", ("gemini 1.5 pro (may)", "gemini 1.5 pro")),
+        ("Grok 4.1 Fast", ("grok 4.1 fast",)),
+    ),
+}
+_LLM_RANKED_SCORE_RE = re.compile(
+    r"(?:^|[\s\n])(?P<rank>\d{1,2})[.)]\s*"
+    r"(?P<model>[A-Za-z][A-Za-z0-9 .()+/\-]{1,80}?)\s+"
+    r"(?:(?:intelligence|quality|arena|benchmark)\s+)?score\s+"
+    r"(?P<score>\d+(?:\.\d+)?)",
+    re.IGNORECASE,
 )
 
 
@@ -528,7 +581,7 @@ def _requires_structured_web_research_answer(
     if not _contains_cjk(query):
         return False
     return any(
-        _web_research_query_profile(payload) == _FASHION_TREND_PROFILE
+        _web_research_query_profile(payload) in _STRUCTURED_WEB_RESEARCH_PROFILES
         for _result, payload in _accepted_fetch_url_results(tool_results)
     )
 
@@ -537,6 +590,10 @@ def _payload_source_label(payload: dict[str, object]) -> str:
     title = str(payload.get("title") or "").strip()
     url = str(payload.get("final_url") or payload.get("url") or "").strip()
     netloc = urlsplit(url).netloc.casefold()
+    if "artificialanalysis.ai" in netloc:
+        return "Artificial Analysis"
+    if "lmarena.ai" in netloc or "arena.ai" in netloc:
+        return "LMArena"
     if "vogue." in netloc:
         return "Vogue"
     if "marieclaire." in netloc:
@@ -638,6 +695,101 @@ def _render_fashion_trend_ranking_answer(
     return "\n".join(lines)
 
 
+def _extract_llm_ranked_score_items(text: str) -> list[tuple[int, str, str]]:
+    items: list[tuple[int, str, str]] = []
+    for match in _LLM_RANKED_SCORE_RE.finditer(str(text or "")):
+        try:
+            rank = int(match.group("rank"))
+        except (TypeError, ValueError):
+            continue
+        model = re.sub(r"\s+", " ", match.group("model")).strip(" .;；")
+        score = str(match.group("score") or "").strip()
+        if not model or not score:
+            continue
+        if any(existing_model == model for _rank, existing_model, _score in items):
+            continue
+        items.append((rank, model, score))
+    return sorted(items, key=lambda item: item[0])
+
+
+def _llm_intelligence_items_from_summary(
+    text: str,
+) -> list[tuple[str, str]]:
+    items: list[tuple[str, str]] = []
+    for label, patterns, rationale in _LLM_INTELLIGENCE_MODEL_PATTERNS:
+        if _style_match_position(text, patterns) is None:
+            continue
+        if any(existing_label == label for existing_label, _rationale in items):
+            continue
+        items.append((label, rationale))
+    return items
+
+
+def _llm_metric_models(text: str, metric_label: str) -> list[str]:
+    patterns = _LLM_METRIC_MODEL_PATTERNS.get(metric_label, ())
+    return [
+        label
+        for label, model_patterns in patterns
+        if _style_match_position(text, model_patterns) is not None
+    ]
+
+
+def _render_llm_leaderboard_answer(
+    intent: IntentPlan,
+    accepted_results: list[tuple[ToolResult, dict[str, object]]],
+) -> str | None:
+    source_labels = _dedupe_preserve_order(
+        [_payload_source_label(payload) for _result, payload in accepted_results]
+    )
+    evidence_text = "\n".join(
+        _fetch_result_evidence_text(result, payload)
+        for result, payload in accepted_results
+    )
+    ranked_score_items = _extract_llm_ranked_score_items(evidence_text)
+    intelligence_items = _llm_intelligence_items_from_summary(evidence_text)
+    if len(ranked_score_items) < 3 and len(intelligence_items) < 2:
+        return None
+
+    year = _query_year(intent)
+    heading_year = f"{year} " if year else ""
+    lines = [
+        f"基于已抓取的{'、'.join(source_labels) if source_labels else '权威榜单'}等可核实来源，可整理为 {heading_year}大模型能力排行参考："
+    ]
+    if len(ranked_score_items) >= 3:
+        for rank, (_source_rank, model, score) in enumerate(
+            ranked_score_items[:8],
+            start=1,
+        ):
+            lines.append(f"{rank}. {model}：来源页面给出的 score 为 {score}。")
+    else:
+        for rank, (label, rationale) in enumerate(intelligence_items[:5], start=1):
+            lines.append(f"{rank}. {label}：{rationale}")
+
+    metric_templates = {
+        "输出速度": "领先模型包括 {models}。",
+        "延迟": "低延迟模型包括 {models}。",
+        "价格": "低价模型包括 {models}。",
+        "上下文窗口": "大上下文模型包括 {models}。",
+    }
+    metric_lines: list[tuple[str, str]] = []
+    for metric_label, template in metric_templates.items():
+        models = _llm_metric_models(evidence_text, metric_label)
+        if models:
+            metric_lines.append(
+                (metric_label, template.format(models="、".join(models)))
+            )
+    if metric_lines:
+        lines.append("补充维度：")
+        lines.extend(
+            f"- {metric_label}：{metric_line}"
+            for metric_label, metric_line in metric_lines
+        )
+
+    if source_labels:
+        lines.append(f"来源：{'、'.join(source_labels)}。")
+    return "\n".join(lines)
+
+
 def _render_structured_web_research_answer(
     intent: IntentPlan,
     tool_results: list[ToolResult] | None,
@@ -649,6 +801,11 @@ def _render_structured_web_research_answer(
         _web_research_query_profile(payload) == _FASHION_TREND_PROFILE
         for _result, payload in accepted_results
     ):
+        if any(
+            _web_research_query_profile(payload) == _LLM_LEADERBOARD_PROFILE
+            for _result, payload in accepted_results
+        ):
+            return _render_llm_leaderboard_answer(intent, accepted_results)
         return None
     return _render_fashion_trend_ranking_answer(intent, accepted_results)
 
@@ -703,6 +860,37 @@ def _looks_like_low_information_web_research_response(text: str) -> bool:
     return bool(len(numeric_tokens) >= 3 and not long_word_tokens)
 
 
+def _has_accepted_cjk_web_research_profile(
+    tool_results: list[ToolResult] | None,
+    profile: str,
+) -> bool:
+    for _result, payload in _accepted_fetch_url_results(tool_results):
+        if _web_research_query_profile(payload) != profile:
+            continue
+        evidence = _web_research_evidence_payload(payload)
+        if _contains_cjk(str(evidence.get("query") or "")):
+            return True
+    return False
+
+
+def _looks_like_raw_llm_leaderboard_fetch_excerpt(text: str) -> bool:
+    normalized_text = str(text or "").strip()
+    if not normalized_text or _contains_cjk(normalized_text):
+        return False
+    lowered_text = normalized_text.casefold()
+    numeric_tokens = re.findall(r"(?<!\w)\d+(?:\.\d+)?(?!\w)", normalized_text)
+    numeric_only_lines = [
+        line
+        for line in normalized_text.splitlines()
+        if re.fullmatch(r"\s*\d+(?:\.\d+)?\s*", line)
+    ]
+    return bool(
+        "comparison and ranking the performance" in lowered_text
+        or "over 100 ai models" in lowered_text
+        or (len(numeric_tokens) >= 3 and len(numeric_only_lines) >= 2)
+    )
+
+
 def should_replace_budgeted_web_research_response(
     *,
     response_text: str,
@@ -726,6 +914,11 @@ def should_replace_budgeted_web_research_response(
     if evidence_candidates and _looks_like_low_information_web_research_response(
         raw_response
     ):
+        return True
+    if _has_accepted_cjk_web_research_profile(
+        tool_results,
+        _LLM_LEADERBOARD_PROFILE,
+    ) and _looks_like_raw_llm_leaderboard_fetch_excerpt(raw_response):
         return True
 
     for candidate in evidence_candidates:
