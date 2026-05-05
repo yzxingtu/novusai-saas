@@ -741,6 +741,58 @@ commits。PR 审核（parent agent 或人类 reviewer）必须核对这条引用
 
 ---
 
+### BUG-2026-05-05-2326 AI news stopped after three noisy candidates and leaked generic retry process text
+
+- **reporter**: user / QA
+- **report_date**: 2026-05-05
+- **reproduction_prompt**:
+  ```text
+  查一下今日AI 新闻
+  ```
+- **preconditions**:
+  - conversation_id: `2326`
+  - agent: `59` / 猫娘智能体
+  - owner_type: `platform_admin`
+  - tools in scope: `web_search`, `fetch_url`
+  - WebResearch runtime default path with builtin public search/fetch providers
+- **current_wrong_behavior**:
+  - CLI diagnostics for `conversation_id=2326` showed
+    `turn_outcome=partial`, `termination_reason=insufficient_cross_checked_sources`,
+    `evidence_status=partial`, and `web_research_relevance_profile=ai_news`.
+  - The AI-news query plan produced 15 candidate URLs from three planned search
+    queries, but runtime fetched only the first 3 candidates.
+  - Only one source was accepted:
+    `https://5gai.cctv.com/AI/index.shtml`; two Baijiahao candidates were
+    rejected as `low_query_relevance`, so the turn stopped before later
+    candidate sources could be fetched.
+  - The persisted assistant content and `turn_flow.answer_card` used a Chinese
+    safe partial message, but `turn_flow.error_surface.message` still contained
+    the generic English fallback:
+    `The assistant could not finish this turn. Please retry.`
+- **expected_behavior**:
+  - AI-news WebResearch must use a profile-aware fetch depth that can continue
+    past the first three noisy public-search candidates until two independent
+    relevant sources are accepted or the profile-specific cap is exhausted.
+  - It must keep the evidence gate: if expanded fetch still cannot cross-check,
+    the turn should remain partial without dumping fetched article bodies.
+  - Historical and live UI should prefer the safe answer card/content and must
+    not expose generic English retry text in transcript-first process surfaces.
+- **status**: `red_test_written`
+- **notes**:
+  - CLI evidence command:
+    `python -m app.cli ai conversation show 2326 --tail 8 --diagnostics-only --json`.
+  - RED backend regression:
+    `backend/tests/regressions/test_bug_2026_05_05_2326_ai_news_fetch_depth.py`
+    failed because `BAIDU_REUTERS_WRAPPER` was not fetched under the current
+    fixed `max_fetches=3` behavior.
+  - RED frontend regression:
+    `frontend/apps/web-antd/src/components/business/ai-chat-kernel/__tests__/ChatMessageKernel.test.ts`
+    failed because the kernel overview rendered
+    `The assistant could not finish this turn. Please retry.` instead of the
+    safe Chinese answer digest for a 2326-style partial research turn.
+
+---
+
 ## 用户/QA 批量上报模板（粘贴即可）
 
 对话遇到不对的场景，请用下面格式追加到本文件末尾（Codex 看到该条目会自动为其写 RED 测试）：

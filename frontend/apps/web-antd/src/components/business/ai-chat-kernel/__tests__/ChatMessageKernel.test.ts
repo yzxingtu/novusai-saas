@@ -188,4 +188,59 @@ describe('chatMessageKernel', () => {
       wrapper.find('[data-testid="chat-message-kernel-timeline-panel"]').exists(),
     ).toBe(true);
   });
+
+  it('uses the safe answer digest instead of generic English retry text for 2326-style partial research turns', async () => {
+    const safePartial =
+      '我找到了候选来源，但交叉验证不足，暂时不生成新闻结论。你可以稍后重试或换一个更具体的关键词。';
+    const genericRetry = 'The assistant could not finish this turn. Please retry.';
+    const wrapper = mountKernel(
+      createAssistantMessage({
+        completionReason: 'insufficient_cross_checked_sources',
+        content: safePartial,
+        turnOutcome: 'partial',
+        turnFlow: {
+          answerCard: {
+            confidenceLabel: 'low',
+            sections: [
+              {
+                content: safePartial,
+                id: 'final_answer',
+                title: 'Answer',
+              },
+            ],
+            summary: safePartial,
+          },
+          completionReason: 'insufficient_cross_checked_sources',
+          errorSurface: {
+            errorType: 'untrusted_final_output_source',
+            failureKind: 'insufficient_cross_checked_sources',
+            message: genericRetry,
+          },
+          evidence: [],
+          failureKind: 'insufficient_cross_checked_sources',
+          finalStageStatus: 'error',
+          timeline: [
+            {
+              id: 'answer_assembly',
+              status: 'error',
+              summary: '答复生成失败',
+              type: 'answer_assembly',
+            },
+            {
+              id: 'terminal',
+              status: 'error',
+              summary: 'insufficient_cross_checked_sources',
+              type: 'failed',
+            },
+          ],
+          turnOutcome: 'partial',
+        },
+      }),
+    );
+
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.text()).toContain(safePartial);
+    expect(wrapper.text()).not.toContain(genericRetry);
+  });
 });
