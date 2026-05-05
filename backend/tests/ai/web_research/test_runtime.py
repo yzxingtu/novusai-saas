@@ -353,6 +353,80 @@ async def test_runtime_skips_search_wrapper_candidate_without_fetching() -> None
 
 
 @pytest.mark.asyncio
+async def test_runtime_rejects_final_search_wrapper_after_redirect_fetch() -> None:
+    """
+    Test type: behavioral
+    中文: 回归保护 2305，Baidu /link 抓取后若落到搜索包装页，不能进入已核实来源。
+    EN: Regression for 2305; Baidu /link redirects to search wrappers must not become fetched evidence.
+    """
+
+    events: list[str] = []
+    baidu_redirect_url = "http://www.baidu.com/link?url=2305-baidu-note-video"
+    final_wrapper_url = (
+        "https://www.baidu.com/s?pd=note&rpf=pc&word="
+        "%E5%A5%B3%E6%80%A7%E8%A3%99%E5%AD%90%E6%AC%BE%E5%BC%8F"
+    )
+    query = "查一下 2025年最热门的 女性裙子款式排行！"
+
+    def search_handler(query: str, options: SearchOptions) -> SearchResultSet:
+        return SearchResultSet(
+            query=query,
+            provider="fake-search",
+            items=[
+                normalize_search_item(
+                    title="2026女性裙子款式排行 - 百度",
+                    url=baidu_redirect_url,
+                    snippet="2026年最全裙子款式大盘点，百度聚合页，需要跳转确认正文。",
+                    rank=1,
+                    provider="fake-search",
+                )
+            ],
+        )
+
+    def fetch_handler(url: str, options: FetchOptions) -> object:
+        assert url == baidu_redirect_url
+        return normalize_page_evidence(
+            url=final_wrapper_url,
+            status="completed",
+            title="2026女性裙子款式排行 - 百度",
+            body_text="来自百度的搜索结果，不是可核实的时尚趋势正文。",
+            summary="来自百度的搜索结果",
+            description="来自百度的搜索结果",
+            provider="fake-fetch",
+            raw={"requested_url": url},
+        )
+
+    runtime = WebResearchRuntime(
+        search_provider=FakeSearchProvider(events, search_handler),
+        fetch_provider=FakeFetchProvider(events, fetch_handler),
+    )
+
+    evidence = await runtime.run(
+        query,
+        WebResearchRunOptions(
+            pipeline_id="pipeline-2305-final-wrapper",
+            max_fetches=1,
+        ),
+    )
+
+    assert events == [
+        f"search:{query}:max=5",
+        "search:2025 women's dress trends ranking:max=5",
+        "search:2025 女性 裙子 款式 流行趋势 排行:max=5",
+        f"fetch:{baidu_redirect_url}",
+    ]
+    assert evidence.status == "partial"
+    assert evidence.answer_quality == "none"
+    assert evidence.failure_kind == "final_url_search_wrapper"
+    assert evidence.diagnostics.fetched_urls == []
+    assert evidence.diagnostics.answer_source == "none"
+    assert evidence.fetched_pages[0].status == "skipped"
+    assert evidence.fetched_pages[0].url == final_wrapper_url
+    assert evidence.fetched_pages[0].failure_kind == "final_url_search_wrapper"
+    assert evidence.fetched_pages[0].raw["requested_url"] == baidu_redirect_url
+
+
+@pytest.mark.asyncio
 async def test_runtime_can_emit_snippet_quality_only_when_fetch_not_required() -> None:
     events: list[str] = []
 

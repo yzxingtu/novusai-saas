@@ -191,6 +191,70 @@ def test_2305_fashion_ranking_query_gets_trend_search_plan() -> None:
     assert any("流行趋势" in query for query in plan.search_queries)
 
 
+@pytest.mark.asyncio
+async def test_2299_no_baidu_results_still_fetches_2026_fashion_trusted_seeds() -> None:
+    """
+    Test type: behavioral
+    Regression for: BUG-2026-05-05-2299
+    中文: Baidu public 搜索 0 结果时，2026 女性裙装排行仍应走 WebResearch query profile 的可信来源。
+    EN: When Baidu public search returns zero results, the 2026 fashion ranking profile must still fetch trusted WebResearch seeds.
+    """
+
+    search_provider = FakeSearchProvider(
+        lambda query, _options: SearchResultSet(
+            query=query,
+            provider="fake-search",
+            status="failed",
+            failure_kind="no_results",
+            diagnostics={
+                "failure_reason": "public:baidu returned only low-confidence results"
+            },
+        )
+    )
+    fetch_provider = FakeFetchProvider(_fetch_page)
+    runtime = WebResearchRuntime(
+        search_provider=search_provider,
+        fetch_provider=fetch_provider,
+    )
+
+    evidence = await runtime.run(
+        QUERY,
+        WebResearchRunOptions(pipeline_id="pipeline-2299-zero-results"),
+    )
+
+    assert search_provider.queries == [
+        QUERY,
+        "2026 women's dress trends ranking",
+        "2026 女性 裙子 款式 流行趋势 排行",
+    ]
+    assert evidence.status == "completed"
+    assert evidence.answer_quality == "body"
+    assert evidence.failure_kind is None
+    assert evidence.diagnostics.answer_source == "fetched_body"
+    assert evidence.diagnostics.raw["query_profile"] == "fashion_trend_ranking"
+    assert evidence.diagnostics.raw["trusted_seed_count"] == 2
+    assert evidence.diagnostics.fetched_urls[:2] == [
+        VOGUE_DRESS_TRENDS_URL,
+        MARIE_CLAIRE_SUMMER_TRENDS_URL,
+    ]
+    assert fetch_provider.events[:2] == [
+        VOGUE_DRESS_TRENDS_URL,
+        MARIE_CLAIRE_SUMMER_TRENDS_URL,
+    ]
+
+
+def test_fashion_ranking_search_plan_does_not_inject_2026_seeds_for_other_years() -> (
+    None
+):
+    plan = build_web_research_query_plan("查一下 2025年最热门的 女性裙子款式排行！")
+
+    assert plan.profile == "fashion_trend_ranking"
+    assert plan.trusted_seed_candidates == []
+    assert "2025 women's dress trends ranking" in plan.search_queries
+    assert "2025 女性 裙子 款式 流行趋势 排行" in plan.search_queries
+    assert all("2026" not in query for query in plan.search_queries)
+
+
 def test_2305_fashion_trend_page_passes_relevance_without_llm_terms() -> None:
     page = _fetch_page(VOGUE_DRESS_TRENDS_URL, FetchOptions())
 

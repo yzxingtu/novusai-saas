@@ -4,6 +4,7 @@ Query-profile planning for platform WebResearch.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field, replace
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
@@ -83,10 +84,14 @@ def build_web_research_query_plan(query: str) -> WebResearchQueryPlan:
             source_quality_floor="trusted_leaderboard_or_relevant_benchmark",
         )
     if profile == "fashion_trend_ranking":
+        query_year = _query_year(normalized_query)
         return WebResearchQueryPlan(
             profile=profile,
-            trusted_seed_candidates=list(_FASHION_TREND_TRUSTED_SEEDS),
-            search_queries=_fashion_trend_search_queries(normalized_query),
+            trusted_seed_candidates=_fashion_trend_trusted_seeds(query_year),
+            search_queries=_fashion_trend_search_queries(
+                normalized_query,
+                year=query_year,
+            ),
             minimum_relevant_sources=2,
             source_quality_floor="relevant_fashion_trend_ranking",
         )
@@ -159,8 +164,13 @@ def apply_query_plan_to_search_results(
             seen_url_keys.add(url_key)
         items.append(replace(item, rank=len(items) + 1))
 
+    planned_status = "completed" if items else search_results.status
     return replace(
         search_results,
+        status=planned_status,
+        failure_kind=None
+        if planned_status == "completed"
+        else search_results.failure_kind,
         items=items,
         diagnostics=_planned_diagnostics(
             search_results,
@@ -183,6 +193,7 @@ _TRACKING_QUERY_KEYS = frozenset(
         "spm",
     }
 )
+_YEAR_RE = re.compile(r"(?<!\d)(20\d{2})(?!\d)")
 
 
 def _canonical_url_key(url: str) -> str:
@@ -293,12 +304,34 @@ def _renumber_items(items: list[SearchEvidenceItem]) -> list[SearchEvidenceItem]
     return [replace(item, rank=index) for index, item in enumerate(items, start=1)]
 
 
-def _fashion_trend_search_queries(query: str) -> list[str]:
+def _query_year(query: str) -> str:
+    years = _YEAR_RE.findall(str(query or ""))
+    return years[0] if years else ""
+
+
+def _fashion_trend_trusted_seeds(year: str) -> list[TrustedSeedCandidate]:
+    if str(year or "").strip() == "2026":
+        return list(_FASHION_TREND_TRUSTED_SEEDS)
+    return []
+
+
+def _fashion_trend_search_queries(query: str, *, year: str) -> list[str]:
+    year_prefix = str(year or "").strip()
+    english_query = (
+        f"{year_prefix} women's dress trends ranking"
+        if year_prefix
+        else "women's dress trends ranking"
+    )
+    chinese_query = (
+        f"{year_prefix} 女性 裙子 款式 流行趋势 排行"
+        if year_prefix
+        else "女性 裙子 款式 流行趋势 排行"
+    )
     return _dedupe_text(
         [
             query,
-            "2026 women's dress trends ranking",
-            "2026 女性 裙子 款式 流行趋势 排行",
+            english_query,
+            chinese_query,
         ]
     )
 

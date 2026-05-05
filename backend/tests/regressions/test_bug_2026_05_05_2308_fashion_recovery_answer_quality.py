@@ -15,7 +15,6 @@ from app.ai.engine.recovery_manager import RecoveryManager
 from app.ai.engine.types import IntentPlan
 from app.ai.tools.types import ToolResult
 
-
 QUERY = "查一下 2026年最热门的 女性裙子款式排行！"
 
 
@@ -47,10 +46,7 @@ def _fetch_result(
         name="fetch_url",
         success=True,
         output=(
-            f"Content from {url}:\n"
-            f"Title: {title}\n"
-            f"Description: {description}\n\n"
-            f"{body}"
+            f"Content from {url}:\nTitle: {title}\nDescription: {description}\n\n{body}"
         ),
         summary=description,
         result_link=url,

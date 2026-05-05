@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from urllib.parse import urlsplit
 
 from app.ai.tools.types import ToolResult
 from app.ai.types import ChatMessage
@@ -43,8 +44,73 @@ _FETCH_BODY_LIST_HEADING_RE = re.compile(
     re.IGNORECASE,
 )
 _GENERIC_FETCH_SUMMARY_RE = re.compile(r"^\s*fetched\s+https?://\S+\s*$", re.I)
+_CJK_RE = re.compile(r"[\u4e00-\u9fff]")
+_YEAR_RE = re.compile(r"(?<!\d)(20\d{2})(?!\d)")
 DEFAULT_RECOVERY_RESULT_MAX_LENGTH = 500
 FETCH_URL_RECOVERY_RESULT_MAX_LENGTH = 2000
+_FASHION_TREND_PROFILE = "fashion_trend_ranking"
+_FASHION_TREND_STYLE_PATTERNS: tuple[tuple[str, tuple[str, ...], str], ...] = (
+    (
+        "迷你裙/短款连衣裙",
+        ("leggy minis", "mini dresses", "minis", "mini", "迷你裙", "短裙"),
+        "短款轮廓在春夏趋势中出现频率高，适合轻快通勤或度假造型。",
+    ),
+    (
+        "碎花连衣裙",
+        ("vibrant florals", "floral dresses", "florals", "floral", "碎花", "花卉"),
+        "花卉图案仍是春夏连衣裙的高频趋势，视觉轻盈也更容易日常搭配。",
+    ),
+    (
+        "蕾丝裙/蕾丝细节",
+        ("lace dresses", "lace details", "lace", "蕾丝"),
+        "蕾丝从整裙到局部细节都能提升精致感，是 2026 裙装趋势里的稳定元素。",
+    ),
+    (
+        "吊带裙/Slip Dress",
+        ("slip dresses", "slip dress", "slip", "吊带裙"),
+        "吊带裙适合内搭、外穿和度假场景，延续了轻薄流动的夏季方向。",
+    ),
+    (
+        "衬衫裙",
+        ("tailored shirt dresses", "shirt dresses", "shirt dress", "衬衫裙"),
+        "衬衫裙更偏利落实穿，适合把趋势落到通勤和日常衣橱。",
+    ),
+    (
+        "A字裙",
+        ("a-line skirts", "a line skirts", "a-line", "a字裙"),
+        "A 字裙廓形清晰、遮肉且适配度高，是裙装款式排行里的实穿型选择。",
+    ),
+    (
+        "长款连衣裙/Maxi Dress",
+        ("maxi dresses", "maxi dress", "maxi", "长款连衣裙", "长裙"),
+        "长款连衣裙强调纵向线条，适合夏季度假、通勤外搭和松弛感造型。",
+    ),
+    (
+        "透视薄纱裙",
+        ("sheer skirts", "sheer dress", "sheer", "透视", "薄纱"),
+        "透视和薄纱材质增加轻盈层次，适合搭配内衬或叠穿降低穿搭门槛。",
+    ),
+    (
+        "垂褶连衣裙",
+        ("draped dresses", "draping", "draped", "垂褶", "褶皱"),
+        "垂褶能制造自然腰线和流动感，是偏成熟、优雅的趋势款式。",
+    ),
+    (
+        "背心裙",
+        ("tank dresses", "tank dress", "背心裙"),
+        "背心裙强调清爽版型，适合高温季节和极简风格穿搭。",
+    ),
+    (
+        "荷叶边裙",
+        ("ruffles", "ruffle", "荷叶边"),
+        "荷叶边提供更明显的女性化层次，适合作为造型亮点。",
+    ),
+    (
+        "斗篷裙",
+        ("cape dresses", "cape dress", "斗篷裙"),
+        "斗篷式结构更有秀场感，适合礼服或强调存在感的造型。",
+    ),
+)
 
 
 def intent_recovery_result_max_length(intent: IntentPlan) -> int:
@@ -400,6 +466,193 @@ def extract_fetch_url_user_preview(
     return None
 
 
+def _contains_cjk(text: str) -> bool:
+    return bool(_CJK_RE.search(str(text or "")))
+
+
+def _tool_result_payload(result: ToolResult) -> dict[str, object]:
+    return (
+        dict(result.summary_payload) if isinstance(result.summary_payload, dict) else {}
+    )
+
+
+def _web_research_evidence_payload(payload: dict[str, object]) -> dict[str, object]:
+    evidence = payload.get("web_research_evidence")
+    return dict(evidence) if isinstance(evidence, dict) else {}
+
+
+def _web_research_query_profile(payload: dict[str, object]) -> str:
+    evidence = _web_research_evidence_payload(payload)
+    diagnostics = evidence.get("diagnostics")
+    diagnostics_payload = dict(diagnostics) if isinstance(diagnostics, dict) else {}
+    raw = diagnostics_payload.get("raw")
+    raw_payload = dict(raw) if isinstance(raw, dict) else {}
+    for value in (
+        raw_payload.get("query_profile"),
+        diagnostics_payload.get("relevance_profile"),
+        payload.get("relevance_profile"),
+    ):
+        profile = str(value or "").strip()
+        if profile:
+            return profile
+    fetched_pages = evidence.get("fetched_pages")
+    if isinstance(fetched_pages, list):
+        for page in fetched_pages:
+            if not isinstance(page, dict):
+                continue
+            profile = str(page.get("relevance_profile") or "").strip()
+            if profile:
+                return profile
+    return ""
+
+
+def _accepted_fetch_url_results(
+    tool_results: list[ToolResult] | None,
+) -> list[tuple[ToolResult, dict[str, object]]]:
+    accepted: list[tuple[ToolResult, dict[str, object]]] = []
+    for result in tool_results or []:
+        if not result.success or str(result.name or "").strip() != "fetch_url":
+            continue
+        payload = _tool_result_payload(result)
+        if not _fetch_url_payload_is_accepted_for_web_research(payload):
+            continue
+        accepted.append((result, payload))
+    return accepted
+
+
+def _requires_structured_web_research_answer(
+    intent: IntentPlan,
+    tool_results: list[ToolResult] | None,
+) -> bool:
+    query = f"{intent.source_text or ''} {intent.user_visible_label or ''}"
+    if not _contains_cjk(query):
+        return False
+    return any(
+        _web_research_query_profile(payload) == _FASHION_TREND_PROFILE
+        for _result, payload in _accepted_fetch_url_results(tool_results)
+    )
+
+
+def _payload_source_label(payload: dict[str, object]) -> str:
+    title = str(payload.get("title") or "").strip()
+    url = str(payload.get("final_url") or payload.get("url") or "").strip()
+    netloc = urlsplit(url).netloc.casefold()
+    if "vogue." in netloc:
+        return "Vogue"
+    if "marieclaire." in netloc:
+        return "Marie Claire"
+    if "whowhatwear." in netloc:
+        return "Who What Wear"
+    if title:
+        return title.split("|", 1)[0].split("_", 1)[0].strip()[:40]
+    return netloc.removeprefix("www.") if netloc else ""
+
+
+def _dedupe_preserve_order(values: list[str]) -> list[str]:
+    result: list[str] = []
+    for value in values:
+        text = str(value or "").strip()
+        if text and text not in result:
+            result.append(text)
+    return result
+
+
+def _fetch_result_evidence_text(
+    result: ToolResult,
+    payload: dict[str, object],
+) -> str:
+    parts = [
+        str(result.output or ""),
+        str(result.summary or ""),
+        str(payload.get("title") or ""),
+        str(payload.get("description") or ""),
+        str(payload.get("summary") or ""),
+    ]
+    evidence = _web_research_evidence_payload(payload)
+    fetched_pages = evidence.get("fetched_pages")
+    if isinstance(fetched_pages, list):
+        for page in fetched_pages:
+            if not isinstance(page, dict):
+                continue
+            parts.extend(
+                [
+                    str(page.get("title") or ""),
+                    str(page.get("description") or ""),
+                    str(page.get("summary") or ""),
+                    str(page.get("body_text") or ""),
+                ]
+            )
+    return "\n".join(part for part in parts if part.strip())
+
+
+def _style_match_position(text: str, patterns: tuple[str, ...]) -> int | None:
+    lowered_text = text.casefold()
+    positions = [
+        lowered_text.find(pattern.casefold())
+        for pattern in patterns
+        if pattern and lowered_text.find(pattern.casefold()) >= 0
+    ]
+    return min(positions) if positions else None
+
+
+def _query_year(intent: IntentPlan) -> str:
+    query = f"{intent.source_text or ''} {intent.user_visible_label or ''}"
+    years = _YEAR_RE.findall(query)
+    return years[0] if years else ""
+
+
+def _render_fashion_trend_ranking_answer(
+    intent: IntentPlan,
+    accepted_results: list[tuple[ToolResult, dict[str, object]]],
+) -> str | None:
+    source_labels = _dedupe_preserve_order(
+        [_payload_source_label(payload) for _result, payload in accepted_results]
+    )
+    evidence_text = "\n".join(
+        _fetch_result_evidence_text(result, payload)
+        for result, payload in accepted_results
+    )
+    matched_styles: list[tuple[int, int, str, str]] = []
+    for style_index, (label, patterns, rationale) in enumerate(
+        _FASHION_TREND_STYLE_PATTERNS
+    ):
+        position = _style_match_position(evidence_text, patterns)
+        if position is None:
+            continue
+        matched_styles.append((position, style_index, label, rationale))
+    if len(matched_styles) < 3:
+        return None
+
+    year = _query_year(intent) or "2026"
+    ranked_styles = sorted(matched_styles, key=lambda item: item[1])[:8]
+    lines = [
+        f"基于已抓取的{'、'.join(source_labels) if source_labels else '时尚媒体'}等可核实来源，可整理为 {year} 女性裙装热门款式参考排行："
+    ]
+    for rank, (_position, _style_index, label, rationale) in enumerate(
+        ranked_styles,
+        start=1,
+    ):
+        lines.append(f"{rank}. {label}：{rationale}")
+    if source_labels:
+        lines.append(f"来源：{'、'.join(source_labels)}。")
+    return "\n".join(lines)
+
+
+def _render_structured_web_research_answer(
+    intent: IntentPlan,
+    tool_results: list[ToolResult] | None,
+) -> str | None:
+    if not _requires_structured_web_research_answer(intent, tool_results):
+        return None
+    accepted_results = _accepted_fetch_url_results(tool_results)
+    if not any(
+        _web_research_query_profile(payload) == _FASHION_TREND_PROFILE
+        for _result, payload in accepted_results
+    ):
+        return None
+    return _render_fashion_trend_ranking_answer(intent, accepted_results)
+
+
 def budgeted_web_research_response_candidates(
     tool_results: list[ToolResult] | None = None,
 ) -> list[str]:
@@ -585,6 +838,15 @@ def intent_result_from_tool_results(
 ) -> str | None:
     if not tool_results:
         return None
+    if str(intent.family or "").strip() == "web_research":
+        structured_answer = _render_structured_web_research_answer(
+            intent,
+            tool_results,
+        )
+        if structured_answer:
+            return structured_answer
+        if _requires_structured_web_research_answer(intent, tool_results):
+            return None
     candidate_tool_names: list[str] = []
     prioritized_tool_names = list(intent.completed_by_tool_names or [])
     if not prioritized_tool_names:

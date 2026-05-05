@@ -478,6 +478,58 @@ commits。PR 审核（parent agent 或人类 reviewer）必须核对这条引用
 
 ---
 
+### BUG-2026-05-05-2299 Fashion ranking query with zero public-search results ended as no_answer_quality_evidence
+
+- **reporter**: user
+- **report_date**: 2026-05-05
+- **reproduction_prompt**:
+  ```text
+  查一下 2026年最热门的 女性裙子款式排行！
+  ```
+- **preconditions**:
+  - conversation_id: `2299`
+  - agent: `59` / 猫娘智能体
+  - owner_type: `platform_admin`
+  - tools in scope: `web_search`, `fetch_url`
+  - WebResearch runtime default path with builtin public search/fetch providers
+- **current_wrong_behavior**:
+  - CLI evidence from `python -m app.cli ai conversation show 2299 --json` showed
+    `completion_reason=no_answer_quality_evidence`,
+    `evidence_status=failed`, `answer_source=none`,
+    `web_research_failure_kind=no_answer_quality_evidence`.
+  - The builtin public Baidu backend returned zero accepted results with
+    `status=no_results` and
+    `failure_reason=public:baidu returned only low-confidence results`.
+  - Because the turn retained the failed search status, WebResearch did not
+    produce accepted fetched evidence for the exact user-visible query even
+    though this prompt family has deterministic 2026 fashion trend seed sources.
+- **expected_behavior**:
+  - The platform WebResearch query plan for `fashion_trend_ranking` must still
+    inject and fetch 2026 trusted fashion trend seeds when the public search
+    backend returns zero or low-confidence results.
+  - If those fetched seed pages pass deterministic relevance and contain body
+    evidence, the canonical WebResearch evidence must be `completed` with
+    `answer_source=fetched_body`, not `partial/failed` inherited from the public
+    search backend.
+  - Adjacent bug fixes for `blocked_url` (2295) or low-relevance Baidu vertical
+    pages (2305) must not be used to close this zero-results failure unless a
+    same-failure 2299 regression is present.
+- **status**: `fixed_with_green_test`
+- **notes**:
+  - RED regression added at:
+    `backend/tests/regressions/test_bug_2026_05_05_2305_generic_trend_ranking_search_plan.py::test_2299_no_baidu_results_still_fetches_2026_fashion_trusted_seeds`.
+  - RED command before the fix failed because evidence stayed `partial` after
+    trusted seed fetches:
+    `python -m pytest backend/tests/regressions/test_bug_2026_05_05_2305_generic_trend_ranking_search_plan.py::test_2299_no_baidu_results_still_fetches_2026_fashion_trusted_seeds -q`.
+  - GREEN implementation promotes planned trusted-seed candidate sets to a
+    completed search result set before evidence normalization, so accepted
+    fetched body evidence can complete the turn instead of inheriting Baidu
+    `no_results`.
+  - This is structural + behavioral evidence. Real-dialogue smoke/replay remains
+    required before claiming full milestone/regression-suite green.
+
+---
+
 ## 用户/QA 批量上报模板（粘贴即可）
 
 对话遇到不对的场景，请用下面格式追加到本文件末尾（Codex 看到该条目会自动为其写 RED 测试）：
