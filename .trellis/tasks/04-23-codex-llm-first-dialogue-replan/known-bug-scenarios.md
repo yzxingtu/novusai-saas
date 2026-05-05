@@ -357,10 +357,15 @@ commits。PR 审核（parent agent 或人类 reviewer）必须核对这条引用
 - **notes**:
   - RED regression added at:
     `backend/tests/regressions/test_bug_2026_05_05_2293_llm_leaderboard_authority_fallback.py`.
+  - RED commit:
+    `e44930175 test(ai): reproduce 2293 leaderboard authority fallback failure`.
   - GREEN commits add platform-owned authority/query expansion for the
     `llm_leaderboard` profile and prove conversation-style WebResearch can reach
     accepted evidence instead of a clean but useless failure:
     `d805a0f86`, `69659e730`, `e236d6b64`.
+  - This entry closes the source-selection/authority fallback class only. The
+    later `BUG-2026-05-05-2311` entry separately covers completed leaderboard
+    evidence being rendered as raw English source snippets.
 
 ---
 
@@ -475,6 +480,52 @@ commits。PR 审核（parent agent 或人类 reviewer）必须核对这条引用
     `use-ai-chat.test.ts` passed with `65 passed`.
   - This is behavioral + structural evidence only. It does not replace a
     real-dialogue smoke artifact for the full testing-discipline milestone gate.
+  - Fresh smoke conversations `2309` and `2310` now complete with
+    `web_research_relevance_profile=fashion_trend_ranking`,
+    `fetched_urls=[Vogue, Marie Claire]`, `answer_source=fetched_body`, and
+    Chinese ranked fashion answers. Smoke artifact:
+    `.trellis/tasks/05-04-web-research-runtime-rewrite/smoke-runs/2026-05-05-webresearch-2305-fashion-ranking/report.md`.
+
+---
+
+### BUG-2026-05-05-2308 Fashion ranking completed with raw English source snippets
+
+- **reporter**: user / QA
+- **report_date**: 2026-05-05
+- **reproduction_prompt**:
+  ```text
+  查一下 2026年最热门的 女性裙子款式排行！
+  ```
+- **preconditions**:
+  - conversation_id: `2308`
+  - agent: `59` / 猫娘智能体
+  - owner_type: `platform_admin`
+  - tools in scope: `web_search`, `fetch_url`
+  - WebResearch runtime accepted Vogue / Marie Claire fetched evidence
+- **current_wrong_behavior**:
+  - The turn reached `turn_outcome=success`, `evidence_status=completed`,
+    `answer_source=fetched_body`, and `final_output_source=recovery_evidence`.
+  - The assistant content was still raw English source preview text such as
+    `From leggy minis...` and `Here, the fashion trends shaping summer 2026...`
+    instead of a Chinese ranked answer.
+- **expected_behavior**:
+  - For Chinese `fashion_trend_ranking` prompts, accepted fetched evidence must
+    be rendered as a Chinese ranked fashion answer.
+  - Raw English source descriptions or page teaser text must not be treated as
+    the final answer when deterministic evidence is available.
+- **status**: `fixed_with_green_test`
+- **notes**:
+  - RED regression commit:
+    `3a0ad7f15 test(ai): reproduce 2308 fashion recovery answer quality failure`.
+  - GREEN implementation commit:
+    `43456b670 fix(ai): complete fashion web research on trusted seeds`.
+  - Behavioral regression:
+    `backend/tests/regressions/test_bug_2026_05_05_2308_fashion_recovery_answer_quality.py`.
+  - GREEN command:
+    `python -m pytest tests\regressions\test_bug_2026_05_05_2308_fashion_recovery_answer_quality.py -q`
+    -> `1 passed`.
+  - Fresh smoke conversations `2309` and `2310` verified the visible answer is
+    a Chinese ranked list and does not expose the raw English source snippets.
 
 ---
 
@@ -514,7 +565,7 @@ commits。PR 审核（parent agent 或人类 reviewer）必须核对这条引用
   - Adjacent bug fixes for `blocked_url` (2295) or low-relevance Baidu vertical
     pages (2305) must not be used to close this zero-results failure unless a
     same-failure 2299 regression is present.
-- **status**: `fixed_with_green_test`
+- **status**: `fix_in_progress`
 - **notes**:
   - RED regression added at:
     `backend/tests/regressions/test_bug_2026_05_05_2305_generic_trend_ranking_search_plan.py::test_2299_no_baidu_results_still_fetches_2026_fashion_trusted_seeds`.
@@ -527,6 +578,108 @@ commits。PR 审核（parent agent 或人类 reviewer）必须核对这条引用
     `no_results`.
   - This is structural + behavioral evidence. Real-dialogue smoke/replay remains
     required before claiming full milestone/regression-suite green.
+
+---
+
+### BUG-2026-05-05-2304 Fashion ranking query stopped after a low-relevance Baidu note candidate
+
+- **reporter**: user
+- **report_date**: 2026-05-05
+- **reproduction_prompt**:
+  ```text
+  查一下 2026年最热门的 女性裙子款式排行！
+  ```
+- **preconditions**:
+  - conversation_id: `2304`
+  - agent: `59` / 猫娘智能体
+  - owner_type: `platform_admin`
+  - tools in scope: `web_search`, `fetch_url`
+  - WebResearch runtime default path with builtin public search/fetch providers
+- **current_wrong_behavior**:
+  - CLI evidence from `python -m app.cli ai conversation show 2304 --json` showed
+    the first assistant turn ended with `completion_reason=low_query_relevance`,
+    `evidence_status=partial`, `answer_source=none`, and
+    `web_research_failure_kind=low_query_relevance`.
+  - The only candidate URL was a Baidu `/link` "精选笔记" result. After fetch,
+    deterministic relevance rejected it as unrelated/insufficient evidence.
+  - The turn used `web_research_relevance_profile=leaderboard` and had no
+    `query_profile`, `planned_search_queries`, or `trusted_seed_count`
+    diagnostics, so the fashion-specific trusted sources were never reached.
+- **expected_behavior**:
+  - The prompt must be classified as `fashion_trend_ranking`, not generic
+    `leaderboard`.
+  - Low-relevance Baidu note or vertical-search candidates must not be the only
+    evidence path for 2026 fashion ranking prompts.
+  - The platform WebResearch plan should fetch trusted 2026 fashion trend seeds
+    first, and accepted fetched body evidence should complete the turn with
+    `answer_source=fetched_body`.
+- **status**: `fix_in_progress`
+- **notes**:
+  - Same-ID/same-failure behavioral regression:
+    `backend/tests/regressions/test_bug_2026_05_05_2305_generic_trend_ranking_search_plan.py::test_2304_low_relevance_baidu_note_does_not_stop_fashion_trusted_seed_fetch`.
+  - The regression simulates the 2304 Baidu "精选笔记" low-relevance candidate and
+    asserts that trusted Vogue / Marie Claire fashion sources are fetched before
+    the low-relevance Baidu candidate can terminate the turn.
+  - Current HEAD passes this regression because the fashion query profile and
+    trusted-seed fetch path from the 2299/2305 fixes now cover 2304 as well.
+  - No dedicated RED commit was preserved for this adjacent conversation-id
+    regression. It is kept as post-fix coverage and must not be used by itself
+    as a Trellis §6.2 RED->GREEN closure.
+
+---
+
+### BUG-2026-05-05-2311 LLM leaderboard completed with raw English source snippets and numeric fragments
+
+- **reporter**: user / QA
+- **report_date**: 2026-05-05
+- **reproduction_prompt**:
+  ```text
+  查一下大模型排行榜 2026  水平排行！
+  ```
+- **preconditions**:
+  - conversation_id: `2311`
+  - agent: `59` / 猫娘智能体
+  - owner_type: `platform_admin`
+  - tools in scope: `web_search`, `fetch_url`
+  - WebResearch runtime default path with builtin public search/fetch providers
+- **current_wrong_behavior**:
+  - CLI diagnostics showed `turn_outcome=success`,
+    `termination_reason=completed`, `evidence_status=completed`,
+    `answer_source=fetched_body`, `final_output_source=recovery_evidence`, and
+    `web_research_relevance_profile=llm_leaderboard`.
+  - The accepted fetched source was Artificial Analysis, while a noisy
+    Baijiahao source was rejected.
+  - Despite successful evidence, the assistant answer was raw English page copy
+    plus orphan numeric fragments:
+    `Comparison and ranking the performance of over 100 AI models...`,
+    followed by lines such as `65.59`, `71.66`, `28.17`.
+- **expected_behavior**:
+  - For Chinese `llm_leaderboard` prompts, accepted leaderboard evidence must be
+    rendered as a Chinese model-ranking answer with named models and metrics.
+  - Raw English source descriptions or numeric columns must be considered
+    replaceable evidence previews, not final user-facing answers.
+  - The runtime may still report `answer_source=fetched_body`, but the visible
+    answer must be assembled by the platform recovery/evidence layer.
+- **status**: `fixed_with_green_test`
+- **notes**:
+  - RED regression commit:
+    `c5aedec2f test(ai): reproduce 2311 llm recovery answer quality failure`.
+  - GREEN implementation commit:
+    `79d063c5c fix(ai): render llm leaderboard recovery answers`.
+  - Behavioral regression:
+    `backend/tests/regressions/test_bug_2026_05_05_2311_llm_recovery_answer_quality.py`.
+  - RED command failed with the expected assertion because the output was still
+    `Comparison and ranking...` plus `65.59\n71.66`.
+  - GREEN command:
+    `python -m pytest tests\regressions\test_bug_2026_05_05_2311_llm_recovery_answer_quality.py -q`
+    -> `2 passed`.
+  - Fresh real-dialogue smoke conversation `2312` completed with
+    `web_research_relevance_profile=llm_leaderboard`,
+    `fetched_urls=["https://artificialanalysis.ai/leaderboards/models"]`,
+    `answer_source=fetched_body`, and a Chinese answer headed
+    `2026 大模型能力排行参考`.
+  - Smoke artifact:
+    `.trellis/tasks/05-04-web-research-runtime-rewrite/smoke-runs/2026-05-05-webresearch-2311-llm-answer-quality/report.md`.
 
 ---
 

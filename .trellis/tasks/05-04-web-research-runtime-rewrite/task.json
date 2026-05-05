@@ -94,6 +94,48 @@
     "real_dialogue_smoke": "pass",
     "real_dialogue_conversation_id": 2290,
     "real_dialogue_smoke_prompt": "查一下大模型排行榜 2026  水平排行！",
+    "latest_incident_smokes": {
+      "fashion_ranking": {
+        "historical_failure_conversation_id": 2305,
+        "fresh_smoke_conversation_id": 2310,
+        "latest_resmoke_conversation_id": 2313,
+        "prompt": "查一下 2026年最热门的 女性裙子款式排行！",
+        "status": "pass",
+        "evidence_status": "completed",
+        "answer_source": "fetched_body",
+        "web_research_relevance_profile": "fashion_trend_ranking",
+        "fetched_urls": [
+          "https://www.vogue.com/article/spring-2026-dress-trends",
+          "https://www.marieclaire.com/fashion/summer-fashion/summer-fashion-trends-2026/"
+        ],
+        "report": ".trellis/tasks/05-04-web-research-runtime-rewrite/smoke-runs/2026-05-05-webresearch-2305-fashion-ranking/report.md",
+        "playwright_screenshot": ".trellis/tasks/05-04-web-research-runtime-rewrite/smoke-runs/2026-05-05-webresearch-2305-fashion-ranking/playwright-2310-fashion-ranking-detail.png",
+        "latest_playwright_ui_check": "pass; conversation 2313 detail drawer showed web_research completed, evidence_status=completed, answer_source=fetched_body, Chinese fashion ranking answer, and no console errors",
+        "note": "Historical 2305 remains failed; fresh 2310 plus latest resmoke 2313 prove the current code path for the same fashion-ranking prompt family."
+      },
+      "llm_leaderboard_answer_quality": {
+        "historical_bad_output_conversation_id": 2311,
+        "fresh_smoke_conversation_id": 2312,
+        "latest_resmoke_conversation_id": 2314,
+        "prompt": "查一下大模型排行榜 2026  水平排行！",
+        "status": "pass",
+        "evidence_status": "completed",
+        "answer_source": "fetched_body",
+        "web_research_relevance_profile": "llm_leaderboard",
+        "fetched_urls": [
+          "https://artificialanalysis.ai/leaderboards/models"
+        ],
+        "rejected_urls": [
+          "https://baijiahao.baidu.com/s?id=1860091565873698107&wfr=spider&for=pc"
+        ],
+        "red_commit": "c5aedec2f",
+        "green_commit": "79d063c5c",
+        "report": ".trellis/tasks/05-04-web-research-runtime-rewrite/smoke-runs/2026-05-05-webresearch-2311-llm-answer-quality/report.md",
+        "playwright_screenshot": ".trellis/tasks/05-04-web-research-runtime-rewrite/smoke-runs/2026-05-05-webresearch-2311-llm-answer-quality/playwright-2312-llm-ranking-detail.png",
+        "latest_playwright_ui_check": "pass; conversation 2314 detail drawer showed web_research completed, evidence_status=completed, answer_source=fetched_body, Chinese LLM leaderboard answer, and no console errors",
+        "note": "Historical 2311 remains the raw-English/numeric-fragment bad-output anchor; fresh 2312 plus latest resmoke 2314 prove current llm_leaderboard answer rendering."
+      }
+    },
     "playwright_smoke": "pass; admin conversations UI opened conversation 2290 and rendered failure attribution as 来源相关性不足, web_research failed, provider event evidence_status=partial answer_source=none, retry return_partial low_query_relevance, and assistant message card 异常; console has no missing i18n key after frontend locale fix",
     "frontend_typecheck": "pnpm --dir frontend check:type:antd passed",
     "frontend_locale_prettier": "prettier --check passed for touched admin/tenant ai locale JSON files",

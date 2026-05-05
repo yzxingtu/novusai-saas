@@ -192,6 +192,80 @@ def test_2305_fashion_ranking_query_gets_trend_search_plan() -> None:
 
 
 @pytest.mark.asyncio
+async def test_2304_low_relevance_baidu_note_does_not_stop_fashion_trusted_seed_fetch() -> (
+    None
+):
+    """
+    Test type: behavioral
+    Regression for: BUG-2026-05-05-2304
+    中文: 2304 的 Baidu 精选笔记低相关候选不能阻止 2026 女性裙装排行走可信时尚来源。
+    EN: The low-relevance Baidu note candidate from 2304 must not stop trusted fashion source fetches.
+    """
+
+    baidu_note_url = (
+        "http://www.baidu.com/link?url="
+        "1OEwvmVYMgn2X_4TnbRJ1kf5cODqKrKt-Puhp-EmqwHonjo0R3BkgS746at-MHU-"
+        "a8YLSigMxu7mkdo9YiLTonuJpdTZKTzDC5tLasI-wFeaZgswLt3ggeGRRq1YUKj"
+    )
+
+    def search_handler(query: str, _options: SearchOptions) -> SearchResultSet:
+        return SearchResultSet(
+            query=query,
+            provider="fake-search",
+            items=[
+                normalize_search_item(
+                    title="查一下 2026年最热门的 女性裙子款式排行! - 精选笔记",
+                    url=baidu_note_url,
+                    snippet="2026年女性裙子款式排行相关精选笔记，来自百度聚合结果。",
+                    rank=1,
+                    provider="fake-search",
+                )
+            ],
+        )
+
+    def fetch_handler(url: str, options: FetchOptions) -> PageEvidence:
+        if url == baidu_note_url:
+            return normalize_page_evidence(
+                url=url,
+                status="completed",
+                title="百度精选笔记",
+                description="低相关聚合笔记",
+                summary="精选笔记聚合页",
+                body_text="这是一条百度精选笔记聚合内容，缺少具体裙装趋势、款式列表和可核实来源。",
+                provider="fake-fetch",
+            )
+        return _fetch_page(url, options)
+
+    search_provider = FakeSearchProvider(search_handler)
+    fetch_provider = FakeFetchProvider(fetch_handler)
+    runtime = WebResearchRuntime(
+        search_provider=search_provider,
+        fetch_provider=fetch_provider,
+    )
+
+    evidence = await runtime.run(
+        QUERY,
+        WebResearchRunOptions(pipeline_id="pipeline-2304-low-relevance"),
+    )
+
+    assert evidence.status == "completed"
+    assert evidence.answer_quality == "body"
+    assert evidence.failure_kind is None
+    assert evidence.diagnostics.answer_source == "fetched_body"
+    assert evidence.diagnostics.raw["query_profile"] == "fashion_trend_ranking"
+    assert evidence.diagnostics.raw["trusted_seed_count"] == 2
+    assert evidence.diagnostics.fetched_urls[:2] == [
+        VOGUE_DRESS_TRENDS_URL,
+        MARIE_CLAIRE_SUMMER_TRENDS_URL,
+    ]
+    assert baidu_note_url not in evidence.diagnostics.fetched_urls
+    assert fetch_provider.events[:2] == [
+        VOGUE_DRESS_TRENDS_URL,
+        MARIE_CLAIRE_SUMMER_TRENDS_URL,
+    ]
+
+
+@pytest.mark.asyncio
 async def test_2299_no_baidu_results_still_fetches_2026_fashion_trusted_seeds() -> None:
     """
     Test type: behavioral
