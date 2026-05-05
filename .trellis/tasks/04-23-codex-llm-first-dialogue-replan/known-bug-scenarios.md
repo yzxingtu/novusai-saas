@@ -408,6 +408,63 @@ commits。PR 审核（parent agent 或人类 reviewer）必须核对这条引用
 
 ---
 
+### BUG-2026-05-05-2305 Fashion ranking query used generic/LLM-style leaderboard relevance and stopped after one Baidu vertical candidate
+
+- **reporter**: user / QA
+- **report_date**: 2026-05-05
+- **reproduction_prompt**:
+  ```text
+  查一下 2026年最热门的 女性裙子款式排行！
+  ```
+- **preconditions**:
+  - conversation_id: `2305`
+  - agent: `59` / 猫娘智能体
+  - owner_type: `platform_admin`
+  - tools in scope: `web_search`, `fetch_url`
+  - WebResearch runtime default path with builtin public search/fetch providers
+- **current_wrong_behavior**:
+  - Runtime selected platform WebResearch through
+    `builtin:web_search -> builtin:fetch_url`.
+  - Public Baidu search returned only one useful-looking candidate, a Baidu
+    note/video vertical result:
+    `https://www.baidu.com/s?pd=note...&sa=vs_video_top_ugc`.
+  - The turn ended as failed/partial with:
+    `turn_outcome=failed`, `termination_reason=low_query_relevance`,
+    `evidence_status=partial`, `fetched_urls=[]`, `answer_source=none`,
+    and `web_research_relevance_profile=leaderboard`.
+  - The user-visible answer said the system found candidates but had no
+    sufficiently relevant/verifiable content, rather than producing a useful
+    fashion trend/ranking answer.
+  - Local RED testing showed the fashion prompt was treated as generic
+    `leaderboard`, fashion trend pages were rejected as `low_relevance`, and the
+    runtime did not expand beyond the single weak original-query search result.
+- **expected_behavior**:
+  - Non-LLM fashion ranking/trend queries must not inherit LLM leaderboard
+    required terms or LLM trusted-source policy.
+  - The query planner and relevance gate should use a fashion/trend-ranking
+    profile whose required evidence terms match the prompt: 2026 freshness,
+    women's dresses/skirts, styles, trends, and ranking/list markers.
+  - If the original public search only yields wrappers or low-confidence
+    vertical pages, the platform-owned `search -> fetch -> evidence -> answer`
+    chain should expand to better search queries before declaring failure.
+  - Relevant fashion/trend sources must still pass `fetch_url` and deterministic
+    relevance before they can populate `fetched_urls`, citations, or completed
+    WebResearch evidence.
+- **status**: `red_test_written`
+- **notes**:
+  - RED regression added at:
+    `backend/tests/regressions/test_bug_2026_05_05_2305_generic_trend_ranking_search_plan.py`.
+  - RED command before the fix:
+    `python -m pytest tests\regressions\test_bug_2026_05_05_2305_generic_trend_ranking_search_plan.py -q`
+    failed because the plan profile was `leaderboard`, the fashion page
+    relevance was `low_relevance`, and only one search query was attempted.
+  - This is related to but distinct from `BUG-2026-05-05-2295`: 2295 covered
+    Baidu Images wrapper / blocked_url behavior, while 2305 covers domain
+    relevance/profile mismatch plus missing query expansion for the same prompt
+    family.
+
+---
+
 ## 用户/QA 批量上报模板（粘贴即可）
 
 对话遇到不对的场景，请用下面格式追加到本文件末尾（Codex 看到该条目会自动为其写 RED 测试）：
