@@ -683,6 +683,47 @@ commits。PR 审核（parent agent 或人类 reviewer）必须核对这条引用
 
 ---
 
+### BUG-2026-05-05-2315 AI news WebResearch accepted one stale source and dumped the article body
+
+- **reporter**: user / QA
+- **report_date**: 2026-05-05
+- **reproduction_prompt**:
+  ```text
+  今日ai新闻查一下
+  ```
+- **preconditions**:
+  - conversation_id: `2315`
+  - agent: `15` / 智能助手
+  - owner_type: `platform_admin`
+  - tools in scope: `web_search`, `fetch_url`
+  - WebResearch runtime default path with builtin public search/fetch providers
+- **current_wrong_behavior**:
+  - CLI diagnostics showed `turn_outcome=success`,
+    `termination_reason=completed`, `evidence_status=completed`,
+    `answer_source=fetched_body`, and `final_output_source=recovery_evidence`.
+  - The fetched URL was a single NetEase repost:
+    `https://www.163.com/dy/article/J1QO5JKJ05198CJN.html`.
+  - The relevance profile was missing/null, so generic relevance marked the
+    source as `unscored` with score `1.0`.
+  - The visible answer copied a long article body directly, including old
+    2024/5月10 AI daily items, instead of cross-checking current AI news and
+    summarizing.
+- **expected_behavior**:
+  - Current/today AI news prompts must use a dedicated news relevance profile,
+    not generic unscored acceptance.
+  - A single stale or low-trust source must not complete the turn.
+  - Completed AI-news research must be synthesized into a concise Chinese
+    source-labeled summary; fetched article bodies must not be dumped directly.
+- **status**: `red_test_written`
+- **notes**:
+  - RED regression:
+    `backend/tests/regressions/test_bug_2026_05_05_2315_ai_news_cross_check.py`.
+  - This bug is distinct from the 2305/2311 leaderboard/fashion rendering
+    issues because the missing contract is current-news source diversity and
+    synthesis.
+
+---
+
 ## 用户/QA 批量上报模板（粘贴即可）
 
 对话遇到不对的场景，请用下面格式追加到本文件末尾（Codex 看到该条目会自动为其写 RED 测试）：
