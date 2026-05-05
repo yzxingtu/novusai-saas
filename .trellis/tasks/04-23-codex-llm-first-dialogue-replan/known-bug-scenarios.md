@@ -450,7 +450,7 @@ commits。PR 审核（parent agent 或人类 reviewer）必须核对这条引用
   - Relevant fashion/trend sources must still pass `fetch_url` and deterministic
     relevance before they can populate `fetched_urls`, citations, or completed
     WebResearch evidence.
-- **status**: `red_test_written`
+- **status**: `fixed_with_green_test`
 - **notes**:
   - RED regression added at:
     `backend/tests/regressions/test_bug_2026_05_05_2305_generic_trend_ranking_search_plan.py`.
@@ -462,6 +462,19 @@ commits。PR 审核（parent agent 或人类 reviewer）必须核对这条引用
     Baidu Images wrapper / blocked_url behavior, while 2305 covers domain
     relevance/profile mismatch plus missing query expansion for the same prompt
     family.
+  - GREEN implementation adds a `fashion_trend_ranking` WebResearch profile,
+    query expansion for 2026 women/dress trend ranking prompts, fashion-specific
+    deterministic relevance, and candidate ordering that fetches relevant trend
+    sources before weak Baidu vertical candidates.
+  - GREEN command:
+    `python -m pytest backend/tests/regressions/test_bug_2026_05_05_2305_generic_trend_ranking_search_plan.py backend/tests/ai/web_research/test_runtime.py::test_runtime_skips_search_wrapper_candidate_without_fetching backend/tests/ai/test_web_search_orchestrator.py::test_public_html_filters_baidu_image_wrapper_result_as_no_results -q`
+    → `5 passed`.
+  - Frontend display guard also covers this prompt family by suppressing
+    blocked_url/generic retry copy and process-only residuals as final answer
+    body; targeted vitest for `ChatMessageContentBlock.test.ts` and
+    `use-ai-chat.test.ts` passed with `65 passed`.
+  - This is behavioral + structural evidence only. It does not replace a
+    real-dialogue smoke artifact for the full testing-discipline milestone gate.
 
 ---
 

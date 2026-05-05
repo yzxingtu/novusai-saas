@@ -168,11 +168,7 @@ export interface TurnFlowStage {
   type: TurnFlowStageType;
 }
 
-export type TurnFlowEvidenceKind =
-  | 'knowledge_base'
-  | 'memory'
-  | 'tool'
-  | 'web';
+export type TurnFlowEvidenceKind = 'knowledge_base' | 'memory' | 'tool' | 'web';
 
 export interface TurnFlowEvidenceItem {
   arguments?: Record<string, unknown>;
@@ -236,6 +232,8 @@ export interface TurnFlowViewModel {
   timeline: TurnFlowStage[];
   traceId?: string;
   errorSurface?: TurnFlowErrorSurface;
+  failureKind?: string;
+  turnOutcome?: string;
 }
 
 export interface TurnFlowStagePayload extends Partial<TurnFlowStage> {

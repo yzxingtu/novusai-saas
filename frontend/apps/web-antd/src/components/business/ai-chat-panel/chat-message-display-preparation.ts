@@ -437,6 +437,12 @@ function shouldSuppressUntrustedFailureBody(
   );
 }
 
+const GENERIC_ASSISTANT_FAILURE_BODIES = new Set([
+  'the assistant could not finish this turn. please retry.',
+  '这次处理没有成功生成最终答复,请再试一次。',
+  '这次处理没有成功生成最终答复，请再试一次。',
+]);
+
 const PROCESS_ONLY_BODY_LINES = new Set([
   'completed',
   'process',
@@ -605,7 +611,9 @@ function isFailedResearchTurn(
     failureSignals.some(
       (value) =>
         value === 'candidate_search_wrapper_url' ||
+        value === 'blocked_url' ||
         value === 'failed' ||
+        value === 'final_url_search_wrapper' ||
         value === 'low_query_relevance' ||
         value === 'partial' ||
         value === 'untrusted_final_output_source',
@@ -737,6 +745,24 @@ function sanitizeSuspiciousResearchResidualBody(
   return { bodyMarkdown, suppressed: false };
 }
 
+function looksLikeGenericAssistantFailureBody(content: string): boolean {
+  const normalized = content
+    .normalize('NFKC')
+    .replaceAll(/\s+/gu, ' ')
+    .trim()
+    .toLocaleLowerCase();
+  return GENERIC_ASSISTANT_FAILURE_BODIES.has(normalized);
+}
+
+function shouldSuppressGenericResearchFailureBody(
+  flow: ReturnType<typeof getTurnFlowForDisplay>,
+  content: string,
+): boolean {
+  return (
+    isFailedResearchTurn(flow) && looksLikeGenericAssistantFailureBody(content)
+  );
+}
+
 function looksLikeRawHtmlFailureDocument(content: string): boolean {
   const normalized = content.trim().toLocaleLowerCase();
   if (!normalized) {
@@ -797,6 +823,7 @@ export function prepareMessageContent(
   );
   if (
     shouldSuppressUntrustedFailureBody(flow) ||
+    shouldSuppressGenericResearchFailureBody(flow, preparedBody) ||
     shouldSuppressProviderFailureBody(flow, preparedBody) ||
     residualCleanup.suppressed
   ) {

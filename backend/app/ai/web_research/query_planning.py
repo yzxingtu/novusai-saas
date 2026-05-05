@@ -4,7 +4,7 @@ Query-profile planning for platform WebResearch.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from app.ai.web_research.evidence import SearchEvidenceItem, SearchResultSet
@@ -24,6 +24,7 @@ class TrustedSeedCandidate:
 class WebResearchQueryPlan:
     profile: str
     trusted_seed_candidates: list[TrustedSeedCandidate]
+    search_queries: list[str] = field(default_factory=list)
     minimum_relevant_sources: int = 1
     source_quality_floor: str = "any_relevant_fetch_evidence"
 
@@ -50,18 +51,50 @@ _LLM_LEADERBOARD_TRUSTED_SEEDS = (
         ),
     ),
 )
+_FASHION_TREND_TRUSTED_SEEDS = (
+    TrustedSeedCandidate(
+        title="Vogue Spring 2026 Dress Trends",
+        url="https://www.vogue.com/article/spring-2026-dress-trends",
+        snippet=(
+            "Vogue rounds up Spring 2026 dress trends from the runways, "
+            "including minis, florals, lace, slip dresses and shirt dresses."
+        ),
+    ),
+    TrustedSeedCandidate(
+        title="Marie Claire Summer 2026 Fashion Trends",
+        url="https://www.marieclaire.com/fashion/summer-fashion/summer-fashion-trends-2026/",
+        snippet=(
+            "Marie Claire lists Summer 2026 fashion trends with dress and "
+            "skirt styles including A-line, maxi, slip and sheer details."
+        ),
+    ),
+)
 
 
 def build_web_research_query_plan(query: str) -> WebResearchQueryPlan:
+    normalized_query = str(query or "").strip()
     profile = detect_query_profile(query)
     if profile == "llm_leaderboard":
         return WebResearchQueryPlan(
             profile=profile,
             trusted_seed_candidates=list(_LLM_LEADERBOARD_TRUSTED_SEEDS),
+            search_queries=_dedupe_text([normalized_query]),
             minimum_relevant_sources=2,
             source_quality_floor="trusted_leaderboard_or_relevant_benchmark",
         )
-    return WebResearchQueryPlan(profile=profile, trusted_seed_candidates=[])
+    if profile == "fashion_trend_ranking":
+        return WebResearchQueryPlan(
+            profile=profile,
+            trusted_seed_candidates=list(_FASHION_TREND_TRUSTED_SEEDS),
+            search_queries=_fashion_trend_search_queries(normalized_query),
+            minimum_relevant_sources=2,
+            source_quality_floor="relevant_fashion_trend_ranking",
+        )
+    return WebResearchQueryPlan(
+        profile=profile,
+        trusted_seed_candidates=[],
+        search_queries=_dedupe_text([normalized_query]),
+    )
 
 
 def apply_query_plan_to_search_results(
@@ -69,12 +102,32 @@ def apply_query_plan_to_search_results(
     *,
     plan: WebResearchQueryPlan,
 ) -> SearchResultSet:
+    should_attach_diagnostics = bool(
+        plan.trusted_seed_candidates
+        or plan.profile not in {"generic", "leaderboard"}
+        or _dedupe_text(plan.search_queries)
+        != _dedupe_text([str(search_results.query or "").strip()])
+    )
     if not plan.trusted_seed_candidates:
+        if not should_attach_diagnostics:
+            return search_results
+        items = _renumber_items(_ordered_organic_items(search_results, plan=plan))
+        return replace(
+            search_results,
+            items=items,
+            diagnostics=_planned_diagnostics(
+                search_results,
+                plan=plan,
+                planned_result_count=len(items),
+            ),
+        )
+
+    if not should_attach_diagnostics:
         return search_results
 
     items: list[SearchEvidenceItem] = []
     seen_url_keys: set[str] = set()
-    organic_items = sorted(search_results.items, key=lambda result: result.rank)
+    organic_items = _ordered_organic_items(search_results, plan=plan)
 
     for seed in plan.trusted_seed_candidates:
         url_key = _canonical_url_key(seed.url)
@@ -106,19 +159,15 @@ def apply_query_plan_to_search_results(
             seen_url_keys.add(url_key)
         items.append(replace(item, rank=len(items) + 1))
 
-    diagnostics = dict(search_results.diagnostics or {})
-    diagnostics.update(
-        {
-            "query_profile": plan.profile,
-            "trusted_seed_candidate_urls": plan.trusted_seed_urls,
-            "trusted_seed_count": len(plan.trusted_seed_candidates),
-            "organic_result_count": len(search_results.items),
-            "planned_result_count": len(items),
-            "minimum_relevant_sources": plan.minimum_relevant_sources,
-            "source_quality_floor": plan.source_quality_floor,
-        }
+    return replace(
+        search_results,
+        items=items,
+        diagnostics=_planned_diagnostics(
+            search_results,
+            plan=plan,
+            planned_result_count=len(items),
+        ),
     )
-    return replace(search_results, items=items, diagnostics=diagnostics)
 
 
 _CANONICAL_URL_SCHEME = "https"
@@ -169,6 +218,122 @@ def _canonical_query(query: str) -> str:
 def _is_tracking_query_key(key: str) -> bool:
     normalized_key = str(key or "").casefold()
     return normalized_key.startswith("utm_") or normalized_key in _TRACKING_QUERY_KEYS
+
+
+def _ordered_organic_items(
+    search_results: SearchResultSet,
+    *,
+    plan: WebResearchQueryPlan,
+) -> list[SearchEvidenceItem]:
+    items = sorted(search_results.items, key=lambda result: result.rank)
+    if plan.profile != "fashion_trend_ranking":
+        return items
+    return sorted(
+        items,
+        key=lambda item: (
+            0 if _raw_search_query_index(item) > 0 else 1,
+            -_fashion_candidate_score(item),
+            item.rank,
+        ),
+    )
+
+
+def _raw_search_query_index(item: SearchEvidenceItem) -> int:
+    raw = dict(item.raw or {})
+    try:
+        return max(0, int(raw.get("search_query_index") or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _fashion_candidate_score(item: SearchEvidenceItem) -> float:
+    text = f"{item.title} {item.snippet}".casefold()
+    score = 0.0
+    for term in (
+        "dress trends",
+        "fashion trends",
+        "women",
+        "women's",
+        "runway",
+        "spring/summer",
+        "ss26",
+        "流行趋势",
+        "裙子款式",
+        "裙子",
+        "连衣裙",
+        "半身裙",
+        "蕾丝",
+        "款式",
+        "时尚",
+        "八大",
+    ):
+        if term in text:
+            score += 1.0
+    for penalty in (
+        "京东",
+        "选购",
+        "儿童",
+        "baby shower",
+        "wedding",
+        "bridal",
+        "buying guide",
+        "top sellers",
+        "bloomingdale",
+        "net-a-porter",
+        "官网",
+        "official",
+        "shop",
+    ):
+        if penalty in text:
+            score -= 1.5
+    return score
+
+
+def _renumber_items(items: list[SearchEvidenceItem]) -> list[SearchEvidenceItem]:
+    return [replace(item, rank=index) for index, item in enumerate(items, start=1)]
+
+
+def _fashion_trend_search_queries(query: str) -> list[str]:
+    return _dedupe_text(
+        [
+            query,
+            "2026 women's dress trends ranking",
+            "2026 女性 裙子 款式 流行趋势 排行",
+        ]
+    )
+
+
+def _planned_diagnostics(
+    search_results: SearchResultSet,
+    *,
+    plan: WebResearchQueryPlan,
+    planned_result_count: int,
+) -> dict[str, object]:
+    diagnostics = dict(search_results.diagnostics or {})
+    diagnostics.update(
+        {
+            "query_profile": plan.profile,
+            "trusted_seed_candidate_urls": plan.trusted_seed_urls,
+            "trusted_seed_count": len(plan.trusted_seed_candidates),
+            "organic_result_count": len(search_results.items),
+            "planned_result_count": planned_result_count,
+            "minimum_relevant_sources": plan.minimum_relevant_sources,
+            "source_quality_floor": plan.source_quality_floor,
+        }
+    )
+    search_queries = _dedupe_text(plan.search_queries)
+    if search_queries:
+        diagnostics["planned_search_queries"] = search_queries
+    return diagnostics
+
+
+def _dedupe_text(values: list[str]) -> list[str]:
+    result: list[str] = []
+    for value in values:
+        text = str(value or "").strip()
+        if text and text not in result:
+            result.append(text)
+    return result
 
 
 __all__ = [

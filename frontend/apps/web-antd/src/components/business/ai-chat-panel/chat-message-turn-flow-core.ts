@@ -1,10 +1,20 @@
 import type { ChatMessage, TurnFlowViewModel } from './types';
 
 import {
-  normalizeObjectRecord,
-  normalizeObjectRecordList,
-  normalizeOptionalString,
-} from './use-ai-chat-message-normalizers';
+  hasCanonicalRagEvidence,
+  hasCanonicalThinkingContent,
+  hasCanonicalToolSelection,
+  hasTurnFlowData,
+  normalizeAnswerCard,
+  normalizeBoolean,
+  normalizeErrorSurface,
+  normalizeEvidence,
+  normalizeNumber,
+  normalizeStage,
+  normalizeStageStatus,
+  normalizeThinkingStageText,
+  resolveThinkingStage,
+} from './chat-message-turn-flow-core-normalizers';
 import {
   buildToolEvidencePayload,
   cloneAnswerCard,
@@ -21,20 +31,10 @@ import {
   upsertToolEvidence,
 } from './chat-message-turn-flow-core-ops';
 import {
-  hasCanonicalRagEvidence,
-  hasCanonicalThinkingContent,
-  hasCanonicalToolSelection,
-  hasTurnFlowData,
-  normalizeAnswerCard,
-  normalizeBoolean,
-  normalizeErrorSurface,
-  normalizeEvidence,
-  normalizeNumber,
-  normalizeStage,
-  normalizeStageStatus,
-  normalizeThinkingStageText,
-  resolveThinkingStage,
-} from './chat-message-turn-flow-core-normalizers';
+  normalizeObjectRecord,
+  normalizeObjectRecordList,
+  normalizeOptionalString,
+} from './use-ai-chat-message-normalizers';
 
 export {
   buildToolEvidencePayload,
@@ -111,6 +111,12 @@ export function normalizeTurnFlowViewModel(
   const completionReason =
     normalizeOptionalString(record.completion_reason) ??
     normalizeOptionalString(record.completionReason);
+  const failureKind =
+    normalizeOptionalString(record.failure_kind) ??
+    normalizeOptionalString(record.failureKind);
+  const turnOutcome =
+    normalizeOptionalString(record.turn_outcome) ??
+    normalizeOptionalString(record.turnOutcome);
   const hasExplicitFinalStageStatus =
     record.final_stage_status !== undefined ||
     record.finalStageStatus !== undefined;
@@ -136,8 +142,10 @@ export function normalizeTurnFlowViewModel(
     timeline,
     ...(answerCard ? { answerCard } : {}),
     ...(completionReason ? { completionReason } : {}),
+    ...(failureKind ? { failureKind } : {}),
     ...(complete === undefined ? {} : { complete }),
     ...(traceId ? { traceId } : {}),
+    ...(turnOutcome ? { turnOutcome } : {}),
     ...(errorSurface ? { errorSurface } : {}),
     ...(interrupted ? { interrupted } : {}),
     ...(finalStageStatus === undefined ? {} : { finalStageStatus }),
@@ -160,7 +168,9 @@ export function mergeTurnFlow(
   }
   const merged = cloneTurnFlow(base);
   for (const stage of incoming.timeline) {
-    const stageIndex = merged.timeline.findIndex((item) => item.id === stage.id);
+    const stageIndex = merged.timeline.findIndex(
+      (item) => item.id === stage.id,
+    );
     if (stageIndex === -1) {
       merged.timeline.push(cloneStage(stage));
       continue;

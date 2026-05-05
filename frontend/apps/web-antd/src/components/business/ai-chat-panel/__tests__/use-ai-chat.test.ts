@@ -1548,6 +1548,70 @@ describe('useAIChat interrupted stream recovery', () => {
     );
   });
 
+  it('does not sync generic web research retry copy into empty assistant content on done', async () => {
+    apiMocks.sendChatStreamApi.mockImplementation(
+      async (
+        _prefix: string,
+        _agentId: number,
+        _body: Record<string, unknown>,
+        options: {
+          onMessage: (chunk: string) => Promise<void>;
+        },
+      ) => {
+        await options.onMessage(
+          sseEvent({ event: 'conversation', conversation_id: 42 }),
+        );
+        await options.onMessage(
+          sseEvent({
+            completion_reason: 'blocked_url',
+            event: 'done',
+            failure_kind: 'blocked_url',
+            final_stage_status: 'error',
+            turn_flow: {
+              completion_reason: 'blocked_url',
+              error_surface: {
+                error_type: 'blocked_url',
+                message:
+                  'The assistant could not finish this turn. Please retry.',
+              },
+              final_stage_status: 'error',
+              timeline: [
+                {
+                  id: 'stage-retrieval-blocked',
+                  metrics: { source_count: 0 },
+                  status: 'error',
+                  summary: '候选来源是搜索包装页，已阻止抓取',
+                  type: 'retrieval',
+                },
+              ],
+              turn_outcome: 'failed',
+            },
+            turn_flow_complete: true,
+            turn_outcome: 'failed',
+          }),
+        );
+      },
+    );
+
+    const chat = createChat();
+
+    await chat.loadAgents();
+    chat.inputMessage.value = '查一下 2026年最热门的 女性裙子款式排行！';
+    await chat.sendMessage();
+    await flushDebouncedSend();
+
+    const assistantMessage = chat.chatMessages.value.find(
+      (msg) => msg.role === 'assistant',
+    );
+    expect(assistantMessage).toBeDefined();
+    if (!assistantMessage) {
+      throw new Error('assistant message missing');
+    }
+    expect(assistantMessage.content).toBe('');
+    expect(assistantMessage.turnFlow?.finalStageStatus).toBe('error');
+    expect(assistantMessage.turnFlow?.failureKind).toBe('blocked_url');
+  });
+
   it('surfaces native web search progress as a visible tool card', async () => {
     let releaseDone = () => {};
     apiMocks.getChatConversationMessagesApi.mockResolvedValue(

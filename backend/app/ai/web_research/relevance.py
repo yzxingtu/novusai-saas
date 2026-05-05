@@ -88,6 +88,73 @@ _KNOWN_MODEL_TERMS = (
     "yi",
     "零一万物",
 )
+_FASHION_SUBJECT_TERMS = (
+    "女性",
+    "女士",
+    "女装",
+    "裙子",
+    "女裙",
+    "连衣裙",
+    "半身裙",
+    "款式",
+    "穿搭",
+    "服装",
+    "时尚",
+    "dress",
+    "dresses",
+    "skirt",
+    "skirts",
+    "fashion",
+    "style",
+    "styles",
+    "outfit",
+    "womenswear",
+    "women",
+)
+_FASHION_TREND_TERMS = (
+    "趋势",
+    "流行",
+    "热门",
+    "热销",
+    "春夏",
+    "秋冬",
+    "秀场",
+    "runway",
+    "trend",
+    "trends",
+    "popular",
+    "spring",
+    "summer",
+    "fall",
+    "winter",
+)
+_FASHION_STYLE_TERMS = (
+    "a字裙",
+    "a-line",
+    "迷你裙",
+    "mini",
+    "midi",
+    "maxi",
+    "吊带裙",
+    "slip dress",
+    "衬衫裙",
+    "shirt dress",
+    "背心裙",
+    "tank dress",
+    "收腰",
+    "waist",
+    "蕾丝",
+    "lace",
+    "碎花",
+    "floral",
+    "ruffle",
+    "ruffles",
+    "褶皱",
+    "draping",
+    "cape dress",
+    "半身裙",
+    "连衣裙",
+)
 _LOW_VALUE_CONTEXT_TERMS = (
     "投毒",
     "3·15",
@@ -130,6 +197,26 @@ _RANK_MARKER_RE = re.compile(
     r"(?i)(?:^|[\s\n，。；;:：])(?:#?\d{1,2}[.)、]|第[一二三四五六七八九十\d]{1,3}|top\s*\d{1,3})"
 )
 _YEAR_RE = re.compile(r"(?<!\d)(20\d{2})(?!\d)")
+_GENERIC_QUERY_TOKEN_RE = re.compile(r"[a-z0-9]{2,}|[\u4e00-\u9fff]{2,}")
+_GENERIC_QUERY_STOP_TERMS = frozenset(
+    {
+        "查一下",
+        "一下",
+        "最新",
+        "热门",
+        "当前",
+        "现在",
+        "排行",
+        "排行榜",
+        "排名",
+        "榜单",
+        "水平排行",
+        "top",
+        "rank",
+        "ranking",
+        "leaderboard",
+    }
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -152,6 +239,11 @@ def detect_query_profile(query: str) -> str:
         normalized, _LEADERBOARD_QUERY_TERMS
     ):
         return "llm_leaderboard"
+    if _contains_any(normalized, _FASHION_SUBJECT_TERMS) and (
+        _contains_any(normalized, _LEADERBOARD_QUERY_TERMS)
+        or _contains_any(normalized, _FASHION_TREND_TERMS)
+    ):
+        return "fashion_trend_ranking"
     if _contains_any(normalized, _LEADERBOARD_QUERY_TERMS):
         return "leaderboard"
     return "generic"
@@ -190,6 +282,42 @@ def evaluate_page_relevance(
     query_years = set(_YEAR_RE.findall(query))
     evidence_years = set(_YEAR_RE.findall(text))
     source_quality = _source_quality(page.url)
+
+    if profile == "fashion_trend_ranking":
+        return _evaluate_fashion_trend_relevance(
+            profile=profile,
+            text=text,
+            query_years=query_years,
+            evidence_years=evidence_years,
+            source_quality=source_quality,
+        )
+    if profile == "leaderboard":
+        return _evaluate_generic_leaderboard_relevance(
+            profile=profile,
+            text=text,
+            query=_normalize(query),
+            query_years=query_years,
+            evidence_years=evidence_years,
+            source_quality=source_quality,
+        )
+
+    return _evaluate_llm_leaderboard_relevance(
+        profile=profile,
+        text=text,
+        query_years=query_years,
+        evidence_years=evidence_years,
+        source_quality=source_quality,
+    )
+
+
+def _evaluate_llm_leaderboard_relevance(
+    *,
+    profile: str,
+    text: str,
+    query_years: set[str],
+    evidence_years: set[str],
+    source_quality: str,
+) -> EvidenceRelevance:
     llm_matches = _matched_terms(text, _LLM_SUBJECT_TERMS)
     leaderboard_matches = _matched_terms(text, _LEADERBOARD_EVIDENCE_TERMS)
     model_matches = _matched_terms(text, _KNOWN_MODEL_TERMS)
@@ -237,6 +365,144 @@ def evaluate_page_relevance(
     low_trust_noise = source_quality == "low" and len(noise_matches) >= 3
     if low_trust_noise:
         required_terms.append("source_not_dominated_by_unrelated_context")
+
+    if required_terms or score < _threshold_for_profile(profile):
+        return EvidenceRelevance(
+            status="low_relevance",
+            score=score,
+            profile=profile,
+            reason="low_query_relevance",
+            matched_terms=_dedupe(matched_terms),
+            required_terms=_dedupe(required_terms),
+            source_quality=source_quality,
+        )
+    return EvidenceRelevance(
+        status="relevant",
+        score=score,
+        profile=profile,
+        reason="query_relevance_passed",
+        matched_terms=_dedupe(matched_terms),
+        required_terms=[],
+        source_quality=source_quality,
+    )
+
+
+def _evaluate_fashion_trend_relevance(
+    *,
+    profile: str,
+    text: str,
+    query_years: set[str],
+    evidence_years: set[str],
+    source_quality: str,
+) -> EvidenceRelevance:
+    subject_matches = _matched_terms(text, _FASHION_SUBJECT_TERMS)
+    trend_matches = _matched_terms(text, _FASHION_TREND_TERMS)
+    leaderboard_matches = _matched_terms(text, _LEADERBOARD_EVIDENCE_TERMS)
+    style_matches = _matched_terms(text, _FASHION_STYLE_TERMS)
+    rank_marker_count = len(_RANK_MARKER_RE.findall(text))
+    trend_list_signal = bool(
+        rank_marker_count >= 2
+        or (
+            style_matches
+            and trend_matches
+            and _contains_any(text, ("八大", "十大", "top", "list", "roundup"))
+        )
+        or (len(style_matches) >= 3 and trend_matches)
+    )
+
+    score = 0.0
+    matched_terms: list[str] = []
+    required_terms: list[str] = []
+    if subject_matches:
+        score += 0.25
+        matched_terms.extend(subject_matches[:5])
+    else:
+        required_terms.append("fashion_subject")
+    if trend_matches or leaderboard_matches:
+        score += 0.25
+        matched_terms.extend((trend_matches + leaderboard_matches)[:6])
+    else:
+        required_terms.append("trend_or_ranking")
+    if len(style_matches) >= 2:
+        score += 0.2
+        matched_terms.extend(style_matches[:6])
+    elif style_matches:
+        score += 0.1
+        matched_terms.extend(style_matches[:3])
+    else:
+        required_terms.append("concrete_dress_styles")
+    if trend_list_signal:
+        score += 0.15
+        matched_terms.append("rank_or_trend_list_markers")
+    elif leaderboard_matches and style_matches:
+        score += 0.08
+    else:
+        required_terms.append("ranked_list_or_trend_list")
+    if query_years and query_years & evidence_years:
+        score += 0.05
+        matched_terms.extend(sorted(query_years & evidence_years))
+    if source_quality == "low":
+        score -= 0.25
+    score = max(0.0, min(1.0, round(score, 3)))
+
+    if required_terms or score < _threshold_for_profile(profile):
+        return EvidenceRelevance(
+            status="low_relevance",
+            score=score,
+            profile=profile,
+            reason="low_query_relevance",
+            matched_terms=_dedupe(matched_terms),
+            required_terms=_dedupe(required_terms),
+            source_quality=source_quality,
+        )
+    return EvidenceRelevance(
+        status="relevant",
+        score=score,
+        profile=profile,
+        reason="query_relevance_passed",
+        matched_terms=_dedupe(matched_terms),
+        required_terms=[],
+        source_quality=source_quality,
+    )
+
+
+def _evaluate_generic_leaderboard_relevance(
+    *,
+    profile: str,
+    text: str,
+    query: str,
+    query_years: set[str],
+    evidence_years: set[str],
+    source_quality: str,
+) -> EvidenceRelevance:
+    leaderboard_matches = _matched_terms(text, _LEADERBOARD_EVIDENCE_TERMS)
+    rank_marker_count = len(_RANK_MARKER_RE.findall(text))
+    subject_hits = _generic_query_subject_hits(query, text)
+
+    score = 0.0
+    matched_terms: list[str] = []
+    required_terms: list[str] = []
+    if leaderboard_matches:
+        score += 0.3
+        matched_terms.extend(leaderboard_matches[:6])
+    else:
+        required_terms.append("ranking_or_list_signal")
+    if rank_marker_count >= 2:
+        score += 0.25
+        matched_terms.append("rank_markers")
+    else:
+        required_terms.append("ranked_list_or_scores")
+    if subject_hits >= 1:
+        score += 0.2
+        matched_terms.append("query_subject_terms")
+    if query_years and query_years & evidence_years:
+        score += 0.05
+        matched_terms.extend(sorted(query_years & evidence_years))
+    if source_quality == "trusted":
+        score += 0.1
+    elif source_quality == "low":
+        score -= 0.25
+    score = max(0.0, min(1.0, round(score, 3)))
 
     if required_terms or score < _threshold_for_profile(profile):
         return EvidenceRelevance(
@@ -309,6 +575,8 @@ def _with_relevance(page: PageEvidence, relevance: EvidenceRelevance) -> PageEvi
 def _threshold_for_profile(profile: str) -> float:
     if profile == "llm_leaderboard":
         return 0.58
+    if profile == "fashion_trend_ranking":
+        return 0.5
     if profile == "leaderboard":
         return 0.5
     return 0.0
@@ -346,6 +614,19 @@ def _source_quality(url: str) -> str:
     if any(host == low or host.endswith(f".{low}") for low in _LOW_TRUST_HOST_SUFFIXES):
         return "low"
     return "neutral"
+
+
+def _generic_query_subject_hits(query: str, text: str) -> int:
+    hits = 0
+    for token in _GENERIC_QUERY_TOKEN_RE.findall(query):
+        normalized_token = token.casefold()
+        if normalized_token in _GENERIC_QUERY_STOP_TERMS:
+            continue
+        if _YEAR_RE.fullmatch(normalized_token):
+            continue
+        if _term_in_text(text, normalized_token):
+            hits += 1
+    return hits
 
 
 def _dedupe(values: list[str]) -> list[str]:

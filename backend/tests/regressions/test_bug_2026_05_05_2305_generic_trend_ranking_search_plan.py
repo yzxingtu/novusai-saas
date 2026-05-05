@@ -27,9 +27,11 @@ from app.ai.web_research import (
     normalize_search_item,
 )
 
-
 QUERY = "查一下 2026年最热门的 女性裙子款式排行！"
 VOGUE_DRESS_TRENDS_URL = "https://www.vogue.com/article/spring-2026-dress-trends"
+MARIE_CLAIRE_SUMMER_TRENDS_URL = (
+    "https://www.marieclaire.com/fashion/summer-fashion/summer-fashion-trends-2026/"
+)
 WHO_WHAT_WEAR_DRESS_TRENDS_URL = (
     "https://www.whowhatwear.com/fashion/trends/dress-trends-2026"
 )
@@ -93,12 +95,11 @@ def _search_results(query: str, _options: SearchOptions) -> SearchResultSet:
         provider="fake-search",
         items=[
             normalize_search_item(
-                title="查一下 2026年最热门的 女性裙子款式排行! - 百度图片",
-                url=(
-                    "https://image.baidu.com/search/index?tn=baiduimage&word="
-                    "2026%E5%A5%B3%E6%80%A7%E8%A3%99%E5%AD%90"
+                title="查一下 2026年最热门的 女性裙子款式排行! - 百度视频",
+                url="http://www.baidu.com/link?url=2305-baidu-note-video",
+                snippet=(
+                    "2026年最全裙子款式大盘点，百度视频聚合页，需要跳转后才能确认正文。"
                 ),
-                snippet="9 变清晰 4 变清晰 查看全部4341张图片 免费AI生图 百度图片",
                 rank=1,
                 provider="fake-search",
             )
@@ -107,14 +108,28 @@ def _search_results(query: str, _options: SearchOptions) -> SearchResultSet:
 
 
 def _fetch_page(url: str, _options: FetchOptions) -> PageEvidence:
+    if "baidu.com/link" in url:
+        return normalize_page_evidence(
+            url=(
+                "https://www.baidu.com/s?pd=note&rpf=pc&word="
+                "%E6%9F%A5%E4%B8%80%E4%B8%8B+2026%E5%B9%B4%E6%9C%80%E7%83%AD"
+                "%E9%97%A8%E7%9A%84+%E5%A5%B3%E6%80%A7%E8%A3%99%E5%AD%90"
+                "%E6%AC%BE%E5%BC%8F%E6%8E%92%E8%A1%8C%21&sa=vs_video_top_ugc"
+            ),
+            status="completed",
+            title="查一下 2026年最热门的 女性裙子款式排行! - 百度",
+            description="来自百度的搜索结果",
+            summary="查一下 2026年最热门的 女性裙子款式排行! - 百度",
+            body_text="来自百度的搜索结果，不是可核实的时尚趋势正文。",
+            provider="fake-fetch",
+            raw={"requested_url": url},
+        )
     if url == VOGUE_DRESS_TRENDS_URL:
         return normalize_page_evidence(
             url=url,
             status="completed",
             title="10 Spring 2026 Dress Trends That Swept the Runways",
-            description=(
-                "Vogue rounds up the spring 2026 dress trends to know now."
-            ),
+            description=("Vogue rounds up the spring 2026 dress trends to know now."),
             summary="Vogue ranked spring 2026 dress trends for women.",
             body_text=(
                 "Vogue's spring 2026 dress trends list ranks women's dress "
@@ -122,6 +137,24 @@ def _fetch_page(url: str, _options: FetchOptions) -> PageEvidence:
                 "midi dresses. 3. Lace-trimmed dresses. 4. Slip dresses. "
                 "5. Layered dresses. The list focuses on popular 2026 dresses "
                 "and styling directions for women."
+            ),
+            provider="fake-fetch",
+        )
+    if url == MARIE_CLAIRE_SUMMER_TRENDS_URL:
+        return normalize_page_evidence(
+            url=url,
+            status="completed",
+            title="8 Essential Summer 2026 Fashion Trends Defining the Season",
+            description=(
+                "Marie Claire identifies the dress and skirt styles shaping "
+                "summer 2026 fashion."
+            ),
+            summary="Marie Claire summer 2026 fashion trend ranking.",
+            body_text=(
+                "The summer 2026 fashion trends include dress and skirt styles "
+                "women are wearing now. 1. A-line skirts. 2. Maxi dresses. "
+                "3. Slip dresses. 4. Sheer skirts. 5. Draped dresses. "
+                "6. Lace details. 7. Floral dresses. 8. Tailored shirt dresses."
             ),
             provider="fake-fetch",
         )
@@ -150,6 +183,10 @@ def test_2305_fashion_ranking_query_gets_trend_search_plan() -> None:
 
     assert plan.profile == "fashion_trend_ranking"
     assert plan.minimum_relevant_sources == 2
+    assert plan.trusted_seed_urls[:2] == [
+        VOGUE_DRESS_TRENDS_URL,
+        MARIE_CLAIRE_SUMMER_TRENDS_URL,
+    ]
     assert any("dress trends" in query.casefold() for query in plan.search_queries)
     assert any("流行趋势" in query for query in plan.search_queries)
 
@@ -190,9 +227,19 @@ async def test_2305_expands_after_wrapper_only_search_and_fetches_two_trend_sour
     assert evidence.diagnostics.answer_source == "fetched_body"
     assert evidence.diagnostics.fetched_urls == [
         VOGUE_DRESS_TRENDS_URL,
-        WHO_WHAT_WEAR_DRESS_TRENDS_URL,
+        MARIE_CLAIRE_SUMMER_TRENDS_URL,
     ]
+    assert evidence.diagnostics.candidate_urls[:2] == [
+        VOGUE_DRESS_TRENDS_URL,
+        MARIE_CLAIRE_SUMMER_TRENDS_URL,
+    ]
+    assert "http://www.baidu.com/link?url=2305-baidu-note-video" in (
+        evidence.diagnostics.candidate_urls
+    )
     assert fetch_provider.events == evidence.diagnostics.fetched_urls
+    assert "http://www.baidu.com/link?url=2305-baidu-note-video" not in (
+        fetch_provider.events
+    )
     assert evidence.diagnostics.relevance_profile == "fashion_trend_ranking"
     assert evidence.diagnostics.raw["query_profile"] == "fashion_trend_ranking"
     assert evidence.diagnostics.raw["minimum_relevant_sources"] == 2

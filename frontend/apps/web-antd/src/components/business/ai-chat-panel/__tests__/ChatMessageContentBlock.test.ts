@@ -175,6 +175,41 @@ function createFashionWrapperFilteredMessage(content: string): ChatMessage {
   } as ChatMessage;
 }
 
+function createBlockedUrlFashionMessage(content: string): ChatMessage {
+  return {
+    clientKey: 'fashion-blocked-url',
+    content,
+    role: 'assistant',
+    streaming: false,
+    turnFlow: {
+      completion_reason: 'blocked_url',
+      error_surface: {
+        error_type: 'blocked_url',
+        message: content,
+      },
+      evidence: [],
+      failure_kind: 'blocked_url',
+      final_stage_status: 'error',
+      timeline: [
+        {
+          id: 'stage-fashion-retrieval-blocked',
+          metrics: { source_count: 0 },
+          status: 'error',
+          summary: '候选来源是搜索包装页，已阻止抓取',
+          type: 'retrieval',
+        },
+        {
+          id: 'stage-fashion-answer-blocked',
+          status: 'error',
+          summary: '答复生成失败',
+          type: 'answer_assembly',
+        },
+      ],
+      turn_outcome: 'failed',
+    },
+  } as ChatMessage;
+}
+
 function mountContentBlock(msg: ChatMessage) {
   return mount(ChatMessageContentBlock, {
     props: {
@@ -357,6 +392,24 @@ describe('chatMessageContentBlock', () => {
       wrapper.find('[data-testid="assistant-content-body"]').exists(),
     ).toBe(true);
     expect(wrapper.text()).toContain(safeFallback);
+  });
+
+  it('hides generic retry copy for blocked-url research failures', async () => {
+    for (const genericFailure of [
+      'The assistant could not finish this turn. Please retry.',
+      '这次处理没有成功生成最终答复，请再试一次。',
+    ]) {
+      const wrapper = mountContentBlock(
+        createBlockedUrlFashionMessage(genericFailure),
+      );
+
+      await wrapper.vm.$nextTick();
+
+      expect(
+        wrapper.find('[data-testid="assistant-content-body"]').exists(),
+      ).toBe(false);
+      expect(wrapper.text()).not.toContain(genericFailure);
+    }
   });
 
   it('suppresses numeric fragments for insufficient-source leaderboard turns instead of showing a fake result', async () => {

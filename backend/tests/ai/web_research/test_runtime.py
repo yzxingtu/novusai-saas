@@ -303,6 +303,7 @@ async def test_runtime_skips_search_wrapper_candidate_without_fetching() -> None
         "https://image.baidu.com/search/index?tn=baiduimage&word="
         "2026%E5%A5%B3%E6%80%A7%E8%A3%99%E5%AD%90"
     )
+    query = "查一下图片搜索结果"
 
     def search_handler(query: str, options: SearchOptions) -> SearchResultSet:
         return SearchResultSet(
@@ -328,11 +329,11 @@ async def test_runtime_skips_search_wrapper_candidate_without_fetching() -> None
     )
 
     evidence = await runtime.run(
-        "查一下 2026年最热门的 女性裙子款式排行！",
+        query,
         WebResearchRunOptions(pipeline_id="pipeline-2295-search-wrapper"),
     )
 
-    assert events == ["search:查一下 2026年最热门的 女性裙子款式排行！:max=5"]
+    assert events == [f"search:{query}:max=5"]
     assert evidence.status == "partial"
     assert evidence.answer_quality == "none"
     assert evidence.failure_kind == "candidate_search_wrapper_url"

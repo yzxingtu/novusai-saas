@@ -44,8 +44,13 @@ export {
 } from './chat-message-turn-flow-core';
 
 const FAILURE_REASON_SET = new Set([
+  'blocked_url',
+  'candidate_search_wrapper_url',
   'error',
   'failed',
+  'final_url_search_wrapper',
+  'low_query_relevance',
+  'no_answer_quality_evidence',
   'provider_error',
   'provider_failure_after_partial_progress',
   'provider_timeout',
@@ -53,6 +58,7 @@ const FAILURE_REASON_SET = new Set([
   'stream_execution_error',
   'tool_error',
   'tool_round_failed',
+  'untrusted_final_output_source',
 ]);
 
 const FAILURE_OUTCOME_SET = new Set(['error', 'failed', 'tool_round_failed']);
@@ -65,11 +71,13 @@ const TURN_FLOW_FINAL_STAGE_STATUS_SET = new Set<TurnFlowStageStatus>([
 ]);
 const TURN_FLOW_NON_VISIBLE_SUMMARY_SET = new Set([
   'No trusted assistant final answer.',
+  'The assistant could not finish this turn. Please retry.',
   '已完成',
   '已完成答案整理',
   '已完成证据整理',
   '本轮过程',
   '结果整理',
+  '这次处理没有成功生成最终答复，请再试一次。',
 ]);
 
 function toErrorSurface(
@@ -125,6 +133,7 @@ function resolveMessageFailureKind(message: ChatMessage): string | undefined {
     normalizeFailureSignal(
       messageRecord.failure_kind ?? messageRecord.failureKind,
     ) ??
+    extractFailureKind(message.turnFlow) ??
     extractFailureKind(message.turnRecord) ??
     normalizeFailureSignal(message.error?.code)
   );
@@ -394,6 +403,20 @@ export function applyCanonicalDoneEvent(
   const flow = incomingTurnFlow
     ? (mergeTurnFlow(baseFlow, incomingTurnFlow) ?? baseFlow)
     : baseFlow;
+  const failureKind =
+    normalizeFailureSignal(event.failure_kind ?? event.failureKind) ??
+    extractFailureKind(turnRecord) ??
+    normalizeFailureSignal(flow.failureKind);
+  const turnOutcome =
+    normalizeFailureSignal(
+      event.turn_outcome ?? event.turnOutcome ?? turnRecord?.turn_outcome,
+    ) ?? normalizeFailureSignal(flow.turnOutcome);
+  if (failureKind) {
+    flow.failureKind = failureKind;
+  }
+  if (turnOutcome) {
+    flow.turnOutcome = turnOutcome;
+  }
 
   const completionReason =
     normalizeOptionalString(event.completion_reason) ??
