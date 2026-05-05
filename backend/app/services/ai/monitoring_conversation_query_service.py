@@ -31,6 +31,9 @@ from app.services.ai.monitoring_call_trace_projector import (
 from app.services.ai.monitoring_query_dependencies import (
     resolve_monitoring_conversation_query_dependencies,
 )
+from app.services.ai.monitoring_read_model_projector import (
+    MonitoringReadModelProjector,
+)
 
 if TYPE_CHECKING:
     from app.services.ai.monitoring_service import MonitoringScope, MonitoringService
@@ -114,6 +117,10 @@ class MonitoringConversationQueryService:
         conversation_ids = {item.id for item in items}
         tenant_ids = {item.tenant_id for item in items if item.tenant_id is not None}
         usage_map = await base._load_conversation_usage_map(scope, conversation_ids)
+        latest_turn_map = await base._load_conversation_latest_turn_map(
+            scope,
+            conversation_ids,
+        )
         conversation_actor_snapshot_map = (
             await base._load_conversation_actor_snapshot_map(
                 scope,
@@ -142,6 +149,7 @@ class MonitoringConversationQueryService:
         result: list[MonitoringConversationListItem] = []
         for item in items:
             usage = usage_map.get(item.id, {})
+            latest_turn = latest_turn_map.get(item.id, {})
             snapshot_info = conversation_actor_snapshot_map.get(item.id, {})
             actor_ref = None
             if snapshot_info.get("actor_type") and snapshot_info.get("actor_id"):
@@ -183,6 +191,26 @@ class MonitoringConversationQueryService:
                     actor=actor,
                     title=item.title,
                     status=item.status,
+                    lifecycle_status=item.status,
+                    display_status=latest_turn.get("display_status") or item.status,
+                    latest_turn_status=latest_turn.get("latest_turn_status"),
+                    latest_turn_outcome=latest_turn.get("latest_turn_outcome"),
+                    latest_conversation_outcome=latest_turn.get(
+                        "latest_conversation_outcome"
+                    ),
+                    latest_failure_kind=latest_turn.get("latest_failure_kind"),
+                    latest_termination_reason=latest_turn.get(
+                        "latest_termination_reason"
+                    ),
+                    latest_error_message=latest_turn.get("latest_error_message"),
+                    latest_turn_flow_terminal_status=latest_turn.get(
+                        "latest_turn_flow_terminal_status"
+                    ),
+                    latest_turn_flow_terminal_type=latest_turn.get(
+                        "latest_turn_flow_terminal_type"
+                    ),
+                    latest_turn_error_type=latest_turn.get("latest_turn_error_type"),
+                    latest_turn_created_at=latest_turn.get("latest_turn_created_at"),
                     message_count=base._safe_int(item.message_count),
                     call_count=base._safe_int(usage.get("call_count")),
                     total_tokens=max(
@@ -325,6 +353,20 @@ class MonitoringConversationQueryService:
         call_trace = [
             MonitoringCallTraceProjector.build_item(row) for row in trace_rows
         ]
+        latest_turn = {}
+        for message in reversed(normalized_message_list):
+            latest_turn = MonitoringReadModelProjector.build_latest_turn_summary_from_message_payload(
+                message
+            )
+            if latest_turn:
+                break
+        if not latest_turn:
+            latest_turn = MonitoringReadModelProjector.build_latest_turn_summary(
+                metadata={
+                    "context_diagnostics": detail.get("context_diagnostics"),
+                    "last_run_summary": detail.get("last_run_summary"),
+                }
+            )
 
         return MonitoringConversationDetail(
             id=conversation.id,
@@ -343,6 +385,22 @@ class MonitoringConversationQueryService:
             actor=actor,
             title=conversation.title,
             status=conversation.status,
+            lifecycle_status=conversation.status,
+            display_status=latest_turn.get("display_status") or conversation.status,
+            latest_turn_status=latest_turn.get("latest_turn_status"),
+            latest_turn_outcome=latest_turn.get("latest_turn_outcome"),
+            latest_conversation_outcome=latest_turn.get("latest_conversation_outcome"),
+            latest_failure_kind=latest_turn.get("latest_failure_kind"),
+            latest_termination_reason=latest_turn.get("latest_termination_reason"),
+            latest_error_message=latest_turn.get("latest_error_message"),
+            latest_turn_flow_terminal_status=latest_turn.get(
+                "latest_turn_flow_terminal_status"
+            ),
+            latest_turn_flow_terminal_type=latest_turn.get(
+                "latest_turn_flow_terminal_type"
+            ),
+            latest_turn_error_type=latest_turn.get("latest_turn_error_type"),
+            latest_turn_created_at=latest_turn.get("latest_turn_created_at"),
             message_count=base._safe_int(detail.get("message_count")),
             total_tokens=max(
                 base._safe_int(detail.get("token_count")),

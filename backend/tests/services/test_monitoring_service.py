@@ -428,6 +428,7 @@ class TestConversationQueries:
                 }
             }
         )
+        service._load_conversation_latest_turn_map = AsyncMock(return_value={})
         service._load_conversation_actor_snapshot_map = AsyncMock(
             return_value={
                 1: {
@@ -512,6 +513,7 @@ class TestConversationQueries:
         service = MonitoringService.__new__(MonitoringService)
         service.db = mock_db
         service._load_conversation_usage_map = AsyncMock(return_value={})
+        service._load_conversation_latest_turn_map = AsyncMock(return_value={})
         service._load_tenant_names = AsyncMock(return_value={})
         service._load_conversation_actor_snapshot_map = AsyncMock(return_value={})
         service._load_actor_map = AsyncMock(return_value={})
@@ -529,6 +531,119 @@ class TestConversationQueries:
         assert total == 1
         assert items[0].id == 2
         repo.query_list.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_conversation_2344_active_lifecycle_exposes_failed_latest_turn_status_in_list(
+        self, mock_db
+    ):
+        """Regression for: BUG-2026-05-06-2344.
+
+        Conversation 2344 kept the lifecycle row active after a provider outage,
+        but monitoring must expose the latest terminal turn as failed so the UI
+        does not render the row as in-progress.
+        """
+        from app.services.ai.monitoring_service import MonitoringService
+
+        now = _utc_dt()
+        conversation = SimpleNamespace(
+            id=2344,
+            tenant_id=0,
+            agent_id=59,
+            agent=SimpleNamespace(name="猫娘智能体", avatar=None),
+            owner_type="platform_admin",
+            user_id=1,
+            title="明天北京该穿什么衣服呢？",
+            status="active",
+            message_count=2,
+            token_count=0,
+            cost=0,
+            created_at=now,
+            updated_at=now,
+        )
+        repo = MagicMock()
+        repo.query_list = AsyncMock(return_value=([conversation], 1))
+
+        service = MonitoringService.__new__(MonitoringService)
+        service.db = mock_db
+        service._load_conversation_usage_map = AsyncMock(return_value={})
+        service._load_tenant_names = AsyncMock(return_value={})
+        service._load_conversation_actor_snapshot_map = AsyncMock(return_value={})
+        service._load_actor_map = AsyncMock(return_value={})
+        mock_db.execute = AsyncMock(
+            return_value=_result_with_all(
+                [
+                    SimpleNamespace(
+                        conversation_id=2344,
+                        content="Connection error.",
+                        message_metadata={
+                            "completion_reason": "provider_unavailable",
+                            "turn_record": {
+                                "turn_outcome": "partial",
+                                "conversation_outcome": "failed",
+                                "termination_reason": "provider_unavailable",
+                                "failure_kind": "provider_unavailable",
+                                "protocol_path": "responses",
+                                "execution_path": "fast",
+                                "final_output_source": "partial_output",
+                                "turn_flow": {
+                                    "timeline": [
+                                        {
+                                            "id": "terminal",
+                                            "type": "failed",
+                                            "status": "error",
+                                            "summary": "provider_unavailable",
+                                        }
+                                    ],
+                                    "completion_reason": "provider_unavailable",
+                                    "error_surface": {
+                                        "message": "Connection error.",
+                                        "error_type": "untrusted_final_output_source",
+                                    },
+                                },
+                                "provider_events": [
+                                    {
+                                        "kind": "provider_unavailable",
+                                        "error": "Connection error.",
+                                        "protocol_path": "responses",
+                                    }
+                                ],
+                            },
+                            "error_surface": {
+                                "message": "Connection error.",
+                                "error_type": "provider_unavailable",
+                            },
+                        },
+                        tool_calls=None,
+                        token_count=0,
+                        created_at=now,
+                    )
+                ]
+            )
+        )
+
+        with patch.object(
+            MonitoringService,
+            "AdminAgentConversationRepository",
+            return_value=repo,
+        ):
+            items, total = await service.list_conversations(
+                MonitoringService.admin_scope(),
+                QuerySpec(),
+            )
+
+        assert total == 1
+        assert items[0].status == "active"
+        assert items[0].lifecycle_status == "active"
+        assert items[0].display_status == "failed"
+        assert items[0].latest_turn_status == "failed"
+        assert items[0].latest_turn_outcome == "partial"
+        assert items[0].latest_conversation_outcome == "failed"
+        assert items[0].latest_failure_kind == "provider_unavailable"
+        assert items[0].latest_termination_reason == "provider_unavailable"
+        assert items[0].latest_error_message == "Connection error."
+        assert items[0].latest_turn_flow_terminal_status == "error"
+        assert items[0].latest_turn_flow_terminal_type == "failed"
+        assert items[0].latest_turn_error_type == "untrusted_final_output_source"
 
     @pytest.mark.asyncio
     async def test_get_conversation_detail_returns_tenant_detail_with_trace(

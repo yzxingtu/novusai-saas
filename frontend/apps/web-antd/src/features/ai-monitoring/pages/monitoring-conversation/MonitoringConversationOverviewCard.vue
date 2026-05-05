@@ -17,6 +17,7 @@ import IdentityTrigger from '#/views/_shared/identity/IdentityTrigger.vue';
 
 import {
   conversationStatusColor,
+  getConversationDisplayStatus,
   getInitialLetter,
   isIconAvatar,
 } from './helpers';
@@ -30,6 +31,9 @@ const props = defineProps<{
 }>();
 
 const detailAgentName = computed(() => props.detail.agent_name || '-');
+const displayStatus = computed(() =>
+  getConversationDisplayStatus(props.detail),
+);
 
 function getActorDisplayName(actor?: MonitoringConversationDetail['actor']) {
   if (!actor) {
@@ -45,6 +49,15 @@ function actorTypeLabel(type?: null | string) {
   const key = `${props.i18nPrefix}.actorType.${type}`;
   const translated = $t(key);
   return translated === key ? type : translated;
+}
+
+function getStatusText(status?: null | string) {
+  if (!status) {
+    return '-';
+  }
+  const key = `${props.i18nPrefix}.status_options.${status}`;
+  const translated = $t(key);
+  return translated === key ? status : translated;
 }
 
 const actorIdentityModel = computed(() => {
@@ -159,8 +172,8 @@ const actorIdentityMeta = computed<IdentityDetailMeta>(() => ({
           {{ $t(`${i18nPrefix}.status`) }}
         </div>
         <div class="monitoring-overview-value">
-          <Tag :color="conversationStatusColor(detail.status)">
-            {{ detail.status }}
+          <Tag :color="conversationStatusColor(displayStatus)">
+            {{ getStatusText(displayStatus) }}
           </Tag>
         </div>
       </div>

@@ -933,7 +933,11 @@
     "status_options": {
       "active": "进行中",
       "archived": "已归档",
-      "closed": "已关闭"
+      "closed": "已关闭",
+      "completed": "已完成",
+      "failed": "失败",
+      "partial": "部分完成",
+      "unknown": "未知"
     },
     "placeholder": {
       "searchTitle": "搜索对话标题",

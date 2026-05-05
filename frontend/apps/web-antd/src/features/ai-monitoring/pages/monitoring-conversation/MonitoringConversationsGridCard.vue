@@ -16,6 +16,10 @@ import {
   createMonitoringActorDetailMeta,
   createMonitoringActorIdentityModel,
 } from '../../identity';
+import {
+  conversationStatusColor,
+  getConversationDisplayStatus,
+} from './helpers';
 
 defineOptions({ name: 'MonitoringConversationsGridCard' });
 
@@ -55,6 +59,10 @@ function getStatusText(status?: null | string) {
   const key = `${props.i18nPrefix}.status_options.${status}`;
   const translated = $t(key);
   return translated === key ? status : translated;
+}
+
+function getDisplayStatus(row: MonitoringConversationInfo) {
+  return getConversationDisplayStatus(row);
 }
 
 function formatTokens(tokens?: null | number) {
@@ -133,8 +141,8 @@ function formatCost(cost?: null | number) {
       </template>
 
       <template #status_cell="{ row }">
-        <Tag :color="row.status === 'active' ? 'success' : 'default'">
-          {{ getStatusText(row.status) }}
+        <Tag :color="conversationStatusColor(getDisplayStatus(row))">
+          {{ getStatusText(getDisplayStatus(row)) }}
         </Tag>
       </template>
 

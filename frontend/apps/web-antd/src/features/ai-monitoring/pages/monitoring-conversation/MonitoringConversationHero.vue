@@ -18,6 +18,7 @@ import {
   conversationStatusColor,
   formatCost,
   formatTokens,
+  getConversationDisplayStatus,
   getInitialLetter,
   isIconAvatar,
 } from './helpers';
@@ -31,6 +32,9 @@ const props = defineProps<{
 }>();
 
 const detailAgentName = computed(() => props.detail.agent_name || '-');
+const displayStatus = computed(() =>
+  getConversationDisplayStatus(props.detail),
+);
 
 const heroStats = computed(() => [
   {
@@ -73,6 +77,15 @@ function actorTypeLabel(type?: null | string) {
   const key = `${props.i18nPrefix}.actorType.${type}`;
   const translated = $t(key);
   return translated === key ? type : translated;
+}
+
+function getStatusText(status?: null | string) {
+  if (!status) {
+    return '-';
+  }
+  const key = `${props.i18nPrefix}.status_options.${status}`;
+  const translated = $t(key);
+  return translated === key ? status : translated;
 }
 
 const actorIdentityModel = computed(() => {
@@ -179,8 +192,8 @@ const actorIdentityMeta = computed<IdentityDetailMeta>(() => ({
           </div>
         </div>
         <div class="mt-3 flex flex-wrap items-center gap-2">
-          <Tag :color="conversationStatusColor(detail.status)">
-            {{ detail.status }}
+          <Tag :color="conversationStatusColor(displayStatus)">
+            {{ getStatusText(displayStatus) }}
           </Tag>
           <Tag v-if="detail.last_call_at" color="cyan">
             {{ formatDate(detail.last_call_at) }}

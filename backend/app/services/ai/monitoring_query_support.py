@@ -14,7 +14,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.configs.service import PLATFORM_TENANT_ID
 from app.core.identity import resolve_identity_display_role_name
-from app.models.ai import AgentConversation, AICallLog
+from app.enums.agent import MessageRoleEnum
+from app.models.ai import AgentConversation, AICallLog, ConversationMessage
 from app.models.system.admin import Admin
 from app.models.tenant.tenant import Tenant
 from app.models.tenant.tenant_admin import TenantAdmin
@@ -319,6 +320,81 @@ class MonitoringQuerySupport:
             for row in rows
             if row.conversation_id is not None
         }
+
+    async def load_conversation_latest_turn_map(
+        self,
+        scope: Any,
+        conversation_ids: set[int],
+    ) -> dict[int, dict[str, Any]]:
+        normalized_ids = sorted(
+            {
+                int(conversation_id)
+                for conversation_id in conversation_ids
+                if conversation_id
+            }
+        )
+        if not normalized_ids:
+            return {}
+
+        filters = [
+            ConversationMessage.is_deleted.is_(False),
+            ConversationMessage.conversation_id.in_(normalized_ids),
+            ConversationMessage.role == MessageRoleEnum.ASSISTANT.value,
+        ]
+        if getattr(scope, "is_tenant", False):
+            filters.append(ConversationMessage.tenant_id == scope.tenant_id)
+
+        ranked = (
+            select(
+                ConversationMessage.conversation_id.label("conversation_id"),
+                ConversationMessage.content.label("content"),
+                ConversationMessage.metadata_.label("message_metadata"),
+                ConversationMessage.tool_calls.label("tool_calls"),
+                ConversationMessage.created_at.label("created_at"),
+                func.row_number()
+                .over(
+                    partition_by=ConversationMessage.conversation_id,
+                    order_by=(
+                        ConversationMessage.sequence.desc(),
+                        ConversationMessage.created_at.desc(),
+                        ConversationMessage.id.desc(),
+                    ),
+                )
+                .label("rn"),
+            )
+            .where(*filters)
+            .subquery("monitoring_conversation_latest_turn_ranked")
+        )
+
+        rows = (
+            await self.db.execute(
+                select(
+                    ranked.c.conversation_id,
+                    ranked.c.content,
+                    ranked.c.message_metadata,
+                    ranked.c.tool_calls,
+                    ranked.c.created_at,
+                ).where(ranked.c.rn == 1)
+            )
+        ).all()
+
+        result: dict[int, dict[str, Any]] = {}
+        for row in rows:
+            conversation_id = getattr(row, "conversation_id", None)
+            if conversation_id is None:
+                continue
+            result[int(conversation_id)] = (
+                MonitoringReadModelProjector.build_latest_turn_summary_from_message_payload(
+                    {
+                        "role": MessageRoleEnum.ASSISTANT.value,
+                        "content": getattr(row, "content", None),
+                        "metadata": getattr(row, "message_metadata", None),
+                        "tool_calls": getattr(row, "tool_calls", None),
+                        "created_at": getattr(row, "created_at", None),
+                    }
+                )
+            )
+        return result
 
     async def load_actor_map(
         self,

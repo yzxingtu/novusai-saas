@@ -24,11 +24,183 @@ from app.services.ai.conversation_turn_flow_projector import (
 )
 from app.services.ai.turn_failure_normalizer import (
     derive_budget_projection,
+    find_turn_flow_terminal_stage,
     resolve_failure_projection,
 )
 
 
 class MonitoringReadModelProjector:
+    @staticmethod
+    def _as_dict(value: Any) -> dict[str, Any]:
+        return dict(value) if isinstance(value, dict) else {}
+
+    @classmethod
+    def _resolve_latest_turn_status(
+        cls,
+        *,
+        turn_outcome: str | None,
+        conversation_outcome: str | None,
+        failure_kind: str | None,
+        terminal_status: str | None,
+        terminal_type: str | None,
+        call_status: str | None,
+    ) -> str | None:
+        normalized_failure_kind = (failure_kind or "").strip().lower()
+        has_failure_kind = bool(
+            normalized_failure_kind
+            and normalized_failure_kind not in {"none", "success", "completed"}
+        )
+        if (
+            conversation_outcome == "failed"
+            or turn_outcome == "failed"
+            or terminal_status in {"error", "failed"}
+            or terminal_type == "failed"
+            or call_status == "failed"
+            or has_failure_kind
+        ):
+            return "failed"
+        if turn_outcome == "partial" or terminal_status == "interrupted":
+            return "partial"
+        if (
+            conversation_outcome == "success"
+            or turn_outcome == "success"
+            or terminal_status == "completed"
+            or terminal_type == "completed"
+            or call_status == "success"
+        ):
+            return "completed"
+        return None
+
+    @classmethod
+    def build_latest_turn_summary(
+        cls,
+        *,
+        metadata: dict[str, Any] | None = None,
+        turn_flow: dict[str, Any] | None = None,
+        content: Any = None,
+        created_at: datetime | None = None,
+        call_status: str | None = None,
+        error_message: str | None = None,
+    ) -> dict[str, Any]:
+        metadata_payload = cls._as_dict(metadata)
+        diagnostics = (
+            ConversationDiagnosticsProjector.extract_turn_diagnostics_from_metadata(
+                metadata_payload
+            )
+            if metadata_payload
+            else {}
+        )
+        projected_turn_flow = (
+            ConversationTurnFlowProjector.project_from_message_payload(
+                {
+                    "role": "assistant",
+                    "content": content,
+                    "metadata": metadata_payload,
+                }
+            )
+            if turn_flow is None and metadata_payload
+            else turn_flow
+        )
+        failure_projection = resolve_failure_projection(
+            diagnostics=diagnostics,
+            turn_flow=projected_turn_flow,
+        )
+        terminal_stage = find_turn_flow_terminal_stage(projected_turn_flow)
+        error_surface = cls._as_dict(
+            (projected_turn_flow or {}).get("error_surface")
+            if isinstance(projected_turn_flow, dict)
+            else None
+        )
+
+        turn_outcome = ConversationDiagnosticsProjector.to_non_empty_str(
+            failure_projection.get("turn_outcome") or diagnostics.get("turn_outcome")
+        )
+        conversation_outcome = ConversationDiagnosticsProjector.to_non_empty_str(
+            failure_projection.get("conversation_outcome")
+            or diagnostics.get("conversation_outcome")
+            or turn_outcome
+        )
+        failure_kind = ConversationDiagnosticsProjector.to_non_empty_str(
+            failure_projection.get("failure_kind")
+            or diagnostics.get("failure_kind")
+            or error_surface.get("error_type")
+        )
+        termination_reason = ConversationDiagnosticsProjector.to_non_empty_str(
+            failure_projection.get("termination_reason")
+            or diagnostics.get("termination_reason")
+        )
+        terminal_status = ConversationDiagnosticsProjector.to_non_empty_str(
+            failure_projection.get("turn_flow_terminal_stage_status")
+            or terminal_stage.get("status")
+        )
+        terminal_type = ConversationDiagnosticsProjector.to_non_empty_str(
+            failure_projection.get("turn_flow_terminal_stage_type")
+            or terminal_stage.get("type")
+        )
+        latest_error_message = ConversationDiagnosticsProjector.to_non_empty_str(
+            error_message
+            or error_surface.get("message")
+            or metadata_payload.get("error_message")
+            or metadata_payload.get("public_error_message")
+        )
+        latest_turn_status = cls._resolve_latest_turn_status(
+            turn_outcome=turn_outcome,
+            conversation_outcome=conversation_outcome,
+            failure_kind=failure_kind,
+            terminal_status=terminal_status,
+            terminal_type=terminal_type,
+            call_status=call_status,
+        )
+        if not any(
+            (
+                latest_turn_status,
+                turn_outcome,
+                conversation_outcome,
+                failure_kind,
+                termination_reason,
+                terminal_status,
+                terminal_type,
+                latest_error_message,
+                created_at,
+            )
+        ):
+            return {}
+        return {
+            "display_status": latest_turn_status,
+            "latest_turn_status": latest_turn_status,
+            "latest_turn_outcome": turn_outcome,
+            "latest_conversation_outcome": conversation_outcome,
+            "latest_failure_kind": failure_kind,
+            "latest_termination_reason": termination_reason,
+            "latest_error_message": latest_error_message,
+            "latest_turn_flow_terminal_status": terminal_status,
+            "latest_turn_flow_terminal_type": terminal_type,
+            "latest_turn_error_type": ConversationDiagnosticsProjector.to_non_empty_str(
+                error_surface.get("error_type")
+            ),
+            "latest_turn_created_at": created_at,
+        }
+
+    @classmethod
+    def build_latest_turn_summary_from_message_payload(
+        cls,
+        message: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        if not isinstance(message, dict):
+            return {}
+        if str(message.get("role") or "") != "assistant":
+            return {}
+        metadata = cls._as_dict(message.get("metadata"))
+        turn_flow = ConversationTurnFlowProjector.project_from_message_payload(message)
+        return cls.build_latest_turn_summary(
+            metadata=metadata,
+            turn_flow=turn_flow,
+            content=message.get("content"),
+            created_at=message.get("created_at")
+            if isinstance(message.get("created_at"), datetime)
+            else None,
+        )
+
     @staticmethod
     def safe_int(value: Any) -> int:
         try:

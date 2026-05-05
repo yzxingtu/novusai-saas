@@ -41,6 +41,18 @@ class MonitoringConversationListItem(BaseSchema):
     actor: MonitoringActorInfo | None = None
     title: str | None = None
     status: str
+    lifecycle_status: str | None = None
+    display_status: str | None = None
+    latest_turn_status: str | None = None
+    latest_turn_outcome: str | None = None
+    latest_conversation_outcome: str | None = None
+    latest_failure_kind: str | None = None
+    latest_termination_reason: str | None = None
+    latest_error_message: str | None = None
+    latest_turn_flow_terminal_status: str | None = None
+    latest_turn_flow_terminal_type: str | None = None
+    latest_turn_error_type: str | None = None
+    latest_turn_created_at: datetime | None = None
     message_count: int = 0
     call_count: int = 0
     total_tokens: int = 0
@@ -103,6 +115,18 @@ class MonitoringConversationDetail(BaseSchema):
     actor: MonitoringActorInfo | None = None
     title: str | None = None
     status: str
+    lifecycle_status: str | None = None
+    display_status: str | None = None
+    latest_turn_status: str | None = None
+    latest_turn_outcome: str | None = None
+    latest_conversation_outcome: str | None = None
+    latest_failure_kind: str | None = None
+    latest_termination_reason: str | None = None
+    latest_error_message: str | None = None
+    latest_turn_flow_terminal_status: str | None = None
+    latest_turn_flow_terminal_type: str | None = None
+    latest_turn_error_type: str | None = None
+    latest_turn_created_at: datetime | None = None
     message_count: int = 0
     total_tokens: int = 0
     total_cost: float = 0.0

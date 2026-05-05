@@ -1,3 +1,5 @@
+import type { MonitoringConversationInfo } from '../../api';
+
 export function isIconAvatar(avatar: null | string | undefined): boolean {
   return Boolean(avatar && String(avatar).includes(':'));
 }
@@ -82,13 +84,85 @@ export function roleColor(role: string): string {
   }
 }
 
+function hasFailureKind(value?: null | string): boolean {
+  const normalized = asString(value).toLowerCase();
+  return Boolean(
+    normalized && !['completed', 'none', 'success'].includes(normalized),
+  );
+}
+
+type ConversationStatusSource = Pick<
+  MonitoringConversationInfo,
+  | 'display_status'
+  | 'latest_conversation_outcome'
+  | 'latest_failure_kind'
+  | 'latest_turn_flow_terminal_status'
+  | 'latest_turn_flow_terminal_type'
+  | 'latest_turn_outcome'
+  | 'latest_turn_status'
+  | 'status'
+>;
+
+export function getConversationDisplayStatus(
+  conversation: ConversationStatusSource,
+): string {
+  const explicitDisplay = asString(conversation.display_status);
+  if (explicitDisplay) {
+    return explicitDisplay;
+  }
+  const explicitTurnStatus = asString(conversation.latest_turn_status);
+  if (explicitTurnStatus) {
+    return explicitTurnStatus;
+  }
+  const turnOutcome = asString(conversation.latest_turn_outcome);
+  const conversationOutcome = asString(
+    conversation.latest_conversation_outcome,
+  );
+  const terminalStatus = asString(
+    conversation.latest_turn_flow_terminal_status,
+  );
+  const terminalType = asString(conversation.latest_turn_flow_terminal_type);
+  if (
+    conversationOutcome === 'failed' ||
+    turnOutcome === 'failed' ||
+    terminalStatus === 'error' ||
+    terminalStatus === 'failed' ||
+    terminalType === 'failed' ||
+    hasFailureKind(conversation.latest_failure_kind)
+  ) {
+    return 'failed';
+  }
+  if (turnOutcome === 'partial' || terminalStatus === 'interrupted') {
+    return 'partial';
+  }
+  if (
+    conversationOutcome === 'success' ||
+    turnOutcome === 'success' ||
+    terminalStatus === 'completed' ||
+    terminalType === 'completed'
+  ) {
+    return 'completed';
+  }
+  return asString(conversation.status) || 'unknown';
+}
+
 export function conversationStatusColor(status?: null | string): string {
   switch (status) {
     case 'active': {
-      return 'success';
+      return 'processing';
     }
     case 'closed': {
       return 'error';
+    }
+    case 'completed':
+    case 'success': {
+      return 'success';
+    }
+    case 'failed': {
+      return 'error';
+    }
+    case 'partial': {
+      return 'warning';
     }
     default: {
       return 'default';

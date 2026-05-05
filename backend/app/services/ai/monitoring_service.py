@@ -188,6 +188,16 @@ class MonitoringService:
             conversation_ids,
         )
 
+    async def _load_conversation_latest_turn_map(
+        self,
+        scope: MonitoringScope,
+        conversation_ids: set[int],
+    ) -> dict[int, dict[str, Any]]:
+        return await self._query_support.load_conversation_latest_turn_map(
+            scope,
+            conversation_ids,
+        )
+
     async def _load_actor_map(
         self,
         refs: set[tuple[str, int]],
