@@ -522,6 +522,44 @@ def test_build_turn_flow_view_model_surfaces_safe_untrusted_fallback_output() ->
     ]
 
 
+def test_build_turn_flow_view_model_uses_safe_fallback_for_terminal_error_surface() -> (
+    None
+):
+    safe_partial = (
+        "我找到了候选来源，但交叉验证不足，暂时不生成新闻结论。"
+        "你可以稍后重试或换一个更具体的关键词。"
+    )
+    turn_flow = build_turn_flow_view_model(
+        diagnostics_payload={
+            "final_output_source": "partial_output",
+            "failure_kind": "insufficient_cross_checked_sources",
+            "stripped_untrusted_final_output": True,
+            "turn_outcome": "partial",
+            "untrusted_final_output_fallback_applied": True,
+            "tool_filtering": {"all_tools_count": 3, "candidate_tools_count": 2},
+            "turn_events": [],
+        },
+        turn_record={"termination_reason": "insufficient_cross_checked_sources"},
+        rag_sources=[],
+        output=safe_partial,
+        completion_reason="insufficient_cross_checked_sources",
+        interrupted=False,
+        error=None,
+    )
+
+    answer_card = turn_flow["answer_card"] or {}
+    error_surface = turn_flow["error_surface"] or {}
+
+    assert answer_card.get("summary") == safe_partial
+    assert error_surface.get("message") == safe_partial
+    assert error_surface.get("message") != (
+        "The assistant could not finish this turn. Please retry."
+    )
+    assert (turn_flow["error_surface"] or {}).get(
+        "error_type"
+    ) == "untrusted_final_output_source"
+
+
 def test_build_turn_flow_view_model_prefers_public_error_for_untrusted_failed_output() -> (
     None
 ):

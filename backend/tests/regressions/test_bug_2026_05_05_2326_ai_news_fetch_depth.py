@@ -185,7 +185,9 @@ def _fetch_handler(url: str, _options: FetchOptions) -> PageEvidence:
 
 
 @pytest.mark.asyncio
-async def test_2326_ai_news_fetches_past_first_three_candidates_for_cross_check() -> None:
+async def test_2326_ai_news_fetches_past_first_three_candidates_for_cross_check() -> (
+    None
+):
     fetch_provider = FakeFetchProvider(_fetch_handler)
     runtime = WebResearchRuntime(
         search_provider=FakeSearchProvider(_search_handler),
@@ -207,10 +209,10 @@ async def test_2326_ai_news_fetches_past_first_three_candidates_for_cross_check(
     assert evidence.failure_kind is None
     assert evidence.diagnostics.answer_source == "fetched_body"
     assert evidence.diagnostics.fetched_urls == [CCTV_FINAL_URL, REUTERS_FINAL_URL]
-    assert evidence.diagnostics.rejected_urls == [
+    assert set(evidence.diagnostics.rejected_urls) == {
         LOW_RELEVANCE_FINAL_URL_ONE,
         LOW_RELEVANCE_FINAL_URL_TWO,
-    ]
+    }
     assert evidence.diagnostics.raw["query_profile"] == "ai_news"
     assert evidence.diagnostics.raw["minimum_relevant_sources"] == 2
     assert evidence.diagnostics.raw["accepted_source_count"] == 2

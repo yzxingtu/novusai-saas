@@ -166,12 +166,9 @@ def test_2327_ai_news_digest_uses_concrete_body_items_not_site_descriptions() ->
         body=(
             "Why Amazon is Cutting 16,000 Jobs and What AI Has to Do With It\n\n"
             "Feb 2, 2026\n\n"
-            "OpenAI Is Expanding Beyond Microsoft And What It Means For The AI Market\n\n"
-            "Apr 28, 2026\n\n"
-            "Microsoft AI Revenue Surged To 37 Billion And What It Means For The Future\n\n"
-            "Apr 29, 2026\n\n"
-            "Meta Is Tracking Employee Activity To Train Smarter AI Models\n\n"
-            "Apr 30, 2026"
+            "Google Veo 3 Is Transforming Ai Video Creation And Content Production\n\n"
+            "Uk Sovereign Ai Fund Bet On Ineffable Intelligence\n\n"
+            "Apr 29, 2026"
         ),
     )
     pages = [cctv_page, ai_news_today_page]
@@ -194,7 +191,14 @@ def test_2327_ai_news_digest_uses_concrete_body_items_not_site_descriptions() ->
     assert updated[0].status == "completed"
     assert "今日 AI 新闻摘要" in output
     assert "AI与科学仪器融合已到关键节点" in output
-    assert "Meta Is Tracking Employee Activity To Train Smarter AI Models" in output
+    assert (
+        "Google Veo 3 Is Transforming Ai Video Creation And Content Production"
+        in output
+    )
+    assert (
+        "Google Veo 3 Is Transforming Ai Video Creation And Content Production："
+        "Uk Sovereign Ai Fund Bet On Ineffable Intelligence"
+    ) not in output
     assert "聚焦数字中国建设" not in output
     assert "delivers AI news spanning" not in output
     assert "Daily trending Artificial Intelligence" not in output

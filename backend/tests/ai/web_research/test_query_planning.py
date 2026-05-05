@@ -59,6 +59,7 @@ def test_current_ai_news_query_gets_cross_checked_news_plan() -> None:
     assert plan.profile == "ai_news"
     assert plan.trusted_seed_urls == []
     assert plan.minimum_relevant_sources == 2
+    assert plan.fetch_candidate_depth == 8
     assert plan.source_quality_floor == "current_trusted_cross_checked_ai_news"
     assert plan.search_queries[0] == "今日ai新闻查一下"
     assert any("latest AI news today" in query for query in plan.search_queries)
@@ -101,6 +102,7 @@ def test_ai_news_plan_prioritizes_trusted_current_sources_before_reposts() -> No
     assert planned_urls[-1] == AI_NEWS_LOW_TRUST_URL
     assert planned.diagnostics["query_profile"] == "ai_news"
     assert planned.diagnostics["minimum_relevant_sources"] == 2
+    assert planned.diagnostics["fetch_candidate_depth"] == 8
 
 
 def test_trusted_seeds_are_ranked_before_noisy_public_search_results() -> None:

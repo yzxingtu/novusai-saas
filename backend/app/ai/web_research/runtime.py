@@ -78,7 +78,7 @@ class WebResearchRuntime:
         search_results = await self._search(query, run_options, search_provider)
         candidate_selection = select_fetch_candidates(
             search_results,
-            max_fetches=run_options.max_fetches,
+            max_fetches=_effective_max_fetches(search_results, run_options),
             require_fetch=run_options.require_fetch,
         )
         fetched_pages = await self._fetch_candidates(
@@ -265,10 +265,23 @@ def _query_plan_diagnostics(search_results: SearchResultSet) -> dict[str, object
         "planned_result_count",
         "minimum_relevant_sources",
         "source_quality_floor",
+        "fetch_candidate_depth",
     ):
         if key in diagnostics:
             payload[key] = diagnostics[key]
     return payload
+
+
+def _effective_max_fetches(
+    search_results: SearchResultSet,
+    options: WebResearchRunOptions,
+) -> int:
+    raw_value = dict(search_results.diagnostics or {}).get("fetch_candidate_depth")
+    try:
+        planned_depth = int(raw_value or 0)
+    except (TypeError, ValueError):
+        planned_depth = 0
+    return max(options.max_fetches, planned_depth)
 
 
 def _minimum_relevant_sources(search_results: SearchResultSet) -> int:

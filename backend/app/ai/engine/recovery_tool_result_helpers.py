@@ -56,6 +56,83 @@ _STRUCTURED_WEB_RESEARCH_PROFILES = {
     _FASHION_TREND_PROFILE,
     _LLM_LEADERBOARD_PROFILE,
 }
+_AI_NEWS_GENERIC_TEXT_PATTERNS = (
+    "聚焦数字中国建设",
+    "以数智传播全媒体服务",
+    "ai news today delivers ai news spanning",
+    "daily trending artificial intelligence",
+    "latest updates in artificial intelligence",
+    "keeping you informed",
+    "get the latest ai news",
+)
+_AI_NEWS_HEADLINE_TERMS = (
+    "ai",
+    "人工智能",
+    "大模型",
+    "生成式人工智能",
+    "openai",
+    "anthropic",
+    "claude",
+    "nvidia",
+    "英伟达",
+    "microsoft",
+    "微软",
+    "google",
+    "meta",
+    "amazon",
+    "altman",
+    "chatgpt",
+    "gemini",
+    "deepmind",
+    "模型",
+    "机器人",
+    "芯片",
+    "智能体",
+    "automation",
+    "artificial intelligence",
+)
+_AI_NEWS_ISO_DATE_RE = re.compile(
+    r"(?<!\d)(20\d{2})\s*(?:年|-|/|\.)\s*"
+    r"(0?[1-9]|1[0-2])\s*(?:月|-|/|\.)\s*"
+    r"(0?[1-9]|[12]\d|3[01])"
+)
+_AI_NEWS_COMPACT_DATE_RE = re.compile(
+    r"(?<!\d)(20\d{2})(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])(?!\d)"
+)
+_AI_NEWS_EN_DATE_RE = re.compile(
+    r"\b("
+    r"jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|"
+    r"jul(?:y)?|aug(?:ust)?|sep(?:tember)?|sept|oct(?:ober)?|"
+    r"nov(?:ember)?|dec(?:ember)?"
+    r")\s+([0-3]?\d),\s*(20\d{2})\b",
+    re.IGNORECASE,
+)
+_AI_NEWS_MONTHS = {
+    "jan": 1,
+    "january": 1,
+    "feb": 2,
+    "february": 2,
+    "mar": 3,
+    "march": 3,
+    "apr": 4,
+    "april": 4,
+    "may": 5,
+    "jun": 6,
+    "june": 6,
+    "jul": 7,
+    "july": 7,
+    "aug": 8,
+    "august": 8,
+    "sep": 9,
+    "sept": 9,
+    "september": 9,
+    "oct": 10,
+    "october": 10,
+    "nov": 11,
+    "november": 11,
+    "dec": 12,
+    "december": 12,
+}
 _FASHION_TREND_STYLE_PATTERNS: tuple[tuple[str, tuple[str, ...], str], ...] = (
     (
         "迷你裙/短款连衣裙",
@@ -812,6 +889,45 @@ def _ai_news_fetched_page_payloads(
     return [dict(page) for page in fetched_pages if isinstance(page, dict)]
 
 
+def _ai_news_page_payload(
+    result: ToolResult,
+    payload: dict[str, object],
+) -> dict[str, object]:
+    page_payloads = _ai_news_fetched_page_payloads(payload)
+    target_urls = {
+        str(value or "").strip()
+        for value in (
+            payload.get("final_url"),
+            payload.get("url"),
+            result.result_link,
+        )
+        if str(value or "").strip()
+    }
+    if target_urls:
+        for page_payload in page_payloads:
+            if str(page_payload.get("url") or "").strip() in target_urls:
+                return page_payload
+    payload_title = RecoveryResultNormalizer._normalize_comparison_text(
+        payload.get("title")
+    )
+    if payload_title:
+        for page_payload in page_payloads:
+            page_title = RecoveryResultNormalizer._normalize_comparison_text(
+                page_payload.get("title")
+            )
+            if page_title == payload_title:
+                return page_payload
+    completed_pages = [
+        page_payload
+        for page_payload in page_payloads
+        if str(page_payload.get("status") or "").strip() == "completed"
+        and str(page_payload.get("answer_quality") or "").strip() != "none"
+    ]
+    if len(completed_pages) == 1:
+        return completed_pages[0]
+    return {}
+
+
 def _clean_ai_news_detail(title: str, detail: str) -> str:
     cleaned = re.sub(r"\s+", " ", str(detail or "").strip())
     if not cleaned:
@@ -833,39 +949,183 @@ def _first_sentence(text: str) -> str:
     return cleaned
 
 
-def _ai_news_body_fallback(page_payload: dict[str, object]) -> str:
+def _looks_like_generic_ai_news_text(text: object) -> bool:
+    normalized = str(text or "").strip().casefold()
+    if not normalized:
+        return False
+    comparison = RecoveryResultNormalizer._normalize_comparison_text(normalized)
+    return any(
+        pattern in normalized or pattern in comparison
+        for pattern in _AI_NEWS_GENERIC_TEXT_PATTERNS
+    )
+
+
+def _ai_news_date_key(text: str) -> int:
+    normalized = str(text or "").strip()
+    for pattern in (
+        _AI_NEWS_ISO_DATE_RE,
+        _AI_NEWS_COMPACT_DATE_RE,
+    ):
+        match = pattern.search(normalized)
+        if not match:
+            continue
+        try:
+            year = int(match.group(1))
+            month = int(match.group(2))
+            day = int(match.group(3))
+        except (TypeError, ValueError):
+            continue
+        if 1 <= month <= 12 and 1 <= day <= 31:
+            return year * 10000 + month * 100 + day
+    english_match = _AI_NEWS_EN_DATE_RE.search(normalized)
+    if english_match:
+        month_label = str(english_match.group(1) or "").casefold()
+        month = _AI_NEWS_MONTHS.get(month_label[:3], 0)
+        try:
+            day = int(english_match.group(2))
+            year = int(english_match.group(3))
+        except (TypeError, ValueError):
+            return 0
+        if 1 <= month <= 12 and 1 <= day <= 31:
+            return year * 10000 + month * 100 + day
+    return 0
+
+
+def _is_ai_news_date_line(line: str) -> bool:
+    stripped = str(line or "").strip()
+    return bool(stripped and len(stripped) <= 40 and _ai_news_date_key(stripped))
+
+
+def _contains_ai_news_headline_term(line: str) -> bool:
+    lowered = str(line or "").casefold()
+    return any(term.casefold() in lowered for term in _AI_NEWS_HEADLINE_TERMS)
+
+
+def _is_ai_news_body_headline(line: str, page_title: str) -> bool:
+    stripped = re.sub(r"\s+", " ", str(line or "").strip())
+    if len(stripped) < 8 or len(stripped) > 180:
+        return False
+    if _is_ai_news_date_line(stripped):
+        return False
+    if _looks_like_generic_ai_news_text(stripped):
+        return False
+    if stripped.startswith(("《时尚科技秀》", "本期节目主要内容")):
+        return False
+    normalized_line = RecoveryResultNormalizer._normalize_comparison_text(stripped)
+    normalized_title = RecoveryResultNormalizer._normalize_comparison_text(page_title)
+    if normalized_title and normalized_line == normalized_title:
+        return False
+    return _contains_ai_news_headline_term(stripped)
+
+
+def _ai_news_body_lines(page_payload: dict[str, object]) -> list[str]:
     body = str(page_payload.get("body_text") or "").strip()
     if not body:
-        return ""
-    return RecoveryResultNormalizer._normalize_cached_result(
-        _first_sentence(body),
-        max_length=120,
-    )
+        return []
+    lines: list[str] = []
+    for raw_line in body.splitlines():
+        line = re.sub(r"\s+", " ", raw_line).strip()
+        if line and line not in lines:
+            lines.append(line)
+    return lines
+
+
+def _ai_news_nearby_date(
+    lines: list[str],
+    index: int,
+) -> tuple[int, str]:
+    for offset in (1, 2, 3, -1):
+        candidate_index = index + offset
+        if candidate_index < 0 or candidate_index >= len(lines):
+            continue
+        line = lines[candidate_index]
+        if not _is_ai_news_date_line(line):
+            continue
+        return _ai_news_date_key(line), line
+    own_date_key = _ai_news_date_key(lines[index])
+    if own_date_key:
+        return own_date_key, ""
+    return 0, ""
+
+
+def _ai_news_body_detail(
+    lines: list[str],
+    index: int,
+    title: str,
+    date_line: str,
+) -> str:
+    for candidate_index in range(index + 1, min(len(lines), index + 4)):
+        line = lines[candidate_index]
+        if _is_ai_news_date_line(line) or _looks_like_generic_ai_news_text(line):
+            continue
+        if _is_ai_news_body_headline(line, title) and not _has_terminal_punctuation(
+            line
+        ):
+            continue
+        detail = _clean_ai_news_detail(title, line)
+        if detail:
+            return detail
+    if date_line:
+        return f"页面列出的时间为 {date_line}。"
+    return ""
+
+
+def _ai_news_body_item_from_page(
+    page_payload: dict[str, object],
+    *,
+    page_title: str,
+) -> tuple[str, str] | None:
+    lines = _ai_news_body_lines(page_payload)
+    if not lines:
+        return None
+    candidates: list[tuple[int, int, str, str]] = []
+    for index, line in enumerate(lines):
+        if not _is_ai_news_body_headline(line, page_title):
+            continue
+        date_key, date_line = _ai_news_nearby_date(lines, index)
+        detail = _ai_news_body_detail(lines, index, line, date_line)
+        if not detail:
+            continue
+        candidates.append((date_key, -index, line, detail))
+    if not candidates:
+        return None
+    _date_key, _negative_index, title, detail = max(candidates)
+    return title, detail
 
 
 def _ai_news_item_from_payload(
     result: ToolResult,
     payload: dict[str, object],
 ) -> tuple[str, str, str] | None:
-    page_payloads = _ai_news_fetched_page_payloads(payload)
-    page_payload = page_payloads[0] if page_payloads else {}
+    page_payload = _ai_news_page_payload(result, payload)
     title = str(
         payload.get("title") or page_payload.get("title") or result.summary or ""
     ).strip()
     if not title:
         return None
-    detail = _clean_ai_news_detail(
-        title,
-        str(
-            payload.get("description")
-            or page_payload.get("description")
-            or page_payload.get("summary")
-            or payload.get("summary")
-            or ""
-        ),
+    raw_detail = str(
+        payload.get("description")
+        or page_payload.get("description")
+        or page_payload.get("summary")
+        or payload.get("summary")
+        or ""
     )
+    metadata_is_generic = bool(
+        _looks_like_generic_ai_news_text(title)
+        or _looks_like_generic_ai_news_text(raw_detail)
+    )
+    body_item = _ai_news_body_item_from_page(page_payload, page_title=title)
+    if metadata_is_generic:
+        if body_item is None:
+            return None
+        body_title, body_detail = body_item
+        return body_title, body_detail, _payload_source_label(payload)
+
+    detail = _clean_ai_news_detail(title, raw_detail)
     if not detail:
-        detail = _ai_news_body_fallback(page_payload)
+        if body_item is None:
+            return None
+        _body_title, detail = body_item
     if not detail:
         return None
     return title, detail, _payload_source_label(payload)

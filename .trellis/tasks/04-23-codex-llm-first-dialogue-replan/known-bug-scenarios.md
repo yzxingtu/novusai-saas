@@ -777,7 +777,7 @@ commits。PR 审核（parent agent 或人类 reviewer）必须核对这条引用
     the turn should remain partial without dumping fetched article bodies.
   - Historical and live UI should prefer the safe answer card/content and must
     not expose generic English retry text in transcript-first process surfaces.
-- **status**: `red_test_written`
+- **status**: `fixed_with_green_test`
 - **notes**:
   - CLI evidence command:
     `python -m app.cli ai conversation show 2326 --tail 8 --diagnostics-only --json`.
@@ -790,6 +790,24 @@ commits。PR 审核（parent agent 或人类 reviewer）必须核对这条引用
     failed because the kernel overview rendered
     `The assistant could not finish this turn. Please retry.` instead of the
     safe Chinese answer digest for a 2326-style partial research turn.
+  - GREEN implementation adds `fetch_candidate_depth=8` to the `ai_news`
+    WebResearch query plan and uses the plan-specific effective fetch cap in
+    runtime candidate selection while preserving early stop after enough
+    independent accepted sources are found.
+  - GREEN commands:
+    `python -m pytest tests\regressions\test_bug_2026_05_05_2327_ai_news_digest_quality.py tests\regressions\test_bug_2026_05_05_2326_ai_news_fetch_depth.py tests\regressions\test_bug_2026_05_05_2315_ai_news_cross_check.py tests\ai\web_research\test_query_planning.py tests\ai\web_research\test_runtime.py tests\ai\engine\test_turn_flow_projector.py -q`
+    → `42 passed`; broader AI runtime/WebResearch command → `136 passed`.
+  - Fresh real-dialogue smoke:
+    conversation `2329`, same prompt `查一下今日AI 新闻`, projected
+    `turn_outcome=success`, `evidence_status=completed`,
+    `answer_source=fetched_body`, and fetched both
+    `https://5gai.cctv.com/AI/index.shtml` and `https://ainewstoday.net/`.
+  - Playwright UI smoke:
+    admin conversation detail for `2329` showed the corrected news digest,
+    no generic English retry text, no generic channel/homepage descriptions,
+    and no bad `Google Veo 3...：Uk Sovereign...` pairing.
+  - Smoke artifact:
+    `.trellis/tasks/05-04-web-research-runtime-rewrite/smoke-runs/2026-05-05-webresearch-2326-2327-ai-news-depth-quality/report.md`.
 
 ---
 
@@ -829,7 +847,7 @@ commits。PR 审核（parent agent 或人类 reviewer）必须核对这条引用
   - If fewer than two concrete items can be extracted, structured `ai_news`
     recovery must return no completed answer so the platform can fail closed
     instead of presenting filler text as success.
-- **status**: `red_test_written`
+- **status**: `fixed_with_green_test`
 - **notes**:
   - CLI evidence command:
     `python -m app.cli ai conversation show 2327 --tail 2 --json`.
@@ -837,6 +855,26 @@ commits。PR 审核（parent agent 或人类 reviewer）必须核对这条引用
     `backend/tests/regressions/test_bug_2026_05_05_2327_ai_news_digest_quality.py`
     fails because the current renderer chooses generic `description` text before
     body-derived news items.
+  - GREEN implementation makes the AI-news structured renderer reject generic
+    channel/homepage copy, match each `fetch_url` result to its own fetched
+    page payload, extract concrete body headlines, and avoid pairing a headline
+    with the next headline as its detail.
+  - GREEN commands:
+    `python -m pytest tests\regressions\test_bug_2026_05_05_2327_ai_news_digest_quality.py tests\regressions\test_bug_2026_05_05_2326_ai_news_fetch_depth.py tests\regressions\test_bug_2026_05_05_2315_ai_news_cross_check.py tests\ai\web_research\test_query_planning.py tests\ai\web_research\test_runtime.py tests\ai\engine\test_turn_flow_projector.py -q`
+    → `42 passed`; broader AI runtime/WebResearch command → `136 passed`.
+  - Fresh real-dialogue smoke:
+    conversation `2329` rendered:
+    `今日 AI 新闻摘要` with concrete bullets for
+    `规范人工智能科技活动伦理治理` and
+    `Google Veo 3 Is Transforming Ai Video Creation And Content Production`.
+  - Scripted content checks for `2329`:
+    `contains_generic_desc=False`, `contains_bad_pair=False`,
+    `contains_retry=False`, `error_surface=null`.
+  - Playwright UI smoke:
+    admin conversation detail for `2329` showed the same corrected digest,
+    with no browser console errors and no failed browser requests.
+  - Smoke artifact:
+    `.trellis/tasks/05-04-web-research-runtime-rewrite/smoke-runs/2026-05-05-webresearch-2326-2327-ai-news-depth-quality/report.md`.
 
 ---
 

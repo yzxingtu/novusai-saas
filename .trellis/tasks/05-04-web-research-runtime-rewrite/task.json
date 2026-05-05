@@ -156,6 +156,34 @@
         "playwright_screenshot": ".trellis/tasks/05-04-web-research-runtime-rewrite/smoke-runs/2026-05-05-webresearch-2315-ai-news-cross-check/playwright-conversation-2321-detail.png",
         "latest_playwright_ui_check": "pass; conversation 2321 detail drawer showed failure attribution, web_research failed intent state, provider event evidence_status=partial answer_source=none, assistant card 异常, and no raw NetEase or rejected NVIDIA homepage body text.",
         "note": "Historical 2315 remains the stale NetEase raw-dump bad-output anchor; fresh 2321 proves current AI-news prompts fail closed when public search cannot provide cross-checked current evidence."
+      },
+      "ai_news_depth_quality": {
+        "historical_fetch_depth_failure_conversation_id": 2326,
+        "historical_generic_digest_conversation_id": 2327,
+        "fresh_smoke_conversation_id": 2329,
+        "prompt": "查一下今日AI 新闻",
+        "status": "pass",
+        "turn_outcome": "success",
+        "evidence_status": "completed",
+        "answer_source": "fetched_body",
+        "web_research_relevance_profile": "ai_news",
+        "fetched_urls": [
+          "https://5gai.cctv.com/AI/index.shtml",
+          "https://ainewstoday.net/"
+        ],
+        "rejected_urls": [
+          "https://baijiahao.baidu.com/s?id=1864336909927346035&wfr=spider&for=pc",
+          "https://baijiahao.baidu.com/s?id=1864035867509140983&wfr=spider&for=pc",
+          "https://www.nvidia.cn/"
+        ],
+        "red_commits": [
+          "190eaac97",
+          "b95d41fc4"
+        ],
+        "report": ".trellis/tasks/05-04-web-research-runtime-rewrite/smoke-runs/2026-05-05-webresearch-2326-2327-ai-news-depth-quality/report.md",
+        "playwright_screenshot": ".trellis/tasks/05-04-web-research-runtime-rewrite/smoke-runs/2026-05-05-webresearch-2326-2327-ai-news-depth-quality/playwright-conversation-2329-detail.png",
+        "latest_playwright_ui_check": "pass; conversation 2329 detail drawer showed web_research completed, evidence_status=completed, answer_source=fetched_body, concrete AI-news digest, no generic English retry text, no generic channel/homepage descriptions, no bad Google Veo/Uk Sovereign pairing, and no console errors or failed browser requests.",
+        "note": "Historical 2326 remains the shallow fetch-cap partial anchor and historical 2327 remains the generic-description bad-output anchor; fresh 2329 proves current AI-news fetch depth and digest extraction on the same prompt."
       }
     },
     "playwright_smoke": "pass; admin conversations UI opened conversation 2290 and rendered failure attribution as 来源相关性不足, web_research failed, provider event evidence_status=partial answer_source=none, retry return_partial low_query_relevance, and assistant message card 异常; console has no missing i18n key after frontend locale fix",

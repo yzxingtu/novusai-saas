@@ -27,6 +27,7 @@ class WebResearchQueryPlan:
     trusted_seed_candidates: list[TrustedSeedCandidate]
     search_queries: list[str] = field(default_factory=list)
     minimum_relevant_sources: int = 1
+    fetch_candidate_depth: int | None = None
     source_quality_floor: str = "any_relevant_fetch_evidence"
 
     @property
@@ -101,6 +102,7 @@ def build_web_research_query_plan(query: str) -> WebResearchQueryPlan:
             trusted_seed_candidates=[],
             search_queries=_ai_news_search_queries(normalized_query),
             minimum_relevant_sources=2,
+            fetch_candidate_depth=8,
             source_quality_floor="current_trusted_cross_checked_ai_news",
         )
     return WebResearchQueryPlan(
@@ -475,6 +477,8 @@ def _planned_diagnostics(
             "source_quality_floor": plan.source_quality_floor,
         }
     )
+    if plan.fetch_candidate_depth is not None:
+        diagnostics["fetch_candidate_depth"] = plan.fetch_candidate_depth
     search_queries = _dedupe_text(plan.search_queries)
     if search_queries:
         diagnostics["planned_search_queries"] = search_queries

@@ -1,7 +1,7 @@
 import type { TurnFlowStageForDisplay } from '#/components/business/ai-chat-panel/chat-message-turn-flow';
 
-import { $t } from '#/locales';
 import { normalizeOptionalString } from '#/components/business/ai-chat-panel/use-ai-chat-message-normalizers';
+import { $t } from '#/locales';
 
 interface StageErrorSurfaceLike {
   message?: null | string;
@@ -99,6 +99,7 @@ const GENERIC_STAGE_COPY_PATTERNS: Record<
 const TRANSCRIPT_COPY_MEANINGFUL_CHAR_RE = /[\p{L}\p{N}]/u;
 const TRANSCRIPT_COPY_SYMBOL_ONLY_RE = /^[\p{P}\p{S}\s]+$/u;
 const TECHNICAL_PROCESS_ERROR_PATTERNS = [
+  /^the assistant could not finish this turn\. please retry\.?$/i,
   /previous_response_id is only supported/i,
   /no tool call found for function call output with call_id/i,
   /^provider_(error|failure_after_partial_progress|timeout|unavailable)$/i,

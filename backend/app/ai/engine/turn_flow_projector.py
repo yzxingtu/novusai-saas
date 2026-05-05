@@ -910,7 +910,10 @@ def build_turn_flow_view_model(
         record.get("error_message")
     )
     if not error_message and terminal_failure:
-        error_message = _SAFE_TURN_FAILURE_MESSAGE
+        error_message = (
+            _as_public_error_text(safe_untrusted_fallback_output)
+            or _SAFE_TURN_FAILURE_MESSAGE
+        )
     if not error_message and _normalize_token(resolved_completion_reason) == "error":
         error_message = "Turn finished with an execution error."
     error_surface = (

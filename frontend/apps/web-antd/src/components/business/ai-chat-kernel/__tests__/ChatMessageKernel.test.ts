@@ -9,8 +9,8 @@ import { defineComponent } from 'vue';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { buildTurnFlowState } from '../TurnFlowState';
 import ChatMessageKernel from '../ChatMessageKernel.vue';
+import { buildTurnFlowState } from '../TurnFlowState';
 
 vi.mock('#/locales', () => ({
   $t: (key: string) => key,
@@ -91,9 +91,9 @@ describe('chatMessageKernel', () => {
     await wrapper.vm.$nextTick();
 
     expect(
-      wrapper.get('[data-testid="chat-message-kernel-body"]').attributes(
-        'data-layout',
-      ),
+      wrapper
+        .get('[data-testid="chat-message-kernel-body"]')
+        .attributes('data-layout'),
     ).toBe('stacked');
 
     const settledMessage = createAssistantMessage({
@@ -126,16 +126,16 @@ describe('chatMessageKernel', () => {
         .get('[data-testid="chat-message-kernel-overview-toggle"]')
         .attributes('aria-expanded'),
     ).toBe('true');
-    expect(wrapper.find('[data-testid="chat-message-kernel-body"]').exists()).toBe(
-      true,
-    );
+    expect(
+      wrapper.find('[data-testid="chat-message-kernel-body"]').exists(),
+    ).toBe(true);
 
     vi.advanceTimersByTime(219);
     await wrapper.vm.$nextTick();
 
-    expect(wrapper.find('[data-testid="chat-message-kernel-body"]').exists()).toBe(
-      true,
-    );
+    expect(
+      wrapper.find('[data-testid="chat-message-kernel-body"]').exists(),
+    ).toBe(true);
 
     vi.advanceTimersByTime(1);
     await wrapper.vm.$nextTick();
@@ -145,9 +145,9 @@ describe('chatMessageKernel', () => {
         .get('[data-testid="chat-message-kernel-overview-toggle"]')
         .attributes('aria-expanded'),
     ).toBe('false');
-    expect(wrapper.find('[data-testid="chat-message-kernel-body"]').exists()).toBe(
-      false,
-    );
+    expect(
+      wrapper.find('[data-testid="chat-message-kernel-body"]').exists(),
+    ).toBe(false);
   });
 
   it('uses the split kernel layout when default mode shows both result digest and process timeline', async () => {
@@ -185,14 +185,17 @@ describe('chatMessageKernel', () => {
       wrapper.find('[data-testid="chat-message-kernel-digest-panel"]').exists(),
     ).toBe(true);
     expect(
-      wrapper.find('[data-testid="chat-message-kernel-timeline-panel"]').exists(),
+      wrapper
+        .find('[data-testid="chat-message-kernel-timeline-panel"]')
+        .exists(),
     ).toBe(true);
   });
 
   it('uses the safe answer digest instead of generic English retry text for 2326-style partial research turns', async () => {
     const safePartial =
       '我找到了候选来源，但交叉验证不足，暂时不生成新闻结论。你可以稍后重试或换一个更具体的关键词。';
-    const genericRetry = 'The assistant could not finish this turn. Please retry.';
+    const genericRetry =
+      'The assistant could not finish this turn. Please retry.';
     const wrapper = mountKernel(
       createAssistantMessage({
         completionReason: 'insufficient_cross_checked_sources',
