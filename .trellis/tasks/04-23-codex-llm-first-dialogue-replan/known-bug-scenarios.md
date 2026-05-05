@@ -793,6 +793,53 @@ commits。PR 审核（parent agent 或人类 reviewer）必须核对这条引用
 
 ---
 
+### BUG-2026-05-05-2327 AI news completed with generic channel/homepage descriptions
+
+- **reporter**: user / QA
+- **report_date**: 2026-05-05
+- **reproduction_prompt**:
+  ```text
+  查一下今日AI 新闻
+  ```
+- **preconditions**:
+  - conversation_id: `2327`
+  - agent: `59` / 猫娘智能体
+  - owner_type: `platform_admin`
+  - tools in scope: `web_search`, `fetch_url`
+  - built from the current BUG-2026-05-05-2326 GREEN candidate after increasing
+    `ai_news` fetch depth
+- **current_wrong_behavior**:
+  - CLI diagnostics for `conversation_id=2327` showed
+    `turn_outcome=success`, `evidence_status=completed`,
+    `answer_source=fetched_body`, and `web_research_relevance_profile=ai_news`.
+  - The persisted assistant answer used generic site descriptions as the news
+    digest:
+    `聚焦数字中国建设，关注AI科技前沿...` and
+    `AI News Today delivers AI news spanning...`.
+  - The fetched bodies did contain concrete items such as
+    `AI与科学仪器融合已到关键节点` and
+    `Meta Is Tracking Employee Activity To Train Smarter AI Models`, but the
+    structured renderer preferred page `description` fields before body-derived
+    news items.
+- **expected_behavior**:
+  - A completed `ai_news` answer must render concrete news items extracted from
+    accepted fetched bodies or article metadata.
+  - Generic channel, homepage, or aggregator descriptions must not appear as
+    final news bullets.
+  - If fewer than two concrete items can be extracted, structured `ai_news`
+    recovery must return no completed answer so the platform can fail closed
+    instead of presenting filler text as success.
+- **status**: `red_test_written`
+- **notes**:
+  - CLI evidence command:
+    `python -m app.cli ai conversation show 2327 --tail 2 --json`.
+  - RED backend regression:
+    `backend/tests/regressions/test_bug_2026_05_05_2327_ai_news_digest_quality.py`
+    fails because the current renderer chooses generic `description` text before
+    body-derived news items.
+
+---
+
 ## 用户/QA 批量上报模板（粘贴即可）
 
 对话遇到不对的场景，请用下面格式追加到本文件末尾（Codex 看到该条目会自动为其写 RED 测试）：
