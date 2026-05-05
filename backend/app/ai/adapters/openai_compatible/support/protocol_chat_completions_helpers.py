@@ -67,11 +67,7 @@ def responses_fallback_context_ok(responses_kwargs: dict[str, Any] | None) -> bo
         return False
     messages = responses_kwargs.get("messages")
     model = responses_kwargs.get("model")
-    return (
-        isinstance(messages, list)
-        and isinstance(model, str)
-        and bool(model.strip())
-    )
+    return isinstance(messages, list) and isinstance(model, str) and bool(model.strip())
 
 
 def is_salvageable_raw_text_chat_response(payload: Any) -> bool:

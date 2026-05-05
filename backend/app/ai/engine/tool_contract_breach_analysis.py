@@ -7,28 +7,24 @@ from typing import Any
 from app.ai.tools.types import ToolDefinition
 from app.ai.types import ChatMessage, ChatResponse
 
-from .contract_diagnostics_helpers import build_contract_recovery_system_message
 from .tool_contract_retry_policies import build_post_tool_retry_policy
 from .tool_policy_helpers import (
     collect_completed_turn_intents,
     detect_requested_turn_intents,
     extract_textual_tool_call_names,
     looks_like_tool_planning_leak,
-    response_has_native_web_search_evidence,
-)
-from .turn_research_helpers import (
-    extract_last_user_text,
-    is_title_only_fetch_response,
 )
 from .types import ToolUsePolicy
 
 
-def _native_web_completed_intents(requested_intents: list[str]) -> list[str]:
-    return [
-        intent
-        for intent in requested_intents
-        if intent in {"weather", "rail_ticket_research", "web_research"}
-    ]
+def _extract_last_user_text(messages: list[ChatMessage]) -> str:
+    for message in reversed(messages):
+        if str(getattr(message, "role", "") or "") != "user":
+            continue
+        text = str(getattr(message, "content", "") or "").strip()
+        if text:
+            return text
+    return ""
 
 
 def analyze_post_tool_contract_breach(
@@ -48,7 +44,7 @@ def analyze_post_tool_contract_breach(
 
     leaked_tool_names = extract_textual_tool_call_names(response_text, tools)
     planning_leak = looks_like_tool_planning_leak(response_text, tools)
-    user_text = extract_last_user_text(messages)
+    user_text = _extract_last_user_text(messages)
     requested_intents = detect_requested_turn_intents(
         user_text,
         tools=tools,
@@ -59,16 +55,6 @@ def analyze_post_tool_contract_breach(
         tools=tools,
         input_variables=input_variables,
     )
-    native_web_search_evidence = False
-    if (
-        current_policy.family == "web_research"
-        and response_has_native_web_search_evidence(response)
-    ):
-        if not requested_intents:
-            requested_intents = ["web_research"]
-        if any(intent not in completed_intents for intent in requested_intents):
-            completed_intents.update(_native_web_completed_intents(requested_intents))
-        native_web_search_evidence = True
     unfinished_intents = [
         intent for intent in requested_intents if intent not in completed_intents
     ]
@@ -91,7 +77,6 @@ def analyze_post_tool_contract_breach(
                 "requested_intents": requested_intents,
                 "completed_intents": sorted(completed_intents),
                 "unfinished_intents": unfinished_intents,
-                "native_web_search_evidence": native_web_search_evidence,
             },
         )
 
@@ -111,45 +96,7 @@ def analyze_post_tool_contract_breach(
                 "requested_intents": requested_intents,
                 "completed_intents": sorted(completed_intents),
                 "unfinished_intents": unfinished_intents,
-                "native_web_search_evidence": native_web_search_evidence,
             },
-        )
-
-    tool_names = {tool.name for tool in tools}
-    if (
-        current_policy.family == "web_research"
-        and {"web_search", "fetch_url"} <= tool_names
-        and is_title_only_fetch_response(
-            messages=messages,
-            response_text=response_text,
-            user_text=user_text,
-        )
-    ):
-        diagnostics = {
-            "tool_leak_detected": False,
-            "assistant_claimed_tool_call_without_tool_event": False,
-            "leaked_tool_names": [],
-            "requested_intents": requested_intents,
-            "completed_intents": ["web_research"],
-            "unfinished_intents": [],
-            "native_web_search_evidence": native_web_search_evidence,
-        }
-        messages.append(
-            build_contract_recovery_system_message(
-                breach_type="web_research_title_only_after_fetch",
-                diagnostics=diagnostics,
-            )
-        )
-        return (
-            "web_research_title_only_after_fetch",
-            ToolUsePolicy(
-                family="none",
-                mode="none",
-                allowed_tool_names=[],
-                retry_on_contract_breach=False,
-                reason="web_research_title_only_after_fetch",
-            ),
-            diagnostics,
         )
 
     return (
@@ -162,6 +109,5 @@ def analyze_post_tool_contract_breach(
             "requested_intents": requested_intents,
             "completed_intents": sorted(completed_intents),
             "unfinished_intents": [],
-            "native_web_search_evidence": native_web_search_evidence,
         },
     )

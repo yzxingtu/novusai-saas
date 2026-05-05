@@ -20,44 +20,67 @@ from typing import Any
 from app.ai.tools.sandbox import ToolSandbox
 from app.ai.tools.types import ToolDefinition, ToolResult
 from app.ai.types import ChatMessage
-from app.core.logging import LogManager
 
 from .tool_processor_args import parse_tool_arguments as _parse_tool_arguments
 from .tool_processor_args import try_repair_json as _try_repair_json
 from .tool_processor_cache import ToolProcessorCache
-from .tool_processor_cache import is_parallel_safe_tool_call as _is_parallel_safe_tool_call
+from .tool_processor_cache import (
+    is_parallel_safe_tool_call as _is_parallel_safe_tool_call,
+)
+from .tool_processor_events import (
+    build_confirmation_event as _build_confirmation_event,
+)
 from .tool_processor_events import (
     build_consent_ask_event as _build_consent_ask_event,
-    build_consent_reject_event as _build_consent_reject_event,
-    build_confirmation_event as _build_confirmation_event,
-    build_tool_call_event as _build_tool_call_event,
-    build_tool_start_event as _build_tool_start_event,
 )
-from .tool_processor_fetch_url import (
-    active_intent as _active_intent,
-    intent_pinned_url as _intent_pinned_url,
-    intent_url_list as _intent_url_list,
-    is_blocked_fetch_url_result as _is_blocked_fetch_url_result,
-    mark_fetch_url_attempt as _mark_fetch_url_attempt,
-    resolve_fetch_url_candidates as _resolve_fetch_url_candidates,
+from .tool_processor_events import (
+    build_consent_reject_event as _build_consent_reject_event,
+)
+from .tool_processor_events import (
+    build_tool_call_event as _build_tool_call_event,
+)
+from .tool_processor_events import (
+    build_tool_start_event as _build_tool_start_event,
 )
 from .tool_processor_messages import (
     annotate_tool_call as _annotate_tool_call,
+)
+from .tool_processor_messages import (
     approved_pending_consent_tool_names as _approved_pending_consent_tool_names,
+)
+from .tool_processor_messages import (
     build_assistant_tool_call_message as _build_assistant_tool_call_message,
+)
+from .tool_processor_messages import (
     build_attachment_relay_message as _build_attachment_relay_message,
+)
+from .tool_processor_messages import (
     build_consent_ask_message as _build_consent_ask_message,
+)
+from .tool_processor_messages import (
     build_consent_reject_message as _build_consent_reject_message,
-    build_pending_consent_payload as _build_pending_consent_payload,
+)
+from .tool_processor_messages import (
     build_pending_confirmation_payload as _build_pending_confirmation_payload,
+)
+from .tool_processor_messages import (
+    build_pending_consent_payload as _build_pending_consent_payload,
+)
+from .tool_processor_messages import (
     build_tool_message as _build_tool_message,
+)
+from .tool_processor_messages import (
     check_confirmation_output as _check_confirmation_output,
+)
+from .tool_processor_messages import (
     find_pending_confirmation as _find_pending_confirmation,
+)
+from .tool_processor_messages import (
     is_confirmation_text as _is_confirmation_text,
+)
+from .tool_processor_messages import (
     is_rejection_text as _is_rejection_text,
 )
-
-logger = LogManager.get_logger("ai.engine.tool_processor")
 
 
 def is_trusted_auto_read_only_tool_call(
@@ -69,15 +92,11 @@ def is_trusted_auto_read_only_tool_call(
     name = (func_name or "").strip()
     if not name:
         return False
-    if name in {
+    return name in {
         "get_current_weather",
         "get_weather_forecast",
         "get_current_time",
-        "web_search",
-        "fetch_url",
-    }:
-        return True
-    return False
+    }
 
 
 @dataclass
@@ -132,10 +151,14 @@ class ToolCallProcessor:
     build_tool_message = staticmethod(_build_tool_message)
     build_attachment_relay_message = staticmethod(_build_attachment_relay_message)
     annotate_tool_call = staticmethod(_annotate_tool_call)
-    build_pending_confirmation_payload = staticmethod(_build_pending_confirmation_payload)
+    build_pending_confirmation_payload = staticmethod(
+        _build_pending_confirmation_payload
+    )
     build_pending_consent_payload = staticmethod(_build_pending_consent_payload)
     build_assistant_tool_call_message = staticmethod(_build_assistant_tool_call_message)
-    approved_pending_consent_tool_names = staticmethod(_approved_pending_consent_tool_names)
+    approved_pending_consent_tool_names = staticmethod(
+        _approved_pending_consent_tool_names
+    )
     build_consent_reject_message = staticmethod(_build_consent_reject_message)
     build_consent_ask_message = staticmethod(_build_consent_ask_message)
     check_confirmation_output = staticmethod(_check_confirmation_output)
@@ -147,7 +170,6 @@ class ToolCallProcessor:
     build_confirmation_event = staticmethod(_build_confirmation_event)
     build_consent_reject_event = staticmethod(_build_consent_reject_event)
     build_consent_ask_event = staticmethod(_build_consent_ask_event)
-    _resolve_fetch_url_candidates = staticmethod(_resolve_fetch_url_candidates)
 
     # ========================================
     # consent_mode Check / consent_mode 检查
@@ -250,80 +272,6 @@ class ToolCallProcessor:
         Returns:
             (result, duration_ms)
         """
-        active_intent = _active_intent()
-        if (
-            func_name == "fetch_url"
-            and active_intent is not None
-            and str(getattr(active_intent, "family", "") or "").strip() == "web_research"
-            and (
-                bool(_intent_url_list(active_intent, "fetch_url_candidate_urls"))
-                or bool(_intent_pinned_url(active_intent))
-            )
-        ):
-            selected_url, fallback_urls, requested_url = _resolve_fetch_url_candidates(
-                intent=active_intent,
-                requested_url=str(arguments.get("url") or ""),
-            )
-            if not selected_url:
-                logger.warning(
-                    "fetch_url candidate URLs exhausted: intent_id={} requested_url={}",
-                    getattr(active_intent, "intent_id", None),
-                    requested_url,
-                )
-                return (
-                    ToolResult(
-                        tool_call_id=tc_id,
-                        name=func_name,
-                        success=False,
-                        error=(
-                            "fetch_url must use a candidate URL returned by the previous "
-                            "web_search, but no untried candidate URLs remain."
-                        ),
-                        error_type="search_candidates_exhausted",
-                    ),
-                    0,
-                )
-
-            if requested_url and requested_url != selected_url:
-                logger.info(
-                    "Repairing fetch_url URL to search candidate: intent_id={} requested_url={} selected_url={}",
-                    getattr(active_intent, "intent_id", None),
-                    requested_url,
-                    selected_url,
-                )
-
-            total_duration_ms = 0
-            attempt_urls = [selected_url] + [url for url in fallback_urls if url != selected_url]
-            last_result: ToolResult | None = None
-            for index, attempt_url in enumerate(attempt_urls):
-                attempt_arguments = dict(arguments)
-                attempt_arguments["url"] = attempt_url
-                result, duration_ms = await self._execute_tool_once(
-                    tc_id,
-                    func_name,
-                    attempt_arguments,
-                    conversation_id,
-                )
-                total_duration_ms += duration_ms
-                blocked_result = not result.success and _is_blocked_fetch_url_result(result)
-                _mark_fetch_url_attempt(
-                    active_intent,
-                    attempt_url,
-                    blocked=blocked_result,
-                )
-                last_result = result
-                if result.success or not blocked_result:
-                    return result, total_duration_ms
-                if index < len(attempt_urls) - 1:
-                    logger.warning(
-                        "Blocked fetch_url candidate, rotating to next candidate: intent_id={} blocked_url={} next_url={}",
-                        getattr(active_intent, "intent_id", None),
-                        attempt_url,
-                        attempt_urls[index + 1],
-                    )
-            if last_result is not None:
-                return last_result, total_duration_ms
-
         return await self._execute_tool_once(
             tc_id,
             func_name,

@@ -2,7 +2,6 @@ import type { ToolDisplayItem } from './tool-call-utils';
 import type { ToolCallEvent } from './types';
 
 import {
-  getSearchSummary,
   getStructuredToolOutput,
   getToolHeadlineSummary,
   getToolTargetBadges,
@@ -40,14 +39,12 @@ export function buildToolDisplayItems(
 ): ToolDisplayItem[] {
   return toolCalls.map((tc, idx) => {
     const structuredOutput = getStructuredToolOutput(tc);
-    const searchSummary = getSearchSummary(tc);
     return {
       index: idx,
       tc,
       hasDetails: hasToolCardDetails(tc),
       expanded: options.resolveExpanded(tc, idx),
       headlineSummary: getToolHeadlineSummary(tc),
-      searchSummary,
       structuredOutput,
       targetBadges: getToolTargetBadges(tc),
     };

@@ -68,7 +68,9 @@ class OpenAIAdapterProtocolEntrypointsMixin:
             model=effective_error_model,
             wire_api=wire_api,
         )
-        logger.error("Protocol {} error: model={} error={}", operation, model, str(error))
+        logger.error(
+            "Protocol {} error: model={} error={}", operation, model, str(error)
+        )
         raise convert_openai_error(
             error,
             provider_code="openai",

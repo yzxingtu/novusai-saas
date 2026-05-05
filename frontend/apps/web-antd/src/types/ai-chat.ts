@@ -168,7 +168,11 @@ export interface TurnFlowStage {
   type: TurnFlowStageType;
 }
 
-export type TurnFlowEvidenceKind = 'knowledge_base' | 'memory' | 'tool' | 'web';
+export type TurnFlowEvidenceKind =
+  | 'document'
+  | 'knowledge_base'
+  | 'memory'
+  | 'tool';
 
 export interface TurnFlowEvidenceItem {
   arguments?: Record<string, unknown>;

@@ -164,6 +164,53 @@ def _normalize_cli_dict_list(raw_value: object) -> list[dict]:
     return normalized
 
 
+def _contains_invalid_runtime_diagnostics_reference(value: object) -> bool:
+    if isinstance(value, dict):
+        for key, nested in value.items():
+            if is_invalid_runtime_diagnostics_reference(key):
+                return True
+            if _contains_invalid_runtime_diagnostics_reference(nested):
+                return True
+        return False
+    if isinstance(value, list | tuple):
+        return any(
+            _contains_invalid_runtime_diagnostics_reference(item) for item in value
+        )
+    if isinstance(value, str):
+        return is_invalid_runtime_diagnostics_reference(value)
+    return False
+
+
+def _normalize_cli_tool_calls(raw_value: object) -> list[dict]:
+    if not isinstance(raw_value, list):
+        return []
+    normalized: list[dict] = []
+    for item in raw_value:
+        payload = _normalize_cli_dict(item)
+        if not payload:
+            continue
+        function_payload = (
+            payload.get("function") if isinstance(payload.get("function"), dict) else {}
+        )
+        tool_name = (
+            payload.get("name")
+            or payload.get("tool_name")
+            or (
+                function_payload.get("name")
+                if isinstance(function_payload, dict)
+                else None
+            )
+        )
+        if tool_name and not normalize_live_diagnostics_reference(tool_name):
+            continue
+        if _contains_invalid_runtime_diagnostics_reference(payload):
+            continue
+        sanitized = sanitize_diagnostics_payload(payload)
+        if sanitized:
+            normalized.append(sanitized)
+    return normalized
+
+
 def _pick_first_cli_dict_list(*values: object) -> list[dict] | None:
     for value in values:
         if isinstance(value, list):
@@ -254,7 +301,11 @@ def _normalize_cli_provider_events(raw_value: object) -> list[dict]:
         payload = _normalize_cli_dict(item)
         if not payload:
             continue
-        normalized.append(payload)
+        if _contains_invalid_runtime_diagnostics_reference(payload):
+            continue
+        sanitized = sanitize_diagnostics_payload(payload)
+        if sanitized:
+            normalized.append(sanitized)
     return normalized
 
 

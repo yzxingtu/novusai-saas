@@ -61,8 +61,6 @@ export interface ToolCallAudit {
   summary_payload: unknown;
 }
 
-const NATIVE_WEB_SEARCH_TOOL_NAME = 'native_web_search';
-
 /**
  * Consent request event captured from the stream.
  * 流中的 consent 请求事件。
@@ -546,7 +544,6 @@ export async function interceptChatSSE(
     const confirmationRequests: ConfirmationRequest[] = [];
     const selectedSkillNames = new Set<string>();
     const pendingStarts = new Map<string, ToolStartEvent[]>();
-    let sawNativeWebSearchProgress = false;
 
     if (capture.error) {
       errors.push(capture.error);
@@ -681,14 +678,6 @@ export async function interceptChatSSE(
         continue;
       }
 
-      if (
-        payloadEvent === 'status' &&
-        readString(payload.status) === 'web_search_in_progress'
-      ) {
-        sawNativeWebSearchProgress = true;
-        continue;
-      }
-
       if (payloadEvent === 'error') {
         errors.push(
           readString(payload.message) ??
@@ -696,32 +685,6 @@ export async function interceptChatSSE(
             JSON.stringify(payload),
         );
       }
-    }
-
-    if (
-      sawNativeWebSearchProgress &&
-      !toolCalls.some(
-        (toolCall) =>
-          toolCall.name === 'web_search' ||
-          toolCall.name === NATIVE_WEB_SEARCH_TOOL_NAME,
-      )
-    ) {
-      toolCalls.unshift({
-        arguments: null,
-        duration_ms: 0,
-        error: errors[0] ?? null,
-        error_type: errors.length > 0 ? 'native_search_error' : null,
-        name: NATIVE_WEB_SEARCH_TOOL_NAME,
-        output: null,
-        package_name: null,
-        skill_name: null,
-        success: errors.length === 0,
-        summary: null,
-        summary_payload: {
-          provider: 'native_hosted',
-          status: errors.length === 0 ? 'success' : 'error',
-        },
-      });
     }
 
     const seenToolNames = new Set(toolCalls.map((toolCall) => toolCall.name));

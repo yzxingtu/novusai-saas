@@ -11,9 +11,6 @@ from app.ai.adapters.openai_compatible.support.multimodal_support import (
     SUPPORTS_NATIVE_AUDIO,
     OpenAIAdapterMultimodalMixin,
 )
-from app.ai.adapters.openai_compatible.support.native_web_search_support import (
-    OpenAIAdapterNativeWebSearchMixin,
-)
 from app.ai.adapters.openai_compatible.support.non_chat_runtime import (
     OpenAIAdapterNonChatRuntimeMixin,
 )
@@ -34,7 +31,6 @@ __all__ = [
     "OpenAIAdapterGatewayEntrypointsMixin",
     "OpenAIAdapterModelRequestMixin",
     "OpenAIAdapterMultimodalMixin",
-    "OpenAIAdapterNativeWebSearchMixin",
     "OpenAIAdapterNonChatRuntimeMixin",
     "OpenAIAdapterProtocolEntrypointsMixin",
     "OpenAIAdapterUpstreamRuntimeMixin",

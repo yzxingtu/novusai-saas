@@ -73,35 +73,35 @@ def _descriptor(
 
 
 def _inventory_bundle(*, activation_reason: str) -> CapabilityBundle:
-    research_tools = [
+    support_tools = [
         _tool(
-            "web_search",
+            "crm_lookup",
             skill_id=202,
-            skill_name="Research Skill",
-            package_name="pkg.research",
-            plugin_name="plugin-research",
-            family="web_research",
+            skill_name="CRM Skill",
+            package_name="pkg.crm",
+            plugin_name="plugin-crm",
+            family="data_ops",
         ),
         _tool(
-            "fetch_url",
+            "query_records",
             skill_id=202,
-            skill_name="Research Skill",
-            package_name="pkg.research",
-            plugin_name="plugin-research",
-            family="web_research",
+            skill_name="CRM Skill",
+            package_name="pkg.crm",
+            plugin_name="plugin-crm",
+            family="data_ops",
         ),
     ]
     descriptors = [
         _descriptor(
-            "Research Skill",
+            "CRM Skill",
             skill_id=202,
-            package_name="pkg.research",
-            plugin_name="plugin-research",
-            resolved_tool_names=["web_search", "fetch_url"],
+            package_name="pkg.crm",
+            plugin_name="plugin-crm",
+            resolved_tool_names=["crm_lookup", "query_records"],
         ),
     ]
     return CapabilityBundle(
-        tools=list(research_tools),
+        tools=list(support_tools),
         capability_descriptors=descriptors,
         context_sources=[
             ContextSource(
@@ -146,94 +146,6 @@ def _agent() -> SimpleNamespace:
     )
 
 
-def test_build_manifest_projects_live_subset_from_projected_bundle() -> None:
-    inventory_bundle = _inventory_bundle(activation_reason="runtime_policy")
-    live_bundle = project_capability_bundle_to_tools(
-        inventory_bundle,
-        [inventory_bundle.tools[0]],
-    )
-    assert live_bundle.selected_tool_names == ["web_search"]
-    assert live_bundle.selected_skill_names == ["Research Skill"]
-    assert live_bundle.inventory_selected_tool_names == [
-        "web_search",
-        "fetch_url",
-    ]
-    assert live_bundle.inventory_selected_skill_names == [
-        "Research Skill",
-    ]
-
-    manifest = AIRuntimeInventoryService.build_manifest(
-        agent=_agent(),
-        request=_turn_request(),
-        bundle=live_bundle,
-        state=_turn_state(),
-        capability_injection_decision={},
-    )
-    summary = AIRuntimeInventoryService.build_compact_summary(manifest)
-
-    assert [item.name for item in manifest.tools] == ["web_search"]
-    assert [item.name for item in manifest.skills] == ["Research Skill"]
-    assert manifest.boundaries["selection_semantics"] == "turn_selected_subset"
-    assert manifest.boundaries["selection_live"] is True
-    assert manifest.boundaries["live_turn_bound"] is True
-    assert summary["selected_skill_names"] == ["Research Skill"]
-    assert summary.get("page_context_attached", False) is False
-    assert summary.get("page_operation_names", []) == []
-    assert "data_ops" not in summary["tool_families"]
-    assert "data_ops" not in summary["continuation_capable_families"]
-    assert summary["selection_semantics"] == "turn_selected_subset"
-    assert summary["selection_live"] is True
-    assert summary["live_turn_bound"] is True
-    assert resolve_live_turn_selected_skill_names(
-        runtime_capability_summary=summary
-    ) == ["Research Skill"]
-
-
-def test_build_manifest_marks_capability_reporting_inventory_as_non_live() -> None:
-    inventory_bundle = _inventory_bundle(
-        activation_reason="capability_reporting_query"
-    )
-    assert inventory_bundle.selected_skill_names == []
-    assert inventory_bundle.inventory_selected_tool_names == [
-        "web_search",
-        "fetch_url",
-    ]
-    assert inventory_bundle.inventory_selected_skill_names == [
-        "Research Skill",
-    ]
-
-    manifest = AIRuntimeInventoryService.build_manifest(
-        agent=_agent(),
-        request=_turn_request(),
-        bundle=inventory_bundle,
-        state=_turn_state(),
-        capability_injection_decision={},
-    )
-    summary = AIRuntimeInventoryService.build_compact_summary(manifest)
-
-    assert [item.name for item in manifest.tools] == [
-        "web_search",
-        "fetch_url",
-    ]
-    assert [item.name for item in manifest.skills] == []
-    assert manifest.boundaries["selection_semantics"] == (
-        "capability_reporting_inventory"
-    )
-    assert manifest.boundaries["selection_live"] is False
-    assert manifest.boundaries["live_turn_bound"] is False
-    assert summary["selected_skill_names"] == []
-    assert summary.get("page_context_attached", False) is False
-    assert summary.get("page_operation_names", []) == []
-    assert "data_ops" not in summary["tool_families"]
-    assert "data_ops" not in summary["continuation_capable_families"]
-    assert summary["selection_semantics"] == "capability_reporting_inventory"
-    assert summary["selection_live"] is False
-    assert summary["live_turn_bound"] is False
-    assert resolve_live_turn_selected_skill_names(
-        runtime_capability_summary=summary
-    ) == []
-
-
 def test_shape_manifest_payload_rewrites_live_manifest_as_inventory_snapshot() -> None:
     inventory_bundle = _inventory_bundle(activation_reason="runtime_policy")
     live_bundle = project_capability_bundle_to_tools(
@@ -262,14 +174,17 @@ def test_shape_manifest_payload_rewrites_live_manifest_as_inventory_snapshot() -
         tools=list(inventory_bundle.tools),
     )
 
-    assert payload["summary"]["selected_skill_names"] == ["Research Skill"]
+    assert payload["summary"]["selected_skill_names"] == ["CRM Skill"]
     assert payload["summary"]["selection_semantics"] == "inventory_snapshot"
     assert payload["summary"]["selection_live"] is False
     assert payload["summary"]["live_turn_bound"] is False
     assert payload["boundaries"]["selection_semantics"] == "inventory_snapshot"
     assert payload["boundaries"]["selection_live"] is False
     assert payload["boundaries"]["live_turn_bound"] is False
-    assert [item["name"] for item in payload["skills"]] == ["Research Skill"]
-    assert resolve_live_turn_selected_skill_names(
-        runtime_capability_summary=payload["summary"]
-    ) == []
+    assert [item["name"] for item in payload["skills"]] == ["CRM Skill"]
+    assert (
+        resolve_live_turn_selected_skill_names(
+            runtime_capability_summary=payload["summary"]
+        )
+        == []
+    )

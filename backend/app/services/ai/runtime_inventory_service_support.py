@@ -54,82 +54,6 @@ def _inventory_selected_skill_names(payload: dict[str, Any]) -> list[str]:
     return _stable_unique_texts(filter_invalid_ai_runtime_references(names))
 
 
-def _web_research_pair_from_inventory(payload: dict[str, Any]) -> bool:
-    tool_names = set(_inventory_selected_tool_names(payload))
-    return {"web_search", "fetch_url"}.issubset(tool_names)
-
-
-def _project_inventory_web_research_availability(payload: dict[str, Any]) -> bool:
-    if not _web_research_pair_from_inventory(payload):
-        return False
-
-    web_research_items = [
-        dict(item)
-        for item in payload.get("web_research") or []
-        if isinstance(item, dict)
-    ]
-    if not web_research_items:
-        web_research_items = [
-            {
-                "name": "web_research",
-                "kind": "execution_tool",
-                "source": "tool_registry",
-            }
-        ]
-
-    projected_items: list[dict[str, Any]] = []
-    projected = False
-    for item in web_research_items:
-        if str(item.get("name") or "").strip() != "web_research":
-            projected_items.append(item)
-            continue
-        metadata = dict(item.get("metadata") or {})
-        metadata.update(
-            {
-                "has_web_search": True,
-                "has_fetch_url": True,
-                "availability_basis": "inventory_selected_tools",
-            }
-        )
-        item.update(
-            {
-                "status": "available",
-                "reason": None,
-                "metadata": metadata,
-            }
-        )
-        projected_items.append(item)
-        projected = True
-
-    if not projected:
-        projected_items.append(
-            {
-                "name": "web_research",
-                "kind": "execution_tool",
-                "status": "available",
-                "reason": None,
-                "metadata": {
-                    "has_web_search": True,
-                    "has_fetch_url": True,
-                    "availability_basis": "inventory_selected_tools",
-                },
-                "source": "tool_registry",
-            }
-        )
-    payload["web_research"] = projected_items
-    payload["disabled_capabilities"] = [
-        item
-        for item in payload.get("disabled_capabilities") or []
-        if not (
-            isinstance(item, dict)
-            and str(item.get("name") or "").strip() == "web_research"
-            and str(item.get("reason") or "").strip()
-            in {"web_research_tools_unavailable", "incomplete_research_tool_pair"}
-        )
-    ]
-    return True
-
-
 def _normalized_skill_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
     normalized = dict(metadata or {})
     for key in (
@@ -473,7 +397,6 @@ def shape_manifest_payload(
         tools=tools,
         skill_result=skill_result,
     )
-    inventory_web_research_pair = _project_inventory_web_research_availability(payload)
 
     summary = AIRuntimeInventoryService.build_compact_summary(manifest)
     inventory_tool_names = _inventory_selected_tool_names(payload)
@@ -508,26 +431,11 @@ def shape_manifest_payload(
                 item.get("name")
                 for item in (payload.get("disabled_capabilities") or [])
             ],
-            "web_research_status": next(
-                (
-                    str(item.get("status"))
-                    for item in (payload.get("web_research") or [])
-                    if str(item.get("name") or "").strip() == "web_research"
-                ),
-                "unavailable",
-            ),
             "agent_name": str(getattr(agent, "name", "") or "").strip() or None,
             "agent_owner_tenant_id": getattr(agent, "owner_tenant_id", None),
             "manifest_version": payload.get("manifest_version"),
         }
     )
-    if inventory_web_research_pair:
-        summary["web_research_pair_complete"] = True
-        summary["web_research_status"] = "available"
-        continuation_families = _stable_unique_texts(
-            list(summary.get("continuation_capable_families") or []) + ["web_research"]
-        )
-        summary["continuation_capable_families"] = continuation_families
     payload["summary"] = summary
     payload.setdefault("boundaries", {})
     payload["boundaries"]["scope_context"] = scope
@@ -586,16 +494,6 @@ def build_empty_manifest(
                 "source": "request.flags",
             }
         ],
-        "web_research": [
-            {
-                "name": "web_research",
-                "kind": "execution_tool",
-                "status": "unavailable",
-                "reason": "agent_not_selected",
-                "metadata": {},
-                "source": "tool_registry",
-            }
-        ],
         "extensions": [],
         "disabled_capabilities": [
             {
@@ -626,7 +524,6 @@ def build_empty_manifest(
             "context_line": "",
             "context_source_kinds": [],
             "tool_families": [],
-            "web_research_pair_complete": False,
             "continuation_capable_families": [],
             "provider": None,
             "model": None,
@@ -636,7 +533,6 @@ def build_empty_manifest(
             "knowledge_base_names": [],
             "extension_names": [],
             "disabled_capability_names": ["agent_resolution"],
-            "web_research_status": "unavailable",
             "agent_name": None,
             "manifest_version": "runtime-capability-manifest/v1",
         },

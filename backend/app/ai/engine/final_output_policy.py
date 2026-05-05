@@ -20,42 +20,7 @@ def is_trusted_assistant_final_output_source(final_output_source: str | None) ->
     return str(final_output_source or "").strip() in TRUSTED_FINAL_OUTPUT_SOURCES
 
 
-def build_untrusted_final_output_fallback(
-    *,
-    auto_fetch_gate_reason: str | None = None,
-    failure_kind: str | None = None,
-) -> str:
-    gate_reason = str(auto_fetch_gate_reason or "").strip()
-    normalized_failure_kind = str(failure_kind or "").strip()
-    if normalized_failure_kind == "low_query_relevance":
-        return str(
-            _(
-                "我找到了候选来源，但没有拿到与问题足够相关、可核实的内容，因此不生成结论。"
-            )
-            or ""
-        ).strip()
-    if normalized_failure_kind == "insufficient_cross_checked_sources":
-        return str(
-            _(
-                "我找到了候选来源，但交叉验证不足，暂时不生成新闻结论。你可以稍后重试或换一个更具体的关键词。"
-            )
-            or ""
-        ).strip()
-    if normalized_failure_kind.startswith("candidate_"):
-        return str(
-            _("我找到了候选线索，但这些来源暂时无法直接核实，因此不生成结论。") or ""
-        ).strip()
-    if gate_reason == "search_no_results_completed":
-        return str(_("我暂时没有找到可直接核实的搜索结果。") or "").strip()
-    if gate_reason == "search_not_successful":
-        return str(_("这次联网检索没有成功完成，请稍后再试。") or "").strip()
-    if gate_reason == "candidate_urls_exhausted":
-        return str(
-            _(
-                "我找到了候选线索，但暂时没拿到可直接核实的详情，你可以换个关键词或稍后再试。"
-            )
-            or ""
-        ).strip()
+def build_untrusted_final_output_fallback() -> str:
     fallback = str(_("这次处理没有成功生成最终答复，请再试一次。") or "").strip()
     return fallback or "The assistant could not finish this turn. Please retry."
 

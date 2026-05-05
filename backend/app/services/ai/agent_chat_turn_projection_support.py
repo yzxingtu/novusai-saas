@@ -17,7 +17,8 @@ def bind_turn_projector(
     *,
     interaction_mode_effective: str,
     downgrade_reason: str | None,
-    context_diagnostics_builder: Callable[[ExecutionResult], dict[str, Any]] | None = None,
+    context_diagnostics_builder: Callable[[ExecutionResult], dict[str, Any]]
+    | None = None,
     last_run_summary_builder: Callable[[ExecutionResult], dict[str, Any]] | None = None,
 ) -> BoundAgentChatTurnProjector:
     return AgentChatTurnProjectionService.bind(

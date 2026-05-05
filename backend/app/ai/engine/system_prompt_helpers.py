@@ -31,9 +31,6 @@ from .system_prompt_capability_hints import (
 from .system_prompt_capability_hints import (
     build_weather_tools_hint as build_weather_tools_hint,
 )
-from .system_prompt_capability_hints import (
-    build_web_research_hint as build_web_research_hint,
-)
 from .system_prompt_intent_helpers import (
     deserialize_intent_plan as deserialize_intent_plan,
 )
@@ -71,7 +68,6 @@ __all__ = [
     "build_system_message_default",
     "build_time_tools_hint",
     "build_weather_tools_hint",
-    "build_web_research_hint",
     "deserialize_intent_plan",
     "inject_runtime_summary",
     "intent_completion_signals",

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from .types import ExecutionBudget, IntentPlan, ProviderFailureKind, RecoveryDecision
 
 _BUDGET_EXIT_REASONS: frozenset[str] = frozenset(
@@ -79,7 +81,6 @@ def decide(
 
     budget_exit_reason = budget.first_exceeded_reason() if budget is not None else None
     if budget_exit_reason:
-        target_intent = unfinished[0] if unfinished else None
         return RecoveryDecision(
             action="return_partial",
             completed_intent_ids=completed,
@@ -89,7 +90,6 @@ def decide(
             metadata={},
         )
     if provider_failure_kind == "budget_exit":
-        target_intent = unfinished[0] if unfinished else None
         return RecoveryDecision(
             action="return_partial",
             completed_intent_ids=completed,
@@ -102,9 +102,8 @@ def decide(
         return None
     if unfinished:
         target = unfinished[0]
-        if (
-            provider_failure_kind != "none"
-            and not is_retryable_failure_kind(provider_failure_kind)
+        if provider_failure_kind != "none" and not is_retryable_failure_kind(
+            provider_failure_kind
         ):
             return RecoveryDecision(
                 action="return_partial",
@@ -115,7 +114,11 @@ def decide(
                 metadata={},
             )
         retry_count = int(
-            (budget.retries_by_intent.get(target.intent_id, 0) if budget is not None else 0)
+            (
+                budget.retries_by_intent.get(target.intent_id, 0)
+                if budget is not None
+                else 0
+            )
             or 0
         )
         if budget is not None and retry_count >= budget.max_retry_per_intent:

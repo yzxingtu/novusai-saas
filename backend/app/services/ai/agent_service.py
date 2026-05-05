@@ -28,13 +28,6 @@ from app.services.ai import agent_service_admin as admin_part
 from app.services.ai import agent_service_lifecycle as lifecycle_part
 from app.services.ai import agent_service_memory as memory_part
 from app.services.ai import agent_service_versioning as versioning_part
-from app.services.ai.agent_service_support import (
-    VERSION_SNAPSHOT_FIELDS as _VERSION_SNAPSHOT_FIELDS,
-    audience_allows_role as _audience_allows_role,
-    clear_cascaded_conversation_memories as _clear_cascaded_conversation_memories,
-    normalize_agent_rag_config as _normalize_agent_rag_config,
-    role_ids_allow as _role_ids_allow,
-)
 
 if TYPE_CHECKING:
     from app.schemas.common.query import QuerySpec

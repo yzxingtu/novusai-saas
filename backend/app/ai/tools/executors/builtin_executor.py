@@ -10,22 +10,11 @@ import json
 import operator
 import time
 from collections.abc import Callable, Coroutine
-from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 from app.ai.tools.executors.base import BaseToolExecutor
-from app.ai.tools.executors.builtin import fetch_support, search_support, time_ops
+from app.ai.tools.executors.builtin import time_ops
 from app.ai.tools.types import ToolDefinition, ToolResult
-from app.ai.web_search.orchestrator import run_web_search as orchestrated_run_web_search
-from app.ai.web_search.types import (
-    STATUS_NO_RESULTS as WS_STATUS_NO_RESULTS,
-)
-from app.ai.web_search.types import (
-    STATUS_SUCCESS as WS_STATUS_SUCCESS,
-)
-from app.ai.web_search.types import (
-    WebSearchExecution as OrchestratedWebSearchExecution,
-)
 from app.core.config import settings
 from app.core.i18n import _
 from app.core.logging import LogManager
@@ -38,137 +27,6 @@ logger = LogManager.get_logger("ai.tool.builtin")
 
 # Built-in function type / 内置函数类型
 BuiltinFunc = Callable[..., Coroutine[Any, Any, str]]
-
-
-def _build_search_summary_payload(
-    execution: OrchestratedWebSearchExecution,
-) -> dict[str, Any]:
-    return search_support.build_search_summary_payload(execution)
-
-
-def _build_fetch_summary(output: str, *, max_length: int = 220) -> str | None:
-    return fetch_support._build_fetch_summary(output, max_length=max_length)
-
-
-def _extract_fetch_summary_payload(
-    *,
-    requested_url: str,
-    output: str | None = None,
-    error: str | None = None,
-) -> dict[str, Any]:
-    return fetch_support._extract_fetch_summary_payload(
-        requested_url=requested_url,
-        output=output,
-        error=error,
-    )
-
-
-def _normalize_text(text: str) -> str:
-    """Collapse whitespace and trim text. / 折叠空白并裁剪文本。"""
-    return " ".join((text or "").split())
-
-
-def _looks_historical_query(query: str) -> bool:
-    normalized = _normalize_text(query).lower()
-    if not normalized:
-        return False
-    if any(
-        term in normalized for term in ("年代", "朝代", "古代", "战时", "世纪", "历史")
-    ):
-        return True
-
-    tokens = normalized.split()
-    for idx, token in enumerate(tokens):
-        if token in {
-            "history",
-            "historical",
-            "era",
-            "ancient",
-            "medieval",
-            "wartime",
-            "dynasty",
-        }:
-            return True
-        if token.endswith("s") and token[:-1].isdigit() and len(token[:-1]) >= 3:
-            return True
-        if token.isdigit() and idx + 1 < len(tokens) and tokens[idx + 1] == "century":
-            return True
-    return False
-
-
-def _wants_current_results(query: str) -> bool:
-    normalized = _normalize_text(query).lower()
-    if not normalized:
-        return False
-    return any(
-        term in normalized
-        for term in (
-            "最新",
-            "今年",
-            "当前",
-            "现在",
-            "近期",
-            "今天",
-            "今日",
-            "latest",
-            "recent",
-            "current",
-            "today",
-            "now",
-            "this year",
-        )
-    )
-
-
-def _replace_recent_years(query: str, current_year: int) -> str:
-    chars = list(query)
-    result: list[str] = []
-    idx = 0
-    length = len(chars)
-    while idx < length:
-        if (
-            idx + 4 <= length
-            and "".join(chars[idx : idx + 4]).isdigit()
-            and (idx == 0 or not chars[idx - 1].isalnum())
-            and (idx + 4 == length or not chars[idx + 4].isalnum())
-        ):
-            year_text = "".join(chars[idx : idx + 4])
-            year_value = int(year_text)
-            if year_value != current_year and 2000 <= year_value <= current_year + 1:
-                result.append(str(current_year))
-                idx += 4
-                continue
-        result.append(chars[idx])
-        idx += 1
-    return "".join(result)
-
-
-def _correct_query_year(query: str) -> str:
-    """Replace stale calendar years in web_search queries unless the query is clearly historical."""
-    if not query:
-        return query
-    if _looks_historical_query(query):
-        return query
-    if not _wants_current_results(query):
-        return query
-    try:
-        current_year = datetime.now(settings.tz).year
-    except Exception:
-        current_year = datetime.now(timezone.utc).year
-    return _replace_recent_years(query, current_year)
-
-
-async def _run_web_search(
-    query: str,
-    max_results: int,
-    *,
-    context: "ExecutionContext | None" = None,
-) -> OrchestratedWebSearchExecution:
-    return await orchestrated_run_web_search(
-        query,
-        max_results,
-        context=context,
-    )
 
 
 class BuiltinToolExecutor(BaseToolExecutor):
@@ -211,72 +69,6 @@ class BuiltinToolExecutor(BaseToolExecutor):
             )
 
         try:
-            if func_name == "web_search":
-                query = str(arguments.get("query") or "")
-                max_results = int(arguments.get("max_results") or 5)
-                execution = await _run_web_search(
-                    query,
-                    max_results,
-                    context=context,
-                )
-                duration_ms = int((time.perf_counter() - start) * 1000)
-                is_failure = execution.meta.status not in {
-                    WS_STATUS_SUCCESS,
-                    WS_STATUS_NO_RESULTS,
-                }
-                return ToolResult(
-                    tool_call_id=tool_call_id,
-                    name=func_name,
-                    success=not is_failure,
-                    output="" if is_failure else execution.output,
-                    error=execution.output if is_failure else "",
-                    summary=(
-                        f"{execution.meta.provider or execution.meta.selected_backend or 'search'}: {len(execution.items)} result(s)"
-                        if execution.meta.status
-                        in {WS_STATUS_SUCCESS, WS_STATUS_NO_RESULTS}
-                        else execution.meta.failure_reason
-                    ),
-                    summary_payload=_build_search_summary_payload(execution),
-                    duration_ms=duration_ms,
-                )
-
-            if func_name == "fetch_url":
-                url = str(arguments.get("url") or "")
-                max_length = int(arguments.get("max_length") or 5000)
-                ok, payload = await BuiltinToolExecutor._fetch_url_result(
-                    url, max_length
-                )
-                duration_ms = int((time.perf_counter() - start) * 1000)
-                if not ok:
-                    summary_payload = _extract_fetch_summary_payload(
-                        requested_url=url,
-                        error=payload,
-                    )
-                    return ToolResult(
-                        tool_call_id=tool_call_id,
-                        name=func_name,
-                        success=False,
-                        error=payload,
-                        summary="fetch_url failed",
-                        summary_payload=summary_payload,
-                        error_type=str(summary_payload.get("error_type") or ""),
-                        duration_ms=duration_ms,
-                    )
-                summary = _build_fetch_summary(payload)
-                summary_payload = _extract_fetch_summary_payload(
-                    requested_url=url,
-                    output=payload,
-                )
-                return ToolResult(
-                    tool_call_id=tool_call_id,
-                    name=func_name,
-                    success=True,
-                    output=payload,
-                    summary=summary,
-                    summary_payload=summary_payload,
-                    duration_ms=duration_ms,
-                )
-
             output = await func(**arguments)
             duration_ms = int((time.perf_counter() - start) * 1000)
 
@@ -333,8 +125,6 @@ class BuiltinToolExecutor(BaseToolExecutor):
         self.register_function("get_current_time", self._get_current_time)
         self.register_function("calculate", self._calculate)
         self.register_function("format_json", self._format_json)
-        self.register_function("web_search", self._web_search)
-        self.register_function("fetch_url", self._fetch_url)
 
     @staticmethod
     async def _get_current_time(
@@ -374,43 +164,6 @@ class BuiltinToolExecutor(BaseToolExecutor):
             return json.dumps(parsed, indent=2, ensure_ascii=False)
         except json.JSONDecodeError as exc:
             return f"Error: Invalid JSON - {exc}"
-
-    @staticmethod
-    async def _web_search(query: str = "", max_results: int = 5) -> str:
-        """
-        Web search: automatically choose a search source and return web results. / 联网搜索：自动选择搜索源并返回网页结果。
-
-        Returns a list of search results (title + snippet + link).
-        返回搜索结果列表（标题 + 摘要 + 链接）。
-        """
-        if not query:
-            return "Error: query parameter is required"
-
-        max_results = min(max(1, max_results), 10)
-        return (await _run_web_search(query, max_results)).output
-
-    @staticmethod
-    async def _fetch_url_result(
-        url: str = "", max_length: int = 5000
-    ) -> tuple[bool, str]:
-        """
-        Fetch URL; returns (success, text).
-        On failure, text is the error detail for ToolResult.error (no \"Error:\" prefix).
-        """
-        return await fetch_support.fetch_url_result(
-            url=url,
-            max_length=max_length,
-        )
-
-    @staticmethod
-    async def _fetch_url(url: str = "", max_length: int = 5000) -> str:
-        """
-        Fetch web content (legacy string API for tests). / 抓取网页内容。
-        """
-        ok, text = await BuiltinToolExecutor._fetch_url_result(url, max_length)
-        if ok:
-            return text
-        return f"Error: {text}"
 
 
 # ========================================

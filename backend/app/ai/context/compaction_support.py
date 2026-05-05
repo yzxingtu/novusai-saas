@@ -15,7 +15,6 @@ from app.ai.context.pruning import TransientPruner
 from app.ai.types import ChatMessage
 from app.ai.utils.token_estimator import (
     estimate_chat_message_tokens,
-    estimate_tokens,
 )
 
 if TYPE_CHECKING:
@@ -190,7 +189,9 @@ async def compact_messages_if_needed(
     token_estimator = messages_token_estimate_fn or messages_token_estimate
     split_index_builder = compaction_split_index_fn or compaction_split_index
     compact_summary_builder = build_compact_summary_fn or build_compact_summary
-    compact_threshold_tokens = int(context_config.get("compact_threshold_tokens", 0) or 0)
+    compact_threshold_tokens = int(
+        context_config.get("compact_threshold_tokens", 0) or 0
+    )
     if compact_threshold_tokens <= 0:
         return
 

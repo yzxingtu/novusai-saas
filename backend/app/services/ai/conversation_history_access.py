@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 
 async def load_chat_history(
-    service: "ConversationService",
+    service: ConversationService,
     conversation_id: int,
     max_messages: int = 0,
     max_tokens: int | None = None,
@@ -33,7 +33,7 @@ def sanitize_tool_messages(messages: list[ChatMessage]) -> list[ChatMessage]:
 
 
 async def get_messages_for_conversation(
-    service: "ConversationService",
+    service: ConversationService,
     conversation_id: int,
 ) -> list[Any]:
     return await service.message_repo.get_by_conversation(conversation_id)

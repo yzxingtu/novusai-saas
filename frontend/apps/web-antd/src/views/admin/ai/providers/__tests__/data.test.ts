@@ -128,28 +128,17 @@ describe('provider connection settings helpers', () => {
   });
 });
 
-describe('provider web_search config contracts', () => {
-  it('keeps getFormDefaults backward-compatible and allows web_search defaults when added', () => {
+describe('provider form config contracts', () => {
+  it('does not expose retired provider defaults', () => {
     const defaults = providerData.getFormDefaults();
     expect(defaults.type).toBe('openai_compatible');
     expect(defaults.is_active).toBe(true);
     expect(
       Object.prototype.hasOwnProperty.call(defaults, 'responses_tool_history_compat'),
     ).toBe(false);
-
-    const maybeDefaults = defaults as Record<string, unknown>;
-    if ('web_search_enabled' in maybeDefaults) {
-      expect(maybeDefaults.web_search_enabled).toBeTypeOf('boolean');
-      expect(maybeDefaults.web_search_enabled).toBe(true);
-    }
-    if ('web_search_strategy' in maybeDefaults) {
-      expect(maybeDefaults.web_search_strategy).toBe(
-        'native_first_fallback_public',
-      );
-    }
   });
 
-  it('does not expose responses tool history compat in the provider form schema', () => {
+  it('does not expose retired compatibility fields in the provider form schema', () => {
     const schema = providerData.useFormSchema();
 
     expect(
@@ -162,176 +151,5 @@ describe('provider web_search config contracts', () => {
 
     expect(schema).toHaveLength(1);
     expect(schema[0]).toMatchObject({ fieldName: 'name' });
-  });
-
-  it('validates optional web_search normalize helper when it exists', () => {
-    const normalizeWebSearchConfig = (providerData as Record<string, unknown>)
-      .normalizeWebSearchConfig;
-    if (typeof normalizeWebSearchConfig !== 'function') {
-      return;
-    }
-
-    const normalized = (
-      normalizeWebSearchConfig as (config: unknown) => Record<string, unknown>
-    )({
-      enabled: true,
-      strategy: 'native_first_fallback_public',
-      max_results_cap: 8,
-      native_timeout_seconds: 20,
-      public_timeout_seconds: 15,
-      public_providers: ['baidu', 'so360'],
-    });
-
-    expect(normalized.enabled).toBe(true);
-    expect(normalized.strategy).toBe('native_first_fallback_public');
-    expect(normalized.max_results_cap).toBe(8);
-    expect(normalized.native_timeout_seconds).toBe(20);
-    expect(normalized.public_timeout_seconds).toBe(15);
-    expect(normalized.public_providers).toEqual(['baidu', 'so360']);
-  });
-
-  it('preserves advanced web_search fields when resolving provider config', () => {
-    const resolved = providerData.resolveProviderWebSearchConfig({
-      web_search: {
-        enabled: true,
-        strategy: 'native_first_fallback_public',
-        max_results_cap: 8,
-        native_timeout_seconds: 20,
-        public_timeout_seconds: 15,
-        public_providers: ['baidu', 'so360'],
-        allow_unverified_runtime_target: true,
-        prefer_hosted_tool: true,
-        verified_native_target: {
-          provider_code: 'openai',
-          model_code: 'gpt-5.4',
-        },
-      },
-    });
-
-    expect(resolved.allow_unverified_runtime_target).toBe(true);
-    expect(resolved.prefer_hosted_tool).toBe(true);
-    expect(resolved.verified_native_target).toEqual({
-      provider_code: 'openai',
-      model_code: 'gpt-5.4',
-    });
-  });
-
-  it('preserves advanced web_search fields from existing config on form submit rebuild', () => {
-    const built = providerData.buildProviderWebSearchConfigFromForm(
-      {
-        web_search_enabled: true,
-        web_search_strategy: 'native_first_fallback_public',
-        web_search_max_results_cap: 5,
-        web_search_native_timeout_seconds: 12,
-        web_search_public_timeout_seconds: 9,
-        web_search_public_providers: ['baidu'],
-      },
-      {
-        enabled: true,
-        strategy: 'native_first_fallback_public',
-        max_results_cap: 8,
-        native_timeout_seconds: 20,
-        public_timeout_seconds: 15,
-        public_providers: ['baidu', 'so360'],
-        allow_unverified_runtime_target: false,
-        prefer_hosted_tool: true,
-        verified_native_target: {
-          provider_id: 10,
-          model_code: 'gpt-5.4',
-        },
-      },
-    );
-
-    expect(built.enabled).toBe(true);
-    expect(built.max_results_cap).toBe(5);
-    expect(built.public_providers).toEqual(['baidu']);
-    expect(built.allow_unverified_runtime_target).toBe(false);
-    expect(built.prefer_hosted_tool).toBe(true);
-    expect(built.verified_native_target).toEqual({
-      provider_id: 10,
-      model_code: 'gpt-5.4',
-    });
-  });
-
-  it('builds advanced web_search fields directly from flat form inputs', () => {
-    const built = providerData.buildProviderWebSearchConfigFromForm({
-      web_search_enabled: true,
-      web_search_strategy: 'native_first_fallback_public',
-      web_search_max_results_cap: 5,
-      web_search_native_timeout_seconds: 12,
-      web_search_public_timeout_seconds: 9,
-      web_search_public_providers: ['baidu'],
-      web_search_allow_unverified_runtime_target: true,
-      web_search_verified_provider_code: 'openai',
-      web_search_verified_model_code: 'gpt-5.4',
-    });
-
-    expect(built.allow_unverified_runtime_target).toBe(true);
-    expect(built.verified_native_target).toEqual({
-      provider_code: 'openai',
-      model_code: 'gpt-5.4',
-    });
-  });
-
-  it('clears advanced web_search target fields when flat form inputs are blank', () => {
-    const built = providerData.buildProviderWebSearchConfigFromForm(
-      {
-        web_search_enabled: true,
-        web_search_strategy: 'native_first_fallback_public',
-        web_search_max_results_cap: 5,
-        web_search_native_timeout_seconds: 12,
-        web_search_public_timeout_seconds: 9,
-        web_search_public_providers: ['baidu'],
-        web_search_allow_unverified_runtime_target: false,
-        web_search_verified_provider_code: '',
-        web_search_verified_model_code: '',
-      },
-      {
-        enabled: true,
-        strategy: 'native_first_fallback_public',
-        max_results_cap: 8,
-        native_timeout_seconds: 20,
-        public_timeout_seconds: 15,
-        public_providers: ['baidu', 'so360'],
-        allow_unverified_runtime_target: true,
-        prefer_hosted_tool: true,
-        verified_native_target: {
-          provider_code: 'openai',
-          model_code: 'gpt-5.4',
-        },
-      },
-    );
-
-    expect(built.allow_unverified_runtime_target).toBe(false);
-    expect(built.prefer_hosted_tool).toBe(true);
-    expect(built.verified_native_target).toBeNull();
-  });
-
-  it('validates optional runtime web_search helper when it exists', () => {
-    const resolveWebSearchRuntimeHint = (
-      providerData as Record<string, unknown>
-    ).resolveWebSearchRuntimeHint;
-    if (typeof resolveWebSearchRuntimeHint !== 'function') {
-      return;
-    }
-
-    const hint = (
-      resolveWebSearchRuntimeHint as (
-        runtime: Record<string, unknown>,
-      ) => Record<string, unknown>
-    )({
-      native_supported: false,
-      native_provider: 'openai_compatible',
-      reason: 'unsupported_model',
-    });
-
-    expect(hint).toBeTruthy();
-  });
-
-  it.skip('draft: should cover config <-> form mapping helper once main branch exports it', () => {
-    // Expected helper candidates for main implementation:
-    // - mapWebSearchConfigToForm(config)
-    // - mapWebSearchFormToConfig(formValues)
-    // Activate this test once those helpers are exported from ../data.
   });
 });

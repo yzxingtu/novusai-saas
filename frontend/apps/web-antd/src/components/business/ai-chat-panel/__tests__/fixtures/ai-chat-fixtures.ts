@@ -91,20 +91,6 @@ export const buildToolMessage = (
   ...overrides,
 });
 
-export const buildNativeSearchProgressHistoryMessages = () => [
-  buildUserMessage('搜索一下'),
-  buildAssistantMessage('', {
-    metadata: {
-      turn_record: {
-        auto_fetch_gate_reason: 'native_search_completed',
-        metadata: {
-          stream_progress_kinds: ['web_search_in_progress'],
-        },
-      },
-    },
-  }),
-];
-
 export const buildRichToolHistoryMessages = () => [
   buildUserMessage('统计今天调用情况'),
   buildAssistantMessage('', {
@@ -176,29 +162,13 @@ export const buildRichToolHistoryMessages = () => [
   }),
 ];
 
-export const buildNativeSearchDiagnosticsMessages = () => [
-  buildUserMessage('搜索一下 长沙市小学生什么时候放暑假'),
-  buildAssistantMessage('查到了。', {
-    metadata: {
-      context_diagnostics: {
-        intent_plan: [
-          {
-            completed_by_tool_names: ['native_web_search'],
-          },
-        ],
-      },
-      selected_tool_names: ['web_search', 'fetch_url'],
-    },
-  }),
-];
-
-export const buildNativeSearchInterruptedMessages = () => [
-  buildUserMessage('搜索一下 长沙市小学生什么时候放暑假'),
+export const buildLegacyToolInterruptedMessages = () => [
+  buildUserMessage('统计今天调用情况'),
   buildAssistantMessage('先帮你查找了一部分信息。', {
     metadata: {
       turn_record: {
         metadata: {
-          stream_progress_kinds: ['web_search_in_progress'],
+          stream_progress_kinds: ['tool_execution_in_progress'],
         },
         termination_reason: 'interrupted',
         turn_outcome: 'partial',

@@ -39,17 +39,13 @@ class PromptContractName(StrEnum):
     CONTRACT_RECOVERY = "contract_recovery"
     PARTIAL_EXIT = "partial_exit"
 
-    # --- Domain capability blocks (web / weather / time) / 领域能力块 ---
-    WEB_RESEARCH = "web_research"
+    # --- Domain capability blocks (weather / time) / 领域能力块 ---
     WEATHER_TOOLS = "weather_tools"
     TIME_TOOLS = "time_tools"
 
     # --- Turn capability & research state / 轮次能力与调研状态 ---
     CAPABILITY_REPORTING = "capability_reporting"
     TURN_CAPABILITIES = "turn_capabilities"
-
-    # --- Fetch gate / 抓取门禁 ---
-    FETCH_URL_GATE = "fetch_url_gate"
 
     # --- RAG helper prompts (rewrite / HyDE / rerank) / RAG 辅助提示（改写、HyDE、重排）---
     RAG_MULTI_QUERY_SYSTEM = "rag_multi_query_system"
@@ -66,21 +62,14 @@ class PromptContractName(StrEnum):
 
     # --- Contract leak recovery / 契约泄漏恢复 ---
     CONTRACT_RECOVERY_LEAK_GUIDANCE = "contract_recovery_leak_guidance"
-    CONTRACT_RECOVERY_WEB_RESEARCH_GUIDANCE = "contract_recovery_web_research_guidance"
-
     # --- Router preambles / 路由前言 ---
     AGENT_ROUTER_VISION_PREAMBLE = "agent_router_vision_preamble"
     AGENT_ROUTER_ATTACHMENT_PREAMBLE = "agent_router_attachment_preamble"
 
     # --- Builtin tools & toolkit-style tools / 内置工具与类 toolkit 工具描述 ---
-    BUILTIN_WEB_SEARCH_DESCRIPTION = "builtin_web_search_description"
-    BUILTIN_FETCH_URL_DESCRIPTION = "builtin_fetch_url_description"
     BUILTIN_CURRENT_TIME_DESCRIPTION = "builtin_current_time_description"
     EMAIL_TOOL_DESCRIPTION = "email_tool_description"
     EXECUTE_CODE_TOOL_DESCRIPTION = "execute_code_tool_description"
-    HOSTED_WEB_SEARCH_CANDIDATE_INSTRUCTIONS = (
-        "hosted_web_search_candidate_instructions"
-    )
 
     # --- Rich-text editor AI actions / 富文本编辑器 AI 动作 ---
     RICH_TEXT_AI_ACTION_SYSTEM = "rich_text_ai_action_system"
@@ -119,12 +108,7 @@ _PROMPT_CONTRACTS: dict[str, PromptContractSpec] = {
         template_name="partial_exit.md",
         description="User-facing summary returned when orchestration exits partially.",
     ),
-    # --- Domain capability blocks (web / weather / time) / 领域能力块 ---
-    PromptContractName.WEB_RESEARCH.value: PromptContractSpec(
-        name=PromptContractName.WEB_RESEARCH,
-        template_name="web_research.md",
-        description="Web research guidance block.",
-    ),
+    # --- Domain capability blocks (weather / time) / 领域能力块 ---
     PromptContractName.WEATHER_TOOLS.value: PromptContractSpec(
         name=PromptContractName.WEATHER_TOOLS,
         template_name="weather_tools.md",
@@ -145,12 +129,6 @@ _PROMPT_CONTRACTS: dict[str, PromptContractSpec] = {
         name=PromptContractName.TURN_CAPABILITIES,
         template_name="turn_capabilities.md",
         description="Turn-specific runtime capability block.",
-    ),
-    # --- Fetch-before-summary gate / 先抓取再总结门禁 ---
-    PromptContractName.FETCH_URL_GATE.value: PromptContractSpec(
-        name=PromptContractName.FETCH_URL_GATE,
-        template_name="fetch_url_gate.md",
-        description="Enforced fetch-before-summary gate for web research.",
     ),
     # --- RAG helper prompts (rewrite / HyDE / rerank) / RAG 辅助提示 ---
     PromptContractName.RAG_MULTI_QUERY_SYSTEM.value: PromptContractSpec(
@@ -196,11 +174,6 @@ _PROMPT_CONTRACTS: dict[str, PromptContractSpec] = {
         template_name="contract_recovery_leak_guidance.md",
         description="Leak-specific contract recovery guidance.",
     ),
-    PromptContractName.CONTRACT_RECOVERY_WEB_RESEARCH_GUIDANCE.value: PromptContractSpec(
-        name=PromptContractName.CONTRACT_RECOVERY_WEB_RESEARCH_GUIDANCE,
-        template_name="contract_recovery_web_research_guidance.md",
-        description="Web-research-specific contract recovery guidance.",
-    ),
     PromptContractName.AGENT_ROUTER_VISION_PREAMBLE.value: PromptContractSpec(
         name=PromptContractName.AGENT_ROUTER_VISION_PREAMBLE,
         template_name="agent_router_vision_preamble.md",
@@ -212,16 +185,6 @@ _PROMPT_CONTRACTS: dict[str, PromptContractSpec] = {
         description="Attachment preamble for router selection.",
     ),
     # --- Builtin & email & code tools / 内置工具、邮件与代码工具 ---
-    PromptContractName.BUILTIN_WEB_SEARCH_DESCRIPTION.value: PromptContractSpec(
-        name=PromptContractName.BUILTIN_WEB_SEARCH_DESCRIPTION,
-        template_name="builtin_web_search_description.md",
-        description="Augmented description for web_search builtin tool.",
-    ),
-    PromptContractName.BUILTIN_FETCH_URL_DESCRIPTION.value: PromptContractSpec(
-        name=PromptContractName.BUILTIN_FETCH_URL_DESCRIPTION,
-        template_name="builtin_fetch_url_description.md",
-        description="Augmented description for fetch_url builtin tool.",
-    ),
     PromptContractName.BUILTIN_CURRENT_TIME_DESCRIPTION.value: PromptContractSpec(
         name=PromptContractName.BUILTIN_CURRENT_TIME_DESCRIPTION,
         template_name="builtin_current_time_description.md",
@@ -236,13 +199,6 @@ _PROMPT_CONTRACTS: dict[str, PromptContractSpec] = {
         name=PromptContractName.EXECUTE_CODE_TOOL_DESCRIPTION,
         template_name="execute_code_tool_description.md",
         description="Description for execute_code tool.",
-    ),
-    PromptContractName.HOSTED_WEB_SEARCH_CANDIDATE_INSTRUCTIONS.value: (
-        PromptContractSpec(
-            name=PromptContractName.HOSTED_WEB_SEARCH_CANDIDATE_INSTRUCTIONS,
-            template_name="hosted_web_search_candidate_instructions.md",
-            description="Instructions for hosted Responses API web search candidates.",
-        )
     ),
     # --- Rich-text editor AI actions / 富文本编辑器 AI 动作 ---
     PromptContractName.RICH_TEXT_AI_ACTION_SYSTEM.value: PromptContractSpec(

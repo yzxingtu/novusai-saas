@@ -384,7 +384,7 @@ class PreparedExecution:
 
 @dataclass
 class ResearchContinuationContext:
-    """Runtime metadata for external web research."""
+    """Runtime metadata for continuing an interrupted tool-family turn."""
 
     active: bool = False
     family: str | None = None
@@ -392,12 +392,7 @@ class ResearchContinuationContext:
     current_user_text: str = ""
     research_target_text: str = ""
     recent_successful_tool_names: list[str] = field(default_factory=list)
-    recent_web_queries: list[str] = field(default_factory=list)
-    search_query_count: int = 0
-    fetched_url_count: int = 0
-    research_instruction_texts: list[str] = field(default_factory=list)
     tool_families: list[str] = field(default_factory=list)
-    web_research_pair_complete: bool = False
     continuation_capable_families: list[str] = field(default_factory=list)
     last_tool_name: str = ""
     active_intent_kind: str | None = None

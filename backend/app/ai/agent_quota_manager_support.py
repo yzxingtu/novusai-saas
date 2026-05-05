@@ -68,7 +68,9 @@ async def check_quota(
         )
 
     if config.conversations_per_day > 0:
-        conv_count = await get_daily_conversations(manager_cls, tenant_id, agent_id, today)
+        conv_count = await get_daily_conversations(
+            manager_cls, tenant_id, agent_id, today
+        )
         if conv_count >= config.conversations_per_day:
             raise AgentQuotaExceeded(
                 _("agent.error.daily_conversation_quota_exceeded"),

@@ -118,42 +118,6 @@ def looks_like_tool_planning_leak(
     return bool(extract_textual_tool_call_names(text, tools))
 
 
-def looks_like_explicit_web_research_request(
-    user_text: str,
-    tools: list[ToolDefinition],
-) -> bool:
-    if not user_text or not tools:
-        return False
-    web_tools = [
-        tool
-        for tool in tools
-        if tool_semantic_family(tool) == "web_research"
-        or tool.name in {"web_search", "fetch_url"}
-    ]
-    if not web_tools:
-        return False
-
-    from app.ai.tools.optimizer import _tokenize
-
-    query_text = user_text.lower()
-    query_tokens = _tokenize(user_text)
-    semantic_tokens: set[str] = set()
-    for tool in web_tools:
-        semantic_source = " ".join(
-            [tool.name, tool.description or "", *tool_semantic_tags(tool)]
-        )
-        semantic_tokens |= _tokenize(semantic_source)
-
-    if query_tokens & semantic_tokens:
-        return True
-
-    return any(
-        tool.name.lower() in query_text
-        or tool.name.lower().replace("_", " ") in query_text
-        for tool in web_tools
-    )
-
-
 def looks_like_explicit_time_request(
     user_text: str,
     tools: list[ToolDefinition],
@@ -184,7 +148,6 @@ __all__ = [
     "extract_textual_tool_call_names",
     "family_capability_terms",
     "looks_like_explicit_time_request",
-    "looks_like_explicit_web_research_request",
     "looks_like_tool_planning_leak",
     "response_denies_family_capability",
     "tool_family_for_name",

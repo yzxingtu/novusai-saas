@@ -9,16 +9,6 @@ from app.ai.text_semantics import (
 )
 
 
-def test_extract_textual_tool_call_names_maps_known_aliases() -> None:
-    names = extract_textual_tool_call_names(
-        "First call fetch_url, then next web_search",
-        alias_to_tool_name={"fetch_url": "fetch_url", "web_search": "web_search"},
-        known_tool_names={"fetch_url", "web_search"},
-    )
-
-    assert names == ["fetch_url", "web_search"]
-
-
 def test_extract_textual_tool_call_names_detects_dsml_invoke_markup() -> None:
     names = extract_textual_tool_call_names(
         '<｜DSML｜tool_calls><｜DSML｜invoke name="crm_lookup"></｜DSML｜invoke></｜DSML｜tool_calls>',
@@ -71,7 +61,9 @@ def test_split_last_suffix_only_returns_allowed_suffix() -> None:
 
 
 def test_extract_double_brace_placeholders_keeps_unique_identifiers() -> None:
-    assert extract_double_brace_placeholders("{{ user_id }} {{user_id}} {{ tenant_id }}") == [
+    assert extract_double_brace_placeholders(
+        "{{ user_id }} {{user_id}} {{ tenant_id }}"
+    ) == [
         "user_id",
         "tenant_id",
     ]

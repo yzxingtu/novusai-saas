@@ -26,9 +26,6 @@ from .tool_policy_helpers import (
     ensure_explicit_family_coverage as _ensure_explicit_family_coverage_impl,
 )
 from .tool_policy_helpers import (
-    ensure_web_research_tool_pair as _ensure_web_research_tool_pair_impl,
-)
-from .tool_policy_helpers import (
     extract_textual_tool_call_names as _extract_textual_tool_call_names_impl,
 )
 from .tool_policy_helpers import (
@@ -42,9 +39,6 @@ from .tool_policy_helpers import (
 )
 from .tool_policy_helpers import (
     looks_like_explicit_time_request as _looks_like_explicit_time_request_impl,
-)
-from .tool_policy_helpers import (
-    looks_like_explicit_web_research_request as _looks_like_explicit_web_research_request_impl,
 )
 from .tool_policy_helpers import (
     looks_like_generic_follow_up as _looks_like_generic_follow_up_impl,
@@ -63,9 +57,6 @@ from .tool_policy_helpers import (
 )
 from .tool_policy_helpers import (
     response_denies_family_capability as _response_denies_family_capability_impl,
-)
-from .tool_policy_helpers import (
-    response_has_native_web_search_evidence as _response_has_native_web_search_evidence_impl,
 )
 from .tool_policy_helpers import (
     restore_explicit_family_tools as _restore_explicit_family_tools_impl,
@@ -108,9 +99,6 @@ class BasePromptToolPolicySupportMixin:
     _looks_like_tool_planning_leak = staticmethod(_looks_like_tool_planning_leak_impl)
     _detect_requested_turn_intents = staticmethod(_detect_requested_turn_intents_impl)
     _collect_completed_turn_intents = staticmethod(_collect_completed_turn_intents_impl)
-    _response_has_native_web_search_evidence = staticmethod(
-        _response_has_native_web_search_evidence_impl
-    )
     _looks_like_generic_follow_up = staticmethod(_looks_like_generic_follow_up_impl)
     _allowed_tool_names_for_family = staticmethod(_allowed_tool_names_for_family_impl)
     _allowed_tool_names_for_families = staticmethod(
@@ -120,10 +108,6 @@ class BasePromptToolPolicySupportMixin:
     _restore_explicit_family_tools = staticmethod(_restore_explicit_family_tools_impl)
     _ensure_explicit_family_coverage = staticmethod(
         _ensure_explicit_family_coverage_impl
-    )
-    _ensure_web_research_tool_pair = staticmethod(_ensure_web_research_tool_pair_impl)
-    _looks_like_explicit_web_research_request = staticmethod(
-        _looks_like_explicit_web_research_request_impl
     )
     _looks_like_explicit_time_request = staticmethod(
         _looks_like_explicit_time_request_impl

@@ -236,26 +236,6 @@ async def _create_responses_stream_with_timeout(
         ) from exc
 
 
-def _positive_int(value: Any) -> int:
-    try:
-        return max(0, int(value or 0))
-    except (TypeError, ValueError):
-        return 0
-
-
-def _has_url_citation_annotations(value: Any) -> bool:
-    for annotation in _response_field(value, "annotations", []) or []:
-        if str(_response_field(annotation, "type", "") or "").strip() != (
-            "url_citation"
-        ):
-            continue
-        if str(_response_field(annotation, "url", "") or "").startswith(
-            ("http://", "https://")
-        ):
-            return True
-    return False
-
-
 def _extract_output_item_text(item: Any) -> str:
     parts: list[str] = []
     for content in _response_field(item, "content", []) or []:
@@ -265,38 +245,6 @@ def _extract_output_item_text(item: Any) -> str:
         if text:
             parts.append(text)
     return "".join(parts)
-
-
-def _has_native_web_search_evidence(response: Any) -> bool:
-    if response is None:
-        return False
-    tool_usage = _response_field(response, "tool_usage")
-    web_search_usage = _response_field(tool_usage, "web_search")
-    if _positive_int(_response_field(web_search_usage, "num_requests")) > 0:
-        return True
-
-    response_type = str(_response_field(response, "type", "") or "").strip()
-    if response_type == "web_search_call":
-        return True
-    if _has_url_citation_annotations(response):
-        return True
-    if response_type == "message":
-        items = [response]
-    else:
-        items = list(_response_field(response, "output", []) or [])
-
-    for item in items:
-        item_type = str(_response_field(item, "type", "") or "").strip()
-        if item_type == "web_search_call":
-            return True
-        if item_type != "message":
-            continue
-        for content in _response_field(item, "content", []) or []:
-            if str(_response_field(content, "type", "") or "").strip() != "output_text":
-                continue
-            if _has_url_citation_annotations(content):
-                return True
-    return False
 
 
 def _tool_call_state_key(index: Any, call_id: str | None) -> str:
@@ -408,7 +356,6 @@ async def execute_stream_chat_via_responses(
     response_id: str | None = None
     collected_text = ""
     tool_call_states: dict[str, dict[str, str]] = {}
-    saw_native_web_search = False
     required_output_deadline_started_at: float | None = None
     if request_params.get("tool_choice") == "required" and stream_timeout_seconds:
         required_output_deadline_started_at = asyncio.get_running_loop().time()
@@ -447,13 +394,6 @@ async def execute_stream_chat_via_responses(
             if event_type == "response.created":
                 response_obj = getattr(event, "response", None)
                 response_id = getattr(response_obj, "id", None) or response_id
-                raise_if_required_output_stalled()
-                continue
-
-            # Keepalive progress chunk during hosted web search.
-            if event_type.startswith("response.web_search_call"):
-                saw_native_web_search = True
-                yield ChatChunk(delta="", metadata={"web_search_in_progress": True})
                 raise_if_required_output_stalled()
                 continue
 
@@ -496,13 +436,6 @@ async def execute_stream_chat_via_responses(
                         "protocol_path": "responses",
                         "responses_response_id": response_id,
                         "usage_mode": usage_mode,
-                        "native_web_search_observed": bool(
-                            saw_native_web_search
-                            or _has_native_web_search_evidence(event)
-                            or _has_native_web_search_evidence(
-                                getattr(event, "response", None)
-                            )
-                        ),
                     },
                 )
                 logger.info(
@@ -588,8 +521,6 @@ async def execute_stream_chat_via_responses(
                     raise_if_required_output_stalled()
                     continue
                 if item_type == "message":
-                    if _has_native_web_search_evidence(item):
-                        saw_native_web_search = True
                     text = _extract_output_item_text(item)
                     if text and not emitted_text:
                         collected_text += text
@@ -712,13 +643,6 @@ async def execute_stream_chat_via_responses(
                         "protocol_path": "responses",
                         "responses_response_id": response_id,
                         "usage_mode": usage_mode,
-                        "native_web_search_observed": bool(
-                            saw_native_web_search
-                            or (
-                                response is not None
-                                and _has_native_web_search_evidence(response)
-                            )
-                        ),
                     },
                 )
                 logger.info(

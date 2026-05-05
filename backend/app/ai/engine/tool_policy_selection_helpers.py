@@ -26,18 +26,11 @@ def mark_multi_family_progress(
     success: bool,
     ordered_requested_families: list[str],
     completed_families: set[str],
-    has_fetch_url_in_toolset: bool,
     input_variables: dict[str, Any] | None,
 ) -> None:
     if not success:
         return
     family = tool_family_for_name(func_name, input_variables)
-    if family == "web_research":
-        if func_name == "fetch_url" or (
-            func_name == "web_search" and not has_fetch_url_in_toolset
-        ):
-            completed_families.add("web_research")
-        return
     if family in ordered_requested_families:
         completed_families.add(family)
 
@@ -80,7 +73,9 @@ def filter_tools_for_policy(
 ) -> list[ToolDefinition]:
     if not tools or not policy.allowed_tool_names:
         return list(tools)
-    allowed = {str(name).strip() for name in policy.allowed_tool_names if str(name).strip()}
+    allowed = {
+        str(name).strip() for name in policy.allowed_tool_names if str(name).strip()
+    }
     if not allowed:
         return []
     return [tool for tool in tools if tool.name in allowed]
@@ -107,15 +102,15 @@ def restore_explicit_family_tools(
     if policy.family == "none" or not policy.allowed_tool_names or not all_tools:
         return selected_tools, False
 
-    allowed = {str(name).strip() for name in policy.allowed_tool_names if str(name).strip()}
+    allowed = {
+        str(name).strip() for name in policy.allowed_tool_names if str(name).strip()
+    }
     if not allowed:
         return selected_tools, False
     if any(tool.name in allowed for tool in selected_tools):
         return selected_tools, False
 
-    restored = [
-        tool for tool in all_tools if tool.name in allowed
-    ]
+    restored = [tool for tool in all_tools if tool.name in allowed]
     if restored:
         return restored, True
     return selected_tools, False
@@ -131,11 +126,7 @@ def ensure_explicit_family_coverage(
     ordered_families: list[str] = []
     for family in explicit_requested_families:
         normalized = str(family or "").strip()
-        if (
-            not normalized
-            or normalized == "none"
-            or normalized in ordered_families
-        ):
+        if not normalized or normalized == "none" or normalized in ordered_families:
             continue
         ordered_families.append(normalized)
     if len(ordered_families) <= 1:
@@ -163,11 +154,7 @@ def ensure_explicit_family_coverage(
             if name in selected_names:
                 continue
             candidate = next(
-                (
-                    tool
-                    for tool in all_tools
-                    if tool.name == name
-                ),
+                (tool for tool in all_tools if tool.name == name),
                 None,
             )
             if candidate is None:
@@ -180,46 +167,6 @@ def ensure_explicit_family_coverage(
             restored_families.append(family)
 
     return restored, restored_families
-
-
-def ensure_web_research_tool_pair(
-    *,
-    selected_tools: list[ToolDefinition],
-    all_tools: list[ToolDefinition],
-    explicit_requested_families: list[str],
-    policy: ToolUsePolicy,
-) -> tuple[list[ToolDefinition], bool]:
-    if not selected_tools or not all_tools:
-        return selected_tools, False
-
-    explicit_families = {
-        str(family or "").strip() for family in explicit_requested_families
-    }
-    selected_names = {tool.name for tool in selected_tools}
-    all_by_name = {tool.name: tool for tool in all_tools}
-    if not ({"web_search", "fetch_url"} <= set(all_by_name)):
-        return selected_tools, False
-
-    web_research_active = (
-        policy.family == "web_research"
-        or "web_research" in explicit_families
-        or bool({"web_search", "fetch_url"} & selected_names)
-    )
-    if not web_research_active:
-        return selected_tools, False
-
-    restored = list(selected_tools)
-    restored_any = False
-    for tool_name in ("web_search", "fetch_url"):
-        if tool_name in selected_names:
-            continue
-        candidate = all_by_name.get(tool_name)
-        if candidate is None:
-            continue
-        restored.append(candidate)
-        selected_names.add(tool_name)
-        restored_any = True
-    return restored, restored_any
 
 
 def ordered_requested_families_from_intents(*, intents: list[IntentPlan]) -> list[str]:
@@ -256,7 +203,6 @@ __all__ = [
     "allowed_tool_names_for_family",
     "build_required_policy_for_family",
     "ensure_explicit_family_coverage",
-    "ensure_web_research_tool_pair",
     "filter_tools_for_policy",
     "first_incomplete_requested_family",
     "mark_multi_family_progress",

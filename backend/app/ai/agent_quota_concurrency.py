@@ -2,9 +2,9 @@
 Agent concurrency limiter / 智能体并发控制器
 """
 
-from importlib import import_module
 import time
 import uuid
+from importlib import import_module
 
 from app.ai.agent_quota_exceptions import AgentConcurrencyExceeded
 from app.core.i18n import _
@@ -54,7 +54,7 @@ class AgentConcurrencyLimiter:
     @staticmethod
     async def _get_redis():
         quota_module = import_module("app.ai.agent_quota")
-        return await getattr(quota_module, "get_redis")()
+        return await quota_module.get_redis()
 
     @staticmethod
     def _key(tenant_id: int, agent_id: int) -> str:

@@ -10,13 +10,13 @@ from app.ai.types import ChatMessage
 from app.ai.utils.token_estimator import estimate_tokens
 from app.core.base_model import utc_now
 from app.enums.agent import MessageRoleEnum
-from app.services.ai.conversation_message_persistence_support import (
-    build_turn_persistence_context,
-    resolve_new_message_start,
-)
 from app.services.ai.conversation_diagnostics_projector_support import (
     normalize_turn_skill_activation_payload,
     resolve_live_selected_name_list,
+)
+from app.services.ai.conversation_message_persistence_support import (
+    build_turn_persistence_context,
+    resolve_new_message_start,
 )
 from app.services.ai.conversation_turn_flow_projector import (
     ConversationTurnFlowProjector,

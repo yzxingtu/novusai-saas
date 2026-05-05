@@ -60,12 +60,7 @@ logger = LogManager.get_logger("ai.agent_chat_service")
 
 _SAFE_PARTIAL_OUTPUT_REASONS = frozenset(
     {
-        "candidate_urls_exhausted",
-        "insufficient_cross_checked_sources",
-        "low_query_relevance",
         "no_answer_quality_evidence",
-        "search_no_results_completed",
-        "search_not_successful",
     }
 )
 

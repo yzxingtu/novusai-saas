@@ -15,12 +15,15 @@ import { Card, Empty, Tag } from 'ant-design-vue';
 
 import { getTurnFlowForDisplay } from '#/components/business/ai-chat-panel/chat-message-turn-flow';
 import { $t } from '#/locales';
+import {
+  containsRetiredRuntimeDiagnosticValue,
+  visibleRuntimeDiagnosticTokens,
+} from '#/utils/ai-runtime-diagnostics';
 
 import {
   asRecord,
   asRecordArray,
   asString,
-  asStringArray,
   formatTagValue,
   formatTokens,
   hasEntries,
@@ -37,6 +40,25 @@ const props = defineProps<{
 function asOptionalString(value: unknown): string | undefined {
   const normalized = asString(value);
   return normalized || undefined;
+}
+
+function visibleDiagnosticTokens(value: unknown): string[] {
+  return visibleRuntimeDiagnosticTokens(value);
+}
+
+function visibleDiagnosticText(value: unknown): string {
+  return asString(value);
+}
+
+function formatVisibleTagValue(...values: unknown[]): string {
+  const visibleValue = values
+    .map((value) => asString(value))
+    .find((value) => value);
+  return visibleValue ? formatTagValue(visibleValue) : '';
+}
+
+function formatDiagnosticJson(value: unknown): string {
+  return JSON.stringify(value ?? {}, null, 2);
 }
 
 function translateOption(
@@ -131,7 +153,7 @@ const intentPlanItems = computed<MonitoringIntentPlanItem[]>(() =>
 const providerEvents = computed<MonitoringProviderEvent[]>(() =>
   asRecordArray<MonitoringProviderEvent>(
     runtimeDiagnostics.value?.provider_events,
-  ),
+  ).filter((event) => !containsRetiredRuntimeDiagnosticValue(event)),
 );
 
 const retryEvents = computed<MonitoringRetryEvent[]>(() =>
@@ -139,8 +161,17 @@ const retryEvents = computed<MonitoringRetryEvent[]>(() =>
 );
 
 const candidateToolNames = computed(() =>
-  asStringArray(runtimeDiagnostics.value?.candidate_tool_names),
+  visibleDiagnosticTokens(runtimeDiagnostics.value?.candidate_tool_names),
 );
+
+function hasVisibleIntentToolDiagnostics(intent: MonitoringIntentPlanItem) {
+  return (
+    visibleDiagnosticTokens(intent.required_capabilities).length > 0 ||
+    visibleDiagnosticTokens(intent.allowed_tools).length > 0 ||
+    visibleDiagnosticTokens(intent.selected_tools).length > 0 ||
+    visibleDiagnosticTokens(intent.completed_tools).length > 0
+  );
+}
 
 const diagnosticsSummary = computed(() => {
   const diagnostics = runtimeDiagnostics.value;
@@ -169,7 +200,7 @@ const diagnosticsSummary = computed(() => {
     {
       key: 'budgetExitReason',
       label: $t(`${props.i18nPrefix}.budgetExitReason`),
-      value: asString(diagnostics.budget_exit_reason),
+      value: visibleDiagnosticText(diagnostics.budget_exit_reason),
     },
     {
       key: 'providerEvents',
@@ -194,12 +225,12 @@ const diagnosticsDetailRows = computed(() => {
     {
       key: 'budgetExitReason',
       label: $t(`${props.i18nPrefix}.budgetExitReason`),
-      value: asString(diagnostics.budget_exit_reason),
+      value: visibleDiagnosticText(diagnostics.budget_exit_reason),
     },
     {
       key: 'partialExitReason',
       label: $t(`${props.i18nPrefix}.partialExitReason`),
-      value: asString(diagnostics.partial_exit_reason),
+      value: visibleDiagnosticText(diagnostics.partial_exit_reason),
     },
   ].filter((item) => item.value);
 });
@@ -263,8 +294,11 @@ const diagnosticsDetailRows = computed(() => {
               class="monitoring-diagnostics-intent"
             >
               <div class="monitoring-diagnostics-intent__head">
-                <Tag color="blue">
-                  {{ formatTagValue(intent.kind || intent.label) }}
+                <Tag
+                  v-if="formatVisibleTagValue(intent.kind, intent.label)"
+                  color="blue"
+                >
+                  {{ formatVisibleTagValue(intent.kind, intent.label) }}
                 </Tag>
                 <Tag
                   v-if="intent.status"
@@ -286,16 +320,14 @@ const diagnosticsDetailRows = computed(() => {
                 </span>
               </div>
               <div
-                v-if="
-                  asStringArray(intent.required_capabilities).length > 0 ||
-                  asStringArray(intent.allowed_tools).length > 0 ||
-                  asStringArray(intent.selected_tools).length > 0 ||
-                  asStringArray(intent.completed_tools).length > 0
-                "
+                v-if="hasVisibleIntentToolDiagnostics(intent)"
                 class="mt-3 space-y-2"
               >
                 <div
-                  v-if="asStringArray(intent.required_capabilities).length > 0"
+                  v-if="
+                    visibleDiagnosticTokens(intent.required_capabilities)
+                      .length > 0
+                  "
                   class="monitoring-diagnostics-line"
                 >
                   <span class="monitoring-overview-label">
@@ -303,7 +335,7 @@ const diagnosticsDetailRows = computed(() => {
                   </span>
                   <div class="monitoring-tag-list">
                     <Tag
-                      v-for="capability in asStringArray(
+                      v-for="capability in visibleDiagnosticTokens(
                         intent.required_capabilities,
                       )"
                       :key="capability"
@@ -314,7 +346,7 @@ const diagnosticsDetailRows = computed(() => {
                   </div>
                 </div>
                 <div
-                  v-if="asStringArray(intent.allowed_tools).length > 0"
+                  v-if="visibleDiagnosticTokens(intent.allowed_tools).length > 0"
                   class="monitoring-diagnostics-line"
                 >
                   <span class="monitoring-overview-label">
@@ -322,7 +354,7 @@ const diagnosticsDetailRows = computed(() => {
                   </span>
                   <div class="monitoring-tag-list">
                     <Tag
-                      v-for="tool in asStringArray(intent.allowed_tools)"
+                      v-for="tool in visibleDiagnosticTokens(intent.allowed_tools)"
                       :key="tool"
                       color="geekblue"
                     >
@@ -331,7 +363,9 @@ const diagnosticsDetailRows = computed(() => {
                   </div>
                 </div>
                 <div
-                  v-if="asStringArray(intent.selected_tools).length > 0"
+                  v-if="
+                    visibleDiagnosticTokens(intent.selected_tools).length > 0
+                  "
                   class="monitoring-diagnostics-line"
                 >
                   <span class="monitoring-overview-label">
@@ -339,7 +373,9 @@ const diagnosticsDetailRows = computed(() => {
                   </span>
                   <div class="monitoring-tag-list">
                     <Tag
-                      v-for="tool in asStringArray(intent.selected_tools)"
+                      v-for="tool in visibleDiagnosticTokens(
+                        intent.selected_tools,
+                      )"
                       :key="tool"
                       color="processing"
                     >
@@ -348,7 +384,9 @@ const diagnosticsDetailRows = computed(() => {
                   </div>
                 </div>
                 <div
-                  v-if="asStringArray(intent.completed_tools).length > 0"
+                  v-if="
+                    visibleDiagnosticTokens(intent.completed_tools).length > 0
+                  "
                   class="monitoring-diagnostics-line"
                 >
                   <span class="monitoring-overview-label">
@@ -356,7 +394,9 @@ const diagnosticsDetailRows = computed(() => {
                   </span>
                   <div class="monitoring-tag-list">
                     <Tag
-                      v-for="tool in asStringArray(intent.completed_tools)"
+                      v-for="tool in visibleDiagnosticTokens(
+                        intent.completed_tools,
+                      )"
                       :key="tool"
                       color="success"
                     >
@@ -366,11 +406,11 @@ const diagnosticsDetailRows = computed(() => {
                 </div>
               </div>
               <div
-                v-if="intent.unfinished_reason"
+                v-if="visibleDiagnosticText(intent.unfinished_reason)"
                 class="mt-3 text-xs text-muted-foreground"
               >
                 {{ $t(`${i18nPrefix}.unfinishedReason`) }}:
-                {{ intent.unfinished_reason }}
+                {{ visibleDiagnosticText(intent.unfinished_reason) }}
               </div>
             </article>
           </div>
@@ -409,17 +449,31 @@ const diagnosticsDetailRows = computed(() => {
               class="monitoring-diagnostics-event"
             >
               <div class="monitoring-diagnostics-intent__head">
-                <Tag color="orange">
+                <Tag
+                  v-if="
+                    formatVisibleTagValue(
+                      event.kind,
+                      event.provider_failure_kind,
+                    )
+                  "
+                  color="orange"
+                >
                   {{
-                    formatTagValue(event.kind || event.provider_failure_kind)
+                    formatVisibleTagValue(
+                      event.kind,
+                      event.provider_failure_kind,
+                    )
                   }}
                 </Tag>
-                <span v-if="event.stage" class="text-xs text-muted-foreground">
-                  {{ event.stage }}
+                <span
+                  v-if="visibleDiagnosticText(event.stage)"
+                  class="text-xs text-muted-foreground"
+                >
+                  {{ visibleDiagnosticText(event.stage) }}
                 </span>
               </div>
               <pre class="monitoring-diagnostics-json">{{
-                JSON.stringify(event ?? {}, null, 2)
+                formatDiagnosticJson(event)
               }}</pre>
             </article>
           </div>
@@ -439,8 +493,11 @@ const diagnosticsDetailRows = computed(() => {
               class="monitoring-diagnostics-event"
             >
               <div class="monitoring-diagnostics-intent__head">
-                <Tag color="gold">
-                  {{ formatTagValue(event.kind || event.reason) }}
+                <Tag
+                  v-if="formatVisibleTagValue(event.kind, event.reason)"
+                  color="gold"
+                >
+                  {{ formatVisibleTagValue(event.kind, event.reason) }}
                 </Tag>
                 <span
                   v-if="event.attempt != null"
@@ -450,7 +507,7 @@ const diagnosticsDetailRows = computed(() => {
                 </span>
               </div>
               <pre class="monitoring-diagnostics-json">{{
-                JSON.stringify(event ?? {}, null, 2)
+                formatDiagnosticJson(event)
               }}</pre>
             </article>
           </div>

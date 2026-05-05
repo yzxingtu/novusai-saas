@@ -79,11 +79,6 @@ class ToolCallLoopCallbacks:
         [list[str] | None, list[ToolDefinition], dict[str, Any] | None],
         str | None,
     ]
-    needs_fetch_url_before_summary: Callable[[list[ChatMessage]], bool]
-    apply_fetch_url_only_gate: Callable[
-        [list[ChatMessage], list[ToolDefinition], list[ToolDefinition]],
-        list[ToolDefinition],
-    ]
     restrict_tools_to_names: Callable[
         [list[ToolDefinition], list[str] | None],
         list[ToolDefinition],
@@ -186,7 +181,6 @@ async def _execute_round(
         build_budget_exit_response=callbacks.budget_exit_response,
         ordered_requested_families=session.ordered_requested_families,
         completed_families=session.completed_families,
-        has_fetch_url_in_toolset=session.has_fetch_url_in_toolset,
         input_variables=runtime.request.input_variables,
     )
     session.tracked_tool_result_bytes = round_outcome.tracked_tool_result_bytes
@@ -241,8 +235,6 @@ async def _run_round_followup(
             messages=runtime.messages,
             processor=processor,
             all_tools=session.all_tools_full,
-            needs_fetch_url_before_summary=callbacks.needs_fetch_url_before_summary,
-            apply_fetch_url_only_gate=callbacks.apply_fetch_url_only_gate,
             restrict_tools_to_names=callbacks.restrict_tools_to_names,
         ),
         round_policy=lambda round_tools: build_round_policy(

@@ -8,26 +8,22 @@ Handles AI provider business logic.
 from typing import Any
 from urllib.parse import urlparse
 
-from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
 
-from app.ai.adapters.openai_compatible.capabilities import OpenAIProtocolCapabilities
-from app.ai.exceptions import ProviderError
 from app.ai.text_semantics import slugify_ascii_identifier
 from app.core.base_service import BaseService
-from app.core.config import settings
 from app.core.i18n import _
 from app.core.logging import LogManager
 from app.exceptions import ConflictException, NotFoundException, ValidationException
 from app.models.ai import AIProvider
 from app.repositories.ai import AIProviderRepository
+from app.schemas.ai.invalid_ai_runtime_input import (
+    strip_invalid_ai_provider_config_keys,
+)
 from app.schemas.ai.provider import (
     AIProviderCreate,
     AIProviderResponse,
     AIProviderUpdate,
-    AIProviderWebSearchConfig,
-    AIProviderWebSearchRuntime,
-    normalize_provider_web_search_config,
 )
 
 _logger = LogManager.get_logger("ai")
@@ -37,7 +33,6 @@ _FORBIDDEN_OPENAI_COMPATIBLE_BASE_URL_SUFFIXES = (
     "/responses",
     "/chat/completions",
 )
-_BAIDU_FALLBACK_PROVIDER = "baidu"
 
 
 class AIProviderService(BaseService[AIProvider, AIProviderRepository]):
@@ -168,20 +163,6 @@ class AIProviderService(BaseService[AIProvider, AIProviderRepository]):
             validated_payload["config"] = cls._normalize_provider_config(None)
         return validated_payload
 
-    @staticmethod
-    def _default_web_search_config() -> AIProviderWebSearchConfig:
-        return AIProviderWebSearchConfig(
-            enabled=bool(settings.WEB_SEARCH_DEFAULT_ENABLED),
-            max_results_cap=int(settings.WEB_SEARCH_DEFAULT_MAX_RESULTS_CAP),
-            native_timeout_seconds=int(
-                settings.WEB_SEARCH_DEFAULT_NATIVE_TIMEOUT_SECONDS
-            ),
-            fallback_provider=_BAIDU_FALLBACK_PROVIDER,
-            fallback_timeout_seconds=int(
-                settings.WEB_SEARCH_DEFAULT_PUBLIC_TIMEOUT_SECONDS
-            ),
-        )
-
     @classmethod
     def _normalize_provider_config(
         cls,
@@ -194,83 +175,8 @@ class AIProviderService(BaseService[AIProvider, AIProviderRepository]):
         else:
             raise ValidationException(message="provider config must be an object")
 
-        provider_config.pop("web_search_runtime", None)
-        default_web_search = cls._default_web_search_config()
-        try:
-            normalized_web_search = normalize_provider_web_search_config(
-                provider_config.get("web_search"),
-                defaults=default_web_search,
-            )
-        except ValidationError as exc:
-            raise ValidationException(
-                message=f"Invalid web_search config: {exc}"
-            ) from exc
-
-        if normalized_web_search.fallback_provider != _BAIDU_FALLBACK_PROVIDER:
-            raise ValidationException(
-                message="web_search.fallback_provider must be baidu"
-            )
-
-        provider_config["web_search"] = normalized_web_search.model_dump()
+        provider_config = strip_invalid_ai_provider_config_keys(provider_config)
         return provider_config or None
-
-    @classmethod
-    def build_web_search_runtime_summary(
-        cls,
-        provider: AIProvider,
-    ) -> AIProviderWebSearchRuntime:
-        provider_type = str(getattr(provider, "type", "") or "").strip()
-        provider_config = (
-            dict(getattr(provider, "config", {}) or {})
-            if isinstance(getattr(provider, "config", None), dict)
-            else {}
-        )
-        try:
-            normalized_config = cls._normalize_provider_config(provider_config)
-        except ValidationException:
-            return AIProviderWebSearchRuntime(
-                native_supported=False,
-                native_provider=provider_type or "unknown",
-                reason="native_denied: provider config.web_search is invalid",
-            )
-        web_search_cfg = (normalized_config or {}).get("web_search") or {}
-        enabled = bool(web_search_cfg.get("enabled", True))
-        wire_api = str(provider_config.get("wire_api", "") or "").strip().lower()
-
-        if not enabled:
-            return AIProviderWebSearchRuntime(
-                native_supported=False,
-                native_provider=provider_type or "unknown",
-                reason="native_denied: web_search disabled in provider config",
-            )
-        if provider_type != "openai_compatible":
-            return AIProviderWebSearchRuntime(
-                native_supported=False,
-                native_provider=provider_type or "unknown",
-                reason="native_denied: provider type has no native web search adapter",
-            )
-        try:
-            protocol_capabilities = OpenAIProtocolCapabilities.from_provider_config(
-                provider_config=provider_config,
-                configured_wire_api=wire_api,
-            )
-        except ProviderError:
-            return AIProviderWebSearchRuntime(
-                native_supported=False,
-                native_provider=provider_type,
-                reason="native_denied: provider protocol_capabilities is invalid",
-            )
-        if not protocol_capabilities.supports_wire_api("responses"):
-            return AIProviderWebSearchRuntime(
-                native_supported=False,
-                native_provider=provider_type,
-                reason="native_denied: openai_compatible native web search requires Responses API support",
-            )
-        return AIProviderWebSearchRuntime(
-            native_supported=True,
-            native_provider=provider_type,
-            reason="native_ready: runtime still validates model capability and may use Baidu fallback",
-        )
 
     @classmethod
     def to_response_schema(cls, provider: AIProvider) -> AIProviderResponse:
@@ -282,10 +188,8 @@ class AIProviderService(BaseService[AIProvider, AIProviderRepository]):
             config_dict = (
                 dict(provider.config) if isinstance(provider.config, dict) else {}
             )
-        runtime_summary = cls.build_web_search_runtime_summary(provider)
         payload = AIProviderResponse.model_validate(provider, from_attributes=True)
         payload.config = config_dict
-        payload.web_search_runtime = runtime_summary
         return payload
 
     async def create_provider(self, data: AIProviderCreate) -> AIProvider:

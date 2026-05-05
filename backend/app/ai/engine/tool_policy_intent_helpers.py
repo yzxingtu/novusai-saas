@@ -2,19 +2,41 @@
 
 from __future__ import annotations
 
-from app.ai.text_semantics import mentions_rail_ticket, mentions_weather
+from typing import Any
+
+from app.ai.text_semantics import mentions_weather
 from app.ai.tools.types import ToolDefinition
 from app.ai.types import ChatMessage
 
+from .base_helpers import tool_call_name
 from .intent_runtime_accessors import (
     resolve_intent_plan_view,
     resolve_requested_intents_from_input_variables,
 )
 from .tool_policy_semantics import tool_semantic_family
-from .turn_research_helpers import (
-    collect_web_research_evidence,
-    extract_recent_successful_tool_names,
-)
+
+
+def extract_recent_successful_tool_names(
+    messages: list[ChatMessage],
+    *,
+    limit: int = 12,
+) -> list[str]:
+    names: list[str] = []
+    seen: set[str] = set()
+    for message in reversed(messages):
+        if message.role != "assistant" or not message.tool_calls:
+            continue
+        for tool_call in reversed(message.tool_calls):
+            if tool_call.get("success") is not True:
+                continue
+            tool_name = tool_call_name(tool_call)
+            if not tool_name or tool_name in seen:
+                continue
+            names.append(tool_name)
+            seen.add(tool_name)
+            if len(names) >= limit:
+                return names
+    return names
 
 
 def _push_unique(items: list[str], value: str) -> None:
@@ -48,13 +70,9 @@ def detect_requested_turn_intents(
             has_weather_capability = any(
                 tool_semantic_family(tool, input_variables) == "weather"
                 for tool in tools
-            ) or any(tool.name in {"web_search", "fetch_url"} for tool in tools)
+            )
             if has_weather_capability:
                 return ["weather"]
-        if mentions_rail_ticket(normalized) and any(
-            tool.name in {"web_search", "fetch_url"} for tool in tools
-        ):
-            return ["rail_ticket_research"]
         return []
     intents: list[str] = []
 
@@ -68,14 +86,6 @@ def detect_requested_turn_intents(
         if intent.kind == "weather_query":
             _push("weather")
             continue
-        if intent.kind == "web_research":
-            label = str(intent.user_visible_label or "").strip()
-            if label == "weather_web_research":
-                _push("weather")
-                continue
-            if label == "rail_search" or mentions_rail_ticket(normalized):
-                _push("rail_ticket_research")
-
     return intents
 
 
@@ -91,7 +101,6 @@ def collect_completed_turn_intents(
         limit=50,
     )
     successful_tool_names = set(successful_tool_names_ordered)
-    successful_queries, fetched_urls = collect_web_research_evidence(messages)
     weather_tool_names = {
         tool.name
         for tool in tools
@@ -102,22 +111,6 @@ def collect_completed_turn_intents(
         weather_tool_names | {"get_current_weather", "get_weather_forecast"}
     ):
         completed.add("weather")
-    if any(
-        any(
-            token in url.lower()
-            for token in ("weather", "cma.cn", "qweather", "weather.com")
-        )
-        for url in fetched_urls
-    ):
-        completed.add("weather")
-
-    rail_search_seen = any(mentions_rail_ticket(query) for query in successful_queries)
-    rail_fetch_seen = any(
-        any(token in url.lower() for token in ("12306", "gaotie", "huoche", "trains"))
-        for url in fetched_urls
-    )
-    if rail_search_seen or rail_fetch_seen:
-        completed.add("rail_ticket_research")
 
     return completed
 

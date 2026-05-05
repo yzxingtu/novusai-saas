@@ -7,12 +7,12 @@ from __future__ import annotations
 import asyncio
 from dataclasses import replace
 
+from app.ai.rag.embedding import EmbeddingService
 from app.ai.rag.merge import WeightedRRFMerger
 from app.ai.rag.query_embedding import QueryEmbeddingResolver
 from app.ai.rag.retriever_keyword import KeywordSearcher
 from app.ai.rag.retriever_types import ChunkSearchResult, SearchKBContext
 from app.ai.rag.retriever_vector import VectorSearcher
-from app.ai.rag.embedding import EmbeddingService
 
 
 class RetrieverSearchExecutor:

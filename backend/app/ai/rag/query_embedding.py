@@ -20,7 +20,7 @@ class QueryEmbeddingResolver:
         query: str,
         context: Any,
     ) -> list[float]:
-        signature = tuple(getattr(context, "embedding_signature"))
+        signature = tuple(context.embedding_signature)
         if signature not in self._cache:
             self._cache[signature] = await self.embedding_service.generate_embedding(
                 text=query,

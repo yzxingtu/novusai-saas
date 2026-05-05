@@ -1,12 +1,39 @@
+"""Test type: behavioral
+Scope: admin/tenant conversation detail routes preserve diagnostic payloads.
+Mocked dependencies: MonitoringService read model only; route response shaping runs real.
+"""
+
 from __future__ import annotations
 
+from importlib.util import module_from_spec, spec_from_file_location
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.api.admin.ai_conversations import router as admin_conversation_router
-from app.api.tenant.conversations import router as tenant_conversation_router
+BACKEND_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _load_route_module(module_name: str, relative_path: str):
+    spec = spec_from_file_location(module_name, BACKEND_ROOT / relative_path)
+    if spec is None or spec.loader is None:
+        raise AssertionError(f"Unable to load route module: {relative_path}")
+    module = module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+admin_conversations = _load_route_module(
+    "test_admin_ai_conversations_route_module",
+    "app/api/admin/ai_conversations.py",
+)
+tenant_conversations = _load_route_module(
+    "test_tenant_conversations_route_module",
+    "app/api/tenant/conversations.py",
+)
+admin_conversation_router = admin_conversations.router
+tenant_conversation_router = tenant_conversations.router
 
 
 def _get_endpoint(router, path: str, method: str):
@@ -33,18 +60,18 @@ def _conversation_detail_diagnostics_payload() -> dict:
             },
             {
                 "intent_id": "intent-2",
-                "family": "web_research",
+                "family": "data_ops",
                 "status": "pending",
-                "allowed_tool_names": ["web_search"],
+                "allowed_tool_names": ["crm_lookup"],
             },
         ],
         "active_intent_id": "intent-2",
         "active_intent": {
             "intent_id": "intent-2",
-            "family": "web_research",
-            "allowed_tool_names": ["web_search"],
+            "family": "data_ops",
+            "allowed_tool_names": ["crm_lookup"],
         },
-        "allowed_tool_names": ["web_search"],
+        "allowed_tool_names": ["crm_lookup"],
         "budget": {
             "status": "exited",
             "exit_reason": "retry_budget_exhausted",
@@ -55,8 +82,8 @@ def _conversation_detail_diagnostics_payload() -> dict:
             {
                 "action": "retry_intent",
                 "target_intent_id": "intent-2",
-                "retry_family": "web_research",
-                "allowed_tool_names": ["web_search"],
+                "retry_family": "data_ops",
+                "allowed_tool_names": ["crm_lookup"],
             }
         ],
         "partial_exit_reason": "retry_budget_exhausted",
@@ -94,7 +121,9 @@ async def test_admin_conversation_detail_route_keeps_diagnostics_fields() -> Non
     monitoring.admin_scope.return_value = "admin_scope"
     monitoring.get_conversation_detail = AsyncMock(return_value=payload)
 
-    with patch("app.api.admin.ai_conversations.MonitoringService", return_value=monitoring):
+    with patch.object(
+        admin_conversations, "MonitoringService", return_value=monitoring
+    ):
         response = await endpoint(
             request=request,
             db=db,
@@ -109,7 +138,7 @@ async def test_admin_conversation_detail_route_keeps_diagnostics_fields() -> Non
     assert diagnostics["execution_path"] == "deep"
     assert diagnostics["intent_plan"][1]["intent_id"] == "intent-2"
     assert diagnostics["budget"]["exit_reason"] == "retry_budget_exhausted"
-    assert diagnostics["retry_events"][0]["retry_family"] == "web_research"
+    assert diagnostics["retry_events"][0]["retry_family"] == "data_ops"
     assert diagnostics["partial_exit_reason"] == "retry_budget_exhausted"
     assert diagnostics["provider_failure_kind"] == "provider_http_5xx"
 
@@ -130,7 +159,9 @@ async def test_tenant_conversation_detail_route_keeps_diagnostics_fields() -> No
     monitoring.tenant_scope.return_value = "tenant_scope"
     monitoring.get_conversation_detail = AsyncMock(return_value=payload)
 
-    with patch("app.api.tenant.conversations.MonitoringService", return_value=monitoring):
+    with patch.object(
+        tenant_conversations, "MonitoringService", return_value=monitoring
+    ):
         response = await endpoint(
             request=request,
             db=db,
@@ -145,6 +176,6 @@ async def test_tenant_conversation_detail_route_keeps_diagnostics_fields() -> No
     assert diagnostics["execution_path"] == "deep"
     assert diagnostics["intent_plan"][1]["intent_id"] == "intent-2"
     assert diagnostics["budget"]["exit_reason"] == "retry_budget_exhausted"
-    assert diagnostics["retry_events"][0]["retry_family"] == "web_research"
+    assert diagnostics["retry_events"][0]["retry_family"] == "data_ops"
     assert diagnostics["partial_exit_reason"] == "retry_budget_exhausted"
     assert diagnostics["provider_failure_kind"] == "provider_http_5xx"

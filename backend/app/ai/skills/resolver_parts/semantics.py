@@ -23,16 +23,6 @@ def apply_tool_semantics(tool: ToolDefinition) -> None:
     if not name:
         return
 
-    if name in {"web_search", "fetch_url"}:
-        tool.semantic_family = "web_research"
-        tool.semantic_tags = tool.semantic_tags or semantic_tags(
-            *FAMILY_HINT_TAGS["web_research"],
-            "website",
-            "url",
-            "search web",
-        )
-        return
-
     if name == "get_current_time":
         tool.semantic_family = "time_ops"
         tool.semantic_tags = tool.semantic_tags or semantic_tags(

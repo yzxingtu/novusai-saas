@@ -85,53 +85,6 @@
       "type": "This field selects the integration adapter / compatibility format, not the vendor brand. The platform currently connects primarily through the OpenAI-compatible format, which covers many providers and compatible Azure-style endpoints.",
       "isActive": "When disabled, all models under this provider become unavailable and existing API calls will fail"
     },
-    "webSearch": {
-      "title": "Web Search",
-      "enabled": "Enable Web Search",
-      "strategy": "Search Strategy",
-      "maxResultsCap": "Max Results",
-      "nativeTimeoutSeconds": "Native Search Timeout (s)",
-      "publicTimeoutSeconds": "Public Search Timeout (s)",
-      "publicProviders": "Public Search Providers",
-      "allowUnverifiedRuntimeTarget": "Allow current runtime to use native search directly",
-      "verifiedProviderCode": "Verified provider code",
-      "verifiedModelCode": "Verified model code",
-      "strategyOptions": {
-        "native_first_fallback_public": "Native First + Public Fallback"
-      },
-      "publicProviderOptions": {
-        "baidu": "Baidu",
-        "so360": "360 Search"
-      },
-      "help": {
-        "enabled": "When disabled, web search tools are no longer exposed to the model.",
-        "strategy": "Current strategy is fixed to native-first with automatic fallback to public search.",
-        "maxResultsCap": "Maximum number of candidate sources returned per search call (1-10).",
-        "nativeTimeoutSeconds": "Timeout for model-native web search backend.",
-        "publicTimeoutSeconds": "Timeout for public HTML search backend.",
-        "publicProviders": "Public providers used when native search is unavailable or fails.",
-        "allowUnverifiedRuntimeTarget": "Enable only when you know this OpenAI-compatible runtime really supports native search; this bypasses the host trust gate.",
-        "verifiedProviderCode": "Optional. Provide the code of a provider already verified for native search, for example openai.",
-        "verifiedModelCode": "Optional. Usually pair this with the verified provider code, for example gpt-5.4. Leave blank to reuse the current runtime model when possible."
-      },
-      "placeholder": {
-        "verifiedProviderCode": "For example: openai",
-        "verifiedModelCode": "For example: gpt-5.4"
-      },
-      "validation": {
-        "maxResultsCap": "Max results must be an integer between 1 and 10",
-        "nativeTimeoutSeconds": "Native timeout must be an integer between 1 and 120",
-        "publicTimeoutSeconds": "Public timeout must be an integer between 1 and 120"
-      },
-      "runtime": {
-        "title": "Native Capability Status (Read-only)",
-        "unknown": "Runtime capability information is not available yet",
-        "nativeSupported": "Current model supports native web search (provider: {provider})",
-        "fallbackReason": "Current model does not support native web search, automatic fallback to public search is active (reason: {reason})",
-        "fallbackDefault": "Current model does not support native web search, automatic fallback to public search is active",
-        "autoFallbackHint": "If you want native search to be preferred, configure an explicit verified provider/model target, or enable the direct runtime override only when the gateway is known to be compatible."
-      }
-    },
     "summary": {
       "total": "Total Providers",
       "active": "Active",
@@ -961,13 +914,7 @@
       "orchestration_failure": "Orchestration Failure",
       "budget_exit": "Budget Exit",
       "server_interrupt": "Server Interrupt",
-      "web_research_runtime": "Web Research Failure",
-      "low_query_relevance": "Low Query Relevance",
-      "blocked_url": "Source Blocked",
-      "fetch_failed": "Fetch Failed",
-      "fetch_not_attempted": "Fetch Not Attempted",
-      "no_answer_quality_evidence": "No Answer-Quality Evidence",
-      "search_failed": "Search Failed"
+      "no_answer_quality_evidence": "No Answer-Quality Evidence"
     },
     "budgetStatusOptions": {
       "ok": "OK",
@@ -1489,7 +1436,7 @@
     "typeDesc": {
       "toolkit": "Python Toolkit: Write a Tools class in the editor below. Each public method is auto-registered as an LLM-callable tool. Supports Valves env config and .zip upload.\nUse cases: Call 3rd-party APIs (weather/search/translate), custom business logic, data conversion, etc.\nTip: Method docstrings and :param annotations are shown to the LLM — write clear descriptions.",
       "knowledge_base": "RAG Document Q&A: Link one or more knowledge bases for automatic semantic retrieval and context injection during conversations.\nUse cases: Product docs Q&A, internal knowledge search, contract/policy consultation, etc.\nTip: Adjust Top K and score threshold to balance recall and precision.",
-      "builtin": "Built-in Tools: System-predefined capabilities like web search, image generation, etc. View the tool list after creation.\nTip: Built-in tools are maintained by the platform and cannot be edited.",
+      "builtin": "Built-in Tools: System-predefined capabilities like image generation and other platform tools. View the tool list after creation.\nTip: Built-in tools are maintained by the platform and cannot be edited.",
       "http": "HTTP Request: Declarative REST API integration. Just fill in URL, method and parameter templates — no coding needed.\nUse cases: Call internal APIs, integrate SaaS services (CRM/ERP), trigger webhooks, etc.\nTip: URL supports {variable} template syntax; configure auth info in Headers.",
       "email": "Email: Let the agent send emails on behalf of users during conversations. Uses platform SMTP config with domain allowlist and recipient limits.\nUse cases: Auto customer replies, meeting invitations, notification sending, etc.\nTip: SMTP server must be configured in System Settings first.",
       "code_execution": "Code Execution: Let the agent run Python code in a secure sandbox and return results.\nUse cases: Math calculations, data processing, text format conversion, CSV/JSON parsing, etc.\nTip: Code runs in an isolated environment with module allowlist restrictions."

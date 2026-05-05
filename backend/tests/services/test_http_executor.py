@@ -11,7 +11,9 @@ from app.middleware.trace import trace_id_var
 
 
 class _FakeResponse:
-    def __init__(self, status_code: int, text: str = "", headers: dict[str, str] | None = None):
+    def __init__(
+        self, status_code: int, text: str = "", headers: dict[str, str] | None = None
+    ):
         self.status_code = status_code
         self.text = text
         self.headers = headers or {}
@@ -48,12 +50,15 @@ async def test_http_executor_blocks_redirect_response():
         headers={"location": "http://169.254.169.254/latest/meta-data"},
     )
 
-    with patch(
-        "app.ai.tools.executors.http_executor.UrlValidator.validate",
-        new=AsyncMock(return_value=None),
-    ), patch(
-        "httpx.AsyncClient",
-        return_value=_FakeClient(fake_response),
+    with (
+        patch(
+            "app.ai.tools.executors.http_executor.UrlValidator.validate",
+            new=AsyncMock(return_value=None),
+        ),
+        patch(
+            "httpx.AsyncClient",
+            return_value=_FakeClient(fake_response),
+        ),
     ):
         result = await executor.execute(
             definition=definition,
@@ -77,12 +82,15 @@ async def test_http_executor_hides_generic_exception_detail_in_production():
     token = trace_id_var.set("trace-http-prod")
     settings.DEBUG = False
     try:
-        with patch(
-            "app.ai.tools.executors.http_executor.UrlValidator.validate",
-            new=AsyncMock(return_value=None),
-        ), patch(
-            "httpx.AsyncClient",
-            side_effect=RuntimeError("socket exploded"),
+        with (
+            patch(
+                "app.ai.tools.executors.http_executor.UrlValidator.validate",
+                new=AsyncMock(return_value=None),
+            ),
+            patch(
+                "httpx.AsyncClient",
+                side_effect=RuntimeError("socket exploded"),
+            ),
         ):
             result = await executor.execute(
                 definition=definition,

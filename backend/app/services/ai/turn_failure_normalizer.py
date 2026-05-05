@@ -35,15 +35,7 @@ _BUDGET_TERMINATION_REASONS = frozenset(
 _COMPLETED_TERMINATION_REASONS = frozenset(
     {"completed", "complete", "success", "succeeded", "done", "stop"}
 )
-_NON_TERMINAL_PROGRESS_SIGNALS = frozenset(
-    {
-        "web_research_runtime",
-        "web_search_in_progress",
-        "provider_search_in_progress",
-        "search_in_progress",
-        "response_web_search_call_in_progress",
-    }
-)
+_NON_TERMINAL_PROGRESS_SIGNALS = frozenset()
 _NO_FAILURE_KINDS = frozenset({"none"})
 _TRUSTED_FINAL_OUTPUT_SOURCES = frozenset(
     {"assistant", "platform_fallback", "recovery_evidence"}
@@ -62,10 +54,7 @@ _FAILURE_KIND_SIGNAL_ALIASES = {
     "provider_connection_error_error": "provider_unavailable",
     "provider_rate_limit_error": "provider_rate_limit",
     "provider_bad_response_error": "provider_bad_response",
-    "fetch_not_attempted": "web_research_fetch_not_attempted",
-    "insufficient_cross_checked_sources": "insufficient_cross_checked_sources",
-    "missing_fetch_evidence": "web_research_fetch_not_attempted",
-    "no_answer_quality_evidence": "web_research_no_answer_quality_evidence",
+    "no_answer_quality_evidence": "no_answer_quality_evidence",
 }
 _FAILURE_TERMINATION_BY_KIND = {
     "provider_timeout": "provider_timeout",
@@ -80,13 +69,7 @@ _FAILURE_TERMINATION_BY_KIND = {
 }
 _SAFE_PARTIAL_FAILURE_KINDS = frozenset(
     {
-        "candidate_urls_exhausted",
-        "insufficient_cross_checked_sources",
-        "low_query_relevance",
-        "web_research_no_answer_quality_evidence",
         "no_answer_quality_evidence",
-        "search_no_results_completed",
-        "search_not_successful",
     }
 )
 
@@ -172,103 +155,6 @@ def _normalized_name_list(value: Any) -> list[str]:
     return names
 
 
-def _intent_requires_fetch_url(intent: Mapping[str, Any]) -> bool:
-    metadata = _as_dict(intent.get("metadata"))
-    allowed_tools = set(_normalized_name_list(intent.get("allowed_tool_names")))
-    completion_signals = set(_normalized_name_list(intent.get("completion_signals")))
-    preferred_tools = set(_normalized_name_list(intent.get("preferred_tool_names")))
-    gate_reason = _as_text(metadata.get("auto_fetch_gate_reason"))
-    return bool(
-        metadata.get("requires_fetch_url")
-        or gate_reason == "candidate_urls_ready"
-        or metadata.get("fetch_url_candidate_urls")
-        or "fetch_url" in allowed_tools
-        or "fetch_url" in completion_signals
-        or "fetch_url" in preferred_tools
-    )
-
-
-def _is_search_only_completed_required_fetch_intent(intent: Any) -> bool:
-    payload = _as_dict(intent)
-    if not payload:
-        return False
-    if _as_text(payload.get("family")) != "web_research":
-        return False
-    if (_as_text(payload.get("status")) or "").lower() != "completed":
-        return False
-    completed_tools = set(_normalized_name_list(payload.get("completed_by_tool_names")))
-    return bool(
-        "web_search" in completed_tools
-        and "fetch_url" not in completed_tools
-        and _intent_requires_fetch_url(payload)
-    )
-
-
-def _has_fetch_url_completed_intent(intent_plan: Any) -> bool:
-    if not isinstance(intent_plan, list):
-        return False
-    for item in intent_plan:
-        payload = _as_dict(item)
-        completed_tools = set(
-            _normalized_name_list(payload.get("completed_by_tool_names"))
-        )
-        if "fetch_url" in completed_tools:
-            return True
-    return False
-
-
-def detects_raw_search_only_recovery_finalized(
-    diagnostics: Mapping[str, Any] | None,
-) -> bool:
-    payload = _as_dict(diagnostics)
-    if not payload:
-        return False
-    if (
-        _as_text(payload.get("final_output_source")) or ""
-    ).lower() != "recovery_evidence":
-        return False
-
-    intent_plan = payload.get("intent_plan")
-    if _has_fetch_url_completed_intent(intent_plan):
-        return False
-    web_research_diagnostics = _as_dict(payload.get("web_research_diagnostics"))
-    web_research_failure_kind = _as_text(
-        payload.get("web_research_failure_kind")
-        or web_research_diagnostics.get("web_research_failure_kind")
-        or web_research_diagnostics.get("failure_kind")
-    )
-    if web_research_failure_kind in {
-        "fetch_not_attempted",
-        "missing_fetch_evidence",
-        "web_research_fetch_not_attempted",
-    }:
-        return True
-    evidence_status = _as_text(
-        payload.get("evidence_status")
-        or web_research_diagnostics.get("evidence_status")
-    )
-    candidate_urls = payload.get("candidate_urls") or web_research_diagnostics.get(
-        "candidate_urls"
-    )
-    fetched_urls = payload.get("fetched_urls") or web_research_diagnostics.get(
-        "fetched_urls"
-    )
-    if (
-        evidence_status == "partial"
-        and isinstance(candidate_urls, list)
-        and candidate_urls
-        and not (isinstance(fetched_urls, list) and fetched_urls)
-    ):
-        return True
-    return bool(
-        isinstance(intent_plan, list)
-        and any(
-            _is_search_only_completed_required_fetch_intent(item)
-            for item in intent_plan
-        )
-    )
-
-
 def _infer_provider_error_kind_from_message(error_message: Any) -> str | None:
     lowered = (_as_text(error_message) or "").lower()
     if not lowered:
@@ -309,8 +195,6 @@ def infer_failure_kind_from_diagnostics(
     turn_record_metadata = _as_dict(turn_record.get("metadata"))
     failures = _as_dict(payload.get("failures"))
     turn_record_failures = _as_dict(turn_record.get("failures"))
-    web_research_diagnostics = _as_dict(payload.get("web_research_diagnostics"))
-
     candidates: list[Any] = [
         payload.get("failure_kind"),
         payload.get("partial_exit_reason"),
@@ -325,9 +209,6 @@ def infer_failure_kind_from_diagnostics(
         turn_record_metadata.get("protocol_fallback_blocked_reason"),
         turn_record_metadata.get("stream_failure_error_type"),
         turn_record_metadata.get("stream_failure_reason"),
-        payload.get("web_research_failure_kind"),
-        web_research_diagnostics.get("web_research_failure_kind"),
-        web_research_diagnostics.get("failure_kind"),
     ]
 
     for provider_events in (
@@ -395,11 +276,6 @@ def _safe_partial_failure_kind(
     candidates = [
         failure_kind,
         payload.get("partial_exit_reason"),
-        payload.get("web_research_failure_kind"),
-        _as_dict(payload.get("web_research_diagnostics")).get(
-            "web_research_failure_kind"
-        ),
-        _as_dict(payload.get("web_research_diagnostics")).get("failure_kind"),
     ]
     for candidate in candidates:
         normalized = normalize_failure_kind(candidate)
@@ -753,21 +629,13 @@ def resolve_failure_projection(
         or _as_dict(payload.get("budget")).get("exit_reason")
     )
     final_output_source = _as_text(payload.get("final_output_source"))
-    raw_search_only_recovery_finalized = detects_raw_search_only_recovery_finalized(
-        payload
-    )
-    if raw_search_only_recovery_finalized:
-        failure_kind = "raw_search_only_recovery_finalized"
     recovery_evidence_success = bool(
-        final_output_source
-        and final_output_source.lower() == "recovery_evidence"
-        and not raw_search_only_recovery_finalized
+        final_output_source and final_output_source.lower() == "recovery_evidence"
     )
     recovered_protocol_success = bool(
         explicit_turn_outcome == "success"
         and str(termination_reason or "").strip().lower() == "protocol_fallback"
         and _has_recovered_protocol_fallback(payload.get("fallback_history"))
-        and not raw_search_only_recovery_finalized
     )
     contract_breach_type = _as_text(payload.get("contract_breach_type"))
     authoritative_completed_success = _is_authoritative_completed_success(
@@ -782,8 +650,6 @@ def resolve_failure_projection(
             "assistant_claimed_tool_call_without_tool_event"
         ),
     )
-    if raw_search_only_recovery_finalized:
-        authoritative_completed_success = False
     authoritative_completed_success = bool(
         authoritative_completed_success or recovered_protocol_success
     )
@@ -805,8 +671,6 @@ def resolve_failure_projection(
                 ),
             )
         )
-        if raw_search_only_recovery_finalized:
-            authoritative_completed_success = False
 
     turn_flow_terminal_stage_type = _as_text(terminal_stage.get("type"))
     turn_flow_terminal_stage_status = _as_text(terminal_stage.get("status"))
@@ -890,11 +754,6 @@ def resolve_failure_projection(
         failure_kind = "untrusted_final_output_source"
     if non_trusted_final_output_source and turn_outcome not in {"failed", "partial"}:
         turn_outcome = "failed"
-    if raw_search_only_recovery_finalized and turn_outcome not in {
-        "failed",
-        "partial",
-    }:
-        turn_outcome = "failed"
     if budget_signal and not failure_kind and not authoritative_completed_success:
         failure_kind = (
             budget_exit_reason or normalized_termination_reason or "budget_exit"
@@ -906,11 +765,7 @@ def resolve_failure_projection(
     return {
         "turn_outcome": turn_outcome,
         "conversation_outcome": (
-            "failed"
-            if raw_search_only_recovery_finalized
-            else "success"
-            if authoritative_completed_success
-            else conversation_outcome
+            "success" if authoritative_completed_success else conversation_outcome
         ),
         "termination_reason": termination_reason,
         "failure_kind": failure_kind,
@@ -920,10 +775,7 @@ def resolve_failure_projection(
         "turn_flow_terminal_stage_status": turn_flow_terminal_stage_status,
         "has_failure_signal": has_failure_signal,
         "non_trusted_final_output_source": non_trusted_final_output_source,
-        "raw_search_only_recovery_finalized": raw_search_only_recovery_finalized,
-        "missing_required_tool_names": (
-            ["fetch_url"] if raw_search_only_recovery_finalized else []
-        ),
+        "missing_required_tool_names": [],
         "authoritative_completed_success": authoritative_completed_success,
         "blocks_success_shortcut": bool(
             (has_failure_signal or budget_signal or non_trusted_final_output_source)
@@ -939,7 +791,6 @@ __all__ = [
     "find_turn_flow_terminal_stage",
     "infer_failure_kind_from_diagnostics",
     "is_trusted_final_output_source",
-    "detects_raw_search_only_recovery_finalized",
     "normalize_failure_termination_reason",
     "normalize_failure_kind",
     "normalize_turn_outcome",

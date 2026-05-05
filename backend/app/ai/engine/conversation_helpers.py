@@ -19,7 +19,9 @@ async def await_if_needed(value: Awaitable[Any] | Any) -> Any:
     return value
 
 
-def serialize_context_sources(context_sources: list[Any] | None) -> list[dict[str, Any]]:
+def serialize_context_sources(
+    context_sources: list[Any] | None,
+) -> list[dict[str, Any]]:
     serialized: list[dict[str, Any]] = []
     for source in context_sources or []:
         if isinstance(source, dict):
@@ -43,4 +45,3 @@ def serialize_context_sources(context_sources: list[Any] | None) -> list[dict[st
             }
         )
     return serialized
-

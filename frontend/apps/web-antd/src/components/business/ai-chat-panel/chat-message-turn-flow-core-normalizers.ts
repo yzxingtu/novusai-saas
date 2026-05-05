@@ -35,10 +35,10 @@ const TURN_FLOW_STAGE_STATUS_SET = new Set<TurnFlowStageStatus>([
 ]);
 
 const TURN_FLOW_EVIDENCE_KIND_SET = new Set<TurnFlowEvidenceKind>([
+  'document',
   'knowledge_base',
   'memory',
   'tool',
-  'web',
 ]);
 
 export function normalizeNumber(value: unknown): number | undefined {
@@ -426,7 +426,7 @@ export function hasCanonicalThinkingContent(flow: TurnFlowViewModel): boolean {
 
 export function hasCanonicalRagEvidence(flow: TurnFlowViewModel): boolean {
   return flow.evidence.some(
-    (item) => item.kind === 'knowledge_base' || item.kind === 'web',
+    (item) => item.kind === 'knowledge_base' || item.kind === 'document',
   );
 }
 

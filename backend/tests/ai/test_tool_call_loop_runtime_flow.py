@@ -1,4 +1,3 @@
-import asyncio
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -84,7 +83,12 @@ async def test_tool_call_loop_executes_tool_after_pending_consent_is_approved() 
         ],
     )
 
-    final_response, tool_results, total_tokens, _completion_tokens = await engine._handle_tool_calls(
+    (
+        final_response,
+        tool_results,
+        total_tokens,
+        _completion_tokens,
+    ) = await engine._handle_tool_calls(
         agent=SimpleNamespace(id=1),
         messages=messages,
         response=response,
@@ -107,88 +111,3 @@ async def test_tool_call_loop_executes_tool_after_pending_consent_is_approved() 
         initial_output_tokens + llm_call_count * followup_output_tokens
     )
     assert "25" in (llm_messages_seen[-1].content or "")
-
-
-@pytest.mark.asyncio
-async def test_tool_call_loop_runs_parallel_safe_web_search_batch_concurrently() -> None:
-    class _TrackingSandbox:
-        def __init__(self) -> None:
-            self.active_calls = 0
-            self.max_parallel = 0
-
-        async def execute(
-            self,
-            tool_call_id: str,
-            name: str,
-            arguments: dict,
-            definitions: list[ToolDefinition],
-            conversation_id: int,
-        ) -> ToolResult:
-            _ = definitions, conversation_id
-            self.active_calls += 1
-            self.max_parallel = max(self.max_parallel, self.active_calls)
-            await asyncio.sleep(0.02)
-            self.active_calls -= 1
-            return ToolResult(
-                tool_call_id=tool_call_id,
-                name=name,
-                success=True,
-                output=f'{{"query":"{arguments.get("query", "")}"}}',
-            )
-
-    sandbox = _TrackingSandbox()
-    engine = _DummyEngine(
-        db=MagicMock(),
-        gateway=MagicMock(),
-        sandbox=sandbox,
-    )
-    request = ExecutionRequest(
-        agent_id=1,
-        tenant_id=1,
-        conversation_id=321,
-        messages=[ChatMessage(role="user", content="查两条新闻")],
-    )
-    messages = [ChatMessage(role="user", content="查两条新闻")]
-    response = ChatResponse(
-        message=ChatMessage(role="assistant", content=""),
-        total_tokens=5,
-        output_tokens=5,
-        tool_calls=[
-            {
-                "id": "tc-search-1",
-                "type": "function",
-                "function": {
-                    "name": "web_search",
-                    "arguments": '{"query":"AI latest news"}',
-                },
-            },
-            {
-                "id": "tc-search-2",
-                "type": "function",
-                "function": {
-                    "name": "web_search",
-                    "arguments": '{"query":"OpenAI latest news"}',
-                },
-            },
-        ],
-    )
-
-    final_response, tool_results, _total_tokens, _completion_tokens = (
-        await engine._handle_tool_calls(
-            agent=SimpleNamespace(id=1),
-            messages=messages,
-            response=response,
-            tools=[ToolDefinition(name="web_search", description="search")],
-            all_tools=[ToolDefinition(name="web_search", description="search")],
-            request=request,
-            skip_final_call=True,
-        )
-    )
-
-    assert final_response is None
-    assert len(tool_results) == 2
-    assert [result.tool_call_id for result in tool_results] == [
-        "tc-search-1",
-        "tc-search-2",
-    ]
-    assert sandbox.max_parallel >= 2

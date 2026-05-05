@@ -68,10 +68,7 @@ class CallLogSupport:
 
         response_str = json.dumps(response_data, ensure_ascii=False, default=str)
 
-        if (
-            len(response_str.encode("utf-8"))
-            > cls.RESPONSE_TRUNCATE_THRESHOLD
-        ):
+        if len(response_str.encode("utf-8")) > cls.RESPONSE_TRUNCATE_THRESHOLD:
             return {
                 "truncated": True,
                 "size": len(response_str),

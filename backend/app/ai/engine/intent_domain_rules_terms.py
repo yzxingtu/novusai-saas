@@ -65,40 +65,6 @@ _TIME_TERMS = (
     "what day is it",
     "what date is it",
 )
-_WEB_TERMS = (
-    "联网",
-    "网上查",
-    "网络搜索",
-    "官网",
-    "链接",
-    "url",
-    "网址",
-    "网页",
-    "web search",
-    "search online",
-    "online search",
-    "fetch",
-    "高铁票",
-    "火车票",
-    "12306",
-)
-_NO_WEB_TERMS = (
-    "不要联网",
-    "不联网",
-    "不用联网",
-    "不要搜索",
-    "不用搜索",
-    "offline",
-    "no web",
-)
-_WEB_NOUN_TERMS = (
-    "新闻",
-    "热点",
-    "头条",
-    "排行",
-    "最新消息",
-    "实时新闻",
-)
 _KNOWLEDGE_TERMS = ("知识库", "文档", "资料", "kb")
 _KNOWLEDGE_DEFINITION_PATTERNS = (
     re.compile(
@@ -246,11 +212,8 @@ __all__ = [
     "_MEMORY_RECALL_TERMS",
     "_MEMORY_SAVE_TERMS",
     "_NO_TOOL_REQUEST_TERMS",
-    "_NO_WEB_TERMS",
     "_TIME_TERMS",
     "_WEATHER_ENGLISH_LOCATION_RE",
     "_WEATHER_LOCATION_SUFFIX_RE",
     "_WEATHER_TERMS",
-    "_WEB_NOUN_TERMS",
-    "_WEB_TERMS",
 ]

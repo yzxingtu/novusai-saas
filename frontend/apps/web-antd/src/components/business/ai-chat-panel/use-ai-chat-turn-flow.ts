@@ -10,7 +10,6 @@ export {
   settleTurnFlowAfterLifecycleFinalize,
 } from './chat-message-turn-flow-ingestion';
 export {
-  applyNativeSearchStatusToTurnFlow,
   applyStreamingToolResultToTurnFlow,
   applyStreamingToolStartToTurnFlow,
   promoteStreamingContentToThinkingTurnFlow,

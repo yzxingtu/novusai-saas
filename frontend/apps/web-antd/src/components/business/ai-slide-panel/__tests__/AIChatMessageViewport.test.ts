@@ -486,7 +486,7 @@ describe('aiChatMessageViewport', () => {
             ],
             role: 'assistant',
             thinkingContent: 'legacy-thinking',
-            toolCalls: [{ name: 'web_search', status: 'error' }],
+            toolCalls: [{ name: 'query_records', status: 'error' }],
             turnFlow: {
               completion_reason: 'provider_failure_after_partial_progress',
               final_stage_status: 'error',

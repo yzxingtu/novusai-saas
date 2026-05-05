@@ -42,7 +42,9 @@ class ExtensionLifecycleExposedCapability(BaseSchema):
 class ExtensionLifecycleAuditReport(BaseSchema):
     runtime_kind: PluginRuntimeKind = "plugin"
     target: dict[str, Any] = Field(default_factory=dict)
-    stage_results: list[ExtensionLifecycleAuditStageResult] = Field(default_factory=list)
+    stage_results: list[ExtensionLifecycleAuditStageResult] = Field(
+        default_factory=list
+    )
     degraded_reason: str | None = None
     recovery_actions: list[str] = Field(default_factory=list)
     exposed_capabilities: list[ExtensionLifecycleExposedCapability] = Field(

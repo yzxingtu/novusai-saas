@@ -111,7 +111,11 @@ async def _read_attachment_bytes_via_db(
     return data, mime
 
 
-async def _fetch_url_bytes(url: str, *, max_bytes: int) -> tuple[bytes, str] | None:
+async def _retrieve_remote_image_bytes(
+    url: str,
+    *,
+    max_bytes: int,
+) -> tuple[bytes, str] | None:
     """HTTP(S) GET with SSRF validation / 经 SSRF 校验后拉取 HTTP(S) 内容。"""
     try:
         await UrlValidator.validate(url)
@@ -195,7 +199,7 @@ async def resolve_image_url_for_llm(
         base = (settings.APP_INTERNAL_BASE_URL or "").strip().rstrip("/")
         if base:
             full = f"{base}{url}"
-            got = await _fetch_url_bytes(full, max_bytes=max_bytes)
+            got = await _retrieve_remote_image_bytes(full, max_bytes=max_bytes)
             if got:
                 data, mime = got
                 b64 = base64.b64encode(data).decode("ascii")
@@ -207,7 +211,7 @@ async def resolve_image_url_for_llm(
         return None
 
     if url.lower().startswith("http://") or url.lower().startswith("https://"):
-        got = await _fetch_url_bytes(url, max_bytes=max_bytes)
+        got = await _retrieve_remote_image_bytes(url, max_bytes=max_bytes)
         if got:
             data, mime = got
             if mime_hint and mime_hint.startswith("image/"):

@@ -14,18 +14,7 @@ from app.ai.runtime.types import (
 )
 from app.ai.text_semantics_terms import extract_textual_tool_call_names
 from app.ai.tools.semantic_defaults import tool_family_from_name
-from app.ai.web_search.request_policy import is_explicit_builtin_web_search_request
 
-_WEB_RESEARCH_TOOL_NAMES = {"web_search", "fetch_url"}
-_GENERIC_WEB_SEARCH_SKILL_TERMS = (
-    "联网搜索",
-    "网络搜索",
-    "网上搜索",
-    "网页搜索",
-    "web search",
-    "online search",
-    "search",
-)
 _EXPLICIT_SKILL_CONTEXT_TERMS = (
     "技能",
     "工具",
@@ -123,22 +112,8 @@ def _filter_live_skill_names(
 
 
 def resolve_startup_intent_flags(request: Any) -> dict[str, bool]:
-    user_text = _last_user_text(request)
-    if not user_text:
-        return {
-            "has_web_research_intent": False,
-            "has_builtin_web_tool_request": False,
-        }
-
-    from app.services.ai.agent_router_policy import requested_tool_families
-
-    requested_families = requested_tool_families(user_text)
-    return {
-        "has_web_research_intent": "web_research" in requested_families,
-        "has_builtin_web_tool_request": is_explicit_builtin_web_search_request(
-            user_text
-        ),
-    }
+    del request
+    return {}
 
 
 def _explicit_skill_mentions(skill_result: Any, user_text: str) -> list[str]:
@@ -179,7 +154,7 @@ def _explicit_skill_mentions(skill_result: Any, user_text: str) -> list[str]:
     def _candidate_requires_skill_context(candidate: str) -> bool:
         if any(term in candidate for term in _EXPLICIT_SKILL_CONTEXT_TERMS):
             return False
-        return candidate in _GENERIC_WEB_SEARCH_SKILL_TERMS
+        return False
 
     def _occurrence_has_skill_context(candidate: str, start: int) -> bool:
         end = start + len(candidate)
@@ -317,18 +292,8 @@ def _tool_names_for_runtime_policy(
     *,
     intent_flags: dict[str, Any],
 ) -> list[str]:
-    tools = list(getattr(skill_result, "tools", []) or [])
-    selected: list[str] = []
-    for tool in tools:
-        tool_name = str(getattr(tool, "name", "") or "").strip()
-        if not tool_name:
-            continue
-        if (
-            intent_flags.get("has_builtin_web_tool_request")
-            and tool_name in _WEB_RESEARCH_TOOL_NAMES
-        ):
-            selected.append(tool_name)
-    return _stable_unique(selected)
+    del skill_result, intent_flags
+    return []
 
 
 def _descriptor_semantic_families(descriptor: Any) -> list[str]:
@@ -528,7 +493,6 @@ __all__ = [
     "execution_capability_descriptors_for_turn",
     "execution_selected_tool_names_for_turn",
     "execution_tools_for_turn",
-    "is_explicit_builtin_web_search_request",
     "TurnSkillActivation",
     "apply_turn_skill_activation",
     "resolve_startup_intent_flags",

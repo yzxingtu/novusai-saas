@@ -4,13 +4,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.ai.context.engine import ConversationContextEngine
-from app.ai.engine.types import ExecutionRequest, ResearchContinuationContext
+from app.ai.engine.types import ExecutionRequest
 from app.ai.runtime.contracts import (
     ContextCapabilityAwareness,
     ContextCapabilityFinalization,
 )
 from app.ai.runtime.types import CapabilityBundle
-from app.ai.tools.types import ToolDefinition
 from app.ai.types import ChatMessage
 
 
@@ -19,13 +18,6 @@ class _BaseEngineStub:
     def _build_system_message(agent, input_variables=None):
         _ = agent, input_variables
         return ChatMessage(role="system", content="system")
-
-    @staticmethod
-    def _build_web_research_continuation_context(
-        messages, all_tools, input_variables=None
-    ):
-        _ = messages, all_tools, input_variables
-        return ResearchContinuationContext()
 
 
 def _build_context_engine() -> ConversationContextEngine:
@@ -113,77 +105,6 @@ async def test_compact_messages_if_needed_uses_engine_summary_facade() -> None:
 
 
 @pytest.mark.asyncio
-async def test_context_engine_uses_capability_bridge_provisional_bundle() -> None:
-    provisional_bundle = CapabilityBundle(
-        tools=[ToolDefinition(name="web_search", description="Search")]
-    )
-    finalization = ContextCapabilityFinalization(
-        capability_bundle=CapabilityBundle(),
-        diagnostics={},
-        capability_injection_decision={},
-        runtime_manifest={},
-        runtime_capability_summary="",
-    )
-    bridge = SimpleNamespace(
-        resolve_runtime_model_capabilities=AsyncMock(
-            return_value={"supports_vision": True}
-        ),
-        build_provisional_bundle=MagicMock(return_value=provisional_bundle),
-        compute_awareness=AsyncMock(
-            return_value=ContextCapabilityAwareness(enabled=False)
-        ),
-        finalize_capabilities=AsyncMock(return_value=finalization),
-    )
-    agent = SimpleNamespace(id=1, rag_config=None, context_config=None)
-    request = ExecutionRequest(
-        agent_id=1,
-        tenant_id=1,
-        user_id=1,
-        messages=[ChatMessage(role="user", content="hi")],
-        input_variables={},
-    )
-    captured: dict[str, object] = {}
-
-    def _plan_turn(*, capability_bundle, **_kwargs):
-        captured["capability_bundle"] = capability_bundle
-        return []
-
-    with (
-        patch("app.ai.context.engine.get_context_capability_bridge", return_value=bridge),
-        patch(
-            "app.ai.rag_injector.load_agent_kb_bindings",
-            new=AsyncMock(return_value=([], {})),
-        ),
-        patch("app.ai.engine.intent_planner.IntentPlanner.plan_turn", _plan_turn),
-    ):
-        engine = _build_context_engine()
-        engine.rag_contributor.contribute = AsyncMock(
-            return_value=SimpleNamespace(
-                messages=None,
-                rag_sources=[],
-                rag_source_kinds=[],
-                kb_injected=False,
-            )
-        )
-        engine.memory_contributor.contribute = AsyncMock(
-            return_value=SimpleNamespace(
-                memory_recalled=False,
-                memory_recall_slice=None,
-                memory_injected=False,
-            )
-        )
-        await engine.assemble(agent, request, skill_result=None)
-
-    bridge.resolve_runtime_model_capabilities.assert_awaited_once()
-    bridge.build_provisional_bundle.assert_called_once()
-    assert captured["capability_bundle"] is provisional_bundle
-    assert (
-        bridge.build_provisional_bundle.call_args.kwargs["capability_inputs"].runtime_model_capabilities
-        == {"supports_vision": True}
-    )
-
-
-@pytest.mark.asyncio
 async def test_context_engine_uses_local_kb_binding_loader_seam() -> None:
     bridge = SimpleNamespace(
         resolve_runtime_model_capabilities=AsyncMock(return_value={}),
@@ -211,7 +132,9 @@ async def test_context_engine_uses_local_kb_binding_loader_seam() -> None:
     )
 
     with (
-        patch("app.ai.context.engine.get_context_capability_bridge", return_value=bridge),
+        patch(
+            "app.ai.context.engine.get_context_capability_bridge", return_value=bridge
+        ),
         patch(
             "app.ai.context.engine.load_agent_kb_bindings",
             new=AsyncMock(return_value=([], {})),
@@ -238,70 +161,3 @@ async def test_context_engine_uses_local_kb_binding_loader_seam() -> None:
 
     kb_loader.assert_awaited_once()
     assert kb_loader.await_args.args == (engine.db, agent.id, request.tenant_id)
-
-
-@pytest.mark.asyncio
-async def test_context_engine_prefers_capability_bridge_finalization_outputs() -> None:
-    final_bundle = CapabilityBundle(
-        tools=[ToolDefinition(name="fetch_url", description="Fetch")]
-    )
-    finalization = ContextCapabilityFinalization(
-        capability_bundle=final_bundle,
-        diagnostics={"selected_skill_names": ["Bridge Skill"]},
-        capability_injection_decision={"skills_injected": True},
-        runtime_manifest={"manifest": "bridge"},
-        runtime_capability_summary="bridge-summary",
-    )
-    bridge = SimpleNamespace(
-        resolve_runtime_model_capabilities=AsyncMock(return_value={}),
-        build_provisional_bundle=MagicMock(return_value=CapabilityBundle()),
-        compute_awareness=AsyncMock(
-            return_value=ContextCapabilityAwareness(enabled=True, categories=["skills"])
-        ),
-        finalize_capabilities=AsyncMock(return_value=finalization),
-    )
-    agent = SimpleNamespace(id=1, rag_config=None, context_config=None)
-    request = ExecutionRequest(
-        agent_id=1,
-        tenant_id=1,
-        user_id=1,
-        messages=[ChatMessage(role="user", content="hi")],
-        input_variables={},
-    )
-
-    with (
-        patch("app.ai.context.engine.get_context_capability_bridge", return_value=bridge),
-        patch(
-            "app.ai.rag_injector.load_agent_kb_bindings",
-            new=AsyncMock(return_value=([], {})),
-        ),
-        patch("app.ai.engine.intent_planner.IntentPlanner.plan_turn", return_value=[]),
-    ):
-        engine = _build_context_engine()
-        engine.rag_contributor.contribute = AsyncMock(
-            return_value=SimpleNamespace(
-                messages=None,
-                rag_sources=[],
-                rag_source_kinds=[],
-                kb_injected=False,
-            )
-        )
-        engine.memory_contributor.contribute = AsyncMock(
-            return_value=SimpleNamespace(
-                memory_recalled=False,
-                memory_recall_slice=None,
-                memory_injected=False,
-            )
-        )
-        assembly = await engine.assemble(agent, request, skill_result=None)
-
-    bridge.compute_awareness.assert_awaited_once()
-    bridge.finalize_capabilities.assert_awaited_once()
-    assert assembly.capability_bundle is final_bundle
-    assert assembly.diagnostics["selected_skill_names"] == ["Bridge Skill"]
-    assert assembly.diagnostics["runtime_capability_manifest"] == {"manifest": "bridge"}
-    assert assembly.diagnostics["runtime_capability_summary"] == "bridge-summary"
-    assert assembly.diagnostics["capability_injection_decision"] == {
-        "skills_injected": True
-    }
-    assert assembly.diagnostics["dynamic_capability_awareness_enabled"] is True

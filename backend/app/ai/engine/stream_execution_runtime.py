@@ -416,25 +416,6 @@ class StreamIOAdapter:
             input_variables=input_variables,
         )
 
-    def should_retry_web_research_contract_breach(
-        self,
-        *,
-        messages: list[ChatMessage],
-        response: ChatResponse | None,
-        current_policy: ToolUsePolicy,
-        tools: list[ToolDefinition],
-        input_variables: dict[str, Any] | None,
-        continuation: Any,
-    ) -> tuple[bool, ToolUsePolicy | None, str]:
-        return self.handler.runtime_contract.should_retry_web_research_contract_breach(
-            messages=messages,
-            response=response,
-            current_policy=current_policy,
-            tools=tools,
-            input_variables=input_variables,
-            continuation=continuation,
-        )
-
     def analyze_post_tool_contract_breach(
         self,
         *,
@@ -847,11 +828,6 @@ def _rebuild_exception_completed_output_from_evidence(
         return ""
     if not str(partial_output or "").strip():
         return completed_output
-    if RecoveryManager.should_replace_budgeted_web_research_response(
-        response_text=partial_output,
-        tool_results=tool_results,
-    ):
-        return completed_output
     return ""
 
 
@@ -921,41 +897,7 @@ async def _build_stream_exception_artifacts(
     partial_output = str(partial_output or "").strip()
     state = getattr(handler, "_state", None)
     recovered_from_provider_failure = False
-    recovered_provider_failure_kind = ""
-    recovered_provider_events: list[Any] = []
     if state is not None:
-        recovered_provider_failure_kind = str(
-            getattr(state, "provider_failure_kind", "") or ""
-        ).strip()
-        recovered_provider_events = list(getattr(state, "provider_events", []) or [])
-        recovered_intents, recovered_output = (
-            RecoveryManager.recover_web_search_output_from_evidence(
-                list(getattr(state, "intent_plan", []) or []),
-                tool_results=recovered_tool_results,
-            )
-        )
-        if recovered_output:
-            recovered_from_provider_failure = True
-            partial_output = recovered_output
-            state.intent_plan = recovered_intents
-            state.preparation_diagnostics = dict(
-                getattr(state, "preparation_diagnostics", {}) or {}
-            )
-            state.preparation_diagnostics.update(
-                {
-                    "final_output_source": "recovery_evidence",
-                    "provider_failure_recovered_from_tool_evidence": True,
-                    "recovered_provider_failure_kind": recovered_provider_failure_kind,
-                    "recovered_provider_events": recovered_provider_events,
-                }
-            )
-            state.provider_failure_kind = "none"
-            state.provider_events = []
-            transition = getattr(state, "transition", None)
-            if callable(transition):
-                transition("completed")
-
-    if state is not None and not recovered_from_provider_failure:
         rebuilt_completed_output = _rebuild_exception_completed_output_from_evidence(
             state=state,
             partial_output=partial_output,
@@ -989,13 +931,9 @@ async def _build_stream_exception_artifacts(
         state.preparation_diagnostics = dict(
             getattr(state, "preparation_diagnostics", {}) or {}
         )
-        state.preparation_diagnostics.update(
-            {
-                "provider_failure_recovered_from_tool_evidence": True,
-                "recovered_provider_failure_kind": recovered_provider_failure_kind,
-                "recovered_provider_events": recovered_provider_events,
-            }
-        )
+        state.preparation_diagnostics[
+            "provider_failure_recovered_from_tool_evidence"
+        ] = True
         state.provider_failure_kind = "none"
         state.provider_events = []
         transition = getattr(state, "transition", None)

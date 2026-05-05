@@ -42,7 +42,6 @@ from app.ai.runtime.contracts import (
 )
 from app.ai.skills.activation import apply_turn_skill_activation
 from app.ai.types import ChatMessage
-from app.core.base_model import utc_now
 from app.core.logging import LogManager
 
 if TYPE_CHECKING:
@@ -255,26 +254,8 @@ class ConversationContextEngine(ContextEngine):
         capability_awareness_error: str | None = None
         compaction_source_tokens = compaction_support.messages_token_estimate(messages)
         existing_snapshot = await self._load_compaction_snapshot(request)
-        web_research_date_anchor = (
-            prompt_addition_support.build_web_research_date_anchor(
-                messages,
-                skill_result=skill_result,
-                utc_now_fn=utc_now,
-            )
-            if intent_flags["has_web_research_intent"]
-            else ""
-        )
-        if web_research_date_anchor:
-            self._append_budgeted_addition(
-                additions=system_prompt_additions,
-                text=web_research_date_anchor,
-                category="web_research_date_anchor",
-                per_item_token_limit=context_budget["date_anchor_tokens"],
-                total_token_limit=context_budget["system_additions_tokens"],
-                budget_usage=budget_usage,
-            )
-        visible_output_locale_hint = prompt_addition_support.build_visible_output_locale_hint(
-            request
+        visible_output_locale_hint = (
+            prompt_addition_support.build_visible_output_locale_hint(request)
         )
         if visible_output_locale_hint:
             self._append_budgeted_addition(
@@ -395,7 +376,6 @@ class ConversationContextEngine(ContextEngine):
                 estimated_tokens_after_prune=estimated_tokens,
                 context_compacted=context_compacted,
                 memory_recalled=memory_recalled,
-                web_research_date_anchor=web_research_date_anchor,
                 intent_plan=intent_plan,
                 intent_flags=intent_flags,
                 dynamic_capability_awareness_enabled=(

@@ -162,7 +162,9 @@ class FailoverService:
         preferred_tier: str | None,
     ) -> tuple[int, int, float, int, int]:
         input_price = getattr(model, "input_price_per_1k", None)
-        normalized_price = float(input_price) if input_price is not None else float("inf")
+        normalized_price = (
+            float(input_price) if input_price is not None else float("inf")
+        )
         context_window = int(getattr(model, "context_window", 0) or 0)
         return (
             0
@@ -287,7 +289,9 @@ class FailoverService:
             current_id = fallback_id
 
         unhealthy_provider_ids: set[int] = set()
-        if preferred_provider_id and not await self.is_provider_healthy(preferred_provider_id):
+        if preferred_provider_id and not await self.is_provider_healthy(
+            preferred_provider_id
+        ):
             unhealthy_provider_ids.add(preferred_provider_id)
 
         compatible_candidates = await self._model_repo.list_compatible_chat_models(

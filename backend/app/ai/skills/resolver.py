@@ -19,7 +19,6 @@ Unknown types fall through to plugin resolver path.
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -45,9 +44,6 @@ if TYPE_CHECKING:
 logger = LogManager.get_logger("ai.skill.resolver")
 
 _BASELINE_RUNTIME_BUILTINS = parts.BASELINE_RUNTIME_BUILTINS
-_WEB_RESEARCH_HINT_TOKENS = frozenset(
-    {"research", "search", "web", "fetch", "url", "crawl", "browse"}
-)
 _RUNTIME_BUILTIN_TOOL_NAMES = frozenset(_BASELINE_RUNTIME_BUILTINS)
 
 
@@ -332,14 +328,6 @@ def _preview_tool_names_for_skill(
     return []
 
 
-def _semantic_hint_tokens(*values: Any) -> set[str]:
-    tokens: set[str] = set()
-    for value in values:
-        normalized = re.sub(r"[^a-z0-9]+", " ", str(value or "").lower())
-        tokens.update(token for token in normalized.split() if token)
-    return tokens
-
-
 def _preview_semantic_families_for_skill(
     *,
     skill: Any,
@@ -355,14 +343,6 @@ def _preview_semantic_families_for_skill(
         if family != "none" and family not in families:
             families.append(family)
 
-    hint_tokens = _semantic_hint_tokens(
-        getattr(skill, "name", None),
-        package_name,
-        source_plugin,
-        *(extra_hint_values or []),
-    )
-    if hint_tokens & _WEB_RESEARCH_HINT_TOKENS and "web_research" not in families:
-        families.append("web_research")
     return _live_runtime_references(families)
 
 

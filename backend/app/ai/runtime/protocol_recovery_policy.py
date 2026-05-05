@@ -175,10 +175,7 @@ class ProtocolRecoveryPolicy:
         if not isinstance(metadata, dict):
             return []
 
-        progress_kinds: list[str] = []
-        if metadata.get("web_search_in_progress"):
-            progress_kinds.append("web_search_in_progress")
-        return progress_kinds
+        return []
 
     @classmethod
     def chunk_is_meaningful(cls, chunk: ChatChunk) -> bool:
@@ -227,9 +224,9 @@ class ProtocolRecoveryPolicy:
         )
         turn_record.metadata["stream_failure_error_type"] = type(cause).__name__
         if observed.has_progress_signal:
-            turn_record.metadata["stream_failure_after_progress_only"] = (
-                not observed.is_meaningful
-            )
+            turn_record.metadata[
+                "stream_failure_after_progress_only"
+            ] = not observed.is_meaningful
         if observed.has_reasoning_output and not observed.blocks_fallback:
             turn_record.metadata[
                 "stream_failure_reasoning_only_before_visible_output"

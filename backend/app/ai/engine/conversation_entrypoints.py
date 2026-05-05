@@ -49,7 +49,8 @@ async def stream_execute_conversation(
     *,
     agent: Agent,
     request: ExecutionRequest,
-    on_complete: Callable[[ExecutionResult], Awaitable[dict[str, Any] | None]] | None = None,
+    on_complete: Callable[[ExecutionResult], Awaitable[dict[str, Any] | None]]
+    | None = None,
     skill_result: SkillResolveResult | None = None,
 ) -> StreamingResponse:
     """SSE streaming conversation execution / SSE 流式执行对话。"""

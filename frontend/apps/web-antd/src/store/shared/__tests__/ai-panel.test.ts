@@ -27,15 +27,15 @@ describe('useAIPanelStore', () => {
 
     store.queueInteractionUpdate({
       kind: 'pending_confirmation',
-      tool_name: 'web_search',
-      value: 'confirm-search',
+      tool_name: 'query_records',
+      value: 'confirm-query',
     });
 
     expect(store.consumeInteractionUpdates()).toEqual([
       {
         kind: 'pending_confirmation',
-        tool_name: 'web_search',
-        value: 'confirm-search',
+        tool_name: 'query_records',
+        value: 'confirm-query',
       },
     ]);
     expect(store.consumeInteractionUpdates()).toEqual([]);
@@ -52,14 +52,14 @@ describe('useAIPanelStore', () => {
     store.restoreInteractionUpdates([
       {
         kind: 'pending_consent',
-        tool_name: 'fetch_url',
+        tool_name: 'load_record',
       },
     ]);
 
     expect(store.consumeInteractionUpdates()).toEqual([
       {
         kind: 'pending_consent',
-        tool_name: 'fetch_url',
+        tool_name: 'load_record',
       },
       {
         action: 'accepted',
@@ -80,7 +80,7 @@ describe('useAIPanelStore', () => {
     });
     store.queueInteractionUpdate({
       kind: 'pending_confirmation',
-      tool_name: 'web_search',
+      tool_name: 'query_records',
     });
 
     expect(opened).toBe(false);

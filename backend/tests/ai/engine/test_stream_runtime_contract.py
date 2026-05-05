@@ -59,11 +59,6 @@ class _ExplicitHooks:
         self.calls.append("tool-retry")
         return False, None, "explicit"
 
-    def should_retry_web_research_contract_breach(self, **kwargs):
-        _ = kwargs
-        self.calls.append("web-retry")
-        return False, None, "explicit-web"
-
     def analyze_post_tool_contract_breach(self, **kwargs):
         _ = kwargs
         self.calls.append("analyze")
@@ -107,10 +102,6 @@ class _BaseEngineStub(BaseEngine):
         return True, ToolUsePolicy(reason="base"), "base-retry"
 
     @classmethod
-    def _should_retry_web_research_contract_breach(cls, **kwargs):
-        _ = kwargs
-        return True, None, "base-web-retry"
-
     @classmethod
     def _analyze_post_tool_contract_breach(cls, **kwargs):
         _ = kwargs
@@ -215,60 +206,6 @@ async def test_build_stream_runtime_contract_uses_base_engine_bridge_before_lega
     }
     assert partial == ("base partial", 19, 9)
     assert completed == ("base completed", 23, 10)
-
-
-@pytest.mark.asyncio
-async def test_build_stream_runtime_contract_uses_default_helpers_without_implicit_hook_probe() -> (
-    None
-):
-    class _ImplicitHelperStub:
-        @staticmethod
-        def _keep_tool_calls_for_round(tool_calls):
-            return list(tool_calls), False
-
-        @staticmethod
-        def _should_retry_tool_contract_breach(**kwargs):
-            _ = kwargs
-            return True, None, "implicit"
-
-    contract = build_stream_runtime_contract(_ImplicitHelperStub())
-
-    assert contract.should_retry_tool_contract_breach(
-        response=ChatResponse(message=ChatMessage(role="assistant", content="")),
-        current_policy=ToolUsePolicy(),
-        tools=[],
-        input_variables=None,
-    ) == (False, None, "")
-    assert contract.analyze_post_tool_contract_breach(
-        messages=[],
-        response=ChatResponse(message=ChatMessage(role="assistant", content="ok")),
-        current_policy=ToolUsePolicy(),
-        tools=[],
-        input_variables=None,
-    ) == (
-        None,
-        None,
-        {
-            "tool_leak_detected": False,
-            "assistant_claimed_tool_call_without_tool_event": False,
-            "leaked_tool_names": [],
-            "requested_intents": [],
-            "completed_intents": [],
-            "unfinished_intents": [],
-            "native_web_search_evidence": False,
-        },
-    )
-    contract.log_tool_contract_diagnostics(test=True)
-
-    partial = await contract.finalize_partial_output(**_build_runtime_kwargs())
-    completed = await contract.finalize_completed_output(**_build_runtime_kwargs())
-
-    assert partial == ("ok", 7, 7)
-    assert completed == ("ok", 7, 7)
-    assert contract.keep_tool_calls_for_round([{"id": "x"}]) == (
-        [{"id": "x"}],
-        False,
-    )
 
 
 def test_build_stream_runtime_contract_uses_default_helpers_when_engine_is_empty() -> (

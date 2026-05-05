@@ -23,8 +23,7 @@ class StreamRuntimeContract:
         [list[dict[str, Any]]],
         tuple[list[dict[str, Any]], bool],
     ]
-    should_retry_tool_contract_breach: Callable[..., tuple[bool, ToolUsePolicy | None, str]]
-    should_retry_web_research_contract_breach: Callable[
+    should_retry_tool_contract_breach: Callable[
         ...,
         tuple[bool, ToolUsePolicy | None, str],
     ]
@@ -72,9 +71,7 @@ async def finalize_partial_turn_output(
         context_sources,
     )
     visible_output = (
-        str(response.message.content or "").strip()
-        if response is not None
-        else ""
+        str(response.message.content or "").strip() if response is not None else ""
     )
     if visible_output:
         return visible_output, total_tokens, completion_tokens_used
@@ -115,9 +112,7 @@ async def finalize_completed_turn_output(
         context_sources,
     )
     visible_output = (
-        str(response.message.content or "").strip()
-        if response is not None
-        else ""
+        str(response.message.content or "").strip() if response is not None else ""
     )
     contract_breach_type = str(
         (state.preparation_diagnostics or {}).get("contract_breach_type") or ""
@@ -142,9 +137,6 @@ def _build_contract_from_hook_source(
     return StreamRuntimeContract(
         keep_tool_calls_for_round=hook_source.keep_tool_calls_for_round,
         should_retry_tool_contract_breach=hook_source.should_retry_tool_contract_breach,
-        should_retry_web_research_contract_breach=(
-            hook_source.should_retry_web_research_contract_breach
-        ),
         analyze_post_tool_contract_breach=hook_source.analyze_post_tool_contract_breach,
         restrict_tools_to_names=hook_source.restrict_tools_to_names,
         log_tool_contract_diagnostics=hook_source.log_tool_contract_diagnostics,

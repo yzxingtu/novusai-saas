@@ -27,7 +27,9 @@ class AgentChatStreamSupport:
     ) -> None:
         self._dependency_factory = dependency_factory
 
-    def build_stream_runtime_dependencies(self) -> AgentChatStreamPersistenceDependencies:
+    def build_stream_runtime_dependencies(
+        self,
+    ) -> AgentChatStreamPersistenceDependencies:
         dependencies = self._dependency_factory()
         if isinstance(dependencies, AgentChatStreamPersistenceDependencies):
             return dependencies

@@ -59,6 +59,7 @@ class BaseToolLoopSupport:
             (final_response, all_tool_results, total_tokens, completion_tokens)
             final_response is None when skip_final_call=True
         """
+
         async def _call_followup_llm(
             round_tools: list[ToolDefinition],
             round_policy: ToolUsePolicy,
@@ -100,8 +101,6 @@ class BaseToolLoopSupport:
             first_incomplete_requested_family=self._first_incomplete_requested_family,
             allowed_tool_names_for_family=self._allowed_tool_names_for_family,
             build_ordered_capability_hint=self._build_ordered_capability_hint,
-            needs_fetch_url_before_summary=self._needs_fetch_url_before_summary,
-            apply_fetch_url_only_gate=self._apply_fetch_url_only_gate,
             restrict_tools_to_names=self._restrict_tools_to_names,
         )
         callbacks = build_tool_call_loop_callbacks(

@@ -5,7 +5,7 @@ Agent access & publication parts / 智能体访问与发布配置拆分模块。
 from __future__ import annotations
 
 import inspect
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import select
 
@@ -283,7 +283,9 @@ async def build_usage_attribution_context(
             else None
         ),
         "publication_access_type_snapshot": (
-            getattr(publication, "access_type", None) if publication is not None else None
+            getattr(publication, "access_type", None)
+            if publication is not None
+            else None
         ),
         "agent_id_snapshot": agent.id,
         "agent_name_snapshot": getattr(agent, "name", None),

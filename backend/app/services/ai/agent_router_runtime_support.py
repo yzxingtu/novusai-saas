@@ -5,16 +5,20 @@ Agent router runtime helpers (prompt build and router execution).
 from __future__ import annotations
 
 import json
-from typing import Any, Awaitable, Callable
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 from app.ai.prompt_contracts import render_prompt_contract
-from app.ai.text_semantics import extract_fenced_json_block, extract_first_json_object_with_key
+from app.ai.text_semantics import (
+    extract_fenced_json_block,
+    extract_first_json_object_with_key,
+)
 from app.ai.types import ChatMessage
+from app.configs.service import PLATFORM_TENANT_ID
 from app.core.logging import LogManager
 from app.enums.agent import AgentExecutionModeEnum
 from app.models.ai.agent import Agent
 from app.services.ai.agent_router_capability_support import grant_skill_name_if_active
-from app.configs.service import PLATFORM_TENANT_ID
 
 logger = LogManager.get_logger("ai")
 

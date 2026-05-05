@@ -40,7 +40,7 @@ function mountDiagnostics(
         content: 'failed reply',
         requestFailedRetry: true,
         role: 'assistant',
-        selectedToolNames: ['web_search'],
+        selectedToolNames: ['query_records'],
         terminationReason: 'tool_error',
         turnOutcome: 'failed',
       },
@@ -74,7 +74,26 @@ describe('chatMessageDiagnostics', () => {
     expect(wrapper.text()).toContain(
       'common.globalAiChat.diagnosticSelectedToolsLabel',
     );
-    expect(wrapper.text()).toContain('web_search');
+    expect(wrapper.text()).toContain('query_records');
+  });
+
+  it('filters retired online-search tool names from diagnostics', () => {
+    const wrapper = mountDiagnostics({
+      forceShow: true,
+      msg: {
+        clientKey: 'diagnostics-message',
+        content: 'offline reply',
+        requestFailedRetry: true,
+        role: 'assistant',
+        selectedToolNames: ['query_records', 'web_search', 'fetch_url'],
+        terminationReason: 'tool_error',
+        turnOutcome: 'failed',
+      },
+    });
+
+    expect(wrapper.text()).toContain('query_records');
+    expect(wrapper.text()).not.toContain('web_search');
+    expect(wrapper.text()).not.toContain('fetch_url');
   });
 
   it('renders when the tenant diagnostics feature enables the shared policy', () => {

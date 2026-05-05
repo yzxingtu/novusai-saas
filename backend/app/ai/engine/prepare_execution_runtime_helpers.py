@@ -18,7 +18,6 @@ from .types import (
     ExecutionPath,
     IntentPlan,
     PreparedExecution,
-    ResearchContinuationContext,
     ToolUsePolicy,
 )
 
@@ -39,7 +38,6 @@ def apply_prepared_execution_diagnostics(
     tool_planner: dict[str, Any] | None,
     candidate_tool_names: list[str],
     active_intent_id: str | None,
-    continuation_context: ResearchContinuationContext | None,
     intent_plan: list[IntentPlan],
     execution_path: ExecutionPath,
     execution_budget: ExecutionBudget | None,
@@ -48,11 +46,6 @@ def apply_prepared_execution_diagnostics(
         diagnostics["tool_planner"] = dict(tool_planner)
     diagnostics["candidate_tool_names"] = list(candidate_tool_names)
     diagnostics["active_intent_id"] = active_intent_id
-    diagnostics["continuation_source"] = (
-        continuation_context.family
-        if continuation_context and continuation_context.active
-        else None
-    )
     if intent_plan:
         diagnostics["intent_plan"] = [intent.to_dict() for intent in intent_plan]
         diagnostics["execution_path"] = execution_path
@@ -167,9 +160,7 @@ async def resolve_runtime_execution_state(
             runtime_model_capabilities = {
                 "supports_audio": bool(getattr(agent.model, "supports_audio", False)),
                 "supports_video": bool(getattr(agent.model, "supports_video", False)),
-                "supports_vision": bool(
-                    getattr(agent.model, "supports_vision", False)
-                ),
+                "supports_vision": bool(getattr(agent.model, "supports_vision", False)),
             }
     except Exception as capability_exc:
         logger.warning(
@@ -200,7 +191,6 @@ def build_prepared_execution(
     messages: list[ChatMessage],
     tools: list[ToolDefinition],
     all_tools: list[ToolDefinition],
-    continuation_context: ResearchContinuationContext | None,
     tool_use_policy: ToolUsePolicy,
     rag_sources: list[dict[str, Any]] | None,
     context_assembly: Any,
@@ -217,7 +207,7 @@ def build_prepared_execution(
         messages=messages,
         tools=tools,
         all_tools=all_tools,
-        continuation_context=continuation_context,
+        continuation_context=None,
         tool_use_policy=tool_use_policy,
         rag_sources=rag_sources,
         rag_source_kinds=context_assembly.rag_source_kinds,

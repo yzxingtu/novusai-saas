@@ -11,7 +11,9 @@ from app.core.i18n import _
 
 def build_tool_message(result: ToolResult, tc_id: str) -> ChatMessage:
     """Build tool role message / 构建 tool 角色消息"""
-    content = result.output if result.success else _("tool.error.prefix", error=result.error)
+    content = (
+        result.output if result.success else _("tool.error.prefix", error=result.error)
+    )
     return ChatMessage(role="tool", content=content, tool_call_id=tc_id)
 
 
@@ -75,7 +77,9 @@ def build_pending_confirmation_payload(
     payload = {
         "action": parsed.get("action", ""),
         "table": parsed.get("table", ""),
-        "preview": (parsed.get("preview") or parsed.get("diff") or parsed.get("record")),
+        "preview": (
+            parsed.get("preview") or parsed.get("diff") or parsed.get("record")
+        ),
     }
     normalized_name = str(func_name or "").strip()
     if normalized_name:
@@ -178,7 +182,9 @@ def find_pending_confirmation(
                     raw_args = func.get("arguments", "{}")
                     try:
                         arguments = (
-                            json.loads(raw_args) if isinstance(raw_args, str) else raw_args
+                            json.loads(raw_args)
+                            if isinstance(raw_args, str)
+                            else raw_args
                         )
                     except json.JSONDecodeError:
                         arguments = {}

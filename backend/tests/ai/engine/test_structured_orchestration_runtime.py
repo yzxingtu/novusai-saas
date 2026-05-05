@@ -1,3 +1,8 @@
+"""Test type: behavioral
+Scope: structured orchestration routing helpers and runtime budget guards.
+Mocked dependencies: runtime bridge seams only; routing and budget logic run real.
+"""
+
 from __future__ import annotations
 
 from types import SimpleNamespace
@@ -27,8 +32,8 @@ def _mixed_tools() -> list[ToolDefinition]:
     return [
         _tool("get_current_weather", "Current weather"),
         _tool("get_weather_forecast", "Forecast"),
-        _tool("web_search", "Search the web"),
-        _tool("fetch_url", "Fetch url"),
+        _tool("get_current_time", "Current time"),
+        _tool("crm_lookup", "CRM lookup"),
     ]
 
 

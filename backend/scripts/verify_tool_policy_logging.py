@@ -19,7 +19,33 @@ from app.core.database import async_session_factory
 from app.core.redis import RedisManager
 from app.enums.common import UserRoleEnum
 from app.models.ai.call_log import AICallLog
+from app.schemas.ai.invalid_ai_runtime_input import is_invalid_ai_runtime_reference
 from app.services.ai.agent_chat_service import AgentChatService
+
+
+def _collect_retired_runtime_references(value: Any) -> list[str]:
+    found: list[str] = []
+
+    def _walk(item: Any) -> None:
+        if isinstance(item, dict):
+            for key, nested in item.items():
+                if is_invalid_ai_runtime_reference(key):
+                    found.append(str(key))
+                _walk(nested)
+            return
+        if isinstance(item, list | tuple):
+            for nested in item:
+                _walk(nested)
+            return
+        if isinstance(item, str) and is_invalid_ai_runtime_reference(item):
+            found.append(item)
+
+    _walk(value)
+    deduped: list[str] = []
+    for item in found:
+        if item not in deduped:
+            deduped.append(item)
+    return deduped
 
 
 async def _run(agent_id: int, message: str, user_id: int) -> None:
@@ -60,6 +86,12 @@ async def _run(agent_id: int, message: str, user_id: int) -> None:
             for row in log_rows:
                 metadata: dict[str, Any] = dict(row.request_metadata or {})
                 request_payload = dict(metadata.get("request") or {})
+                retired_refs = _collect_retired_runtime_references(request_payload)
+                if retired_refs:
+                    raise RuntimeError(
+                        "retired online-search runtime references found: "
+                        + ", ".join(retired_refs)
+                    )
                 print(
                     json.dumps(
                         {
@@ -90,7 +122,7 @@ def main() -> None:
     parser.add_argument(
         "--message",
         type=str,
-        default="联网查询一下 小猫为什么 爱吃鱼",
+        default="说明一下小猫为什么爱吃鱼",
     )
     parser.add_argument("--user-id", type=int, default=1)
     args = parser.parse_args()

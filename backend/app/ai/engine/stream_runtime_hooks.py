@@ -18,9 +18,6 @@ from .tool_contract_retry_helpers import (
 from .tool_contract_retry_helpers import (
     should_retry_tool_contract_breach as _should_retry_tool_contract_breach_impl,
 )
-from .tool_contract_retry_helpers import (
-    should_retry_web_research_contract_breach as _should_retry_web_research_contract_breach_impl,
-)
 from .tool_policy_helpers import (
     restrict_tools_to_names as _restrict_tools_to_names_impl,
 )
@@ -52,17 +49,6 @@ class StreamRuntimeHookSource(Protocol):
         current_policy: ToolUsePolicy,
         tools: list[Any],
         input_variables: dict[str, Any] | None,
-    ) -> tuple[bool, ToolUsePolicy | None, str]: ...
-
-    def should_retry_web_research_contract_breach(
-        self,
-        *,
-        messages: list[ChatMessage],
-        response: ChatResponse | None,
-        current_policy: ToolUsePolicy,
-        tools: list[Any],
-        input_variables: dict[str, Any] | None,
-        continuation: Any,
     ) -> tuple[bool, ToolUsePolicy | None, str]: ...
 
     def analyze_post_tool_contract_breach(
@@ -163,27 +149,6 @@ class DefaultStreamRuntimeHooks:
             current_policy=current_policy,
             tools=tools,
             input_variables=input_variables,
-        )
-
-    def should_retry_web_research_contract_breach(
-        self,
-        *,
-        messages: list[ChatMessage],
-        response: ChatResponse | None,
-        current_policy: ToolUsePolicy,
-        tools: list[Any],
-        input_variables: dict[str, Any] | None,
-        continuation: Any,
-    ) -> tuple[bool, ToolUsePolicy | None, str]:
-        if response is None:
-            return False, None, ""
-        return _should_retry_web_research_contract_breach_impl(
-            messages=messages,
-            response=response,
-            current_policy=current_policy,
-            tools=tools,
-            input_variables=input_variables,
-            continuation=continuation,
         )
 
     def analyze_post_tool_contract_breach(
@@ -307,27 +272,6 @@ class BaseEngineStreamRuntimeHooks:
             current_policy=current_policy,
             tools=tools,
             input_variables=input_variables,
-        )
-
-    def should_retry_web_research_contract_breach(
-        self,
-        *,
-        messages: list[ChatMessage],
-        response: ChatResponse | None,
-        current_policy: ToolUsePolicy,
-        tools: list[Any],
-        input_variables: dict[str, Any] | None,
-        continuation: Any,
-    ) -> tuple[bool, ToolUsePolicy | None, str]:
-        if response is None:
-            return False, None, ""
-        return self.engine._should_retry_web_research_contract_breach(
-            messages=messages,
-            response=response,
-            current_policy=current_policy,
-            tools=tools,
-            input_variables=input_variables,
-            continuation=continuation,
         )
 
     def analyze_post_tool_contract_breach(

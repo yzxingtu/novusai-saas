@@ -8,11 +8,7 @@ from app.ai.runtime.types import CapabilityDescriptor
 from app.ai.tools.types import ToolDefinition, ToolParameter
 from app.enums.agent import ToolTypeEnum
 
-BASELINE_RUNTIME_BUILTINS = (
-    "get_current_time",
-    "web_search",
-    "fetch_url",
-)
+BASELINE_RUNTIME_BUILTINS = ("get_current_time",)
 RUNTIME_BUILTINS = frozenset(BASELINE_RUNTIME_BUILTINS)
 
 
@@ -23,11 +19,7 @@ def augment_builtin_tool_description(
     normalized = (tool_name or "").strip().lower()
     base = (description or "").strip()
 
-    if normalized == "web_search":
-        extra = render_prompt_contract("builtin_web_search_description")
-    elif normalized == "fetch_url":
-        extra = render_prompt_contract("builtin_fetch_url_description")
-    elif normalized == "get_current_time":
+    if normalized == "get_current_time":
         extra = render_prompt_contract("builtin_current_time_description")
     else:
         return base
@@ -78,62 +70,6 @@ def build_baseline_builtin_tool(
             enabled=True,
             timeout=15,
             source_skill_name="get_current_time",
-            source_skill_type=ToolTypeEnum.BUILTIN.value,
-        )
-    elif normalized == "web_search":
-        tool = ToolDefinition(
-            name="web_search",
-            description=augment_builtin_tool_description(
-                "web_search",
-                "Search the web for current information and candidate source URLs.",
-            ),
-            tool_type=ToolTypeEnum.BUILTIN.value,
-            parameters=[
-                ToolParameter(
-                    name="query",
-                    type="string",
-                    description="Search query to look up on the web.",
-                    required=True,
-                ),
-                ToolParameter(
-                    name="max_results",
-                    type="integer",
-                    description="Optional number of results to return. Defaults to 5 and is capped at 10.",
-                    required=False,
-                ),
-            ],
-            config={"builtin_type": "web_search", "auto_injected": True},
-            enabled=True,
-            timeout=30,
-            source_skill_name="web_search",
-            source_skill_type=ToolTypeEnum.BUILTIN.value,
-        )
-    elif normalized == "fetch_url":
-        tool = ToolDefinition(
-            name="fetch_url",
-            description=augment_builtin_tool_description(
-                "fetch_url",
-                "Fetch and read the content of a specific URL.",
-            ),
-            tool_type=ToolTypeEnum.BUILTIN.value,
-            parameters=[
-                ToolParameter(
-                    name="url",
-                    type="string",
-                    description="Absolute http or https URL to fetch.",
-                    required=True,
-                ),
-                ToolParameter(
-                    name="max_length",
-                    type="integer",
-                    description="Optional max characters to return. Defaults to 5000.",
-                    required=False,
-                ),
-            ],
-            config={"builtin_type": "fetch_url", "auto_injected": True},
-            enabled=True,
-            timeout=30,
-            source_skill_name="fetch_url",
             source_skill_type=ToolTypeEnum.BUILTIN.value,
         )
 

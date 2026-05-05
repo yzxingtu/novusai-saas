@@ -218,34 +218,12 @@ def build_sync_exception_result(
             )
 
     recovered_from_provider_failure = False
-    recovered_provider_failure_kind = ""
-    recovered_provider_events: list[dict[str, Any]] = []
-    if state is not None:
-        recovered_provider_failure_kind = str(state.provider_failure_kind or "").strip()
-        recovered_provider_events = list(state.provider_events or [])
-        recovered_intents, recovered_output = (
-            RecoveryManager.recover_web_search_output_from_evidence(
-                list(state.intent_plan or []),
-                tool_results=tool_results,
-            )
-        )
-        if recovered_output:
-            recovered_from_provider_failure = True
-            partial_output = recovered_output
-            state.intent_plan = recovered_intents
-            state.preparation_diagnostics.update(
-                {
-                    "final_output_source": "recovery_evidence",
-                    "provider_failure_recovered_from_tool_evidence": True,
-                    "recovered_provider_failure_kind": recovered_provider_failure_kind,
-                    "recovered_provider_events": recovered_provider_events,
-                }
-            )
-            state.provider_failure_kind = "none"
-            state.provider_events = []
-            state.transition("completed")
-            diagnostics_payload = state.build_diagnostics_payload()
-
+    recovered_provider_failure_kind = (
+        str(state.provider_failure_kind or "").strip() if state is not None else ""
+    )
+    recovered_provider_events: list[dict[str, Any]] = (
+        list(state.provider_events or []) if state is not None else []
+    )
     if (
         state is not None
         and not partial_output

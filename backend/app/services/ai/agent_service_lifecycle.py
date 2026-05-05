@@ -233,9 +233,7 @@ async def get_agent_detail(svc: Any, agent_id: int) -> dict[str, Any]:
     result = agent.to_dict()
     result["owner_tenant_id"] = agent.owner_tenant_id
     result["tenant_id"] = agent.owner_tenant_id
-    result["owner_type"] = (
-        "tenant" if agent.owner_tenant_id is not None else "platform"
-    )
+    result["owner_type"] = "tenant" if agent.owner_tenant_id is not None else "platform"
     result["scope"] = getattr(agent, "scope", None)
     result["model_name"] = None
     result["model_code"] = None

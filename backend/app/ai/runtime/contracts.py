@@ -162,7 +162,9 @@ class TurnFlowViewModel:
             "completion_reason": self.completion_reason,
             "interrupted": bool(self.interrupted),
             "error_surface": (
-                dict(self.error_surface) if isinstance(self.error_surface, dict) else None
+                dict(self.error_surface)
+                if isinstance(self.error_surface, dict)
+                else None
             ),
         }
 
@@ -245,7 +247,9 @@ class ProtocolExecutionPlan:
     selected_tool_names: list[str] = field(default_factory=list)
     selected_skill_names: list[str] = field(default_factory=list)
     context_sources: list[ContextSource] = field(default_factory=list)
-    protocol_guards: ProtocolGuardContract = field(default_factory=ProtocolGuardContract)
+    protocol_guards: ProtocolGuardContract = field(
+        default_factory=ProtocolGuardContract
+    )
 
 
 @dataclass
@@ -265,7 +269,9 @@ class TurnCommand:
     selected_skill_names: list[str] = field(default_factory=list)
     context_sources: list[ContextSource] = field(default_factory=list)
     extra_kwargs: dict[str, Any] = field(default_factory=dict)
-    protocol_guards: ProtocolGuardContract = field(default_factory=ProtocolGuardContract)
+    protocol_guards: ProtocolGuardContract = field(
+        default_factory=ProtocolGuardContract
+    )
 
     def to_adapter_kwargs(self, *, protocol_path: ProtocolPath) -> dict[str, Any]:
         payload = dict(self.extra_kwargs or {})

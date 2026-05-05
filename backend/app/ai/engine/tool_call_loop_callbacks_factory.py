@@ -39,8 +39,6 @@ def build_tool_call_loop_callbacks(
         first_incomplete_requested_family=policy.first_incomplete_requested_family,
         allowed_tool_names_for_family=policy.allowed_tool_names_for_family,
         build_ordered_capability_hint=policy.build_ordered_capability_hint,
-        needs_fetch_url_before_summary=policy.needs_fetch_url_before_summary,
-        apply_fetch_url_only_gate=policy.apply_fetch_url_only_gate,
         restrict_tools_to_names=policy.restrict_tools_to_names,
         call_followup_llm=call_followup_llm,
     )

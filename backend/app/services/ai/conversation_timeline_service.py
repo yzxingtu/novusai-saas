@@ -38,6 +38,7 @@ class ConversationTimelineService:
         conversation: Any,
         messages: list[Any],
     ) -> list[dict[str, Any]]:
+        _conversation = conversation
         items: list[dict[str, Any]] = []
         for message in messages:
             metadata = strip_legacy_interaction_mode_fields(

@@ -269,7 +269,7 @@ describe('turnTimeline', () => {
 
     await wrapper.vm.$nextTick();
 
-    expect(wrapper.text()).toContain('common.globalAiChat.toolSearchProvider');
+    expect(wrapper.text()).toContain('common.globalAiChat.toolExecutionRoute');
     expect(wrapper.text()).toContain('native:provider_1:gpt-5.4');
     expect(
       wrapper.get('[data-testid="turn-process-body"]').attributes('style') ??
@@ -438,14 +438,14 @@ describe('turnTimeline', () => {
               id: 'tool-running',
               kind: 'tool',
               status: 'running',
-              toolName: 'native_web_search',
+              toolName: 'query_records',
             },
           ],
           timeline: [
             {
               id: 'stage-tool-running',
               status: 'running',
-              summary: '正在联网搜索并等待结果返回',
+              summary: '正在调用工具并等待结果返回',
               type: 'tool_execution',
             },
           ],

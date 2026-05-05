@@ -9,8 +9,8 @@ from app.ai.context.compaction_snapshot_store import ContextCompactionSnapshotSt
 from app.ai.runtime.contracts import ContextCapabilityBridge
 
 if TYPE_CHECKING:
-    from app.ai.context.pruning import TransientPruner
     from app.ai.context.long_term_memory import LongTermMemoryProvider
+    from app.ai.context.pruning import TransientPruner
     from app.ai.types import ChatMessage
 
 
@@ -36,12 +36,14 @@ def get_long_term_memory_provider(
     *,
     db: Any,
     tenant_id: int,
-) -> "LongTermMemoryProvider":
+) -> LongTermMemoryProvider:
     """Lazy memory-provider seam retained as the engine-local patch point."""
 
     from app.services.ai import long_term_memory_provider as long_term_memory_module
 
-    return long_term_memory_module.get_long_term_memory_provider(db=db, tenant_id=tenant_id)
+    return long_term_memory_module.get_long_term_memory_provider(
+        db=db, tenant_id=tenant_id
+    )
 
 
 def should_run_memory_vector_recall(user_text: str) -> bool:
@@ -108,9 +110,9 @@ async def persist_compaction_snapshot(
 async def compact_messages_if_needed(
     *,
     context_config: dict[str, Any],
-    messages: list["ChatMessage"],
+    messages: list[ChatMessage],
     persist_snapshot: Any,
-    pruner: "TransientPruner",
+    pruner: TransientPruner,
     compaction_split_index_fn: Any,
     build_compact_summary_fn: Any,
 ) -> None:

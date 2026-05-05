@@ -61,10 +61,9 @@ def sanitize_conversation_last_error_payload(
         or _normalize_public_error_text(last_error.get("error_message"))
         or fallback_message
     )
-    safe_debug_message = (
-        _normalize_public_error_text(last_error.get("debug_message"))
-        or _mapped_public_error_message(error_type)
-    )
+    safe_debug_message = _normalize_public_error_text(
+        last_error.get("debug_message")
+    ) or _mapped_public_error_message(error_type)
 
     last_error["friendly_message"] = safe_friendly_message
     last_error["error_message"] = safe_debug_message or safe_friendly_message
@@ -97,10 +96,9 @@ def sanitize_assistant_error_payload(
             or _normalize_public_error_text(message_payload.get("content"))
             or fallback_message
         )
-        safe_debug_message = (
-            _normalize_public_error_text(metadata_payload.get("error_debug_message"))
-            or _mapped_public_error_message(error_type)
-        )
+        safe_debug_message = _normalize_public_error_text(
+            metadata_payload.get("error_debug_message")
+        ) or _mapped_public_error_message(error_type)
         safe_raw_message = (
             _normalize_public_error_text(metadata_payload.get("raw_error_message"))
             or safe_debug_message

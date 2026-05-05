@@ -1,5 +1,5 @@
 // Test type: structural
-// Verifies: tool call detail helpers build input/search/output view models from canonical tool evidence.
+// Verifies: tool call detail helpers build input and output view models from canonical tool evidence.
 import { describe, expect, it, vi } from 'vitest';
 
 import { buildToolDisplayItems } from '../chat-message-tool-call-display-helpers';
@@ -19,7 +19,7 @@ vi.mock('#/locales', () => ({
 }));
 
 describe('chat-message-tool-call-details helpers', () => {
-  it('builds one coherent detail view from arguments, search summary, and returned payload', () => {
+  it('builds one coherent detail view from arguments and returned payload', () => {
     const [toolItem] = buildToolDisplayItems(
       [
         {
@@ -30,7 +30,7 @@ describe('chat-message-tool-call-details helpers', () => {
             },
             tenant_code: 'northwind',
           },
-          name: 'web_search',
+          name: 'query_records',
           output: JSON.stringify({
             records: [
               {
@@ -45,18 +45,7 @@ describe('chat-message-tool-call-details helpers', () => {
           }),
           status: 'success',
           summaryPayload: {
-            fallback_reason:
-              'native_not_attempted:default_verified_target_unavailable',
-            items: [
-              {
-                snippet: '第一条摘要内容',
-                title: '示例搜索结果一',
-                url: 'https://example.com/result-1',
-              },
-            ],
-            provider: 'baidu_public',
-            selected_backend: 'public:baidu',
-            status: 'success',
+            explanation: 'Matched active tenants',
           },
         },
       ],
@@ -76,32 +65,10 @@ describe('chat-message-tool-call-details helpers', () => {
       'filters',
       'tenant_code',
     ]);
-    expect(detailView.searchResults).toEqual([
-      expect.objectContaining({
-        domain: 'example.com',
-        title: '示例搜索结果一',
-        url: 'https://example.com/result-1',
-      }),
-    ]);
-    expect(detailView.searchTechnicalDetails).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          key: 'provider',
-          value: 'common.globalAiChat.toolSearchSourceBaidu',
-        }),
-        expect.objectContaining({
-          key: 'selectedBackend',
-          value: 'public:baidu',
-        }),
-      ]),
-    );
     expect(detailView.outputFields.map((field) => field.key)).toEqual([
       'records',
       'result',
     ]);
     expect(detailView.rawOutput).toContain('"trace_id": "trace-123"');
-    expect(detailView.searchFallbackNotice).toBe(
-      'common.globalAiChat.toolSearchFallbackNeedVerifiedNativeTarget',
-    );
   });
 });

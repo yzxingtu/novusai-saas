@@ -4,8 +4,9 @@ Embedding resume and batch validation support for RAG processing.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Sequence
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from app.ai.rag.chunker import ChunkData
@@ -25,7 +26,7 @@ class EmbeddingResumePlan:
 
 def plan_embedding_resume(
     *,
-    chunk_data_list: Sequence["ChunkData"],
+    chunk_data_list: Sequence[ChunkData],
     existing_chunks: Sequence[EmbeddedChunkSnapshot],
 ) -> EmbeddingResumePlan:
     if not existing_chunks:
@@ -36,10 +37,9 @@ def plan_embedding_resume(
 
     for position, existing in enumerate(existing_chunks):
         expected = chunk_data_list[position]
-        if (
-            existing.chunk_index != expected.chunk_index
-            or str(existing.content_hash or "") != str(expected.content_hash or "")
-        ):
+        if existing.chunk_index != expected.chunk_index or str(
+            existing.content_hash or ""
+        ) != str(expected.content_hash or ""):
             return EmbeddingResumePlan(restart_required=True)
 
     return EmbeddingResumePlan(existing_chunk_count=len(existing_chunks))
@@ -58,7 +58,7 @@ def validate_embedding_batch_count(
 
 def build_chunk_rows(
     *,
-    chunks: Sequence["ChunkData"],
+    chunks: Sequence[ChunkData],
     embeddings: Sequence[list[float]],
     document_id: int,
     knowledge_base_id: int,

@@ -56,7 +56,11 @@ class AgentChatTurnOrchestrator:
             explicit_trust_policy_ref=explicit_trust_policy_ref,
             interaction_updates=interaction_updates,
         )
-        return outcome.effective_mode, outcome.trust_policy_ref, outcome.downgrade_reason
+        return (
+            outcome.effective_mode,
+            outcome.trust_policy_ref,
+            outcome.downgrade_reason,
+        )
 
     async def _grant_trusted_auto_policies(
         self,

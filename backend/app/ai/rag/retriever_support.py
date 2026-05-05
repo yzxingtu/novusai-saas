@@ -34,7 +34,9 @@ def build_kb_contexts(
     knowledge_bases: list[KnowledgeBase] | None,
     kb_weights: dict[int, float] | None,
 ) -> list[SearchKBContext]:
-    kb_list = knowledge_bases or ([knowledge_base] if knowledge_base is not None else [])
+    kb_list = knowledge_bases or (
+        [knowledge_base] if knowledge_base is not None else []
+    )
     contexts: list[SearchKBContext] = []
     seen: set[int] = set()
     for kb in kb_list:

@@ -10,7 +10,6 @@ from typing import Any
 
 from app.ai.tools.types import ToolDefinition, ToolResult
 from app.ai.types import ChatMessage, ChatResponse
-from app.ai.web_search.types import STATUS_NO_RESULTS
 from app.core.i18n import _
 
 from . import tool_processor as tool_processor_mod
@@ -142,41 +141,14 @@ def _prepare_parallel_readonly_batch(
     return prepared
 
 
-def _is_no_result_web_search(result: ToolResult) -> bool:
-    if result.name != "web_search":
-        return False
-    payload = (
-        dict(result.summary_payload)
-        if isinstance(result.summary_payload, dict)
-        else {}
-    )
-    status = str(payload.get("status") or "").strip()
-    if status == STATUS_NO_RESULTS:
-        return True
-    raw_result_count = payload.get("result_count")
-    try:
-        result_count = int(raw_result_count) if raw_result_count is not None else None
-    except (TypeError, ValueError):
-        result_count = None
-    return result_count is not None and result_count <= 0
-
-
 def _should_emit_tool_result_preview(
     *,
     result: ToolResult,
     follow_up_message: ChatMessage | None,
     current_response_text: str,
 ) -> bool:
-    result_summary = str(result.summary or "").strip()
-    if (
-        not result.success
-        or not result_summary
-        or follow_up_message is not None
-        or current_response_text
-        or result.name not in {"fetch_url", "web_search"}
-    ):
-        return False
-    return not _is_no_result_web_search(result)
+    _ = result, follow_up_message, current_response_text
+    return False
 
 
 def _attach_canonical_tool_result_detail(
@@ -528,10 +500,7 @@ async def run_stream_tool_batch(
         round_stopped_early=state.round_stopped_early,
     )
 
-    if (
-        state.follow_up_messages
-        and not state.round_has_confirmation
-    ):
+    if state.follow_up_messages and not state.round_has_confirmation:
         runtime.messages.extend(state.follow_up_messages)
 
     if state.round_has_confirmation:

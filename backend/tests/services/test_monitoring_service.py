@@ -137,51 +137,6 @@ class TestCallTraceDiagnostics:
         )
         assert diagnostics["assistant_claimed_tool_call_without_tool_event"] is True
 
-    def test_extract_call_trace_diagnostics_keeps_explicit_empty_live_selection(self):
-        from app.services.ai.monitoring_service import MonitoringService
-
-        diagnostics = MonitoringService._extract_call_trace_diagnostics(
-            {
-                "turn_diagnostics": {
-                    "selected_tool_names": ["crm_lookup", "web_search"],
-                    "selected_skill_names": ["Workflow Skill", "Research Skill"],
-                    "turn_record": {
-                        "selected_tool_names": [],
-                        "selected_skill_names": [],
-                        "metadata": {
-                            "turn_diagnostics": {
-                                "selected_tool_names": [
-                                    "crm_lookup",
-                                    "web_search",
-                                ],
-                                "selected_skill_names": [
-                                    "Workflow Skill",
-                                    "Research Skill",
-                                ],
-                                "turn_skill_activation": {
-                                    "applied": True,
-                                    "reason": "runtime_policy",
-                                    "selected_tool_names": [],
-                                    "selected_skill_names": [],
-                                    "inventory_selected_tool_names": [
-                                        "crm_lookup",
-                                        "web_search",
-                                    ],
-                                    "inventory_selected_skill_names": [
-                                        "Workflow Skill",
-                                        "Research Skill",
-                                    ],
-                                },
-                            }
-                        },
-                    },
-                }
-            }
-        )
-
-        assert diagnostics["selected_tool_names"] == []
-        assert diagnostics["selected_skill_names"] == []
-
 
 class TestMonitoringScope:
     def test_scope_builders_return_expected_flags(self):
@@ -784,7 +739,9 @@ class TestConversationQueries:
                 }
             ],
         }
-        assert detail.message_list[0]["turn_flow"]["timeline"][-1]["type"] == "completed"
+        assert (
+            detail.message_list[0]["turn_flow"]["timeline"][-1]["type"] == "completed"
+        )
         assert detail.message_list[0]["turn_flow"]["completion_reason"] == "completed"
 
     @pytest.mark.asyncio
@@ -938,9 +895,13 @@ class TestConversationQueries:
 
         turn_flow = detail.message_list[0]["turn_flow"]
         answer_assembly = next(
-            stage for stage in turn_flow["timeline"] if stage["type"] == "answer_assembly"
+            stage
+            for stage in turn_flow["timeline"]
+            if stage["type"] == "answer_assembly"
         )
-        assert turn_flow["completion_reason"] == "provider_failure_after_partial_progress"
+        assert (
+            turn_flow["completion_reason"] == "provider_failure_after_partial_progress"
+        )
         assert answer_assembly["status"] == "error"
         assert turn_flow["timeline"][-1]["type"] == "failed"
         assert turn_flow["timeline"][-1]["status"] == "error"
@@ -1026,7 +987,9 @@ class TestConversationQueries:
         assert "tool_calls" not in assistant_payload
         assert "thinking_content" not in assistant_payload["metadata"]
         assert "rag_sources" not in assistant_payload["metadata"]
-        assert assistant_payload["metadata"]["turn_flow"] == assistant_payload["turn_flow"]
+        assert (
+            assistant_payload["metadata"]["turn_flow"] == assistant_payload["turn_flow"]
+        )
         assert any(
             stage["type"] == "thinking"
             for stage in assistant_payload["turn_flow"]["timeline"]

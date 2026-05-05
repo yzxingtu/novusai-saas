@@ -14,7 +14,6 @@ from app.ai.engine.conversation_runtime_entrypoint_runner import (
 )
 from app.ai.engine.conversation_runtime_preflight import ConversationRuntimeContext
 from app.ai.engine.model_policy import build_model_request_overrides
-from app.ai.tools.types import ToolDefinition
 from app.ai.types import ChatChunk, ChatMessage
 
 
@@ -97,48 +96,6 @@ def _build_agent() -> SimpleNamespace:
         max_tokens=256,
         top_p=0.9,
     )
-
-
-@pytest.mark.asyncio
-async def test_build_runtime_query_entrypoint_plan_builds_context_once() -> None:
-    adapter_registry = _AdapterRegistryStub()
-    runtime_context = _build_runtime_context()
-
-    async def _runtime_preparer(*args, **kwargs):
-        _ = args, kwargs
-        return runtime_context
-
-    _QueryEngineCaptureStub.created.clear()
-
-    plan = await build_runtime_query_entrypoint_plan(
-        SimpleNamespace(db=MagicMock(), gateway=MagicMock()),
-        agent=_build_agent(),
-        messages=[ChatMessage(role="user", content="hello")],
-        tools=[ToolDefinition(name="web_search", description="Search the web")],
-        all_tool_names=None,
-        tool_use_policy=None,
-        breach_retry_result=None,
-        tenant_id=7,
-        user_id=5,
-        conversation_id=42,
-        billing_context=None,
-        route_result=None,
-        log_user_type="tenant_admin",
-        context_sources=[],
-        execution_path="normal",
-        extra_kwargs={"tenant_id": 7},
-        runtime_preparer=_runtime_preparer,
-        adapter_registry=adapter_registry,
-        query_engine_cls=_QueryEngineCaptureStub,
-    )
-
-    assert plan.effective_policy.mode == "auto"
-    assert plan.effective_policy.allowed_tool_names == ["web_search"]
-    assert plan.effective_tool_choice == "auto"
-    assert plan.request_extra_kwargs == {"tenant_id": 7}
-    assert plan.request_context.request_log_data["_runtime_v2_non_stream"] is True
-    assert adapter_registry.calls
-    assert _QueryEngineCaptureStub.created[-1]["strict_contract"] is False
 
 
 @pytest.mark.asyncio
@@ -345,83 +302,9 @@ async def test_entrypoint_plans_share_extra_kwargs_merge_priority() -> None:
 
 
 @pytest.mark.asyncio
-async def test_entrypoint_plans_share_override_builder_parity() -> None:
-    adapter_registry = _AdapterRegistryStub()
-    runtime_context = _build_runtime_context()
-    builder_calls: list[dict[str, object]] = []
-
-    async def _runtime_preparer(*args, **kwargs):
-        _ = args, kwargs
-        return runtime_context
-
-    def _override_builder(*, execution_path, tools):
-        builder_calls.append({"execution_path": execution_path, "tools": tools})
-        return {"_runtime_reasoning_effort_override": "low"}
-
-    engine = SimpleNamespace(db=MagicMock(), gateway=MagicMock())
-    tools = [ToolDefinition(name="web_search", description="Search the web")]
-
-    query_plan = await build_runtime_query_entrypoint_plan(
-        engine,
-        agent=_build_agent(),
-        messages=[ChatMessage(role="user", content="hello")],
-        tools=tools,
-        all_tool_names=None,
-        tool_use_policy=None,
-        breach_retry_result=None,
-        tenant_id=7,
-        user_id=5,
-        conversation_id=42,
-        billing_context=None,
-        route_result=None,
-        log_user_type="tenant_admin",
-        context_sources=[],
-        execution_path="fast",
-        extra_kwargs={"tenant_id": 7},
-        runtime_preparer=_runtime_preparer,
-        adapter_registry=adapter_registry,
-        query_engine_cls=_QueryEngineCaptureStub,
-        model_request_override_builder=_override_builder,
-    )
-
-    stream_plan = await build_runtime_stream_entrypoint_plan(
-        engine,
-        agent=_build_agent(),
-        messages=[ChatMessage(role="user", content="hello")],
-        tenant_id=7,
-        conversation_id=None,
-        route_result=None,
-        tools=tools,
-        execution_path="fast",
-        user_id=None,
-        log_user_type=None,
-        billing_context=None,
-        runtime_context=None,
-        all_tool_names=None,
-        context_sources=None,
-        tool_use_policy=None,
-        breach_retry_result=None,
-        runtime_preparer=_runtime_preparer,
-        adapter_registry=adapter_registry,
-        query_engine_cls=_QueryEngineCaptureStub,
-        model_request_override_builder=_override_builder,
-    )
-
-    assert len(builder_calls) == 2
-    assert [call["execution_path"] for call in builder_calls] == ["fast", "fast"]
-    assert builder_calls[0]["tools"] is tools
-    assert builder_calls[1]["tools"] is tools
-    assert query_plan.request_extra_kwargs == {
-        "_runtime_reasoning_effort_override": "low",
-        "tenant_id": 7,
-    }
-    assert stream_plan.request_extra_kwargs == {
-        "_runtime_reasoning_effort_override": "low"
-    }
-
-
-@pytest.mark.asyncio
-async def test_build_runtime_query_entrypoint_plan_uses_override_builder_when_extra_kwargs_missing() -> None:
+async def test_build_runtime_query_entrypoint_plan_uses_override_builder_when_extra_kwargs_missing() -> (
+    None
+):
     adapter_registry = _AdapterRegistryStub()
     runtime_context = _build_runtime_context()
 
@@ -459,13 +342,13 @@ async def test_build_runtime_query_entrypoint_plan_uses_override_builder_when_ex
         model_request_override_builder=_override_builder,
     )
 
-    assert plan.request_extra_kwargs == {
-        "_runtime_reasoning_effort_override": "low"
-    }
+    assert plan.request_extra_kwargs == {"_runtime_reasoning_effort_override": "low"}
 
 
 @pytest.mark.asyncio
-async def test_build_runtime_stream_entrypoint_plan_uses_override_builder_when_extra_kwargs_missing() -> None:
+async def test_build_runtime_stream_entrypoint_plan_uses_override_builder_when_extra_kwargs_missing() -> (
+    None
+):
     adapter_registry = _AdapterRegistryStub()
     runtime_context = _build_runtime_context()
 
@@ -505,9 +388,7 @@ async def test_build_runtime_stream_entrypoint_plan_uses_override_builder_when_e
         engine_logger=None,
     )
 
-    assert plan.request_extra_kwargs == {
-        "_runtime_reasoning_effort_override": "low"
-    }
+    assert plan.request_extra_kwargs == {"_runtime_reasoning_effort_override": "low"}
 
 
 @pytest.mark.asyncio
@@ -516,7 +397,9 @@ async def test_iterate_runtime_stream_entrypoint_prefers_iter_stream_turn() -> N
     plan = SimpleNamespace(
         query_engine=query_engine,
         runtime_context=_build_runtime_context(),
-        request_context=SimpleNamespace(messages=[ChatMessage(role="user", content="hello")]),
+        request_context=SimpleNamespace(
+            messages=[ChatMessage(role="user", content="hello")]
+        ),
         openai_tools=None,
         effective_tool_choice=None,
         runtime_context_sources=[],
@@ -539,12 +422,16 @@ async def test_iterate_runtime_stream_entrypoint_prefers_iter_stream_turn() -> N
 
 
 @pytest.mark.asyncio
-async def test_iterate_runtime_stream_entrypoint_falls_back_to_run_stream_turn() -> None:
+async def test_iterate_runtime_stream_entrypoint_falls_back_to_run_stream_turn() -> (
+    None
+):
     query_engine = _StreamRunOnlyStub()
     plan = SimpleNamespace(
         query_engine=query_engine,
         runtime_context=_build_runtime_context(),
-        request_context=SimpleNamespace(messages=[ChatMessage(role="user", content="hello")]),
+        request_context=SimpleNamespace(
+            messages=[ChatMessage(role="user", content="hello")]
+        ),
         openai_tools=None,
         effective_tool_choice=None,
         runtime_context_sources=[],

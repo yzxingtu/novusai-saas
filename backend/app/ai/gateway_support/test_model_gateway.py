@@ -213,7 +213,9 @@ async def execute_test_model(
             applied_overrides=list(
                 effective_request.get("applied_overrides", []) or []
             ),
-            ignored_overrides=list(effective_request.get("ignored_overrides", []) or []),
+            ignored_overrides=list(
+                effective_request.get("ignored_overrides", []) or []
+            ),
             ignore_reasons=dict(effective_request.get("ignore_reasons", {}) or {}),
         )
 
@@ -246,7 +248,9 @@ async def execute_test_model(
             applied_overrides=list(
                 effective_request.get("applied_overrides", []) or []
             ),
-            ignored_overrides=list(effective_request.get("ignored_overrides", []) or []),
+            ignored_overrides=list(
+                effective_request.get("ignored_overrides", []) or []
+            ),
             ignore_reasons=dict(effective_request.get("ignore_reasons", {}) or {}),
         )
 

@@ -1,14 +1,6 @@
 import type { ToolDisplayItem } from './tool-call-utils';
 
-import { $t } from '#/locales';
-
 import { getToolActionErrorHintKey } from './toolActionErrorHints';
-import {
-  getSearchFallbackNotice,
-  getSearchProviderLabel,
-  getSearchStatusLabel,
-} from './tool-call-utils';
-import { normalizeOptionalString } from './use-ai-chat-message-normalizers';
 
 export interface ToolCallDetailFieldLine {
   key: string;
@@ -31,34 +23,13 @@ export interface ToolCallDetailPreview {
   text?: string;
 }
 
-export interface ToolCallSearchTechnicalDetail {
-  key: string;
-  label: string;
-  value: string;
-}
-
-export interface ToolCallSearchResultView {
-  domain: string;
-  snippet?: string;
-  title: string;
-  url: string;
-}
-
 export interface ToolCallDetailsViewModel {
   argumentFields: ToolCallDetailField[];
   errorHintKey?: string;
-  hasSearchTechnicalDetails: boolean;
   hasStructuredOutputPreview: boolean;
   outputFields: ToolCallDetailField[];
   outputPreview: ToolCallDetailPreview | null;
   rawOutput?: string;
-  searchFailureReason?: string;
-  searchFallbackNotice: null | string;
-  searchResultCount?: number;
-  searchResults: ToolCallSearchResultView[];
-  searchStatusLabel: string;
-  searchTechnicalDetails: ToolCallSearchTechnicalDetail[];
-  toolSearchSummaryExists: boolean;
 }
 
 const DETAIL_FIELD_LIMIT = 4;
@@ -280,75 +251,9 @@ function parseStructuredOutput(raw?: string): unknown {
   }
 }
 
-function getSearchResultDomain(url: string): string {
-  const normalized = url.trim();
-  if (!normalized) return '';
-  try {
-    const hostname = new URL(normalized).hostname.replace(/^www\./iu, '');
-    return hostname || normalized;
-  } catch {
-    const fallbackDomain = normalized
-      .replace(/^https?:\/\//iu, '')
-      .split(/[/?#]/u)[0]
-      ?.trim();
-    return fallbackDomain || normalized;
-  }
-}
-
-function readSearchTechnicalDetails(summary: NonNullable<ToolDisplayItem['searchSummary']>): ToolCallSearchTechnicalDetail[] {
-  const details: ToolCallSearchTechnicalDetail[] = [];
-  const pushDetail = (key: string, label: string, value?: string) => {
-    const normalized = normalizeOptionalString(value);
-    if (!normalized) {
-      return;
-    }
-    details.push({ key, label, value: normalized });
-  };
-
-  pushDetail(
-    'provider',
-    $t('common.globalAiChat.toolSearchProvider'),
-    getSearchProviderLabel(summary.provider),
-  );
-  pushDetail(
-    'selectedBackend',
-    $t('common.globalAiChat.toolSearchBackend'),
-    summary.selectedBackend,
-  );
-  pushDetail(
-    'providerChain',
-    $t('common.globalAiChat.toolSearchProviderChain'),
-    summary.providerChain?.join(' -> '),
-  );
-  pushDetail(
-    'nativeFailureKind',
-    $t('common.globalAiChat.toolSearchNativeFailure'),
-    summary.nativeFailureKind,
-  );
-  pushDetail(
-    'fallbackReason',
-    $t('common.globalAiChat.toolSearchFallbackReason'),
-    summary.fallbackReason,
-  );
-
-  return details;
-}
-
-function readSearchResults(
-  summary: NonNullable<ToolDisplayItem['searchSummary']>,
-): ToolCallSearchResultView[] {
-  return summary.items.map((item) => ({
-    domain: getSearchResultDomain(item.url),
-    snippet: item.snippet,
-    title: item.title,
-    url: item.url,
-  }));
-}
-
 export function buildToolCallDetailsViewModel(
   toolItem: ToolDisplayItem,
 ): ToolCallDetailsViewModel {
-  const searchSummary = toolItem.searchSummary;
   const structuredOutput = toolItem.structuredOutput;
   const parsedRawOutput = parseStructuredOutput(structuredOutput.raw);
   const outputFields = isRecord(parsedRawOutput)
@@ -358,30 +263,13 @@ export function buildToolCallDetailsViewModel(
     ? null
     : buildDetailPreview(parsedRawOutput);
   const argumentFields = buildDetailFields(toolItem.tc.arguments);
-  const searchFallbackNotice = searchSummary
-    ? getSearchFallbackNotice(searchSummary)
-    : null;
-  const searchTechnicalDetails = searchSummary
-    ? readSearchTechnicalDetails(searchSummary)
-    : [];
-  const searchResults = searchSummary ? readSearchResults(searchSummary) : [];
 
   return {
     argumentFields,
     errorHintKey: getToolActionErrorHintKey(toolItem.tc.errorType),
-    hasSearchTechnicalDetails: searchTechnicalDetails.length > 0,
     hasStructuredOutputPreview: outputFields.length > 0 || outputPreview !== null,
     outputFields,
     outputPreview,
     rawOutput: structuredOutput.raw,
-    searchFailureReason: searchSummary?.failureReason,
-    searchFallbackNotice,
-    searchResultCount: searchSummary?.resultCount,
-    searchResults,
-    searchStatusLabel: searchSummary
-      ? getSearchStatusLabel(searchSummary.status)
-      : '',
-    searchTechnicalDetails,
-    toolSearchSummaryExists: Boolean(searchSummary),
   };
 }

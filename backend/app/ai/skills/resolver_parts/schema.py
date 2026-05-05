@@ -87,4 +87,3 @@ def build_params_from_schema(
         )
 
     return params
-

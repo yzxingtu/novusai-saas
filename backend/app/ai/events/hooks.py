@@ -123,6 +123,7 @@ class HookPoint:
     # params: tenant_id, query, results | 可修改 results（过滤/重排）
     AFTER_KB_SEARCH = "after_kb_search"
 
+
 class _HookEntry:
     """Hook registration entry / 钩子注册条目"""
 

@@ -4,9 +4,9 @@ Command helpers for skill registry service.
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
 import shutil
 import tempfile
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 
 from app.ai.skills.packaging import get_skill_storage_dir
@@ -32,13 +32,14 @@ class SkillRegistryCommandService:
         slug: str,
         *,
         fetch_package_detail_fn: Callable[..., Awaitable[dict]] | None = None,
-        build_installed_map_fn: Callable[[], Awaitable[dict[str, object]]] | None = None,
+        build_installed_map_fn: Callable[[], Awaitable[dict[str, object]]]
+        | None = None,
         download_archive_fn: Callable[..., Awaitable[None]] | None = None,
         select_source_fn: Callable[[], Awaitable[str]] | None = None,
     ) -> dict:
-        detail = await (fetch_package_detail_fn or self.query_service.fetch_package_detail)(
-            slug
-        )
+        detail = await (
+            fetch_package_detail_fn or self.query_service.fetch_package_detail
+        )(slug)
         installed = await (build_installed_map_fn or self.support.build_installed_map)()
         if slug in installed:
             raise BusinessException(
@@ -109,7 +110,8 @@ class SkillRegistryCommandService:
         slug: str,
         *,
         fetch_package_detail_fn: Callable[..., Awaitable[dict]] | None = None,
-        build_installed_map_fn: Callable[[], Awaitable[dict[str, object]]] | None = None,
+        build_installed_map_fn: Callable[[], Awaitable[dict[str, object]]]
+        | None = None,
         download_archive_fn: Callable[..., Awaitable[None]] | None = None,
         load_archive_payload_fn: Callable[..., Awaitable[dict]] | None = None,
         select_source_fn: Callable[[], Awaitable[str]] | None = None,
@@ -125,7 +127,9 @@ class SkillRegistryCommandService:
 
         source_locked = bool(current.get("source_locked", True))
         locked_source_url = str(current.get("source_url") or "").strip() or None
-        detail = await (fetch_package_detail_fn or self.query_service.fetch_package_detail)(
+        detail = await (
+            fetch_package_detail_fn or self.query_service.fetch_package_detail
+        )(
             slug,
             source_url=locked_source_url if source_locked else None,
         )
@@ -164,7 +168,9 @@ class SkillRegistryCommandService:
                 archive_path=archive_path,
             )
 
-            payload = await (load_archive_payload_fn or self.support.load_archive_payload)(
+            payload = await (
+                load_archive_payload_fn or self.support.load_archive_payload
+            )(
                 archive_path=archive_path,
                 slug=slug,
             )
@@ -280,9 +286,8 @@ class SkillRegistryCommandService:
         install_missing: bool = True,
         upgrade_existing: bool = False,
         dry_run: bool = False,
-        list_official_starter_packs_fn:
-            Callable[[], Awaitable[dict[str, object]]]
-            | None = None,
+        list_official_starter_packs_fn: Callable[[], Awaitable[dict[str, object]]]
+        | None = None,
         install_package_fn: Callable[[str], Awaitable[dict]] | None = None,
         upgrade_package_fn: Callable[[str], Awaitable[dict]] | None = None,
     ) -> dict[str, object]:
@@ -373,7 +378,9 @@ class SkillRegistryCommandService:
                     )
 
         return {
-            "selected_pack_keys": [str(pack.get("key") or "") for pack in selected_packs],
+            "selected_pack_keys": [
+                str(pack.get("key") or "") for pack in selected_packs
+            ],
             "missing_pack_keys": missing_keys,
             "install_missing": bool(install_missing),
             "upgrade_existing": bool(upgrade_existing),

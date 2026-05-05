@@ -14,7 +14,9 @@ from app.core.identity_snapshot import (
     snapshot_value,
 )
 from app.models.ai.agent import Agent
-from app.services.ai.action_log_service_parts.normalization import _normalize_operator_type
+from app.services.ai.action_log_service_parts.normalization import (
+    _normalize_operator_type,
+)
 
 
 def _default_agent_meta() -> dict[str, Any]:

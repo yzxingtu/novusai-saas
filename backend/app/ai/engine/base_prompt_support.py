@@ -6,17 +6,16 @@ from __future__ import annotations
 
 from .base_helpers import (
     build_user_message,
+    keep_tool_calls_for_round,
     messages_to_dicts,
     parse_tool_arguments,
     stable_unique_text_list,
     tool_call_name,
     tool_call_operation_name,
     truncate_preview,
-    keep_tool_calls_for_round,
 )
 from .base_prompt_contract_support import BasePromptContractSupportMixin
 from .base_prompt_llm_support import BasePromptLLMSupportMixin
-from .base_prompt_research_support import BasePromptResearchSupportMixin
 from .base_prompt_system_support import BasePromptSystemSupportMixin
 from .base_prompt_tool_policy_support import BasePromptToolPolicySupportMixin
 
@@ -24,7 +23,6 @@ from .base_prompt_tool_policy_support import BasePromptToolPolicySupportMixin
 class BaseEnginePromptSupport(
     BasePromptSystemSupportMixin,
     BasePromptToolPolicySupportMixin,
-    BasePromptResearchSupportMixin,
     BasePromptContractSupportMixin,
     BasePromptLLMSupportMixin,
 ):

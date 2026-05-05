@@ -4,9 +4,6 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
-from app.ai.adapters.openai_compatible.support.native_web_search_policy import (
-    provider_config_supports_hosted_web_search,
-)
 from app.ai.types import ChatMessage
 
 
@@ -90,6 +87,20 @@ def _is_safe_responses_tool_followup(
     return saw_tool_output
 
 
+def _drop_runtime_private_kwargs(runtime_kwargs: dict[str, Any]) -> None:
+    for key in tuple(runtime_kwargs):
+        if str(key).startswith("_runtime_"):
+            runtime_kwargs.pop(key, None)
+
+
+def _function_tools_only(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        tool
+        for tool in tools
+        if isinstance(tool, dict) and str(tool.get("type") or "").strip() == "function"
+    ]
+
+
 def build_chat_completions_request(
     *,
     adapter: RequestPayloadBuilderAdapterProtocol,
@@ -107,10 +118,6 @@ def build_chat_completions_request(
     effective_request = runtime_kwargs.pop("_effective_model_request", None)
     model_config = runtime_kwargs.pop("model_config", None)
     runtime_kwargs.pop("_runtime_force_protocol_path", None)
-    runtime_kwargs.pop("_runtime_hosted_web_search_required", None)
-    runtime_kwargs.pop("_runtime_hosted_web_search_context_size", None)
-    runtime_kwargs.pop("_runtime_native_web_search_fallback_reason", None)
-    runtime_kwargs.pop("_runtime_native_web_search_fallback_variant", None)
     if effective_request is None:
         effective_request = adapter.resolve_effective_model_request(
             model=model,
@@ -132,8 +139,9 @@ def build_chat_completions_request(
         request_params["max_tokens"] = max_tokens
     if stream:
         request_params["stream"] = True
-    if tools:
-        request_params["tools"] = tools
+    filtered_tools = _function_tools_only(tools or [])
+    if filtered_tools:
+        request_params["tools"] = filtered_tools
         request_params["tool_choice"] = tool_choice or "auto"
     if runtime_kwargs.get("reasoning_effort") is None and "reasoning_effort" in (
         effective_request.get("effective_params", {})
@@ -141,6 +149,7 @@ def build_chat_completions_request(
         request_params["reasoning_effort"] = effective_request["effective_params"][
             "reasoning_effort"
         ]
+    _drop_runtime_private_kwargs(runtime_kwargs)
     request_params.update(runtime_kwargs)
     return request_params
 
@@ -184,33 +193,12 @@ def build_responses_reasoning_config(
     return {"summary": "auto"}
 
 
-def supports_explicit_hosted_web_search(
-    adapter: RequestPayloadBuilderAdapterProtocol,
-) -> bool:
-    return provider_config_supports_hosted_web_search(
-        getattr(adapter, "provider_config", {}),
-    )
-
-
-def _hosted_web_search_tool(search_context_size: Any) -> dict[str, str]:
-    context_size = str(search_context_size or "").strip() or "medium"
-    return {"type": "web_search", "search_context_size": context_size}
-
-
-def _hosted_web_search_tools_only(
-    tools: list[dict[str, Any]],
-) -> list[dict[str, Any]]:
-    return [
-        tool
-        for tool in tools
-        if isinstance(tool, dict) and tool.get("type") == "web_search"
-    ]
-
-
 def convert_tools_for_responses(tools: list[dict]) -> list[dict]:
     converted: list[dict] = []
 
     for tool in tools:
+        if not isinstance(tool, dict):
+            continue
         if tool.get("type") == "function" and isinstance(tool.get("function"), dict):
             function = tool["function"]
             func_name = function.get("name", "")
@@ -223,8 +211,6 @@ def convert_tools_for_responses(tools: list[dict]) -> list[dict]:
                 }
             )
             continue
-        converted.append(tool)
-
     return converted
 
 
@@ -249,19 +235,7 @@ async def build_responses_request(
     explicit_reasoning = runtime_kwargs.pop("reasoning", None)
     effective_request = runtime_kwargs.pop("_effective_model_request", None)
     model_config = runtime_kwargs.pop("model_config", None)
-    hosted_web_search_requested = bool(
-        runtime_kwargs.pop("_runtime_hosted_web_search_required", False)
-    )
-    hosted_web_search_required = (
-        hosted_web_search_requested and supports_explicit_hosted_web_search(adapter)
-    )
-    hosted_web_search_context_size = runtime_kwargs.pop(
-        "_runtime_hosted_web_search_context_size",
-        "medium",
-    )
     runtime_kwargs.pop("_runtime_force_protocol_path", None)
-    runtime_kwargs.pop("_runtime_native_web_search_fallback_reason", None)
-    runtime_kwargs.pop("_runtime_native_web_search_fallback_variant", None)
     runtime_kwargs.pop("previous_response_id", None)
     if effective_request is None:
         effective_request = adapter.resolve_effective_model_request(
@@ -309,22 +283,10 @@ async def build_responses_request(
     if stream:
         request_params["stream"] = True
     converted_tools = convert_tools_for_responses(tools) if tools else []
-    if hosted_web_search_required:
-        converted_tools = _hosted_web_search_tools_only(converted_tools)
-        if not any(
-            isinstance(tool, dict) and tool.get("type") == "web_search"
-            for tool in converted_tools
-        ):
-            converted_tools.insert(
-                0,
-                _hosted_web_search_tool(hosted_web_search_context_size),
-            )
+    if converted_tools:
         request_params["tools"] = converted_tools
-        request_params["tool_choice"] = "required"
-    elif converted_tools:
-        request_params["tools"] = converted_tools
-    if tool_choice and not hosted_web_search_required:
-        request_params["tool_choice"] = tool_choice
+        if tool_choice:
+            request_params["tool_choice"] = tool_choice
 
     reasoning = build_responses_reasoning_config(
         model=model,
@@ -334,6 +296,7 @@ async def build_responses_request(
     if reasoning is not None:
         request_params["reasoning"] = reasoning
 
+    _drop_runtime_private_kwargs(runtime_kwargs)
     request_params.update(runtime_kwargs)
     return request_params
 
@@ -344,6 +307,5 @@ __all__ = [
     "build_responses_reasoning_config",
     "build_responses_request",
     "convert_tools_for_responses",
-    "supports_explicit_hosted_web_search",
     "supports_responses_reasoning_summary",
 ]

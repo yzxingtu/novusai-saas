@@ -3369,7 +3369,6 @@
     "agent_access.tenant_role_ids": "Tenant Role Access",
     "agent_access.access_type": "Legacy access type (DB NOT NULL); end-user rules use tenant publication",
     "skill_package.system.engine": "System Engine Skills",
-    "skill_package.system.web_search": "Web Search",
     "api.param.tenant_id": "Tenant ID (0 = platform level)",
     "api.param.tenant_id_filter": "Filter by tenant",
     "api.param.file": "File to upload",

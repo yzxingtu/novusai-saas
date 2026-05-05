@@ -4,9 +4,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.ai.engine.recovery_web_research_gate import (
-    project_canonical_web_research_diagnostics,
-)
 from app.ai.json_safe import normalize_json_safe_dict
 from app.schemas.ai.invalid_ai_runtime_input import (
     DISALLOWED_AI_RUNTIME_INPUT_KEYS,
@@ -222,8 +219,8 @@ def _normalize_optional_float(value: Any) -> float | None:
 
 def _map_legacy_rag_kind(raw_kind: Any) -> str:
     kind = str(raw_kind or "").strip().lower()
-    if kind in {"web", "web_search"}:
-        return "web"
+    if kind == "web":
+        return "knowledge_base"
     if kind in {"memory", "long_term_memory", "session_memory"}:
         return "memory"
     if kind in {"tool", "tool_call"}:
@@ -434,8 +431,29 @@ def _normalize_provider_events(value: Any) -> list[dict[str, Any]]:
         payload = _normalize_json_dict(item)
         if not payload:
             continue
-        normalized.append(dict(payload))
+        if _contains_invalid_runtime_diagnostics_reference(payload):
+            continue
+        sanitized = sanitize_diagnostics_payload(payload)
+        if sanitized:
+            normalized.append(sanitized)
     return normalized
+
+
+def _contains_invalid_runtime_diagnostics_reference(value: Any) -> bool:
+    if isinstance(value, dict):
+        for key, nested in value.items():
+            if is_invalid_runtime_diagnostics_reference(key):
+                return True
+            if _contains_invalid_runtime_diagnostics_reference(nested):
+                return True
+        return False
+    if isinstance(value, list | tuple):
+        return any(
+            _contains_invalid_runtime_diagnostics_reference(item) for item in value
+        )
+    if isinstance(value, str):
+        return is_invalid_runtime_diagnostics_reference(value)
+    return False
 
 
 def _normalize_turn_skill_activation(value: Any) -> dict[str, Any] | None:
@@ -531,28 +549,6 @@ def _pick_string(*values: Any) -> str | None:
 
 def _pick_string_list(*values: Any) -> list[str]:
     return _normalize_string_list(_pick_truthy(*values))
-
-
-def _build_web_research_projection(
-    *,
-    metadata: dict[str, Any],
-    turn_record: dict[str, Any] | None,
-    turn_record_diagnostics: dict[str, Any],
-    context_diagnostics: dict[str, Any],
-    last_run_summary: dict[str, Any],
-    intent_plan: list[dict[str, Any]],
-) -> dict[str, Any]:
-    projection = project_canonical_web_research_diagnostics(
-        diagnostics_payload={
-            **last_run_summary,
-            **context_diagnostics,
-            **turn_record_diagnostics,
-            **metadata,
-        },
-        turn_record_payload=turn_record,
-        intent_plan=intent_plan,
-    )
-    return sanitize_diagnostics_payload(projection) or {}
 
 
 def resolve_live_selected_name_list(
@@ -982,15 +978,6 @@ def extract_turn_diagnostics_from_metadata(
         context_diagnostics.get("final_output_source"),
         last_run_summary.get("final_output_source"),
     )
-    web_research_projection = _build_web_research_projection(
-        metadata=metadata,
-        turn_record=turn_record,
-        turn_record_diagnostics=turn_record_diagnostics,
-        context_diagnostics=context_diagnostics,
-        last_run_summary=last_run_summary,
-        intent_plan=intent_plan,
-    )
-
     diagnostics = {
         "turn_record": turn_record,
         "turn_outcome": turn_outcome,
@@ -1033,7 +1020,6 @@ def extract_turn_diagnostics_from_metadata(
         "sync_rescue": sync_rescue,
         "should_record_call_log": should_record_call_log,
     }
-    diagnostics.update(web_research_projection)
     return diagnostics
 
 

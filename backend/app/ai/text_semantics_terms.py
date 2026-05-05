@@ -155,8 +155,6 @@ _RAIL_TICKET_TERMS = (
     "列车票",
     "高铁",
 )
-_WEB_SEARCH_PREFIXES = ("search results for:",)
-_FETCH_URL_PREFIXES = ("content from http://", "content from https://")
 
 
 def collapse_whitespace(text: str | None) -> str:
@@ -283,11 +281,11 @@ def extract_textual_tool_call_names(
             f"invoke {alias_key}",
             f'invoke name="{alias_key}"',
             f"invoke name='{alias_key}'",
-            f'invoke name=“{alias_key}”',
+            f"invoke name=“{alias_key}”",
             f"invoke name=‘{alias_key}’",
             f'name="{alias_key}"',
             f"name='{alias_key}'",
-            f'name=“{alias_key}”',
+            f"name=“{alias_key}”",
             f"name=‘{alias_key}’",
             f'"name":"{alias_key}"',
             f"'name':'{alias_key}'",
@@ -300,13 +298,6 @@ def extract_textual_tool_call_names(
         )
         if any(marker in lowered for marker in markers):
             _append(actual)
-
-    if any(lowered.startswith(prefix) for prefix in _WEB_SEARCH_PREFIXES):
-        _append("web_search")
-    if any(lowered.startswith(prefix) for prefix in _FETCH_URL_PREFIXES):
-        _append("fetch_url")
-    if "candidate url" in lowered and "fetch_url" in lowered:
-        _append("fetch_url")
 
     return matched
 

@@ -84,7 +84,10 @@ class ConversationRuntimeAccounting:
         turn_record: Any,
         failure_log_message: str,
     ) -> None:
-        if not runtime_context.should_record_call_log or runtime_context.ai_model is None:
+        if (
+            not runtime_context.should_record_call_log
+            or runtime_context.ai_model is None
+        ):
             return
         turn_record_payload = self._normalize_turn_record_payload(turn_record)
         try:
@@ -349,7 +352,9 @@ class ConversationRuntimeAccounting:
         turn_record: Any,
         turn_record_payload: dict[str, Any] | None,
     ) -> str | None:
-        payload_path = str((turn_record_payload or {}).get("protocol_path") or "").strip()
+        payload_path = str(
+            (turn_record_payload or {}).get("protocol_path") or ""
+        ).strip()
         if payload_path:
             return payload_path
         value = getattr(turn_record, "protocol_path", None)
@@ -360,7 +365,9 @@ class ConversationRuntimeAccounting:
     def _elapsed_seconds(start_time: float) -> float:
         wall_elapsed = time.time() - start_time
         monotonic_elapsed = time.perf_counter() - start_time
-        candidates = [elapsed for elapsed in (wall_elapsed, monotonic_elapsed) if elapsed >= 0]
+        candidates = [
+            elapsed for elapsed in (wall_elapsed, monotonic_elapsed) if elapsed >= 0
+        ]
         return min(candidates) if candidates else 0.0
 
 

@@ -63,8 +63,10 @@ class RuntimeDiagnosticsTurnProjector:
         ):
             return True
 
-        diagnostics = ConversationDiagnosticsProjector.extract_turn_diagnostics_from_metadata(
-            metadata
+        diagnostics = (
+            ConversationDiagnosticsProjector.extract_turn_diagnostics_from_metadata(
+                metadata
+            )
         )
         return any(
             cls._has_meaningful_value(diagnostics.get(key))
@@ -79,8 +81,10 @@ class RuntimeDiagnosticsTurnProjector:
         message: Any,
     ) -> dict[str, Any]:
         metadata = cls.message_metadata(message)
-        diagnostics = ConversationDiagnosticsProjector.extract_turn_diagnostics_from_metadata(
-            metadata
+        diagnostics = (
+            ConversationDiagnosticsProjector.extract_turn_diagnostics_from_metadata(
+                metadata
+            )
         )
         content = str(getattr(message, "content", "") or "")
         tool_calls = cls.tool_calls(message)

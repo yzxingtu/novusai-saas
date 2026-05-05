@@ -358,7 +358,9 @@ class OpenAIAdapterModelRequestMixin:
             or ""
         )
         if not cls._supports_reasoning_effort_model(logical_model_code):
-            ignored_overrides = list(effective_request.get("ignored_overrides", []) or [])
+            ignored_overrides = list(
+                effective_request.get("ignored_overrides", []) or []
+            )
             if marker not in ignored_overrides:
                 ignored_overrides.append(marker)
             ignore_reasons = dict(effective_request.get("ignore_reasons", {}) or {})

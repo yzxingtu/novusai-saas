@@ -44,7 +44,9 @@ async def fetch_public_url_text(
         await UrlValidator.validate(url)
     except SSRFBlockedError as exc:
         logger.warning("RAG URL blocked by SSRF guard: url={} err={}", url, str(exc))
-        raise BusinessException(message=_("knowledge_base.document.error.parse_failed")) from exc
+        raise BusinessException(
+            message=_("knowledge_base.document.error.parse_failed")
+        ) from exc
 
     current_url = url
     async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:

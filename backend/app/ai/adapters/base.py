@@ -15,11 +15,6 @@ from app.ai.types import (
     EmbeddingResponse,
     ImageGenerationResponse,
 )
-from app.ai.web_search.types import (
-    PROVIDER_MODE_NATIVE,
-    SearchProviderRun,
-    STATUS_UNSUPPORTED,
-)
 
 
 class BaseAdapter(ABC):
@@ -177,40 +172,6 @@ class BaseAdapter(ABC):
         """
         # Default implementation: non-empty string is valid / 默认实现：非空字符串即可
         return bool(model and isinstance(model, str))
-
-    def supports_native_web_search(self, model: str) -> bool:
-        """
-        Whether the adapter/model can use provider-hosted native web search.
-        适配器/模型是否支持供应商原生联网搜索。
-        """
-        _ = model
-        return False
-
-    async def native_web_search(
-        self,
-        *,
-        query: str,
-        max_results: int,
-        locale: str | None,
-        timeout_seconds: int,
-        model: str | None = None,
-        provider_label: str | None = None,
-        backend_key: str | None = None,
-    ) -> SearchProviderRun:
-        """
-        Execute provider-hosted native web search and return normalized results.
-        执行供应商托管的原生联网搜索并返回标准化结果。
-        """
-        _ = (query, max_results, locale, timeout_seconds, model, provider_label)
-        return SearchProviderRun(
-            provider=provider_label,
-            provider_mode=PROVIDER_MODE_NATIVE,
-            backend_key=backend_key,
-            status=STATUS_UNSUPPORTED,
-            items=[],
-            failure_reason="native web search not implemented by this adapter",
-            attempted_backends=[backend_key] if backend_key else [],
-        )
 
     def get_supported_features(self) -> dict[str, bool]:
         """

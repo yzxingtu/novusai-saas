@@ -8,7 +8,7 @@ from .tool_policy_helpers import tool_family_for_name
 
 
 def collect_tool_family_evidence(messages: list[ChatMessage]) -> dict[str, int]:
-    counts = {"web_research": 0, "weather": 0}
+    counts: dict[str, int] = {}
     for msg in messages:
         if msg.role != "assistant" or not msg.tool_calls:
             continue
@@ -22,6 +22,7 @@ def collect_tool_family_evidence(messages: list[ChatMessage]) -> dict[str, int]:
                     or ""
                 ).strip()
             )
-            if family in counts:
+            if family:
+                counts.setdefault(family, 0)
                 counts[family] += 1
     return counts

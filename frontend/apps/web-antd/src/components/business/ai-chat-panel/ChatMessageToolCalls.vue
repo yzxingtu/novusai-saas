@@ -78,21 +78,6 @@ function getEmbeddedToolSummary(toolItem: ToolDisplayItem): string {
     return explanation;
   }
 
-  const searchFailure = normalizeInlineText(
-    toolItem.searchSummary?.failureReason,
-  );
-  if (searchFailure) {
-    return searchFailure;
-  }
-
-  if (typeof toolItem.searchSummary?.resultCount === 'number') {
-    return `${$t('common.globalAiChat.toolSearchResults')}: ${toolItem.searchSummary.resultCount}`;
-  }
-
-  if (toolItem.searchSummary && toolItem.searchSummary.items.length > 0) {
-    return `${$t('common.globalAiChat.toolSearchResults')}: ${toolItem.searchSummary.items.length}`;
-  }
-
   return '';
 }
 

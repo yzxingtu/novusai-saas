@@ -12,7 +12,6 @@ from .stream_generation_view import ensure_stream_generation_view
 from .turn_executor import ModelRoundResult
 from .turn_flow_projector import (
     build_answer_assembly_turn_flow_event,
-    build_provider_search_turn_flow_event,
     build_thinking_turn_flow_event,
 )
 
@@ -29,7 +28,6 @@ class StreamRoundState:
     total_tokens: int = 0
     completion_tokens_used: int = 0
     finish_reason: str = "stop"
-    native_search_observed: bool = False
 
 
 def _resolve_generation_view(adapter: StreamIOAdapter) -> Any:
@@ -65,16 +63,6 @@ async def handle_stream_chunk(
     adapter._sync_runtime_metadata(chunk_meta)
     if isinstance(chunk_meta, dict):
         state.metadata.update(chunk_meta)
-        if chunk_meta.get("native_web_search_observed"):
-            state.native_search_observed = True
-    if isinstance(chunk_meta, dict) and chunk_meta.get("web_search_in_progress"):
-        state.native_search_observed = True
-        await adapter.handler._emit_runtime_event(
-            {"event": "status", "status": "web_search_in_progress"}
-        )
-        await adapter.handler._emit_runtime_event(
-            build_provider_search_turn_flow_event()
-        )
 
     reasoning_delta = getattr(chunk, "reasoning_delta", None)
     if reasoning_delta:
@@ -163,7 +151,6 @@ def finalize_model_round(
         response=response,
         total_tokens=state.total_tokens,
         completion_tokens_used=state.completion_tokens_used,
-        native_search_observed=state.native_search_observed,
     )
 
 

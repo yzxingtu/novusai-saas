@@ -41,7 +41,9 @@ class ConversationInteractionService:
         message_repo: ConversationMessageRepository,
         memory_tenant_id: int,
         decision_service_cls: type[ExecutionDecisionService] = ExecutionDecisionService,
-        trust_policy_service_cls: type[ExecutionTrustPolicyService] = ExecutionTrustPolicyService,
+        trust_policy_service_cls: type[
+            ExecutionTrustPolicyService
+        ] = ExecutionTrustPolicyService,
         write_ai_action_log_fn=write_ai_action_log,
         resolve_action_level_fn=resolve_action_level,
     ) -> None:
@@ -236,12 +238,14 @@ class ConversationInteractionService:
                     if matched:
                         metadata["action_buttons_used"] = True
                 elif kind == "pending_confirmation":
-                    pending_evidence, matched_tool_call = _find_pending_confirmation_evidence(
-                        metadata,
-                        tool_calls,
-                        raw_update.get("action"),
-                        raw_update.get("table"),
-                        raw_update.get("tool_name"),
+                    pending_evidence, matched_tool_call = (
+                        _find_pending_confirmation_evidence(
+                            metadata,
+                            tool_calls,
+                            raw_update.get("action"),
+                            raw_update.get("table"),
+                            raw_update.get("tool_name"),
+                        )
                     )
                     matched = _match_pending_confirmation(
                         metadata,
@@ -260,7 +264,9 @@ class ConversationInteractionService:
                             if isinstance(nested, dict):
                                 next_nested = dict(nested)
                                 next_nested["resolved"] = True
-                                next_nested["rejected"] = bool(raw_update.get("rejected"))
+                                next_nested["rejected"] = bool(
+                                    raw_update.get("rejected")
+                                )
                                 tc["pending_confirmation"] = next_nested
                         action_name = str(
                             raw_update.get("action") or pending.get("action") or ""
@@ -274,7 +280,9 @@ class ConversationInteractionService:
                         )
                         tool_name = (
                             str(
-                                ((matched_tool_call or {}).get("function") or {}).get("name")
+                                ((matched_tool_call or {}).get("function") or {}).get(
+                                    "name"
+                                )
                                 or ""
                             ).strip()
                             or None
@@ -286,7 +294,9 @@ class ConversationInteractionService:
                             ),
                             "downgraded_from": raw_update.get("downgraded_from"),
                             "downgrade_reason": raw_update.get("downgrade_reason"),
-                            "auto_approve_source": raw_update.get("auto_approve_source"),
+                            "auto_approve_source": raw_update.get(
+                                "auto_approve_source"
+                            ),
                         }
                         decision_payload = {
                             "tenant_id": self.memory_tenant_id,
@@ -294,10 +304,8 @@ class ConversationInteractionService:
                             "agent_id": conversation.agent_id,
                             "operator_id": user_id,
                             "operator_type": owner_type,
-                            "decision_type":
-                            ExecutionDecisionTypeEnum.CONFIRMATION.value,
-                            "subject_type":
-                            ExecutionDecisionSubjectEnum.DATA_ACTION.value,
+                            "decision_type": ExecutionDecisionTypeEnum.CONFIRMATION.value,
+                            "subject_type": ExecutionDecisionSubjectEnum.DATA_ACTION.value,
                             "status": (
                                 ExecutionDecisionStatusEnum.REJECTED.value
                                 if rejected
@@ -328,10 +336,12 @@ class ConversationInteractionService:
                             },
                         }
                 elif kind == "pending_consent":
-                    pending_evidence, matched_tool_call = _find_pending_consent_evidence(
-                        metadata,
-                        tool_calls,
-                        raw_update.get("tool_name"),
+                    pending_evidence, matched_tool_call = (
+                        _find_pending_consent_evidence(
+                            metadata,
+                            tool_calls,
+                            raw_update.get("tool_name"),
+                        )
                     )
                     matched = _match_pending_consent(
                         metadata,
@@ -342,16 +352,16 @@ class ConversationInteractionService:
                         pending = dict(metadata.get("pending_consent") or {})
                         pending["resolved"] = True
                         pending["rejected"] = bool(raw_update.get("rejected"))
-                        pending["auto_approved"] = bool(
-                            raw_update.get("auto_approved")
-                        )
+                        pending["auto_approved"] = bool(raw_update.get("auto_approved"))
                         metadata["pending_consent"] = pending
                         for tc in tool_calls:
                             nested = tc.get("pending_consent")
                             if isinstance(nested, dict):
                                 next_nested = dict(nested)
                                 next_nested["resolved"] = True
-                                next_nested["rejected"] = bool(raw_update.get("rejected"))
+                                next_nested["rejected"] = bool(
+                                    raw_update.get("rejected")
+                                )
                                 next_nested["auto_approved"] = bool(
                                     raw_update.get("auto_approved")
                                 )
@@ -360,7 +370,9 @@ class ConversationInteractionService:
                             raw_update.get("tool_name")
                             or pending.get("tool_name")
                             or (
-                                ((matched_tool_call or {}).get("function") or {}).get("name")
+                                ((matched_tool_call or {}).get("function") or {}).get(
+                                    "name"
+                                )
                             )
                             or ""
                         ).strip()
@@ -481,7 +493,9 @@ class ConversationInteractionService:
                         if planner_context:
                             interaction_context["tool_planner"] = planner_context
                         if interaction_context:
-                            evidence_payload = dict(decision_payload.get("evidence") or {})
+                            evidence_payload = dict(
+                                decision_payload.get("evidence") or {}
+                            )
                             evidence_payload.update(interaction_context)
                             decision_payload["evidence"] = evidence_payload
                         reason = str(decision_payload.get("reason") or "").strip()
@@ -515,7 +529,9 @@ class ConversationInteractionService:
                             request_data={
                                 "decision_id": getattr(decision, "id", None),
                                 "decision_type": decision_payload.get("decision_type"),
-                                "decision_scope": decision_payload.get("decision_scope"),
+                                "decision_scope": decision_payload.get(
+                                    "decision_scope"
+                                ),
                                 "subject_type": decision_payload.get("subject_type"),
                                 "tool_call_id": decision_payload.get("tool_call_id"),
                                 "tool_name": decision_payload.get("tool_name"),
@@ -528,7 +544,9 @@ class ConversationInteractionService:
                                 "auto_approved": bool(
                                     decision_payload.get("auto_approved")
                                 ),
-                                "correlation_key": decision_payload.get("correlation_key"),
+                                "correlation_key": decision_payload.get(
+                                    "correlation_key"
+                                ),
                             },
                         )
                     except Exception as exc:

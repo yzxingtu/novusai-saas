@@ -4,9 +4,6 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from app.ai.engine.recovery_web_research_gate import (
-    project_canonical_web_research_diagnostics,
-)
 from app.cli_commands import state as S
 from app.cli_commands.ai_norm import (
     _extract_turn_diagnostics_from_call_log_metadata,
@@ -20,6 +17,7 @@ from app.cli_commands.ai_norm import (
     _normalize_cli_provider_events,
     _normalize_cli_retry_events,
     _normalize_cli_string_list,
+    _normalize_cli_tool_calls,
 )
 from app.services.ai.conversation_turn_flow_projector import (
     ConversationTurnFlowProjector,
@@ -31,63 +29,6 @@ from app.services.ai.turn_failure_normalizer import (
 
 _BACKEND_DIR = S._BACKEND_DIR
 settings = S.settings
-
-_WEB_RESEARCH_PROJECTION_KEYS = frozenset(
-    {
-        "web_research_pipeline_id",
-        "search_provider",
-        "fetch_provider",
-        "evidence_status",
-        "candidate_urls",
-        "fetched_urls",
-        "rejected_urls",
-        "evidence_quality",
-        "answer_source",
-        "web_research_failure_kind",
-        "web_research_failure_layer",
-        "web_research_relevance_profile",
-        "web_research_relevance_rejection_count",
-        "web_research_provider_disable_reason",
-        "web_research_diagnostics",
-    }
-)
-
-
-def _has_unaccepted_web_research_diagnostics(diagnostics: dict) -> bool:
-    web_diagnostics = (
-        dict(diagnostics.get("web_research_diagnostics") or {})
-        if isinstance(diagnostics.get("web_research_diagnostics"), dict)
-        else {}
-    )
-    payload = {**diagnostics, **web_diagnostics}
-    if payload.get("web_research_evidence_unaccepted"):
-        return True
-    evidence_status = _normalize_cli_optional_string(payload.get("evidence_status"))
-    answer_source = _normalize_cli_optional_string(payload.get("answer_source"))
-    failure_kind = _normalize_cli_optional_string(
-        payload.get("web_research_failure_kind") or payload.get("failure_kind")
-    )
-    return bool(
-        evidence_status in {"partial", "failed"}
-        and (
-            answer_source in {None, "none", ""}
-            or failure_kind
-            or payload.get("rejected_urls")
-        )
-    )
-
-
-def _downgrade_unaccepted_web_research_final_output_source(
-    diagnostics: dict,
-) -> None:
-    if not _has_unaccepted_web_research_diagnostics(diagnostics):
-        return
-    if diagnostics.get("final_output_source") in {
-        "tool_evidence_completed",
-        "recovery_evidence",
-        "assistant",
-    }:
-        diagnostics["final_output_source"] = "partial_output"
 
 
 def _format_cli_dt(dt: object) -> object:
@@ -112,7 +53,7 @@ def _serialize_cli_conversation_message(row: object) -> dict:
         "role": getattr(row, "role", None),
         "created_at": _format_cli_dt(getattr(row, "created_at", None)),
         "content": getattr(row, "content", None) or "",
-        "tool_calls": getattr(row, "tool_calls", None),
+        "tool_calls": _normalize_cli_tool_calls(getattr(row, "tool_calls", None)),
         "tool_call_id": getattr(row, "tool_call_id", None),
         "tool_name": getattr(row, "tool_name", None),
         "token_count": getattr(row, "token_count", None),
@@ -233,7 +174,6 @@ def _apply_turn_flow_diagnostics_parity(
     )
     if normalized_final_output_source:
         diagnostics["final_output_source"] = normalized_final_output_source
-    _downgrade_unaccepted_web_research_final_output_source(diagnostics)
     if (
         diagnostics.get("turn_outcome") == "success"
         and diagnostics.get("termination_reason") == "completed"
@@ -1646,24 +1586,6 @@ def _hydrate_ai_conversation_snapshot(snapshot: dict) -> dict:
         ),
         None,
     )
-    web_research_projection = project_canonical_web_research_diagnostics(
-        diagnostics_payload={
-            **latest_call_log_diagnostics,
-            **assistant_last_run_summary,
-            **assistant_context_diagnostics,
-            **turn_record_diagnostics,
-            **diagnostics,
-        },
-        turn_record_payload=turn_record,
-        intent_plan=diagnostics.get("intent_plan"),
-    )
-    for key, value in web_research_projection.items():
-        if key in _WEB_RESEARCH_PROJECTION_KEYS:
-            diagnostics[key] = value
-            continue
-        if value not in (None, []) and diagnostics.get(key) in (None, []):
-            diagnostics[key] = value
-    _downgrade_unaccepted_web_research_final_output_source(diagnostics)
     diagnostics["source"] = _first_string(
         diagnostics.get("source"),
         "assistant_turn_record" if assistant_turn_record else None,

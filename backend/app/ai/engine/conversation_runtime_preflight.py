@@ -128,7 +128,9 @@ class ConversationRuntimePreflight:
             routed_model_id = int(getattr(route_result, "model_id", 0) or 0)
             route_model_obj = None
             if routed_model_id:
-                route_model_obj = await AIModelRepository(self.db).get_active_with_provider(
+                route_model_obj = await AIModelRepository(
+                    self.db
+                ).get_active_with_provider(
                     routed_model_id,
                 )
             if route_model_obj is not None:

@@ -119,7 +119,6 @@ class RuntimeDiagnosticsCheckSupport:
         summary = dict(manifest.get("summary") or {})
         provider = dict(manifest.get("provider") or {})
         model = dict(manifest.get("model") or {})
-        web_research_items = list(manifest.get("web_research") or [])
         memory_items = list(manifest.get("memory") or [])
         kb_items = list(manifest.get("knowledge_bases") or [])
 
@@ -191,29 +190,6 @@ class RuntimeDiagnosticsCheckSupport:
                     "inventory_skill_count": inventory_skill_count,
                     "selection_live": bool(summary.get("selection_live")),
                 },
-            )
-        )
-
-        web_research = next(
-            (
-                item
-                for item in web_research_items
-                if str(item.get("name") or "").strip() == "web_research"
-            ),
-            {},
-        )
-        research_status = str(web_research.get("status") or "unavailable")
-        research_metadata = dict(web_research.get("metadata") or {})
-        has_one_of_pair = bool(research_metadata.get("has_web_search")) ^ bool(
-            research_metadata.get("has_fetch_url")
-        )
-        checks.append(
-            self.build_check_item(
-                "web_research_contract",
-                status=research_status,
-                blocking=has_one_of_pair,
-                reason=web_research.get("reason"),
-                metadata=research_metadata,
             )
         )
 

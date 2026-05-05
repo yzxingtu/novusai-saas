@@ -460,7 +460,7 @@ export function getStageSummary(
         'providerName',
       ]) ?? readMetricText(metrics, ['provider_chain', 'providerChain']);
     if (provider) {
-      return `${$t('common.globalAiChat.toolSearchProvider')}: ${provider}`;
+      return `${$t('common.globalAiChat.toolExecutionRoute')}: ${provider}`;
     }
   }
 

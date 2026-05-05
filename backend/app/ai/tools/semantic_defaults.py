@@ -17,14 +17,6 @@ from typing import Any
 # Per-family short phrases used for tool optimization and capability-term expansion.
 # 按族的短语文本，用于工具优化与能力词扩展。
 FAMILY_HINT_TAGS: dict[str, tuple[str, ...]] = {
-    "web_research": (
-        "联网搜索",
-        "网页查询",
-        "读取网页",
-        "官方来源",
-        "最新信息",
-        "web search",
-    ),
     "weather": (
         "天气查询",
         "天气预报",
@@ -46,7 +38,6 @@ FAMILY_HINT_TAGS: dict[str, tuple[str, ...]] = {
 
 # Tags omitted from explicit-request hints (optimizer): slightly shorter / less “broad” cues than full FAMILY_HINT_TAGS.
 _EXPLICIT_HINT_EXCLUDE: dict[str, frozenset[str]] = {
-    "web_research": frozenset({"最新信息"}),
     "time_ops": frozenset({"time now"}),
 }
 
@@ -85,8 +76,6 @@ def tool_family_from_name(
     normalized = (name or "").strip()
     if not normalized:
         return "none"
-    if normalized in {"web_search", "fetch_url"}:
-        return "web_research"
     if normalized == "get_current_time":
         return "time_ops"
     if normalized in {"get_current_weather", "get_weather_forecast"}:

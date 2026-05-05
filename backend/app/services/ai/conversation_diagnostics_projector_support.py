@@ -89,9 +89,7 @@ def normalize_json_dict(value: Any) -> dict[str, Any] | None:
     if not isinstance(value, dict):
         return None
     return {
-        str(key): value[key]
-        for key in value
-        if isinstance(key, str) or key is not None
+        str(key): value[key] for key in value if isinstance(key, str) or key is not None
     }
 
 

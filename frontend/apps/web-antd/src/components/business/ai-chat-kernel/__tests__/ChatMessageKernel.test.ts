@@ -191,14 +191,14 @@ describe('chatMessageKernel', () => {
     ).toBe(true);
   });
 
-  it('uses the safe answer digest instead of generic English retry text for 2326-style partial research turns', async () => {
+  it('uses the safe answer digest instead of generic English retry text for partial quality-gated turns', async () => {
     const safePartial =
       '我找到了候选来源，但交叉验证不足，暂时不生成新闻结论。你可以稍后重试或换一个更具体的关键词。';
     const genericRetry =
       'The assistant could not finish this turn. Please retry.';
     const wrapper = mountKernel(
       createAssistantMessage({
-        completionReason: 'insufficient_cross_checked_sources',
+        completionReason: 'no_answer_quality_evidence',
         content: safePartial,
         turnOutcome: 'partial',
         turnFlow: {
@@ -213,14 +213,14 @@ describe('chatMessageKernel', () => {
             ],
             summary: safePartial,
           },
-          completionReason: 'insufficient_cross_checked_sources',
+          completionReason: 'no_answer_quality_evidence',
           errorSurface: {
             errorType: 'untrusted_final_output_source',
-            failureKind: 'insufficient_cross_checked_sources',
+            failureKind: 'no_answer_quality_evidence',
             message: genericRetry,
           },
           evidence: [],
-          failureKind: 'insufficient_cross_checked_sources',
+          failureKind: 'no_answer_quality_evidence',
           finalStageStatus: 'error',
           timeline: [
             {
@@ -232,7 +232,7 @@ describe('chatMessageKernel', () => {
             {
               id: 'terminal',
               status: 'error',
-              summary: 'insufficient_cross_checked_sources',
+              summary: 'no_answer_quality_evidence',
               type: 'failed',
             },
           ],

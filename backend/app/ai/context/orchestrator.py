@@ -8,15 +8,12 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.ai.memory_policy import resolve_memory_runtime_policy
-from app.ai.web_search.request_policy import is_explicit_builtin_web_search_request
 
 
 @dataclass(frozen=True)
 class IntentPlanFlags:
     all_shortcircuit: bool
     has_knowledge_intent: bool
-    has_web_research_intent: bool
-    has_builtin_web_tool_request: bool
     has_memory_intent: bool
     memory_context_enabled: bool
     has_memory_save_intent: bool
@@ -31,8 +28,6 @@ class IntentPlanFlags:
         return {
             "all_shortcircuit": self.all_shortcircuit,
             "has_knowledge_intent": self.has_knowledge_intent,
-            "has_web_research_intent": self.has_web_research_intent,
-            "has_builtin_web_tool_request": self.has_builtin_web_tool_request,
             "has_memory_intent": self.has_memory_intent,
             "memory_context_enabled": self.memory_context_enabled,
             "has_memory_save_intent": self.has_memory_save_intent,
@@ -65,13 +60,6 @@ class ContextPipelineOrchestrator:
             bool(getattr(intent, "shortcircuit", False)) for intent in normalized_plan
         )
         has_knowledge_intent = "knowledge_query" in intent_kinds
-        has_web_research_intent = "web_research" in intent_kinds or any(
-            str(getattr(intent, "family", "") or "").strip() == "web_research"
-            for intent in normalized_plan
-        )
-        has_builtin_web_tool_request = is_explicit_builtin_web_search_request(
-            ContextPipelineOrchestrator._last_user_text(request)
-        )
         has_memory_save_intent = "memory_save" in intent_kinds
         has_memory_recall_intent = "memory_recall" in intent_kinds
         memory_policy = resolve_memory_runtime_policy(request)
@@ -100,8 +88,6 @@ class ContextPipelineOrchestrator:
         return IntentPlanFlags(
             all_shortcircuit=all_shortcircuit,
             has_knowledge_intent=has_knowledge_intent,
-            has_web_research_intent=has_web_research_intent,
-            has_builtin_web_tool_request=has_builtin_web_tool_request,
             has_memory_intent=has_memory_intent,
             memory_context_enabled=memory_context_enabled,
             has_memory_save_intent=has_memory_save_intent,

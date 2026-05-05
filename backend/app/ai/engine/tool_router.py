@@ -80,37 +80,6 @@ class ToolRouter:
                 register(intent, ["get_current_time"])
                 continue
 
-            if intent.kind == "web_research":
-                metadata = dict(intent.metadata or {})
-                explicit_url = str(metadata.get("explicit_url") or "").strip()
-                fetch_only = bool(metadata.get("fetch_only")) or bool(explicit_url)
-                prefer_fetch_url = fetch_only or bool(metadata.get("prefer_fetch_url"))
-                if fetch_only:
-                    if "fetch_url" in tools_by_name:
-                        register(intent, ["fetch_url"], ["fetch_url"])
-                    else:
-                        register(intent, ["web_search"], ["web_search"])
-                    continue
-                if prefer_fetch_url:
-                    register(
-                        intent,
-                        ["fetch_url", "web_search"],
-                        ["fetch_url", "web_search"],
-                    )
-                    continue
-                intent.metadata = {
-                    **metadata,
-                    "web_research_runtime": "platform",
-                    "search_provider": "builtin_web_search",
-                    "fetch_provider": "builtin_fetch_url",
-                }
-                register(
-                    intent,
-                    ["web_search", "fetch_url"],
-                    ["web_search", "fetch_url"],
-                )
-                continue
-
             if intent.kind == "knowledge_query":
                 register(intent, [])
 

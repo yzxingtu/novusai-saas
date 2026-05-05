@@ -57,7 +57,9 @@ class ProtocolPlanner:
     ) -> None:
         provider_code = None
         if adapter is not None:
-            provider_code = str(getattr(adapter, "provider_code", "") or "").strip() or None
+            provider_code = (
+                str(getattr(adapter, "provider_code", "") or "").strip() or None
+            )
         raise ProviderError(
             message=f"Invalid provider protocol token in {field_name}: {value}",
             provider_code=provider_code,
@@ -73,7 +75,9 @@ class ProtocolPlanner:
     ) -> None:
         provider_code = None
         if adapter is not None:
-            provider_code = str(getattr(adapter, "provider_code", "") or "").strip() or None
+            provider_code = (
+                str(getattr(adapter, "provider_code", "") or "").strip() or None
+            )
         raise ProviderError(
             message=message,
             provider_code=provider_code,
@@ -124,7 +128,9 @@ class ProtocolPlanner:
         allowed: list[ProtocolPath] = []
         strict_contract = capabilities is not None
         explicit_allowed = False
-        if isinstance(raw_allowed, Iterable) and not isinstance(raw_allowed, (str, bytes)):
+        if isinstance(raw_allowed, Iterable) and not isinstance(
+            raw_allowed, (str, bytes)
+        ):
             explicit_allowed = True
             for value in raw_allowed:
                 if strict_contract:
@@ -227,7 +233,11 @@ class ProtocolPlanner:
             explicit_targets = normalized_fallbacks.get(preferred, ())
             chain = [preferred]
             for protocol in explicit_targets:
-                if protocol != preferred and protocol in allowed and protocol not in chain:
+                if (
+                    protocol != preferred
+                    and protocol in allowed
+                    and protocol not in chain
+                ):
                     chain.append(protocol)
             return chain if len(chain) > 1 else [preferred]
 

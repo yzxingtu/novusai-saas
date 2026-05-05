@@ -18,7 +18,7 @@ from app.core.logging import LogManager
 
 from .prepare_execution_runtime_helpers import PreparedExecutionRuntimeState
 from .prepare_execution_tool_helpers import PreparedExecutionToolPlan
-from .types import ExecutionRequest, PreparedExecution, ResearchContinuationContext
+from .types import ExecutionRequest, PreparedExecution
 
 logger = LogManager.get_logger("ai.engine")
 
@@ -31,7 +31,6 @@ class PrepareExecutionCollaborators:
         ..., Awaitable[PreparedExecutionRuntimeState]
     ]
     build_prepared_execution: Callable[..., PreparedExecution]
-    build_web_research_continuation_context: Callable[..., ResearchContinuationContext]
     apply_execution_trust_policy: Callable[..., dict[str, str]]
     render_contract: Callable[..., str]
     estimate_tokens: Callable[[str], int]
@@ -46,7 +45,6 @@ class PreparedExecutionContextState:
     rag_sources: list[dict[str, Any]] | None
     tools: list[ToolDefinition]
     all_tools: list[ToolDefinition]
-    continuation_context: ResearchContinuationContext | None
 
 
 @dataclass
@@ -66,7 +64,6 @@ class PreparedExecutionPipelineState:
             messages=self.context.messages,
             tools=self.tool_plan.tools,
             all_tools=self.context.all_tools,
-            continuation_context=self.context.continuation_context,
             tool_use_policy=self.tool_plan.tool_use_policy,
             rag_sources=self.context.rag_sources,
             context_assembly=self.context.context_assembly,
@@ -140,11 +137,6 @@ async def build_prepared_execution_context(
         tools = []
 
     all_tools = list(tools)
-    continuation_context = collaborators.build_web_research_continuation_context(
-        messages,
-        all_tools,
-        request.input_variables,
-    )
     return PreparedExecutionContextState(
         context_engine=context_engine,
         context_assembly=context_assembly,
@@ -152,7 +144,6 @@ async def build_prepared_execution_context(
         rag_sources=rag_sources,
         tools=tools,
         all_tools=all_tools,
-        continuation_context=continuation_context,
     )
 
 
@@ -170,8 +161,7 @@ def register_prepared_execution_budget(
         int(estimated_prompt_tokens)
         if estimated_prompt_tokens
         else sum(
-            estimate_chat_message_tokens(message)
-            for message in context_state.messages
+            estimate_chat_message_tokens(message) for message in context_state.messages
         )
     )
     collaborators.budget_guard.register_preparation(
@@ -235,7 +225,6 @@ async def build_prepared_execution_pipeline_state(
         explicit_requested_families=tool_plan.explicit_requested_families,
         execution_path=tool_plan.execution_path,
         execution_budget=tool_plan.execution_budget,
-        continuation_context=context_state.continuation_context,
         tool_planner=tool_plan.tool_planner,
         candidate_tool_names=tool_plan.candidate_tool_names,
         active_intent_id=tool_plan.active_intent_id,
@@ -296,9 +285,6 @@ def build_default_prepare_execution_collaborators(
         plan_execution_tools=plan_execution_tools,
         finalize_prepared_execution_runtime=finalize_prepared_execution_runtime,
         build_prepared_execution=_build_prepared_execution_impl,
-        build_web_research_continuation_context=(
-            base_engine._build_web_research_continuation_context
-        ),
         apply_execution_trust_policy=base_engine._apply_execution_trust_policy,
         render_contract=render_contract,
         estimate_tokens=estimate_tokens,

@@ -7,8 +7,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-_EXTERNAL_CONTEXT_TOOL_NAMES = {"web_search", "fetch_url"}
-
 _THREAD_MEMORY_OWNER_ACTIVE = "active"
 _THREAD_MEMORY_OWNER_POLLUTED = "polluted"
 _THREAD_MEMORY_OWNER_DISABLED = "disabled"
@@ -223,16 +221,6 @@ def detect_external_context_pollution(
     result: Any | None = None,
     tool_results: list[Any] | None = None,
 ) -> tuple[bool, str | None]:
-    raw_tool_results = (
-        list(tool_results or [])
-        if tool_results is not None
-        else list(getattr(result, "tool_results", []) or [])
-    )
-    for tool_result in raw_tool_results:
-        tool_name = _normalize_text(getattr(tool_result, "name", None))
-        if tool_name in _EXTERNAL_CONTEXT_TOOL_NAMES:
-            return True, f"tool:{tool_name}"
-
     if result is not None or tool_results is not None:
         return False, None
 

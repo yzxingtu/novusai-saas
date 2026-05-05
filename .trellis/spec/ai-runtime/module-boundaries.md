@@ -70,9 +70,8 @@ context assembly, and service-facing workflows can evolve independently.
 
 ### 5. Good/Base/Bad Cases
 
-- Good: `fetch_url` recovery answer quality is centralized in the recovery
-  evidence contract, while CLI and read models consume the same trusted preview
-  decision.
+- Good: retired online-search recovery branches are removed from the runtime
+  owner, while CLI and read models keep only thin historical diagnostic readers.
 - Base: a facade keeps `ConversationService` or a CLI command stable, but the
   actual query/projection logic moves to focused support modules.
 - Bad: root-cause marks a turn successful because a downstream projector ignores
@@ -126,9 +125,9 @@ the runtime capability manifest + summary.
 rescue policy for a single provider turn.
 6. Adapter and provider layer: protocol-specific request construction and
 response mapping for one protocol step.
-7. Tool runtime and skills: tool catalog, consent gating, tool execution, and
-web research orchestration. Page operations are retired from AI dialogue live
-paths.
+7. Tool runtime and skills: tool catalog, consent gating, and tool execution.
+Online search/web research and page operations are retired from AI dialogue
+live paths.
 8. Service layer: business use cases, persistence, memory capture, and read
 model projection.
 9. Observability and monitoring: diagnostics projection and operator read models.

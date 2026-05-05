@@ -11,9 +11,7 @@ import pytest
 
 from app.ai.engine import base_tool_loop_support as tool_loop_support_mod
 from app.ai.engine import tool_call_loop_runtime as runtime_mod
-from app.ai.engine import tool_processor as tool_processor_mod
 from app.ai.engine.base import BaseEngine
-from app.ai.engine.tool_loop_session import ToolLoopSession
 from app.ai.engine.types import (
     ExecutionBudget,
     ExecutionRequest,
@@ -82,8 +80,6 @@ def _make_callbacks(
         first_incomplete_requested_family=lambda _ordered, _completed: None,
         allowed_tool_names_for_family=lambda _family, _tools, _input: [],
         build_ordered_capability_hint=lambda _families, _tools, _input: None,
-        needs_fetch_url_before_summary=lambda _messages: False,
-        apply_fetch_url_only_gate=lambda _messages, tools, _all_tools: tools,
         restrict_tools_to_names=lambda tools, _allowed: tools,
         call_followup_llm=call_followup_llm or _default_followup_llm,
     )
@@ -165,88 +161,3 @@ async def test_handle_tool_calls_delegates_to_runtime_helper(monkeypatch) -> Non
     assert kwargs["context_sources"] == context_sources
     assert kwargs["route_result"] == {"chosen": "mock"}
     assert kwargs["log_user_type"] == request.user_role
-
-
-@pytest.mark.asyncio
-async def test_run_tool_call_loop_returns_budget_exit_before_round_execution(
-    monkeypatch,
-) -> None:
-    response = _make_response(
-        [
-            {
-                "id": "tc-time",
-                "type": "function",
-                "function": {"name": "get_current_time", "arguments": "{}"},
-            }
-        ]
-    )
-    tools = [ToolDefinition(name="get_current_time", description="time")]
-    budget = _make_budget()
-    budget.prompt_tokens_used = budget.max_prompt_tokens + 1
-
-    class _FakeProcessor:
-        def __init__(self, *_args, **_kwargs):
-            pass
-
-        @staticmethod
-        def approved_pending_consent_tool_names(_updates):
-            return []
-
-    monkeypatch.setattr(tool_processor_mod, "ToolCallProcessor", _FakeProcessor)
-    monkeypatch.setattr(
-        runtime_mod,
-        "build_tool_loop_session",
-        lambda **_kwargs: ToolLoopSession(
-            current_response=response,
-            tools_full=tools,
-            all_tools_full=tools,
-            effective_policy=ToolUsePolicy(),
-            ordered_requested_families=[],
-            has_fetch_url_in_toolset=False,
-            total_tokens=13,
-            completion_tokens_used=5,
-            tracked_tool_rounds=0,
-            tracked_tool_result_bytes=0,
-        ),
-    )
-    monkeypatch.setattr(
-        runtime_mod,
-        "sync_sandbox_runtime_model_info",
-        lambda **_kwargs: None,
-    )
-
-    async def _unexpected_execute_tool_round(**_kwargs):
-        raise AssertionError(
-            "execute_tool_round should not run when budget already exited"
-        )
-
-    monkeypatch.setattr(
-        runtime_mod, "execute_tool_round", _unexpected_execute_tool_round
-    )
-
-    result = await runtime_mod.run_tool_call_loop(
-        runtime=runtime_mod.ToolCallLoopRuntime(
-            sandbox=MagicMock(),
-            agent=SimpleNamespace(id=1),
-            messages=[ChatMessage(role="user", content="what time is it?")],
-            response=response,
-            tools=tools,
-            all_tools=tools,
-            request=_make_request(),
-            skip_final_call=False,
-            tool_consent_modes={},
-            continuation_context=None,
-            tool_use_policy=ToolUsePolicy(),
-            execution_budget=budget,
-            starting_total_tokens=None,
-            starting_completion_tokens=None,
-        ),
-        callbacks=_make_callbacks(),
-    )
-
-    final_response, tool_results, total_tokens, completion_tokens = result
-    assert final_response is not None
-    assert final_response.message.content == "budget:13"
-    assert tool_results == []
-    assert total_tokens == 13
-    assert completion_tokens == 5

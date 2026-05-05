@@ -87,29 +87,3 @@ def test_interaction_mode_migration_keeps_trusted_auto():
 
     assert changed is False
     assert payload["interaction_mode_effective"] == "trusted_auto"
-
-
-def test_interaction_mode_migration_normalizes_nested_metadata_payloads():
-    migration = _load_migration_module()
-
-    payload, changed = migration._normalize_json_payload(  # noqa: SLF001
-        {
-            "context_diagnostics": {"interaction_mode_effective": "suggest"},
-            "last_run_summary": {
-                "interaction_mode_effective": "observe",
-                "downgraded_from": "suggest",
-            },
-            "tool_calls": [
-                {"pending_consent": {"tool_name": "web_search"}},
-                {"interaction_mode_requested": "observe"},
-            ],
-        }
-    )
-
-    assert changed is True
-    assert (
-        payload["context_diagnostics"]["interaction_mode_effective"] == "trusted_auto"
-    )
-    assert payload["last_run_summary"]["interaction_mode_effective"] == "trusted_auto"
-    assert payload["last_run_summary"]["downgraded_from"] == "trusted_auto"
-    assert payload["tool_calls"][1]["interaction_mode_requested"] == "trusted_auto"

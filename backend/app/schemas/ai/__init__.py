@@ -44,16 +44,16 @@ from app.schemas.ai.monitoring import (
     MonitoringUsageSeriesPoint,
     MonitoringUsageSummary,
 )
-from app.schemas.ai.provider import (
-    AIProviderCreate,
-    AIProviderResponse,
-    AIProviderUpdate,
-)
 from app.schemas.ai.plugin_runtime_audit import (
     ExtensionLifecycleAuditReport,
     ExtensionLifecycleAuditStageResult,
     ExtensionLifecycleExposedCapability,
     ExtensionLifecycleRecentFailure,
+)
+from app.schemas.ai.provider import (
+    AIProviderCreate,
+    AIProviderResponse,
+    AIProviderUpdate,
 )
 from app.schemas.ai.runtime_diagnostics import (
     ExtensionLifecycleAuditReportSchema,

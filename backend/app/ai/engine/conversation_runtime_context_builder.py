@@ -11,7 +11,6 @@ from app.ai.adapters import AdapterRegistry
 from app.ai.runtime import ConversationQueryEngine
 from app.ai.tools.types import ToolDefinition, to_openai_tools
 from app.ai.types import ChatMessage, messages_to_dicts
-from app.core.runtime_identity import get_runtime_identity_tag
 
 from .conversation_helpers import (
     serialize_context_sources as _serialize_context_sources,
@@ -292,30 +291,8 @@ def _warn_missing_stream_tool_policy(
     conversation_id: int | None,
     agent: Any,
 ) -> None:
-    if (
-        not openai_tools
-        or effective_tool_choice
-        or not any(
-            isinstance(tool, dict)
-            and (tool.get("function", {}) or {}).get("name")
-            in {"web_search", "fetch_url"}
-            for tool in openai_tools
-        )
-    ):
-        return
-    if engine_logger is None:
-        return
-    engine_logger.warning(
-        "Tool policy not loaded: status=policy_not_loaded runtime={} conversation_id={} agent_id={} tool_names={}",
-        get_runtime_identity_tag(),
-        conversation_id,
-        getattr(agent, "id", None),
-        [
-            (tool.get("function", {}) or {}).get("name")
-            for tool in openai_tools
-            if isinstance(tool, dict)
-        ],
-    )
+    _ = engine_logger, openai_tools, effective_tool_choice, conversation_id, agent
+    return
 
 
 async def build_runtime_query_entrypoint_plan(

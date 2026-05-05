@@ -19,97 +19,15 @@ class TestCapabilityDescriptionBuilder:
         result = builder.build_skill_descriptions(None)
         assert result == []
 
-    def test_build_skill_descriptions_web_research(self):
-        """Test web research skill descriptions"""
-        # Mock skill result
-        class MockDescriptor:
-            def __init__(self, name, description, kind="capability_pack", metadata=None):
-                self.name = name
-                self.description = description
-                self.kind = kind
-                self.metadata = metadata or {}
-
-        class MockSkillResult:
-            def __init__(self):
-                self.tools = []
-                self.capability_descriptors = [
-                    MockDescriptor(
-                        name="web_search",
-                        description="Search the web for recent information",
-                        metadata={
-                            "family": "web_research",
-                            "available_tables": [
-                                {"name": "users", "comment": "用户"},
-                                {"name": "agents", "comment": "智能体"},
-                            ],
-                        },
-                    ),
-                    MockDescriptor(
-                        name="fetch_url",
-                        description="Read webpage details",
-                        metadata={
-                            "family": "web_research",
-                            "allowed_operations": ["fetch"],
-                        },
-                    ),
-                ]
-
-        builder = CapabilityDescriptionBuilder(style="detailed")
-        result = builder.build_skill_descriptions(MockSkillResult())
-
-        assert len(result) == 1
-        assert result[0].category == "skills"
-        assert result[0].title == "Web Research Skills"
-        assert len(result[0].items) == 2
-        assert "web_search" in result[0].items[0]
-        assert "users(用户)" in result[0].items[0]
-        assert "fetch_url" in result[0].items[1]
-
-    def test_build_skill_descriptions_multiple_families(self):
-        """Test skills from multiple families"""
-
-        class MockDescriptor:
-            def __init__(self, name, description, kind="capability_pack", metadata=None):
-                self.name = name
-                self.description = description
-                self.kind = kind
-                self.metadata = metadata or {}
-
-        class MockSkillResult:
-            def __init__(self):
-                self.tools = []
-                self.capability_descriptors = [
-                    MockDescriptor(
-                        name="web_search",
-                        description="Search the web",
-                        metadata={"family": "web_research"},
-                    ),
-                    MockDescriptor(
-                        name="get_weather",
-                        description="Get weather information",
-                        metadata={"family": "weather"},
-                    ),
-                    MockDescriptor(
-                        name="get_current_time",
-                        description="Get current time",
-                        metadata={"family": "time"},
-                    ),
-                ]
-
-        builder = CapabilityDescriptionBuilder()
-        result = builder.build_skill_descriptions(MockSkillResult())
-
-        assert len(result) == 3
-        families = {desc.metadata["family"] for desc in result}
-        assert families == {"web_research", "weather", "time"}
-
     def test_build_skill_descriptions_ignores_non_capability_pack_and_blank_names(
         self,
     ):
         """Test non-capability-pack descriptors and blank names are skipped"""
 
         class MockDescriptor:
-            def __init__(self, name, description, kind="capability_pack", metadata=None):
+            def __init__(
+                self, name, description, kind="capability_pack", metadata=None
+            ):
                 self.name = name
                 self.description = description
                 self.kind = kind
@@ -139,7 +57,9 @@ class TestCapabilityDescriptionBuilder:
         """Test catalog-only descriptors do not appear as live skills"""
 
         class MockDescriptor:
-            def __init__(self, name, description, kind="capability_pack", metadata=None):
+            def __init__(
+                self, name, description, kind="capability_pack", metadata=None
+            ):
                 self.name = name
                 self.description = description
                 self.kind = kind
@@ -182,7 +102,7 @@ class TestCapabilityDescriptionBuilder:
                 self.tools = []
                 self.capability_descriptors = [
                     MockDescriptor("database_lookup", "Lookup records"),
-                    MockDescriptor("fetch_news", "Fetch the latest news"),
+                    MockDescriptor("policy_summary", "Summarize policy records"),
                     MockDescriptor("weather_helper", "Check the weather"),
                     MockDescriptor("date_helper", "Read the date"),
                     MockDescriptor("custom_helper", "General utility"),
@@ -193,15 +113,15 @@ class TestCapabilityDescriptionBuilder:
 
         assert [desc.title for desc in result] == [
             "General Skills",
-            "Web Research Skills",
             "Weather Skills",
             "Time & Date Skills",
         ]
         assert result[0].items == [
             "database_lookup: Lookup records",
+            "policy_summary: Summarize policy records",
             "custom_helper: General utility",
         ]
-        assert result[1].items == ["fetch_news: Fetch the latest news"]
+        assert result[1].items == ["weather_helper: Check the weather"]
 
     def test_build_knowledge_base_descriptions_empty(self):
         """Test with no knowledge bases"""

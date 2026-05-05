@@ -69,9 +69,7 @@ async def filter_router_candidates(
     if family_coverage_filtered and len(candidates) == 1:
         direct_selected_agent = candidates[0]
 
-    preferred_fallback_candidates = (
-        candidates if family_coverage_filtered else None
-    )
+    preferred_fallback_candidates = candidates if family_coverage_filtered else None
 
     return CandidateFilterResult(
         candidates=candidates,

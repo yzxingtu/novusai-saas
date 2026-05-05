@@ -48,7 +48,9 @@ def is_stream_interruption_error(error: BaseException) -> bool:
 
 
 def resolve_provider_public_error_message(error: BaseException) -> str:
-    provider_message = strip_error_trace_suffix(extract_provider_error_message(error) or "")
+    provider_message = strip_error_trace_suffix(
+        extract_provider_error_message(error) or ""
+    )
     if provider_message and not looks_like_html_document_text(provider_message):
         return provider_message
 

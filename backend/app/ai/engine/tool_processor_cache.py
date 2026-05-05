@@ -11,8 +11,6 @@ from .execution_state_machine import get_current_execution_state_machine
 
 _PARALLEL_SAFE_TOOLS: frozenset[str] = frozenset(
     {
-        "web_search",
-        "fetch_url",
         "get_current_time",
         "get_current_weather",
         "get_weather_forecast",
@@ -60,8 +58,6 @@ class ToolProcessorCache:
             "get_current_weather",
             "get_weather_forecast",
             "get_current_time",
-            "web_search",
-            "fetch_url",
         }:
             pass
         else:
@@ -74,9 +70,7 @@ class ToolProcessorCache:
         return f"{name}|{payload}{conv_segment}"
 
     def _cache_kind_for_tool(self, func_name: str) -> str:
-        name = (func_name or "").strip()
-        if name == "web_search":
-            return "search_query"
+        _ = func_name
         return "readonly"
 
     def _cache_signature(
@@ -99,8 +93,6 @@ class ToolProcessorCache:
         state = get_current_execution_state_machine()
         if state is not None:
             return state.cache_for_kind(kind)
-        if kind == "search_query":
-            return self._search_query_cache
         return self._readonly_success_cache
 
     def try_readonly_cache_hit(
@@ -128,7 +120,9 @@ class ToolProcessorCache:
         state = get_current_execution_state_machine()
         if state is not None:
             state.register_cache_hit(kind)
-        return replace(cached_result, tool_call_id=tool_call_id, duration_ms=0), cached_ms
+        return replace(
+            cached_result, tool_call_id=tool_call_id, duration_ms=0
+        ), cached_ms
 
     def store_readonly_cache(
         self,

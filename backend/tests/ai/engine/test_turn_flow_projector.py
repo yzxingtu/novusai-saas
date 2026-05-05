@@ -269,42 +269,6 @@ def test_build_turn_flow_view_model_marks_partial_failure_as_error_terminal() ->
     assert turn_flow["evidence"][0]["id"] == "src_2"
 
 
-def test_build_turn_flow_view_model_marks_unaccepted_web_research_as_error_without_reason() -> (
-    None
-):
-    turn_flow = build_turn_flow_view_model(
-        diagnostics_payload={
-            "web_research_evidence_unaccepted": True,
-            "evidence_status": "partial",
-            "answer_source": "none",
-            "final_output_source": "partial_output",
-            "tool_filtering": {"all_tools_count": 2, "candidate_tools_count": 2},
-            "turn_events": [],
-        },
-        turn_record={"termination_reason": "completed"},
-        rag_sources=[],
-        output="不应当被当作成功答案",
-        completion_reason="completed",
-        interrupted=False,
-        error=None,
-    )
-
-    answer_assembly_stage = next(
-        stage
-        for stage in turn_flow["timeline"]
-        if stage.get("type") == "answer_assembly"
-    )
-    final_stage = turn_flow["timeline"][-1]
-
-    assert turn_flow["completion_reason"] == "web_research_evidence_incomplete"
-    assert answer_assembly_stage["status"] == "error"
-    assert final_stage["type"] == "failed"
-    assert final_stage["status"] == "error"
-    assert (turn_flow["error_surface"] or {}).get(
-        "failure_kind"
-    ) == "web_research_evidence_incomplete"
-
-
 def test_build_turn_flow_view_model_marks_elapsed_budget_exit_as_error_terminal() -> (
     None
 ):
@@ -342,114 +306,6 @@ def test_build_turn_flow_view_model_marks_elapsed_budget_exit_as_error_terminal(
     assert final_stage["type"] == "failed"
     assert final_stage["status"] == "error"
     assert (turn_flow["error_surface"] or {}).get("message")
-
-
-def test_build_turn_flow_view_model_marks_hosted_web_search_timeout_as_tool_execution_error() -> (
-    None
-):
-    turn_flow = build_turn_flow_view_model(
-        diagnostics_payload={
-            "turn_outcome": "partial",
-            "failure_kind": "provider_timeout",
-            "provider_events": [{"kind": "web_search_in_progress"}],
-            "tool_filtering": {"all_tools_count": 2, "candidate_tools_count": 2},
-            "turn_events": [],
-        },
-        turn_record={
-            "turn_outcome": "partial",
-            "termination_reason": "provider_timeout",
-        },
-        rag_sources=[],
-        output="",
-        completion_reason="provider_timeout",
-        interrupted=False,
-        error=None,
-    )
-
-    tool_execution_stage = next(
-        stage
-        for stage in turn_flow["timeline"]
-        if stage.get("type") == "tool_execution"
-    )
-
-    assert tool_execution_stage["status"] == "error"
-    assert (
-        tool_execution_stage["summary"]
-        == "Provider search timed out before results returned"
-    )
-
-
-def test_build_turn_flow_view_model_counts_projected_web_research_evidence() -> None:
-    turn_flow = build_turn_flow_view_model(
-        diagnostics_payload={
-            "web_research_pipeline_id": "wr-1",
-            "search_provider": "builtin-web-search",
-            "fetch_provider": "builtin-fetch-url",
-            "evidence_status": "completed",
-            "candidate_urls": [
-                "https://example.com/ranking",
-                "https://example.com/secondary",
-            ],
-            "fetched_urls": ["https://example.com/ranking"],
-            "evidence_quality": "body",
-            "answer_source": "fetched_body",
-            "tool_filtering": {"all_tools_count": 2, "candidate_tools_count": 2},
-            "turn_events": [],
-        },
-        turn_record={"termination_reason": "completed"},
-        rag_sources=[],
-        output="基于已抓取页面生成的答案。",
-        completion_reason="completed",
-        interrupted=False,
-        error=None,
-    )
-
-    retrieval_stage = next(
-        stage for stage in turn_flow["timeline"] if stage.get("type") == "retrieval"
-    )
-
-    assert retrieval_stage["status"] == "completed"
-    assert retrieval_stage["metrics"] == {"source_count": 1}
-    assert retrieval_stage["source_refs"] == ["web_research_fetched_1"]
-    assert turn_flow["evidence"][0]["url"] == "https://example.com/ranking"
-    assert turn_flow["evidence"][0]["badge"] == "completed"
-    assert turn_flow["evidence"][0]["snippet"] == "fetched_body"
-
-
-def test_build_turn_flow_view_model_does_not_retrieve_rejected_web_research_candidates() -> (
-    None
-):
-    turn_flow = build_turn_flow_view_model(
-        diagnostics_payload={
-            "web_research_pipeline_id": "wr-2285",
-            "search_provider": "builtin-web-search",
-            "fetch_provider": "builtin-fetch-url",
-            "evidence_status": "partial",
-            "candidate_urls": ["https://baijiahao.baidu.com/s?id=1860091565873698107"],
-            "fetched_urls": [],
-            "rejected_urls": ["https://baijiahao.baidu.com/s?id=1860091565873698107"],
-            "evidence_quality": "none",
-            "answer_source": "none",
-            "web_research_failure_kind": "low_query_relevance",
-            "web_research_evidence_unaccepted": True,
-            "tool_filtering": {"all_tools_count": 2, "candidate_tools_count": 2},
-            "turn_events": [],
-        },
-        turn_record={"termination_reason": "low_query_relevance"},
-        rag_sources=[],
-        output="",
-        completion_reason="low_query_relevance",
-        interrupted=False,
-        error=None,
-    )
-
-    retrieval_stage = next(
-        stage for stage in turn_flow["timeline"] if stage.get("type") == "retrieval"
-    )
-
-    assert retrieval_stage["status"] == "skipped"
-    assert retrieval_stage["metrics"] == {"source_count": 0}
-    assert turn_flow["evidence"] == []
 
 
 def test_build_turn_flow_view_model_ignores_untrusted_tool_evidence_answer_text() -> (
@@ -525,24 +381,21 @@ def test_build_turn_flow_view_model_surfaces_safe_untrusted_fallback_output() ->
 def test_build_turn_flow_view_model_uses_safe_fallback_for_terminal_error_surface() -> (
     None
 ):
-    safe_partial = (
-        "我找到了候选来源，但交叉验证不足，暂时不生成新闻结论。"
-        "你可以稍后重试或换一个更具体的关键词。"
-    )
+    safe_partial = "我没有拿到足够可靠的答案质量证据，因此暂时不生成结论。"
     turn_flow = build_turn_flow_view_model(
         diagnostics_payload={
             "final_output_source": "partial_output",
-            "failure_kind": "insufficient_cross_checked_sources",
+            "failure_kind": "no_answer_quality_evidence",
             "stripped_untrusted_final_output": True,
             "turn_outcome": "partial",
             "untrusted_final_output_fallback_applied": True,
             "tool_filtering": {"all_tools_count": 3, "candidate_tools_count": 2},
             "turn_events": [],
         },
-        turn_record={"termination_reason": "insufficient_cross_checked_sources"},
+        turn_record={"termination_reason": "no_answer_quality_evidence"},
         rag_sources=[],
         output=safe_partial,
-        completion_reason="insufficient_cross_checked_sources",
+        completion_reason="no_answer_quality_evidence",
         interrupted=False,
         error=None,
     )

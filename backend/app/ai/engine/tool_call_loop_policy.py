@@ -24,11 +24,6 @@ class ToolCallLoopPolicy:
         [list[str] | None, list[ToolDefinition], dict[str, Any] | None],
         str | None,
     ]
-    needs_fetch_url_before_summary: Callable[[list[ChatMessage]], bool]
-    apply_fetch_url_only_gate: Callable[
-        [list[ChatMessage], list[ToolDefinition], list[ToolDefinition]],
-        list[ToolDefinition],
-    ]
     restrict_tools_to_names: Callable[
         [list[ToolDefinition], list[str] | None],
         list[ToolDefinition],

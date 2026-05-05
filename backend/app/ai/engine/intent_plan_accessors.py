@@ -49,7 +49,9 @@ def attach_intent_plan_to_input_variables(
         return
     if "_runtime_intent_plan" in input_variables:
         return
-    input_variables["_runtime_intent_plan"] = [intent.to_dict() for intent in intent_plan]
+    input_variables["_runtime_intent_plan"] = [
+        intent.to_dict() for intent in intent_plan
+    ]
 
 
 __all__ = [

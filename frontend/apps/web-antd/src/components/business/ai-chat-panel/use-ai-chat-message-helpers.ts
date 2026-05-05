@@ -15,13 +15,6 @@ export {
   mergeAssistantTurnForDisplay,
 } from './use-ai-chat-message-merge-turn';
 export {
-  finalizeNativeSearchToolCall,
-  NATIVE_WEB_SEARCH_TOOL_NAME,
-  removeNativeSearchToolCall,
-  resolveNativeSearchToolStatus,
-  upsertNativeSearchToolCall,
-} from './use-ai-chat-message-native-search';
-export {
   appendDistinctMergedTextPart,
   normalizeMergedTextPart,
   normalizeObjectRecord,
@@ -34,7 +27,6 @@ export {
   applyCanonicalTurnAnswerCardEvent,
   applyCanonicalTurnEvidenceEvent,
   applyCanonicalTurnStageEvent,
-  applyNativeSearchStatusToTurnFlow,
   applyStreamingToolResultToTurnFlow,
   applyStreamingToolStartToTurnFlow,
   mergeTurnFlow,

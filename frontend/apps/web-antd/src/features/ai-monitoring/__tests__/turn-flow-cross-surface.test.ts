@@ -22,7 +22,7 @@ const RAW_SUCCESS_TURN_FLOW = {
   evidence: [
     {
       id: 'ev-1',
-      kind: 'web',
+      kind: 'document',
       title: 'source',
       url: 'https://example.com',
     },
@@ -107,9 +107,9 @@ describe('turn flow cross-surface normalization', () => {
     const sharedMonitoringFlow = getTurnFlowForDisplay(normalizedMonitoring);
 
     expect(sharedUserFlow.timeline[0]?.type).toBe('thinking');
-    expect(sharedUserFlow.evidence[0]?.kind).toBe('web');
+    expect(sharedUserFlow.evidence[0]?.kind).toBe('document');
     expect(sharedMonitoringFlow.timeline[0]?.type).toBe('thinking');
-    expect(sharedMonitoringFlow.evidence[0]?.kind).toBe('web');
+    expect(sharedMonitoringFlow.evidence[0]?.kind).toBe('document');
     expect(normalizedUserRecord.thinkingContent).toBeUndefined();
     expect(normalizedUserRecord.toolCalls).toBeUndefined();
     expect(normalizedMonitoringRecord.thinkingContent).toBeUndefined();
@@ -133,7 +133,7 @@ describe('turn flow cross-surface normalization', () => {
       id: 19,
       metadata: {
         failure_kind: 'provider_failure_after_partial_progress',
-        selected_tool_names: ['web_search'],
+        selected_tool_names: ['query_records'],
         termination_reason: 'provider_failure_after_partial_progress',
         turn_flow: RAW_FAILURE_TURN_FLOW,
         turn_outcome: 'partial',
@@ -164,7 +164,7 @@ describe('turn flow cross-surface normalization', () => {
     expect(normalizedMonitoring.terminationReason).toBe(
       'provider_failure_after_partial_progress',
     );
-    expect(normalizedMonitoring.selectedToolNames).toEqual(['web_search']);
+    expect(normalizedMonitoring.selectedToolNames).toEqual(['query_records']);
 
     expect(normalizedUserRecord.thinkingContent).toBeUndefined();
     expect(normalizedUserRecord.toolCalls).toBeUndefined();

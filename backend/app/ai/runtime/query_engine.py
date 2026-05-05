@@ -59,8 +59,7 @@ class ConversationQueryEngine:
 
     @staticmethod
     def _progress_tool_family(progress_kind: str) -> str | None:
-        if progress_kind == "web_search_in_progress":
-            return "web_research"
+        _ = progress_kind
         return None
 
     def _record_progress_kinds(

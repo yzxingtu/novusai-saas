@@ -48,8 +48,8 @@ def _run_projection_probe() -> dict[str, object]:
                 "metadata": {
                     "turn_diagnostics": {
                         "turn_outcome": "failed",
-                        "selected_tool_names": ["ui_get_snapshot", "web_search"],
-                        "selected_skill_names": ["page_awareness", "Research Skill"],
+                        "selected_tool_names": ["ui_get_snapshot", "crm_lookup"],
+                        "selected_skill_names": ["page_awareness", "CRM Skill"],
                         "turn_skill_activation": {
                             "applied": True,
                             "reason": "runtime_policy",
@@ -57,23 +57,23 @@ def _run_projection_probe() -> dict[str, object]:
                             "selected_skill_names": [],
                             "inventory_selected_tool_names": [
                                 "ui_get_snapshot",
-                                "web_search",
+                                "crm_lookup",
                             ],
                             "inventory_selected_skill_names": [
                                 "page_awareness",
-                                "Research Skill",
+                                "CRM Skill",
                             ],
                         },
                     }
                 },
             },
             "context_diagnostics": {
-                "selected_tool_names": ["ui_get_snapshot", "web_search"],
-                "selected_skill_names": ["page_awareness", "Research Skill"],
+                "selected_tool_names": ["ui_get_snapshot", "crm_lookup"],
+                "selected_skill_names": ["page_awareness", "CRM Skill"],
             },
             "last_run_summary": {
-                "selected_tool_names": ["ui_get_snapshot", "web_search"],
-                "selected_skill_names": ["page_awareness", "Research Skill"],
+                "selected_tool_names": ["ui_get_snapshot", "crm_lookup"],
+                "selected_skill_names": ["page_awareness", "CRM Skill"],
             },
         }
         request_metadata = {
@@ -142,9 +142,9 @@ def test_retained_projection_does_not_leak_inventory_when_live_selection_is_empt
         "skill_count": 0,
         "selected_skill_names": [],
         "inventory_tool_count": 1,
-        "inventory_selected_tool_names": ["web_search"],
+        "inventory_selected_tool_names": ["crm_lookup"],
         "inventory_skill_count": 1,
-        "inventory_selected_skill_names": ["Research Skill"],
+        "inventory_selected_skill_names": ["CRM Skill"],
     }
     assert "selected_tool_names" not in payload["context_payload"]
     assert "selected_skill_names" not in payload["context_payload"]
@@ -156,9 +156,9 @@ def test_retained_projection_does_not_leak_inventory_when_live_selection_is_empt
         "skill_count": 0,
         "selected_skill_names": [],
         "inventory_tool_count": 1,
-        "inventory_selected_tool_names": ["web_search"],
+        "inventory_selected_tool_names": ["crm_lookup"],
         "inventory_skill_count": 1,
-        "inventory_selected_skill_names": ["Research Skill"],
+        "inventory_selected_skill_names": ["CRM Skill"],
     }
     assert "selected_tool_names" not in payload["summary_payload"]
     assert "selected_skill_names" not in payload["summary_payload"]
@@ -170,15 +170,15 @@ def test_retained_projection_does_not_leak_inventory_when_live_selection_is_empt
         "skill_count": 0,
         "selected_skill_names": [],
         "inventory_tool_count": 1,
-        "inventory_selected_tool_names": ["web_search"],
+        "inventory_selected_tool_names": ["crm_lookup"],
         "inventory_skill_count": 1,
-        "inventory_selected_skill_names": ["Research Skill"],
+        "inventory_selected_skill_names": ["CRM Skill"],
     }
     assert payload["monitoring_payload"]["selected_tool_names"] == []
     assert payload["monitoring_payload"]["selected_skill_names"] == []
-    assert payload["monitoring_payload"]["turn_record"]["metadata"][
-        "turn_diagnostics"
-    ]["selected_tool_names"] == ["web_search"]
-    assert payload["monitoring_payload"]["turn_record"]["metadata"][
-        "turn_diagnostics"
-    ]["selected_skill_names"] == ["Research Skill"]
+    assert payload["monitoring_payload"]["turn_record"]["metadata"]["turn_diagnostics"][
+        "selected_tool_names"
+    ] == ["crm_lookup"]
+    assert payload["monitoring_payload"]["turn_record"]["metadata"]["turn_diagnostics"][
+        "selected_skill_names"
+    ] == ["CRM Skill"]

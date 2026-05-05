@@ -24,13 +24,6 @@ class PromptBridge(Protocol):
         input_variables: dict[str, Any] | None,
     ) -> ChatMessage: ...
 
-    def _build_web_research_continuation_context(
-        self,
-        messages: list[ChatMessage],
-        all_tools: list[Any],
-        input_variables: dict[str, Any] | None = None,
-    ) -> Any: ...
-
 
 KbBindingLoader = Callable[
     [Any, int, int | None],
@@ -167,13 +160,7 @@ async def assemble_initial_context_state(
         skill_result=skill_result,
         capability_inputs=provisional_capability_inputs,
     )
-    provisional_continuation_context = (
-        prompt_bridge._build_web_research_continuation_context(
-            messages,
-            list(provisional_bundle.tools),
-            getattr(request, "input_variables", None),
-        )
-    )
+    provisional_continuation_context = None
     intent_plan = intent_plan_callable(
         messages=messages,
         tools=list(provisional_bundle.tools),
@@ -194,13 +181,7 @@ async def assemble_initial_context_state(
             skill_result=skill_result,
             capability_inputs=provisional_capability_inputs,
         )
-        provisional_continuation_context = (
-            prompt_bridge._build_web_research_continuation_context(
-                messages,
-                list(provisional_bundle.tools),
-                getattr(request, "input_variables", None),
-            )
-        )
+        provisional_continuation_context = None
         intent_plan = intent_plan_callable(
             messages=messages,
             tools=list(provisional_bundle.tools),

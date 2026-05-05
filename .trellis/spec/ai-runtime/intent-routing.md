@@ -18,11 +18,12 @@ Produce explicit, ordered intents before tool routing or context injection.
 - `direct_reply` for pure text responses and capability self-report prompts.
 - `memory_save` and `memory_recall` under the `memory` family.
 - `knowledge_query` for KB-backed retrieval.
-- `web_research` for external search.
 - `time_query` and `weather_query` for tool families that are explicitly
 available.
 - Page operation routing is not valid. Do not emit `page_workflow`, `page_*`, or
   `page_ops` intents for live AI dialogue.
+- Online search routing is not valid. Do not emit `web_research` or any
+  search/fetch intent family for live AI dialogue.
 
 ## Routing Rules
 
@@ -41,13 +42,17 @@ available.
   with `missing_args=["city"]` instead of failing tool routing.
 - `knowledge_query` is only emitted when a KB is bound and the user signal is
   explicit (definition-like or KB-specific). KB binding alone is not enough.
-- `web_research` must be suppressed when the user explicitly forbids web access.
-- Explicit URL fetch requests stay in `web_research` even when the user forbids
-  generic web search, and negative page caveats such as "不要参考当前页面" /
-  "do not use the current page" must not create `page_*` intents.
-- Tool-verification guard clauses such as "若没实际调用 fetch_url 就回答
-  NO_FETCH" or "if you did not actually call the tool, answer NO_TOOL" are
-  output constraints, not additional intents.
+- Requests to browse, search, check live/current public information, fetch a
+  public URL for a research answer, or directly invoke retired search/fetch
+  tools must not create tool-bearing online-search intents. Emit a text-capable
+  unsupported path, or route only to another already-supported non-web family
+  when the user supplied enough non-web material.
+- Negative page caveats such as "不要参考当前页面" / "do not use the current page"
+  must not create `page_*` intents.
+- Tool-verification guard clauses such as "若没实际调用工具就回答 NO_TOOL" are
+  output constraints, not additional intents. If the named tool is retired, the
+  runtime must still fail closed instead of trying to satisfy the guard by
+  exposing it.
 - `time_query` detection must cover direct `get_current_time` instructions and
   localized city-time prompts such as `当前上海时间`, not only the older fixed
   phrase bucket.
@@ -83,7 +88,10 @@ available.
 - Tool routing before intent planning.
 - Intent classification that performs retrieval or memory side effects.
 - Defaulting to `knowledge_query` solely because a KB is bound.
-- Collapsing page and web research intents into one ambiguous family.
+- Introducing or restoring `web_research`, search/fetch, or provider-native
+  search as a live intent family.
+- Collapsing page, online-search, and ordinary text intents into one ambiguous
+  family.
 - Adding new hardcoded verb / noun vocabulary lists to extend intent coverage
   (e.g., `_PAGE_NAVIGATION_PREFACE_*`, `_KNOWLEDGE_TERMS`, `_WEATHER_TERMS` style
   expansions). New coverage must come from LLM-driven routing or from explicit

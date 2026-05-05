@@ -18,7 +18,6 @@ import {
   applyCanonicalTurnAnswerCardEvent,
   applyCanonicalTurnEvidenceEvent,
   applyCanonicalTurnStageEvent,
-  applyNativeSearchStatusToTurnFlow,
   applyStreamingToolResultToTurnFlow,
   applyStreamingToolStartToTurnFlow,
   isTurnFailure,
@@ -27,7 +26,6 @@ import {
   normalizeOptionalString,
   normalizeStringList,
   normalizeTurnRecord,
-  resolveNativeSearchToolStatus,
 } from './use-ai-chat-message-helpers';
 
 export async function parseSSEEvents(
@@ -179,17 +177,6 @@ export function createStreamSseHandler(
             deps.deferredAutoConfirm.value = true;
             deps.scrollToBottom();
           } else if (
-            event.event === 'status' &&
-            event.status === 'web_search_in_progress'
-          ) {
-            lifecycle.promoteToolRoundContent();
-            applyNativeSearchStatusToTurnFlow(msg, {
-              displayName: $t('common.globalAiChat.toolNativeSearch'),
-              status: 'running',
-              toolName: 'native_web_search',
-            });
-            deps.scrollToBottom();
-          } else if (
             event.event === 'knowledge_base_feedback' &&
             (event.dropped_knowledge_base_ids ||
               event.effective_knowledge_base_ids)
@@ -326,15 +313,6 @@ export function createStreamSseHandler(
                 },
               };
             }
-            const nativeSearchStatus =
-              resolveNativeSearchToolStatus(turnRecordRaw);
-            const finalizedNativeSearchStatus =
-              nativeSearchStatus === 'running' &&
-              selectedToolNames.includes('web_search') &&
-              !isTurnFailure(turnOutcome, terminationReason ?? completionReason)
-                ? 'success'
-                : nativeSearchStatus;
-
             if (completionReason) {
               msg.completionReason = completionReason;
             }
@@ -356,13 +334,6 @@ export function createStreamSseHandler(
             }
             if (selectedToolNames.length > 0) {
               msg.selectedToolNames = selectedToolNames;
-            }
-            if (finalizedNativeSearchStatus) {
-              applyNativeSearchStatusToTurnFlow(msg, {
-                displayName: $t('common.globalAiChat.toolNativeSearch'),
-                status: finalizedNativeSearchStatus,
-                toolName: 'native_web_search',
-              });
             }
             if (selectedSkillNames.length > 0) {
               msg.selectedSkillNames = selectedSkillNames;

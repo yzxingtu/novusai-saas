@@ -54,7 +54,6 @@ class RuntimeCapabilityManifest:
     skills: list[RuntimeCapabilityItem] = field(default_factory=list)
     knowledge_bases: list[RuntimeCapabilityItem] = field(default_factory=list)
     memory: list[RuntimeCapabilityItem] = field(default_factory=list)
-    web_research: list[RuntimeCapabilityItem] = field(default_factory=list)
     extensions: list[RuntimeCapabilityItem] = field(default_factory=list)
     disabled_capabilities: list[RuntimeCapabilityItem] = field(default_factory=list)
     boundaries: dict[str, Any] = field(default_factory=dict)
@@ -73,7 +72,6 @@ class RuntimeCapabilityManifest:
             "skills": [item.to_dict() for item in self.skills],
             "knowledge_bases": [item.to_dict() for item in self.knowledge_bases],
             "memory": [item.to_dict() for item in self.memory],
-            "web_research": [item.to_dict() for item in self.web_research],
             "extensions": [item.to_dict() for item in self.extensions],
             "disabled_capabilities": [
                 item.to_dict() for item in self.disabled_capabilities
@@ -247,9 +245,10 @@ class AIRuntimeInventoryService:
             filter_invalid_ai_runtime_references(list(bundle.selected_tool_names or []))
         )
         selected_skills = cls._stable_unique(
-            filter_invalid_ai_runtime_references(list(bundle.selected_skill_names or []))
+            filter_invalid_ai_runtime_references(
+                list(bundle.selected_skill_names or [])
+            )
         )
-        tool_families = cls._tool_families(bundle, request)
         tool_family_map = cls._tool_family_map(bundle, request)
 
         tool_items = [
@@ -362,35 +361,6 @@ class AIRuntimeInventoryService:
             )
         ]
 
-        has_web_search = "web_search" in selected_tools
-        has_fetch_url = "fetch_url" in selected_tools
-        research_status: RuntimeCapabilityStatus
-        research_reason: str | None = None
-        if has_web_search and has_fetch_url:
-            research_status = "available"
-        elif has_web_search or has_fetch_url:
-            research_status = "degraded"
-            research_reason = "incomplete_research_tool_pair"
-        else:
-            research_status = "unavailable"
-            research_reason = "web_research_tools_unavailable"
-        web_research_items = [
-            RuntimeCapabilityItem(
-                name="web_research",
-                kind="execution_tool",
-                status=research_status,
-                reason=research_reason,
-                metadata={
-                    "has_web_search": has_web_search,
-                    "has_fetch_url": has_fetch_url,
-                },
-                source="tool_registry",
-            )
-        ]
-        continuation_capable_families: list[str] = []
-        if has_web_search and has_fetch_url and "web_research" in tool_families:
-            continuation_capable_families.append("web_research")
-
         disabled_items: list[RuntimeCapabilityItem] = []
         if dropped_kb_ids:
             disabled_items.append(
@@ -401,17 +371,6 @@ class AIRuntimeInventoryService:
                     reason="knowledge_base_binding_restriction",
                     metadata={"dropped_knowledge_base_ids": dropped_kb_ids},
                     source="agent_binding_guard",
-                )
-            )
-        if research_status != "available":
-            disabled_items.append(
-                RuntimeCapabilityItem(
-                    name="web_research",
-                    kind="execution_tool",
-                    status=research_status,
-                    reason=research_reason,
-                    metadata=web_research_items[0].metadata,
-                    source="tool_registry",
                 )
             )
 
@@ -445,7 +404,6 @@ class AIRuntimeInventoryService:
             skills=skill_items,
             knowledge_bases=knowledge_items,
             memory=memory_items,
-            web_research=web_research_items,
             extensions=[],
             disabled_capabilities=disabled_items,
             boundaries=boundaries,
@@ -496,28 +454,7 @@ class AIRuntimeInventoryService:
                     if item.status == "available"
                 ]
             ),
-            "web_research_pair_complete": any(
-                item.name == "web_research"
-                and bool(item.metadata.get("has_web_search"))
-                and bool(item.metadata.get("has_fetch_url"))
-                for item in manifest.web_research
-            ),
-            "continuation_capable_families": cls._stable_unique(
-                [
-                    family
-                    for family in (
-                        "web_research"
-                        if any(
-                            item.name == "web_research"
-                            and bool(item.metadata.get("has_web_search"))
-                            and bool(item.metadata.get("has_fetch_url"))
-                            for item in manifest.web_research
-                        )
-                        else None,
-                    )
-                    if family
-                ]
-            ),
+            "continuation_capable_families": [],
             "provider": manifest.provider,
             "model": manifest.model,
             "manifest_version": manifest.manifest_version,

@@ -47,7 +47,9 @@ def synthesize_tool_results_from_calls(
     for index, tool_call in enumerate(tool_calls or []):
         if skip_unresolved_interactions:
             pending_consent = tool_call.get("pending_consent")
-            if isinstance(pending_consent, dict) and not pending_consent.get("resolved"):
+            if isinstance(pending_consent, dict) and not pending_consent.get(
+                "resolved"
+            ):
                 continue
             pending_confirmation = tool_call.get("pending_confirmation")
             if isinstance(pending_confirmation, dict) and not pending_confirmation.get(
@@ -55,7 +57,9 @@ def synthesize_tool_results_from_calls(
             ):
                 continue
         function_block = tool_call.get("function") or {}
-        tool_name = str(function_block.get("name") or tool_call.get("name") or "").strip()
+        tool_name = str(
+            function_block.get("name") or tool_call.get("name") or ""
+        ).strip()
         if not tool_name:
             continue
         tool_call_id = str(tool_call.get("id") or f"synthetic_tool_call_{index}")
@@ -125,9 +129,9 @@ def recover_tool_results_from_messages(
                 ):
                     continue
                 pending_confirmation = tool_call.get("pending_confirmation")
-                if isinstance(pending_confirmation, dict) and not pending_confirmation.get(
-                    "resolved"
-                ):
+                if isinstance(
+                    pending_confirmation, dict
+                ) and not pending_confirmation.get("resolved"):
                     continue
             function_block = tool_call.get("function") or {}
             tool_name = str(
@@ -144,18 +148,19 @@ def recover_tool_results_from_messages(
             success = (
                 bool(raw_success)
                 if raw_success is not None
-                else bool(content) and not str(tool_call.get("error_type") or "").strip()
+                else bool(content)
+                and not str(tool_call.get("error_type") or "").strip()
             )
             recovered[tool_call_id] = ToolResult(
                 tool_call_id=tool_call_id,
                 name=tool_name,
                 success=success,
                 output=content if success else "",
-                error="" if success else (content or str(tool_call.get("summary") or "").strip()),
+                error=""
+                if success
+                else (content or str(tool_call.get("summary") or "").strip()),
                 duration_ms=int(tool_call.get("duration_ms") or 0),
-                display_name=(
-                    str(tool_call.get("display_name") or "").strip() or None
-                ),
+                display_name=(str(tool_call.get("display_name") or "").strip() or None),
                 summary=str(tool_call.get("summary") or "").strip() or None,
                 result_link=str(tool_call.get("result_link") or "").strip() or None,
                 error_type=str(tool_call.get("error_type") or "").strip(),

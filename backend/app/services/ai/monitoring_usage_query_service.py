@@ -78,9 +78,15 @@ class MonitoringUsageQueryService:
             select(
                 stat_date.label("date"),
                 func.count(AICallLog.id).label("call_count"),
-                func.coalesce(func.sum(AICallLog.input_tokens), 0).label("input_tokens"),
-                func.coalesce(func.sum(AICallLog.output_tokens), 0).label("output_tokens"),
-                func.coalesce(func.sum(AICallLog.total_tokens), 0).label("total_tokens"),
+                func.coalesce(func.sum(AICallLog.input_tokens), 0).label(
+                    "input_tokens"
+                ),
+                func.coalesce(func.sum(AICallLog.output_tokens), 0).label(
+                    "output_tokens"
+                ),
+                func.coalesce(func.sum(AICallLog.total_tokens), 0).label(
+                    "total_tokens"
+                ),
                 func.coalesce(func.sum(AICallLog.cost), 0).label("total_cost"),
                 func.sum(
                     case((AICallLog.status == CallStatusEnum.SUCCESS.value, 1), else_=0)
@@ -111,9 +117,13 @@ class MonitoringUsageQueryService:
         model_stmt = (
             select(
                 AICallLog.model_id.label("key"),
-                func.coalesce(AICallLog.model_name_snapshot, AIModel.name).label("label"),
+                func.coalesce(AICallLog.model_name_snapshot, AIModel.name).label(
+                    "label"
+                ),
                 func.count(AICallLog.id).label("call_count"),
-                func.coalesce(func.sum(AICallLog.total_tokens), 0).label("total_tokens"),
+                func.coalesce(func.sum(AICallLog.total_tokens), 0).label(
+                    "total_tokens"
+                ),
                 func.coalesce(func.sum(AICallLog.cost), 0).label("total_cost"),
                 func.sum(
                     case((AICallLog.status == CallStatusEnum.SUCCESS.value, 1), else_=0)
@@ -151,7 +161,9 @@ class MonitoringUsageQueryService:
                 AICallLog.access_channel.label("key"),
                 AICallLog.access_channel.label("label"),
                 func.count(AICallLog.id).label("call_count"),
-                func.coalesce(func.sum(AICallLog.total_tokens), 0).label("total_tokens"),
+                func.coalesce(func.sum(AICallLog.total_tokens), 0).label(
+                    "total_tokens"
+                ),
                 func.coalesce(func.sum(AICallLog.cost), 0).label("total_cost"),
                 func.sum(
                     case((AICallLog.status == CallStatusEnum.SUCCESS.value, 1), else_=0)
@@ -183,7 +195,9 @@ class MonitoringUsageQueryService:
                 AICallLog.agent_id.label("key"),
                 func.coalesce(AICallLog.agent_name_snapshot, Agent.name).label("label"),
                 func.count(AICallLog.id).label("call_count"),
-                func.coalesce(func.sum(AICallLog.total_tokens), 0).label("total_tokens"),
+                func.coalesce(func.sum(AICallLog.total_tokens), 0).label(
+                    "total_tokens"
+                ),
                 func.coalesce(func.sum(AICallLog.cost), 0).label("total_cost"),
                 func.sum(
                     case((AICallLog.status == CallStatusEnum.SUCCESS.value, 1), else_=0)
@@ -221,7 +235,9 @@ class MonitoringUsageQueryService:
                 AICallLog.actor_user_type.label("actor_type"),
                 AICallLog.actor_user_id.label("actor_id"),
                 func.count(AICallLog.id).label("call_count"),
-                func.coalesce(func.sum(AICallLog.total_tokens), 0).label("total_tokens"),
+                func.coalesce(func.sum(AICallLog.total_tokens), 0).label(
+                    "total_tokens"
+                ),
                 func.coalesce(func.sum(AICallLog.cost), 0).label("total_cost"),
                 func.sum(
                     case((AICallLog.status == CallStatusEnum.SUCCESS.value, 1), else_=0)
@@ -260,7 +276,9 @@ class MonitoringUsageQueryService:
                             ),
                             actor_id=int(row.actor_id),
                             actor_type=str(row.actor_type),
-                            live_actor=actor_map.get((str(row.actor_type), int(row.actor_id))),
+                            live_actor=actor_map.get(
+                                (str(row.actor_type), int(row.actor_id))
+                            ),
                         )
                     )
                     and actor.display_name

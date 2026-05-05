@@ -10,7 +10,6 @@ from app.ai.runtime.protocol_recovery_policy import (
     ProtocolRecoveryPolicy,
 )
 from app.ai.runtime.types import TurnRecord
-from app.ai.types import ChatChunk
 
 
 def test_fallback_block_reason_maps_provider_failures() -> None:
@@ -44,14 +43,12 @@ def test_fallback_block_reason_maps_status_timeouts() -> None:
         "gateway timed out"
     )
 
-    assert ProtocolRecoveryPolicy.fallback_block_reason(timeout_408) == "provider_timeout"
-    assert ProtocolRecoveryPolicy.fallback_block_reason(timeout_504) == "provider_timeout"
-
-
-def test_chunk_should_emit_immediately_for_progress_only_signal() -> None:
-    chunk = ChatChunk(delta="", metadata={"web_search_in_progress": True})
-
-    assert ProtocolRecoveryPolicy.chunk_should_emit_immediately(chunk) is True
+    assert (
+        ProtocolRecoveryPolicy.fallback_block_reason(timeout_408) == "provider_timeout"
+    )
+    assert (
+        ProtocolRecoveryPolicy.fallback_block_reason(timeout_504) == "provider_timeout"
+    )
 
 
 def test_empty_stream_reason_distinguishes_progress_before_exception() -> None:

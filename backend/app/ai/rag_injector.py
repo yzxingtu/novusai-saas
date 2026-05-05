@@ -16,8 +16,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 if TYPE_CHECKING:
     from app.models.ai.agent import Agent
 
-from app.ai.types import ChatMessage
 from app.ai.context.budget_manager import get_budget_limit
+from app.ai.types import ChatMessage
 from app.core.logging import LogManager
 
 logger = LogManager.get_logger("ai.rag_injector")

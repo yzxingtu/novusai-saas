@@ -19,7 +19,6 @@ class ContextDiagnosticsInputs:
     estimated_tokens_after_prune: int
     context_compacted: bool
     memory_recalled: bool
-    web_research_date_anchor: str
     intent_plan: list[Any] = field(default_factory=list)
     intent_flags: dict[str, bool] = field(default_factory=dict)
     dynamic_capability_awareness_enabled: bool = False
@@ -80,15 +79,12 @@ def build_context_diagnostics(
     inputs: ContextDiagnosticsInputs,
 ) -> dict[str, Any]:
     diagnostics = {
-        "pruning_applied": bool(
-            getattr(inputs.prune_stats, "pruned_message_count", 0)
-        ),
+        "pruning_applied": bool(getattr(inputs.prune_stats, "pruned_message_count", 0)),
         "compaction_source_tokens": inputs.compaction_source_tokens,
         "estimated_tokens_before_prune": inputs.estimated_tokens_before_prune,
         "estimated_tokens_after_prune": inputs.estimated_tokens_after_prune,
         "context_compacted": inputs.context_compacted,
         "memory_recalled": inputs.memory_recalled,
-        "web_research_date_anchor": bool(inputs.web_research_date_anchor),
         "intent_plan": [
             intent.to_dict() if hasattr(intent, "to_dict") else intent
             for intent in (inputs.intent_plan or [])

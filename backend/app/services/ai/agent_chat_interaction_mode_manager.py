@@ -35,7 +35,11 @@ class AgentChatInteractionModeManager:
         explicit_trust_policy_ref: dict[str, Any] | None = None,
         interaction_updates: list[dict[str, Any]] | None = None,
     ) -> InteractionModeOutcome:
-        effective_mode, trust_policy_ref, downgrade_reason = await self._runtime_support.resolve_interaction_mode(
+        (
+            effective_mode,
+            trust_policy_ref,
+            downgrade_reason,
+        ) = await self._runtime_support.resolve_interaction_mode(
             requested_mode=requested_mode,
             conversation_id=conversation_id,
             agent_id=agent_id,
@@ -58,10 +62,14 @@ class AgentChatInteractionModeManager:
         effective_mode: str,
         downgrade_reason: str | None,
     ) -> list[dict[str, Any]] | None:
+        _requested_mode = requested_mode
+        _downgrade_reason = downgrade_reason
         if not interaction_updates:
             return None
 
-        auto_source = "execution_trust_policy" if effective_mode == "trusted_auto" else None
+        auto_source = (
+            "execution_trust_policy" if effective_mode == "trusted_auto" else None
+        )
         enriched: list[dict[str, Any]] = []
         for update in interaction_updates:
             if not isinstance(update, dict):

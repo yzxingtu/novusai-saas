@@ -21,26 +21,6 @@ NON_PAGE_TIME_TOKENS = (
     "current time",
     "what day is it",
 )
-NON_PAGE_WEB_SEARCH_TOKENS = (
-    "联网",
-    "网上查",
-    "网络搜索",
-    "官网",
-    "链接",
-    "url",
-    "网址",
-    "网页",
-    "web search",
-    "search online",
-    "online search",
-    "fetch",
-    "新闻",
-    "热点",
-    "排行",
-    "高铁票",
-    "火车票",
-    "12306",
-)
 
 
 def _normalize_message(message: str) -> str:
@@ -51,7 +31,9 @@ def _iter_message_clauses(message: str) -> list[str]:
     text = str(message or "").strip()
     if not text:
         return []
-    clauses = [clause.strip() for _offset, clause in _split_clauses(text) if clause.strip()]
+    clauses = [
+        clause.strip() for _offset, clause in _split_clauses(text) if clause.strip()
+    ]
     return clauses or [text]
 
 
@@ -76,17 +58,11 @@ def requested_tool_families(message: str) -> list[str]:
             add("weather")
         if any(token in normalized_clause for token in NON_PAGE_TIME_TOKENS):
             add("time_ops")
-        if any(token in normalized_clause for token in NON_PAGE_WEB_SEARCH_TOKENS) or (
-            "搜索" in normalized_clause or "搜" in normalized_clause
-        ):
-            add("web_research")
-
     return families
 
 
 __all__ = [
     "NON_PAGE_TIME_TOKENS",
     "NON_PAGE_WEATHER_TOKENS",
-    "NON_PAGE_WEB_SEARCH_TOKENS",
     "requested_tool_families",
 ]

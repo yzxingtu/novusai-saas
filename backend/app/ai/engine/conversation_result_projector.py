@@ -6,7 +6,6 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 from .final_output_policy import is_trusted_assistant_final_output_source
-from .recovery_web_research_gate import project_canonical_web_research_diagnostics
 from .turn_flow_projector import build_turn_flow_view_model
 from .types import ExecutionResult
 
@@ -32,23 +31,9 @@ _TURN_DIAGNOSTIC_KEYS = (
     "contract_breach_type",
     "final_output_source",
     "post_tool_completion_state",
-    "auto_fetch_gate_reason",
-    "web_research_terminal_contract",
     "provider_failure_recovered_from_tool_evidence",
     "recovered_provider_failure_kind",
     "recovered_provider_events",
-    "web_research_pipeline_id",
-    "search_provider",
-    "fetch_provider",
-    "evidence_status",
-    "candidate_urls",
-    "fetched_urls",
-    "evidence_quality",
-    "answer_source",
-    "web_research_failure_kind",
-    "web_research_failure_layer",
-    "web_research_provider_disable_reason",
-    "web_research_diagnostics",
     "turn_flow",
 )
 
@@ -95,13 +80,6 @@ def build_turn_projection(
     projected_diagnostics["final_output_source"] = final_output_source
 
     turn_record_payload = coerce_turn_record_payload(raw_turn_record)
-    projected_diagnostics.update(
-        project_canonical_web_research_diagnostics(
-            diagnostics_payload=projected_diagnostics,
-            turn_record_payload=turn_record_payload,
-            intent_plan=projected_diagnostics.get("intent_plan"),
-        )
-    )
     turn_record_payload["execution_path"] = execution_path
     if protocol_path:
         turn_record_payload["protocol_path"] = protocol_path
@@ -201,26 +179,6 @@ def build_execution_result(
         if turn_projection is not None and isinstance(turn_projection.turn_record, dict)
         else None
     )
-    web_research_projection = project_canonical_web_research_diagnostics(
-        diagnostics_payload=diagnostics_payload,
-        turn_record_payload=turn_record_payload,
-        intent_plan=intent_plan or diagnostics_payload.get("intent_plan"),
-        tool_results=tool_results,
-    )
-    if web_research_projection:
-        diagnostics_payload.update(web_research_projection)
-        if isinstance(turn_record_payload, dict):
-            turn_record_payload.update(web_research_projection)
-            metadata_payload = dict(turn_record_payload.get("metadata") or {})
-            orchestration_payload = dict(
-                metadata_payload.get("orchestration")
-                or metadata_payload.get("turn_diagnostics")
-                or {}
-            )
-            orchestration_payload.update(web_research_projection)
-            metadata_payload["orchestration"] = orchestration_payload
-            metadata_payload["turn_diagnostics"] = dict(orchestration_payload)
-            turn_record_payload["metadata"] = metadata_payload
     existing_turn_flow = diagnostics_payload.get("turn_flow")
     if not isinstance(existing_turn_flow, dict) and isinstance(
         turn_record_payload, dict

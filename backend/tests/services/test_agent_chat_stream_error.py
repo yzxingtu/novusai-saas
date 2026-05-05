@@ -165,13 +165,13 @@ def _build_success_result(
             "turn_outcome": "success",
             "termination_reason": "protocol_fallback",
             "protocol_path": "chat_completions",
-            "selected_tool_names": ["web_search"],
-            "selected_skill_names": ["runtime.web_research"],
+            "selected_tool_names": ["get_current_weather"],
+            "selected_skill_names": ["runtime.weather"],
             "provider_events": [
                 {
-                    "kind": "web_search_in_progress",
+                    "kind": "tool_execution_started",
                     "protocol_path": "responses",
-                    "tool_family": "web_research",
+                    "tool_family": "weather",
                 }
             ],
             "fallback_history": [

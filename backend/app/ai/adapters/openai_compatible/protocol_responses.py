@@ -28,7 +28,6 @@ _RESPONSES_RESPONSE_ID_METADATA_KEY = "responses_response_id"
 _RESPONSES_FAILURE_STATUSES = frozenset(
     {"failed", "incomplete", "cancelled", "expired"}
 )
-_DEFAULT_RESPONSES_CREATE_TIMEOUT_SECONDS = 20.0
 _TIMEOUT_MARKERS = ("timeout", "timed_out", "time_out", "deadline")
 _CONNECTION_MARKERS = ("connection", "connect", "network", "socket")
 
@@ -173,24 +172,12 @@ def _responses_failure_error(response: Any, *, model: str) -> AIGatewayError | N
     )
 
 
-def _has_forced_hosted_web_search_tool(request_params: dict[str, Any]) -> bool:
-    if request_params.get("tool_choice") != "required":
-        return False
-    return any(
-        isinstance(tool, dict) and tool.get("type") == "web_search"
-        for tool in (request_params.get("tools") or [])
-    )
-
-
 def _effective_create_timeout_seconds(
     request_params: dict[str, Any],
     timeout_seconds: float | None,
 ) -> float | None:
-    if timeout_seconds is not None:
-        return timeout_seconds
-    if _has_forced_hosted_web_search_tool(request_params):
-        return _DEFAULT_RESPONSES_CREATE_TIMEOUT_SECONDS
-    return None
+    _ = request_params
+    return timeout_seconds
 
 
 async def _create_responses_with_timeout(
@@ -231,38 +218,6 @@ async def _create_responses_with_timeout(
         ) from exc
 
 
-def _positive_int(value: Any) -> int:
-    try:
-        return max(0, int(value or 0))
-    except (TypeError, ValueError):
-        return 0
-
-
-def _has_native_web_search_evidence(response: Any) -> bool:
-    tool_usage = _response_field(response, "tool_usage")
-    web_search_usage = _response_field(tool_usage, "web_search")
-    if _positive_int(_response_field(web_search_usage, "num_requests")) > 0:
-        return True
-
-    for item in _response_field(response, "output", []) or []:
-        item_type = str(_response_field(item, "type", "") or "").strip()
-        if item_type == "web_search_call":
-            return True
-        if item_type != "message":
-            continue
-        for content in _response_field(item, "content", []) or []:
-            if str(_response_field(content, "type", "") or "").strip() != "output_text":
-                continue
-            for annotation in _response_field(content, "annotations", []) or []:
-                if str(
-                    _response_field(annotation, "type", "") or ""
-                ).strip() == "url_citation" and str(
-                    _response_field(annotation, "url", "") or ""
-                ).startswith(("http://", "https://")):
-                    return True
-    return False
-
-
 def convert_responses_chat_response(
     *,
     adapter: ResponsesAdapterProtocol,
@@ -279,8 +234,6 @@ def convert_responses_chat_response(
     metadata = {"protocol_path": "responses"}
     if response_id:
         metadata[_RESPONSES_RESPONSE_ID_METADATA_KEY] = response_id
-    if _has_native_web_search_evidence(response):
-        metadata["native_web_search_observed"] = True
     return ChatResponse(
         message=ChatMessage(
             role="assistant",

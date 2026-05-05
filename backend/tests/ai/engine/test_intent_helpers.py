@@ -4,16 +4,11 @@ Scope: intent signal helper behavior after page-operation retirement.
 Mocked dependencies: none.
 """
 
-from types import SimpleNamespace
-
 from app.ai.engine.intent_clause_helpers import _split_clauses
 from app.ai.engine.intent_signal_helpers import (
-    _continuation_families,
     _first_position,
     _last_user_text,
-    _tool_families,
 )
-from app.ai.tools.types import ToolDefinition
 from app.ai.types import ChatMessage
 
 
@@ -34,32 +29,6 @@ def test_last_user_text_picks_latest_and_handles_empty() -> None:
         )
         == ""
     )
-
-
-def test_tool_families_filters_none_without_page_context_side_effects() -> None:
-    tools = [
-        ToolDefinition(name="web_search", description="Search the web"),
-        ToolDefinition(name="get_current_time", description="Current time"),
-        ToolDefinition(name="", description=""),
-    ]
-
-    families = _tool_families(tools, {"page_context": {"page_key": "admin.ai.logs"}})
-
-    assert "web_research" in families
-    assert "time_ops" in families
-    assert "data_ops" not in families
-    assert "none" not in families
-
-
-def test_continuation_families_filters_retired_data_ops_sources() -> None:
-    context = SimpleNamespace(
-        continuation_capable_families=["data_ops", ""],
-        family="web_research",
-        tool_families=["weather", "data_ops", ""],
-    )
-
-    assert _continuation_families(context) == {"web_research", "weather"}
-    assert _continuation_families(None) == set()
 
 
 def test_first_position_picks_earliest_and_handles_missing() -> None:

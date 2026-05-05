@@ -33,9 +33,7 @@ _DEFAULT_TIMELINE_STAGE_TYPES = {
 
 _DEFAULT_STAGE_STATUSES = {"running", "completed", "skipped", "error", "interrupted"}
 
-_DEFAULT_ERROR_SURFACE_MESSAGE = (
-    "The request ended before a final answer was produced."
-)
+_DEFAULT_ERROR_SURFACE_MESSAGE = "The request ended before a final answer was produced."
 _PUBLIC_THINKING_STAGE_SUMMARY = "已完成思考与规划"
 _MISSING_FINAL_ANSWER_SUMMARIES = frozenset(
     {
@@ -45,19 +43,6 @@ _MISSING_FINAL_ANSWER_SUMMARIES = frozenset(
         "无可信最终答复",
         "无可信最终答案",
     }
-)
-_HOSTED_SEARCH_PROGRESS_KINDS = frozenset(
-    {"web_search_in_progress", "provider_search_in_progress", "search_in_progress"}
-)
-_HOSTED_SEARCH_TOOL_NAMES = frozenset({"web_search", "fetch_url"})
-_HOSTED_SEARCH_INTENT_MARKERS = (
-    "web_research",
-    "web-search",
-    "web search",
-    "search",
-    "research",
-    "联网",
-    "检索",
 )
 _LEGACY_TOOL_CALLS_METADATA_KEYS = (
     "canonical_tool_calls",
@@ -151,30 +136,6 @@ def _normalize_provider_events(value: Any) -> list[dict[str, Any]]:
     return normalized
 
 
-def _extract_progress_kinds(payload: dict[str, Any], turn_meta: dict[str, Any]) -> set[str]:
-    kinds = {
-        kind
-        for kind in (
-            _to_non_empty_str(event.get("kind"))
-            for event in _normalize_provider_events(turn_meta.get("provider_events"))
-        )
-        if kind
-    }
-    turn_record = payload.get("turn_record")
-    turn_record_payload = dict(turn_record) if isinstance(turn_record, dict) else {}
-    turn_record_metadata = turn_record_payload.get("metadata")
-    turn_record_metadata_payload = (
-        dict(turn_record_metadata) if isinstance(turn_record_metadata, dict) else {}
-    )
-    for raw_kind in turn_record_metadata_payload.get("stream_progress_kinds") or []:
-        kind = _to_non_empty_str(raw_kind)
-        if kind:
-            kinds.add(kind)
-    if bool(turn_record_metadata_payload.get("web_search_in_progress")):
-        kinds.add("web_search_in_progress")
-    return kinds
-
-
 def _resolve_tool_selection_counts(
     candidate_tools: list[str],
     selected_tools: list[str],
@@ -184,58 +145,15 @@ def _resolve_tool_selection_counts(
     return max(candidate_count, selected_count), selected_count
 
 
-def _summarize_hosted_search_progress(terminal_status: str) -> str:
-    if terminal_status == "error":
-        return "联网搜索在等待结果返回时超时"
-    if terminal_status == "interrupted":
-        return "联网搜索在等待结果返回时被中断"
-    if terminal_status == "completed":
-        return "已发起联网搜索并等待提供商返回结果"
-    return "正在联网搜索并等待结果返回"
-
-
 def _summarize_retrieval_progress(
     *,
     evidence_count: int,
-    has_hosted_search_progress: bool,
     terminal_status: str,
 ) -> str:
+    del terminal_status
     if evidence_count > 0:
         return f"整理了 {evidence_count} 条证据"
-    if has_hosted_search_progress:
-        if terminal_status == "error":
-            return "搜索未返回可展示证据"
-        if terminal_status == "interrupted":
-            return "搜索在返回证据前被中断"
-        return "正在等待搜索证据返回"
     return "整理了 0 条证据"
-
-
-def _normalize_identifier_tokens(values: list[str]) -> set[str]:
-    normalized: set[str] = set()
-    for item in values:
-        token = _to_non_empty_str(item)
-        if token:
-            normalized.add(token.lower())
-    return normalized
-
-
-def _looks_like_hosted_search_intent(turn_meta: dict[str, Any]) -> bool:
-    planner = (
-        dict(turn_meta.get("tool_planner") or {})
-        if isinstance(turn_meta.get("tool_planner"), dict)
-        else {}
-    )
-    tokens = [
-        _to_non_empty_str(planner.get("family")),
-        _to_non_empty_str(planner.get("intent")),
-        _to_non_empty_str(turn_meta.get("continuation_source")),
-    ]
-    for token in tokens:
-        lowered = str(token or "").strip().lower()
-        if lowered and any(marker in lowered for marker in _HOSTED_SEARCH_INTENT_MARKERS):
-            return True
-    return False
 
 
 def _derive_error_surface(metadata: dict[str, Any]) -> dict[str, Any] | None:
@@ -339,12 +257,14 @@ def _ensure_answer_assembly_stage(
     source_refs: list[str],
 ) -> list[dict[str, Any]]:
     answer_index = next(
-        (idx for idx, stage in enumerate(timeline) if stage.get("type") == "answer_assembly"),
+        (
+            idx
+            for idx, stage in enumerate(timeline)
+            if stage.get("type") == "answer_assembly"
+        ),
         None,
     )
-    answer_summary = (
-        "答复生成失败" if status == "error" else "答复生成中断"
-    )
+    answer_summary = "答复生成失败" if status == "error" else "答复生成中断"
     answer_payload = {
         "id": "answer_assembly",
         "type": "answer_assembly",
@@ -438,11 +358,13 @@ def _ensure_error_surface(
     )
     if not message:
         message = _DEFAULT_ERROR_SURFACE_MESSAGE
-    error_type = _to_non_empty_str(payload.get("error_type")) or _normalize_failure_kind(
-        failure_kind
-    )
-    if not error_type and final_output_source and not _is_trusted_final_output_source(
-        final_output_source
+    error_type = _to_non_empty_str(
+        payload.get("error_type")
+    ) or _normalize_failure_kind(failure_kind)
+    if (
+        not error_type
+        and final_output_source
+        and not _is_trusted_final_output_source(final_output_source)
     ):
         error_type = "untrusted_final_output_source"
     if not error_type:
@@ -456,9 +378,9 @@ def _ensure_error_surface(
     trace_id = _to_non_empty_str(payload.get("trace_id")) or _to_non_empty_str(
         metadata.get("error_trace_id") or metadata.get("trace_id")
     )
-    debug_message = _to_public_error_str(payload.get("debug_message")) or _to_public_error_str(
-        metadata.get("error_debug_message")
-    )
+    debug_message = _to_public_error_str(
+        payload.get("debug_message")
+    ) or _to_public_error_str(metadata.get("error_debug_message"))
     return {
         "message": message,
         "error_type": error_type,
@@ -469,8 +391,8 @@ def _ensure_error_surface(
 
 def _map_source_kind(raw_kind: Any) -> str:
     kind = str(raw_kind or "").strip().lower()
-    if kind in {"web", "web_search"}:
-        return "web"
+    if kind == "web":
+        return "knowledge_base"
     if kind in {"knowledge", "knowledge_base", "kb", "formal_kb"}:
         return "knowledge_base"
     if kind in {"memory", "long_term_memory", "session_memory"}:
@@ -539,8 +461,7 @@ def _is_untrusted_final_output_failure(
     if _normalize_failure_kind(failure_kind) == "untrusted_final_output_source":
         return True
     return bool(
-        final_output_source
-        and not _is_trusted_final_output_source(final_output_source)
+        final_output_source and not _is_trusted_final_output_source(final_output_source)
     )
 
 
@@ -566,10 +487,13 @@ def _resolve_failure_text_content_fallback(
 ) -> str | None:
     if terminal_status not in {"error", "interrupted"}:
         return text_content
-    if _is_untrusted_final_output_failure(
-        failure_kind=failure_kind,
-        final_output_source=final_output_source,
-    ) and not safe_untrusted_fallback_output:
+    if (
+        _is_untrusted_final_output_failure(
+            failure_kind=failure_kind,
+            final_output_source=final_output_source,
+        )
+        and not safe_untrusted_fallback_output
+    ):
         return None
     if _is_untrusted_final_output_failure(
         failure_kind=failure_kind,
@@ -597,7 +521,9 @@ def _apply_failure_answer_summary_fallback(
     if not replacement:
         return answer_card
     current_summary = _to_non_empty_str(answer_card.get("summary"))
-    if current_summary and not _looks_like_missing_final_answer_summary(current_summary):
+    if current_summary and not _looks_like_missing_final_answer_summary(
+        current_summary
+    ):
         return answer_card
 
     patched = dict(answer_card)
@@ -648,13 +574,10 @@ def _stabilize_timeline_statuses(
         stage_type = _to_non_empty_str(stage.get("type"))
         stage_status = _to_non_empty_str(stage.get("status"))
 
-        if (
-            (stage_type == "thinking" and stage_status == "error")
-            or (
-                stage_type == "tool_selection"
-                and selected_tools
-                and stage_status == "skipped"
-            )
+        if (stage_type == "thinking" and stage_status == "error") or (
+            stage_type == "tool_selection"
+            and selected_tools
+            and stage_status == "skipped"
         ):
             stage["status"] = "completed"
         elif stage_type == "tool_execution":
@@ -686,7 +609,6 @@ def _normalize_evidence_item(item: Any) -> dict[str, Any] | None:
     evidence_id = _to_non_empty_str(item.get("id"))
     if not evidence_id:
         return None
-    tool_name = _to_non_empty_str(item.get("tool_name") or item.get("source_ref"))
     payload = {
         "id": evidence_id,
         "kind": _map_source_kind(item.get("kind")),
@@ -705,9 +627,7 @@ def _normalize_evidence_item(item: Any) -> dict[str, Any] | None:
         item.get("arguments")
         if item.get("arguments") is not None
         else (
-            dict(item.get("function"))
-            if isinstance(item.get("function"), dict)
-            else {}
+            dict(item.get("function")) if isinstance(item.get("function"), dict) else {}
         ).get("arguments")
     )
     if arguments_value is not None:
@@ -719,8 +639,7 @@ def _normalize_evidence_item(item: Any) -> dict[str, Any] | None:
         "error": _to_non_empty_str(item.get("error")),
         "error_type": _to_non_empty_str(item.get("error_type")),
         "output": _to_non_empty_str(item.get("output")),
-        "result_link": _to_non_empty_str(item.get("result_link"))
-        or payload["url"],
+        "result_link": _to_non_empty_str(item.get("result_link")) or payload["url"],
         "skill_name": _to_non_empty_str(item.get("skill_name")),
         "skill_type": _to_non_empty_str(item.get("skill_type")),
         "started_at": _normalize_optional_int(item.get("started_at")),
@@ -773,7 +692,9 @@ def _resolve_legacy_tool_calls(metadata: dict[str, Any] | None) -> list[dict[str
     turn_record = ConversationDiagnosticsProjector.normalize_turn_record_payload(
         metadata_payload.get("turn_record")
     )
-    turn_record_payload = dict(turn_record or {}) if isinstance(turn_record, dict) else {}
+    turn_record_payload = (
+        dict(turn_record or {}) if isinstance(turn_record, dict) else {}
+    )
     turn_record_metadata = (
         dict(turn_record_payload.get("metadata") or {})
         if isinstance(turn_record_payload.get("metadata"), dict)
@@ -799,9 +720,7 @@ def _build_tool_evidence_from_tool_call(
     call_id = _to_non_empty_str(call.get("id")) or f"tool_{index + 1}"
     tool_name = _to_non_empty_str(call.get("name")) or _to_non_empty_str(
         (
-            dict(call.get("function"))
-            if isinstance(call.get("function"), dict)
-            else {}
+            dict(call.get("function")) if isinstance(call.get("function"), dict) else {}
         ).get("name")
     )
     display_name = _to_non_empty_str(call.get("display_name"))
@@ -829,9 +748,7 @@ def _build_tool_evidence_from_tool_call(
         call.get("arguments")
         if call.get("arguments") is not None
         else (
-            dict(call.get("function"))
-            if isinstance(call.get("function"), dict)
-            else {}
+            dict(call.get("function")) if isinstance(call.get("function"), dict) else {}
         ).get("arguments")
     )
     if arguments_value is not None:
@@ -882,13 +799,16 @@ def _build_context_source_evidence(
         or source.get("name")
     )
     evidence_id = source_ref or f"ev_context_{index + 1}"
-    title = _to_non_empty_str(
-        source_metadata.get("title")
-        or source.get("name")
-        or source_metadata.get("name")
-        or source_metadata.get("source")
-        or source_metadata.get("chunk_id")
-    ) or f"Source {index + 1}"
+    title = (
+        _to_non_empty_str(
+            source_metadata.get("title")
+            or source.get("name")
+            or source_metadata.get("name")
+            or source_metadata.get("source")
+            or source_metadata.get("chunk_id")
+        )
+        or f"Source {index + 1}"
+    )
     return {
         "id": evidence_id,
         "kind": kind,
@@ -917,7 +837,9 @@ def _build_legacy_rag_evidence(
     return {
         "id": _to_non_empty_str(source.get("source_ref") or source.get("chunk_id"))
         or f"ev_rag_{index + 1}",
-        "kind": _map_legacy_source_kind(source.get("kind") or source.get("source_kind")),
+        "kind": _map_legacy_source_kind(
+            source.get("kind") or source.get("source_kind")
+        ),
         "title": _to_non_empty_str(
             source.get("title")
             or source.get("source")
@@ -930,7 +852,9 @@ def _build_legacy_rag_evidence(
         "badge": _to_non_empty_str(source.get("badge")),
         "score": _normalize_optional_float(source.get("score")),
         "tool_call_id": None,
-        "source_ref": _to_non_empty_str(source.get("source_ref") or source.get("chunk_id")),
+        "source_ref": _to_non_empty_str(
+            source.get("source_ref") or source.get("chunk_id")
+        ),
     }
 
 
@@ -950,7 +874,9 @@ def _evidence_identity(item: dict[str, Any]) -> str:
     )
 
 
-def _merge_evidence_item(current: dict[str, Any], incoming: dict[str, Any]) -> dict[str, Any]:
+def _merge_evidence_item(
+    current: dict[str, Any], incoming: dict[str, Any]
+) -> dict[str, Any]:
     merged = dict(current)
     for key, value in incoming.items():
         if value is None:
@@ -1091,7 +1017,9 @@ def _resolve_canonical_turn_flow_payload(
     turn_record = ConversationDiagnosticsProjector.normalize_turn_record_payload(
         metadata_payload.get("turn_record")
     )
-    turn_record_payload = dict(turn_record or {}) if isinstance(turn_record, dict) else {}
+    turn_record_payload = (
+        dict(turn_record or {}) if isinstance(turn_record, dict) else {}
+    )
     turn_record_metadata = (
         dict(turn_record_payload.get("metadata") or {})
         if isinstance(turn_record_payload.get("metadata"), dict)
@@ -1144,7 +1072,9 @@ class ConversationTurnFlowProjector:
             if metadata_payload
             else {}
         )
-        completed_tool_names = derive_completed_tool_names(diagnostics.get("intent_plan"))
+        completed_tool_names = derive_completed_tool_names(
+            diagnostics.get("intent_plan")
+        )
         selected_tools = _normalize_string_list(diagnostics.get("selected_tool_names"))
         if not selected_tools:
             selected_tools = list(completed_tool_names)
@@ -1256,14 +1186,18 @@ class ConversationTurnFlowProjector:
         token_count: Any = None,
     ) -> dict[str, Any]:
         payload = dict(metadata or {})
-        turn_meta = ConversationDiagnosticsProjector.extract_turn_diagnostics_from_metadata(
-            payload
+        turn_meta = (
+            ConversationDiagnosticsProjector.extract_turn_diagnostics_from_metadata(
+                payload
+            )
         )
         turn_outcome = _to_non_empty_str(turn_meta.get("turn_outcome"))
         completion_reason = _to_non_empty_str(
             payload.get("completion_reason") or turn_meta.get("termination_reason")
         )
-        interrupted = bool(payload.get("interrupted")) or completion_reason == "interrupted"
+        interrupted = (
+            bool(payload.get("interrupted")) or completion_reason == "interrupted"
+        )
         failure_kind = _normalize_failure_kind(turn_meta.get("failure_kind"))
         final_output_source = _to_non_empty_str(turn_meta.get("final_output_source"))
         terminal_status = _derive_terminal_status(
@@ -1306,34 +1240,11 @@ class ConversationTurnFlowProjector:
         if not selected_tools:
             selected_tools = list(completed_tool_names)
         candidate_tools = _normalize_string_list(turn_meta.get("candidate_tool_names"))
-        progress_kinds = _extract_progress_kinds(payload, turn_meta)
-        selected_tool_tokens = _normalize_identifier_tokens(selected_tools)
-        candidate_tool_tokens = _normalize_identifier_tokens(candidate_tools)
-        has_hosted_search_tool_signal = bool(
-            _HOSTED_SEARCH_TOOL_NAMES & selected_tool_tokens
-        )
-        has_hosted_search_candidate_signal = bool(
-            _HOSTED_SEARCH_TOOL_NAMES & candidate_tool_tokens
-        )
-        has_hosted_search_intent_signal = _looks_like_hosted_search_intent(turn_meta)
-        has_hosted_search_progress = bool(
-            _HOSTED_SEARCH_PROGRESS_KINDS
-            & _normalize_identifier_tokens(list(progress_kinds))
-        )
-        if not has_hosted_search_progress and not normalized_tool_calls:
-            has_hosted_search_progress = bool(
-                has_hosted_search_tool_signal
-                or (
-                    has_hosted_search_candidate_signal
-                    and (
-                        has_hosted_search_intent_signal
-                        or terminal_status in {"error", "interrupted"}
-                    )
-                )
-            )
         unfinished_intents = _normalize_string_list(turn_meta.get("unfinished_intents"))
         context_sources = [
-            dict(item) for item in (turn_meta.get("context_sources") or []) if isinstance(item, dict)
+            dict(item)
+            for item in (turn_meta.get("context_sources") or [])
+            if isinstance(item, dict)
         ]
         canonical_evidence = [
             item
@@ -1372,7 +1283,11 @@ class ConversationTurnFlowProjector:
             else None
         )
         thinking_summary = _summarize_thinking_content(thinking_content)
-        if thinking_content or turn_meta.get("intent_plan") or turn_meta.get("tool_planner"):
+        if (
+            thinking_content
+            or turn_meta.get("intent_plan")
+            or turn_meta.get("tool_planner")
+        ):
             timeline.append(
                 {
                     "id": "thinking",
@@ -1418,7 +1333,7 @@ class ConversationTurnFlowProjector:
                 }
             )
 
-        if normalized_tool_calls or selected_tools or has_hosted_search_progress or unfinished_intents:
+        if normalized_tool_calls or selected_tools or unfinished_intents:
             tool_call_ids = [
                 _to_non_empty_str(call.get("id"))
                 for call in normalized_tool_calls
@@ -1426,19 +1341,14 @@ class ConversationTurnFlowProjector:
             ]
             if normalized_tool_calls:
                 tool_execution_status = "completed"
-                tool_execution_summary = f"执行了 {len(normalized_tool_calls)} 个工具调用"
-            elif has_hosted_search_progress:
-                tool_execution_status = (
-                    terminal_status
-                    if terminal_status in {"error", "interrupted"}
-                    else ("running" if not text_content and not completion_reason else "completed")
-                )
-                tool_execution_summary = _summarize_hosted_search_progress(
-                    tool_execution_status
+                tool_execution_summary = (
+                    f"执行了 {len(normalized_tool_calls)} 个工具调用"
                 )
             elif completed_tool_names:
                 tool_execution_status = "completed"
-                tool_execution_summary = f"执行了 {len(completed_tool_names)} 个工具调用"
+                tool_execution_summary = (
+                    f"执行了 {len(completed_tool_names)} 个工具调用"
+                )
             elif terminal_status == "error" and (selected_tools or unfinished_intents):
                 tool_execution_status = "error"
                 tool_execution_summary = "工具已进入执行阶段，但未等到返回结果"
@@ -1449,7 +1359,9 @@ class ConversationTurnFlowProjector:
                 tool_execution_summary = "工具执行在返回结果前被中断"
             else:
                 tool_execution_status = "skipped" if selected_tools else "completed"
-                tool_execution_summary = f"执行了 {len(normalized_tool_calls)} 个工具调用"
+                tool_execution_summary = (
+                    f"执行了 {len(normalized_tool_calls)} 个工具调用"
+                )
             timeline.append(
                 {
                     "id": "tool_execution",
@@ -1470,26 +1382,15 @@ class ConversationTurnFlowProjector:
             )
 
         has_retrieval_signal = bool(canonical_evidence or rag_items) or any(
-            _map_source_kind(item.get("kind"))
-            in {"web", "knowledge_base", "memory"}
+            _map_source_kind(item.get("kind")) in {"web", "knowledge_base", "memory"}
             for item in context_sources
         )
-        if has_retrieval_signal or has_hosted_search_progress:
+        if has_retrieval_signal:
             retrieval_summary = _summarize_retrieval_progress(
                 evidence_count=len(evidence),
-                has_hosted_search_progress=has_hosted_search_progress,
                 terminal_status=terminal_status,
             )
-            if evidence:
-                retrieval_status = "completed"
-            elif has_hosted_search_progress:
-                retrieval_status = (
-                    terminal_status
-                    if terminal_status in {"error", "interrupted"}
-                    else "running"
-                )
-            else:
-                retrieval_status = "skipped"
+            retrieval_status = "completed" if evidence else "skipped"
             timeline.append(
                 {
                     "id": "retrieval",
@@ -1507,7 +1408,11 @@ class ConversationTurnFlowProjector:
                 }
             )
 
-        if text_content or payload.get("answer_card") or terminal_status in {"error", "interrupted"}:
+        if (
+            text_content
+            or payload.get("answer_card")
+            or terminal_status in {"error", "interrupted"}
+        ):
             timeline.append(
                 {
                     "id": "answer_assembly",
@@ -1517,7 +1422,11 @@ class ConversationTurnFlowProjector:
                     "summary": (
                         "已生成最终答复"
                         if terminal_status == "completed"
-                        else ("答复生成中断" if terminal_status == "interrupted" else "答复生成失败")
+                        else (
+                            "答复生成中断"
+                            if terminal_status == "interrupted"
+                            else "答复生成失败"
+                        )
                     ),
                     "detail_lines": [],
                     "started_at_ms": None,
@@ -1544,13 +1453,17 @@ class ConversationTurnFlowProjector:
                 "title": (
                     "本轮失败"
                     if terminal_status == "error"
-                    else ("本轮中断" if terminal_status == "interrupted" else "本轮结束")
+                    else (
+                        "本轮中断" if terminal_status == "interrupted" else "本轮结束"
+                    )
                 ),
                 "summary": completion_reason
                 or (
                     "completed"
                     if terminal_status == "completed"
-                    else ("interrupted" if terminal_status == "interrupted" else "error")
+                    else (
+                        "interrupted" if terminal_status == "interrupted" else "error"
+                    )
                 ),
                 "detail_lines": [],
                 "started_at_ms": None,
@@ -1559,8 +1472,8 @@ class ConversationTurnFlowProjector:
                 "metrics": {},
                 "tool_call_ids": [],
                 "source_refs": [item["id"] for item in evidence],
-                }
-            )
+            }
+        )
 
         safe_untrusted_fallback_output = _has_safe_untrusted_fallback_output(
             payload,
@@ -1638,14 +1551,16 @@ class ConversationTurnFlowProjector:
                 "metrics": {},
                 "tool_call_ids": [],
                 "source_refs": [],
-            }
+            },
         ]
         return {
             "timeline": _normalize_timeline(timeline),
             "evidence": [],
             "answer_card": _normalize_answer_card(
                 {},
-                fallback_summary=_to_public_error_str(last_error.get("friendly_message")),
+                fallback_summary=_to_public_error_str(
+                    last_error.get("friendly_message")
+                ),
                 fallback_source_chip_ids=[],
             ),
             "completion_reason": completion_reason,
@@ -1655,7 +1570,9 @@ class ConversationTurnFlowProjector:
                     "message": _to_public_error_str(last_error.get("friendly_message")),
                     "error_type": error_type,
                     "trace_id": _to_non_empty_str(last_error.get("trace_id")),
-                    "debug_message": _to_public_error_str(last_error.get("debug_message")),
+                    "debug_message": _to_public_error_str(
+                        last_error.get("debug_message")
+                    ),
                 }
                 if last_error
                 else None

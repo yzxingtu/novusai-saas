@@ -411,7 +411,9 @@ def _replace_runtime_turn_record_fallback(
         runtime.runtime_turn_record = dict(raw_turn_record)
     elif raw_turn_record is not None and hasattr(raw_turn_record, "__dict__"):
         runtime.runtime_turn_record_source = raw_turn_record
-        runtime.runtime_turn_record = dict(getattr(raw_turn_record, "__dict__", {}) or {})
+        runtime.runtime_turn_record = dict(
+            getattr(raw_turn_record, "__dict__", {}) or {}
+        )
     else:
         return
     _apply_runtime_turn_record_overlays(runtime)
@@ -504,7 +506,9 @@ def build_stream_generation_view(source: Any) -> StreamGenerationView:
         runtime=runtime,
         event_queue=getattr(source, "_event_queue", None),
         update_turn_progress=(
-            update_turn_progress if callable(update_turn_progress) else lambda **_fields: None
+            update_turn_progress
+            if callable(update_turn_progress)
+            else lambda **_fields: None
         ),
         replace_runtime_turn_record=(
             replace_runtime_turn_record

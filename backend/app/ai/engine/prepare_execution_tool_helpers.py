@@ -64,9 +64,6 @@ from .tool_policy_helpers import (
     ensure_explicit_family_coverage as _ensure_explicit_family_coverage_impl,
 )
 from .tool_policy_helpers import (
-    ensure_web_research_tool_pair as _ensure_web_research_tool_pair_impl,
-)
-from .tool_policy_helpers import (
     ordered_requested_families_from_intents as _ordered_requested_families_from_intents_impl,
 )
 from .tool_policy_helpers import (
@@ -76,18 +73,24 @@ from .tool_policy_helpers import (
     restrict_tools_to_names as _restrict_tools_to_names_impl,
 )
 from .tool_router import ToolRouter
-from .turn_research_helpers import (
-    extract_last_user_text as _extract_last_user_text_impl,
-)
 from .types import (
     ExecutionBudget,
     ExecutionRequest,
     IntentPlan,
-    ResearchContinuationContext,
     ToolUsePolicy,
 )
 
 logger = LogManager.get_logger("ai.engine")
+
+
+def _extract_last_user_text(messages: list[ChatMessage]) -> str:
+    for message in reversed(messages):
+        if str(getattr(message, "role", "") or "") != "user":
+            continue
+        text = str(getattr(message, "content", "") or "").strip()
+        if text:
+            return text
+    return ""
 
 
 def _rebuild_runtime_capability_diagnostics(
@@ -218,7 +221,7 @@ def plan_execution_tools(
     active_intent_id: str | None = None
 
     if all_tools and intent_plan:
-        user_query = _extract_last_user_text_impl(messages)
+        user_query = _extract_last_user_text(messages)
         routing = ToolRouter.route(
             intents=intent_plan,
             tools=all_tools,
@@ -232,25 +235,6 @@ def plan_execution_tools(
             all_tools=all_tools,
             explicit_requested_families=explicit_requested_families,
             input_variables=request.input_variables,
-        )
-        selected_tools, _ = _ensure_web_research_tool_pair_impl(
-            selected_tools=selected_tools,
-            all_tools=all_tools,
-            explicit_requested_families=explicit_requested_families,
-            policy=ToolUsePolicy(
-                family=(
-                    "web_research"
-                    if "web_research" in explicit_requested_families
-                    else "none"
-                ),
-                allowed_tool_names=_allowed_tool_names_for_family_impl(
-                    "web_research",
-                    all_tools,
-                    request.input_variables,
-                )
-                if "web_research" in explicit_requested_families
-                else [],
-            ),
         )
         tool_candidates = selected_tools
         candidate_tool_names = [tool.name for tool in tool_candidates]
@@ -438,7 +422,6 @@ async def finalize_prepared_execution_runtime(
     explicit_requested_families: list[str],
     execution_path: str,
     execution_budget: ExecutionBudget | None,
-    continuation_context: ResearchContinuationContext | None,
     tool_planner: dict[str, Any] | None,
     candidate_tool_names: list[str],
     active_intent_id: str | None,
@@ -451,7 +434,7 @@ async def finalize_prepared_execution_runtime(
     capability injection + routing + diagnostics projection.
     """
     force_capability_summary = _is_capability_reporting_query_impl(
-        _extract_last_user_text_impl(messages)
+        _extract_last_user_text(messages)
     )
     if tools:
         context_assembly.capability_bundle = project_capability_bundle_to_tools(
@@ -515,7 +498,6 @@ async def finalize_prepared_execution_runtime(
         tool_planner=tool_planner,
         candidate_tool_names=candidate_tool_names,
         active_intent_id=active_intent_id,
-        continuation_context=continuation_context,
         intent_plan=intent_plan,
         execution_path=execution_path,
         execution_budget=execution_budget,

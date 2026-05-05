@@ -12,33 +12,6 @@ import { requestClient } from '#/utils/request';
 
 /** Provider type / 供应商类型 */
 export type ProviderType = string;
-export type ProviderWebSearchStrategy = 'native_first_fallback_public';
-export type PublicWebSearchProvider = 'baidu' | 'so360';
-
-export interface ProviderWebSearchVerifiedTarget {
-  model_code?: null | string;
-  model_id?: null | number;
-  provider_code?: null | string;
-  provider_id?: null | number;
-}
-
-export interface ProviderWebSearchConfig {
-  allow_unverified_runtime_target?: boolean;
-  enabled: boolean;
-  strategy: ProviderWebSearchStrategy;
-  max_results_cap: number;
-  native_timeout_seconds: number;
-  public_timeout_seconds: number;
-  public_providers: PublicWebSearchProvider[];
-  prefer_hosted_tool?: boolean;
-  verified_native_target?: null | ProviderWebSearchVerifiedTarget;
-}
-
-export interface ProviderWebSearchRuntime {
-  native_supported: boolean;
-  native_provider?: null | string;
-  reason?: null | string;
-}
 
 /** Adapter type info / 适配器类型信息 */
 export interface AdapterTypeInfo {
@@ -63,7 +36,6 @@ export interface AIProviderInfo {
   is_active: boolean;
   sort_order: number;
   config: null | Record<string, unknown>;
-  web_search_runtime?: null | ProviderWebSearchRuntime;
   model_count: number;
   created_at: string;
   updated_at: string;

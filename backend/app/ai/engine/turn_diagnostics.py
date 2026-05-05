@@ -30,38 +30,6 @@ _PREPARATION_DIAGNOSTIC_PASSTHROUGH_KEYS = (
     "partial_exit_reason",
     "untrusted_final_output_fallback_applied",
     "stripped_untrusted_final_output",
-    "web_research_terminal_contract",
-    "web_research_pipeline_id",
-    "web_research_evidence_unaccepted",
-    "web_research_diagnostics",
-    "search_provider",
-    "fetch_provider",
-    "evidence_status",
-    "candidate_urls",
-    "fetched_urls",
-    "rejected_urls",
-    "evidence_quality",
-    "answer_source",
-    "web_research_failure_kind",
-    "web_research_failure_layer",
-    "web_research_provider_disable_reason",
-    "web_research_relevance_profile",
-    "web_research_relevance_rejection_count",
-)
-
-_WEB_RESEARCH_EVIDENCE_FAILURE_REASONS = frozenset(
-    {
-        "blocked_url",
-        "candidate_urls_exhausted",
-        "fetch_failed",
-        "fetch_not_attempted",
-        "low_query_relevance",
-        "no_answer_quality_evidence",
-        "search_failed",
-        "search_no_results_completed",
-        "search_not_successful",
-        "web_research_evidence_incomplete",
-    }
 )
 
 
@@ -116,48 +84,6 @@ class TurnDiagnostics:
     @staticmethod
     def _normalize_token(value: Any) -> str:
         return str(value or "").strip().lower()
-
-    @staticmethod
-    def _has_web_research_failure_signal(source: Mapping[str, Any]) -> bool:
-        payload = TurnDiagnostics._as_dict(source)
-        web_diagnostics = TurnDiagnostics._as_dict(
-            payload.get("web_research_diagnostics")
-        )
-        if web_diagnostics:
-            payload = {**payload, **web_diagnostics}
-        if TurnDiagnostics._as_bool(
-            payload.get("web_research_evidence_unaccepted"),
-            False,
-        ):
-            return True
-        failure_kind = TurnDiagnostics._normalize_token(
-            payload.get("web_research_failure_kind")
-            or payload.get("failure_kind")
-            or payload.get("partial_exit_reason")
-        )
-        if failure_kind in _WEB_RESEARCH_EVIDENCE_FAILURE_REASONS:
-            return True
-        evidence_status = TurnDiagnostics._normalize_token(
-            payload.get("evidence_status")
-        )
-        answer_source = TurnDiagnostics._normalize_token(payload.get("answer_source"))
-        has_web_fields = any(
-            key in payload
-            for key in (
-                "web_research_pipeline_id",
-                "web_research_failure_kind",
-                "candidate_urls",
-                "fetched_urls",
-                "rejected_urls",
-                "web_research_relevance_profile",
-                "web_research_relevance_rejection_count",
-            )
-        )
-        return bool(
-            has_web_fields
-            and evidence_status in {"partial", "failed"}
-            and answer_source in {"", "none"}
-        )
 
     @staticmethod
     def _path_reason(
@@ -401,9 +327,6 @@ class TurnDiagnostics:
         post_tool_completion_state = TurnDiagnostics._as_text(
             prep_diagnostics.get("post_tool_completion_state")
         )
-        auto_fetch_gate_reason = TurnDiagnostics._as_text(
-            prep_diagnostics.get("auto_fetch_gate_reason")
-        )
         provider_failure_recovered_from_tool_evidence = TurnDiagnostics._as_bool(
             prep_diagnostics.get("provider_failure_recovered_from_tool_evidence"),
             False,
@@ -466,16 +389,9 @@ class TurnDiagnostics:
                 else None
             )
         conversation_outcome = "success"
-        web_research_failure_signal = TurnDiagnostics._has_web_research_failure_signal(
-            prep_diagnostics
-        )
         if current_state == "awaiting_consent":
             conversation_outcome = "awaiting_consent"
-        elif (
-            current_state == "partial_exit"
-            or partial_exit_reason
-            or web_research_failure_signal
-        ):
+        elif current_state == "partial_exit" or partial_exit_reason:
             conversation_outcome = "partial"
         elif current_state == "failed" or provider_failure_kind != "none":
             conversation_outcome = "failed"
@@ -524,7 +440,6 @@ class TurnDiagnostics:
             "contract_breach_type": contract_breach_type,
             "final_output_source": final_output_source,
             "post_tool_completion_state": post_tool_completion_state,
-            "auto_fetch_gate_reason": auto_fetch_gate_reason,
             "provider_failure_recovered_from_tool_evidence": (
                 provider_failure_recovered_from_tool_evidence
             ),

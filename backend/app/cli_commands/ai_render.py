@@ -18,6 +18,7 @@ from app.cli_commands.ai_norm import (
     _normalize_cli_provider_events,
     _normalize_cli_retry_events,
     _normalize_cli_string_list,
+    _normalize_cli_tool_calls,
     _truncate_cli_block,
 )
 from app.cli_commands.ai_snapshot import _hydrate_ai_conversation_snapshot
@@ -84,26 +85,6 @@ def _build_ai_conversation_compact_diagnostics(snapshot: dict) -> dict:
         "budget_status": diagnostics.get("budget_status"),
         "budget_exit_reason": diagnostics.get("budget_exit_reason"),
         "final_output_source": diagnostics.get("final_output_source"),
-        "web_research_pipeline_id": diagnostics.get("web_research_pipeline_id"),
-        "search_provider": diagnostics.get("search_provider"),
-        "fetch_provider": diagnostics.get("fetch_provider"),
-        "evidence_status": diagnostics.get("evidence_status"),
-        "candidate_urls": _normalize_cli_string_list(diagnostics.get("candidate_urls")),
-        "fetched_urls": _normalize_cli_string_list(diagnostics.get("fetched_urls")),
-        "rejected_urls": _normalize_cli_string_list(diagnostics.get("rejected_urls")),
-        "evidence_quality": diagnostics.get("evidence_quality"),
-        "answer_source": diagnostics.get("answer_source"),
-        "web_research_failure_kind": diagnostics.get("web_research_failure_kind"),
-        "web_research_failure_layer": diagnostics.get("web_research_failure_layer"),
-        "web_research_relevance_profile": diagnostics.get(
-            "web_research_relevance_profile"
-        ),
-        "web_research_relevance_rejection_count": diagnostics.get(
-            "web_research_relevance_rejection_count"
-        ),
-        "web_research_provider_disable_reason": diagnostics.get(
-            "web_research_provider_disable_reason"
-        ),
         "contract_breach_type": diagnostics.get("contract_breach_type"),
         "tool_leak_detected": bool(diagnostics.get("tool_leak_detected")),
         "recovered_via_retry": diagnostics.get("recovered_via_retry"),
@@ -133,48 +114,6 @@ def _render_ai_conversation_diagnostics_text(snapshot: dict) -> str:
     ]
     if compact.get("final_output_source"):
         lines.append(f"final_output_source={compact.get('final_output_source')}")
-    if compact.get("web_research_pipeline_id") or compact.get("evidence_status"):
-        lines.append(
-            "web_research pipeline_id={pipeline_id} search_provider={search_provider} fetch_provider={fetch_provider} evidence_status={evidence_status} evidence_quality={evidence_quality} answer_source={answer_source}".format(
-                pipeline_id=compact.get("web_research_pipeline_id") or "-",
-                search_provider=compact.get("search_provider") or "-",
-                fetch_provider=compact.get("fetch_provider") or "-",
-                evidence_status=compact.get("evidence_status") or "-",
-                evidence_quality=compact.get("evidence_quality") or "-",
-                answer_source=compact.get("answer_source") or "-",
-            )
-        )
-    candidate_urls = _normalize_cli_string_list(compact.get("candidate_urls"))
-    fetched_urls = _normalize_cli_string_list(compact.get("fetched_urls"))
-    rejected_urls = _normalize_cli_string_list(compact.get("rejected_urls"))
-    if candidate_urls:
-        lines.append("web_research_candidate_urls={}".format(", ".join(candidate_urls)))
-    if fetched_urls:
-        lines.append("web_research_fetched_urls={}".format(", ".join(fetched_urls)))
-    if rejected_urls:
-        lines.append("web_research_rejected_urls={}".format(", ".join(rejected_urls)))
-    if compact.get("web_research_relevance_profile") or compact.get(
-        "web_research_relevance_rejection_count"
-    ):
-        lines.append(
-            "web_research_relevance profile={profile} rejected={rejected}".format(
-                profile=compact.get("web_research_relevance_profile") or "-",
-                rejected=compact.get("web_research_relevance_rejection_count") or 0,
-            )
-        )
-    if compact.get("web_research_failure_kind"):
-        lines.append(
-            "web_research_failure kind={kind} layer={layer}".format(
-                kind=compact.get("web_research_failure_kind"),
-                layer=compact.get("web_research_failure_layer") or "-",
-            )
-        )
-    if compact.get("web_research_provider_disable_reason"):
-        lines.append(
-            "web_research_provider_disable_reason={}".format(
-                compact.get("web_research_provider_disable_reason")
-            )
-        )
     selected_tools = _normalize_cli_string_list(compact.get("selected_tool_names"))
     lines.append(
         "selected_tools={}".format(
@@ -400,12 +339,13 @@ def _render_ai_conversation_text(
             if content:
                 lines.append("  content:")
                 lines.append(_indent_cli_block(content))
-            if msg.get("tool_calls"):
+            tool_calls = _normalize_cli_tool_calls(msg.get("tool_calls"))
+            if tool_calls:
                 lines.append("  tool_calls:")
                 lines.append(
                     _indent_cli_block(
                         _truncate_cli_block(
-                            _compact_json_text(msg.get("tool_calls")),
+                            _compact_json_text(tool_calls),
                             max_chars=1200,
                             full_content=full_content,
                         )

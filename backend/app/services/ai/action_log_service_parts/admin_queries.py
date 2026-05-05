@@ -12,7 +12,9 @@ from app.models.system.admin import Admin
 from app.models.tenant.tenant import Tenant
 from app.models.tenant.tenant_admin import TenantAdmin
 from app.models.tenant.tenant_user import TenantUser
-from app.services.ai.action_log_service_parts.normalization import _normalize_operator_type
+from app.services.ai.action_log_service_parts.normalization import (
+    _normalize_operator_type,
+)
 from app.services.ai.action_log_service_parts.snapshots import _build_operator_meta
 
 
@@ -191,8 +193,7 @@ async def load_operator_meta_map(
                     role_name=row.role_name,
                     is_active=row.is_active,
                     is_leader=bool(
-                        row.org_leader_id is not None
-                        and row.org_leader_id == row.id
+                        row.org_leader_id is not None and row.org_leader_id == row.id
                     ),
                     is_owner=bool(row.is_owner),
                 )

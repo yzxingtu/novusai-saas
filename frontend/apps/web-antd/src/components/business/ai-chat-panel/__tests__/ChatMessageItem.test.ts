@@ -297,7 +297,7 @@ describe('chatMessageItem', () => {
       props: {
         msg: createAssistantMsg([
           {
-            name: 'web_search',
+            name: 'query_records',
             status: 'success',
             durationMs: 200,
           },
@@ -637,9 +637,9 @@ describe('chatMessageItem', () => {
         skills: [
           {
             id: 10,
-            name: '网页搜索',
+            name: '数据查询',
             package_id: 100,
-            package_name: '搜索工具包',
+            package_name: '数据工具包',
           },
           {
             id: 11,
@@ -700,12 +700,12 @@ describe('chatMessageItem', () => {
       wrapper
         .findAll('[data-testid="agent-profile-skill-package-chip"]')
         .map((chip) => chip.text()),
-      ).toEqual(['搜索工具包', '编辑工具包', '检索工具包']);
+      ).toEqual(['数据工具包', '编辑工具包', '检索工具包']);
     expect(
       wrapper
         .findAll('[data-testid="agent-profile-skill-entry-chip"]')
         .map((chip) => chip.text()),
-      ).toEqual(['网页搜索', '内容整理', '知识检索']);
+      ).toEqual(['数据查询', '内容整理', '知识检索']);
     expect(
       wrapper
         .findAll('[data-testid="agent-profile-kb-chip"]')
@@ -741,9 +741,9 @@ describe('chatMessageItem', () => {
         msg: {
           ...createAssistantMsg([
             {
-              id: 'tc-search',
-              name: 'web_search',
-              skillName: '联网搜索',
+              id: 'tc-query',
+              name: 'query_records',
+              skillName: '数据查询',
               status: 'success',
             },
           ]),
@@ -772,7 +772,7 @@ describe('chatMessageItem', () => {
       wrapper.findAll('[data-testid="assistant-skill-chip"]'),
     ).toHaveLength(0);
     expect(wrapper.get('.assistant-message-surface').text()).not.toContain(
-      '联网搜索',
+      '数据查询',
     );
     expect(
       wrapper
@@ -1252,148 +1252,12 @@ describe('chatMessageItem', () => {
     expect(wrapper.text()).not.toContain('common.globalAiChat.rawResult');
   });
 
-  it('renders structured web search results directly from summary payload in default mode', async () => {
-    const wrapper = mount(ChatMessageToolCalls, {
-      props: {
-        msg: createAssistantMsg([
-          {
-            name: 'web_search',
-            status: 'success',
-            summaryPayload: {
-              provider: 'baidu_public',
-              status: 'success',
-              selected_backend: 'public:baidu',
-              provider_chain: ['native:provider_1:gpt-5.4', 'public:baidu'],
-              fallback_reason:
-                'native_not_attempted:default_verified_target_unavailable:untrusted_openai_compatible_runtime_target:api.asxs.top',
-              native_failure_kind: 'unsupported',
-              result_count: 2,
-              items: [
-                {
-                  title: '示例搜索结果一',
-                  url: 'https://example.com/result-1',
-                  snippet: '第一条摘要内容',
-                },
-                {
-                  title: '示例搜索结果二',
-                  url: 'https://example.com/result-2',
-                  snippet: '第二条摘要内容',
-                },
-              ],
-            },
-          },
-        ]),
-        index: 0,
-        compact: true,
-        embedded: false,
-      },
-      global: {
-        stubs: {
-          IconifyIcon: true,
-        },
-      },
-    });
-
-    await wrapper.vm.$nextTick();
-
-    const details = wrapper.get('[data-testid="tool-call-details-0"]');
-    expect(details.attributes('style') ?? '').toContain(
-      'grid-template-rows: 0fr',
-    );
-
-    await wrapper.get('[data-testid="tool-call-toggle-0"]').trigger('click');
-    await wrapper.vm.$nextTick();
-
-    expect(details.attributes('style') ?? '').toContain(
-      'grid-template-rows: 1fr',
-    );
-    expect(wrapper.text()).toContain('common.globalAiChat.toolSearchResults');
-    expect(wrapper.text()).toContain(
-      'common.globalAiChat.toolSearchSourceBaidu',
-    );
-    expect(wrapper.text()).toContain(
-      'common.globalAiChat.toolSearchStatusSuccess',
-    );
-    expect(wrapper.text()).toContain('common.globalAiChat.toolSearchBackend');
-    expect(wrapper.text()).toContain('public:baidu');
-    expect(wrapper.text()).toContain(
-      'common.globalAiChat.toolSearchProviderChain',
-    );
-    expect(wrapper.text()).toContain(
-      'native:provider_1:gpt-5.4 -> public:baidu',
-    );
-    expect(wrapper.text()).toContain(
-      'common.globalAiChat.toolSearchFallbackReason',
-    );
-    expect(wrapper.text()).toContain(
-      'common.globalAiChat.toolSearchFallbackNeedVerifiedNativeTarget',
-    );
-    expect(wrapper.text()).toContain(
-      'native_not_attempted:default_verified_target_unavailable:untrusted_openai_compatible_runtime_target:api.asxs.top',
-    );
-    expect(wrapper.text()).toContain(
-      'common.globalAiChat.toolSearchNativeFailure',
-    );
-    expect(wrapper.text()).toContain('unsupported');
-    expect(wrapper.text()).toContain('示例搜索结果一');
-    expect(wrapper.text()).not.toContain('https://example.com/result-1');
-    expect(wrapper.text()).toContain('第一条摘要内容');
-
-    const resultLink = wrapper.get(
-      '[data-testid="tool-search-result-link-0-0"]',
-    );
-    expect(resultLink.attributes('href')).toBe('https://example.com/result-1');
-    expect(resultLink.attributes('target')).toBe('_blank');
-    expect(resultLink.attributes('rel')).toBe('noopener noreferrer');
-    expect(resultLink.text()).toContain('示例搜索结果一');
-    expect(resultLink.text()).not.toContain('https://example.com/result-1');
-  });
-
-  it('does not display a fake zero result count for native search summaries without counts in default mode', async () => {
-    const wrapper = mount(ChatMessageToolCalls, {
-      props: {
-        msg: createAssistantMsg([
-          {
-            name: 'native_web_search',
-            status: 'success',
-            summaryPayload: {
-              provider: 'native_hosted',
-              status: 'success',
-            },
-          },
-        ]),
-        index: 0,
-        compact: true,
-        embedded: false,
-      },
-      global: {
-        stubs: {
-          IconifyIcon: true,
-        },
-      },
-    });
-
-    await wrapper.vm.$nextTick();
-    await wrapper.get('[data-testid="tool-call-toggle-0"]').trigger('click');
-    await wrapper.vm.$nextTick();
-
-    expect(wrapper.text()).toContain(
-      'common.globalAiChat.toolSearchSourceNative',
-    );
-    expect(wrapper.text()).toContain(
-      'common.globalAiChat.toolSearchStatusSuccess',
-    );
-    expect(
-      wrapper.find('[data-testid="tool-search-result-count"]').exists(),
-    ).toBe(false);
-  });
-
   it('tool group card collapses when all tools are completed in default mode', async () => {
     const wrapper = mount(ChatMessageToolCalls, {
       props: {
         msg: createAssistantMsg([
-          { name: 'web_search', status: 'success' },
-          { name: 'fetch_url', status: 'success' },
+          { name: 'query_records', status: 'success' },
+          { name: 'load_record', status: 'success' },
         ]),
         index: 0,
         compact: true,
@@ -1414,7 +1278,7 @@ describe('chatMessageItem', () => {
   it('tool group card toggles on click in default mode', async () => {
     const wrapper = mount(ChatMessageToolCalls, {
       props: {
-        msg: createAssistantMsg([{ name: 'web_search', status: 'success' }]),
+        msg: createAssistantMsg([{ name: 'query_records', status: 'success' }]),
         index: 0,
         compact: true,
         embedded: false,
@@ -1447,14 +1311,15 @@ describe('chatMessageItem', () => {
       props: {
         msg: createAssistantMsg([
           {
-            name: 'web_search',
+            name: 'query_records',
             status: 'success',
+            summary: 'Updated 2 records',
             resultLink: 'https://example.com/result-1',
             summaryPayload: {
               result_count: 2,
               items: [
                 {
-                  title: '示例搜索结果一',
+                  title: '示例查询结果一',
                   url: 'https://example.com/result-1',
                 },
               ],
@@ -1491,7 +1356,7 @@ describe('chatMessageItem', () => {
     ).toContain('common.globalAiChat.toolStatusOk');
     expect(
       wrapper.get('[data-testid="tool-call-embedded-0"]').text(),
-    ).toContain('common.globalAiChat.toolSearchResults: 2');
+    ).toContain('Updated 2 records');
     expect(
       wrapper.get('[data-testid="tool-call-embedded-0"]').text(),
     ).toContain('common.globalAiChat.viewResult');
@@ -1508,7 +1373,7 @@ describe('chatMessageItem', () => {
     const wrapper = mount(ChatMessageToolCalls, {
       props: {
         msg: {
-          ...createAssistantMsg([{ name: 'web_search', status: 'running' }]),
+          ...createAssistantMsg([{ name: 'query_records', status: 'running' }]),
           clientKey: 'assistant-streaming-tools',
           streaming: true,
         },
@@ -1530,7 +1395,7 @@ describe('chatMessageItem', () => {
 
     await wrapper.setProps({
       msg: {
-        ...createAssistantMsg([{ name: 'web_search', status: 'success' }]),
+        ...createAssistantMsg([{ name: 'query_records', status: 'success' }]),
         clientKey: 'assistant-streaming-tools',
         content: 'Final reply',
         streaming: false,
@@ -1565,8 +1430,8 @@ describe('chatMessageItem', () => {
             ],
             evidence: [
               {
-                id: 'evidence-web-1',
-                kind: 'web',
+                id: 'evidence-document-1',
+                kind: 'document',
                 title: '示例来源',
                 url: 'https://example.com/ref',
               },
@@ -1579,7 +1444,7 @@ describe('chatMessageItem', () => {
                   body: '这是结构化结论摘要',
                 },
               ],
-              sourceChipIds: ['evidence-web-1'],
+              sourceChipIds: ['evidence-document-1'],
             },
           }),
         },
@@ -1641,14 +1506,14 @@ describe('chatMessageItem', () => {
             ],
             evidence: [
               {
-                id: 'evidence-web-1',
-                kind: 'web',
+                id: 'evidence-document-1',
+                kind: 'document',
                 title: '来源一',
                 url: 'https://example.com/ref-1',
               },
               {
-                id: 'evidence-web-2',
-                kind: 'web',
+                id: 'evidence-document-2',
+                kind: 'document',
                 title: '来源二',
                 url: 'https://example.com/ref-2',
               },
@@ -1656,10 +1521,10 @@ describe('chatMessageItem', () => {
             answerCard: {
               summary: '按证据卡片输出',
               sourceChipIds: [
-                'evidence-web-2',
-                'evidence-web-2',
+                'evidence-document-2',
+                'evidence-document-2',
                 'missing-id',
-                'evidence-web-1',
+                'evidence-document-1',
               ],
             },
           }),
@@ -1707,14 +1572,14 @@ describe('chatMessageItem', () => {
             ],
             evidence: [
               {
-                id: 'evidence-web-url-only',
-                kind: 'web',
+                id: 'evidence-document-url-only',
+                kind: 'document',
                 title: 'https://news.example.com/path/to/source',
                 url: 'https://news.example.com/path/to/source',
               },
             ],
             answerCard: {
-              sourceChipIds: ['evidence-web-url-only'],
+              sourceChipIds: ['evidence-document-url-only'],
               summary: '按证据来源输出',
             },
           }),
@@ -2520,7 +2385,7 @@ describe('chatMessageItem', () => {
     await wrapper.vm.$nextTick();
     await expandKernelOverviewIfCollapsed(wrapper);
 
-    expect(wrapper.text()).toContain('common.globalAiChat.toolSearchProvider');
+    expect(wrapper.text()).toContain('common.globalAiChat.toolExecutionRoute');
     expect(wrapper.text()).toContain('native:provider_1:gpt-5.4');
     expect(wrapper.text()).toContain(
       'common.globalAiChat.turnRetrievalSummary',
@@ -2673,7 +2538,7 @@ describe('chatMessageItem', () => {
           content: '最终答复',
           thinkingContent: '先做分析，再给答案。',
           optimizingTools: { selected: 0, total: 15 },
-          toolCalls: [{ name: 'web_search', status: 'success' }],
+          toolCalls: [{ name: 'query_records', status: 'success' }],
           ragSources: [
             {
               doc_name: '来源文档',
@@ -2753,12 +2618,12 @@ describe('chatMessageItem', () => {
   it('strips DSML tool-call protocol text from the assistant transcript body', async () => {
     const assistantMessage = createAssistantMsg([
       {
-        displayName: '搜索资料',
-        id: 'tc_search',
-        name: 'web_search',
-        output: '{"explanation":"整理了 1 条搜索结果"}',
+        displayName: '查询资料',
+        id: 'tc_query',
+        name: 'query_records',
+        output: '{"explanation":"整理了 1 条查询结果"}',
         status: 'success',
-        summary: '整理了 1 条搜索结果',
+        summary: '整理了 1 条查询结果',
       },
     ]);
 
@@ -2767,7 +2632,7 @@ describe('chatMessageItem', () => {
         msg: {
           ...assistantMessage,
           content:
-            '我需要补充资料，所以先调用搜索工具。<｜DSML｜tool_calls><｜DSML｜invoke name="web_search"><｜DSML｜parameter name="query">产品定价</｜DSML｜parameter></｜DSML｜invoke></｜DSML｜tool_calls>现在把整理结果告诉你。',
+            '我需要补充资料，所以先调用查询工具。<｜DSML｜tool_calls><｜DSML｜invoke name="query_records"><｜DSML｜parameter name="query">产品定价</｜DSML｜parameter></｜DSML｜invoke></｜DSML｜tool_calls>现在把整理结果告诉你。',
         },
         index: 0,
         compact: true,

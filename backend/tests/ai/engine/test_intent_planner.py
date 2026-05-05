@@ -12,8 +12,6 @@ from app.ai.types import ChatMessage
 
 def _tools() -> list[ToolDefinition]:
     return [
-        ToolDefinition(name="web_search", description="Search the web"),
-        ToolDefinition(name="fetch_url", description="Fetch a webpage"),
         ToolDefinition(name="get_current_weather", description="Current weather"),
         ToolDefinition(name="get_weather_forecast", description="Forecast"),
         ToolDefinition(name="get_current_time", description="Current time"),
@@ -48,7 +46,7 @@ def _invalid_runtime_context() -> dict:
     }
 
 
-def test_intent_planner_suppresses_web_when_user_explicitly_disables_network() -> None:
+def test_intent_planner_routes_weather_when_user_explicitly_disables_network() -> None:
     intents = _plan("不要联网，帮我搜一下北京天气")
 
     assert [intent.family for intent in intents] == ["weather"]
@@ -76,7 +74,9 @@ def test_intent_planner_ignores_invalid_runtime_context_for_page_summary() -> No
     assert intents[0].requires_tools is False
 
 
-def test_intent_planner_ignores_invalid_runtime_context_for_page_click_request() -> None:
+def test_intent_planner_ignores_invalid_runtime_context_for_page_click_request() -> (
+    None
+):
     intents = _plan(
         "请点击当前数据集上的创建按钮",
         input_variables={"page_context": _invalid_runtime_context()},
@@ -97,17 +97,9 @@ def test_intent_planner_keeps_weather_without_synthesizing_data_workflow() -> No
     assert all(intent.family != "data_ops" for intent in intents)
 
 
-def test_intent_planner_keeps_generic_search_as_web_research_inside_invalid_runtime_context() -> None:
-    intents = _plan(
-        "搜索一下今天 AI 新闻",
-        input_variables={"page_context": _invalid_runtime_context()},
-    )
-
-    assert [intent.kind for intent in intents] == ["web_research"]
-    assert intents[0].family == "web_research"
-
-
-def test_intent_planner_invalid_runtime_continuation_does_not_rehydrate_data_ops() -> None:
+def test_intent_planner_invalid_runtime_continuation_does_not_rehydrate_data_ops() -> (
+    None
+):
     continuation = ResearchContinuationContext(
         active=True,
         family="data_ops",
@@ -131,7 +123,9 @@ def test_intent_planner_invalid_runtime_continuation_does_not_rehydrate_data_ops
     assert intents[0].requires_tools is False
 
 
-def test_intent_planner_returns_direct_reply_for_smalltalk_after_invalid_runtime_flow() -> None:
+def test_intent_planner_returns_direct_reply_for_smalltalk_after_invalid_runtime_flow() -> (
+    None
+):
     intents = _plan(
         "你真聪明",
         input_variables={"page_context": _invalid_runtime_context()},

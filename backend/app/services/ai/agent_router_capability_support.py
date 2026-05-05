@@ -11,7 +11,7 @@ from app.models.ai.agent import Agent
 from app.models.ai.agent_skill_grant import AgentSkillGrant
 from app.schemas.ai.invalid_ai_runtime_input import filter_invalid_ai_runtime_references
 
-BASELINE_RUNTIME_FAMILIES = frozenset({"time_ops", "web_research"})
+BASELINE_RUNTIME_FAMILIES = frozenset({"time_ops"})
 
 
 def grant_skill_name_if_active(grant: AgentSkillGrant | Any) -> str | None:
@@ -96,10 +96,7 @@ def _grant_preview_tool_names(grant: AgentSkillGrant | Any) -> list[str]:
     if skill_name and tool_family_from_name(skill_name) != "none":
         preview_names.append(skill_name)
     skill_key = str(getattr(skill, "key", "") or "").strip()
-    if (
-        skill_key
-        and tool_family_from_name(skill_key) != "none"
-    ):
+    if skill_key and tool_family_from_name(skill_key) != "none":
         preview_names.append(skill_key)
 
     skill_config = getattr(skill, "config", None)

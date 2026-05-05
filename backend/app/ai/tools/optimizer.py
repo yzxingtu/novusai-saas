@@ -19,7 +19,6 @@ from dataclasses import dataclass
 
 from app.ai.text_semantics import (
     extract_cjk_bigram_and_word_tokens,
-    has_forbid_instruction_phrase,
 )
 from app.ai.tools.semantic_defaults import (
     FAMILY_EXPLICIT_REQUEST_HINTS,
@@ -73,17 +72,6 @@ def _query_mentions_family(
     return any(len(hint) > 1 and hint in query_text for hint in family_hints)
 
 
-def _query_forbids_family(
-    query_text: str,
-    query_tokens: set[str],
-    family_tokens: set[str],
-    family_hints: tuple[str, ...],
-) -> bool:
-    if not has_forbid_instruction_phrase(query_text):
-        return False
-    return _query_mentions_family(query_text, query_tokens, family_tokens, family_hints)
-
-
 def _is_protected_tool(
     tool: ToolDefinition,
     preferred_family: str | None = None,
@@ -91,14 +79,8 @@ def _is_protected_tool(
     """Check if tool should be protected from optimization / 工具是否应被保护不被优化"""
     family = _tool_semantic_family(tool)
     if preferred_family:
-        if family == preferred_family:
-            return True
-        if preferred_family == "web_research":
-            return tool.name in PROTECTED_TOOL_NAMES
-        return False
-    if tool.name in PROTECTED_TOOL_NAMES:
-        return True
-    return False
+        return family == preferred_family
+    return tool.name in PROTECTED_TOOL_NAMES
 
 
 def _is_explicitly_requested_tool(
@@ -343,15 +325,6 @@ def _score_tool(
 
     # 4. Knowledge base tools: no fixed vocabulary list — overlap with name/description/tags already scores relevance.
 
-    # 4.5 Web search tool boost / 联网搜索工具加权
-    if tool_family == "web_research" and _query_mentions_family(
-        query_text,
-        query_tokens,
-        semantic_query_tokens,
-        family_hints,
-    ):
-        score += 8.0
-
     # 4.6 Weather tool boost / 天气工具加权
     if tool_family == "weather" and _query_mentions_family(
         query_text,
@@ -369,39 +342,22 @@ def _score_tool(
     ):
         score += 10.0
 
-    if prefer_weather_tools:
-        if tool_family == "weather":
-            score += 12.0
-        elif tool_family == "web_research":
-            score -= 4.0
-
-    # 4.7 Negative preference: user explicitly forbids web search / 用户明确禁止联网搜索时降低联网工具分数
-    if tool_family == "web_research" and _query_forbids_family(
-        query_text,
-        query_tokens,
-        semantic_query_tokens,
-        family_hints,
-    ):
-        score -= 20.0
+    if prefer_weather_tools and tool_family == "weather":
+        score += 12.0
 
     # 5. History preference: boost previously used tools / 历史偏好加权
     if used_tool_names and tool.name in used_tool_names:
         score += 3.0
 
-    if preferred_family == "web_research":
-        if tool_family == "web_research":
-            score += 15.0
-        elif tool_family in {"weather", "time_ops"}:
-            score -= 6.0
-    elif preferred_family == "weather":
+    if preferred_family == "weather":
         if tool_family == "weather":
             score += 15.0
-        elif tool_family in {"web_research", "time_ops"}:
+        elif tool_family in {"time_ops"}:
             score -= 10.0
     elif preferred_family == "time_ops":
         if tool_family == "time_ops":
             score += 15.0
-        elif tool_family in {"web_research", "weather"}:
+        elif tool_family in {"weather"}:
             score -= 8.0
     # 6. Base score (ensure minimum score to avoid unstable sorting) / 基础分
     score += 0.1

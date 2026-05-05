@@ -5,7 +5,6 @@ Provides shared execution helpers extracted from BaseEngine:
 - _prepare_execution
 - _call_llm
 - _log_tool_contract_diagnostics
-- _log_web_research_contract_diagnostics
 - _budget_exit_response
 """
 
@@ -29,13 +28,9 @@ from .prepare_execution_pipeline import (
 from .tool_contract_retry_helpers import (
     log_tool_contract_diagnostics_default as _log_tool_contract_diagnostics_default_impl,
 )
-from .tool_contract_retry_helpers import (
-    log_web_research_contract_diagnostics_default as _log_web_research_contract_diagnostics_default_impl,
-)
 from .types import (
     ExecutionRequest,
     PreparedExecution,
-    ResearchContinuationContext,
     ToolUsePolicy,
 )
 
@@ -153,7 +148,7 @@ class BaseEngineExecutionSupport:
         conversation_id: int | None,
         breach_type: str,
         retry_result: str,
-        continuation: ResearchContinuationContext | None = None,
+        continuation: Any | None = None,
     ) -> None:
         _ = self
         _log_tool_contract_diagnostics_default_impl(
@@ -166,26 +161,6 @@ class BaseEngineExecutionSupport:
             breach_type=breach_type,
             retry_result=retry_result,
             continuation=continuation,
-        )
-
-    def _log_web_research_contract_diagnostics(
-        self,
-        *,
-        agent: Any,
-        messages: list[ChatMessage],
-        response: ChatResponse,
-        tools: list[ToolDefinition],
-        continuation: ResearchContinuationContext | None,
-        conversation_id: int | None,
-    ) -> None:
-        _ = self
-        _log_web_research_contract_diagnostics_default_impl(
-            agent=agent,
-            messages=messages,
-            response=response,
-            tools=tools,
-            continuation=continuation,
-            conversation_id=conversation_id,
         )
 
     _budget_exit_response = staticmethod(_budget_exit_response_impl)

@@ -3236,7 +3236,6 @@
     "agent_access.tenant_role_ids": "企业端角色授权",
     "agent_access.access_type": "历史访问类型（兼容库表 NOT NULL）；终端用户规则请用企业发布配置",
     "skill_package.system.engine": "系统引擎技能包",
-    "skill_package.system.web_search": "联网搜索",
     "api.param.tenant_id": "目标企业 ID，0 表示平台附件",
     "api.param.tenant_id_filter": "按企业筛选",
     "api.param.file": "上传的文件",

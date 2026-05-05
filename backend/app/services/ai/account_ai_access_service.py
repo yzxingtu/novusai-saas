@@ -114,8 +114,8 @@ class AccountAIAccessService:
         leader_ai_enabled = await self._tenant_leader_chain_ai_enabled(tenant_admin)
 
         tenant = await self._load_tenant_with_plan(tenant_admin.tenant_id)
-        tenant_ai_enabled = False if tenant is None else self._tenant_plan_ai_enabled(
-            tenant
+        tenant_ai_enabled = (
+            False if tenant is None else self._tenant_plan_ai_enabled(tenant)
         )
         if projected_tenant_ai is not None:
             tenant_ai_enabled = projected_tenant_ai and tenant_ai_enabled

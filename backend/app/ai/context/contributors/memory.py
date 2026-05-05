@@ -113,9 +113,7 @@ class MemoryContributor:
                         **(
                             {"profile_snapshot": True}
                             if contribution.memory_recall_slice
-                            and contribution.memory_recall_slice.get(
-                                "profile_snapshot"
-                            )
+                            and contribution.memory_recall_slice.get("profile_snapshot")
                             else {}
                         ),
                         "scope_type": "user_agent",

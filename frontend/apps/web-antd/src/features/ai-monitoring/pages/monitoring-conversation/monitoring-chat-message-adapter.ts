@@ -10,6 +10,7 @@ import type {
 
 import { toTurnFlowFirstChatMessage } from '#/components/business/ai-chat-panel/turn-flow-first-message';
 import { $t } from '#/locales';
+import { visibleRuntimeDiagnosticTokens } from '#/utils/ai-runtime-diagnostics';
 import { toAbsoluteApiUrl } from '#/utils/image';
 
 function asRecord(value: unknown): null | Record<string, unknown> {
@@ -38,12 +39,7 @@ function normalizeIdentityPart(value: unknown): string | undefined {
 }
 
 function normalizeStringList(value: unknown): string[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  return value
-    .map((item) => asString(item))
-    .filter((item): item is string => item !== undefined);
+  return visibleRuntimeDiagnosticTokens(value);
 }
 
 function normalizeContextSources(

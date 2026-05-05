@@ -365,6 +365,7 @@ class AdminSkillService(GlobalService[Skill, AdminSkillRepository]):
         API always returns active skills/packages even if a caller still passes
         `only_active=False` for backward compatibility.
         """
+        _only_active = only_active
         from app.schemas.common.select import SelectOption, SelectResponse
 
         effective_only_active = True

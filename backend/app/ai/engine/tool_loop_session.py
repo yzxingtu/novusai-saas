@@ -8,7 +8,6 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from app.ai.prompt_contracts import render_prompt_contract
 from app.ai.tools.types import ToolDefinition, ToolResult
 from app.ai.types import ChatMessage, ChatResponse
 from app.core.logging import LogManager
@@ -26,7 +25,6 @@ class ToolLoopSession:
     all_tools_full: list[ToolDefinition]
     effective_policy: ToolUsePolicy
     ordered_requested_families: list[str]
-    has_fetch_url_in_toolset: bool
     total_tokens: int
     completion_tokens_used: int
     tracked_tool_rounds: int
@@ -35,7 +33,6 @@ class ToolLoopSession:
     completed_families: set[str] = field(default_factory=set)
     issued_progress_hint_keys: set[str] = field(default_factory=set)
     forced_tool_names: list[str] | None = None
-    fetch_gate_message_sent: bool = False
 
 
 def build_tool_loop_session(
@@ -67,9 +64,6 @@ def build_tool_loop_session(
         all_tools_full=resolved_all_tools,
         effective_policy=effective_policy,
         ordered_requested_families=ordered_requested_families,
-        has_fetch_url_in_toolset=any(
-            tool.name == "fetch_url" for tool in resolved_all_tools
-        ),
         total_tokens=(
             int(starting_total_tokens)
             if starting_total_tokens is not None
@@ -119,30 +113,13 @@ def prepare_round_tools_for_followup(
     messages: list[ChatMessage],
     processor: Any,
     all_tools: list[ToolDefinition] | None,
-    needs_fetch_url_before_summary: Callable[[list[ChatMessage]], bool],
-    apply_fetch_url_only_gate: Callable[
-        [list[ChatMessage], list[ToolDefinition], list[ToolDefinition]],
-        list[ToolDefinition],
-    ],
     restrict_tools_to_names: Callable[
         [list[ToolDefinition], list[str] | None],
         list[ToolDefinition],
     ],
 ) -> list[ToolDefinition]:
-    if needs_fetch_url_before_summary(messages) and not session.fetch_gate_message_sent:
-        messages.append(
-            ChatMessage(
-                role="system",
-                content=render_prompt_contract("fetch_url_gate"),
-            )
-        )
-        session.fetch_gate_message_sent = True
-    resolved_all_tools = list(all_tools or session.all_tools_full)
-    round_tools = apply_fetch_url_only_gate(
-        messages,
-        session.tools_full,
-        resolved_all_tools,
-    )
+    _ = messages, all_tools
+    round_tools = list(session.tools_full)
     round_tools = restrict_tools_to_names(round_tools, session.forced_tool_names)
     processor.tools = round_tools
     return round_tools

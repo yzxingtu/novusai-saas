@@ -47,7 +47,9 @@ def test_project_from_metadata_hides_raw_thinking_summary_from_user_timeline() -
     assert thinking_stage["detail_lines"] == []
 
 
-def test_project_from_metadata_uses_legacy_rag_sources_only_when_canonical_context_sources_missing() -> None:
+def test_project_from_metadata_uses_legacy_rag_sources_only_when_canonical_context_sources_missing() -> (
+    None
+):
     turn_flow = ConversationTurnFlowProjector.project_from_metadata(
         {
             "rag_sources": [
@@ -74,6 +76,25 @@ def test_project_from_metadata_uses_legacy_rag_sources_only_when_canonical_conte
             "source_ref": "legacy-retrieval",
         }
     ]
+
+
+def test_project_from_metadata_ignores_unknown_provider_progress() -> None:
+    turn_flow = ConversationTurnFlowProjector.project_from_metadata(
+        {
+            "turn_record": {
+                "metadata": {
+                    "stream_progress_kinds": ["provider_lookup_in_progress"],
+                },
+            },
+            "provider_events": [{"kind": "provider_lookup_in_progress"}],
+        },
+        content="",
+    )
+
+    stage_types = [stage["type"] for stage in turn_flow["timeline"]]
+    assert "tool_execution" not in stage_types
+    assert "retrieval" not in stage_types
+    assert stage_types == ["completed"]
 
 
 def test_project_from_metadata_sanitizes_existing_raw_thinking_stage_summary() -> None:
@@ -133,52 +154,9 @@ def test_project_from_metadata_marks_untrusted_final_output_source_as_failed() -
     assert turn_flow["answer_card"]["sections"] == []
 
 
-def test_project_from_metadata_preserves_hosted_search_progress_for_timeout_history() -> None:
-    turn_flow = ConversationTurnFlowProjector.project_from_metadata(
-        {
-            "completion_reason": "error",
-            "turn_record": {
-                "turn_outcome": "partial",
-                "termination_reason": "error",
-                "metadata": {
-                    "failure_kind": "provider_timeout",
-                    "stream_progress_kinds": ["web_search_in_progress"],
-                    "unfinished_intents": ["intent-1"],
-                },
-            },
-            "selected_tool_names": ["web_search", "fetch_url"],
-            "unfinished_intents": ["intent-1"],
-            "failure_kind": "provider_timeout",
-            "provider_events": [
-                {
-                    "kind": "web_search_in_progress",
-                    "protocol_path": "responses",
-                    "tool_family": "web_research",
-                }
-            ],
-        },
-        content="",
-    )
-
-    tool_selection = next(
-        stage for stage in turn_flow["timeline"] if stage["type"] == "tool_selection"
-    )
-    tool_execution = next(
-        stage for stage in turn_flow["timeline"] if stage["type"] == "tool_execution"
-    )
-    retrieval = next(
-        stage for stage in turn_flow["timeline"] if stage["type"] == "retrieval"
-    )
-
-    assert tool_selection["summary"] == "已从 2 个工具中筛选 2 个"
-    assert tool_execution["status"] == "error"
-    assert tool_execution["summary"] == "联网搜索在等待结果返回时超时"
-    assert tool_execution["detail_lines"] == ["联网搜索在等待结果返回时超时"]
-    assert retrieval["summary"] == "搜索未返回可展示证据"
-    assert retrieval["detail_lines"] == ["搜索未返回可展示证据"]
-
-
-def test_project_from_metadata_scrubs_invalid_runtime_metadata_without_reclassifying_turn() -> None:
+def test_project_from_metadata_scrubs_invalid_runtime_metadata_without_reclassifying_turn() -> (
+    None
+):
     turn_flow = ConversationTurnFlowProjector.project_from_metadata(
         {
             "turn_flow": {
@@ -244,192 +222,9 @@ def test_project_from_metadata_scrubs_invalid_runtime_metadata_without_reclassif
     assert answer_assembly["status"] == "completed"
 
 
-def test_project_from_metadata_uses_completed_tool_names_when_selected_tools_missing() -> None:
-    turn_flow = ConversationTurnFlowProjector.project_from_metadata(
-        {
-            "context_diagnostics": {
-                "tool_planner": {
-                    "intent": "web_research",
-                    "family": "web_research",
-                },
-                "candidate_tool_names": [
-                    "web_search",
-                    "fetch_url",
-                ],
-                "intent_plan": [
-                    {
-                        "intent_id": "intent-1",
-                        "kind": "web_research",
-                        "family": "web_research",
-                        "status": "completed",
-                        "completed_by_tool_names": ["fetch_url"],
-                    }
-                ],
-            },
-        },
-        content="已整理公开资料。",
-    )
-
-    tool_selection = next(
-        stage for stage in turn_flow["timeline"] if stage["type"] == "tool_selection"
-    )
-    assert tool_selection["summary"] == "已从 2 个工具中筛选 1 个"
-    assert tool_selection["metrics"]["selected_count"] == 1
-
-
-def test_project_from_metadata_provider_timeout_after_completed_tool_keeps_tool_stage_completed() -> None:
-    turn_flow = ConversationTurnFlowProjector.project_from_metadata(
-        {
-            "partial": True,
-            "completion_reason": "provider_timeout",
-            "context_diagnostics": {
-                "turn_outcome": "partial",
-                "termination_reason": "provider_timeout",
-                "failure_kind": "provider_timeout",
-                "tool_planner": {
-                    "intent": "web_research",
-                    "family": "web_research",
-                },
-                "candidate_tool_names": ["web_search"],
-                "intent_plan": [
-                    {
-                        "intent_id": "intent-1",
-                        "kind": "web_research",
-                        "family": "web_research",
-                        "status": "completed",
-                        "completed_by_tool_names": ["web_search"],
-                    }
-                ],
-                "provider_events": [
-                    {
-                        "kind": "provider_timeout",
-                        "protocol_path": "responses",
-                    }
-                ],
-            },
-        },
-        content="我先把已完成部分整理给你：这部分。",
-    )
-
-    thinking = next(stage for stage in turn_flow["timeline"] if stage["type"] == "thinking")
-    tool_selection = next(
-        stage for stage in turn_flow["timeline"] if stage["type"] == "tool_selection"
-    )
-    tool_execution = next(
-        stage for stage in turn_flow["timeline"] if stage["type"] == "tool_execution"
-    )
-    answer_assembly = next(
-        stage for stage in turn_flow["timeline"] if stage["type"] == "answer_assembly"
-    )
-
-    assert thinking["status"] == "completed"
-    assert tool_selection["status"] == "completed"
-    assert tool_execution["status"] == "error"
-    assert tool_execution["summary"] == "联网搜索在等待结果返回时超时"
-    assert answer_assembly["status"] == "error"
-    assert turn_flow["answer_card"]["summary"] == "我先把已完成部分整理给你：这部分。"
-
-
-def test_normalize_turn_flow_replaces_generic_missing_answer_summary_with_partial_content() -> None:
-    turn_flow = ConversationTurnFlowProjector.project_from_metadata(
-        {
-            "partial": True,
-            "completion_reason": "provider_timeout",
-            "turn_flow": {
-                "timeline": [
-                    {
-                        "id": "thinking",
-                        "type": "thinking",
-                        "status": "error",
-                        "title": "Thinking",
-                        "summary": "Reasoning summary generated",
-                    },
-                    {
-                        "id": "tool_selection",
-                        "type": "tool_selection",
-                        "status": "skipped",
-                        "title": "Tool Selection",
-                        "summary": "Selected 1 of 1 tools",
-                    },
-                    {
-                        "id": "tool_execution",
-                        "type": "tool_execution",
-                        "status": "error",
-                        "title": "Tool Execution",
-                        "summary": "工具已进入执行阶段，但未等到返回结果",
-                    },
-                    {
-                        "id": "answer_assembly",
-                        "type": "answer_assembly",
-                        "status": "error",
-                        "title": "Answer Assembly",
-                        "summary": "Answer assembly failed",
-                    },
-                    {
-                        "id": "failed",
-                        "type": "failed",
-                        "status": "error",
-                        "title": "Failed",
-                        "summary": "provider_timeout",
-                    },
-                ],
-                "answer_card": {
-                    "summary": "No trusted assistant final answer.",
-                    "sections": [
-                        {
-                            "id": "final_answer",
-                            "title": "Answer",
-                            "content": "No trusted assistant final answer.",
-                        }
-                    ],
-                    "source_chip_ids": [],
-                    "confidence_label": "low",
-                    "follow_up_suggestions": [],
-                },
-                "completion_reason": "provider_timeout",
-            },
-            "context_diagnostics": {
-                "turn_outcome": "partial",
-                "termination_reason": "provider_timeout",
-                "failure_kind": "provider_timeout",
-                "tool_planner": {
-                    "intent": "web_research",
-                    "family": "web_research",
-                },
-                "candidate_tool_names": ["web_search"],
-                "intent_plan": [
-                    {
-                        "intent_id": "intent-1",
-                        "kind": "web_research",
-                        "family": "web_research",
-                        "status": "completed",
-                        "completed_by_tool_names": ["web_search"],
-                    }
-                ],
-            },
-        },
-        content="我先把已完成部分整理给你：这部分。",
-    )
-
-    thinking = next(stage for stage in turn_flow["timeline"] if stage["type"] == "thinking")
-    tool_selection = next(
-        stage for stage in turn_flow["timeline"] if stage["type"] == "tool_selection"
-    )
-    tool_execution = next(
-        stage for stage in turn_flow["timeline"] if stage["type"] == "tool_execution"
-    )
-
-    assert thinking["status"] == "completed"
-    assert tool_selection["status"] == "completed"
-    assert tool_execution["status"] == "completed"
-    assert turn_flow["answer_card"]["summary"] == "我先把已完成部分整理给你：这部分。"
-    assert (
-        turn_flow["answer_card"]["sections"][0]["content"]
-        == "我先把已完成部分整理给你：这部分。"
-    )
-
-
-def test_normalize_turn_flow_keeps_missing_answer_placeholder_for_untrusted_final_output() -> None:
+def test_normalize_turn_flow_keeps_missing_answer_placeholder_for_untrusted_final_output() -> (
+    None
+):
     turn_flow = ConversationTurnFlowProjector.project_from_metadata(
         {
             "completion_reason": "completed",
@@ -526,7 +321,10 @@ def test_normalize_turn_flow_surfaces_safe_untrusted_fallback_output() -> None:
         content="这次处理没有成功生成最终答复，请再试一次。",
     )
 
-    assert turn_flow["answer_card"]["summary"] == "这次处理没有成功生成最终答复，请再试一次。"
+    assert (
+        turn_flow["answer_card"]["summary"]
+        == "这次处理没有成功生成最终答复，请再试一次。"
+    )
     assert turn_flow["answer_card"]["sections"] == [
         {
             "title": "Answer",
@@ -535,7 +333,9 @@ def test_normalize_turn_flow_surfaces_safe_untrusted_fallback_output() -> None:
     ]
 
 
-def test_project_from_metadata_prefers_turn_record_turn_flow_over_polluted_message_turn_flow() -> None:
+def test_project_from_metadata_prefers_turn_record_turn_flow_over_polluted_message_turn_flow() -> (
+    None
+):
     turn_flow = ConversationTurnFlowProjector.project_from_metadata(
         {
             "turn_flow": {
@@ -617,7 +417,9 @@ def test_project_from_metadata_prefers_turn_record_turn_flow_over_polluted_messa
     ]
 
 
-def test_normalize_turn_flow_supplements_existing_tool_evidence_from_tool_calls() -> None:
+def test_normalize_turn_flow_supplements_existing_tool_evidence_from_tool_calls() -> (
+    None
+):
     turn_flow = ConversationTurnFlowProjector.project_from_metadata(
         {
             "turn_flow": {
@@ -740,7 +542,9 @@ def test_normalize_turn_flow_preserves_existing_tool_evidence_detail_fields() ->
     assert turn_flow["evidence"][0]["summary_payload"] == {"temperature_c": 18}
 
 
-def test_project_from_metadata_reads_legacy_canonical_tool_calls_only_for_historical_messages() -> None:
+def test_project_from_metadata_reads_legacy_canonical_tool_calls_only_for_historical_messages() -> (
+    None
+):
     turn_flow = ConversationTurnFlowProjector.project_from_metadata(
         {
             "turn_record": {
@@ -790,7 +594,9 @@ def test_project_from_metadata_reads_legacy_canonical_tool_calls_only_for_histor
     assert tool_execution["tool_call_ids"] == ["tc_weather_1"]
 
 
-def test_normalize_turn_flow_does_not_use_legacy_canonical_tool_calls_when_canonical_turn_flow_exists() -> None:
+def test_normalize_turn_flow_does_not_use_legacy_canonical_tool_calls_when_canonical_turn_flow_exists() -> (
+    None
+):
     turn_flow = ConversationTurnFlowProjector.project_from_metadata(
         {
             "turn_flow": {
@@ -844,7 +650,9 @@ def test_normalize_turn_flow_does_not_use_legacy_canonical_tool_calls_when_canon
     assert tool_execution["tool_call_ids"] == []
 
 
-def test_normalize_turn_flow_replaces_missing_answer_placeholder_with_public_error_surface_message() -> None:
+def test_normalize_turn_flow_replaces_missing_answer_placeholder_with_public_error_surface_message() -> (
+    None
+):
     turn_flow = ConversationTurnFlowProjector.project_from_metadata(
         {
             "completion_reason": "provider_error",
@@ -901,7 +709,9 @@ def test_normalize_turn_flow_replaces_missing_answer_placeholder_with_public_err
     assert turn_flow["error_surface"]["message"] == "AI 供应商服务端错误"
 
 
-def test_normalize_turn_flow_keeps_placeholder_when_only_default_error_surface_exists() -> None:
+def test_normalize_turn_flow_keeps_placeholder_when_only_default_error_surface_exists() -> (
+    None
+):
     turn_flow = ConversationTurnFlowProjector.project_from_metadata(
         {
             "completion_reason": "provider_error",
@@ -954,7 +764,9 @@ def test_normalize_turn_flow_keeps_placeholder_when_only_default_error_surface_e
     ]
 
 
-def test_project_from_metadata_strips_trace_id_suffix_from_public_error_message() -> None:
+def test_project_from_metadata_strips_trace_id_suffix_from_public_error_message() -> (
+    None
+):
     turn_flow = ConversationTurnFlowProjector.project_from_metadata(
         {
             "completion_reason": "provider_error",

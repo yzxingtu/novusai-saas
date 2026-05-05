@@ -47,12 +47,9 @@ def constrain_retry_policy_to_active_intent(
     normalized_breach = str(breach_type or "").strip()
     normalized_reason = str(retry_policy.reason or "").strip()
     if (
-        (
-            normalized_breach == "unfinished_multi_intent_reply"
-            or normalized_reason.startswith("unfinished")
-        )
-        and retry_policy.allowed_tool_names
-    ):
+        normalized_breach == "unfinished_multi_intent_reply"
+        or normalized_reason.startswith("unfinished")
+    ) and retry_policy.allowed_tool_names:
         return ToolUsePolicy(
             family=(
                 str(retry_policy.family or "").strip()

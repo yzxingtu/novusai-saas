@@ -304,8 +304,6 @@ class CapabilityDescriptionBuilder:
         # Fallback: infer from skill name
         skill_name = str(descriptor.name or "").lower()
 
-        if "web" in skill_name or "search" in skill_name or "fetch" in skill_name:
-            return "web_research"
         if "weather" in skill_name:
             return "weather"
         if "time" in skill_name or "date" in skill_name:
@@ -319,7 +317,6 @@ class CapabilityDescriptionBuilder:
         将技能家族格式化为可读标题。
         """
         family_titles = {
-            "web_research": "Web Research Skills",
             "weather": "Weather Skills",
             "time": "Time & Date Skills",
             "general": "General Skills",

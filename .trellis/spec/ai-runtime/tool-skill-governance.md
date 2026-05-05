@@ -41,8 +41,9 @@ backend boundary instead of page perception:
 
 - Skill packs remain installable, governable, and callable extension
   capabilities.
-- Builtin runtime tools may cover platform-owned capabilities such as web
-  search, current time, memory, variables, and knowledge retrieval.
+- Builtin runtime tools may cover platform-owned capabilities such as current
+  time, memory, variables, and knowledge retrieval. Online search is not a
+  supported builtin capability.
 - Skill/package defects in new-system live paths must be corrected at the owner
   contract boundary rather than papered over in downstream diagnostics,
   read-models, or frontend compatibility logic. Temporary compatibility patches
@@ -68,71 +69,48 @@ backend boundary instead of page perception:
 - Rich text editing should use explicit editor/domain operations or future
   skill-pack tools, not DOM scanning.
 
-## Web Search Governance
+## Online Search Removed
 
-- Generic current-information requests such as "联网查一下最新消息", "search
-  today's news", or other `web_research` intents must use the platform-owned
-  WebResearch pipeline by default:
-  `search -> fetch -> evidence -> answer`.
-- The default search and fetch providers are the platform builtin
-  `web_search` and `fetch_url` toolchain. They are first-class runtime
-  providers, not a fallback after hosted search fails.
-- The platform runtime owns progression through the chain. Once search results
-  produce candidate URLs for a required `web_research` intent, runtime must
-  fetch the selected candidate through the configured fetch provider instead of
-  waiting for an LLM/provider continuation to decide whether `fetch_url` should
-  happen.
-- OpenAI, Gemini, Claude, Mistral, or other provider-native/hosted web search
-  implementations are optional `SearchProvider` adapters. They may be selected
-  only by explicit provider capability/config and must emit the same normalized
-  evidence schema as builtin search.
-- `openai_compatible` providers must not enable hosted/native web search by
-  default. Hosted search is available only when explicit config, model/protocol
-  capability, and real smoke or approved replay evidence prove support.
-- Provider-native search progress events such as OpenAI
-  `response.web_search_call.*` are provider diagnostics. They are not canonical
-  completion evidence until normalized into the WebResearch evidence schema.
-- Runtime must not implement a hosted-search-first fallback chain where provider
-  timeout/progress-only output later synthesizes builtin `web_search` calls.
-  Builtin search is the default provider path, so hosted search failure should
-  be represented as optional-provider failure/skip diagnostics rather than the
-  normal route to builtin execution.
-- Raw search snippets, redirect links, or provider preamble text are not
-  answer-quality evidence for required `web_research` when fetch evidence is
-  available or required. Final answer synthesis and recovery must consume
-  normalized evidence, preferably fetched body evidence.
+AI dialogue no longer supports online search, WebResearch, public URL fetch for
+research answers, or provider-hosted/native search as runtime capabilities.
 
-### Native Search vs Platform WebResearch Boundary
-
-- **Platform WebResearch / 联网搜索** is the default user-facing path for
-  ordinary "查一下 / 联网查 / 搜一下 / latest/current ranking" requests. It owns
-  tool planning, provider selection, URL fetch, relevance gating, canonical
-  evidence, citations, partial/no-result wording, and frontend diagnostics.
-- **Builtin `web_search` / `fetch_url`** are platform runtime tools used inside
-  WebResearch. They are not "raw final answer" sources by themselves; their
-  outputs must be normalized into WebResearch evidence before final synthesis.
-- **Provider-native / hosted search / 原生搜索** is an optional SearchProvider
-  adapter for a specific provider/model/protocol combination. It may be used
-  only when explicit configuration, capability checks, and real smoke or
-  approved replay evidence prove that combination. Its provider events are
-  diagnostics until converted into the same WebResearch evidence schema.
-- Do **not** silently switch an ordinary `web_research` turn to native search
-  just because builtin public search is weak or a fetch candidate is blocked.
-  Weak builtin results should instead be rejected/skipped with typed
-  diagnostics (`no_results`, `candidate_*`, `blocked_url`, `low_query_relevance`)
-  and, when evidence is insufficient, a transparent no-result/partial answer.
-- If a user explicitly asks to test or use the builtin search tool itself
-  ("用内置 web_search", "调用 fetch_url", etc.), route as a direct builtin-tool
-  request. Otherwise, the runtime should treat "联网查一下" as a WebResearch
-  evidence task, not as a request for the raw tool or hosted-search provider.
+- Candidate tools, model tool definitions, runtime manifests, capability
+  summaries, prompt contracts, provider request payloads, skill-pack exposure,
+  and frontend/CLI diagnostics for new turns must not advertise `web_search`,
+  `fetch_url`, `web_research`, hosted/native search, `SearchProvider`, public
+  search backends, or URL-fetch-for-research tools.
+- Current-information prompts such as "联网查一下最新消息", "search today's
+  news", "搜一下", "latest/current ranking", or direct requests to call a
+  retired search/fetch tool must fail closed. The planner may keep a
+  text-capable unsupported response path, ask the user to provide sources, or
+  route to a non-web capability already present in the request, but it must not
+  browse, search, fetch, synthesize citations, or call a provider-hosted search
+  feature.
+- Provider-native or hosted search events such as OpenAI
+  `response.web_search_call.*` are unsupported for new AI dialogue turns. They
+  must not be used as completion evidence, progress evidence, or a trigger to
+  synthesize any builtin search/fetch call.
+- Historical persisted traces may still contain retired online-search names.
+  Read-models may display those records as generic legacy diagnostics only; the
+  records must not make online search appear available and must not recover,
+  retry, or complete a new turn.
+- This removal does not forbid ordinary application networking, internal HTTP
+  clients, attachment download, plugin API calls, KB retrieval, or user-supplied
+  document analysis. It forbids AI dialogue live paths from browsing/searching
+  the public web to answer a prompt.
 
 ## Required Guards
 
 - API entrypoints must not accept `page_context` or `page_session_id`.
 - Runtime context assembly must not create `page_context` context sources.
 - Tool definitions returned to the model must not include UI/page operation tools.
+- Tool definitions returned to the model must not include retired online-search
+  tools or provider-hosted search declarations.
 - `ToolSandbox` must reject UI/page operation tool names even when supplied by a
   manual definition or plugin.
+- `ToolSandbox` and resolver boundaries must reject retired online-search tool
+  names even when supplied by a manual definition, plugin, provider capability,
+  or compatibility fixture.
 - Frontend chat shells must not collect DOM, join page sessions, render page AI
   rails, or send page context fields.
 - Tests touching AI dialogue live paths must state whether they are

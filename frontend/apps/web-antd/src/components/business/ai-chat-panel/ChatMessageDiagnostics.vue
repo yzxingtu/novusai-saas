@@ -5,6 +5,7 @@ import { computed } from 'vue';
 
 import { useDiagnosticsPolicy } from '#/composables/use-diagnostics-policy';
 import { $t } from '#/locales';
+import { visibleRuntimeDiagnosticTokens } from '#/utils/ai-runtime-diagnostics';
 
 import { shouldRenderTurnDiagnostics } from './chat-message-diagnostics-visibility';
 
@@ -34,10 +35,10 @@ interface ContextSourceDisplayItem {
 
 function formatContextSourceKindLabel(kind: string): string {
   switch (kind) {
+    case 'document':
     case 'knowledge_base':
     case 'memory':
-    case 'tool':
-    case 'web': {
+    case 'tool': {
       return $t(`common.globalAiChat.turnEvidenceKind.${kind}`);
     }
     default: {
@@ -85,9 +86,7 @@ const diagnosticProtocolPath = computed(() =>
   normalizeDiagnosticText(props.msg.protocolPath),
 );
 const diagnosticSelectedTools = computed(() => {
-  return (props.msg.selectedToolNames ?? [])
-    .map((item) => normalizeDiagnosticText(item))
-    .filter((item) => item.length > 0);
+  return visibleRuntimeDiagnosticTokens(props.msg.selectedToolNames);
 });
 const diagnosticSelectedSkills = computed(() => {
   return (props.msg.selectedSkillNames ?? [])

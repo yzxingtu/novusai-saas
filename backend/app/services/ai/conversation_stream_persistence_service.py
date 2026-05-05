@@ -77,6 +77,7 @@ class ConversationStreamPersistenceService:
         extra_payload: dict[str, Any] | None = None,
         memory_runtime_policy: dict[str, Any] | None = None,
     ) -> bool:
+        _error_message = error_message
         conversation = await self.service.repo.get_by_id(conversation_id)
         if conversation is None:
             return False
@@ -139,9 +140,12 @@ class ConversationStreamPersistenceService:
         error_message = str(
             error_display.get("message") or error_text or _("common.server_error")
         ).strip() or _("common.server_error")
-        debug_message = _sanitize_persisted_error_text(
-            error_display.get("debug_message"),
-        ) or None
+        debug_message = (
+            _sanitize_persisted_error_text(
+                error_display.get("debug_message"),
+            )
+            or None
+        )
         raw_error_message = _sanitize_persisted_error_text(
             result.error,
             fallback=debug_message or error_message,
@@ -193,8 +197,10 @@ class ConversationStreamPersistenceService:
             error_metadata["last_run_summary"] = normalize_json_safe(
                 last_run_summary_payload
             )
-        turn_record_payload = ConversationDiagnosticsProjector.normalize_turn_record_payload(
-            getattr(result, "turn_record", None)
+        turn_record_payload = (
+            ConversationDiagnosticsProjector.normalize_turn_record_payload(
+                getattr(result, "turn_record", None)
+            )
         )
         if turn_record_payload:
             error_metadata["turn_record"] = normalize_json_safe(turn_record_payload)

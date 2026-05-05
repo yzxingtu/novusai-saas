@@ -78,7 +78,9 @@ _MEMORY_FACT_STOP_PATTERNS = (
         r"\s*(?:请|请你|帮我|麻烦你)?(?:存入|存到|保存到|保存进|记到)(?:长期)?记忆(?:里|中)?[。.!！?？]*\s*$",
         re.IGNORECASE,
     ),
-    re.compile(r"(?:只有在|如果没有|否则|只回答|only answer|otherwise).*$", re.IGNORECASE),
+    re.compile(
+        r"(?:只有在|如果没有|否则|只回答|only answer|otherwise).*$", re.IGNORECASE
+    ),
 )
 _PLACEHOLDER_MEMORY_FACTS = {
     "这个",
@@ -288,7 +290,9 @@ class MemoryExtractionService:
     @staticmethod
     def message_requests_memory_save(message: str) -> bool:
         lowered = (message or "").strip().lower()
-        return bool(lowered and any(term in lowered for term in _MEMORY_SAVE_REQUEST_TERMS))
+        return bool(
+            lowered and any(term in lowered for term in _MEMORY_SAVE_REQUEST_TERMS)
+        )
 
     @classmethod
     def _extract_explicit_memory_facts(cls, message: str) -> list[str]:

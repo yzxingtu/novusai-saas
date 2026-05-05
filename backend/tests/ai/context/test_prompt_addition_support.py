@@ -4,9 +4,8 @@ Scope: context prompt-addition helper output without invoking LLM/provider calls
 Mock strategy: only clocks are monkeypatched; helper logic and prompt rendering run real.
 """
 
-from datetime import datetime, timezone
+from datetime import datetime
 from types import SimpleNamespace
-from zoneinfo import ZoneInfo
 
 import app.ai.context.prompt_addition_support as support
 from app.ai.types import ChatMessage
@@ -56,60 +55,6 @@ def test_build_profile_snapshot_block_compacts_sections() -> None:
     assert "- Preferences: uses python; prefers pytest" in block
     assert "- Facts: based in NYC" in block
     assert "extra" not in block
-
-
-def test_build_web_research_date_anchor_when_tools(monkeypatch) -> None:
-    local_dt = datetime(2026, 2, 3, 4, 5, 6, tzinfo=ZoneInfo("Asia/Shanghai"))
-    utc_dt = datetime(2026, 2, 2, 20, 5, 6, tzinfo=timezone.utc)
-    _freeze_clock(monkeypatch, local_dt=local_dt, utc_dt=utc_dt)
-
-    messages = [ChatMessage(role="user", content="What's new today?")]
-    skill_result = SimpleNamespace(tools=[SimpleNamespace(name="web_search")])
-
-    anchor = support.build_web_research_date_anchor(
-        messages, skill_result=skill_result
-    )
-
-    assert "[RUNTIME CLOCK]" in anchor
-    assert "2026-02-03 04:05:06" in anchor
-    assert "Asia/Shanghai" in anchor
-    assert "2026-02-02" in anchor
-    assert "2026" in anchor
-
-
-def test_build_web_research_date_anchor_continues_follow_up() -> None:
-    messages = [
-        ChatMessage(
-            role="assistant",
-            content="",
-            tool_calls=[
-                {
-                    "id": "c1",
-                    "type": "function",
-                    "function": {"name": "web_search"},
-                    "success": True,
-                }
-            ],
-        ),
-        ChatMessage(role="user", content="ok"),
-    ]
-
-    anchor = support.build_web_research_date_anchor(messages, skill_result=None)
-
-    assert "[RUNTIME CLOCK]" in anchor
-
-
-def test_build_web_research_date_anchor_requires_signal() -> None:
-    messages = [
-        ChatMessage(role="user", content="Tell me about the roadmap"),
-    ]
-    skill_result = SimpleNamespace(tools=[SimpleNamespace(name="summarize")])
-
-    anchor = support.build_web_research_date_anchor(
-        messages, skill_result=skill_result
-    )
-
-    assert anchor == ""
 
 
 def test_build_visible_locale_hint_uses_explicit_request_locale() -> None:

@@ -44,7 +44,7 @@ function createStreamingMessage(status: 'running' | 'success'): ChatMessage {
           }),
           status,
           toolCallId: 'tool-call-1',
-          toolName: 'web_search',
+          toolName: 'query_records',
         },
       ],
       timeline: [],

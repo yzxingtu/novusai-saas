@@ -172,29 +172,6 @@ class _FakeEngine:
         return [asdict(m) for m in messages]
 
     @staticmethod
-    def _log_web_research_contract_diagnostics(
-        *,
-        agent,
-        messages,
-        response,
-        tools,
-        continuation,
-        conversation_id,
-    ):
-        from app.ai.engine.conversation import ConversationEngine
-
-        engine = object.__new__(ConversationEngine)
-        return ConversationEngine._log_web_research_contract_diagnostics(
-            engine,
-            agent=agent,
-            messages=messages,
-            response=response,
-            tools=tools,
-            continuation=continuation,
-            conversation_id=conversation_id,
-        )
-
-    @staticmethod
     def _log_tool_contract_diagnostics(
         *,
         agent,
@@ -238,27 +215,6 @@ class _FakeEngine:
             current_policy=current_policy,
             tools=tools,
             input_variables=input_variables,
-        )
-
-    @staticmethod
-    def _should_retry_web_research_contract_breach(
-        *,
-        messages,
-        response,
-        current_policy,
-        tools,
-        input_variables,
-        continuation,
-    ):
-        from app.ai.engine.conversation import ConversationEngine
-
-        return ConversationEngine._should_retry_web_research_contract_breach(
-            messages=messages,
-            response=response,
-            current_policy=current_policy,
-            tools=tools,
-            input_variables=input_variables,
-            continuation=continuation,
         )
 
     @staticmethod
@@ -311,18 +267,6 @@ class _FakeEngine:
         from app.ai.engine.conversation import ConversationEngine
 
         return ConversationEngine._filter_tools_for_policy(tools, policy)
-
-    @staticmethod
-    def _needs_fetch_url_before_summary(messages):
-        from app.ai.engine.base import BaseEngine
-
-        return BaseEngine._needs_fetch_url_before_summary(messages)
-
-    @staticmethod
-    def _apply_fetch_url_only_gate(messages, tools, all_tools):
-        from app.ai.engine.base import BaseEngine
-
-        return BaseEngine._apply_fetch_url_only_gate(messages, tools, all_tools)
 
 
 class _RecordingStreamEngine(_FakeEngine):
@@ -502,12 +446,12 @@ async def test_prepare_stream_runtime_forwards_skip_metering_preflight() -> None
 @pytest.mark.asyncio
 async def test_stream_io_adapter_keeps_finalized_completed_output_over_stream_preview():
     handler = _build_handler(_FakeEngine())
-    handler._output = "放假通知！湖南12地明确！|特殊教育学校_新浪财经_新浪网"
+    handler._output = "内部工具原始预览：校历条目尚未整理。"
     adapter = StreamIOAdapter(handler)
 
     handler.runtime_contract.finalize_completed_output = AsyncMock(
         return_value=(
-            "根据已获取网页内容，长沙义务教育阶段学校今年暑假从7月6日开始。",
+            "根据内部工具结果，长沙义务教育阶段学校今年暑假从7月6日开始。",
             18,
             18,
         )
@@ -530,7 +474,7 @@ async def test_stream_io_adapter_keeps_finalized_completed_output_over_stream_pr
         completion_tokens_used=18,
     )
     assert "长沙义务教育阶段学校今年暑假从7月6日开始" in output
-    assert "特殊教育学校_新浪财经_新浪网" not in output
+    assert "内部工具原始预览" not in output
     assert total_tokens == 18
     assert completion_tokens_used == 18
 
@@ -578,113 +522,6 @@ def test_stream_io_adapter_request_defaults_use_trusted_auto() -> None:
     request_proxy = adapter._request_with_defaults()
 
     assert request_proxy.interaction_mode == "trusted_auto"
-
-
-@pytest.mark.asyncio
-async def test_stream_handler_syncs_runtime_model_info_to_sandbox_before_tool_calls() -> (
-    None
-):
-    runtime_model_info = {
-        "provider_id": 11,
-        "provider_name": "OpenAI",
-        "model_id": 22,
-        "model_name": "GPT-5.4",
-        "model_code": "gpt-5.4",
-    }
-    engine = _FakeEngine(
-        rounds=[
-            [
-                ChatChunk(
-                    delta="",
-                    tool_calls=[
-                        {
-                            "id": "call_search_1",
-                            "type": "function",
-                            "function": {
-                                "name": "web_search",
-                                "arguments": '{"query":"runtime v2 rollout","max_results":5}',
-                            },
-                        }
-                    ],
-                    finish_reason="tool_calls",
-                    total_tokens=12,
-                    metadata={"runtime_model_info": runtime_model_info},
-                )
-            ],
-            [
-                ChatChunk(
-                    delta="done",
-                    finish_reason="stop",
-                    total_tokens=18,
-                    metadata={"runtime_model_info": runtime_model_info},
-                )
-            ],
-        ]
-    )
-    handler = _build_handler(
-        engine,
-        tools=[ToolDefinition(name="web_search", description="Search the web")],
-        tool_use_policy=ToolUsePolicy(
-            family="web_research",
-            mode="required",
-            allowed_tool_names=["web_search"],
-        ),
-    )
-
-    async for _raw in handler.generate():
-        pass
-
-    assert engine.sandbox.executed_runtime_model_info == runtime_model_info
-
-
-@pytest.mark.asyncio
-async def test_stream_handler_emits_web_search_progress_status_before_message() -> None:
-    engine = _FakeEngine(
-        rounds=[
-            [
-                ChatChunk(
-                    delta="",
-                    metadata={"web_search_in_progress": True},
-                ),
-                ChatChunk(
-                    delta="查好了",
-                    finish_reason="stop",
-                    total_tokens=8,
-                ),
-            ]
-        ]
-    )
-    handler = _build_handler(
-        engine,
-        tools=[ToolDefinition(name="web_search", description="Search the web")],
-        tool_use_policy=ToolUsePolicy(
-            family="web_research",
-            mode="required",
-            allowed_tool_names=["web_search"],
-        ),
-    )
-
-    events: list[dict] = []
-    async for raw in handler.generate():
-        if raw.strip().startswith("data: {"):
-            events.append(_parse_sse_payload(raw))
-
-    status_idx = next(
-        index
-        for index, event in enumerate(events)
-        if event.get("event") == "status"
-        and event.get("status") == "web_search_in_progress"
-    )
-    message_idx = next(
-        index
-        for index, event in enumerate(events)
-        if event.get("event") == "message" and event.get("delta") == "查好了"
-    )
-    done_idx = next(
-        index for index, event in enumerate(events) if event.get("event") == "done"
-    )
-
-    assert status_idx < message_idx < done_idx
 
 
 @pytest.mark.asyncio
@@ -1008,163 +845,6 @@ async def test_stream_handler_provider_timeout_uses_low_noise_logging() -> None:
 
 
 @pytest.mark.asyncio
-async def test_stream_handler_budget_exit_after_tool_round_still_emits_final_message():
-    """预算退出在工具轮后仍要保留最终 assistant 文本输出。"""
-    engine = _FakeEngine(
-        rounds=[
-            [
-                ChatChunk(
-                    delta="Final summary after the tool call.",
-                    tool_calls=[
-                        {
-                            "id": "call_tool_1",
-                            "type": "function",
-                            "function": {
-                                "name": "web_search",
-                                "arguments": '{"query":"budget exit"}',
-                            },
-                        },
-                    ],
-                    finish_reason="tool_calls",
-                    total_tokens=20,
-                ),
-            ],
-        ],
-    )
-    tools = [ToolDefinition(name="web_search", description="Search the web")]
-    handler = _build_handler(engine, tools=tools)
-
-    events: list[dict] = []
-    with patch(
-        "app.ai.engine.budget_guard.BudgetGuard.completion_reason",
-        return_value="elapsed_budget_exceeded",
-    ):
-        async for raw in handler.generate():
-            if raw.strip().startswith("data: {"):
-                events.append(_parse_sse_payload(raw))
-
-    message_text = "".join(
-        event.get("delta", "") for event in events if event.get("event") == "message"
-    )
-    assert "Final summary after the tool call." in message_text
-
-
-@pytest.mark.asyncio
-async def test_stream_handler_promotes_budgeted_web_research_tool_evidence_to_completed():
-    from app.ai.engine.types import ExecutionResult, RecoveryDecision
-
-    captured: list[ExecutionResult] = []
-    completed = asyncio.Event()
-
-    async def on_complete(result: ExecutionResult) -> None:
-        captured.append(result)
-        completed.set()
-
-    engine = _FakeEngine(
-        rounds=[
-            [
-                ChatChunk(
-                    delta="",
-                    tool_calls=[
-                        {
-                            "id": "call_fetch_budgeted",
-                            "type": "function",
-                            "function": {
-                                "name": "fetch_url",
-                                "arguments": '{"url":"https://finance.sina.com.cn/jjxw/2025-06-12/doc-inezupah3848475.shtml","max_length":12000}',
-                            },
-                        }
-                    ],
-                    finish_reason="tool_calls",
-                    total_tokens=10,
-                ),
-            ],
-            # synthesis round after budget-exceeded tool completion
-            [
-                ChatChunk(
-                    delta="根据查询结果，湖南12地已公布2025年中小学暑假放假时间，今年暑假从7月6日开始。",
-                    finish_reason="stop",
-                    total_tokens=50,
-                ),
-            ],
-        ],
-    )
-    engine.sandbox.execute = AsyncMock(  # type: ignore[method-assign]
-        return_value=ToolResult(
-            tool_call_id="call_fetch_budgeted",
-            name="fetch_url",
-            success=True,
-            output=(
-                "Content from https://finance.sina.com.cn/jjxw/2025-06-12/doc-inezupah3848475.shtml\n"
-                "Title: 放假通知！湖南12地明确！|特殊教育学校_新浪财经_新浪网\n"
-                "Description: 近日湖南12地公布2025年中小学暑假放假时间长沙根据2024年校历安排，今年暑假从7月6日开始。\n\n"
-                "放假通知！湖南12地明确！\n"
-                "湖南12地公布2025年中小学暑假放假时间。\n"
-                "根据2024年校历安排，今年暑假从7月6日开始。\n"
-            ),
-            summary="放假通知！湖南12地明确！|特殊教育学校_新浪财经_新浪网",
-            summary_payload={
-                "fetch_url": True,
-                "ok": True,
-                "title": "放假通知！湖南12地明确！|特殊教育学校_新浪财经_新浪网",
-                "description": "近日湖南12地公布2025年中小学暑假放假时间长沙根据2024年校历安排，今年暑假从7月6日开始。",
-                "summary": "放假通知！湖南12地明确！|特殊教育学校_新浪财经_新浪网",
-            },
-        )
-    )
-    intent = _build_pending_intent(
-        allowed_tool_names=["fetch_url"],
-        family="web_research",
-        source_text="你联网查一下 湖南学生放假时间",
-    )
-    intent.completion_signals = ["fetch_url"]
-    handler = _build_handler(
-        engine,
-        tools=[ToolDefinition(name="fetch_url", description="Fetch url")],
-        tool_use_policy=ToolUsePolicy(
-            family="web_research",
-            mode="required",
-            allowed_tool_names=["fetch_url"],
-            retry_on_contract_breach=False,
-            reason="explicit_web_request",
-        ),
-        intent_plan=[intent],
-    )
-    handler.on_complete = on_complete
-
-    events: list[dict] = []
-    with patch(
-        "app.ai.engine.turn_executor.RecoveryManager.decide",
-        return_value=RecoveryDecision(
-            action="return_partial",
-            target_intent_id="intent_1",
-            reason="completion_budget_exceeded",
-            provider_failure_kind="budget_exit",
-        ),
-    ):
-        async for raw in handler.generate():
-            if raw.strip().startswith("data: {"):
-                events.append(_parse_sse_payload(raw))
-
-    await asyncio.wait_for(completed.wait(), timeout=1)
-
-    message_text = "".join(
-        event.get("delta", "") for event in events if event.get("event") == "message"
-    )
-    done_event = next(event for event in events if event.get("event") == "done")
-
-    assert "今年暑假从7月6日开始" in message_text
-    assert len(captured) == 1
-    assert captured[0].partial is False
-    assert captured[0].completion_reason == "completed"
-    assert captured[0].turn_record.get("turn_outcome") is None
-    # synthesis succeeded → source is "assistant", not raw tool_evidence
-    assert captured[0].turn_record["final_output_source"] == "assistant"
-    assert done_event.get("turn_outcome") is None
-    assert done_event["termination_reason"] == "completed"
-
-
-@pytest.mark.asyncio
 async def test_stream_handler_disconnect_after_done_still_runs_on_complete():
     """客户端在 done 后立刻断开时，后台 on_complete 仍应继续执行并持久化。"""
     from app.ai.engine.types import ExecutionResult
@@ -1396,182 +1076,6 @@ async def test_stream_handler_tool_rounds_keep_real_stream_and_final_answer():
     )
     msg_deltas = [e["delta"] for e in events if e.get("event") == "message"]
     assert "查询完成" in "".join(msg_deltas) and "。" in "".join(msg_deltas)
-
-
-@pytest.mark.asyncio
-async def test_stream_handler_does_not_recursively_contract_retry_summary_without_fetch():
-    engine = _FakeEngine(
-        rounds=[
-            [
-                ChatChunk(
-                    delta="",
-                    tool_calls=[
-                        {
-                            "id": "call_search_1",
-                            "type": "function",
-                            "function": {
-                                "name": "web_search",
-                                "arguments": '{"query":"sample topic public info","max_results":5}',
-                            },
-                        },
-                    ],
-                    finish_reason="tool_calls",
-                    total_tokens=15,
-                ),
-            ],
-            [
-                ChatChunk(
-                    delta="Here is a summary based only on the search snippets.",
-                    finish_reason="stop",
-                    total_tokens=20,
-                ),
-            ],
-            [
-                ChatChunk(
-                    delta="",
-                    tool_calls=[
-                        {
-                            "id": "call_fetch_1",
-                            "type": "function",
-                            "function": {
-                                "name": "fetch_url",
-                                "arguments": '{"url":"https://example.com/ukraine-live","max_length":4000}',
-                            },
-                        },
-                    ],
-                    finish_reason="tool_calls",
-                    total_tokens=18,
-                ),
-            ],
-            [
-                ChatChunk(
-                    delta="Based on the fetched page body.",
-                    finish_reason="stop",
-                    total_tokens=24,
-                ),
-            ],
-        ],
-    )
-    tools = [
-        ToolDefinition(name="web_search", description="Search the web"),
-        ToolDefinition(name="fetch_url", description="Fetch url"),
-    ]
-    continuation_context = SimpleNamespace(
-        active=True,
-        family="web_research",
-        origin="continuation",
-        current_user_text="Continue reviewing the same public webpages.",
-        research_target_text="sample topic public info",
-        recent_successful_tool_names=["web_search"],
-        recent_web_queries=["sample topic public info"],
-        search_query_count=1,
-        fetched_url_count=0,
-        research_instruction_texts=["Continue reviewing the same public webpages."],
-    )
-    handler = _build_handler(
-        engine,
-        tools=tools,
-        continuation_context=continuation_context,
-        tool_use_policy=ToolUsePolicy(
-            family="web_research",
-            mode="required",
-            allowed_tool_names=["web_search", "fetch_url"],
-            retry_on_contract_breach=True,
-            reason="active_continuation:web_research",
-        ),
-    )
-
-    events: list[dict] = []
-    async for raw in handler.generate():
-        if raw.strip().startswith("data: {"):
-            events.append(_parse_sse_payload(raw))
-
-    message_text = "".join(
-        event.get("delta", "") for event in events if event.get("event") == "message"
-    )
-    assert "Here is a summary based only on the search snippets" in message_text
-    assert not any(event.get("event") == "clear_content" for event in events)
-    assert not any(
-        event.get("event") == "tool_start" and event.get("name") == "fetch_url"
-        for event in events
-    )
-
-
-@pytest.mark.asyncio
-async def test_stream_handler_marks_normal_follow_up_round_without_recursive_contract_retry():
-    captured = []
-    completed = asyncio.Event()
-
-    async def on_complete(result) -> None:
-        captured.append(result)
-        completed.set()
-
-    engine = _RecordingStreamEngine(
-        rounds=[
-            [
-                ChatChunk(
-                    delta="",
-                    tool_calls=[
-                        {
-                            "id": "call_search",
-                            "type": "function",
-                            "function": {
-                                "name": "web_search",
-                                "arguments": '{"query":"runtime v2 rollout","max_results":5}',
-                            },
-                        }
-                    ],
-                    finish_reason="tool_calls",
-                    total_tokens=10,
-                )
-            ],
-            [
-                ChatChunk(
-                    delta="这里只基于搜索摘要做一个简单总结。",
-                    finish_reason="stop",
-                    total_tokens=14,
-                )
-            ],
-        ]
-    )
-    handler = _build_handler(
-        engine,
-        tools=[
-            ToolDefinition(name="web_search", description="Search the web"),
-            ToolDefinition(name="fetch_url", description="Fetch url"),
-        ],
-        tool_use_policy=ToolUsePolicy(
-            family="web_research",
-            mode="required",
-            allowed_tool_names=["web_search", "fetch_url"],
-            retry_on_contract_breach=True,
-            reason="explicit_web_request",
-        ),
-    )
-    handler.on_complete = on_complete
-
-    events: list[dict] = []
-    async for raw in handler.generate():
-        if raw.strip().startswith("data: {"):
-            events.append(_parse_sse_payload(raw))
-
-    await asyncio.wait_for(completed.wait(), timeout=1)
-
-    assert len(engine.stream_call_kwargs) == 2
-    assert engine.stream_call_kwargs[1].get("breach_retry_result") == (
-        "normal_follow_up_round"
-    )
-    assert not any(
-        call.get("breach_retry_result") == "contract_retry"
-        for call in engine.stream_call_kwargs
-    )
-    assert captured
-    assert any(
-        event.kind == "turn.round_started"
-        and event.data.get("round_kind") == "normal_follow_up_round"
-        for event in handler._state.turn_events
-    )
-    assert not any(event.get("event") == "clear_content" for event in events)
 
 
 @pytest.mark.asyncio
@@ -1827,111 +1331,6 @@ async def test_stream_handler_retry_fallback_keeps_non_empty_final_assistant() -
 
 
 @pytest.mark.asyncio
-async def test_stream_handler_replays_completed_fetch_body_without_post_tool_retry():
-    from app.ai.engine.types import ExecutionResult
-
-    captured: list[ExecutionResult] = []
-    completed = asyncio.Event()
-
-    async def on_complete(result: ExecutionResult) -> None:
-        captured.append(result)
-        completed.set()
-
-    engine = _FakeEngine(
-        rounds=[
-            [
-                ChatChunk(
-                    delta="",
-                    tool_calls=[
-                        {
-                            "id": "call_fetch_retry",
-                            "type": "function",
-                            "function": {
-                                "name": "fetch_url",
-                                "arguments": '{"url":"https://example.com/ai-news","max_length":4000}',
-                            },
-                        }
-                    ],
-                    finish_reason="tool_calls",
-                    total_tokens=10,
-                ),
-            ]
-        ],
-    )
-    engine.sandbox.execute = AsyncMock(  # type: ignore[method-assign]
-        return_value=ToolResult(
-            tool_call_id="call_fetch_retry",
-            name="fetch_url",
-            success=True,
-            output="Content from https://example.com/ai-news\nTitle: AI Daily\nDescription: Latest AI headlines and analysis.\n\nLead paragraph.",
-            summary="AI Daily - Latest AI headlines and analysis.",
-            summary_payload={
-                "fetch_url": True,
-                "ok": True,
-                "error_type": "",
-                "requested_url": "https://example.com/ai-news",
-                "final_url": "https://example.com/ai-news",
-                "title": "AI Daily",
-                "description": "Latest AI headlines and analysis.",
-                "summary": "AI Daily - Latest AI headlines and analysis.",
-            },
-        )
-    )
-    handler = _build_handler(
-        engine,
-        tools=[ToolDefinition(name="fetch_url", description="Fetch url")],
-        tool_use_policy=ToolUsePolicy(
-            family="web_research",
-            mode="required",
-            allowed_tool_names=["fetch_url"],
-            retry_on_contract_breach=False,
-            reason="explicit_web_request",
-        ),
-        intent_plan=[
-            _build_pending_intent(
-                allowed_tool_names=["fetch_url"],
-                family="web_research",
-                source_text="联网查一下今日AI 最新要闻",
-            )
-        ],
-    )
-    handler.on_complete = on_complete
-
-    events: list[dict] = []
-    async for raw in handler.generate():
-        if raw.strip().startswith("data: {"):
-            events.append(_parse_sse_payload(raw))
-
-    await asyncio.wait_for(completed.wait(), timeout=1)
-
-    message_text = "".join(
-        event.get("delta", "") for event in events if event.get("event") == "message"
-    )
-    clear_indexes = [
-        idx for idx, event in enumerate(events) if event.get("event") == "clear_content"
-    ]
-    message_indexes = [
-        idx for idx, event in enumerate(events) if event.get("event") == "message"
-    ]
-    assert clear_indexes
-    assert message_indexes
-    assert clear_indexes[0] < message_indexes[-1]
-    assert "AI Daily - Latest AI headlines and analysis." in message_text
-    assert "Lead paragraph." in message_text
-    assert len(captured) == 1
-    assert captured[0].output == "Latest AI headlines and analysis.\nLead paragraph."
-    assert captured[0].turn_record["final_output_source"] == "recovery_evidence"
-    assert captured[0].turn_record["post_tool_completion_state"] == (
-        "recovery_evidence"
-    )
-    assert not any(
-        event.kind == "turn.round_started"
-        and event.data.get("round_kind") == "post_tool_follow_up_retry"
-        for event in handler._state.turn_events
-    )
-
-
-@pytest.mark.asyncio
 async def test_stream_handler_clears_preview_before_replaying_tool_evidence_output():
     from app.ai.engine.types import ExecutionResult
 
@@ -1948,8 +1347,7 @@ async def test_stream_handler_clears_preview_before_replaying_tool_evidence_outp
 
     async def _fake_run_with_turn_executor() -> TurnExecutionResult:
         handler._visible_stream_content = (
-            "放假通知！湖南12地明确！|特殊教育学校_新浪财经_新浪网 - "
-            "近日湖南12地公布2025年中小学暑假放假时间长沙根据2024年校历安排，今年暑假从7月6日开始。"
+            "内部工具原始预览：校历条目尚未整理，包含多个学校阶段。"
         )
         handler._output = handler._visible_stream_content
         handler._runtime_turn_record = {
@@ -1960,7 +1358,7 @@ async def test_stream_handler_clears_preview_before_replaying_tool_evidence_outp
             "tool_evidence_completed"
         )
         return TurnExecutionResult(
-            output="根据已获取网页内容，长沙义务教育阶段学校今年暑假从7月6日开始。",
+            output="根据内部工具结果，长沙义务教育阶段学校今年暑假从7月6日开始。",
             total_tokens=18,
             completion_tokens_used=18,
             tool_results=[],
@@ -2000,93 +1398,6 @@ async def test_stream_handler_clears_preview_before_replaying_tool_evidence_outp
     assert "长沙义务教育阶段学校今年暑假从7月6日开始" in message_text
     assert len(captured) == 1
     assert captured[0].output == message_text
-
-
-@pytest.mark.asyncio
-async def test_stream_handler_done_marks_unaccepted_web_research_as_partial_failure():
-    """Test type: behavioral. BUG-2026-05-05-2285 SSE terminal state guard."""
-    from app.ai.engine.types import ExecutionResult
-
-    captured: list[ExecutionResult] = []
-    completed = asyncio.Event()
-
-    async def on_complete(result: ExecutionResult) -> None:
-        captured.append(result)
-        completed.set()
-
-    engine = _FakeEngine()
-    handler = _build_handler(engine)
-    handler.on_complete = on_complete
-
-    fallback = (
-        "我找到了候选来源，但没有拿到与问题足够相关、可核实的内容，因此不生成结论。"
-    )
-
-    async def _fake_run_with_turn_executor() -> TurnExecutionResult:
-        handler._runtime_turn_record = {
-            "turn_outcome": "partial",
-            "failure_kind": "web_research_runtime",
-            "protocol_path": "responses",
-        }
-        handler._state.preparation_diagnostics.update(
-            {
-                "final_output_source": "partial_output",
-                "partial_exit_reason": "low_query_relevance",
-                "web_research_evidence_unaccepted": True,
-                "untrusted_final_output_fallback_applied": True,
-                "web_research_diagnostics": {
-                    "evidence_status": "partial",
-                    "answer_source": "none",
-                    "failure_kind": "low_query_relevance",
-                    "rejected_urls": [
-                        "https://baijiahao.baidu.com/s?id=1860091565873698107"
-                    ],
-                    "relevance_profile": "llm_leaderboard",
-                    "relevance_rejection_count": 1,
-                },
-            }
-        )
-        handler._state.transition("partial_exit")
-        return TurnExecutionResult(
-            output=fallback,
-            total_tokens=0,
-            completion_tokens_used=0,
-            tool_results=[],
-            response=ChatResponse(
-                message=ChatMessage(role="assistant", content=fallback),
-                total_tokens=0,
-                output_tokens=0,
-            ),
-            partial=True,
-            paused_for_consent=False,
-            completion_reason="low_query_relevance",
-            final_output_source="partial_output",
-            action_buttons=None,
-        )
-
-    handler._run_with_turn_executor = _fake_run_with_turn_executor  # type: ignore[method-assign]
-
-    events: list[dict] = []
-    async for raw in handler.generate():
-        if raw.strip().startswith("data: {"):
-            events.append(_parse_sse_payload(raw))
-
-    await asyncio.wait_for(completed.wait(), timeout=1)
-
-    done_payload = next(event for event in events if event.get("event") == "done")
-    message_text = "".join(
-        event.get("delta", "") for event in events if event.get("event") == "message"
-    )
-    assert "足够相关、可核实" in message_text
-    assert len(captured) == 1
-    assert captured[0].success is False
-    assert captured[0].partial is True
-    assert captured[0].turn_record["turn_outcome"] == "partial"
-    assert captured[0].turn_record["final_output_source"] == "partial_output"
-    assert done_payload["completion_reason"] == "low_query_relevance"
-    assert done_payload["termination_reason"] == "low_query_relevance"
-    assert done_payload["turn_outcome"] == "partial"
-    assert done_payload["final_stage_status"] == "error"
 
 
 @pytest.mark.asyncio
@@ -2191,173 +1502,6 @@ async def test_stream_handler_keeps_finalized_output_when_shorter_text_is_not_pr
 
     assert len(captured) == 1
     assert captured[0].output == "最终答案已经纠正。"
-
-
-@pytest.mark.asyncio
-async def test_stream_handler_no_result_completion_skips_auto_fetch_url():
-    from app.ai.engine.types import ExecutionResult
-
-    captured: list[ExecutionResult] = []
-    completed = asyncio.Event()
-
-    async def on_complete(result: ExecutionResult) -> None:
-        captured.append(result)
-        completed.set()
-
-    engine = _FakeEngine(
-        rounds=[
-            [
-                ChatChunk(
-                    delta="",
-                    tool_calls=[
-                        {
-                            "id": "call_fetch_retry",
-                            "type": "function",
-                            "function": {
-                                "name": "web_search",
-                                "arguments": '{"query":"today ai news","max_results":5}',
-                            },
-                        }
-                    ],
-                    finish_reason="tool_calls",
-                    total_tokens=10,
-                ),
-            ]
-        ],
-    )
-    engine.sandbox.execute = AsyncMock(  # type: ignore[method-assign]
-        return_value=ToolResult(
-            tool_call_id="call_fetch_retry",
-            name="web_search",
-            success=True,
-            output="No results found for: today ai news",
-            summary="baidu_public: 0 result(s)",
-            summary_payload={
-                "provider": "baidu_public",
-                "provider_mode": "public",
-                "provider_chain": ["public:baidu"],
-                "attempted_backends": ["public:baidu"],
-                "selected_backend": "public:baidu",
-                "used_fallback": False,
-                "status": "no_results",
-                "result_count": 0,
-                "cache_hit": False,
-                "items": [],
-            },
-        )
-    )
-    intent = _build_pending_intent(
-        allowed_tool_names=["web_search", "fetch_url"],
-        family="web_research",
-        source_text="联网查一下今日AI 最新要闻",
-    )
-    intent.completion_signals = ["fetch_url"]
-    handler = _build_handler(
-        engine,
-        tools=[
-            ToolDefinition(name="web_search", description="Search the web"),
-            ToolDefinition(name="fetch_url", description="Fetch url"),
-        ],
-        tool_use_policy=ToolUsePolicy(
-            family="web_research",
-            mode="required",
-            allowed_tool_names=["web_search", "fetch_url"],
-            retry_on_contract_breach=False,
-            reason="explicit_web_request",
-        ),
-        intent_plan=[intent],
-    )
-    handler.on_complete = on_complete
-
-    events: list[dict] = []
-    async for raw in handler.generate():
-        if raw.strip().startswith("data: {"):
-            events.append(_parse_sse_payload(raw))
-
-    await asyncio.wait_for(completed.wait(), timeout=1)
-
-    message_text = "".join(
-        event.get("delta", "") for event in events if event.get("event") == "message"
-    )
-    assert message_text
-    assert not any(event.get("event") == "clear_content" for event in events)
-    assert len(captured) == 1
-    assert captured[0].output == message_text
-    assert captured[0].success is False
-    assert captured[0].partial is True
-    assert captured[0].completion_reason == "search_no_results_completed"
-    assert captured[0].turn_record["turn_outcome"] == "partial"
-    assert captured[0].turn_record["final_output_source"] == "partial_output"
-    assert captured[0].turn_record["post_tool_completion_state"] == "partial_output"
-    assert captured[0].turn_record["auto_fetch_gate_reason"] == (
-        "search_no_results_completed"
-    )
-    done_payload = next(event for event in events if event.get("event") == "done")
-    assert done_payload["turn_outcome"] == "partial"
-    assert done_payload["completion_reason"] == "search_no_results_completed"
-    assert done_payload["final_stage_status"] == "error"
-
-
-@pytest.mark.asyncio
-async def test_stream_handler_logs_failed_retry_when_required_policy_still_returns_text() -> (
-    None
-):
-    engine = _FakeEngine(
-        rounds=[
-            [
-                ChatChunk(
-                    delta="我现在没有外部互联网搜索工具，只能基于已有知识回答。",
-                    finish_reason="stop",
-                    total_tokens=10,
-                ),
-            ],
-            [
-                ChatChunk(
-                    delta="仍然没有联网能力。",
-                    finish_reason="stop",
-                    total_tokens=12,
-                ),
-            ],
-        ],
-    )
-    tools = [
-        ToolDefinition(name="web_search", description="Search the web"),
-        ToolDefinition(name="fetch_url", description="Fetch url"),
-    ]
-    handler = _build_handler(
-        engine,
-        tools=tools,
-        tool_use_policy=ToolUsePolicy(
-            family="none",
-            mode="auto",
-            allowed_tool_names=[tool.name for tool in tools],
-            retry_on_contract_breach=True,
-            reason="default_auto",
-        ),
-        intent_plan=[
-            _build_pending_intent(
-                allowed_tool_names=["web_search", "fetch_url"],
-                family="web_research",
-                source_text="没有联网能力",
-            )
-        ],
-    )
-
-    events: list[dict] = []
-    handler.runtime_contract.log_tool_contract_diagnostics = MagicMock()
-    async for raw in handler.generate():
-        if raw.strip().startswith("data: {"):
-            events.append(_parse_sse_payload(raw))
-
-    message_text = "".join(
-        event.get("delta", "") for event in events if event.get("event") == "message"
-    )
-    assert "仍然没有联网能力。" in message_text
-    diag_mock = handler.runtime_contract.log_tool_contract_diagnostics
-    assert diag_mock.call_count >= 2
-    retry_results = [call.kwargs["retry_result"] for call in diag_mock.call_args_list]
-    assert retry_results[0] == "retrying"
-    assert retry_results[-1] == "failed"
 
 
 @pytest.mark.asyncio
@@ -2534,80 +1678,6 @@ async def test_tool_call_event_includes_summary_payload():
         "metrics": ["COUNT(acl.id)"],
         "filters": ["today"],
     }
-
-
-@pytest.mark.asyncio
-async def test_stream_handler_runs_parallel_safe_web_search_batch_concurrently():
-    class _TrackingSearchSandbox:
-        def __init__(self) -> None:
-            self.active_calls = 0
-            self.max_parallel = 0
-
-        async def execute(
-            self,
-            tool_call_id: str,
-            name: str,
-            arguments: dict,
-            definitions: list,
-            conversation_id: int,
-        ):
-            _ = definitions, conversation_id
-            self.active_calls += 1
-            self.max_parallel = max(self.max_parallel, self.active_calls)
-            await asyncio.sleep(0.02)
-            self.active_calls -= 1
-            return ToolResult(
-                tool_call_id=tool_call_id,
-                name=name,
-                success=True,
-                output=json.dumps({"query": arguments.get("query", "")}),
-            )
-
-    engine = _FakeEngine()
-    engine.sandbox = _TrackingSearchSandbox()
-    handler = _build_handler(
-        engine,
-        tools=[ToolDefinition(name="web_search", description="Search the web")],
-    )
-    adapter = StreamIOAdapter(handler)
-    messages = [ChatMessage(role="user", content="查两条新闻")]
-    response = ChatResponse(
-        message=ChatMessage(role="assistant", content=""),
-        tool_calls=[
-            {
-                "id": "call_search_1",
-                "type": "function",
-                "function": {
-                    "name": "web_search",
-                    "arguments": '{"query":"AI latest news"}',
-                },
-            },
-            {
-                "id": "call_search_2",
-                "type": "function",
-                "function": {
-                    "name": "web_search",
-                    "arguments": '{"query":"OpenAI latest news"}',
-                },
-            },
-        ],
-        total_tokens=12,
-    )
-
-    result = await adapter.handle_tool_calls(
-        response=response,
-        tools=handler.prep.tools,
-        messages=messages,
-        starting_total_tokens=12,
-        starting_completion_tokens=12,
-    )
-
-    assert len(result.tool_results) == 2
-    assert [tool_result.tool_call_id for tool_result in result.tool_results] == [
-        "call_search_1",
-        "call_search_2",
-    ]
-    assert engine.sandbox.max_parallel >= 2
 
 
 @pytest.mark.asyncio

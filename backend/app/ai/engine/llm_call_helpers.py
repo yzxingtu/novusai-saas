@@ -72,12 +72,8 @@ async def resolve_llm_call_context(
                 routed_model_id=routed_model_id,
                 route_reason=route_reason,
                 supports_vision=bool(route_model_obj.supports_vision),
-                supports_audio=bool(
-                    getattr(route_model_obj, "supports_audio", False)
-                ),
-                supports_video=bool(
-                    getattr(route_model_obj, "supports_video", False)
-                ),
+                supports_audio=bool(getattr(route_model_obj, "supports_audio", False)),
+                supports_video=bool(getattr(route_model_obj, "supports_video", False)),
             )
 
         reason_str = route_result.reason or ""
@@ -93,7 +89,9 @@ async def resolve_llm_call_context(
 
     model_obj = agent.model
     return LLMCallContext(
-        provider_code=model_obj.provider.code if model_obj and model_obj.provider else "",
+        provider_code=model_obj.provider.code
+        if model_obj and model_obj.provider
+        else "",
         model_code=model_obj.code if model_obj else "",
         routed_model_id=None,
         route_reason=None,

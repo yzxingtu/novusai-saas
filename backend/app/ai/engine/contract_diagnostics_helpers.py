@@ -24,8 +24,6 @@ def build_contract_recovery_system_message(
         "assistant_claimed_tool_call_without_tool_event",
     }:
         breach_guidance = render_contract("contract_recovery_leak_guidance") + "\n"
-    elif breach_type == "web_research_title_only_after_fetch":
-        breach_guidance = render_contract("contract_recovery_web_research_guidance") + "\n"
     unfinished_line = ""
     if unfinished_intents:
         unfinished_line = f"Unfinished requested intents: {', '.join(str(item) for item in unfinished_intents)}.\n"

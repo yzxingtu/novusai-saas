@@ -43,9 +43,7 @@ def build_html_sections(
             }
         )
 
-    for element in body.find_all(
-        ["h1", "h2", "h3", "h4", "h5", "h6", "p", "li", "td"]
-    ):
+    for element in body.find_all(["h1", "h2", "h3", "h4", "h5", "h6", "p", "li", "td"]):
         text = element.get_text(strip=True)
         if not text:
             continue

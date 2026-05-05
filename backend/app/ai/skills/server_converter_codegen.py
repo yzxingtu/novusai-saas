@@ -41,7 +41,9 @@ def generate_toolkit_source(
     env_props = (env_schema or {}).get("properties", {}) if env_schema else {}
     if env_requires or env_props:
         all_vars = list(
-            dict.fromkeys(list(env_props.keys()) + [value.lower() for value in env_requires])
+            dict.fromkeys(
+                list(env_props.keys()) + [value.lower() for value in env_requires]
+            )
         )
         for var in all_vars:
             prop = env_props.get(var, {})
@@ -119,7 +121,9 @@ def _append_token_method(
         lines.append(f'                "{token_url}",')
         lines.append("                json={")
         lines.append(f'                    "app_id": self.valves.{id_var.lower()},')
-        lines.append(f'                    "app_secret": self.valves.{secret_var.lower()},')
+        lines.append(
+            f'                    "app_secret": self.valves.{secret_var.lower()},'
+        )
         lines.append("                },")
         lines.append("            )")
         lines.append("        data = resp.json()")
@@ -131,7 +135,9 @@ def _append_token_method(
             f'        self._token = data.get("{token_key}",'
             f' data.get("access_token", ""))'
         )
-        lines.append('        self._token_expires = now + data.get("expire", 7200) - 300')
+        lines.append(
+            '        self._token_expires = now + data.get("expire", 7200) - 300'
+        )
         lines.append("        return self._token")
         return
 
@@ -268,4 +274,3 @@ def _append_payload_request_body(
     lines.append(
         f'        data = await self._request("{method}", {path_expr}, {request_kwarg}={payload_name})'
     )
-

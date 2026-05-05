@@ -25,9 +25,6 @@ from .tool_contract_retry_helpers import (
 from .tool_contract_retry_helpers import (
     should_retry_tool_contract_breach as _should_retry_tool_contract_breach_impl,
 )
-from .tool_contract_retry_helpers import (
-    should_retry_web_research_contract_breach as _should_retry_web_research_contract_breach_impl,
-)
 
 
 class BasePromptContractSupportMixin:
@@ -46,9 +43,6 @@ class BasePromptContractSupportMixin:
     _resolve_breach_retry_policy = staticmethod(_resolve_breach_retry_policy_impl)
     _should_retry_tool_contract_breach = staticmethod(
         _should_retry_tool_contract_breach_impl
-    )
-    _should_retry_web_research_contract_breach = staticmethod(
-        _should_retry_web_research_contract_breach_impl
     )
     _collect_tool_family_evidence = staticmethod(_collect_tool_family_evidence_impl)
 

@@ -164,7 +164,9 @@ def finalize_stream_tool_calls(
         name = (func.get("name") or "").strip()
         if not name:
             if logger is not None:
-                logger.warning("Skip invalid streamed tool_call without name: {}", tool_call)
+                logger.warning(
+                    "Skip invalid streamed tool_call without name: {}", tool_call
+                )
             continue
 
         arguments = func.get("arguments")

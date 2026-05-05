@@ -144,12 +144,6 @@ class Settings(BaseSettings):
     # AI 缓存配置 / AI Cache Configuration
     # ========================================
     AI_CACHE_TTL: int = 3600  # AI 响应缓存 TTL（秒）/ AI response cache TTL (seconds), only effective when temperature=0
-    WEB_SEARCH_DEFAULT_ENABLED: bool = True
-    WEB_SEARCH_DEFAULT_STRATEGY: str = "builtin_public"
-    WEB_SEARCH_DEFAULT_MAX_RESULTS_CAP: int = 8
-    WEB_SEARCH_DEFAULT_NATIVE_TIMEOUT_SECONDS: int = 20
-    WEB_SEARCH_DEFAULT_PUBLIC_TIMEOUT_SECONDS: int = 15
-    WEB_SEARCH_DEFAULT_PUBLIC_PROVIDERS: list[str] = ["baidu"]
 
     # ========================================
     # 日志配置 / Logging Configuration

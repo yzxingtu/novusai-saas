@@ -262,17 +262,6 @@ def _is_generic_untrusted_fallback_output(output: str) -> bool:
     return normalized_output == build_untrusted_final_output_fallback()
 
 
-def _latest_auto_fetch_gate_reason(intent_plan: list[Any]) -> str | None:
-    for intent in reversed(list(intent_plan or [])):
-        metadata = getattr(intent, "metadata", None)
-        if not isinstance(metadata, dict):
-            continue
-        reason = str(metadata.get("auto_fetch_gate_reason") or "").strip()
-        if reason:
-            return reason
-    return None
-
-
 def _recover_completed_output_from_evidence(
     view: Any,
     *,
@@ -283,12 +272,6 @@ def _recover_completed_output_from_evidence(
     if trusted_stream_output:
         return "", None
     if not _is_generic_untrusted_fallback_output(finalized_output):
-        return "", None
-    if _latest_auto_fetch_gate_reason(view.intent_plan) in {
-        "search_not_successful",
-        "search_no_results_completed",
-        "candidate_urls_exhausted",
-    }:
         return "", None
 
     intent_plan = list(view.intent_plan or [])

@@ -32,9 +32,7 @@ import {
   buildConversation,
   buildConversationDetail,
   buildConversationList,
-  buildNativeSearchDiagnosticsMessages,
-  buildNativeSearchInterruptedMessages,
-  buildNativeSearchProgressHistoryMessages,
+  buildLegacyToolInterruptedMessages,
   buildRichToolHistoryMessages,
   buildThinkingDedupHistoryMessages,
   buildUserMessage,
@@ -590,8 +588,8 @@ describe('useAIChat interrupted stream recovery', () => {
           await options.onMessage(
             sseEvent({
               event: 'tool_consent_request',
-              name: 'web_search',
-              arguments: { query: 'latest news' },
+              name: 'query_records',
+              arguments: { query: 'latest records' },
             }),
           );
         }
@@ -624,7 +622,7 @@ describe('useAIChat interrupted stream recovery', () => {
         kind: 'pending_consent',
         auto_approved: true,
         rejected: false,
-        tool_name: 'web_search',
+        tool_name: 'query_records',
       },
     ]);
     expect(autoApproveBody).not.toHaveProperty('interaction_mode');
@@ -1498,7 +1496,7 @@ describe('useAIChat interrupted stream recovery', () => {
               evidence: [
                 {
                   id: 'aa-leaderboard',
-                  kind: 'web',
+                  kind: 'document',
                   title: 'Artificial Analysis LLM Leaderboard',
                 },
               ],
@@ -1548,7 +1546,7 @@ describe('useAIChat interrupted stream recovery', () => {
     );
   });
 
-  it('does not sync generic web research retry copy into empty assistant content on done', async () => {
+  it('does not sync generic provider retry copy into empty assistant content on done', async () => {
     apiMocks.sendChatStreamApi.mockImplementation(
       async (
         _prefix: string,
@@ -1563,14 +1561,14 @@ describe('useAIChat interrupted stream recovery', () => {
         );
         await options.onMessage(
           sseEvent({
-            completion_reason: 'blocked_url',
+            completion_reason: 'provider_error',
             event: 'done',
-            failure_kind: 'blocked_url',
+            failure_kind: 'provider_error',
             final_stage_status: 'error',
             turn_flow: {
-              completion_reason: 'blocked_url',
+              completion_reason: 'provider_error',
               error_surface: {
-                error_type: 'blocked_url',
+                error_type: 'provider_error',
                 message:
                   'The assistant could not finish this turn. Please retry.',
               },
@@ -1580,7 +1578,7 @@ describe('useAIChat interrupted stream recovery', () => {
                   id: 'stage-retrieval-blocked',
                   metrics: { source_count: 0 },
                   status: 'error',
-                  summary: '候选来源是搜索包装页，已阻止抓取',
+                  summary: '候选来源未通过核实',
                   type: 'retrieval',
                 },
               ],
@@ -1596,7 +1594,7 @@ describe('useAIChat interrupted stream recovery', () => {
     const chat = createChat();
 
     await chat.loadAgents();
-    chat.inputMessage.value = '查一下 2026年最热门的 女性裙子款式排行！';
+    chat.inputMessage.value = '整理候选资料';
     await chat.sendMessage();
     await flushDebouncedSend();
 
@@ -1609,79 +1607,7 @@ describe('useAIChat interrupted stream recovery', () => {
     }
     expect(assistantMessage.content).toBe('');
     expect(assistantMessage.turnFlow?.finalStageStatus).toBe('error');
-    expect(assistantMessage.turnFlow?.failureKind).toBe('blocked_url');
-  });
-
-  it('surfaces native web search progress as a visible tool card', async () => {
-    let releaseDone = () => {};
-    apiMocks.getChatConversationMessagesApi.mockResolvedValue(
-      buildConversationDetail(buildNativeSearchProgressHistoryMessages()),
-    );
-    apiMocks.sendChatStreamApi.mockImplementation(
-      async (
-        _prefix: string,
-        _agentId: number,
-        _body: Record<string, unknown>,
-        options: {
-          onMessage: (chunk: string) => Promise<void>;
-        },
-      ) => {
-        await options.onMessage(
-          sseEvent({ event: 'conversation', conversation_id: 42 }),
-        );
-        await options.onMessage(
-          sseEvent({ event: 'status', status: 'web_search_in_progress' }),
-        );
-        await new Promise<void>((resolve) => {
-          releaseDone = resolve;
-        });
-        await options.onMessage(
-          sseEvent({
-            conversation_id: 42,
-            event: 'done',
-            selected_tool_names: ['web_search', 'fetch_url'],
-            total_tokens: 12,
-            turn_record: {
-              auto_fetch_gate_reason: 'native_search_completed',
-              metadata: {
-                stream_progress_kinds: ['web_search_in_progress'],
-              },
-            },
-          }),
-        );
-      },
-    );
-
-    const chat = createChat();
-
-    await chat.loadAgents();
-    chat.inputMessage.value = '搜索一下';
-
-    const sendPromise = chat.sendMessage();
-    await flushDebouncedSend();
-
-    const assistantMessage = chat.chatMessages.value.find(
-      (msg) => msg.role === 'assistant',
-    );
-    expect(assistantMessage).toBeDefined();
-    if (!assistantMessage) {
-      throw new Error('assistant message missing');
-    }
-    expect(getToolCallsForDisplay(assistantMessage)?.[0]).toMatchObject({
-      displayName: 'common.globalAiChat.toolNativeSearch',
-      name: 'native_web_search',
-      status: 'running',
-    });
-
-    releaseDone();
-    await sendPromise;
-    await flushPromises();
-
-    expect(getToolCallsForDisplay(assistantMessage)?.[0]).toMatchObject({
-      displayName: 'common.globalAiChat.toolNativeSearch',
-      name: 'native_web_search',
-      status: 'success',
-    });
+    expect(assistantMessage.turnFlow?.failureKind).toBe('provider_error');
   });
 
   it('hydrates canonical tool evidence from done turn_record.turn_flow when no tool_call stream event arrived', async () => {
@@ -1827,31 +1753,6 @@ describe('useAIChat interrupted stream recovery', () => {
     );
     expect(assistantMessage?.pendingConsent?.toolName).toBe('query_records');
     expect(assistantMessage?.actionButtons?.[0]?.label).toBe('查看明细');
-  });
-
-  it('restores native web search cards from persisted turn diagnostics', async () => {
-    apiMocks.getChatConversationMessagesApi.mockResolvedValue(
-      buildConversationDetail(buildNativeSearchDiagnosticsMessages()),
-    );
-
-    const chat = createChat();
-
-    await chat.loadAgents();
-    await chat.loadConversationMessages(42);
-    await flushPromises();
-
-    const assistantMessage = chat.chatMessages.value.find(
-      (msg) => msg.role === 'assistant',
-    );
-    expect(assistantMessage).toBeDefined();
-    if (!assistantMessage) {
-      throw new Error('assistant message missing');
-    }
-    expect(getToolCallsForDisplay(assistantMessage)?.[0]).toMatchObject({
-      displayName: 'common.globalAiChat.toolNativeSearch',
-      name: 'native_web_search',
-      status: 'success',
-    });
   });
 
   it('deduplicates repeated canonical thinking stages inside one merged assistant turn', async () => {
@@ -2440,9 +2341,9 @@ describe('useAIChat interrupted stream recovery', () => {
     expect(assistantMessage?.content).toBe('可信最终答复');
   });
 
-  it('marks persisted native web search progress cards as error when the turn ended early', async () => {
+  it('does not synthesize tool cards from legacy progress diagnostics without tool evidence', async () => {
     apiMocks.getChatConversationMessagesApi.mockResolvedValue(
-      buildConversationDetail(buildNativeSearchInterruptedMessages()),
+      buildConversationDetail(buildLegacyToolInterruptedMessages()),
     );
 
     const chat = createChat();
@@ -2458,11 +2359,7 @@ describe('useAIChat interrupted stream recovery', () => {
     if (!assistantMessage) {
       throw new Error('assistant message missing');
     }
-    expect(getToolCallsForDisplay(assistantMessage)?.[0]).toMatchObject({
-      displayName: 'common.globalAiChat.toolNativeSearch',
-      name: 'native_web_search',
-      status: 'error',
-    });
+    expect(getToolCallsForDisplay(assistantMessage)).toBeUndefined();
   });
 
   it('applies knowledge base feedback from SSE to selectedKBIds', async () => {
@@ -2527,14 +2424,14 @@ describe('useAIChat interrupted stream recovery', () => {
         enabled: true,
         id: 20,
         is_auto_bound: false,
-        package_description: 'Baidu public search',
+        package_description: 'Legacy tool search',
         package_id: 30,
         package_is_system: true,
-        package_name: '百度公开搜索',
-        skill_description: 'Search public web pages through Baidu',
+        package_name: '历史工具',
+        skill_description: 'Search records through a legacy tool',
         skill_id: 40,
-        skill_key: 'baidu_public_search',
-        skill_name: 'Baidu Public Search Skill',
+        skill_key: 'legacy_tool_search',
+        skill_name: 'Legacy Tool Skill',
         skill_type: 'toolkit',
       },
     ]);
@@ -2557,7 +2454,7 @@ describe('useAIChat interrupted stream recovery', () => {
       },
       {
         binding: expect.objectContaining({
-          package_name: '百度公开搜索',
+          package_name: '历史工具',
           skill_id: 40,
         }),
         kind: 'skill_package',
@@ -2572,7 +2469,7 @@ describe('useAIChat interrupted stream recovery', () => {
     expect(chat.selectedKBIds.value).toEqual([10]);
     expect(chat.inputMessage.value).toBe('');
 
-    chat.inputMessage.value = '@百度';
+    chat.inputMessage.value = '@历史';
     await flushPromises();
 
     const skillHandled = chat.handleInputKeyDown(
@@ -2580,7 +2477,7 @@ describe('useAIChat interrupted stream recovery', () => {
     );
 
     expect(skillHandled).toBe(true);
-    expect(chat.selectedSkillNames.value).toEqual(['百度公开搜索']);
+    expect(chat.selectedSkillNames.value).toEqual(['历史工具']);
     expect(chat.inputMessage.value).toBe('');
   });
 
@@ -2591,14 +2488,14 @@ describe('useAIChat interrupted stream recovery', () => {
         enabled: true,
         id: 21,
         is_auto_bound: false,
-        package_description: 'Baidu public search',
+        package_description: 'Legacy tool search',
         package_id: 31,
         package_is_system: true,
-        package_name: '百度公开搜索',
-        skill_description: 'Search public web pages through Baidu',
+        package_name: '历史工具',
+        skill_description: 'Search records through a legacy tool',
         skill_id: 41,
-        skill_key: 'baidu_public_search',
-        skill_name: 'Baidu Public Search Skill',
+        skill_key: 'legacy_tool_search',
+        skill_name: 'Legacy Tool Skill',
         skill_type: 'toolkit',
       },
     ]);
@@ -2623,10 +2520,10 @@ describe('useAIChat interrupted stream recovery', () => {
     await chat.loadAgents();
     await flushPromises();
 
-    chat.inputMessage.value = '@百度';
+    chat.inputMessage.value = '@历史';
     await flushPromises();
     chat.handleInputKeyDown(new KeyboardEvent('keydown', { key: 'Enter' }));
-    chat.inputMessage.value = '查一下今天新闻';
+    chat.inputMessage.value = '统计今天调用情况';
 
     await chat.sendMessage();
     await flushPromises();
@@ -2634,7 +2531,7 @@ describe('useAIChat interrupted stream recovery', () => {
     const requestBody = apiMocks.sendChatStreamApi.mock.calls.at(-1)?.[2] as
       | Record<string, unknown>
       | undefined;
-    expect(requestBody?.selected_skill_names).toEqual(['百度公开搜索']);
+    expect(requestBody?.selected_skill_names).toEqual(['历史工具']);
     expect(chat.selectedSkillNames.value).toEqual([]);
   });
 
@@ -2845,7 +2742,7 @@ describe('useAIChat interrupted stream recovery', () => {
         role: 'assistant',
         content: '需要继续查询资料',
         pendingConfirmation: {
-          toolName: 'web_search',
+          toolName: 'query_records',
         },
       },
     ];
@@ -2861,7 +2758,7 @@ describe('useAIChat interrupted stream recovery', () => {
       {
         kind: 'pending_confirmation',
         rejected: false,
-        tool_name: 'web_search',
+        tool_name: 'query_records',
       },
     ]);
   });
@@ -2889,7 +2786,7 @@ describe('useAIChat interrupted stream recovery', () => {
       {
         kind: 'pending_confirmation',
         rejected: false,
-        tool_name: 'web_search',
+        tool_name: 'query_records',
       },
     ] as AIInteractionUpdate[]);
 
@@ -2910,7 +2807,7 @@ describe('useAIChat interrupted stream recovery', () => {
       {
         kind: 'pending_confirmation',
         rejected: false,
-        tool_name: 'web_search',
+        tool_name: 'query_records',
       },
     ]);
     expect(aiPanelStoreMocks.restoreInteractionUpdates).not.toHaveBeenCalled();

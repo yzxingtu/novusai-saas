@@ -553,7 +553,9 @@ export function getRagSourcesForDisplay(
     return undefined;
   }
   const ragSources = flow.evidence
-    .filter((item) => item.kind === 'knowledge_base' || item.kind === 'web')
+    .filter(
+      (item) => item.kind === 'knowledge_base' || item.kind === 'document',
+    )
     .map((item, index) => ({
       doc_id: index + 1,
       doc_name:

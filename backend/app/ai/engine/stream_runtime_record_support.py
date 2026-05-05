@@ -131,4 +131,3 @@ def resolved_protocol_path(
         if value:
             return value
     return "chat_completions"
-

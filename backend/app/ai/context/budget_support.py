@@ -21,9 +21,7 @@ _DEFAULT_SYSTEM_ADDITIONS_BUDGET_TOKENS = 1600
 _DEFAULT_CAPABILITY_BLOCK_BUDGET_TOKENS = DEFAULT_CONTEXT_BUDGET_LIMITS[
     "capability_manifest"
 ]
-_DEFAULT_MEMORY_BLOCK_BUDGET_TOKENS = DEFAULT_CONTEXT_BUDGET_LIMITS[
-    "session_memory"
-]
+_DEFAULT_MEMORY_BLOCK_BUDGET_TOKENS = DEFAULT_CONTEXT_BUDGET_LIMITS["session_memory"]
 _DEFAULT_COMPACT_SUMMARY_BUDGET_TOKENS = 700
 _DEFAULT_DATE_ANCHOR_BUDGET_TOKENS = 160
 _DEFAULT_PAGE_LOCALE_BUDGET_TOKENS = 96
@@ -116,6 +114,7 @@ def append_budgeted_addition(
     budget_usage["used_tokens"] = used_tokens + estimate_tokens(trimmed)
     if original_tokens > estimate_tokens(trimmed):
         budget_usage.setdefault("trimmed_sections", []).append(category)
+
 
 trim_text_to_token_limit = truncate_text_to_token_limit
 

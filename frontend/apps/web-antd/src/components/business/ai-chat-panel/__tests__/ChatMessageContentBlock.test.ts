@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 // Test type: behavioral
-// Verifies: assistant final-answer body rendering keeps canonical answer cards separate from residual search/process fragments.
+// Verifies: assistant final-answer body rendering keeps canonical answer cards separate from residual process fragments.
 // Mock strategy: Markdown/i18n/icon rendering is stubbed; prepareMessageContent and content-boundary logic run real.
 import type { ChatMessage } from '../types';
 
@@ -52,12 +52,12 @@ function createLongMessage(
   };
 }
 
-function createLeaderboardResearchMessage(
+function createMetricsDigestMessage(
   content: string,
   overrides: Partial<ChatMessage> = {},
 ): ChatMessage {
   return {
-    clientKey: 'leaderboard-research-message',
+    clientKey: 'metrics-digest-message',
     content,
     role: 'assistant',
     streaming: false,
@@ -76,7 +76,7 @@ function createLeaderboardResearchMessage(
       evidence: [
         {
           id: 'aa-leaderboard',
-          kind: 'web',
+          kind: 'knowledge_base',
           snippet:
             'Comparison and ranking the performance of over 100 AI models (LLMs) across key metrics including intelligence, price, performance and speed.',
           title: 'Artificial Analysis LLM Leaderboard',
@@ -105,20 +105,20 @@ function createLeaderboardResearchMessage(
   } as ChatMessage;
 }
 
-function createInsufficientSourceMessage(content: string): ChatMessage {
+function createProviderQualityFailureMessage(content: string): ChatMessage {
   return {
-    clientKey: 'leaderboard-insufficient-sources',
+    clientKey: 'provider-quality-failure',
     content,
     role: 'assistant',
     streaming: false,
     turnFlow: {
-      completion_reason: 'completed',
+      completion_reason: 'provider_error',
       error_surface: {
-        error_type: 'low_query_relevance',
+        error_type: 'provider_error',
         message: '可验证来源不足，暂不能生成可靠排行。',
       },
       evidence: [],
-      failure_kind: 'low_query_relevance',
+      failure_kind: 'provider_error',
       final_stage_status: 'error',
       timeline: [
         {
@@ -140,33 +140,33 @@ function createInsufficientSourceMessage(content: string): ChatMessage {
   } as ChatMessage;
 }
 
-function createFashionWrapperFilteredMessage(content: string): ChatMessage {
+function createProviderRejectedMessage(content: string): ChatMessage {
   return {
-    clientKey: 'fashion-wrapper-filtered',
+    clientKey: 'provider-rejected',
     content,
     role: 'assistant',
     streaming: false,
     turnFlow: {
-      completion_reason: 'candidate_search_wrapper_url',
+      completion_reason: 'provider_failure_after_partial_progress',
       error_surface: {
-        error_type: 'candidate_search_wrapper_url',
-        message: '没有拿到可直接核实的网页来源。',
+        error_type: 'provider_failure_after_partial_progress',
+        message: '没有拿到可直接核实的来源。',
       },
       evidence: [],
-      failure_kind: 'candidate_search_wrapper_url',
+      failure_kind: 'provider_failure_after_partial_progress',
       final_stage_status: 'error',
       timeline: [
         {
-          id: 'stage-fashion-retrieval',
+          id: 'stage-provider-retrieval',
           metrics: { source_count: 0 },
           status: 'error',
-          summary: '搜索结果只包含包装页，未找到可直接核实来源',
+          summary: '候选来源未通过核实',
           type: 'retrieval',
         },
         {
-          id: 'stage-fashion-answer',
+          id: 'stage-provider-answer',
           status: 'error',
-          summary: '未生成最终排行答案',
+          summary: '未生成最终答案',
           type: 'answer_assembly',
         },
       ],
@@ -175,31 +175,31 @@ function createFashionWrapperFilteredMessage(content: string): ChatMessage {
   } as ChatMessage;
 }
 
-function createBlockedUrlFashionMessage(content: string): ChatMessage {
+function createProviderFailureMessage(content: string): ChatMessage {
   return {
-    clientKey: 'fashion-blocked-url',
+    clientKey: 'provider-failure',
     content,
     role: 'assistant',
     streaming: false,
     turnFlow: {
-      completion_reason: 'blocked_url',
+      completion_reason: 'provider_error',
       error_surface: {
-        error_type: 'blocked_url',
+        error_type: 'provider_error',
         message: content,
       },
       evidence: [],
-      failure_kind: 'blocked_url',
+      failure_kind: 'provider_error',
       final_stage_status: 'error',
       timeline: [
         {
-          id: 'stage-fashion-retrieval-blocked',
+          id: 'stage-provider-retrieval-failed',
           metrics: { source_count: 0 },
           status: 'error',
-          summary: '候选来源是搜索包装页，已阻止抓取',
+          summary: '候选来源未通过核实',
           type: 'retrieval',
         },
         {
-          id: 'stage-fashion-answer-blocked',
+          id: 'stage-provider-answer-failed',
           status: 'error',
           summary: '答复生成失败',
           type: 'answer_assembly',
@@ -322,7 +322,7 @@ describe('chatMessageContentBlock', () => {
   });
 
   it('does not render a one-character residual as the final answer when the leaderboard answer card is canonical', async () => {
-    const wrapper = mountContentBlock(createLeaderboardResearchMessage('猫'));
+    const wrapper = mountContentBlock(createMetricsDigestMessage('猫'));
 
     await wrapper.vm.$nextTick();
 
@@ -336,7 +336,7 @@ describe('chatMessageContentBlock', () => {
     const numericFragment =
       '59.68 65.71 20.54 27.41 26.12 36.40 31.26 34.84 6.55 13.50';
     const wrapper = mountContentBlock(
-      createLeaderboardResearchMessage(numericFragment),
+      createMetricsDigestMessage(numericFragment),
     );
 
     await wrapper.vm.$nextTick();
@@ -351,7 +351,7 @@ describe('chatMessageContentBlock', () => {
     const processOnlyFragment =
       '结果整理\n本轮过程\n找到 2 条来源\n4 个阶段\n已完成';
     const wrapper = mountContentBlock(
-      createLeaderboardResearchMessage(processOnlyFragment),
+      createMetricsDigestMessage(processOnlyFragment),
     );
 
     await wrapper.vm.$nextTick();
@@ -363,11 +363,11 @@ describe('chatMessageContentBlock', () => {
     expect(wrapper.text()).not.toContain('4 个阶段');
   });
 
-  it('does not expose 2295 fashion search process-only text after wrapper candidates are rejected', async () => {
+  it('does not expose provider process-only text after candidates are rejected', async () => {
     const processOnlyFragment =
-      '查一下 2026年最热门的 女性裙子款式排行！\n结果整理\n本轮过程\n找到 2 条来源\n4 个阶段\n已完成';
+      '结果整理\n本轮过程\n找到 2 条来源\n4 个阶段\n已完成';
     const wrapper = mountContentBlock(
-      createFashionWrapperFilteredMessage(processOnlyFragment),
+      createProviderRejectedMessage(processOnlyFragment),
     );
 
     await wrapper.vm.$nextTick();
@@ -375,15 +375,14 @@ describe('chatMessageContentBlock', () => {
     expect(
       wrapper.find('[data-testid="assistant-content-body"]').exists(),
     ).toBe(false);
-    expect(wrapper.text()).not.toContain('女性裙子款式排行');
     expect(wrapper.text()).not.toContain('找到 2 条来源');
   });
 
-  it('keeps the safe 2295 fallback answer visible after wrapper candidates are rejected', async () => {
+  it('keeps the safe fallback answer visible after candidates are rejected', async () => {
     const safeFallback =
       '我找到了候选线索，但这些来源暂时无法直接核实，因此不生成结论。';
     const wrapper = mountContentBlock(
-      createFashionWrapperFilteredMessage(safeFallback),
+      createProviderRejectedMessage(safeFallback),
     );
 
     await wrapper.vm.$nextTick();
@@ -394,13 +393,13 @@ describe('chatMessageContentBlock', () => {
     expect(wrapper.text()).toContain(safeFallback);
   });
 
-  it('hides generic retry copy for blocked-url research failures', async () => {
+  it('hides generic retry copy for provider failures', async () => {
     for (const genericFailure of [
       'The assistant could not finish this turn. Please retry.',
       '这次处理没有成功生成最终答复，请再试一次。',
     ]) {
       const wrapper = mountContentBlock(
-        createBlockedUrlFashionMessage(genericFailure),
+        createProviderFailureMessage(genericFailure),
       );
 
       await wrapper.vm.$nextTick();
@@ -414,7 +413,7 @@ describe('chatMessageContentBlock', () => {
 
   it('suppresses numeric fragments for insufficient-source leaderboard turns instead of showing a fake result', async () => {
     const wrapper = mountContentBlock(
-      createInsufficientSourceMessage('59.68 65.71 20.54 27.41 26.12'),
+      createProviderQualityFailureMessage('59.68 65.71 20.54 27.41 26.12'),
     );
 
     await wrapper.vm.$nextTick();
@@ -433,7 +432,7 @@ describe('chatMessageContentBlock', () => {
     const finalAnswer =
       '正式结论：2026 年大模型排行应按 intelligence、price、speed 与 TTFT 分维度呈现，并标注每项来源。';
     const wrapper = mountContentBlock(
-      createLeaderboardResearchMessage(
+      createMetricsDigestMessage(
         `猫\n\n结果整理\n本轮过程\n找到 2 条来源\n4 个阶段\n已完成\n${sourceSnippet}\n${numericFragment}\n\n${finalAnswer}`,
       ),
     );
@@ -454,7 +453,7 @@ describe('chatMessageContentBlock', () => {
     const finalAnswer =
       '截至 2026 年，建议用 Artificial Analysis LLM Leaderboard 这类可验证榜单，按 intelligence、price、speed 与 TTFT 维度比较 GPT-5.5、Gemini 3 Pro、Claude Opus 4.6。';
     const wrapper = mountContentBlock(
-      createLeaderboardResearchMessage(finalAnswer),
+      createMetricsDigestMessage(finalAnswer),
     );
 
     await wrapper.vm.$nextTick();

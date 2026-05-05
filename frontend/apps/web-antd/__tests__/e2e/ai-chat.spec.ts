@@ -87,11 +87,10 @@ const WEATHER_RESPONSE_PATTERNS = [
   /降雨/,
   /湿度/,
 ] as const;
-const HOSTED_SEARCH_FALLBACK_COMPLETION_REASONS = new Set([
-  'candidate_urls_exhausted',
-  'provider_timeout',
-  'search_no_results_completed',
-  'search_not_successful',
+const RETIRED_ONLINE_SEARCH_TOOL_NAMES = new Set([
+  'fetch_url',
+  'native_web_search',
+  'web_search',
 ]);
 
 function normalizeCompactText(value: string) {
@@ -118,26 +117,6 @@ function responseContainsAny(
   });
 }
 
-function hasHostedSearchProgressEvent(metrics: ChatTurnMetrics) {
-  return metrics.events.some((event) => {
-    if (event.data === '[DONE]') {
-      return false;
-    }
-    try {
-      const payload = JSON.parse(event.data) as {
-        event?: string;
-        status?: string;
-      };
-      return (
-        payload.event === 'status' &&
-        payload.status === 'web_search_in_progress'
-      );
-    } catch {
-      return false;
-    }
-  });
-}
-
 function isWeatherTool(name: string) {
   return normalizeToolName(name).includes('weather');
 }
@@ -147,33 +126,13 @@ function isTimeTool(name: string) {
   return normalized === 'get_current_time' || normalized.includes('time');
 }
 
-function isSearchTool(name: string) {
+function isRetiredOnlineSearchTool(name: string) {
   const normalized = normalizeToolName(name);
-  return (
-    normalized === 'fetch_url' ||
-    normalized === 'web_search' ||
-    normalized === 'native_web_search'
-  );
-}
-
-function expectHostedSearchExecutionOrGracefulClosure(
-  metrics: ChatTurnMetrics,
-) {
-  const sawHostedSearchExecution =
-    metrics.toolCalls.some((toolCall) => isSearchTool(toolCall.name)) ||
-    hasHostedSearchProgressEvent(metrics);
-  const sawGracefulHostedSearchFallback =
-    metrics.completionReason !== null &&
-    HOSTED_SEARCH_FALLBACK_COMPLETION_REASONS.has(metrics.completionReason);
-
-  expect(
-    sawHostedSearchExecution || sawGracefulHostedSearchFallback,
-    `Expected hosted search execution evidence or graceful hosted-search closure. completionReason=${metrics.completionReason ?? 'none'}; seen tool calls: ${readToolNames(metrics).join(', ') || 'none'}`,
-  ).toBe(true);
+  return RETIRED_ONLINE_SEARCH_TOOL_NAMES.has(normalized);
 }
 
 function isWeatherCapableTool(name: string) {
-  return isWeatherTool(name) || isSearchTool(name);
+  return isWeatherTool(name);
 }
 
 function isBlockedRuntimeTool(name: string) {
@@ -201,7 +160,7 @@ function isRetiredEditorTool(name: string) {
 function resolveToolFamily(name: string) {
   if (isWeatherTool(name)) return 'weather';
   if (isTimeTool(name)) return 'time';
-  if (isSearchTool(name)) return 'search';
+  if (isRetiredOnlineSearchTool(name)) return 'retired_online_search';
   if (isRetiredEditorTool(name)) return 'retired_editor';
   if (isBlockedRuntimeTool(name)) return 'blocked_runtime';
   return 'other';
@@ -257,6 +216,17 @@ function expectNoBlockedRuntimeTool(metrics: ChatTurnMetrics, message: string) {
   ).toBe(false);
 }
 
+function expectNoRetiredOnlineSearchTool(
+  metrics: ChatTurnMetrics,
+  message: string,
+) {
+  expectNoTool(metrics, isRetiredOnlineSearchTool, message);
+  expect(
+    metrics.events.some((event) => event.data.includes('web_search_in_progress')),
+    `${message}. Retired online-search progress event was observed.`,
+  ).toBe(false);
+}
+
 function expectDistinctToolFamiliesAtLeast(
   metrics: ChatTurnMetrics,
   minCount: number,
@@ -269,26 +239,6 @@ function expectDistinctToolFamiliesAtLeast(
     foundFamilies.size,
     `Expected at least ${minCount} tool families. Seen families: ${[...foundFamilies].join(', ') || 'none'}`,
   ).toBeGreaterThanOrEqual(minCount);
-}
-
-function expectOrderedTools(
-  metrics: ChatTurnMetrics,
-  orderedNames: readonly string[],
-  message: string,
-) {
-  let lastIndex = -1;
-
-  for (const name of orderedNames) {
-    const nextIndex = metrics.toolCalls.findIndex(
-      (toolCall, index) => index > lastIndex && toolCall.name === name,
-    );
-
-    expect(
-      nextIndex,
-      `${message}. Expected tool order ${orderedNames.join(' -> ')}, seen ${readToolNames(metrics).join(', ') || 'none'}`,
-    ).toBeGreaterThan(lastIndex);
-    lastIndex = nextIndex;
-  }
 }
 
 function expectOptimizingTools(metrics: ChatTurnMetrics) {
@@ -983,16 +933,19 @@ test.describe('AI Chat E2E', () => {
     });
   });
 
-  test.describe('C: Web search', () => {
+  test.describe('C: Retired online search guards', () => {
     registerSingleTurnScenarios([
       {
         id: 'C1',
-        name: 'native or fallback web search is triggered',
+        name: 'current-information request does not browse',
         prompt: '帮我搜索一下2026年中国新能源汽车销量排行',
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
-          expectHostedSearchExecutionOrGracefulClosure(metrics);
-          expectGracefulResponse(metrics, 8);
+          expectGracefulResponse(metrics, 4);
+          expectNoRetiredOnlineSearchTool(
+            metrics,
+            'Expected current-information prompt not to call retired online-search tools',
+          );
         },
       },
     ]);
@@ -1156,7 +1109,10 @@ test.describe('AI Chat E2E', () => {
       );
 
       expectGracefulResponse(metrics, 20);
-      expectTool(metrics, isSearchTool, 'Expected search-backed tool call');
+      expectNoRetiredOnlineSearchTool(
+        metrics,
+        'Expected complex current-information turn not to call retired online-search tools',
+      );
       expectNoBlockedRuntimeTool(
         metrics,
         'Expected complex tool turn not to call invalid runtime tools',
@@ -1169,14 +1125,17 @@ test.describe('AI Chat E2E', () => {
     registerSingleTurnScenarios([
       {
         id: 'J1',
-        name: 'weather + search + guidance in one turn',
+        name: 'weather + retired current-information request in one turn',
         prompt:
           '帮我查一下北京天气，顺便搜索一下今天的热点新闻，再给出模型配置维护建议',
         route: ROUTES.agents,
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
           expectGracefulResponse(metrics, 30);
-          expectTool(metrics, isSearchTool, 'Expected search-backed tool call');
+          expectNoRetiredOnlineSearchTool(
+            metrics,
+            'Expected multi-intent turn not to call retired online-search tools',
+          );
           expectNoBlockedRuntimeTool(
             metrics,
             'Expected multi-intent turn not to call invalid runtime tools',
@@ -1188,15 +1147,14 @@ test.describe('AI Chat E2E', () => {
       },
       {
         id: 'J2',
-        name: 'search result can be followed by fetch',
+        name: 'direct search and fetch request stays unsupported',
         prompt: '帮我搜索一下长沙到北京的高铁票信息，找到链接后帮我读取详情',
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
-          expectGracefulResponse(metrics, 20);
-          expectOrderedTools(
+          expectGracefulResponse(metrics, 4);
+          expectNoRetiredOnlineSearchTool(
             metrics,
-            ['web_search', 'fetch_url'],
-            'Expected search -> fetch chain',
+            'Expected direct retired search/fetch request not to call retired online-search tools',
           );
         },
       },
@@ -1250,10 +1208,13 @@ test.describe('AI Chat E2E', () => {
         secondTurn.toolCalls.some(
           (toolCall) =>
             isTimeTool(toolCall.name) ||
-            isWeatherCapableTool(toolCall.name) ||
-            isSearchTool(toolCall.name),
+            isWeatherCapableTool(toolCall.name),
         ),
       ).toBe(true);
+      expectNoRetiredOnlineSearchTool(
+        secondTurn,
+        'Expected chaos turn not to call retired online-search tools',
+      );
       expectNoBlockedRuntimeTool(
         secondTurn,
         'Expected chaos turn not to call invalid runtime tools',
@@ -1304,14 +1265,17 @@ test.describe('AI Chat E2E', () => {
       },
       {
         id: 'K3',
-        name: 'long noisy story still extracts three intents',
+        name: 'long noisy story keeps non-web tools only',
         prompt:
           '我今天早上出门的时候看到一只猫在路边晒太阳，突然想起来我下午要出差去深圳，你帮我查一下深圳今天天气怎么样，然后顺便搜一下深圳有什么好吃的，再给我三条出行准备建议',
         route: ROUTES.agents,
         timeout: EXTENDED_CHAT_TIMEOUT,
         verify: (metrics) => {
           expectGracefulResponse(metrics, 30);
-          expectTool(metrics, isSearchTool, 'Expected search-backed tool call');
+          expectNoRetiredOnlineSearchTool(
+            metrics,
+            'Expected noisy multi-intent prompt not to call retired online-search tools',
+          );
           expectNoBlockedRuntimeTool(
             metrics,
             'Expected noisy multi-intent prompt not to call invalid runtime tools',
@@ -1539,20 +1503,15 @@ test.describe('AI Chat E2E', () => {
       },
       {
         id: 'O4',
-        name: 'indirect request still triggers search',
+        name: 'indirect current-news request stays offline',
         prompt: '你能不能帮我看看最近网上有什么关于AI的大新闻？',
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
-          const gracefulHostedSearchFallback =
-            metrics.completionReason !== null &&
-            HOSTED_SEARCH_FALLBACK_COMPLETION_REASONS.has(
-              metrics.completionReason,
-            );
-          expectGracefulResponse(
+          expectGracefulResponse(metrics, 4);
+          expectNoRetiredOnlineSearchTool(
             metrics,
-            gracefulHostedSearchFallback ? 4 : 12,
+            'Expected indirect current-news prompt not to call retired online-search tools',
           );
-          expectHostedSearchExecutionOrGracefulClosure(metrics);
         },
       },
       {
@@ -1731,7 +1690,7 @@ test.describe('AI Chat E2E', () => {
       page,
     }) => {
       test.setTimeout(EXTENDED_CHAT_TIMEOUT * 2);
-      const [weatherTurn, searchTurn, guidanceTurn, skillTurn] =
+      const [weatherTurn, offlineTurn, guidanceTurn, skillTurn] =
         await runChatTurnSequence(
           page,
           [
@@ -1749,10 +1708,10 @@ test.describe('AI Chat E2E', () => {
         isWeatherCapableTool,
         'Expected weather-capable skill trigger',
       );
-      expectTool(
-        searchTurn,
-        (name) => name === 'web_search',
-        'Expected web search skill trigger',
+      expectGracefulResponse(offlineTurn, 4);
+      expectNoRetiredOnlineSearchTool(
+        offlineTurn,
+        'Expected retired online-search skill request not to call removed tools',
       );
       expectGracefulResponse(guidanceTurn, 8);
       expectNoBlockedRuntimeTool(
@@ -1770,7 +1729,7 @@ test.describe('AI Chat E2E', () => {
       page,
     }) => {
       test.setTimeout(EXTENDED_CHAT_TIMEOUT + TURN_TIMEOUT_BUFFER);
-      const metrics = await runChatTurn(page, '帮我搜索一下今天 AI 新闻', {
+      const metrics = await runChatTurn(page, '现在几点了？', {
         timeout: EXTENDED_CHAT_TIMEOUT,
       });
 
@@ -2072,7 +2031,9 @@ test.describe('AI Chat E2E', () => {
       expectNoTool(
         secondTurn,
         (name) =>
-          isWeatherTool(name) || isSearchTool(name) || isBlockedRuntimeTool(name),
+          isWeatherTool(name) ||
+          isRetiredOnlineSearchTool(name) ||
+          isBlockedRuntimeTool(name),
         'Expected recall from chat context without extra tools',
       );
     });

@@ -119,7 +119,7 @@ describe('chatMessageItem turn diagnostics', () => {
 
   it('hides turn diagnostics chips for successful assistant turns', () => {
     const wrapper = mountMessage({
-      selectedSkillNames: ['runtime.search', 'runtime.route'],
+      selectedSkillNames: ['runtime.query', 'runtime.route'],
       selectedToolNames: ['query_records'],
       terminationReason: 'completed',
       turnOutcome: 'success',
@@ -127,7 +127,7 @@ describe('chatMessageItem turn diagnostics', () => {
 
     const rendered = wrapper.text();
     expect(rendered).not.toContain('selected_skills');
-    expect(rendered).not.toContain('runtime.search');
+    expect(rendered).not.toContain('runtime.query');
     expect(rendered).not.toContain('selected_tools');
     expect(rendered).not.toContain('query_records');
     expect(rendered).not.toContain('turn_outcome');
@@ -137,8 +137,8 @@ describe('chatMessageItem turn diagnostics', () => {
   it('hides turn diagnostics chips for benign partial assistant turns', () => {
     const wrapper = mountMessage({
       partial: true,
-      selectedSkillNames: ['runtime.search'],
-      selectedToolNames: ['web_search'],
+      selectedSkillNames: ['runtime.route'],
+      selectedToolNames: ['query_records'],
       terminationReason: 'interrupted',
       turnOutcome: 'partial',
     });
@@ -154,13 +154,13 @@ describe('chatMessageItem turn diagnostics', () => {
     expect(rendered).not.toContain(
       'common.globalAiChat.diagnosticSelectedSkillsLabel',
     );
-    expect(rendered).not.toContain('runtime.search');
+    expect(rendered).not.toContain('runtime.route');
   });
 
   it('hides failed-turn diagnostics by default', () => {
     const wrapper = mountMessage({
       requestFailedRetry: true,
-      selectedToolNames: ['web_search'],
+      selectedToolNames: ['query_records'],
       terminationReason: 'tool_error',
       turnOutcome: 'failed',
     });
@@ -177,7 +177,7 @@ describe('chatMessageItem turn diagnostics', () => {
     expect(rendered).not.toContain(
       'common.globalAiChat.diagnosticSelectedToolsLabel',
     );
-    expect(rendered).not.toContain('web_search');
+    expect(rendered).not.toContain('query_records');
   });
 
   it('renders inline diagnostics when admin diagnostics features are enabled', () => {
@@ -189,8 +189,8 @@ describe('chatMessageItem turn diagnostics', () => {
 
     const wrapper = mountMessage({
       requestFailedRetry: true,
-      selectedSkillNames: ['runtime.web'],
-      selectedToolNames: ['web_search'],
+      selectedSkillNames: ['runtime.data'],
+      selectedToolNames: ['query_records'],
       terminationReason: 'tool_error',
       turnOutcome: 'failed',
     });
@@ -203,18 +203,18 @@ describe('chatMessageItem turn diagnostics', () => {
     expect(rendered).toContain(
       'common.globalAiChat.diagnosticSelectedToolsLabel',
     );
-    expect(rendered).toContain('web_search');
+    expect(rendered).toContain('query_records');
     expect(rendered).toContain(
       'common.globalAiChat.diagnosticSelectedSkillsLabel',
     );
-    expect(rendered).toContain('runtime.web');
+    expect(rendered).toContain('runtime.data');
   });
 
   it('renders diagnostics when explicitly forced on', () => {
     const wrapper = mountMessage(
       {
         requestFailedRetry: true,
-        selectedToolNames: ['web_search'],
+        selectedToolNames: ['query_records'],
         terminationReason: 'tool_error',
         turnOutcome: 'failed',
       },
@@ -235,7 +235,7 @@ describe('chatMessageItem turn diagnostics', () => {
     expect(rendered).toContain(
       'common.globalAiChat.diagnosticSelectedToolsLabel',
     );
-    expect(rendered).toContain('web_search');
+    expect(rendered).toContain('query_records');
   });
 
   it('only renders active context source chips when diagnostics are enabled', () => {
@@ -290,7 +290,7 @@ describe('chatMessageItem turn diagnostics', () => {
         traceId: 'trace-chat-error',
       },
       requestFailedRetry: true,
-      selectedToolNames: ['web_search'],
+      selectedToolNames: ['query_records'],
       terminationReason: 'error',
       turnOutcome: 'failed',
     });
@@ -306,14 +306,14 @@ describe('chatMessageItem turn diagnostics', () => {
     expect(rendered).not.toContain(
       'common.globalAiChat.diagnosticSelectedToolsLabel',
     );
-    expect(rendered).not.toContain('web_search');
+    expect(rendered).not.toContain('query_records');
   });
 
   it('hides diagnostics by default on the tenant surface', () => {
     const wrapper = mountMessage(
       {
         requestFailedRetry: true,
-        selectedToolNames: ['web_search'],
+        selectedToolNames: ['query_records'],
         terminationReason: 'tool_error',
         turnOutcome: 'failed',
       },
@@ -329,7 +329,7 @@ describe('chatMessageItem turn diagnostics', () => {
     expect(rendered).not.toContain(
       'common.globalAiChat.diagnosticSelectedToolsLabel',
     );
-    expect(rendered).not.toContain('web_search');
+    expect(rendered).not.toContain('query_records');
   });
 
   it('renders diagnostics on the user surface when tenant diagnostics are enabled', () => {
@@ -342,7 +342,7 @@ describe('chatMessageItem turn diagnostics', () => {
     const wrapper = mountMessage(
       {
         requestFailedRetry: true,
-        selectedToolNames: ['web_search'],
+        selectedToolNames: ['query_records'],
         terminationReason: 'tool_error',
         turnOutcome: 'failed',
       },
@@ -359,6 +359,6 @@ describe('chatMessageItem turn diagnostics', () => {
     expect(rendered).toContain(
       'common.globalAiChat.diagnosticSelectedToolsLabel',
     );
-    expect(rendered).toContain('web_search');
+    expect(rendered).toContain('query_records');
   });
 });

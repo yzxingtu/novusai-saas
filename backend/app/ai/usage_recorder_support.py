@@ -38,7 +38,9 @@ def normalize_turn_record_payload(turn_record: Any) -> dict[str, Any] | None:
         return dict(turn_record)
     if hasattr(turn_record, "__dict__"):
         return {
-            str(k): v for k, v in vars(turn_record).items() if not str(k).startswith("_")
+            str(k): v
+            for k, v in vars(turn_record).items()
+            if not str(k).startswith("_")
         }
     return None
 
@@ -263,7 +265,10 @@ def inject_turn_diagnostics(
             normalized_turn_record["context_sources"] = effective_context_sources
         if effective_fallback_history:
             normalized_turn_record["fallback_history"] = effective_fallback_history
-        if effective_sync_rescue is not None or effective_should_record_call_log is not None:
+        if (
+            effective_sync_rescue is not None
+            or effective_should_record_call_log is not None
+        ):
             metadata = (
                 dict(normalized_turn_record.get("metadata") or {})
                 if isinstance(normalized_turn_record.get("metadata"), dict)

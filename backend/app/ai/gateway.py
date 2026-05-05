@@ -12,13 +12,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.adapters import AdapterRegistry
 from app.ai.cache import AIResponseCache
-from app.ai.exceptions import ProviderTimeoutError
 from app.ai.failover import FailoverService
 from app.ai.gateway_support import (
     GatewayCallLogBridge,
     GatewayDispatcher,
 )
-from app.ai.gateway_support.facade_mixins import GatewayFacadeMixin
 from app.ai.gateway_support import (
     execute_chat as execute_chat_impl,
 )
@@ -34,9 +32,7 @@ from app.ai.gateway_support import (
 from app.ai.gateway_support import (
     execute_test_model as execute_test_model_impl,
 )
-from app.ai.gateway_support.native_web_search_gateway import (
-    execute_native_web_search as execute_native_web_search_impl,
-)
+from app.ai.gateway_support.facade_mixins import GatewayFacadeMixin
 from app.ai.gateway_support.retry_orchestrator import GatewayRetryOrchestrator
 from app.ai.retry_service import RetryService
 from app.ai.runtime.usage_metrics import CostCalculator, TokenCounter
@@ -48,7 +44,6 @@ from app.ai.types import (
     TestModelResult,
 )
 from app.ai.usage_recorder import UsageRecorder
-from app.ai.web_search.types import SearchProviderRun
 from app.core.config import settings
 from app.core.logging import LogManager
 from app.enums.ai import CallTypeEnum
@@ -89,52 +84,6 @@ class AIGateway(GatewayFacadeMixin):
         self.retry_orchestrator = GatewayRetryOrchestrator(self.retry_service)
         self.usage_recorder = UsageRecorder(db)
         self.call_log_bridge = GatewayCallLogBridge()
-
-    async def native_web_search(
-        self,
-        *,
-        provider_code: str,
-        model: str,
-        query: str,
-        max_results: int,
-        locale: str | None = None,
-        timeout_seconds: int = 20,
-        tenant_id: int | None = None,
-        user_id: int | None = None,
-        user_type: str | None = None,
-        agent_id: int | None = None,
-        conversation_id: int | None = None,
-        billing_context: dict | None = None,
-        provider_label: str | None = None,
-        backend_key: str | None = None,
-        call_type: str = CallTypeEnum.INTERNAL_TOOL.value,
-    ) -> SearchProviderRun:
-        """
-        Provider-hosted native web search with gateway governance.
-        走网关治理链路的供应商原生联网搜索。
-        """
-        return await execute_native_web_search_impl(
-            self,
-            provider_code=provider_code,
-            model=model,
-            query=query,
-            max_results=max_results,
-            locale=locale,
-            timeout_seconds=timeout_seconds,
-            tenant_id=tenant_id,
-            user_id=user_id,
-            user_type=user_type,
-            agent_id=agent_id,
-            conversation_id=conversation_id,
-            billing_context=billing_context,
-            provider_label=provider_label,
-            backend_key=backend_key,
-            call_type=call_type,
-            adapter_registry=AdapterRegistry,
-            token_counter=TokenCounter,
-            cost_calculator=CostCalculator,
-            provider_timeout_error_cls=ProviderTimeoutError,
-        )
 
     async def chat(
         self,
@@ -450,6 +399,7 @@ class AIGateway(GatewayFacadeMixin):
             max_tokens=max_tokens,
             adapter_registry=AdapterRegistry,
         )
+
 
 __all__ = [
     "AIGateway",

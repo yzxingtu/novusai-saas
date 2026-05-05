@@ -10,12 +10,14 @@ from app.core.i18n import _
 INVALID_AI_RUNTIME_TOOL_ORDER: tuple[str, ...] = (
     "append_content",
     "editor_ops",
+    "fetch_url",
     "get_editor_html",
     "get_editor_text",
     "get_page_context",
     "insert_content",
     "invoke_page_operation",
     "list_page_operations",
+    "native_web_search",
     "page_ops",
     "replace_content",
     "replace_section",
@@ -29,8 +31,24 @@ INVALID_AI_RUNTIME_TOOL_ORDER: tuple[str, ...] = (
     "ui_set_field",
     "ui_fill_form",
     "ui_submit_form",
+    "web_search",
 )
 INVALID_AI_RUNTIME_TOOL_NAMES = frozenset(INVALID_AI_RUNTIME_TOOL_ORDER)
+INVALID_AI_PROVIDER_CONFIG_KEYS = frozenset(
+    {
+        "hosted_web_search",
+        "hosted_web_search_supported",
+        "native_web_search_supported",
+        "supports_hosted_web_search",
+        "web_search",
+        "web_search_runtime",
+    }
+)
+INVALID_AI_RUNTIME_REFERENCE_FRAGMENTS = frozenset(
+    {
+        "web_search_call",
+    }
+)
 
 DISALLOWED_AI_RUNTIME_INPUT_KEYS = frozenset(
     {
@@ -157,7 +175,7 @@ def normalize_ai_runtime_token(value: Any) -> str:
 
 
 def is_invalid_ai_runtime_tool_family(value: Any) -> bool:
-    return normalize_ai_runtime_token(value) == "page_ops"
+    return normalize_ai_runtime_token(value) in {"page_ops", "web_research"}
 
 
 def is_invalid_ai_runtime_tool_name(name: Any) -> bool:
@@ -175,8 +193,11 @@ def is_invalid_ai_runtime_reference(value: Any) -> bool:
         normalized
         and (
             normalized in DISALLOWED_AI_RUNTIME_INPUT_KEYS
-            or
-            normalized in DISALLOWED_AI_RUNTIME_INPUT_VALUES
+            or normalized in DISALLOWED_AI_RUNTIME_INPUT_VALUES
+            or any(
+                fragment in normalized
+                for fragment in INVALID_AI_RUNTIME_REFERENCE_FRAGMENTS
+            )
             or is_invalid_ai_runtime_tool_name(value)
             or is_invalid_ai_runtime_tool_family(value)
         )
@@ -204,6 +225,18 @@ def filter_invalid_ai_runtime_references(values: Iterable[Any] | None) -> list[s
     return filtered
 
 
+def strip_invalid_ai_provider_config_keys(
+    config: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    if not isinstance(config, Mapping):
+        return {}
+    return {
+        str(key): value
+        for key, value in dict(config).items()
+        if normalize_ai_runtime_token(key) not in INVALID_AI_PROVIDER_CONFIG_KEYS
+    }
+
+
 def ensure_no_disallowed_ai_runtime_input(
     payload: Mapping[str, Any] | None,
 ) -> None:
@@ -228,6 +261,8 @@ __all__ = [
     "DISALLOWED_AI_RUNTIME_INPUT_KEYS",
     "DISALLOWED_AI_RUNTIME_INPUT_PREFIXES",
     "DISALLOWED_AI_RUNTIME_INPUT_VALUES",
+    "INVALID_AI_PROVIDER_CONFIG_KEYS",
+    "INVALID_AI_RUNTIME_REFERENCE_FRAGMENTS",
     "INVALID_AI_RUNTIME_TOOL_NAMES",
     "INVALID_AI_RUNTIME_TOOL_ORDER",
     "assert_no_disallowed_ai_runtime_input",
@@ -240,4 +275,5 @@ __all__ = [
     "is_invalid_ai_runtime_tool_family",
     "is_invalid_ai_runtime_tool_name",
     "normalize_ai_runtime_token",
+    "strip_invalid_ai_provider_config_keys",
 ]

@@ -266,7 +266,11 @@ class MonitoringQuerySupport:
         conversation_ids: set[int],
     ) -> dict[int, dict[str, Any]]:
         normalized_ids = sorted(
-            {int(conversation_id) for conversation_id in conversation_ids if conversation_id}
+            {
+                int(conversation_id)
+                for conversation_id in conversation_ids
+                if conversation_id
+            }
         )
         if not normalized_ids:
             return {}

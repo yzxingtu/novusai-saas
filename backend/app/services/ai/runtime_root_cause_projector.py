@@ -276,14 +276,12 @@ class RuntimeRootCauseProjector:
         return bool(textual_tool_names or (marker_present and tool_names))
 
     @staticmethod
-    def is_research_like_diagnostics(diagnostics: dict[str, Any]) -> bool:
+    def is_tool_work_diagnostics(diagnostics: dict[str, Any]) -> bool:
         tool_planner = (
             dict(diagnostics.get("tool_planner") or {})
             if isinstance(diagnostics.get("tool_planner"), dict)
             else {}
         )
-        planner_family = str(tool_planner.get("family") or "").strip()
-        continuation_source = str(diagnostics.get("continuation_source") or "").strip()
         selected_tools = {
             str(name or "").strip()
             for name in list(diagnostics.get("selected_tool_names") or [])
@@ -296,11 +294,9 @@ class RuntimeRootCauseProjector:
             if str(name or "").strip()
         }
         return bool(
-            planner_family == "web_research"
-            or continuation_source == "web_research"
-            or {"web_search", "fetch_url"} & selected_tools
+            selected_tools
             or unfinished_intents
-            & {"web_research", "weather_query", "weather", "rail_ticket_research"}
+            or str(tool_planner.get("family") or "").strip()
         )
 
     @staticmethod
@@ -371,24 +367,6 @@ class RuntimeRootCauseProjector:
             token in source_text
             for token in ("天气", "气温", "温度", "降雨", "湿度", "weather")
         )
-        looks_like_web = any(
-            token in source_text
-            for token in (
-                "联网",
-                "搜索",
-                "搜一下",
-                "搜一搜",
-                "官网",
-                "链接",
-                "网址",
-                "web search",
-                "search online",
-                "fetch",
-                "新闻",
-                "热点",
-                "排行",
-            )
-        )
         merged_names = " ".join(selected_skill_names).lower()
         has_time_capability = any(
             token in merged_names for token in ("get_current_time", "time", "时间")
@@ -396,14 +374,9 @@ class RuntimeRootCauseProjector:
         has_weather_capability = any(
             token in merged_names for token in ("weather", "天气")
         )
-        has_web_capability = any(
-            token in merged_names
-            for token in ("web_search", "fetch_url", "search", "搜索")
-        )
         return bool(
             (looks_like_time and has_time_capability)
-            or (looks_like_weather and (has_weather_capability or has_web_capability))
-            or (looks_like_web and has_web_capability)
+            or (looks_like_weather and has_weather_capability)
         )
 
     @classmethod
@@ -558,7 +531,7 @@ class RuntimeRootCauseProjector:
             or budget_exit_reason
             or partial_exit_reason in _BUDGET_TERMINATION_REASONS
         )
-        research_like = cls.is_research_like_diagnostics(diagnostics)
+        tool_work_like = cls.is_tool_work_diagnostics(diagnostics)
         false_direct_reply = cls.has_false_direct_reply_signal(diagnostics)
         has_non_budget_provider_event = any(
             str((event.get("kind") if isinstance(event, dict) else event) or "").strip()
@@ -623,14 +596,6 @@ class RuntimeRootCauseProjector:
                 "Fix explicit time/weather/web intent detection before allowing direct_reply short-circuit.",
                 0.93,
             )
-        if failure_kind == "raw_search_only_recovery_finalized":
-            return (
-                "research_contract",
-                "raw_search_only_recovery_finalized",
-                "The turn finalized raw web_search results as recovery evidence even though fetch_url evidence was still required.",
-                "Keep the web-research intent pending until fetch_url completes, and reject search-only recovery evidence for required-fetch turns.",
-                0.96,
-            )
         if (
             call_log is not None
             and str(call_log.status or "") == CallStatusEnum.SUCCESS.value
@@ -667,7 +632,7 @@ class RuntimeRootCauseProjector:
             and not has_provider_gateway_signal
         ):
             return (
-                "research_contract" if research_like else "post_processing",
+                "tool_execution" if tool_work_like else "post_processing",
                 "retry_budget_exhausted_with_unfinished_intents",
                 "The turn exhausted retry budget while one or more intents were still unfinished.",
                 "Start with the unfinished-intent retry policy and stop finalizing the turn while required tool work is still missing.",
@@ -675,25 +640,25 @@ class RuntimeRootCauseProjector:
             )
         if (
             conversation_outcome == "partial"
-            and research_like
+            and tool_work_like
             and unfinished_intents
             and not has_provider_gateway_signal
         ):
             return (
-                "research_contract",
-                "research_partial_finalized_by_orchestrator",
-                "The orchestrator finalized the turn as partial even though web research remained unfinished from the user's perspective.",
-                "Inspect unfinished intents, fetch_url completion checks, and the partial-exit finalization path before changing prompts.",
+                "tool_execution",
+                "tool_work_partial_finalized_by_orchestrator",
+                "The orchestrator finalized the turn as partial even though requested tool work remained unfinished from the user's perspective.",
+                "Inspect unfinished intents, tool completion checks, and the partial-exit finalization path before changing prompts.",
                 0.94,
             )
         if contract_breach_type:
             lower_contract = contract_breach_type.lower()
             if "research" in lower_contract or "unfinished_intent" in lower_contract:
                 return (
-                    "research_contract",
+                    "tool_execution",
                     contract_breach_type,
-                    "The turn failed because the web-research contract was not fully satisfied.",
-                    "Inspect the agent's web_search/fetch_url tool pair and the unfinished-intent retry rules for this trace.",
+                    "The turn failed because the requested tool work was not fully satisfied.",
+                    "Inspect selected tool scope and the unfinished-intent retry rules for this trace.",
                     0.92,
                 )
             return (
@@ -705,10 +670,10 @@ class RuntimeRootCauseProjector:
             )
         if unfinished_intents and not has_provider_gateway_signal:
             return (
-                "research_contract",
+                "tool_execution",
                 failure_kind or "unfinished_intents",
                 "The turn exited with unfinished intents that never reached the required completion signal.",
-                "Check intent retry / fetch_url completion criteria before changing downstream formatting.",
+                "Check intent retry and tool completion criteria before changing downstream formatting.",
                 0.86,
             )
         if (

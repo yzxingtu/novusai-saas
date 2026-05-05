@@ -62,7 +62,9 @@ async def snapshot_skill_grants(svc: Any, agent_id: int) -> list[dict[str, Any]]
             "skill_name": grant.skill.name if grant.skill else None,
             "package_id": grant.skill.package_id if grant.skill else None,
             "package_name": (
-                grant.skill.package.name if grant.skill and grant.skill.package else None
+                grant.skill.package.name
+                if grant.skill and grant.skill.package
+                else None
             ),
             "enabled": grant.enabled,
             "sort_order": grant.sort_order,

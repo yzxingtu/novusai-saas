@@ -640,13 +640,7 @@
       "orchestration_failure": "Orchestration Failure",
       "budget_exit": "Budget Exit",
       "server_interrupt": "Server Interrupt",
-      "web_research_runtime": "Web Research Failure",
-      "low_query_relevance": "Low Query Relevance",
-      "blocked_url": "Source Blocked",
-      "fetch_failed": "Fetch Failed",
-      "fetch_not_attempted": "Fetch Not Attempted",
-      "no_answer_quality_evidence": "No Answer-Quality Evidence",
-      "search_failed": "Search Failed"
+      "no_answer_quality_evidence": "No Answer-Quality Evidence"
     },
     "budgetStatusOptions": {
       "ok": "OK",
@@ -981,7 +975,7 @@
     "typeDesc": {
       "toolkit": "Python Toolkit: Write a Tools class in the editor below. Each public method is auto-registered as an LLM-callable tool. Supports Valves env config and .zip upload.\nUse cases: Call 3rd-party APIs (weather/search/translate), custom business logic, data conversion, etc.\nTip: Method docstrings and :param annotations are shown to the LLM — write clear descriptions.",
       "knowledge_base": "RAG Document Q&A: Link one or more knowledge bases for automatic semantic retrieval and context injection during conversations.\nUse cases: Product docs Q&A, internal knowledge search, contract/policy consultation, etc.\nTip: Adjust Top K and score threshold to balance recall and precision.",
-      "builtin": "Built-in Tools: System-predefined capabilities like web search, image generation, etc. View the tool list after creation.\nTip: Built-in tools are maintained by the platform and cannot be edited.",
+      "builtin": "Built-in Tools: System-predefined capabilities like image generation and other platform tools. View the tool list after creation.\nTip: Built-in tools are maintained by the platform and cannot be edited.",
       "http": "HTTP Request: Declarative REST API integration. Just fill in URL, method and parameter templates — no coding needed.\nUse cases: Call internal APIs, integrate SaaS services (CRM/ERP), trigger webhooks, etc.\nTip: URL supports {variable} template syntax; configure auth info in Headers.",
       "email": "Email: Let the agent send emails on behalf of users during conversations. Uses platform SMTP config with domain allowlist and recipient limits.\nUse cases: Auto customer replies, meeting invitations, notification sending, etc.\nTip: SMTP server must be configured in System Settings first.",
       "code_execution": "Code Execution: Let the agent run Python code in a secure sandbox and return results.\nUse cases: Math calculations, data processing, text format conversion, CSV/JSON parsing, etc.\nTip: Code runs in an isolated environment with module allowlist restrictions."

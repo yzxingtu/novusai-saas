@@ -36,8 +36,7 @@ def _synthesize_call_id(
     tool_name: str,
 ) -> str:
     safe_name = (
-        "".join(ch if ch.isalnum() or ch == "_" else "_" for ch in tool_name)
-        or "tool"
+        "".join(ch if ch.isalnum() or ch == "_" else "_" for ch in tool_name) or "tool"
     )
     return f"call_{assistant_index + 1}_{tool_index + 1}_{safe_name}"
 
@@ -81,7 +80,9 @@ def _resolve_function_call_identity(
         else ""
     )
     if _is_responses_call_id(candidate_tool_call_id):
-        return candidate_tool_call_id, item_id if _is_responses_item_id(item_id) else None
+        return candidate_tool_call_id, item_id if _is_responses_item_id(
+            item_id
+        ) else None
 
     return (
         _synthesize_call_id(

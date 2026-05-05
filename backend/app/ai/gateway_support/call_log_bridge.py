@@ -127,19 +127,21 @@ class GatewayCallLogBridge:
     ) -> None:
         if not tools or tool_choice:
             return
-        tool_names = {
-            (tool.get("function", {}) or {}).get("name", "")
-            for tool in tools
-            if isinstance(tool, dict)
-        }
-        if not ({"web_search", "fetch_url"} & tool_names):
+        tool_names = _live_tool_names(
+            [
+                (tool.get("function", {}) or {}).get("name", "")
+                for tool in tools
+                if isinstance(tool, dict)
+            ]
+        )
+        if not tool_names:
             return
         logger.warning(
             "Tool policy not loaded: status=policy_not_loaded runtime={} conversation_id={} agent_id={} tool_names={}",
             get_runtime_identity_tag(),
             conversation_id,
             agent_id,
-            sorted(name for name in tool_names if name),
+            sorted(tool_names),
         )
 
     @staticmethod

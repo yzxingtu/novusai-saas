@@ -461,7 +461,7 @@ const PROCESS_ONLY_BODY_LINES = new Set([
   '链接',
 ]);
 
-interface ResearchResidualBodyCleanup {
+interface ResidualBodyCleanup {
   bodyMarkdown: string;
   suppressed: boolean;
 }
@@ -503,17 +503,13 @@ function readPositiveMetric(
   });
 }
 
-function hasResearchDisplayContext(
+function hasTurnDisplayContext(
   flow: ReturnType<typeof getTurnFlowForDisplay>,
 ): boolean {
   if (hasReadableAnswerCard(flow)) {
     return true;
   }
-  if (
-    flow.evidence.some(
-      (item) => item.kind === 'knowledge_base' || item.kind === 'web',
-    )
-  ) {
+  if (flow.evidence.length > 0) {
     return true;
   }
   return flow.timeline.some((stage) => {
@@ -589,15 +585,7 @@ function looksLikeProcessOnlyBody(content: string): boolean {
   return lines.length >= 2 && lines.every((line) => isProcessOnlyLine(line));
 }
 
-function looksLikeSearchPromptResidualLine(line: string): boolean {
-  const normalized = normalizeProcessOnlyLine(line);
-  return (
-    /[?？!！]$/u.test(normalized) &&
-    /查一下|搜索|搜一下|排行|推荐|find|look\s*up|search/iu.test(normalized)
-  );
-}
-
-function isFailedResearchTurn(
+function isFailedTurnWithResidualRisk(
   flow: ReturnType<typeof getTurnFlowForDisplay>,
 ): boolean {
   const failureSignals = [
@@ -610,11 +598,7 @@ function isFailedResearchTurn(
     flow.finalStageStatus === 'error' ||
     failureSignals.some(
       (value) =>
-        value === 'candidate_search_wrapper_url' ||
-        value === 'blocked_url' ||
         value === 'failed' ||
-        value === 'final_url_search_wrapper' ||
-        value === 'low_query_relevance' ||
         value === 'partial' ||
         value === 'untrusted_final_output_source',
     )
@@ -668,7 +652,7 @@ function updateFenceState(activeFence: FenceState, line: string): FenceState {
   return activeFence ?? fence;
 }
 
-function shouldRemoveResearchResidualLine(
+function shouldRemoveResidualLine(
   line: string,
   evidenceResidualTexts: string[],
 ): boolean {
@@ -692,12 +676,12 @@ function cleanupResidualBodyWhitespace(lines: string[]): string {
     .trim();
 }
 
-function sanitizeSuspiciousResearchResidualBody(
+function sanitizeSuspiciousResidualBody(
   flow: ReturnType<typeof getTurnFlowForDisplay>,
   content: string,
-): ResearchResidualBodyCleanup {
+): ResidualBodyCleanup {
   const normalized = content.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
-  if (!normalized.trim() || !hasResearchDisplayContext(flow)) {
+  if (!normalized.trim() || !hasTurnDisplayContext(flow)) {
     return { bodyMarkdown: content, suppressed: false };
   }
   if (
@@ -718,7 +702,7 @@ function sanitizeSuspiciousResearchResidualBody(
     if (
       !wasInsideFence &&
       !isFenceBoundary &&
-      shouldRemoveResearchResidualLine(line, evidenceResidualTexts)
+      shouldRemoveResidualLine(line, evidenceResidualTexts)
     ) {
       activeFence = nextFence;
       continue;
@@ -728,17 +712,6 @@ function sanitizeSuspiciousResearchResidualBody(
   }
 
   const bodyMarkdown = cleanupResidualBodyWhitespace(keptLines);
-  const bodyLines = bodyMarkdown
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean);
-  if (
-    bodyLines.length === 1 &&
-    isFailedResearchTurn(flow) &&
-    looksLikeSearchPromptResidualLine(bodyLines[0] ?? '')
-  ) {
-    return { bodyMarkdown: '', suppressed: true };
-  }
   if (!bodyMarkdown && normalized.trim()) {
     return { bodyMarkdown: '', suppressed: true };
   }
@@ -754,12 +727,13 @@ function looksLikeGenericAssistantFailureBody(content: string): boolean {
   return GENERIC_ASSISTANT_FAILURE_BODIES.has(normalized);
 }
 
-function shouldSuppressGenericResearchFailureBody(
+function shouldSuppressGenericFailureBody(
   flow: ReturnType<typeof getTurnFlowForDisplay>,
   content: string,
 ): boolean {
   return (
-    isFailedResearchTurn(flow) && looksLikeGenericAssistantFailureBody(content)
+    isFailedTurnWithResidualRisk(flow) &&
+    looksLikeGenericAssistantFailureBody(content)
   );
 }
 
@@ -817,13 +791,13 @@ export function prepareMessageContent(
   const preparedBody = stripModelFunctionCallMarkup(
     resolvePreparedBodyMarkdown(msg),
   );
-  const residualCleanup = sanitizeSuspiciousResearchResidualBody(
+  const residualCleanup = sanitizeSuspiciousResidualBody(
     flow,
     preparedBody,
   );
   if (
     shouldSuppressUntrustedFailureBody(flow) ||
-    shouldSuppressGenericResearchFailureBody(flow, preparedBody) ||
+    shouldSuppressGenericFailureBody(flow, preparedBody) ||
     shouldSuppressProviderFailureBody(flow, preparedBody) ||
     residualCleanup.suppressed
   ) {

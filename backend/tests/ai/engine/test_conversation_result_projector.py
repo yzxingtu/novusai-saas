@@ -8,12 +8,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from importlib import import_module
-from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.ai.engine.conversation import ConversationEngine
 from app.ai.engine.conversation_result_projector import (
     build_execution_result,
     build_turn_projection,
@@ -23,13 +20,6 @@ from app.ai.engine.final_output_policy import (
     build_untrusted_final_output_fallback,
     is_trusted_assistant_final_output_source,
 )
-from app.ai.engine.recovery_web_research_gate import (
-    WEB_RESEARCH_TERMINAL_CONTRACT_KEY,
-    WEB_RESEARCH_TERMINAL_NO_RESULT,
-)
-from app.ai.engine.types import ExecutionRequest, PreparedExecution
-from app.ai.tools.types import ToolDefinition
-from app.ai.types import ChatMessage, ChatResponse
 
 conversation_entrypoints_module = import_module(
     "app.ai.engine.conversation_entrypoints"
@@ -254,142 +244,8 @@ def test_build_execution_result_keeps_recovery_evidence_output_for_turn_flow(
     )
 
 
-def test_build_turn_projection_forces_success_over_stale_runtime_failure() -> None:
-    projection = build_turn_projection(
-        raw_turn_record={
-            "turn_outcome": "failed",
-            "termination_reason": "elapsed_budget_exceeded",
-            "failure_kind": "provider_gateway_error",
-        },
-        diagnostics_payload={
-            "final_output_source": "recovery_evidence",
-            "intent_plan": [
-                {
-                    "intent_id": "intent-1",
-                    "status": "completed",
-                    "completed_by_tool_names": ["fetch_url"],
-                }
-            ],
-            "unfinished_intents": [],
-            WEB_RESEARCH_TERMINAL_CONTRACT_KEY: WEB_RESEARCH_TERMINAL_NO_RESULT,
-        },
-        execution_path="normal",
-        completion_reason="completed",
-        partial=False,
-        final_output_source="recovery_evidence",
-        default_turn_outcome="success",
-        force_completion_reason_in_turn_record=True,
-    )
-
-    assert projection.turn_record["turn_outcome"] == "success"
-    assert projection.turn_record["termination_reason"] == "completed"
-    assert projection.turn_record["final_output_source"] == "recovery_evidence"
-    assert (
-        projection.turn_record[WEB_RESEARCH_TERMINAL_CONTRACT_KEY]
-        == WEB_RESEARCH_TERMINAL_NO_RESULT
-    )
-
-
 def test_build_untrusted_final_output_fallback_returns_safe_text() -> None:
-    fallback = build_untrusted_final_output_fallback(
-        auto_fetch_gate_reason="search_not_successful"
-    )
+    fallback = build_untrusted_final_output_fallback()
     assert fallback.strip()
     assert "http" not in fallback.lower()
-
-    no_results = build_untrusted_final_output_fallback(
-        auto_fetch_gate_reason="search_no_results_completed"
-    )
-    assert no_results.strip()
-
-    candidate_wrapper = build_untrusted_final_output_fallback(
-        failure_kind="candidate_search_wrapper_url"
-    )
-    assert "无法直接核实" in candidate_wrapper
-    assert "再试一次" not in candidate_wrapper
-
-    generic_fallback = build_untrusted_final_output_fallback()
-    assert generic_fallback.strip()
-
-    cross_check = build_untrusted_final_output_fallback(
-        failure_kind="insufficient_cross_checked_sources"
-    )
-    assert "交叉验证不足" in cross_check
-    assert "新闻结论" in cross_check
     assert is_trusted_assistant_final_output_source("platform_fallback")
-
-
-@pytest.mark.asyncio
-async def test_conversation_engine_execute_projects_turn_result_with_shared_helper() -> (
-    None
-):
-    engine = ConversationEngine(
-        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
-    )
-    prep = PreparedExecution(
-        messages=[ChatMessage(role="user", content="hello")],
-        tools=[ToolDefinition(name="web_search", description="Search the web")],
-        diagnostics={
-            "conversation_outcome": "success",
-        },
-        execution_path="normal",
-    )
-    engine._prepare_execution = AsyncMock(return_value=prep)
-
-    response = ChatResponse(
-        message=ChatMessage(role="assistant", content="你好"),
-        total_tokens=11,
-        metadata={
-            "runtime_model_info": {
-                "model_id": 1,
-                "model_name": "gpt-5.4",
-                "provider_id": 2,
-                "provider_name": "provider-a",
-            },
-            "runtime_turn_record": SimpleNamespace(
-                turn_outcome="success",
-                termination_reason="completed",
-                metadata={"seed": "value"},
-            ),
-        },
-    )
-
-    async def _fake_run(**_: object) -> SimpleNamespace:
-        return SimpleNamespace(
-            response=response,
-            tool_results=[],
-            total_tokens=11,
-            output="你好",
-            paused_for_consent=False,
-            partial=False,
-            completion_reason="completed",
-            final_output_source="assistant",
-        )
-
-    engine._call_llm = AsyncMock()
-    engine._handle_tool_calls = AsyncMock()
-
-    with pytest.MonkeyPatch.context() as mp:
-        mp.setattr(
-            conversation_entrypoints_module.TurnExecutor,
-            "run",
-            AsyncMock(side_effect=_fake_run),
-        )
-        result = await engine.execute(
-            SimpleNamespace(id=1),
-            ExecutionRequest(
-                agent_id=1,
-                tenant_id=1,
-                user_id=1,
-                conversation_id=8,
-                messages=[ChatMessage(role="user", content="hello")],
-            ),
-        )
-
-    assert result.success is True
-    assert result.output == "你好"
-    assert result.turn_record["execution_path"] == "normal"
-    assert result.turn_record["final_output_source"] == "assistant"
-    assert result.turn_record["metadata"]["seed"] == "value"
-    assert result.turn_record["metadata"]["orchestration"] == result.diagnostics
-    assert result.diagnostics["candidate_tool_names"] == ["web_search"]

@@ -180,7 +180,6 @@ class RecoveryResultNormalizer:
             "time_query",
             "weather",
             "weather_query",
-            "web_research",
         }:
             return False
         return not (
@@ -194,8 +193,6 @@ class RecoveryResultNormalizer:
             return label
         normalized_kind = str(intent.kind or "").strip().lower()
         normalized_family = str(intent.family or "").strip().lower()
-        if normalized_kind == "web_research" or normalized_family == "web_research":
-            return _("这些来源")
         if normalized_kind == "weather_query" or normalized_family == "weather":
             return _("天气")
         if normalized_kind == "time_query" or normalized_family == "time_ops":

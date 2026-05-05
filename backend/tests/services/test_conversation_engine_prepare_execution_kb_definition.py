@@ -1,3 +1,8 @@
+"""Test type: behavioral
+Scope: ConversationEngine prepare-execution KB binding for definition questions.
+Mocked dependencies: router and RAG loader seams; prepare-execution logic runs real.
+"""
+
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -37,8 +42,6 @@ def _build_agent() -> SimpleNamespace:
 def _build_skill_result() -> SkillResolveResult:
     return SkillResolveResult(
         tools=[
-            ToolDefinition(name="web_search", description="Search the web"),
-            ToolDefinition(name="fetch_url", description="Fetch a webpage"),
             ToolDefinition(name="query_records", description="Query platform data"),
         ]
     )
@@ -114,5 +117,7 @@ async def test_prepare_execution_injects_bound_kb_for_definition_question() -> N
         "knowledge_base"
         in prep.diagnostics["runtime_capability_summary"]["context_source_kinds"]
     )
-    assert "Knowledge-base context is available this turn." not in prep.messages[0].content
+    assert (
+        "Knowledge-base context is available this turn." not in prep.messages[0].content
+    )
     inject_mock.assert_awaited_once()

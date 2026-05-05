@@ -15,12 +15,10 @@ from typing import Any
 
 import pytest
 
-from app.ai.adapters.openai_compatible import protocol_responses as responses_protocol
 from app.ai.adapters.openai_compatible import (
     protocol_responses_stream as responses_stream_protocol,
 )
 from app.ai.adapters.openai_compatible.protocol_responses import (
-    convert_responses_chat_response,
     execute_chat_via_responses,
 )
 from app.ai.adapters.openai_compatible.protocol_responses_stream import (
@@ -169,28 +167,6 @@ class _SlowEventAdapter(_FakeAdapter):
         return await anext(stream)
 
 
-def test_convert_responses_chat_response_marks_native_search_from_tool_usage() -> None:
-    adapter = _FakeAdapter(_FakeResponsesStream([]))
-
-    response = SimpleNamespace(
-        id="resp_1",
-        status="completed",
-        output_text="native answer",
-        output=[],
-        tool_usage=SimpleNamespace(web_search=SimpleNamespace(num_requests=1)),
-        usage=SimpleNamespace(input_tokens=2, output_tokens=3, total_tokens=5),
-    )
-
-    converted = convert_responses_chat_response(
-        adapter=adapter,
-        response=response,
-        model="gpt-5.4",
-    )
-
-    assert converted.message.content == "native answer"
-    assert converted.metadata["native_web_search_observed"] is True
-
-
 @pytest.mark.asyncio
 async def test_execute_chat_via_responses_raises_typed_timeout_from_failed_body() -> (
     None
@@ -201,14 +177,14 @@ async def test_execute_chat_via_responses_raises_typed_timeout_from_failed_body(
             status="failed",
             error=SimpleNamespace(
                 code="provider_timeout",
-                message="hosted search timed out",
+                message="provider request timed out",
                 status_code=504,
             ),
             usage=None,
         )
     )
 
-    with pytest.raises(ProviderTimeoutError, match="hosted search timed out") as exc:
+    with pytest.raises(ProviderTimeoutError, match="provider request timed out") as exc:
         await execute_chat_via_responses(
             adapter=adapter,
             messages=[ChatMessage(role="user", content="hello")],
@@ -265,38 +241,6 @@ async def test_execute_chat_via_responses_bounds_blocking_create_stage_timeout()
 
 
 @pytest.mark.asyncio
-async def test_execute_chat_via_responses_defaults_hosted_search_create_timeout(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        responses_protocol,
-        "_DEFAULT_RESPONSES_CREATE_TIMEOUT_SECONDS",
-        0.01,
-    )
-    adapter = _BlockingCreateAdapter(
-        SimpleNamespace(id="resp_late_default_1", status="completed")
-    )
-
-    with pytest.raises(
-        ProviderTimeoutError,
-        match="timed out before returning a response",
-    ) as exc:
-        await execute_chat_via_responses(
-            adapter=adapter,
-            messages=[ChatMessage(role="user", content="hello")],
-            model="gpt-5.4",
-            request_params={
-                "model": "gpt-5.4",
-                "tool_choice": "required",
-                "tools": [{"type": "web_search", "search_context_size": "medium"}],
-            },
-        )
-
-    assert exc.value.error_code == "responses_create_timeout"
-    assert exc.value.status_code == 504
-
-
-@pytest.mark.asyncio
 async def test_execute_chat_via_responses_raises_typed_auth_from_failed_body() -> None:
     adapter = _FakeAdapter(
         SimpleNamespace(
@@ -304,7 +248,7 @@ async def test_execute_chat_via_responses_raises_typed_auth_from_failed_body() -
             status="failed",
             error=SimpleNamespace(
                 code="insufficient_quota",
-                message="hosted search quota is unavailable",
+                message="provider quota is unavailable",
                 status_code=403,
             ),
             usage=None,
@@ -313,7 +257,7 @@ async def test_execute_chat_via_responses_raises_typed_auth_from_failed_body() -
 
     with pytest.raises(
         ProviderAuthError,
-        match="hosted search quota is unavailable",
+        match="provider quota is unavailable",
     ) as exc:
         await execute_chat_via_responses(
             adapter=adapter,
@@ -324,78 +268,6 @@ async def test_execute_chat_via_responses_raises_typed_auth_from_failed_body() -
 
     assert exc.value.error_code == "insufficient_quota"
     assert exc.value.status_code == 403
-
-
-@pytest.mark.asyncio
-async def test_execute_stream_chat_via_responses_emits_progress_before_text() -> None:
-    stream = _FakeResponsesStream(
-        [
-            SimpleNamespace(type="response.web_search_call.in_progress"),
-            SimpleNamespace(type="response.output_text.delta", delta="A"),
-            SimpleNamespace(
-                type="response.output_text.done",
-                text="",
-                usage=SimpleNamespace(input_tokens=2, output_tokens=3, total_tokens=5),
-            ),
-        ]
-    )
-    adapter = _FakeAdapter(stream)
-
-    chunks: list[ChatChunk] = []
-    async for chunk in execute_stream_chat_via_responses(
-        adapter=adapter,
-        messages=[ChatMessage(role="user", content="hello")],
-        model="gpt-5.4",
-        request_params={"model": "gpt-5.4", "timeout": 20.0},
-        aclose_stream=lambda s: s.aclose(),
-    ):
-        chunks.append(chunk)
-
-    assert (chunks[0].metadata or {}).get("web_search_in_progress") is True
-    assert chunks[1].delta == "A"
-    assert chunks[-1].finish_reason == "stop"
-    assert chunks[-1].total_tokens == 5
-    assert (chunks[-1].metadata or {}).get("usage_mode") == "actual"
-    assert (chunks[-1].metadata or {}).get("protocol_path") == "responses"
-    assert (chunks[-1].metadata or {}).get("native_web_search_observed") is True
-    assert stream.aclose_called is True
-
-
-@pytest.mark.asyncio
-async def test_execute_stream_chat_via_responses_marks_native_search_from_output_text_done_citation() -> (
-    None
-):
-    stream = _FakeResponsesStream(
-        [
-            SimpleNamespace(
-                type="response.output_text.done",
-                text="native answer with citation",
-                annotations=[
-                    SimpleNamespace(
-                        type="url_citation",
-                        url="https://example.com/source",
-                    )
-                ],
-                usage=SimpleNamespace(input_tokens=2, output_tokens=3, total_tokens=5),
-            ),
-        ]
-    )
-    adapter = _FakeAdapter(stream)
-
-    chunks: list[ChatChunk] = []
-    async for chunk in execute_stream_chat_via_responses(
-        adapter=adapter,
-        messages=[ChatMessage(role="user", content="hello")],
-        model="gpt-5.4",
-        request_params={"model": "gpt-5.4", "stream": True},
-        aclose_stream=lambda s: s.aclose(),
-    ):
-        chunks.append(chunk)
-
-    assert chunks[0].delta == "native answer with citation"
-    assert chunks[-1].finish_reason == "stop"
-    assert (chunks[-1].metadata or {}).get("native_web_search_observed") is True
-    assert stream.aclose_called is True
 
 
 @pytest.mark.asyncio
@@ -434,126 +306,6 @@ async def test_execute_stream_chat_via_responses_completed_event_estimates_usage
     assert chunks[2].total_tokens == 18
     assert (chunks[2].metadata or {}).get("usage_mode") == "estimated"
     assert (chunks[2].metadata or {}).get("responses_response_id") == "resp_1"
-    assert stream.aclose_called is True
-
-
-@pytest.mark.asyncio
-async def test_execute_stream_chat_via_responses_marks_native_search_from_tool_usage() -> (
-    None
-):
-    stream = _FakeResponsesStream(
-        [
-            SimpleNamespace(
-                type="response.completed",
-                response=SimpleNamespace(
-                    id="resp_native_1",
-                    output_text="native answer",
-                    output=[],
-                    tool_usage=SimpleNamespace(
-                        web_search=SimpleNamespace(num_requests=1)
-                    ),
-                    usage=SimpleNamespace(
-                        input_tokens=2,
-                        output_tokens=3,
-                        total_tokens=5,
-                    ),
-                ),
-            )
-        ]
-    )
-    adapter = _FakeAdapter(stream)
-
-    chunks: list[ChatChunk] = []
-    async for chunk in execute_stream_chat_via_responses(
-        adapter=adapter,
-        messages=[ChatMessage(role="user", content="hello")],
-        model="gpt-5.4",
-        request_params={"model": "gpt-5.4"},
-        aclose_stream=lambda s: s.aclose(),
-    ):
-        chunks.append(chunk)
-
-    assert chunks[-1].finish_reason == "stop"
-    assert (chunks[-1].metadata or {}).get("native_web_search_observed") is True
-    assert stream.aclose_called is True
-
-
-@pytest.mark.asyncio
-async def test_execute_stream_chat_via_responses_marks_native_search_from_progress_on_completed_event() -> (
-    None
-):
-    stream = _FakeResponsesStream(
-        [
-            SimpleNamespace(type="response.web_search_call.in_progress"),
-            SimpleNamespace(
-                type="response.completed",
-                response=SimpleNamespace(
-                    id="resp_progress_1",
-                    output_text="native answer",
-                    output=[],
-                    tool_usage=SimpleNamespace(
-                        web_search=SimpleNamespace(num_requests=0)
-                    ),
-                    usage=SimpleNamespace(
-                        input_tokens=2,
-                        output_tokens=3,
-                        total_tokens=5,
-                    ),
-                ),
-            ),
-        ]
-    )
-    adapter = _FakeAdapter(stream)
-
-    chunks: list[ChatChunk] = []
-    async for chunk in execute_stream_chat_via_responses(
-        adapter=adapter,
-        messages=[ChatMessage(role="user", content="hello")],
-        model="gpt-5.4",
-        request_params={"model": "gpt-5.4"},
-        aclose_stream=lambda s: s.aclose(),
-    ):
-        chunks.append(chunk)
-
-    assert (chunks[0].metadata or {}).get("web_search_in_progress") is True
-    assert chunks[-1].finish_reason == "stop"
-    assert (chunks[-1].metadata or {}).get("native_web_search_observed") is True
-    assert stream.aclose_called is True
-
-
-@pytest.mark.asyncio
-async def test_execute_stream_chat_via_responses_raises_typed_timeout_from_failed_event() -> (
-    None
-):
-    stream = _FakeResponsesStream(
-        [
-            SimpleNamespace(type="response.web_search_call.in_progress"),
-            SimpleNamespace(
-                type="response.failed",
-                response=SimpleNamespace(
-                    error=SimpleNamespace(
-                        code="provider_timeout",
-                        message="hosted search timed out",
-                        status_code=504,
-                    )
-                ),
-            ),
-        ]
-    )
-    adapter = _FakeAdapter(stream)
-
-    with pytest.raises(ProviderTimeoutError, match="hosted search timed out") as exc:
-        async for _chunk in execute_stream_chat_via_responses(
-            adapter=adapter,
-            messages=[ChatMessage(role="user", content="hello")],
-            model="gpt-5.4",
-            request_params={"model": "gpt-5.4"},
-            aclose_stream=lambda s: s.aclose(),
-        ):
-            pass
-
-    assert exc.value.error_code == "provider_timeout"
-    assert exc.value.status_code == 504
     assert stream.aclose_called is True
 
 
@@ -707,7 +459,7 @@ async def test_execute_stream_chat_via_responses_raises_typed_auth_from_failed_e
                 type="response.failed",
                 error=SimpleNamespace(
                     code="insufficient_quota",
-                    message="hosted search quota is unavailable",
+                    message="provider quota is unavailable",
                     status_code=403,
                 ),
             ),
@@ -717,7 +469,7 @@ async def test_execute_stream_chat_via_responses_raises_typed_auth_from_failed_e
 
     with pytest.raises(
         ProviderAuthError,
-        match="hosted search quota is unavailable",
+        match="provider quota is unavailable",
     ) as exc:
         async for _chunk in execute_stream_chat_via_responses(
             adapter=adapter,
@@ -743,7 +495,7 @@ async def test_execute_stream_chat_via_responses_raises_typed_timeout_from_error
                 type="response.error",
                 error=SimpleNamespace(
                     code="provider_timeout",
-                    message="hosted search error timed out",
+                    message="provider error timed out",
                     status_code=504,
                 ),
             ),
@@ -751,7 +503,7 @@ async def test_execute_stream_chat_via_responses_raises_typed_timeout_from_error
     )
     adapter = _FakeAdapter(stream)
 
-    with pytest.raises(ProviderTimeoutError, match="hosted search error timed out"):
+    with pytest.raises(ProviderTimeoutError, match="provider error timed out"):
         async for _chunk in execute_stream_chat_via_responses(
             adapter=adapter,
             messages=[ChatMessage(role="user", content="hello")],
@@ -945,78 +697,6 @@ async def test_execute_stream_chat_via_responses_deduplicates_function_call_done
             "function": {
                 "name": "crm_list_actions",
                 "arguments": '{"surface_id":"active"}',
-            },
-        }
-    ]
-    assert chunks[-1].finish_reason == "stop"
-    assert stream.aclose_called is True
-
-
-@pytest.mark.asyncio
-async def test_execute_stream_chat_via_responses_prefers_latest_complete_function_args_snapshot() -> (
-    None
-):
-    stream = _FakeResponsesStream(
-        [
-            SimpleNamespace(
-                type="response.output_item.added",
-                output_index=0,
-                item=SimpleNamespace(
-                    type="function_call",
-                    call_id="call_1",
-                    name="web_search",
-                    arguments='{"max_results":5,"query":"北京 今天天气2026-0422 中国网"}',
-                ),
-            ),
-            SimpleNamespace(
-                type="response.output_item.done",
-                output_index=0,
-                item=SimpleNamespace(
-                    type="function_call",
-                    call_id="call_1",
-                    name="web_search",
-                    arguments='{"max_results":5,"query":"北京 今天天气 2026-04-22 中国天气网"}',
-                ),
-            ),
-            SimpleNamespace(
-                type="response.completed",
-                response=SimpleNamespace(
-                    id="resp_1",
-                    output_text="",
-                    usage=SimpleNamespace(
-                        input_tokens=2,
-                        output_tokens=3,
-                        total_tokens=5,
-                    ),
-                ),
-            ),
-        ]
-    )
-    adapter = _FakeAdapter(stream)
-
-    chunks: list[ChatChunk] = []
-    async for chunk in execute_stream_chat_via_responses(
-        adapter=adapter,
-        messages=[ChatMessage(role="user", content="hello")],
-        model="gpt-5.4",
-        request_params={"model": "gpt-5.4"},
-        aclose_stream=lambda s: s.aclose(),
-    ):
-        chunks.append(chunk)
-
-    merged: list[dict[str, Any]] = []
-    for chunk in chunks:
-        if chunk.tool_calls:
-            merged = merge_stream_tool_calls(merged, chunk.tool_calls)
-
-    finalized = finalize_stream_tool_calls(merged)
-    assert finalized == [
-        {
-            "id": "call_1",
-            "type": "function",
-            "function": {
-                "name": "web_search",
-                "arguments": '{"max_results":5,"query":"北京 今天天气 2026-04-22 中国天气网"}',
             },
         }
     ]

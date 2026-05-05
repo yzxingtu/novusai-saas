@@ -1,5 +1,7 @@
 import type { ChatMessage } from './types';
 
+import { visibleRuntimeDiagnosticTokens } from '#/utils/ai-runtime-diagnostics';
+
 const BENIGN_TURN_OUTCOMES = new Set(['partial', 'success']);
 const BENIGN_TERMINATION_REASONS = new Set([
   'budget_exit',
@@ -38,9 +40,7 @@ export function hasTurnDiagnosticsData(msg: ChatMessage): boolean {
     normalizeDiagnosticText(msg.turnOutcome) ||
     terminationReason ||
     normalizeDiagnosticText(msg.protocolPath) ||
-    (msg.selectedToolNames ?? []).some(
-      (item) => normalizeDiagnosticText(item).length > 0,
-    ) ||
+    visibleRuntimeDiagnosticTokens(msg.selectedToolNames).length > 0 ||
     (msg.selectedSkillNames ?? []).some(
       (item) => normalizeDiagnosticText(item).length > 0,
     ) ||

@@ -1,1 +1,0 @@
-Use hosted web search to find candidate source URLs for the user query. Return only candidate sources with brief snippets. Do not synthesize facts or claim conclusions. Every result must be backed by a verifiable absolute http or https URL that can later be fetched.{% if locale %} Prefer sources suitable for locale {{ locale }} when relevant.{% endif %}

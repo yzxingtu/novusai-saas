@@ -12,10 +12,6 @@ from .recovery_tool_result_helpers import (
     intent_result_from_tool_results,
     successful_tool_names,
 )
-from .recovery_web_research_gate import (
-    RecoveryWebResearchGate,
-    project_canonical_web_research_diagnostics,
-)
 from .system_prompt_intent_helpers import (
     intent_completion_matches as resolve_intent_completion_matches,
 )
@@ -48,12 +44,6 @@ def update_intent_statuses(
         clone.metadata = dict(clone.metadata or {})
         clone.metadata.pop("pending_consent", None)
 
-        RecoveryWebResearchGate.force_fetch_url_after_search(
-            clone,
-            messages=evidence_messages,
-            tool_results=tool_results,
-            successful_tool_names=completed_tool_names,
-        )
         normalized_completion_signals = resolve_intent_completion_signals(
             clone.family,
             intent_kind=clone.kind,
@@ -74,22 +64,6 @@ def update_intent_statuses(
         completion_signals = set(clone.completion_signals or clone.allowed_tool_names)
         if clone.family == "none" or not clone.requires_tools:
             clone.status = "completed"
-        elif RecoveryWebResearchGate.is_completed_web_research_no_result(
-            clone,
-            messages=evidence_messages,
-            tool_results=tool_results,
-            successful_tool_names=completed_tool_names,
-        ):
-            clone.status = "completed"
-            clone.completed_by_tool_names = ["web_search"]
-            RecoveryWebResearchGate.clear_requires_fetch_url(
-                clone,
-                reason="search_no_results_completed",
-            )
-            RecoveryResultNormalizer._cache_intent_result(
-                clone,
-                RecoveryWebResearchGate.web_research_no_result_output(clone),
-            )
         elif completion_matches:
             clone.status = "completed"
             clone.completed_by_tool_names = list(completion_matches)
@@ -97,14 +71,6 @@ def update_intent_statuses(
         if clone.status == "completed":
             cached_result = None
             result_max_length = intent_recovery_result_max_length(clone)
-            if (
-                str(clone.metadata.get("auto_fetch_gate_reason") or "").strip()
-                == "search_no_results_completed"
-            ):
-                cached_result = RecoveryResultNormalizer._intent_cached_result(
-                    clone,
-                    max_length=result_max_length,
-                )
             if not cached_result:
                 cached_result = intent_result_from_tool_results(clone, tool_results)
             if not cached_result:
@@ -118,16 +84,6 @@ def update_intent_statuses(
                     cached_result,
                     max_length=result_max_length,
                 )
-            elif (
-                str(clone.family or "").strip() == "web_research"
-                and "fetch_url" in set(clone.completed_by_tool_names or [])
-                and not RecoveryWebResearchGate.is_terminal_without_verified_fetch_answer(
-                    clone
-                )
-            ):
-                clone.status = "pending"
-                clone.completed_by_tool_names = []
-                clone.metadata["fetch_url_answer_quality"] = "missing"
         elif clone.status not in {"failed", "skipped"}:
             clone.status = "pending"
             partial_result = intent_result_from_tool_results(clone, tool_results)
@@ -152,27 +108,6 @@ def update_intent_statuses(
             clone.completed_by_tool_names = []
             clone.metadata["pending_consent"] = dict(pending_payload)
             pending_consent_assigned = True
-
-        if str(clone.family or "").strip() == "web_research":
-            web_research_projection = project_canonical_web_research_diagnostics(
-                diagnostics_payload={"intent_plan": [clone.to_dict()]},
-                intent_plan=[clone],
-                tool_results=tool_results,
-            )
-            if web_research_projection:
-                clone.metadata.update(
-                    {
-                        "web_research_diagnostics": web_research_projection[
-                            "web_research_diagnostics"
-                        ],
-                        "web_research_evidence_status": web_research_projection.get(
-                            "evidence_status"
-                        ),
-                        "web_research_answer_source": web_research_projection.get(
-                            "answer_source"
-                        ),
-                    }
-                )
 
         updated.append(clone)
     return updated

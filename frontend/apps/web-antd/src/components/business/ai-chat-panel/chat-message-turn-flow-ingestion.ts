@@ -44,12 +44,8 @@ export {
 } from './chat-message-turn-flow-core';
 
 const FAILURE_REASON_SET = new Set([
-  'blocked_url',
-  'candidate_search_wrapper_url',
   'error',
   'failed',
-  'final_url_search_wrapper',
-  'low_query_relevance',
   'no_answer_quality_evidence',
   'provider_error',
   'provider_failure_after_partial_progress',

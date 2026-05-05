@@ -4,7 +4,8 @@ Routing selection seams for multimodal and long-context paths.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Awaitable, Callable
+from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING
 
 from app.ai.routing.routing_capabilities import model_satisfies_requirements
 from app.ai.routing.routing_contracts import RouteResult

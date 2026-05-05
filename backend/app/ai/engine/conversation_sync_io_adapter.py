@@ -13,7 +13,6 @@ from .base import log_user_type_for_call_log
 from .conversation_sync_io_support import handle_sync_tool_calls
 from .execution_state_machine import ExecutionStateMachine
 from .model_policy import build_model_request_overrides
-from .tool_policy_message_helpers import response_has_native_web_search_evidence
 from .turn_executor import ModelRoundResult, ToolBatchResult
 from .types import ExecutionRequest, ToolUsePolicy
 
@@ -68,10 +67,6 @@ class _SyncIOAdapter:
             response=response,
             total_tokens=total_tokens,
             completion_tokens_used=completion_tokens_used,
-            native_search_observed=(
-                bool((response.metadata or {}).get("native_web_search_observed"))
-                or response_has_native_web_search_evidence(response)
-            ),
         )
 
     async def handle_tool_calls(
@@ -161,25 +156,6 @@ class _SyncIOAdapter:
             current_policy=current_policy,
             tools=tools,
             input_variables=input_variables,
-        )
-
-    def should_retry_web_research_contract_breach(
-        self,
-        *,
-        messages: list[ChatMessage],
-        response: ChatResponse | None,
-        current_policy: ToolUsePolicy,
-        tools: list[ToolDefinition],
-        input_variables: dict[str, Any] | None,
-        continuation: Any,
-    ) -> tuple[bool, ToolUsePolicy | None, str]:
-        return self.runtime_contract.should_retry_web_research_contract_breach(
-            messages=messages,
-            response=response,
-            current_policy=current_policy,
-            tools=tools,
-            input_variables=input_variables,
-            continuation=continuation,
         )
 
     def analyze_post_tool_contract_breach(

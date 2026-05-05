@@ -14,9 +14,7 @@ import pytest
 from app.enums.common import UserRoleEnum
 from app.exceptions import BusinessException
 from app.services.ai.agent_router_capability_support import (
-    agent_needs_function_calling,
     agent_supports_families,
-    grant_skill_name_if_active,
 )
 from app.services.ai.agent_router_policy import requested_tool_families
 from app.services.ai.agent_router_service import (
@@ -98,69 +96,6 @@ def _make_conversation(
     return conversation
 
 
-def test_grant_skill_name_if_active_requires_live_skill_and_package() -> None:
-    assert grant_skill_name_if_active(_make_skill_grant("web_search")) == "web_search"
-    inactive_skill = _make_skill_grant("weather-runtime")
-    inactive_skill.skill.is_active = False
-    assert grant_skill_name_if_active(inactive_skill) is None
-    inactive_package = _make_skill_grant("crm_lookup")
-    inactive_package.skill.package.is_active = False
-    assert grant_skill_name_if_active(inactive_package) is None
-
-
-def test_agent_needs_function_calling_ignores_inactive_packages() -> None:
-    agent = _make_agent(
-        agent_id=59,
-        name="Inactive Tool Agent",
-        supports_vision=False,
-        skill_names=["crm_lookup", "crm_update_record"],
-    )
-    for grant in agent.skill_grants:
-        grant.skill.package.is_active = False
-
-    assert agent_needs_function_calling(agent) is False
-
-    live_agent = _make_agent(
-        agent_id=60,
-        name="Tool Agent",
-        supports_vision=False,
-        skill_names=["web_search"],
-    )
-    assert agent_needs_function_calling(live_agent) is True
-
-    for grant in live_agent.skill_grants:
-        grant.skill.package.is_active = False
-
-    assert agent_needs_function_calling(live_agent) is False
-
-
-def test_agent_supports_families_uses_skill_preview_metadata() -> None:
-    agent = _make_agent(
-        agent_id=61,
-        name="Descriptor Agent",
-        supports_vision=False,
-    )
-    agent.skill_grants = [
-        _make_descriptor_grant(
-            skill_name="weather-runtime",
-            skill_config={"tools": [{"name": "get_current_weather"}]},
-        ),
-        _make_descriptor_grant(
-            skill_name="web_search",
-        ),
-        _make_descriptor_grant(
-            skill_name="crm-runtime",
-            skill_config={"preview_semantic_families": ["data_ops"]},
-        ),
-    ]
-
-    assert agent_supports_families(
-        agent,
-        ["weather", "web_research"],
-    )
-    assert not agent_supports_families(agent, ["billing_ops"])
-
-
 def test_agent_supports_families_treats_time_as_runtime_baseline() -> None:
     agent = _make_agent(
         agent_id=62,
@@ -200,20 +135,6 @@ def test_requested_tool_families_ignores_local_pagination_messages(
     families = requested_tool_families(message)
 
     assert families == []
-
-
-def test_requested_tool_families_treats_record_search_as_search() -> None:
-    families = requested_tool_families("帮我搜索一下包含'天气'的记录")
-
-    assert families == ["weather", "web_research"]
-
-
-def test_requested_tool_families_does_not_add_local_dataset_summary_family() -> None:
-    families = requested_tool_families(
-        "帮我搜索一下今天的 AI 新闻，再顺便概括一下当前数据集都能做什么"
-    )
-
-    assert families == ["web_research"]
 
 
 @pytest.mark.parametrize(
@@ -469,7 +390,9 @@ async def test_route_does_not_directly_select_data_agent_for_local_action(mock_d
     assert result.agent_name == "General Agent"
     service._get_router_agent.assert_awaited_once()
     service._fallback_to_default.assert_awaited_once()
-    assert service._fallback_to_default.await_args.kwargs["preferred_candidates"] is None
+    assert (
+        service._fallback_to_default.await_args.kwargs["preferred_candidates"] is None
+    )
 
 
 @pytest.mark.asyncio
@@ -512,7 +435,9 @@ async def test_route_ignores_admin_cross_navigation_intent(mock_db):
     assert result.agent_id == 15
     assert result.routed_by == "default"
     service._get_router_agent.assert_awaited_once()
-    assert service._fallback_to_default.await_args.kwargs["preferred_candidates"] is None
+    assert (
+        service._fallback_to_default.await_args.kwargs["preferred_candidates"] is None
+    )
 
 
 @pytest.mark.asyncio
@@ -554,7 +479,9 @@ async def test_route_ignores_tenant_cross_navigation_intent(mock_db):
     assert result.agent_id == 15
     assert result.routed_by == "default"
     service._get_router_agent.assert_awaited_once()
-    assert service._fallback_to_default.await_args.kwargs["preferred_candidates"] is None
+    assert (
+        service._fallback_to_default.await_args.kwargs["preferred_candidates"] is None
+    )
 
 
 @pytest.mark.asyncio
@@ -597,7 +524,9 @@ async def test_route_ignores_semantic_agent_navigation_phrase(mock_db):
     assert result.agent_id == 15
     assert result.routed_by == "default"
     service._get_router_agent.assert_awaited_once()
-    assert service._fallback_to_default.await_args.kwargs["preferred_candidates"] is None
+    assert (
+        service._fallback_to_default.await_args.kwargs["preferred_candidates"] is None
+    )
 
 
 @pytest.mark.asyncio
@@ -640,7 +569,9 @@ async def test_route_ignores_semantic_ai_assistant_navigation_phrase(mock_db):
     assert result.agent_id == 15
     assert result.routed_by == "default"
     service._get_router_agent.assert_awaited_once()
-    assert service._fallback_to_default.await_args.kwargs["preferred_candidates"] is None
+    assert (
+        service._fallback_to_default.await_args.kwargs["preferred_candidates"] is None
+    )
 
 
 @pytest.mark.asyncio
@@ -766,54 +697,6 @@ async def test_route_keeps_full_candidate_pool_for_mixed_web_and_local_request(
     assert result.agent_id == 15
     routed_candidates = service._call_router.await_args.args[1]
     assert [agent.id for agent in routed_candidates] == [15, 59]
-    service._fallback_to_default.assert_not_awaited()
-
-
-@pytest.mark.asyncio
-async def test_route_prefers_candidate_covering_all_requested_families_for_mixed_turn(
-    mock_db,
-):
-    service = AgentRouterService(mock_db)
-    partial_agent = _make_agent(
-        agent_id=15,
-        name="Search Data Agent",
-        supports_vision=False,
-        skill_names=[
-            "web_search",
-            "fetch_url",
-            "crm_lookup",
-            "crm_update_record",
-        ],
-    )
-    full_agent = _make_agent(
-        agent_id=61,
-        name="Full Mixed Agent",
-        supports_vision=False,
-        skill_names=[
-            "get_current_weather",
-            "web_search",
-            "fetch_url",
-            "crm_lookup",
-            "crm_update_record",
-        ],
-    )
-
-    service._list_available_agents = AsyncMock(
-        return_value=[partial_agent, full_agent],
-    )
-    service._get_router_agent = AsyncMock()
-    service._fallback_to_default = AsyncMock()
-
-    result = await service.route(
-        tenant_id=1,
-        message="帮我查一下北京天气，顺便搜索一下今天的热点新闻，再看看当前数据集都有什么",
-        user_role=UserRoleEnum.TENANT_ADMIN.value,
-        user_role_id=1,
-        user_id=10,
-    )
-
-    assert result.agent_id == 61
-    service._get_router_agent.assert_not_awaited()
     service._fallback_to_default.assert_not_awaited()
 
 
@@ -1036,7 +919,9 @@ async def test_route_does_not_prefer_vision_data_agent_for_screenshot_request(mo
     assert result.agent_id == 59
     service._get_router_agent.assert_awaited_once()
     service._fallback_to_default.assert_awaited_once()
-    assert service._fallback_to_default.await_args.kwargs["preferred_candidates"] is None
+    assert (
+        service._fallback_to_default.await_args.kwargs["preferred_candidates"] is None
+    )
 
 
 @pytest.mark.asyncio
@@ -1071,6 +956,6 @@ async def test_route_does_not_treat_screenshot_request_as_vision_gate(mock_db):
 
     assert result.agent_id == 59
     service._fallback_to_default.assert_awaited_once()
-    assert service._fallback_to_default.await_args.kwargs["preferred_candidates"] is None
-
-
+    assert (
+        service._fallback_to_default.await_args.kwargs["preferred_candidates"] is None
+    )

@@ -2,8 +2,8 @@
 AI quota usage tracker / AI 配额使用量追踪器
 """
 
-from importlib import import_module
 from datetime import date
+from importlib import import_module
 
 from app.enums.ai import QuotaPeriodEnum
 
@@ -57,7 +57,7 @@ class UsageTracker:
     @staticmethod
     async def _get_redis():
         quota_module = import_module("app.ai.quota")
-        return await getattr(quota_module, "get_redis")()
+        return await quota_module.get_redis()
 
     @staticmethod
     def _get_key(prefix: str, tenant_id: int, model_id: int, date_key: str) -> str:

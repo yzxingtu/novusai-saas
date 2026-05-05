@@ -590,10 +590,20 @@ def _split_sql_terminator(sql: str) -> tuple[str, str]:
 
 
 __all__ = (
-    "SQLTableReference", "append_outer_where_conditions", "append_limit_clause",
-    "contains_sql_comments", "extract_called_functions", "extract_group_by_expressions",
-    "extract_select_aggregates", "extract_table_name_list", "extract_table_names",
-    "extract_table_references", "find_keyword_sequences", "has_top_level_limit",
-    "inject_outer_where_conditions", "is_safe_sql_identifier", "parse_sql_statement",
+    "SQLTableReference",
+    "append_outer_where_conditions",
+    "append_limit_clause",
+    "contains_sql_comments",
+    "extract_called_functions",
+    "extract_group_by_expressions",
+    "extract_select_aggregates",
+    "extract_table_name_list",
+    "extract_table_names",
+    "extract_table_references",
+    "find_keyword_sequences",
+    "has_top_level_limit",
+    "inject_outer_where_conditions",
+    "is_safe_sql_identifier",
+    "parse_sql_statement",
     "starts_with_select_or_cte",
 )

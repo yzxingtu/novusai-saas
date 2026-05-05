@@ -640,13 +640,7 @@
       "orchestration_failure": "编排失败",
       "budget_exit": "预算退出",
       "server_interrupt": "服务中断",
-      "web_research_runtime": "联网研究失败",
-      "low_query_relevance": "来源相关性不足",
-      "blocked_url": "来源无法访问",
-      "fetch_failed": "抓取失败",
-      "fetch_not_attempted": "未执行抓取",
-      "no_answer_quality_evidence": "缺少可作答证据",
-      "search_failed": "搜索失败"
+      "no_answer_quality_evidence": "缺少可作答证据"
     },
     "budgetStatusOptions": {
       "ok": "正常",
@@ -981,7 +975,7 @@
     "typeDesc": {
       "toolkit": "Python 工具包：在下方编辑器中编写 Tools 类，每个公开方法自动注册为 LLM 可调用的工具。支持 Valves 环境变量配置和 .zip 包上传。\n适用场景：调用第三方 API（天气/搜索/翻译）、自定义业务逻辑、数据转换等。\n提示：方法的 docstring 和 :param 注释会展示给 LLM，请写清楚描述和参数说明。",
       "knowledge_base": "RAG 文档问答：关联一个或多个知识库，对话时自动进行语义检索并将相关文档片段注入上下文。\n适用场景：产品文档问答、内部知识库搜索、合同/政策咨询等。\n提示：可调整检索数量(Top K)和得分阈值来平衡召回率和精确度。",
-      "builtin": "内置工具：系统预定义的基础能力，如网页搜索、图片生成等。创建后可查看工具列表。\n提示：内置工具由平台维护，配置项不可编辑。",
+      "builtin": "内置工具：系统预定义的基础能力，如图片生成等。创建后可查看工具列表。\n提示：内置工具由平台维护，配置项不可编辑。",
       "http": "HTTP 请求：声明式集成外部 REST API。只需填写 URL、请求方法和参数模板，无需编码即可让智能体调用。\n适用场景：调用企业内部 API、集成 SaaS 服务（CRM/ERP）、Webhook 触发等。\n提示：URL 支持 {variable} 模板语法；Headers 中可配置认证信息。",
       "email": "邮件发送：让智能体在对话中代用户发送邮件。基于平台 SMTP 配置，支持域名白名单和收件人限制。\n适用场景：客服自动回复、会议邀请、通知发送等。\n提示：需先在系统设置中配置 SMTP 服务器。",
       "code_execution": "代码执行：让智能体在安全沙箱中运行 Python 代码并返回结果。\n适用场景：数学计算、数据处理、文本格式转换、CSV/JSON 解析等。\n提示：代码在隔离环境中执行，可用模块受白名单限制。"

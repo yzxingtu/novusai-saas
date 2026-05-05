@@ -59,8 +59,7 @@ def _normalize_contract_wire_api(value: Any, *, field_name: str) -> str | None:
         return mapped
     raise ProviderError(
         message=(
-            "Invalid provider protocol contract wire API in "
-            f"{field_name}: {value}"
+            f"Invalid provider protocol contract wire API in {field_name}: {value}"
         ),
         provider_code="openai_compatible",
         error_code="invalid_protocol_contract",
@@ -72,6 +71,7 @@ def _normalize_runtime_wire_api(value: Any) -> str | None:
         value,
         field_name="runtime_force_wire_api",
     )
+
 
 def _normalize_wire_api_list(value: Any) -> tuple[str, ...]:
     if value is None:
@@ -293,7 +293,11 @@ class OpenAIProtocolCapabilities:
         elif allowed_wire_apis[0] != primary_wire_api:
             allowed_wire_apis = (
                 primary_wire_api,
-                *(wire_api for wire_api in allowed_wire_apis if wire_api != primary_wire_api),
+                *(
+                    wire_api
+                    for wire_api in allowed_wire_apis
+                    if wire_api != primary_wire_api
+                ),
             )
 
         raw_allow_cross = contract_payload.get("allow_adapter_cross_protocol_fallback")
@@ -353,8 +357,7 @@ class OpenAIProtocolCapabilities:
             return requested
         raise ProviderError(
             message=(
-                "Provider protocol does not support requested wire API: "
-                f"{requested}"
+                f"Provider protocol does not support requested wire API: {requested}"
             ),
             provider_code="openai_compatible",
             error_code="unsupported_protocol",

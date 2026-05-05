@@ -284,7 +284,9 @@ class ContextAssembler:
 
         activation = getattr(skill_result, "turn_activation", None)
         if activation is not None and activation.applied:
-            tools = filter_invalid_ai_runtime_tools(execution_tools_for_turn(skill_result))
+            tools = filter_invalid_ai_runtime_tools(
+                execution_tools_for_turn(skill_result)
+            )
             descriptors = list(execution_capability_descriptors_for_turn(skill_result))
         else:
             tools = filter_invalid_ai_runtime_tools(

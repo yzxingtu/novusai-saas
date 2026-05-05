@@ -85,53 +85,6 @@
       "type": "这里配置的是接入适配器/兼容格式，不是厂商名称。当前平台主要按 OpenAI 兼容格式接入，大多数 AI 服务（包括 Azure 等兼容端点）都可以归到这一类。",
       "isActive": "禁用后该供应商下的所有模型将不可用，已有的 API 调用会失败"
     },
-    "webSearch": {
-      "title": "联网搜索",
-      "enabled": "启用联网搜索",
-      "strategy": "搜索策略",
-      "maxResultsCap": "最大结果数",
-      "nativeTimeoutSeconds": "原生搜索超时（秒）",
-      "publicTimeoutSeconds": "公共搜索超时（秒）",
-      "publicProviders": "公共搜索源",
-      "allowUnverifiedRuntimeTarget": "允许当前运行时直接做原生搜索",
-      "verifiedProviderCode": "显式验证供应商代码",
-      "verifiedModelCode": "显式验证模型代码",
-      "strategyOptions": {
-        "native_first_fallback_public": "原生优先 + 公共回退"
-      },
-      "publicProviderOptions": {
-        "baidu": "百度",
-        "so360": "360 搜索"
-      },
-      "help": {
-        "enabled": "关闭后将不再暴露联网搜索能力给模型。",
-        "strategy": "当前策略固定为“原生优先，失败后自动回退公共搜索”。",
-        "maxResultsCap": "单次搜索最多返回的候选来源数量（1-10）。",
-        "nativeTimeoutSeconds": "模型原生联网搜索后端超时时间。",
-        "publicTimeoutSeconds": "公共 HTML 搜索后端超时时间。",
-        "publicProviders": "原生不可用或失败时用于回退的公共搜索源。",
-        "allowUnverifiedRuntimeTarget": "仅当你确认当前 OpenAI 兼容运行时真实支持原生搜索时开启；开启后会跳过 host 信任校验。",
-        "verifiedProviderCode": "可选。填写已验证支持原生搜索的供应商 code，例如 openai。",
-        "verifiedModelCode": "可选。建议与上面的供应商代码配套填写，例如 gpt-5.4。留空会尽量复用当前运行时模型。"
-      },
-      "placeholder": {
-        "verifiedProviderCode": "例如：openai",
-        "verifiedModelCode": "例如：gpt-5.4"
-      },
-      "validation": {
-        "maxResultsCap": "最大结果数必须是 1-10 的整数",
-        "nativeTimeoutSeconds": "原生超时必须是 1-120 的整数",
-        "publicTimeoutSeconds": "公共超时必须是 1-120 的整数"
-      },
-      "runtime": {
-        "title": "原生能力状态（只读）",
-        "unknown": "尚未返回运行时能力信息",
-        "nativeSupported": "当前模型支持原生联网搜索（提供商：{provider}）",
-        "fallbackReason": "当前模型不支持原生联网搜索，将自动回退公共搜索（原因：{reason}）",
-        "fallbackDefault": "当前模型不支持原生联网搜索，将自动回退公共搜索",
-        "autoFallbackHint": "如果希望优先走原生搜索，请补齐显式验证 provider/model，或在确认兼容的前提下开启“允许当前运行时直接做原生搜索”。"
-      }
-    },
     "summary": {
       "total": "总供应商",
       "active": "已启用",
@@ -961,13 +914,7 @@
       "orchestration_failure": "编排失败",
       "budget_exit": "预算退出",
       "server_interrupt": "服务中断",
-      "web_research_runtime": "联网研究失败",
-      "low_query_relevance": "来源相关性不足",
-      "blocked_url": "来源无法访问",
-      "fetch_failed": "抓取失败",
-      "fetch_not_attempted": "未执行抓取",
-      "no_answer_quality_evidence": "缺少可作答证据",
-      "search_failed": "搜索失败"
+      "no_answer_quality_evidence": "缺少可作答证据"
     },
     "budgetStatusOptions": {
       "ok": "正常",
@@ -1489,7 +1436,7 @@
     "typeDesc": {
       "toolkit": "Python 工具包：在下方编辑器中编写 Tools 类，每个公开方法自动注册为 LLM 可调用的工具。支持 Valves 环境变量配置和 .zip 包上传。\n适用场景：调用第三方 API（天气/搜索/翻译）、自定义业务逻辑、数据转换等。\n提示：方法的 docstring 和 :param 注释会展示给 LLM，请写清楚描述和参数说明。",
       "knowledge_base": "RAG 文档问答：关联一个或多个知识库，对话时自动进行语义检索并将相关文档片段注入上下文。\n适用场景：产品文档问答、内部知识库搜索、合同/政策咨询等。\n提示：可调整检索数量(Top K)和得分阈值来平衡召回率和精确度。",
-      "builtin": "内置工具：系统预定义的基础能力，如网页搜索、图片生成等。创建后可查看工具列表。\n提示：内置工具由平台维护，配置项不可编辑。",
+      "builtin": "内置工具：系统预定义的基础能力，如图片生成等。创建后可查看工具列表。\n提示：内置工具由平台维护，配置项不可编辑。",
       "http": "HTTP 请求：声明式集成外部 REST API。只需填写 URL、请求方法和参数模板，无需编码即可让智能体调用。\n适用场景：调用企业内部 API、集成 SaaS 服务（CRM/ERP）、Webhook 触发等。\n提示：URL 支持 {variable} 模板语法；Headers 中可配置认证信息。",
       "email": "邮件发送：让智能体在对话中代用户发送邮件。基于平台 SMTP 配置，支持域名白名单和收件人限制。\n适用场景：客服自动回复、会议邀请、通知发送等。\n提示：需先在系统设置中配置 SMTP 服务器。",
       "code_execution": "代码执行：让智能体在安全沙箱中运行 Python 代码并返回结果。\n适用场景：数学计算、数据处理、文本格式转换、CSV/JSON 解析等。\n提示：代码在隔离环境中执行，可用模块受白名单限制。"

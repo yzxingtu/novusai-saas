@@ -433,7 +433,9 @@ class AgentRouterService:
         feature_code = "default_chat"
         preferred_candidate_ids = {agent.id for agent in (preferred_candidates or [])}
 
-        assignment: SystemAgentAssignment | None = await self.query_service.resolve_default_assignment(
+        assignment: (
+            SystemAgentAssignment | None
+        ) = await self.query_service.resolve_default_assignment(
             tenant_id=tenant_id,
             user_role=user_role,
             feature_code=feature_code,

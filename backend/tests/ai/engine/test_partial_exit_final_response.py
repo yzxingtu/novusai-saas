@@ -14,14 +14,8 @@ import pytest
 from app.ai.engine import tool_processor as tool_processor_mod
 from app.ai.engine.conversation import ConversationEngine
 from app.ai.engine.execution_state_machine import ExecutionStateMachine
-from app.ai.engine.final_output_policy import build_untrusted_final_output_fallback
 from app.ai.engine.recovery_manager import RecoveryManager
-from app.ai.engine.recovery_web_research_gate import (
-    WEB_RESEARCH_TERMINAL_CONTRACT_KEY,
-    WEB_RESEARCH_TERMINAL_SEARCH_UNAVAILABLE,
-)
 from app.ai.engine.stream_handler import StreamExecutionHandler
-from app.ai.engine.turn_executor import finalize_turn_execution
 from app.ai.engine.types import (
     ExecutionBudget,
     ExecutionRequest,
@@ -277,101 +271,6 @@ async def test_budget_exit_with_tool_results_uses_cached_partial_output(
     assert result.execution_budget["elapsed_over_limit_ms"] > 0
     # Elapsed stop-loss prevents the follow-up synthesis call.
     assert len(engine._call_llm.await_args_list) == 1
-
-
-@pytest.mark.asyncio
-async def test_finalize_turn_execution_replaces_untrusted_tool_evidence_with_safe_fallback() -> (
-    None
-):
-    prep = PreparedExecution(
-        messages=[ChatMessage(role="user", content="latest updates?")],
-        intent_plan=[
-            IntentPlan(
-                intent_id="intent-web",
-                kind="web_research",
-                family="web_research",
-                order=1,
-                user_visible_label="web_research",
-                source_text="latest updates?",
-                status="completed",
-                requires_tools=True,
-                allow_text_response=True,
-                completion_signals=["web_search", "fetch_url"],
-                metadata={"auto_fetch_gate_reason": "search_not_successful"},
-            )
-        ],
-        execution_path="fast",
-        execution_budget=_make_budget(),
-    )
-    state = ExecutionStateMachine.from_prepared_execution(prep)
-
-    class _FallbackIO:
-        async def call_llm(self, **_kwargs):
-            raise AssertionError("call_llm should not run in this scenario")
-
-        async def finalize_partial_output(self, **_kwargs):
-            raise AssertionError("partial finalization should not run in this scenario")
-
-        async def finalize_completed_output(self, **kwargs):
-            return (
-                "raw fetched snippet",
-                int(kwargs.get("total_tokens") or 0),
-                int(kwargs.get("completion_tokens_used") or 0),
-            )
-
-    response = ChatResponse(
-        message=ChatMessage(role="assistant", content=""),
-        total_tokens=0,
-        output_tokens=0,
-    )
-
-    def _emit_round_started(*_args, **_kwargs):
-        return None
-
-    (
-        output,
-        partial,
-        paused_for_consent,
-        _completion_reason,
-        final_output_source,
-        _total_tokens,
-        _completion_tokens_used,
-        finalized_response,
-    ) = await finalize_turn_execution(
-        state=state,
-        io=_FallbackIO(),
-        messages=[ChatMessage(role="user", content="latest updates?")],
-        response=response,
-        decision=None,
-        tool_results=[],
-        total_tokens=0,
-        completion_tokens_used=0,
-        ran_post_tool_follow_up=False,
-        emit_round_started_cb=_emit_round_started,
-    )
-
-    expected_fallback = build_untrusted_final_output_fallback(
-        auto_fetch_gate_reason="search_not_successful"
-    )
-    assert partial is True
-    assert paused_for_consent is False
-    assert final_output_source == "partial_output"
-    assert output == expected_fallback
-    assert (finalized_response.message.content or "").strip() == expected_fallback
-    assert state.preparation_diagnostics["post_tool_completion_state"] == (
-        "partial_output"
-    )
-    assert (
-        state.preparation_diagnostics[WEB_RESEARCH_TERMINAL_CONTRACT_KEY]
-        == WEB_RESEARCH_TERMINAL_SEARCH_UNAVAILABLE
-    )
-    assert (
-        state.preparation_diagnostics["search_not_successful_untrusted_output"] is True
-    )
-    assert state.preparation_diagnostics["stripped_untrusted_final_output"] is True
-    assert (
-        state.preparation_diagnostics["untrusted_final_output_fallback_applied"] is True
-    )
 
 
 @pytest.mark.asyncio
@@ -969,54 +868,6 @@ def test_recovery_manager_caches_completed_intent_result_from_tool_output() -> N
     assert updated[0].status == "completed"
     assert updated[0].cached_result == "西安现在多云，气温约 18C。"
     assert updated[0].metadata["cached_result"] == "西安现在多云，气温约 18C。"
-
-
-def test_recovery_manager_prefers_current_completed_tool_result_over_stale_cache() -> (
-    None
-):
-    intents = [
-        IntentPlan(
-            intent_id="intent-web",
-            kind="web_research",
-            family="web_research",
-            order=1,
-            user_visible_label="AI 新闻",
-            source_text="联网查一下今日 AI 最新要闻",
-            status="pending",
-            allowed_tool_names=["fetch_url"],
-            completion_signals=["fetch_url"],
-            cached_result="旧的搜索命中缓存",
-            metadata={"cached_result": "旧的搜索命中缓存"},
-        )
-    ]
-
-    updated = RecoveryManager.update_intent_statuses(
-        intents,
-        messages=[],
-        tool_results=[
-            ToolResult(
-                tool_call_id="tc-fetch",
-                name="fetch_url",
-                success=True,
-                summary=(
-                    "TodayAiNews.com ~ The latest Artificial Intelligence (AI) news - "
-                    "The latest Artificial Intelligence (AI) news, articles, photos, slideshows and videos."
-                ),
-                summary_payload={
-                    "fetch_url": True,
-                    "ok": True,
-                    "summary": (
-                        "TodayAiNews.com ~ The latest Artificial Intelligence (AI) news - "
-                        "The latest Artificial Intelligence (AI) news, articles, photos, slideshows and videos."
-                    ),
-                },
-            )
-        ],
-    )
-
-    assert updated[0].status == "completed"
-    assert updated[0].cached_result.startswith("TodayAiNews.com")
-    assert updated[0].cached_result != "旧的搜索命中缓存"
 
 
 def test_recovery_manager_does_not_cache_invalid_runtime_table_result() -> None:

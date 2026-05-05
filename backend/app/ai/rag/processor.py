@@ -22,6 +22,7 @@ logger = LogManager.get_logger("ai.rag.processor")
 PROGRESS_KEY_TEMPLATE = "kb:doc:progress:{document_id}"
 PROGRESS_TTL = 3600
 
+
 async def _report_progress(
     document_id: int,
     stage: str,
@@ -223,9 +224,7 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
                     # If parsing was skipped (resuming from chunking), re-parse is needed
                     # 如果跳过了解析（从 chunking 恢复），需要重新解析
                     if pages is None:
-                        pages = await load_and_parse_document(
-                            db, doc, tenant_id, kb=kb
-                        )
+                        pages = await load_and_parse_document(db, doc, tenant_id, kb=kb)
 
                     chunker = get_chunker(
                         strategy=kb.chunk_strategy,
@@ -258,9 +257,7 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
                     if chunk_data_list is None:
                         # Re-parse + chunk (skip already completed embedding parts)
                         # 重新解析+分块（跳过 embedding 阶段已完成的部分）
-                        pages = await load_and_parse_document(
-                            db, doc, tenant_id, kb=kb
-                        )
+                        pages = await load_and_parse_document(db, doc, tenant_id, kb=kb)
 
                         chunker = get_chunker(
                             strategy=kb.chunk_strategy,
@@ -271,15 +268,19 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
 
                     # Query successfully written chunk fingerprint prefix (for checkpoint resume)
                     # 查询已成功写入分块指纹前缀（用于断点续传校验）
-                    existing_stmt = select(
-                        DocumentChunk.chunk_index,
-                        DocumentChunk.content_hash,
-                    ).where(
-                        DocumentChunk.document_id == document_id,
-                        DocumentChunk.knowledge_base_id == kb.id,
-                        DocumentChunk.is_deleted.is_(False),
-                        DocumentChunk.embedding.isnot(None),
-                    ).order_by(DocumentChunk.chunk_index.asc())
+                    existing_stmt = (
+                        select(
+                            DocumentChunk.chunk_index,
+                            DocumentChunk.content_hash,
+                        )
+                        .where(
+                            DocumentChunk.document_id == document_id,
+                            DocumentChunk.knowledge_base_id == kb.id,
+                            DocumentChunk.is_deleted.is_(False),
+                            DocumentChunk.embedding.isnot(None),
+                        )
+                        .order_by(DocumentChunk.chunk_index.asc())
+                    )
                     existing_result = await db.execute(existing_stmt)
                     existing_chunks = [
                         EmbeddedChunkSnapshot(

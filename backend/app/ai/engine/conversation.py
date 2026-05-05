@@ -329,7 +329,9 @@ class ConversationEngine(BaseEngine):
             skip_metering_preflight=skip_metering_preflight,
             adapter_registry=AdapterRegistry,
             query_engine_cls=ConversationQueryEngine,
-            accounting_builder=lambda runtime_engine: runtime_engine._runtime_accounting(),
+            accounting_builder=lambda runtime_engine: (
+                runtime_engine._runtime_accounting()
+            ),
         )
 
     async def _call_llm(
@@ -462,7 +464,9 @@ class ConversationEngine(BaseEngine):
             skip_metering_preflight=skip_metering_preflight,
             adapter_registry=AdapterRegistry,
             query_engine_cls=ConversationQueryEngine,
-            accounting_builder=lambda runtime_engine: runtime_engine._runtime_accounting(),
+            accounting_builder=lambda runtime_engine: (
+                runtime_engine._runtime_accounting()
+            ),
         ):
             yield chunk
 

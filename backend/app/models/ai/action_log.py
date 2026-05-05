@@ -155,7 +155,8 @@ class AIActionLog(TenantModel):
         comment="操作者扩展身份快照 / Operator extended identity snapshot",
     )
 
-    # 操作名称（如 web_search、create_order 等）
+    # 中文: 操作名称示例使用业务动作，避免把已移除的搜索工具展示为能力。
+    # EN: Use business-action examples so retired search tools are not shown as capabilities.
     action_name: Mapped[str] = mapped_column(
         String(100),
         nullable=False,

@@ -70,7 +70,6 @@ def apply_single_tool_result(
     build_budget_exit_response: Any,
     ordered_requested_families: list[str],
     completed_families: set[str],
-    has_fetch_url_in_toolset: bool,
     input_variables: dict[str, Any] | None,
 ) -> ToolRoundExecutionOutcome:
     tracked_tool_result_bytes = state.tracked_tool_result_bytes
@@ -81,7 +80,6 @@ def apply_single_tool_result(
             success=True,
             ordered_requested_families=ordered_requested_families,
             completed_families=completed_families,
-            has_fetch_url_in_toolset=has_fetch_url_in_toolset,
             input_variables=input_variables,
         )
 
@@ -136,7 +134,9 @@ def _finalize_single_tool_result(
             additional_results=[single.tool_result],
         )
         tracked_tool_result_bytes += len(
-            (single.tool_result.output or single.tool_result.error or "").encode("utf-8")
+            (single.tool_result.output or single.tool_result.error or "").encode(
+                "utf-8"
+            )
         )
         if tool_result_budget_reason:
             return ToolRoundExecutionOutcome(
@@ -170,7 +170,6 @@ async def execute_tool_round(
     build_budget_exit_response: Any,
     ordered_requested_families: list[str],
     completed_families: set[str],
-    has_fetch_url_in_toolset: bool,
     input_variables: dict[str, Any] | None,
 ) -> ToolRoundExecutionOutcome:
     parallel_batch = prepare_parallel_readonly_batch(
@@ -206,7 +205,6 @@ async def execute_tool_round(
                 build_budget_exit_response=build_budget_exit_response,
                 ordered_requested_families=ordered_requested_families,
                 completed_families=completed_families,
-                has_fetch_url_in_toolset=has_fetch_url_in_toolset,
                 input_variables=input_variables,
             )
             state.tracked_tool_result_bytes = outcome.tracked_tool_result_bytes
@@ -284,7 +282,6 @@ async def execute_tool_round(
             build_budget_exit_response=build_budget_exit_response,
             ordered_requested_families=ordered_requested_families,
             completed_families=completed_families,
-            has_fetch_url_in_toolset=has_fetch_url_in_toolset,
             input_variables=input_variables,
         )
         state.tracked_tool_result_bytes = outcome.tracked_tool_result_bytes

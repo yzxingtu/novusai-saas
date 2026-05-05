@@ -16,15 +16,6 @@ _SELECTION_CONTRACT_KEYS = (
 )
 
 
-def build_web_research_hint(
-    tools: list[ToolDefinition],
-    *,
-    render_contract: Callable[..., str] = render_prompt_contract,
-) -> str:
-    del tools, render_contract
-    return ""
-
-
 def build_weather_tools_hint(
     tools: list[ToolDefinition],
     *,

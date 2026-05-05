@@ -387,8 +387,8 @@ function getEvidenceIcon(kind: string) {
   if (kind === 'knowledge_base') {
     return 'lucide:library';
   }
-  if (kind === 'web') {
-    return 'lucide:globe';
+  if (kind === 'document') {
+    return 'lucide:link';
   }
   if (kind === 'memory') {
     return 'lucide:brain';

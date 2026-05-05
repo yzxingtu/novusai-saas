@@ -192,32 +192,6 @@ export function applyStreamingToolResultToTurnFlow(
   message.turnFlow = flow;
 }
 
-export function applyNativeSearchStatusToTurnFlow(
-  message: ChatMessage,
-  {
-    displayName,
-    status,
-    toolName,
-  }: {
-    displayName?: string;
-    status: 'running' | 'success';
-    toolName: string;
-  },
-): void {
-  const flow = getOrCreateCanonicalTurnFlow(message);
-  upsertEvidence(
-    flow,
-    buildToolEvidencePayload({
-      displayName,
-      status,
-      toolName,
-      toolCallId: toolName,
-    }),
-  );
-  syncToolExecutionStage(flow);
-  message.turnFlow = flow;
-}
-
 function appendPersistedThinkingDeltaToTurnFlow(
   message: ChatMessage,
   delta: string | undefined,
@@ -297,7 +271,9 @@ function applyPersistedOptimizingToolsToTurnFlow(
 }
 
 function toEvidenceKindFromRagSource(source: RagSource): TurnFlowEvidenceKind {
-  return source.source_kind === 'ephemeral_doc' ? 'web' : 'knowledge_base';
+  return source.source_kind === 'ephemeral_doc'
+    ? 'document'
+    : 'knowledge_base';
 }
 
 function toEvidenceIdFromRagSource(source: RagSource, index: number): string {
@@ -321,7 +297,7 @@ function applyPersistedRagSourcesToTurnFlow(
   }
   const flow = getOrCreateCanonicalTurnFlow(message);
   flow.evidence = flow.evidence.filter(
-    (item) => item.kind !== 'knowledge_base' && item.kind !== 'web',
+    (item) => item.kind !== 'knowledge_base' && item.kind !== 'document',
   );
   sources.forEach((source, index) => {
     upsertEvidence(flow, {

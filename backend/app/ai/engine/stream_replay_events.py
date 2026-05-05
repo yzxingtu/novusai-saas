@@ -51,7 +51,9 @@ def build_replay_events(
 ) -> list[str]:
     streamed = str(streamed_output or "").strip()
     finalized = str(finalized_output or "").strip()
-    has_replay_chunks = bool(partial_reply_stream_chunks or completed_reply_stream_chunks)
+    has_replay_chunks = bool(
+        partial_reply_stream_chunks or completed_reply_stream_chunks
+    )
     overlapping_outputs = bool(
         streamed
         and finalized

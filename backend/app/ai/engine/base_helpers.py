@@ -8,6 +8,7 @@ from typing import Any
 
 from app.ai.types import ChatMessage
 
+
 def build_user_message(content: str) -> ChatMessage:
     return ChatMessage(role="user", content=content)
 
@@ -31,8 +32,10 @@ def tool_call_name(tool_call: dict[str, Any]) -> str:
 
 def tool_call_operation_name(tool_call: dict[str, Any]) -> str:
     raw_arguments = (tool_call.get("function") or {}).get("arguments")
-    if isinstance(raw_arguments, str) and raw_arguments.strip() and not parse_tool_arguments(
-        raw_arguments
+    if (
+        isinstance(raw_arguments, str)
+        and raw_arguments.strip()
+        and not parse_tool_arguments(raw_arguments)
     ):
         return ""
     return tool_call_name(tool_call)

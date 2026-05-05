@@ -33,7 +33,9 @@ def strip_stream_error_trace(error: Any) -> str:
 
 
 def _resolve_safe_provider_message(error: Any) -> str:
-    provider_message = strip_stream_error_trace(extract_provider_error_message(error) or "")
+    provider_message = strip_stream_error_trace(
+        extract_provider_error_message(error) or ""
+    )
     if not provider_message or looks_like_html_document_text(provider_message):
         return ""
     return provider_message

@@ -1,18 +1,6 @@
-import type { SearchSummary } from './tool-call-search-utils';
 import type { ToolCallEvent } from './types';
 
 import { $t } from '#/locales';
-
-import { getToolCallSummaryPayload } from './tool-call-search-utils';
-
-export type { SearchResultItem, SearchSummary } from './tool-call-search-utils';
-export {
-  getSearchFallbackNotice,
-  getSearchProviderLabel,
-  getSearchStatusLabel,
-  getSearchSummary,
-  getToolCallSummaryPayload,
-} from './tool-call-search-utils';
 
 export interface ToolTargetBadge {
   labelKey: string;
@@ -30,7 +18,6 @@ export interface ToolDisplayItem {
   hasDetails: boolean;
   headlineSummary: null | string;
   index: number;
-  searchSummary: null | SearchSummary;
   structuredOutput: StructuredToolOutput;
   targetBadges: ToolTargetBadge[];
   tc: ToolCallEvent;
@@ -174,6 +161,14 @@ function parseToolOutputPayload(
   } catch {
     return null;
   }
+}
+
+export function getToolCallSummaryPayload(
+  tc: Pick<ToolCallEvent, 'summaryPayload'>,
+): null | Record<string, unknown> {
+  return tc.summaryPayload && typeof tc.summaryPayload === 'object'
+    ? tc.summaryPayload
+    : null;
 }
 
 export function getStructuredToolOutput(

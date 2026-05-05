@@ -57,7 +57,7 @@ def _turn_record_metadata(
         return None
     metadata = {}
     try:
-        setattr(turn_record, "metadata", metadata)
+        turn_record.metadata = metadata
     except Exception:
         return None
     return metadata
@@ -81,7 +81,7 @@ def _plan_request_log_data(
         return {}
     request_log_data = {}
     try:
-        setattr(plan, "request_log_data", request_log_data)
+        plan.request_log_data = request_log_data
     except Exception:
         return {}
     return request_log_data
@@ -94,7 +94,7 @@ def _attach_runtime_failure_metadata(
     query_engine: Any | None,
 ) -> None:
     if isinstance(runtime_info, dict) and runtime_info:
-        setattr(exc, "_novusai_runtime_model_info", dict(runtime_info))
+        exc._novusai_runtime_model_info = dict(runtime_info)
 
     turn_record = (
         getattr(query_engine, "turn_record", None) if query_engine is not None else None
@@ -102,10 +102,10 @@ def _attach_runtime_failure_metadata(
     if turn_record is None:
         return
 
-    setattr(exc, "_novusai_runtime_turn_record", turn_record)
+    exc._novusai_runtime_turn_record = turn_record
     protocol_path = _turn_record_protocol_path(turn_record)
     if protocol_path:
-        setattr(exc, "_novusai_runtime_protocol_path", protocol_path)
+        exc._novusai_runtime_protocol_path = protocol_path
 
 
 async def _resolve_runtime_model_failover(
@@ -150,11 +150,14 @@ async def _resolve_runtime_model_failover(
         "from_model_id": model_id or None,
         "from_model_code": runtime_context.model_code,
         "to_provider_id": int(getattr(fallback_model, "provider_id", 0) or 0) or None,
-        "to_provider_code": getattr(getattr(fallback_model, "provider", None), "code", None),
+        "to_provider_code": getattr(
+            getattr(fallback_model, "provider", None), "code", None
+        ),
         "to_model_id": int(getattr(fallback_model, "id", 0) or 0) or None,
         "to_model_code": getattr(fallback_model, "code", None),
         "trigger_error_type": type(error).__name__,
-        "trigger_error_code": str(getattr(error, "error_code", "") or "").strip() or None,
+        "trigger_error_code": str(getattr(error, "error_code", "") or "").strip()
+        or None,
     }
     metadata = {key: value for key, value in metadata.items() if value is not None}
 
@@ -467,11 +470,7 @@ async def stream_llm_chunks(
                         "runtime_model_info": runtime_info,
                         "runtime_turn_record": query_engine.turn_record,
                         **(
-                            {
-                                "runtime_model_failover": dict(
-                                    runtime_failover_metadata
-                                )
-                            }
+                            {"runtime_model_failover": dict(runtime_failover_metadata)}
                             if isinstance(runtime_failover_metadata, dict)
                             else {}
                         ),
@@ -531,12 +530,13 @@ async def stream_llm_chunks(
                         had_fallback_blocking_chunk_before_error = bool(
                             str(streamed_output or "").strip()
                         )
-                    setattr(
-                        runtime_stream_exc,
-                        "_novusai_stream_failover_blocked",
-                        had_fallback_blocking_chunk_before_error,
+                    runtime_stream_exc._novusai_stream_failover_blocked = (
+                        had_fallback_blocking_chunk_before_error
                     )
-                    if had_fallback_blocking_chunk_before_error and query_engine is not None:
+                    if (
+                        had_fallback_blocking_chunk_before_error
+                        and query_engine is not None
+                    ):
                         _plan_request_log_data(plan, create=True)[
                             "runtime_v2_stream_failure_after_chunk"
                         ] = True
@@ -570,10 +570,7 @@ async def stream_llm_chunks(
             failover_blocked = bool(
                 getattr(exc, "_novusai_stream_failover_blocked", False)
             )
-            if (
-                not failover_attempted
-                and not failover_blocked
-            ):
+            if not failover_attempted and not failover_blocked:
                 failover_selection = await _resolve_runtime_model_failover(
                     engine,
                     runtime_context=runtime_context,
@@ -614,7 +611,9 @@ async def stream_llm_chunks(
                         query_engine_cls=query_engine_cls,
                         model_request_override_builder=model_request_override_builder,
                         accounting_builder=accounting_builder,
-                        engine_logger=(engine_logger or getattr(engine, "logger", None)),
+                        engine_logger=(
+                            engine_logger or getattr(engine, "logger", None)
+                        ),
                     )
                     _record_runtime_failover_metadata(
                         plan,
@@ -659,7 +658,9 @@ async def stream_llm_chunks(
             output_tokens=output_tokens,
             total_tokens=total_tokens,
             start_time=stream_start,
-            turn_record=(query_engine.turn_record if query_engine is not None else None),
+            turn_record=(
+                query_engine.turn_record if query_engine is not None else None
+            ),
             success_log_message="Engine stream call log failed",
             flush_db=True,
             require_estimated_input_for_metering=True,
