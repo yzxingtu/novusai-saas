@@ -108,16 +108,61 @@ const hasRunningTimelineStage = computed(() =>
   visibleKernelTimeline.value.some((stage) => stage.status === 'running'),
 );
 const hasFinalAnswerText = computed(() => hasReadableAnswerText(props.msg));
-const hasRecoverableProcessFailure = computed(() =>
-  isRecoverableProcessFailure(props.msg, resolvedState.value.flow),
-);
+
+function isFailureToken(value: unknown) {
+  const normalized = normalizeOptionalString(value)?.toLocaleLowerCase();
+  if (!normalized) {
+    return false;
+  }
+  return (
+    normalized === 'failed' ||
+    normalized === 'error' ||
+    normalized === 'untrusted_final_output_source' ||
+    normalized.startsWith('provider_') ||
+    normalized.startsWith('stream_execution_error') ||
+    normalized.includes('failed') ||
+    normalized.includes('error')
+  );
+}
+
+function hasTerminalFailureState(
+  msg: ChatMessage,
+  flow: TurnFlowState['flow'],
+) {
+  if (
+    msg.error ||
+    msg.requestFailedRetry === true ||
+    flow.finalStageStatus === 'error'
+  ) {
+    return true;
+  }
+  const turnOutcome = normalizeOptionalString(flow.turnOutcome)
+    ?.toLocaleLowerCase();
+  const failureKind = normalizeOptionalString(flow.failureKind);
+  if (turnOutcome === 'failed') {
+    return true;
+  }
+  if (turnOutcome === 'partial' && failureKind) {
+    return true;
+  }
+  return [
+    failureKind,
+    flow.completionReason,
+    flow.errorSurface?.errorType,
+    flow.errorSurface?.message,
+    flow.errorSurface?.summary,
+  ].some((candidate) => isFailureToken(candidate));
+}
+
 const hasKernelFailure = computed(
   () =>
-    !hasRecoverableProcessFailure.value &&
-    (Boolean(resolvedState.value.flow.errorSurface?.message) ||
-      Boolean(resolvedState.value.flow.errorSurface?.summary) ||
-      Boolean(props.msg.error) ||
-      props.msg.requestFailedRetry === true),
+    hasTerminalFailureState(props.msg, resolvedState.value.flow) ||
+    visibleKernelTimeline.value.some(
+      (stage) =>
+        stage.status === 'error' ||
+        stage.status === 'interrupted' ||
+        stage.type === 'failed',
+    ),
 );
 const hasDigestContent = computed(() => hasDigestCard.value);
 const kernelBodyLayout = computed(() =>
@@ -335,8 +380,8 @@ const kernelStatusClass = computed(() => {
   }
   return 'kernel-status-completed';
 });
-const kernelEvidenceCount = computed(
-  () => resolvedState.value.selectedEvidence.length,
+const kernelEvidenceCount = computed(() =>
+  hasKernelFailure.value ? 0 : resolvedState.value.selectedEvidence.length,
 );
 
 function syncKernelExpanded(nextExpanded: boolean) {

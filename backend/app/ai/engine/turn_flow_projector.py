@@ -204,12 +204,33 @@ def _evidence_kind_from_source(source: Mapping[str, Any]) -> str:
     return "knowledge_base"
 
 
+def _has_user_facing_source_payload(source: Mapping[str, Any]) -> bool:
+    source_metadata = _as_dict(source.get("metadata"))
+    for key in (
+        "source_ref",
+        "chunk_id",
+        "doc_id",
+        "document_id",
+        "id",
+        "url",
+        "source_url",
+        "snippet",
+        "content",
+        "summary",
+    ):
+        if _as_text(source.get(key)) or _as_text(source_metadata.get(key)):
+            return True
+    return _as_float(source.get("score") or source_metadata.get("score")) is not None
+
+
 def build_turn_evidence_items(
     rag_sources: list[dict[str, Any]] | None,
 ) -> list[TurnEvidenceItem]:
     evidence_items: list[TurnEvidenceItem] = []
     for index, raw_source in enumerate(rag_sources or []):
         source = _as_dict(raw_source)
+        if not _has_user_facing_source_payload(source):
+            continue
         source_metadata = _as_dict(source.get("metadata"))
         url = _as_text(source.get("url")) or _as_text(
             source_metadata.get("url") or source_metadata.get("source_url")
@@ -267,17 +288,7 @@ def _resolve_evidence_sources(
     turn_record: dict[str, Any],
     rag_sources: list[dict[str, Any]] | None,
 ) -> list[dict[str, Any]]:
-    turn_record_metadata = _as_dict(turn_record.get("metadata"))
-    turn_record_diagnostics = _as_dict(turn_record_metadata.get("turn_diagnostics"))
-    for candidate in (
-        diagnostics_payload.get("context_sources"),
-        turn_record.get("context_sources"),
-        turn_record_metadata.get("context_sources"),
-        turn_record_diagnostics.get("context_sources"),
-    ):
-        normalized = [_as_dict(item) for item in _as_list(candidate) if _as_dict(item)]
-        if normalized:
-            return normalized
+    del diagnostics_payload, turn_record
     return [_as_dict(item) for item in _as_list(rag_sources) if _as_dict(item)]
 
 
@@ -736,10 +747,7 @@ def build_turn_flow_view_model(
     )
     rag_evidence_items = build_turn_evidence_items(retrieval_sources)
     tool_evidence_items = build_tool_evidence_items(tool_results)
-    evidence_items = [
-        *rag_evidence_items,
-        *tool_evidence_items,
-    ]
+    evidence_items = [*rag_evidence_items, *tool_evidence_items]
     turn_events = _extract_turn_events(diagnostics)
     tool_selection = _tool_selection_stage(diagnostics)
     timeline: list[TurnFlowStage] = [
@@ -769,7 +777,7 @@ def build_turn_flow_view_model(
             terminal_failure,
             tool_results=tool_results,
         ),
-        _retrieval_stage(evidence_items),
+        _retrieval_stage(rag_evidence_items),
         _answer_assembly_stage(
             output=trusted_output or safe_untrusted_fallback_output,
             interrupted=interrupted,

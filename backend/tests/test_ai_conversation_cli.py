@@ -390,6 +390,93 @@ def _sample_snapshot_with_completed_turn_and_stale_budget_failure_projection() -
     return snapshot
 
 
+def _sample_snapshot_with_context_source_polluted_turn_flow() -> dict:
+    snapshot = _sample_snapshot()
+    snapshot["conversation"].update(
+        {
+            "id": 2340,
+            "title": "帮我搜索一下2026年中国新能源汽车销量排行",
+            "message_count": 2,
+        }
+    )
+    polluted_turn_flow = {
+        "timeline": [
+            {
+                "id": "retrieval",
+                "type": "retrieval",
+                "status": "completed",
+                "summary": "Retrieved 3 sources",
+                "metrics": {"source_count": 3},
+                "source_refs": ["evidence_1", "evidence_2", "evidence_3"],
+            },
+            {
+                "id": "failed",
+                "type": "failed",
+                "status": "error",
+                "summary": "provider_unavailable",
+            },
+        ],
+        "evidence": [
+            {"id": "evidence_1", "kind": "knowledge_base", "title": "skill_resolver"},
+            {"id": "evidence_2", "kind": "memory", "title": "long_term_memory"},
+            {"id": "evidence_3", "kind": "knowledge_base", "title": "gpt-5.5"},
+        ],
+        "answer_card": {
+            "summary": "Connection error.",
+            "source_chip_ids": ["evidence_1", "evidence_2", "evidence_3"],
+        },
+        "completion_reason": "provider_unavailable",
+        "error_surface": {
+            "message": "Connection error.",
+            "failure_kind": "provider_unavailable",
+            "error_type": "untrusted_final_output_source",
+        },
+    }
+    turn_record = {
+        "turn_outcome": "partial",
+        "termination_reason": "provider_unavailable",
+        "protocol_path": "responses",
+        "failure_kind": "provider_unavailable",
+        "final_output_source": "partial_output",
+        "selected_tool_names": [],
+        "candidate_tool_names": [],
+        "turn_flow": polluted_turn_flow,
+    }
+    snapshot["recent_messages"] = [
+        {
+            "id": 13_412,
+            "sequence": 1,
+            "role": "user",
+            "created_at": "2026-05-05T18:45:05+00:00",
+            "content": "帮我搜索一下2026年中国新能源汽车销量排行",
+            "tool_calls": None,
+            "metadata": None,
+        },
+        {
+            "id": 13_413,
+            "sequence": 2,
+            "role": "assistant",
+            "created_at": "2026-05-05T18:45:11+00:00",
+            "content": "我先把已完成部分整理给你：direct_reply。",
+            "tool_calls": None,
+            "metadata": {
+                "completion_reason": "provider_unavailable",
+                "turn_record": turn_record,
+                "turn_flow": polluted_turn_flow,
+            },
+        },
+    ]
+    snapshot["recent_call_logs"] = []
+    snapshot["diagnostics"] = {
+        "source": "assistant_turn_record",
+        "turn_record": turn_record,
+        "turn_outcome": "failed",
+        "termination_reason": "provider_unavailable",
+        "failure_kind": "provider_unavailable",
+    }
+    return snapshot
+
+
 def test_ai_conversation_show_json_success(monkeypatch) -> None:
     from app.cli import cli
 
@@ -591,6 +678,47 @@ def test_ai_conversation_show_json_prefers_completed_turn_record_over_stale_budg
     assert diagnostics["budget_status"] == "exited"
     assert diagnostics["budget_exit_reason"] == "elapsed_budget_exceeded"
     assert diagnostics.get("failure_kind") is None
+
+
+def test_ai_conversation_show_json_scrubs_context_source_polluted_turn_flow(
+    monkeypatch,
+) -> None:
+    from app.cli import cli
+
+    monkeypatch.setattr(
+        "app.cli._run_async",
+        _return_value(_sample_snapshot_with_context_source_polluted_turn_flow()),
+    )
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        ["ai", "conversation", "show", "2340", "--json"],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assistant = payload["data"]["recent_messages"][1]
+    diagnostics = payload["data"]["diagnostics"]
+    assert assistant["turn_flow"]["evidence"] == []
+    assert assistant["turn_flow"]["answer_card"]["source_chip_ids"] == []
+    assert assistant["metadata"]["turn_flow"]["evidence"] == []
+    assert assistant["metadata"]["turn_flow"]["answer_card"]["source_chip_ids"] == []
+    assert assistant["metadata"]["turn_record"]["turn_flow"]["evidence"] == []
+    assert (
+        assistant["metadata"]["turn_record"]["turn_flow"]["answer_card"][
+            "source_chip_ids"
+        ]
+        == []
+    )
+    assert diagnostics["turn_record"]["turn_flow"]["evidence"] == []
+    assert (
+        diagnostics["turn_record"]["turn_flow"]["answer_card"]["source_chip_ids"]
+        == []
+    )
+    output = json.dumps(payload, ensure_ascii=False)
+    assert "Retrieved 3 sources" not in output
+    assert '"source_count": 3' not in output
 
 
 def test_ai_conversation_show_diagnostics_text_prefers_completed_turn_record_over_stale_budget_failure_projection(

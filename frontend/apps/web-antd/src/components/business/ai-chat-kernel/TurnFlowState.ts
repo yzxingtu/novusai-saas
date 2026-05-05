@@ -12,6 +12,7 @@ import type { ChatMessage } from '#/types/ai-chat';
 import { $t } from '#/locales';
 
 import {
+  isUserFacingTurnEvidence,
   prepareMessageContent,
   selectAnswerCardReferences,
 } from '#/components/business/ai-chat-panel/chat-message-display-preparation';
@@ -70,6 +71,54 @@ function toFallbackReference(
   };
 }
 
+function sanitizeAnswerCard(
+  answerCard: TurnAnswerCard | undefined,
+  displayEvidenceIds: Set<string>,
+): TurnAnswerCard | undefined {
+  if (!answerCard) {
+    return undefined;
+  }
+  return {
+    ...answerCard,
+    sourceChipIds: (answerCard.sourceChipIds ?? []).filter((id) =>
+      displayEvidenceIds.has(id),
+    ),
+  };
+}
+
+function sanitizeTimelineEvidenceRefs(
+  timeline: TurnFlowStageForDisplay[],
+  displayRetrievalEvidenceIds: Set<string>,
+): TurnFlowStageForDisplay[] {
+  return timeline.map((stage) => {
+    if (stage.type !== 'retrieval') {
+      return stage;
+    }
+    const explicitRefs = (stage.sourceRefs ?? []).filter((id) =>
+      displayRetrievalEvidenceIds.has(id),
+    );
+    const sourceRefs =
+      explicitRefs.length > 0
+        ? explicitRefs
+        : Array.from(displayRetrievalEvidenceIds);
+    const sourceCount = sourceRefs.length;
+    return {
+      ...stage,
+      metrics: {
+        ...(stage.metrics ?? {}),
+        evidence_count: sourceCount,
+        source_count: sourceCount,
+      },
+      sourceRefs,
+      ...(sourceCount > 0
+        ? {}
+        : {
+            status: 'skipped' as const,
+          }),
+    };
+  });
+}
+
 function buildPendingActionState(msg: ChatMessage): KernelPendingActionState | undefined {
   if (msg.pendingConfirmation) {
     return {
@@ -99,21 +148,44 @@ function buildPendingActionState(msg: ChatMessage): KernelPendingActionState | u
 
 export function buildTurnFlowState(msg: ChatMessage): TurnFlowState {
   const flow = getTurnFlowForDisplay(msg);
+  const displayEvidence = flow.evidence.filter((item) =>
+    isUserFacingTurnEvidence(item),
+  );
+  const displayEvidenceIds = new Set(displayEvidence.map((item) => item.id));
+  const displayRetrievalEvidenceIds = new Set(
+    displayEvidence
+      .filter((item) => item.kind !== 'tool')
+      .map((item) => item.id),
+  );
+  const timeline = sanitizeTimelineEvidenceRefs(
+    flow.timeline,
+    displayRetrievalEvidenceIds,
+  );
+  const answerCard = sanitizeAnswerCard(flow.answerCard, displayEvidenceIds);
+  const displayFlow = {
+    ...flow,
+    answerCard,
+    evidence: displayEvidence,
+    timeline,
+  };
   const preparedMessageContent = prepareMessageContent(msg);
-  const references = preparedMessageContent.references;
+  const references = preparedMessageContent.references.filter(
+    (reference) =>
+      reference.source !== 'turn_flow' || displayEvidenceIds.has(reference.id),
+  );
   const selectedEvidence = selectAnswerCardReferences(
     references,
-    flow.answerCard?.sourceChipIds,
+    answerCard?.sourceChipIds,
   );
   const effectiveSelectedEvidence =
     selectedEvidence.length > 0
       ? selectedEvidence
-      : flow.evidence.map((item, index) => toFallbackReference(item, index));
+      : displayEvidence.map((item, index) => toFallbackReference(item, index));
 
   return {
-    answerCard: flow.answerCard,
-    evidence: flow.evidence,
-    flow,
+    answerCard,
+    evidence: displayEvidence,
+    flow: displayFlow,
     hiddenEvidenceCount: Math.max(
       0,
       references.length - effectiveSelectedEvidence.length,
@@ -121,6 +193,6 @@ export function buildTurnFlowState(msg: ChatMessage): TurnFlowState {
     pendingAction: buildPendingActionState(msg),
     references,
     selectedEvidence: effectiveSelectedEvidence,
-    timeline: flow.timeline,
+    timeline,
   };
 }

@@ -47,7 +47,7 @@ def test_project_from_metadata_hides_raw_thinking_summary_from_user_timeline() -
     assert thinking_stage["detail_lines"] == []
 
 
-def test_project_from_metadata_uses_legacy_rag_sources_only_when_canonical_context_sources_missing() -> (
+def test_project_from_metadata_uses_legacy_rag_sources_without_context_source_evidence() -> (
     None
 ):
     turn_flow = ConversationTurnFlowProjector.project_from_metadata(

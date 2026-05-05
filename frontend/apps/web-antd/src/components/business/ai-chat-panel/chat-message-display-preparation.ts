@@ -349,6 +349,45 @@ function toEvidenceReference(item: TurnEvidenceItem): DisplayReferenceLink {
   };
 }
 
+const RUNTIME_CONTEXT_EVIDENCE_LABELS = new Set([
+  'gpt-5.5',
+  'long_term_memory',
+  'runtime_model',
+  'runtime_model_capability',
+  'session_memory',
+  'skill_resolver',
+]);
+
+export function isUserFacingTurnEvidence(item: TurnEvidenceItem): boolean {
+  if (item.kind === 'tool') {
+    return Boolean(
+      normalizeOptionalString(item.toolCallId) ||
+        normalizeOptionalString(item.toolName) ||
+        normalizeOptionalString(item.output) ||
+        normalizeOptionalString(item.error) ||
+        normalizeOptionalString(item.resultLink) ||
+        normalizeOptionalString(item.status),
+    );
+  }
+
+  const title = normalizeOptionalString(item.title).toLocaleLowerCase();
+  const sourceRef = normalizeOptionalString(item.sourceRef);
+  if (
+    RUNTIME_CONTEXT_EVIDENCE_LABELS.has(title) ||
+    RUNTIME_CONTEXT_EVIDENCE_LABELS.has(sourceRef.toLocaleLowerCase())
+  ) {
+    return false;
+  }
+
+  return Boolean(
+    normalizeOptionalString(item.url) ||
+      normalizeOptionalString(item.snippet) ||
+      normalizeOptionalString(item.badge) ||
+      typeof item.score === 'number' ||
+      (item.kind !== 'memory' && sourceRef),
+  );
+}
+
 function pickReferenceKey(reference: DisplayReferenceLink) {
   if (reference.href) {
     return `href:${normalizeHttpUrlForDedup(reference.href)}`;
@@ -810,7 +849,9 @@ export function prepareMessageContent(
 
   const extracted = extractTailReferences(residualCleanup.bodyMarkdown);
   const references = mergeReferences(
-    flow.evidence.map((item) => toEvidenceReference(item)),
+    flow.evidence
+      .filter((item) => isUserFacingTurnEvidence(item))
+      .map((item) => toEvidenceReference(item)),
     extracted.references,
   );
   return {

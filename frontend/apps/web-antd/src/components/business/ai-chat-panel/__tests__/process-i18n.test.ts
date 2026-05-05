@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
-// Test type: structural
-// Verifies: process/timeline helper fallbacks use locale keys instead of raw English copy.
+// Test type: structural / behavioral
+// Verifies: process/timeline helper fallbacks use locale keys and retrieval
+// evidence helpers do not surface runtime-only diagnostics.
 import type { ChatMessage } from '../types';
 
 import { mount } from '@vue/test-utils';
@@ -51,7 +52,7 @@ describe('process i18n helpers', () => {
     const state = buildTurnFlowState(
       createAssistantMessage({
         turnFlow: {
-          evidence: [{ id: 'evidence-1', kind: 'tool' }],
+          evidence: [{ id: 'evidence-1', kind: 'tool', status: 'success' }],
           timeline: [],
         },
       }),
@@ -66,7 +67,9 @@ describe('process i18n helpers', () => {
     const ragSources = getRagSourcesForDisplay(
       createAssistantMessage({
         turnFlow: {
-          evidence: [{ id: 'kb-1', kind: 'knowledge_base' }],
+          evidence: [
+            { id: 'kb-1', kind: 'knowledge_base', score: 0.8 },
+          ],
           timeline: [],
         },
       }),
@@ -75,6 +78,23 @@ describe('process i18n helpers', () => {
     expect(ragSources?.[0]?.doc_name).toBe(
       'common.globalAiChat.turnSourceFallback:index=1',
     );
+  });
+
+  it('does not expose runtime context diagnostics as retrieval sources', () => {
+    const ragSources = getRagSourcesForDisplay(
+      createAssistantMessage({
+        turnFlow: {
+          evidence: [
+            { id: 'evidence-1', kind: 'knowledge_base', title: 'skill_resolver' },
+            { id: 'evidence-2', kind: 'memory', title: 'long_term_memory' },
+            { id: 'evidence-3', kind: 'knowledge_base', title: 'gpt-5.5' },
+          ],
+          timeline: [],
+        },
+      }),
+    );
+
+    expect(ragSources).toBeUndefined();
   });
 
   it('uses localized titles for synthetic terminal stages', () => {

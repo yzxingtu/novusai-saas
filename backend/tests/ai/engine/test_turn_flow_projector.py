@@ -35,7 +35,16 @@ def test_build_turn_flow_view_model_contains_required_contract() -> None:
             ],
         },
         turn_record={"termination_reason": "completed"},
-        rag_sources=[],
+        rag_sources=[
+            {
+                "id": "src_1",
+                "kind": "knowledge_base",
+                "title": "Example source",
+                "url": "https://example.com",
+                "snippet": "example snippet",
+                "source_ref": "src_1",
+            }
+        ],
         output="Final answer body",
         completion_reason="completed",
         interrupted=False,
@@ -61,7 +70,7 @@ def test_build_turn_flow_view_model_contains_required_contract() -> None:
     assert turn_flow["completion_reason"] == "completed"
 
 
-def test_build_turn_flow_view_model_prefers_canonical_context_sources_over_rag_sources() -> (
+def test_build_turn_flow_view_model_uses_rag_sources_not_context_diagnostics() -> (
     None
 ):
     turn_flow = build_turn_flow_view_model(
@@ -103,19 +112,19 @@ def test_build_turn_flow_view_model_prefers_canonical_context_sources_over_rag_s
             "duration_ms": None,
             "error": None,
             "error_type": None,
-            "id": "evidence_1",
+            "id": "fallback_kb_source",
             "kind": "knowledge_base",
             "output": None,
             "result_link": None,
             "score": None,
             "skill_name": None,
             "skill_type": None,
-            "snippet": "Matched document excerpt",
-            "source_ref": "ctx_kb_1",
+            "snippet": "Should not be primary",
+            "source_ref": "fallback_kb_source",
             "started_at": None,
             "status": None,
             "summary_payload": None,
-            "title": "Knowledge base source",
+            "title": "Fallback KB alias",
             "tool_call_id": None,
             "tool_name": None,
             "url": None,

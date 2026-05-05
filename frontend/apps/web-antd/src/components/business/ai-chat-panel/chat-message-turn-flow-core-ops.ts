@@ -383,23 +383,36 @@ function finalizeRunningStages(
 }
 
 function ensureTerminalStage(flow: TurnFlowViewModel): void {
-  if (
-    flow.timeline.some(
-      (stage) => stage.type === 'completed' || stage.type === 'failed',
-    )
-  ) {
+  const finalStatus = flow.finalStageStatus ?? 'completed';
+  const terminalType =
+    finalStatus === 'error' || finalStatus === 'interrupted'
+      ? 'failed'
+      : 'completed';
+  const terminalTitle =
+    finalStatus === 'error'
+      ? $t('common.globalAiChat.turnStageType.failed')
+      : finalStatus === 'interrupted'
+        ? $t('common.globalAiChat.turnStageStatus.interrupted')
+        : $t('common.globalAiChat.turnStageType.completed');
+  const terminalIndex = flow.timeline.findLastIndex(
+    (stage) => stage.type === 'completed' || stage.type === 'failed',
+  );
+  if (terminalIndex >= 0) {
+    const stage = flow.timeline[terminalIndex];
+    if (stage) {
+      stage.status = finalStatus;
+      stage.summary = flow.completionReason ?? stage.summary;
+      stage.title = terminalTitle;
+      stage.type = terminalType;
+    }
     return;
   }
-  const finalStatus = flow.finalStageStatus ?? 'completed';
   flow.timeline.push({
     id: 'turn-final',
     status: finalStatus,
     summary: flow.completionReason,
-    title:
-      finalStatus === 'error'
-        ? $t('common.globalAiChat.turnStageType.failed')
-        : $t('common.globalAiChat.turnStageType.completed'),
-    type: finalStatus === 'error' ? 'failed' : 'completed',
+    title: terminalTitle,
+    type: terminalType,
   });
 }
 

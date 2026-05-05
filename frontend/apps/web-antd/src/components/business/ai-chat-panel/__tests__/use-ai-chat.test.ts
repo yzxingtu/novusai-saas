@@ -19,6 +19,7 @@ import {
   getToolCallsForDisplay,
   getTurnFlowForDisplay,
 } from '../chat-message-turn-flow';
+import { buildTurnFlowState } from '../../ai-chat-kernel/TurnFlowState';
 import { shouldDisplayConversationInHistory, useAIChat } from '../use-ai-chat';
 import { createStreamSseHandler } from '../use-ai-chat-streaming-request-sse';
 import {
@@ -1608,6 +1609,135 @@ describe('useAIChat interrupted stream recovery', () => {
     expect(assistantMessage.content).toBe('');
     expect(assistantMessage.turnFlow?.finalStageStatus).toBe('error');
     expect(assistantMessage.turnFlow?.failureKind).toBe('provider_error');
+  });
+
+  it('keeps nested provider failures authoritative even after prior retrieval chrome streamed in', async () => {
+    apiMocks.sendChatStreamApi.mockImplementation(
+      async (
+        _prefix: string,
+        _agentId: number,
+        _body: Record<string, unknown>,
+        options: {
+          onMessage: (chunk: string) => Promise<void>;
+        },
+      ) => {
+        await options.onMessage(
+          sseEvent({ event: 'conversation', conversation_id: 42 }),
+        );
+        await options.onMessage(
+          sseEvent({
+            event: 'turn_answer_card',
+            answer_card: {
+              summary: '结果整理',
+              source_chip_ids: ['evidence_1', 'evidence_2', 'evidence_3'],
+            },
+          }),
+        );
+        await options.onMessage(
+          sseEvent({
+            event: 'turn_evidence',
+            evidence: {
+              id: 'evidence_1',
+              kind: 'knowledge_base',
+              title: 'skill_resolver',
+            },
+          }),
+        );
+        await options.onMessage(
+          sseEvent({
+            event: 'turn_stage',
+            id: 'stage-retrieval',
+            metrics: { source_count: 3 },
+            status: 'completed',
+            summary: 'Retrieved 3 sources',
+            type: 'retrieval',
+          }),
+        );
+        await options.onMessage(
+          sseEvent({
+            completion_reason: 'provider_unavailable',
+            event: 'done',
+            final_stage_status: 'completed',
+            turn_flow: {
+              completion_reason: 'provider_unavailable',
+              error_surface: {
+                error_type: 'untrusted_final_output_source',
+                message: 'Connection error.',
+              },
+              evidence: [
+                {
+                  id: 'evidence_1',
+                  kind: 'knowledge_base',
+                  title: 'skill_resolver',
+                },
+                {
+                  id: 'evidence_2',
+                  kind: 'memory',
+                  title: 'long_term_memory',
+                },
+                {
+                  id: 'evidence_3',
+                  kind: 'knowledge_base',
+                  title: 'gpt-5.5',
+                },
+              ],
+              final_stage_status: 'error',
+              timeline: [
+                {
+                  id: 'retrieval',
+                  metrics: { source_count: 3 },
+                  status: 'completed',
+                  summary: 'Retrieved 3 sources',
+                  type: 'retrieval',
+                },
+                {
+                  id: 'failed',
+                  status: 'error',
+                  summary: 'provider_unavailable',
+                  type: 'failed',
+                },
+              ],
+              turn_outcome: 'partial',
+            },
+            turn_flow_complete: true,
+            turn_outcome: 'partial',
+          }),
+        );
+      },
+    );
+
+    const chat = createChat();
+
+    await chat.loadAgents();
+    chat.inputMessage.value = '帮我搜索一下2026年中国新能源汽车销量排行';
+    await chat.sendMessage();
+    await flushDebouncedSend();
+
+    const assistantMessage = chat.chatMessages.value.find(
+      (msg) => msg.role === 'assistant',
+    );
+    expect(assistantMessage).toBeDefined();
+    if (!assistantMessage) {
+      throw new Error('assistant message missing');
+    }
+    expect(assistantMessage.turnFlow?.finalStageStatus).toBe('error');
+    expect(assistantMessage.turnFlow?.failureKind).toBe('provider_unavailable');
+    expect(assistantMessage.turnFlow?.turnOutcome).toBe('partial');
+    expect(assistantMessage.turnFlow?.completionReason).toBe(
+      'provider_unavailable',
+    );
+    expect(
+      assistantMessage.turnFlow?.timeline?.some(
+        (stage) => stage.type === 'failed' && stage.status === 'error',
+      ),
+    ).toBe(true);
+    const kernelState = buildTurnFlowState(assistantMessage);
+    expect(kernelState.evidence).toEqual([]);
+    expect(kernelState.selectedEvidence).toEqual([]);
+    expect(kernelState.flow.answerCard?.sourceChipIds).toEqual([]);
+    expect(
+      kernelState.timeline.find((stage) => stage.type === 'retrieval')?.status,
+    ).toBe('skipped');
   });
 
   it('hydrates canonical tool evidence from done turn_record.turn_flow when no tool_call stream event arrived', async () => {

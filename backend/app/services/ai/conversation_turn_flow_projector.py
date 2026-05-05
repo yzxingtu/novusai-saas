@@ -406,6 +406,27 @@ def _map_legacy_source_kind(raw_kind: Any) -> str:
     return _map_source_kind(raw_kind)
 
 
+def _is_user_facing_evidence_item(item: dict[str, Any]) -> bool:
+    kind = _map_source_kind(item.get("kind"))
+    if kind == "tool":
+        return bool(
+            _to_non_empty_str(item.get("tool_call_id"))
+            or _to_non_empty_str(item.get("tool_name"))
+            or _to_non_empty_str(item.get("source_ref"))
+            or _to_non_empty_str(item.get("output"))
+            or _to_non_empty_str(item.get("error"))
+            or _to_non_empty_str(item.get("result_link"))
+            or _to_non_empty_str(item.get("status"))
+        )
+    return bool(
+        _to_non_empty_str(item.get("url"))
+        or _to_non_empty_str(item.get("snippet"))
+        or _to_non_empty_str(item.get("badge"))
+        or _to_non_empty_str(item.get("source_ref"))
+        or _normalize_optional_float(item.get("score")) is not None
+    )
+
+
 def _normalize_timeline_item(item: Any) -> dict[str, Any] | None:
     if not isinstance(item, dict):
         return None
@@ -621,7 +642,7 @@ def _normalize_evidence_item(item: Any) -> dict[str, Any] | None:
         "source_ref": _to_non_empty_str(item.get("source_ref")),
     }
     if payload["kind"] != "tool":
-        return payload
+        return payload if _is_user_facing_evidence_item(payload) else None
 
     arguments_value = _normalize_tool_call_arguments(
         item.get("arguments")
@@ -654,7 +675,7 @@ def _normalize_evidence_item(item: Any) -> dict[str, Any] | None:
     for key, value in optional_fields.items():
         if value is not None:
             payload[key] = value
-    return payload
+    return payload if _is_user_facing_evidence_item(payload) else None
 
 
 def _normalize_tool_call_arguments(value: Any) -> dict[str, Any] | None:
@@ -774,60 +795,6 @@ def _build_tool_evidence_from_tool_call(
         if value is not None:
             payload[key] = value
     return payload
-
-
-def _build_context_source_evidence(
-    source: dict[str, Any],
-    index: int,
-) -> dict[str, Any] | None:
-    source_metadata = (
-        dict(source.get("metadata") or {})
-        if isinstance(source.get("metadata"), dict)
-        else {}
-    )
-    kind = _map_source_kind(
-        source.get("kind")
-        or source_metadata.get("kind")
-        or source_metadata.get("source_kind")
-    )
-    if kind == "tool":
-        return None
-    source_ref = _to_non_empty_str(
-        source_metadata.get("source_ref")
-        or source_metadata.get("chunk_id")
-        or source_metadata.get("id")
-        or source.get("name")
-    )
-    evidence_id = source_ref or f"ev_context_{index + 1}"
-    title = (
-        _to_non_empty_str(
-            source_metadata.get("title")
-            or source.get("name")
-            or source_metadata.get("name")
-            or source_metadata.get("source")
-            or source_metadata.get("chunk_id")
-        )
-        or f"Source {index + 1}"
-    )
-    return {
-        "id": evidence_id,
-        "kind": kind,
-        "title": title,
-        "url": _to_non_empty_str(
-            source_metadata.get("url") or source_metadata.get("source_url")
-        ),
-        "snippet": _to_non_empty_str(
-            source_metadata.get("snippet")
-            or source_metadata.get("content")
-            or source_metadata.get("summary")
-        ),
-        "badge": _to_non_empty_str(
-            source_metadata.get("badge") or source_metadata.get("label")
-        ),
-        "score": _normalize_optional_float(source_metadata.get("score")),
-        "tool_call_id": None,
-        "source_ref": source_ref,
-    }
 
 
 def _build_legacy_rag_evidence(
@@ -996,16 +963,75 @@ def _normalize_answer_card(
                     "content": _to_non_empty_str(item.get("content")),
                 }
             )
+    valid_source_chip_ids = set(fallback_source_chip_ids)
+    raw_source_chip_ids = [
+        item
+        for item in _normalize_string_list(raw.get("source_chip_ids"))
+        if item in valid_source_chip_ids
+    ]
     return {
         "summary": _to_non_empty_str(raw.get("summary")) or fallback_summary,
         "sections": normalized_sections,
-        "source_chip_ids": _normalize_string_list(raw.get("source_chip_ids"))
-        or fallback_source_chip_ids,
+        "source_chip_ids": raw_source_chip_ids or fallback_source_chip_ids,
         "confidence_label": _to_non_empty_str(raw.get("confidence_label")),
         "follow_up_suggestions": _normalize_string_list(
             raw.get("follow_up_suggestions")
         ),
     }
+
+
+def _sanitize_timeline_evidence_refs(
+    timeline: list[dict[str, Any]],
+    *,
+    evidence: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    if not timeline:
+        return timeline
+    valid_evidence_ids = {
+        evidence_id
+        for evidence_id in (_to_non_empty_str(item.get("id")) for item in evidence)
+        if evidence_id
+    }
+    retrieval_evidence_ids = {
+        item_id
+        for item in evidence
+        for item_id in [_to_non_empty_str(item.get("id"))]
+        if item_id and _map_source_kind(item.get("kind")) != "tool"
+    }
+    sanitized: list[dict[str, Any]] = []
+    for item in timeline:
+        stage = dict(item)
+        stage_refs = [
+            source_ref
+            for source_ref in _normalize_string_list(stage.get("source_refs"))
+            if source_ref in valid_evidence_ids
+        ]
+        if stage.get("type") == "retrieval":
+            retrieval_refs = [
+                source_ref
+                for source_ref in stage_refs
+                if source_ref in retrieval_evidence_ids
+            ]
+            if not retrieval_refs and retrieval_evidence_ids:
+                retrieval_refs = list(retrieval_evidence_ids)
+            metrics = dict(stage.get("metrics") or {})
+            metrics["source_count"] = len(retrieval_refs)
+            metrics["evidence_count"] = len(retrieval_refs)
+            stage["metrics"] = metrics
+            stage["source_refs"] = retrieval_refs
+            if not retrieval_refs:
+                summary = "整理了 0 条证据"
+                stage["status"] = "skipped"
+                stage["summary"] = summary
+                stage["detail_lines"] = [summary]
+            elif stage.get("status") == "skipped":
+                stage["status"] = "completed"
+            sanitized.append(stage)
+            continue
+        if "source_refs" in stage:
+            stage["source_refs"] = stage_refs
+        sanitized.append(stage)
+    return _normalize_timeline(sanitized)
 
 
 def _resolve_canonical_turn_flow_payload(
@@ -1108,6 +1134,7 @@ class ConversationTurnFlowProjector:
             source_refs=source_refs,
         )
         timeline = _ensure_timeline_refs(timeline, evidence=evidence)
+        timeline = _sanitize_timeline_evidence_refs(timeline, evidence=evidence)
         timeline = _stabilize_timeline_statuses(
             timeline,
             selected_tools=selected_tools,
@@ -1246,12 +1273,8 @@ class ConversationTurnFlowProjector:
             for item in (turn_meta.get("context_sources") or [])
             if isinstance(item, dict)
         ]
-        canonical_evidence = [
-            item
-            for index, source in enumerate(context_sources)
-            for item in [_build_context_source_evidence(source, index)]
-            if item is not None
-        ]
+        del context_sources
+        canonical_evidence: list[dict[str, Any]] = []
         legacy_projection_allowed = not canonical_evidence and not normalized_tool_calls
         legacy_tool_calls = (
             _resolve_legacy_tool_calls(payload) if legacy_projection_allowed else []
@@ -1381,16 +1404,16 @@ class ConversationTurnFlowProjector:
                 }
             )
 
-        has_retrieval_signal = bool(canonical_evidence or rag_items) or any(
-            _map_source_kind(item.get("kind")) in {"web", "knowledge_base", "memory"}
-            for item in context_sources
-        )
+        retrieval_evidence = [
+            item for item in evidence if _map_source_kind(item.get("kind")) != "tool"
+        ]
+        has_retrieval_signal = bool(rag_items or retrieval_evidence)
         if has_retrieval_signal:
             retrieval_summary = _summarize_retrieval_progress(
-                evidence_count=len(evidence),
+                evidence_count=len(retrieval_evidence),
                 terminal_status=terminal_status,
             )
-            retrieval_status = "completed" if evidence else "skipped"
+            retrieval_status = "completed" if retrieval_evidence else "skipped"
             timeline.append(
                 {
                     "id": "retrieval",
@@ -1402,9 +1425,12 @@ class ConversationTurnFlowProjector:
                     "started_at_ms": None,
                     "ended_at_ms": None,
                     "duration_ms": None,
-                    "metrics": {"evidence_count": len(evidence)},
+                    "metrics": {
+                        "evidence_count": len(retrieval_evidence),
+                        "source_count": len(retrieval_evidence),
+                    },
                     "tool_call_ids": [],
-                    "source_refs": [item["id"] for item in evidence],
+                    "source_refs": [item["id"] for item in retrieval_evidence],
                 }
             )
 

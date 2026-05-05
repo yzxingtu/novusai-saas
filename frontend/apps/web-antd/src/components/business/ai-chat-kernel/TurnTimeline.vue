@@ -2,7 +2,7 @@
 import type { TurnFlowState } from './TurnFlowState';
 
 import type { TurnFlowStageForDisplay } from '#/components/business/ai-chat-panel/chat-message-turn-flow';
-import type { ChatMessage } from '#/types/ai-chat';
+import type { ChatMessage, RagSource } from '#/types/ai-chat';
 
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 
@@ -10,7 +10,6 @@ import { IconifyIcon } from '@vben/icons';
 
 import {
   getOptimizingToolsForDisplay,
-  getRagSourcesForDisplay,
   getToolCallsForDisplay,
 } from '#/components/business/ai-chat-panel/chat-message-turn-flow';
 import ChatMessageToolCalls from '#/components/business/ai-chat-panel/ChatMessageToolCalls.vue';
@@ -67,9 +66,45 @@ const displayOptimizingTools = computed(() =>
 const displayToolCalls = computed(
   () => getToolCallsForDisplay(props.msg) ?? [],
 );
-const displayRagSources = computed(
-  () => getRagSourcesForDisplay(props.msg) ?? [],
-);
+
+function isDisplayRagEvidenceKind(kind: string) {
+  return kind === 'knowledge_base' || kind === 'document';
+}
+
+function toDisplayRagSource(
+  evidence: TurnFlowState['evidence'][number],
+  index: number,
+): RagSource {
+  return {
+    doc_id: index + 1,
+    doc_name:
+      evidence.title ||
+      evidence.sourceRef ||
+      $t('common.globalAiChat.turnSourceFallback', {
+        index: index + 1,
+      }),
+    score:
+      typeof evidence.score === 'number' && Number.isFinite(evidence.score)
+        ? evidence.score
+        : 0,
+    snippet: evidence.snippet || '',
+    source_kind:
+      evidence.kind === 'knowledge_base'
+        ? ('formal_kb' as const)
+        : ('ephemeral_doc' as const),
+  };
+}
+
+function getDisplayRagSourcesForStage(stage: TurnFlowStageForDisplay) {
+  const sourceRefs = new Set(stage.sourceRefs ?? []);
+  const evidence = props.state.evidence.filter((item) => {
+    if (!isDisplayRagEvidenceKind(item.kind)) {
+      return false;
+    }
+    return sourceRefs.size === 0 || sourceRefs.has(item.id);
+  });
+  return evidence.map((item, index) => toDisplayRagSource(item, index));
+}
 
 function hasReadableAnswerText(msg: ChatMessage) {
   return Boolean(
@@ -97,6 +132,47 @@ function isRecoverableProcessFailure(
     msg.terminationReason,
   ];
   return candidates.some((candidate) => isTechnicalProcessErrorCopy(candidate));
+}
+
+function isFailureToken(value: unknown) {
+  const normalized = normalizeOptionalString(value)?.toLocaleLowerCase();
+  if (!normalized) {
+    return false;
+  }
+  return (
+    normalized === 'failed' ||
+    normalized === 'error' ||
+    normalized === 'untrusted_final_output_source' ||
+    normalized.startsWith('provider_') ||
+    normalized.startsWith('stream_execution_error') ||
+    normalized.includes('failed') ||
+    normalized.includes('error')
+  );
+}
+
+function hasTerminalFailureState(msg: ChatMessage, state: TurnFlowState) {
+  if (
+    msg.error ||
+    msg.requestFailedRetry === true ||
+    state.flow.finalStageStatus === 'error'
+  ) {
+    return true;
+  }
+  const turnOutcome = normalizeOptionalString(state.flow.turnOutcome)?.toLocaleLowerCase();
+  const failureKind = normalizeOptionalString(state.flow.failureKind);
+  if (turnOutcome === 'failed') {
+    return true;
+  }
+  if (turnOutcome === 'partial' && failureKind) {
+    return true;
+  }
+  return [
+    failureKind,
+    state.flow.completionReason,
+    state.flow.errorSurface?.errorType,
+    state.flow.errorSurface?.message,
+    state.flow.errorSurface?.summary,
+  ].some((candidate) => isFailureToken(candidate));
 }
 
 const hasFinalAnswerText = computed(() => hasReadableAnswerText(props.msg));
@@ -243,7 +319,7 @@ function hasRetrievalBody(stage: TurnFlowStageForDisplay) {
   return (
     stage.type === 'retrieval' &&
     stage.id === lastRetrievalStageId.value &&
-    displayRagSources.value.length > 0
+    getDisplayRagSourcesForStage(stage).length > 0
   );
 }
 
@@ -344,6 +420,9 @@ const processStatusLabelKey = computed(() => {
   if (isLiveMessage.value || hasRunningVisibleStage.value) {
     return 'common.globalAiChat.processing';
   }
+  if (hasTerminalFailureState(props.msg, props.state)) {
+    return 'common.globalAiChat.turnStageStatus.error';
+  }
   const terminalStatus = lastVisibleStage.value?.status;
   if (terminalStatus === 'error') {
     return 'common.globalAiChat.turnStageStatus.error';
@@ -360,6 +439,9 @@ const processStatusIcon = computed(() => {
   if (isLiveMessage.value || hasRunningVisibleStage.value) {
     return 'lucide:loader-circle';
   }
+  if (hasTerminalFailureState(props.msg, props.state)) {
+    return 'lucide:triangle-alert';
+  }
   if (lastVisibleStage.value?.status === 'error') {
     return 'lucide:triangle-alert';
   }
@@ -374,6 +456,9 @@ const processStatusIcon = computed(() => {
 const processStatusClass = computed(() => {
   if (isLiveMessage.value || hasRunningVisibleStage.value) {
     return 'turn-process-status-running';
+  }
+  if (hasTerminalFailureState(props.msg, props.state)) {
+    return 'turn-process-status-error';
   }
   if (lastVisibleStage.value?.status === 'error') {
     return 'turn-process-status-error';
@@ -636,7 +721,9 @@ onBeforeUnmount(() => {
                         class="space-y-1.5"
                       >
                         <div
-                          v-for="(source, sourceIndex) in displayRagSources"
+                          v-for="(
+                            source, sourceIndex
+                          ) in getDisplayRagSourcesForStage(stage)"
                           :key="`${stage.id}-source-${source.doc_id}-${sourceIndex}`"
                           class="min-w-0 rounded-[13px] bg-muted/[0.04] px-2.5 py-2"
                         >

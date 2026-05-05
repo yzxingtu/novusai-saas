@@ -545,6 +545,36 @@ function dedupeToolCallsForDisplay(toolCalls: ToolCallEvent[]): ToolCallEvent[] 
   return [...byKey.values()];
 }
 
+const RUNTIME_CONTEXT_EVIDENCE_LABELS = new Set([
+  'gpt-5.5',
+  'long_term_memory',
+  'runtime_model',
+  'runtime_model_capability',
+  'session_memory',
+  'skill_resolver',
+]);
+
+function hasUserFacingRetrievalEvidence(
+  item: TurnFlowViewModel['evidence'][number],
+) {
+  const title = normalizeOptionalString(item.title)?.toLocaleLowerCase() ?? '';
+  const sourceRef =
+    normalizeOptionalString(item.sourceRef)?.toLocaleLowerCase() ?? '';
+  if (
+    RUNTIME_CONTEXT_EVIDENCE_LABELS.has(title) ||
+    RUNTIME_CONTEXT_EVIDENCE_LABELS.has(sourceRef)
+  ) {
+    return false;
+  }
+  return Boolean(
+    normalizeOptionalString(item.url) ||
+      normalizeOptionalString(item.snippet) ||
+      normalizeOptionalString(item.badge) ||
+      typeof item.score === 'number' ||
+      normalizeOptionalString(item.sourceRef),
+  );
+}
+
 export function getRagSourcesForDisplay(
   msg: ChatMessage,
 ): RagSource[] | undefined {
@@ -554,7 +584,9 @@ export function getRagSourcesForDisplay(
   }
   const ragSources = flow.evidence
     .filter(
-      (item) => item.kind === 'knowledge_base' || item.kind === 'document',
+      (item) =>
+        (item.kind === 'knowledge_base' || item.kind === 'document') &&
+        hasUserFacingRetrievalEvidence(item),
     )
     .map((item, index) => ({
       doc_id: index + 1,

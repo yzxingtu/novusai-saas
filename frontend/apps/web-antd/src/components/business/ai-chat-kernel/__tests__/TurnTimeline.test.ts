@@ -184,6 +184,15 @@ describe('turnTimeline', () => {
     const wrapper = mountTimeline(
       createAssistantMessage({
         turnFlow: {
+          evidence: [
+            {
+              id: 'source-1',
+              kind: 'knowledge_base',
+              snippet: '已核验资料片段',
+              sourceRef: 'source-1',
+              title: '真实来源',
+            },
+          ],
           timeline: [
             {
               id: 'stage-tool-selection-alias',
@@ -199,6 +208,7 @@ describe('turnTimeline', () => {
               metrics: {
                 source_count: 3,
               },
+              sourceRefs: ['source-1'],
               status: 'completed',
               type: 'retrieval',
             },
@@ -211,6 +221,68 @@ describe('turnTimeline', () => {
       'common.globalAiChat.turnRetrievalSummary',
     );
     expect(wrapper.text()).not.toContain('common.globalAiChat.optimizingTools');
+  });
+
+  it('does not render raw runtime context diagnostics in expanded retrieval details', async () => {
+    const wrapper = mountTimeline(
+      createAssistantMessage({
+        requestFailedRetry: true,
+        turnFlow: {
+          answerCard: {
+            sections: [{ content: 'Connection error.', title: 'Answer' }],
+            sourceChipIds: ['evidence_1', 'evidence_2', 'evidence_3'],
+            summary: 'Connection error.',
+          },
+          completionReason: 'provider_unavailable',
+          evidence: [
+            {
+              id: 'evidence_1',
+              kind: 'knowledge_base',
+              title: 'skill_resolver',
+            },
+            {
+              id: 'evidence_2',
+              kind: 'memory',
+              title: 'long_term_memory',
+            },
+            {
+              id: 'evidence_3',
+              kind: 'knowledge_base',
+              title: 'gpt-5.5',
+            },
+          ],
+          failureKind: 'provider_unavailable',
+          finalStageStatus: 'error',
+          timeline: [
+            {
+              id: 'retrieval',
+              metrics: { source_count: 3 },
+              sourceRefs: ['evidence_1', 'evidence_2', 'evidence_3'],
+              status: 'completed',
+              summary: 'Retrieved 3 sources',
+              type: 'retrieval',
+            },
+            {
+              id: 'failed',
+              status: 'error',
+              summary: 'provider_unavailable',
+              type: 'failed',
+            },
+          ],
+          turnOutcome: 'partial',
+        },
+      }),
+    );
+
+    await wrapper.get('[data-testid="turn-process-toggle"]').trigger('click');
+
+    expect(wrapper.text()).not.toContain('Retrieved 3 sources');
+    expect(wrapper.text()).not.toContain('skill_resolver');
+    expect(wrapper.text()).not.toContain('long_term_memory');
+    expect(wrapper.text()).not.toContain('gpt-5.5');
+    expect(wrapper.text()).not.toContain(
+      'common.globalAiChat.turnRetrievalSummary',
+    );
   });
 
   it('localizes numeric backend English stage summaries before rendering them', () => {

@@ -155,15 +155,25 @@ describe('chatMessageKernel', () => {
       content: '最终答案',
       turnFlow: {
         answerCard: {
+          sourceChipIds: ['source-1'],
           summary: '结果整理',
         },
-        evidence: [],
+        evidence: [
+          {
+            id: 'source-1',
+            kind: 'knowledge_base',
+            snippet: '已核验资料片段',
+            sourceRef: 'source-1',
+            title: '真实来源',
+          },
+        ],
         timeline: [
           {
             id: 'stage-retrieval-completed',
             metrics: {
               source_count: 2,
             },
+            sourceRefs: ['source-1'],
             status: 'completed',
             summary: '已完成证据整理',
             type: 'retrieval',
@@ -245,5 +255,65 @@ describe('chatMessageKernel', () => {
 
     expect(wrapper.text()).toContain(safePartial);
     expect(wrapper.text()).not.toContain(genericRetry);
+  });
+
+  it('keeps conversation 2340 style provider failures in error state without fake source chips', async () => {
+    const wrapper = mountKernel(
+      createAssistantMessage({
+        completionReason: 'provider_unavailable',
+        content: '我先把已完成部分整理给你：direct_reply。',
+        turnOutcome: 'partial',
+        turnFlow: {
+          answerCard: {
+            confidenceLabel: 'low',
+            sections: [{ content: 'Connection error.', title: 'Answer' }],
+            sourceChipIds: ['evidence_1', 'evidence_2', 'evidence_3'],
+            summary: 'Connection error.',
+          },
+          completionReason: 'provider_unavailable',
+          errorSurface: {
+            errorType: 'untrusted_final_output_source',
+            failureKind: 'provider_unavailable',
+            message: 'Connection error.',
+          },
+          evidence: [
+            { id: 'evidence_1', kind: 'knowledge_base', title: 'skill_resolver' },
+            { id: 'evidence_2', kind: 'memory', title: 'long_term_memory' },
+            { id: 'evidence_3', kind: 'knowledge_base', title: 'gpt-5.5' },
+          ],
+          failureKind: 'provider_unavailable',
+          finalStageStatus: 'error',
+          timeline: [
+            {
+              id: 'retrieval',
+              metrics: { source_count: 3 },
+              sourceRefs: ['evidence_1', 'evidence_2', 'evidence_3'],
+              status: 'completed',
+              summary: 'Retrieved 3 sources',
+              type: 'retrieval',
+            },
+            {
+              id: 'failed',
+              status: 'error',
+              summary: 'provider_unavailable',
+              type: 'failed',
+            },
+          ],
+          turnOutcome: 'partial',
+        },
+      }),
+    );
+
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.text()).toContain(
+      'common.globalAiChat.turnStageStatus.error',
+    );
+    expect(wrapper.text()).not.toContain(
+      'common.globalAiChat.turnStageStatus.completed',
+    );
+    expect(wrapper.text()).not.toContain(
+      'common.globalAiChat.turnRetrievalSummary',
+    );
   });
 });

@@ -4,6 +4,7 @@ import type {
   TurnFlowEvidenceItem,
   TurnFlowStage,
   TurnFlowStageStatus,
+  TurnFlowViewModel,
 } from './types';
 
 import type { AppErrorInfo } from '#/utils/request';
@@ -226,30 +227,69 @@ function buildEvidenceFromCanonicalEvent(
   return normalizeEvidence(normalizedCandidate, 0);
 }
 
+function nestedTurnFlowFromDone(
+  event: Record<string, unknown>,
+  turnRecord?: null | Record<string, unknown>,
+): TurnFlowViewModel | undefined {
+  const turnRecordMetadata = normalizeObjectRecord(turnRecord?.metadata);
+  return normalizeTurnFlowViewModel(
+    event.turn_flow ??
+      event.turnFlow ??
+      turnRecord?.turn_flow ??
+      turnRecord?.turnFlow ??
+      turnRecordMetadata?.turn_flow ??
+      turnRecordMetadata?.turnFlow,
+  );
+}
+
+function failureKindFromFlow(flow?: TurnFlowViewModel): string | undefined {
+  if (!flow) {
+    return undefined;
+  }
+  const errorSurface = normalizeObjectRecord(flow.errorSurface);
+  const completionReason = normalizeFailureSignal(flow.completionReason);
+  return (
+    (isFailureSignal(completionReason) ? completionReason : undefined) ??
+    normalizeFailureSignal(flow.failureKind) ??
+    normalizeFailureSignal(errorSurface?.failure_kind) ??
+    normalizeFailureSignal(errorSurface?.failureKind) ??
+    normalizeFailureSignal(errorSurface?.error_type) ??
+    normalizeFailureSignal(errorSurface?.errorType) ??
+    undefined
+  );
+}
+
 function stageStatusFromDone(
   event: Record<string, unknown>,
+  mergedFlow?: TurnFlowViewModel,
 ): TurnFlowStageStatus {
   const turnRecord = normalizeObjectRecord(
     event.turn_record ?? event.turnRecord,
   );
+  const nestedFlow = mergedFlow ?? nestedTurnFlowFromDone(event, turnRecord);
   const completionReason = normalizeFailureSignal(
-    event.completion_reason ?? event.completionReason,
+    event.completion_reason ??
+      event.completionReason ??
+      nestedFlow?.completionReason,
   );
   const terminationReason = normalizeFailureSignal(
     event.termination_reason ??
       event.terminationReason ??
       turnRecord?.termination_reason ??
-      turnRecord?.terminationReason,
+      turnRecord?.terminationReason ??
+      nestedFlow?.completionReason,
   );
   const turnOutcome = normalizeFailureSignal(
     event.turn_outcome ??
       event.turnOutcome ??
       turnRecord?.turn_outcome ??
-      turnRecord?.turnOutcome,
+      turnRecord?.turnOutcome ??
+      nestedFlow?.turnOutcome,
   );
   const failureKind =
     normalizeFailureSignal(event.failure_kind ?? event.failureKind) ??
-    extractFailureKind(turnRecord);
+    extractFailureKind(turnRecord) ??
+    failureKindFromFlow(nestedFlow);
   if (
     shouldProjectFailureFromSignals({
       completionReason,
@@ -263,8 +303,26 @@ function stageStatusFromDone(
   const status = normalizeOptionalString(
     event.final_stage_status ?? event.finalStatus,
   );
+  const nestedStatus = normalizeOptionalString(nestedFlow?.finalStageStatus);
   if (status === 'failed') {
     return 'error';
+  }
+  if (
+    status &&
+    status !== 'completed' &&
+    TURN_FLOW_FINAL_STAGE_STATUS_SET.has(status as TurnFlowStageStatus)
+  ) {
+    return status as TurnFlowStageStatus;
+  }
+  if (nestedStatus === 'failed') {
+    return 'error';
+  }
+  if (
+    nestedStatus &&
+    nestedStatus !== 'completed' &&
+    TURN_FLOW_FINAL_STAGE_STATUS_SET.has(nestedStatus as TurnFlowStageStatus)
+  ) {
+    return nestedStatus as TurnFlowStageStatus;
   }
   if (
     status &&
@@ -386,15 +444,7 @@ export function applyCanonicalDoneEvent(
   const turnRecord = normalizeObjectRecord(
     event.turn_record ?? event.turnRecord,
   );
-  const turnRecordMetadata = normalizeObjectRecord(turnRecord?.metadata);
-  const incomingTurnFlow = normalizeTurnFlowViewModel(
-    event.turn_flow ??
-      event.turnFlow ??
-      turnRecord?.turn_flow ??
-      turnRecord?.turnFlow ??
-      turnRecordMetadata?.turn_flow ??
-      turnRecordMetadata?.turnFlow,
-  );
+  const incomingTurnFlow = nestedTurnFlowFromDone(event, turnRecord);
   const baseFlow = getOrCreateCanonicalTurnFlow(message);
   const flow = incomingTurnFlow
     ? (mergeTurnFlow(baseFlow, incomingTurnFlow) ?? baseFlow)
@@ -402,10 +452,13 @@ export function applyCanonicalDoneEvent(
   const failureKind =
     normalizeFailureSignal(event.failure_kind ?? event.failureKind) ??
     extractFailureKind(turnRecord) ??
-    normalizeFailureSignal(flow.failureKind);
+    failureKindFromFlow(flow);
   const turnOutcome =
     normalizeFailureSignal(
-      event.turn_outcome ?? event.turnOutcome ?? turnRecord?.turn_outcome,
+      event.turn_outcome ??
+        event.turnOutcome ??
+        turnRecord?.turn_outcome ??
+        turnRecord?.turnOutcome,
     ) ?? normalizeFailureSignal(flow.turnOutcome);
   if (failureKind) {
     flow.failureKind = failureKind;
@@ -418,12 +471,14 @@ export function applyCanonicalDoneEvent(
     normalizeOptionalString(event.completion_reason) ??
     normalizeOptionalString(event.completionReason) ??
     normalizeOptionalString(event.termination_reason) ??
+    normalizeOptionalString(event.terminationReason) ??
+    normalizeOptionalString(flow.completionReason) ??
     inferCompletionReason(message);
   if (completionReason) {
     flow.completionReason = completionReason;
   }
 
-  const finalStageStatus = stageStatusFromDone(event);
+  const finalStageStatus = stageStatusFromDone(event, flow);
   flow.finalStageStatus = finalStageStatus;
   flow.complete = normalizeBoolean(event.turn_flow_complete) ?? true;
   flow.interrupted =

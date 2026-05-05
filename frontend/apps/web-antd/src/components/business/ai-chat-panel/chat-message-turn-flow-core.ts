@@ -203,6 +203,12 @@ export function mergeTurnFlow(
   if (incoming.completionReason) {
     merged.completionReason = incoming.completionReason;
   }
+  if (incoming.failureKind) {
+    merged.failureKind = incoming.failureKind;
+  }
+  if (incoming.turnOutcome) {
+    merged.turnOutcome = incoming.turnOutcome;
+  }
   if (incoming.complete !== undefined) {
     merged.complete = incoming.complete;
   }

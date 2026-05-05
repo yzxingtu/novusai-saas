@@ -93,6 +93,25 @@ def _resolve_turn_flow_terminal_stage(turn_flow: object) -> dict:
     return dict(last_stage) if isinstance(last_stage, dict) else {}
 
 
+def _replace_nested_turn_flow_payloads(payload: object, turn_flow: dict) -> object:
+    """中文: CLI 展示只暴露规范化 turn_flow，避免历史脏数据继续误导排障。
+
+    EN: CLI display only exposes normalized turn_flow so historical polluted
+    payloads cannot keep misleading diagnostics.
+    """
+    if isinstance(payload, dict):
+        sanitized: dict = {}
+        for key, value in payload.items():
+            if key in {"turn_flow", "turnFlow"}:
+                sanitized[key] = dict(turn_flow)
+                continue
+            sanitized[key] = _replace_nested_turn_flow_payloads(value, turn_flow)
+        return sanitized
+    if isinstance(payload, list):
+        return [_replace_nested_turn_flow_payloads(item, turn_flow) for item in payload]
+    return payload
+
+
 def _apply_turn_flow_diagnostics_parity(
     snapshot: dict,
     *,
@@ -189,8 +208,12 @@ def _apply_turn_flow_diagnostics_parity(
             if isinstance(assistant_message.get("metadata"), dict)
             else {}
         )
-        metadata["turn_flow"] = turn_flow
+        metadata = _replace_nested_turn_flow_payloads(metadata, turn_flow)
+        if isinstance(metadata, dict):
+            metadata["turn_flow"] = turn_flow
         assistant_message["metadata"] = metadata
+    if turn_flow:
+        diagnostics = _replace_nested_turn_flow_payloads(diagnostics, turn_flow)
 
     hydrated["diagnostics"] = diagnostics
     return hydrated

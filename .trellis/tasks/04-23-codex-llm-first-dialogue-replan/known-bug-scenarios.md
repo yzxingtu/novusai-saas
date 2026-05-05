@@ -878,6 +878,73 @@ commits。PR 审核（parent agent 或人类 reviewer）必须核对这条引用
 
 ---
 
+### BUG-2026-05-06-2340 Runtime context diagnostics rendered as fake sources after provider failure
+
+- **reporter**: user / QA
+- **report_date**: 2026-05-06
+- **reproduction_prompt**:
+  ```text
+  帮我搜索一下2026年中国新能源汽车销量排行
+  ```
+- **preconditions**:
+  - conversation_id: `2340`
+  - assistant_message_id: `13413`
+  - trace_id: `16136d2b-070d-45fd-8d2d-bea7f68aaed1`
+  - agent: `59` / 猫娘智能体
+  - online search runtime capability removed by task
+    `05-05-remove-online-search-capability`
+  - provider: ASXS / `gpt-5.5`
+- **current_wrong_behavior**:
+  - Runtime diagnostics correctly showed `intent=direct_reply`,
+    `selected_tool_names=[]`, `candidate_tool_names=[]`,
+    `tool_rounds_used=0`, and `failure_kind=provider_unavailable`.
+  - Persisted/projected `turn_flow` incorrectly converted runtime diagnostic
+    `context_sources` into three evidence/source chips:
+    `skill_resolver`, `long_term_memory`, and `gpt-5.5`.
+  - The retrieval stage was displayed as completed with `source_count=3`, so
+    the UI showed `找到 3 条来源` and a completed-looking status even though
+    the turn actually failed with `Connection error.`.
+- **expected_behavior**:
+  - `context_sources` remain diagnostics/inventory only and must not become
+    answer evidence, retrieval counts, or source chips.
+  - Provider-failed turns with no RAG/tool evidence must render as failed/error
+    and either omit retrieval or show zero/skipped retrieval.
+  - Existing polluted `turn_flow` payloads should be scrubbed by read-model
+    normalization without requiring a data migration.
+- **status**: `fixed_with_green_test`
+- **notes**:
+  - CLI evidence command:
+    `python -m app.cli ai conversation show 2340 --tail 12 --diagnostics-only --json`
+    showed honest terminal truth: failed provider layer, no tools, no tool
+    rounds.
+  - RED backend regression:
+    `backend/tests/regressions/test_bug_2026_05_06_2340_turn_flow_context_sources.py`
+    failed before implementation because runtime context sources became
+    evidence and polluted stored turn_flow stayed source-counted.
+  - RED frontend regression:
+    `frontend/apps/web-antd/src/components/business/ai-chat-kernel/__tests__/ChatMessageKernel.test.ts`
+    failed before implementation because the kernel rendered
+    `turnRetrievalSummary` and `turnStageStatus.completed`.
+    - GREEN implementation makes engine/read-model turn-flow evidence resolve
+      from real RAG/tool evidence only, scrubs persisted title-only runtime
+      evidence, downgrades retrieval refs to zero/skipped when evidence is
+      removed, and makes frontend kernel/timeline failure state authoritative over
+      stale completed retrieval chrome.
+    - Follow-up CLI parity regression:
+      `backend/tests/test_ai_conversation_cli.py` now verifies full
+      `ai conversation show 2340 --json`-style output also replaces nested
+      stored `metadata.turn_record.turn_flow` with the scrubbed canonical
+      projection, so the audit command itself cannot keep showing
+      `Retrieved 3 sources` or `source_count=3`.
+    - Real-browser smoke:
+      `frontend/apps/web-antd/__tests__/e2e/ai-chat-turn-flow-regression.spec.ts`
+      mounts the real chat kernel in Chromium with the polluted 2340 payload and
+      asserts that fake source chrome is not rendered.
+    - Task record:
+      `.trellis/tasks/05-06-turn-flow-runtime-context-source-scrub/`.
+
+---
+
 ## 用户/QA 批量上报模板（粘贴即可）
 
 对话遇到不对的场景，请用下面格式追加到本文件末尾（Codex 看到该条目会自动为其写 RED 测试）：
