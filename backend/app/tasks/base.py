@@ -59,9 +59,7 @@ def build_task_run_key(
         tenant_token = f"binding:{binding_id}"
     else:
         tenant_id = (
-            effective_tenant_id
-            if effective_tenant_id is not None
-            else owner_tenant_id
+            effective_tenant_id if effective_tenant_id is not None else owner_tenant_id
         )
         tenant_token = f"tenant:{tenant_id}"
     key = (
@@ -421,8 +419,12 @@ class BaseTask(Task):
             trigger_slot=(
                 str(context["trigger_slot"]) if context.get("trigger_slot") else None
             ),
-            trigger_id=str(context["trigger_id"]) if context.get("trigger_id") else None,
-            explicit_run_key=str(context["run_key"]) if context.get("run_key") else None,
+            trigger_id=str(context["trigger_id"])
+            if context.get("trigger_id")
+            else None,
+            explicit_run_key=str(context["run_key"])
+            if context.get("run_key")
+            else None,
         )
         if run_key:
             return run_key
@@ -438,7 +440,9 @@ class BaseTask(Task):
             trigger_id=f"trace:{trace_id}",
         )
 
-    def _raise_duplicate_task_run(self, task_id: str, run_key: str, existing: Any) -> None:
+    def _raise_duplicate_task_run(
+        self, task_id: str, run_key: str, existing: Any
+    ) -> None:
         logger.warning(
             "Deduplicated task run: task={} duplicate_task_id={} run_key={} existing_run_id={}",
             self.name,

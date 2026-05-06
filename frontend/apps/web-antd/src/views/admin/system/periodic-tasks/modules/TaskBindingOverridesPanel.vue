@@ -19,9 +19,9 @@ import { $t } from '#/locales';
 defineOptions({ name: 'TaskBindingOverridesPanel' });
 
 defineProps<{
+  denyOnly?: boolean;
   disabled?: boolean;
   drafts: TaskBindingOverrideDraft[];
-  denyOnly?: boolean;
   savingTenantId?: null | number;
 }>();
 

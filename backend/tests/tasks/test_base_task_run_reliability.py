@@ -115,8 +115,7 @@ def test_build_task_run_key_uses_business_identity_without_celery_id() -> None:
     )
 
     assert run_key == (
-        "task_definition:12|binding:34|source:scheduler|"
-        "trigger:interval:60:12345"
+        "task_definition:12|binding:34|source:scheduler|trigger:interval:60:12345"
     )
 
 
@@ -136,17 +135,13 @@ def test_record_task_run_start_writes_run_key_and_trace(monkeypatch) -> None:
     run = fake_session.added[0]
     assert run.celery_task_id == "celery-task-1"
     assert run.run_key == (
-        "task_definition:12|binding:34|source:scheduler|"
-        "trigger:interval:60:12345"
+        "task_definition:12|binding:34|source:scheduler|trigger:interval:60:12345"
     )
     assert run.trace_id
 
 
 def test_duplicate_run_key_raises_ignore_before_business_execution(monkeypatch) -> None:
-    run_key = (
-        "task_definition:12|binding:34|source:scheduler|"
-        "trigger:interval:60:12345"
-    )
+    run_key = "task_definition:12|binding:34|source:scheduler|trigger:interval:60:12345"
     task = _RecordingTask()
     task.request_stack = SimpleNamespace(top=SimpleNamespace(headers=_headers()))
     fake_session = _FakeSession(existing=SimpleNamespace(id=99, run_key=run_key))
