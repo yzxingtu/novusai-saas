@@ -7,11 +7,18 @@ from types import SimpleNamespace
 import pytest
 from celery.exceptions import Ignore
 
-from app.tasks.base import BaseTask, build_task_run_key
+from app.tasks.base import BaseTask, TenantTask, build_task_run_key
 
 
 class _RecordingTask(BaseTask):
     name = "tests.recording"
+
+    def _apply_db_config(self) -> None:
+        return None
+
+
+class _RecordingTenantTask(TenantTask):
+    name = "tests.tenant_recording"
 
     def _apply_db_config(self) -> None:
         return None
@@ -52,6 +59,14 @@ class _FakeSession:
         self.closed = True
 
 
+class _ClosableSession:
+    def __init__(self) -> None:
+        self.closed = False
+
+    def close(self) -> None:
+        self.closed = True
+
+
 def _headers(**overrides):
     headers = {
         "task_definition_id": 12,
@@ -67,6 +82,26 @@ def _headers(**overrides):
     }
     headers.update(overrides)
     return headers
+
+
+def _patch_tenant_eligibility(monkeypatch, result):
+    sessions: list[_ClosableSession] = []
+
+    def session_factory() -> _ClosableSession:
+        session = _ClosableSession()
+        sessions.append(session)
+        return session
+
+    monkeypatch.setattr(
+        "app.tasks.base.sync_session_factory",
+        session_factory,
+    )
+    monkeypatch.setattr(
+        "app.services.system.task_tenant_eligibility_service."
+        "TaskTenantEligibilityService.resolve_tenant_eligibility_sync",
+        classmethod(lambda _cls, _session, _tenant_id: result),
+    )
+    return sessions
 
 
 def test_build_task_run_key_uses_business_identity_without_celery_id() -> None:
@@ -124,3 +159,54 @@ def test_duplicate_run_key_raises_ignore_before_business_execution(monkeypatch) 
         task.before_start("celery-task-duplicate", (), {"tenant_id": 56})
 
     assert fake_session.added == []
+
+
+def test_tenant_task_rejects_missing_tenant_id_before_business_execution() -> None:
+    task = _RecordingTenantTask()
+    task.request_stack = SimpleNamespace(top=SimpleNamespace(headers={}))
+
+    with pytest.raises(Ignore):
+        task.before_start("tenant-task-missing", (), {})
+
+    assert task.tenant_id is None
+
+
+def test_tenant_task_rejects_mismatched_effective_tenant_header() -> None:
+    task = _RecordingTenantTask()
+    task.request_stack = SimpleNamespace(
+        top=SimpleNamespace(headers={"effective_tenant_id": 57})
+    )
+
+    with pytest.raises(Ignore):
+        task.before_start("tenant-task-mismatch", (), {"tenant_id": 56})
+
+    assert task.tenant_id is None
+
+
+def test_tenant_task_rejects_ineligible_tenant(monkeypatch) -> None:
+    task = _RecordingTenantTask()
+    task.request_stack = SimpleNamespace(top=SimpleNamespace(headers={}))
+    sessions = _patch_tenant_eligibility(
+        monkeypatch,
+        SimpleNamespace(is_eligible=False, reason="tenant_inactive"),
+    )
+
+    with pytest.raises(Ignore):
+        task.before_start("tenant-task-ineligible", (), {"tenant_id": 56})
+
+    assert task.tenant_id is None
+    assert sessions[0].closed is True
+
+
+def test_tenant_task_accepts_eligible_tenant(monkeypatch) -> None:
+    task = _RecordingTenantTask()
+    task.request_stack = SimpleNamespace(top=SimpleNamespace(headers={}))
+    sessions = _patch_tenant_eligibility(
+        monkeypatch,
+        SimpleNamespace(is_eligible=True, reason=None),
+    )
+
+    task.before_start("tenant-task-ok", (), {"tenant_id": 56})
+
+    assert task.tenant_id == 56
+    assert sessions[0].closed is True
