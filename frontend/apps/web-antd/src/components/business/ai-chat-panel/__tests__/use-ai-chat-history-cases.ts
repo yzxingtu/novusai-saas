@@ -221,7 +221,7 @@ export function registerUseAIChatHistoryCases(
     expect(chat.selectedAgentId.value).toBe(1);
   });
 
-  it('still forks to a new conversation when an explicit agent override is provided', async () => {
+  it('regression 2357: clears stale history when an explicit agent override forks a new conversation', async () => {
     apiMocks.getChatAgentsApi.mockResolvedValue(
       buildAgentList([
         buildAgent({ description: 'Primary agent' }),
@@ -243,9 +243,12 @@ export function registerUseAIChatHistoryCases(
       .mockResolvedValue(
         buildConversationDetail(
           [
-            buildUserMessage('hello'),
-            buildAssistantMessage('hi there'),
             buildUserMessage('start a fresh branch'),
+            buildAssistantMessage('fresh branch answer', {
+              agent_id: 2,
+              agent_name: 'Agent Two',
+              model_name: 'gpt-test-2',
+            }),
           ],
           { agent_id: 2 },
         ),
@@ -289,6 +292,17 @@ export function registerUseAIChatHistoryCases(
     expect(lastCall?.[1]).toBe(2);
     expect(requestBody?.conversation_id).toBeNull();
     expect(chat.activeConversationId.value).toBe(84);
+    expect(apiMocks.getChatConversationMessagesApi).toHaveBeenLastCalledWith(
+      '/tenant',
+      84,
+    );
+    expect(chat.chatMessages.value.map((item) => item.content)).toEqual([
+      'start a fresh branch',
+      'fresh branch answer',
+    ]);
+    expect(
+      chat.chatMessages.value.some((item) => item.content === 'hi there'),
+    ).toBe(false);
   });
 
   it('restores interactionMode from backend conversation detail when available', async () => {

@@ -300,10 +300,14 @@ export function useAIChatStreaming(deps: UseAIChatStreamingDeps) {
       targetAgentId,
     });
     if (conversationRequestState.shouldForkConversation) {
+      resetPendingMessages();
       bumpMessagesRequestSeq();
       activeConversationId.value = null;
       activeConversationAgentId.value = null;
       clearConversationAnchor();
+      chatMessages.value = [];
+      conversationContextDiagnostics.value = null;
+      lastRunSummary.value = null;
       memoryState.value = null;
       lastMemoryUpdated.value = false;
     } else if (conversationRequestState.conversationId !== null) {
