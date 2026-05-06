@@ -102,6 +102,31 @@
   inactive unless the tenant has an active plan relation; missing tenants,
   inactive tenants, missing plans, and inactive plans must return denial rather
   than unlimited access.
+- Periodic tenant tasks must resolve eligibility server-side before dispatch:
+  tenant not deleted, tenant active, active plan present, and required
+  feature/plugin entitlement enabled when the task has tenant-facing effects.
+  `all_tenants` means all eligible tenants, not merely all non-deleted rows.
+- Tenant-dispatched periodic handlers must use `@register_task` with
+  `base=TenantTask`; scheduler wrappers must overwrite the effective
+  `tenant_id` and tenant-aware tasks must fail closed when tenant context is
+  missing or ineligible.
+- A scheduled task that is default-on for every enterprise must also have a
+  durable opt-out/deny contract for a single enterprise. A selected-tenant
+  allowlist is not a substitute because it does not automatically include future
+  eligible tenants.
+- Durable scheduled work must carry task definition, binding, owner tenant,
+  effective tenant, trigger source, run kind, queue, and trace metadata into
+  `task_runs`. Business duplicate execution must be prevented by a run key or
+  distributed lock; `celery_task_id` uniqueness alone is not enough.
+- Notification templates must have an explicit platform/tenant/plugin scope and
+  deterministic tenant-aware fallback. Runtime template lookup must not rely on
+  globally unique `code` alone when tenant overrides are expected.
+- Tenant notification list, unread count, mark-read, mark-all-read, and delete
+  paths must include current `tenant_id` as a defensive boundary even if
+  recipient ids are globally unique today.
+- Plugin notification APIs must validate target tenant/user ownership from the
+  plugin request context, and notification delivery should record per-channel
+  status/attempt/error/task id in a durable outbox or equivalent audit trail.
 - Tenant-admin role permission assignments and tenant organization-node direct
   permission assignments must reject permission IDs outside the tenant's current
   active plan at write time. Runtime plan intersection is still required, but

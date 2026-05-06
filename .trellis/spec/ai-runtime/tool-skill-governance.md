@@ -67,7 +67,33 @@ backend boundary instead of page perception:
 - UI/page operation tools are not valid builtin or installable tools for AI
   dialogue. Public request and sandbox boundaries must reject them.
 - Rich text editing should use explicit editor/domain operations or future
-  skill-pack tools, not DOM scanning.
+  skill-pack tools, not DOM scanning. Editor-local writing chat is part of that
+  explicit editor/domain operation contract: it may pass selected text,
+  cursor before/after text, document identifiers, and bounded chat history, but
+  it must not open or depend on the global AI side panel as the conversation
+  runtime for selection-bound editor work.
+- Plain `input` and `textarea` AI writing helpers follow the same explicit
+  operation boundary as rich text editing. They may pass the selected text and
+  bounded before/after text from the focused control, but they must not promote
+  the surrounding rendered page, form schema, DOM snapshot, or page-operation
+  tool state into AI dialogue context.
+- Local selection AI may use a DOM rectangle, selection range, and element
+  editability only for client-side anchoring and writeback validation. Those
+  values are UI mechanics, not model context: requests may include only the
+  explicit selected text, bounded before/after text, document/control metadata
+  allowed by the editor-domain schema, user instruction, target language, and
+  bounded local chat history.
+- Editor-local rich-text chat is not a shortcut around runtime governance. It
+  must resolve the same `system.ai_writing` assignment, use the same
+  `novusdoc.rich_text_ai.actions` selected-skill provenance, enforce the same
+  tenant access/quota guards, and reject `page_context`, `page_session_id`,
+  `ui_*`, `pageop_*`, DOM snapshot, or active-surface fields.
+- The model-facing prompt for editor-local chat must include the explicit
+  editor-domain context that the request body carried: selected text, cursor
+  before/after text, document title/id/type when available, the user's current
+  question or instruction, and bounded prior chat turns. Do not rely on a
+  global side panel, page perception, or hidden frontend state to recover that
+  context.
 
 ## Online Search Removed
 

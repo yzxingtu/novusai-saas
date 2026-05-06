@@ -49,6 +49,56 @@ page-local composables/context -> focused workspace sections`.
 - AI chat shells render conversation, backend read-models, skill results, and
   explicit rich-text/task state only. They do not treat current DOM/page state
   as model context.
+- Editor-embedded rich-text AI surfaces, including shared `RichTextEditor` and
+  NovusDoc consumers, must keep selection/cursor operations and follow-up chat
+  inside the editor-local surface. They must not hand off selection-bound
+  rewrite, summarize, translate, or writing chat turns to the global AI slide
+  panel just to obtain a conversation UI.
+- Plain text inputs that need the same writing assistance should reuse the same
+  selection AI controller and preview/apply flow as rich text editors. The host
+  shell may mount one shared floating assistant for `input`/`textarea` surfaces,
+  while rich text editors mount the same controller through a TipTap adapter.
+  Each surface supplies only its own selection snapshot, anchor rectangle, and
+  writeback adapter; the action set, assignment resolution, SSE contract, and
+  preview/chat flow must remain shared.
+- Rich-text AI follow-up chat uses the same editor-domain operation contract as
+  writeback actions: explicit selected text, cursor before/after text,
+  document metadata, optional bounded history, and no DOM/page runtime fields.
+  Applying AI output back to the document remains an explicit editor action
+  such as replace selection, insert at cursor, insert after selection, or copy.
+- Rich-text AI conversation UI is editor-local. The selection prompt, preview,
+  transcript, composer, stop/retry controls, copy, and insert/apply actions live
+  inside the editor surface and stay anchored to the editor selection/cursor
+  snapshot. The global AI slide panel is reserved for general chat, not for
+  selection-bound editor dialogue.
+- Local selection AI for both rich text editors and plain `input`/`textarea`
+  controls must complete menu, preview, retry/stop, editable draft, apply,
+  discard, and writing Q&A inside the current floating layer. It must not call
+  `AIChatSlidePanel`, `useAIPanelStore.openWithContext`, or another global
+  side-panel handoff by default; only an explicit user command such as "open
+  assistant" or "deep conversation" may escalate out of the local layer.
+- Editor-local rich-text chat sends follow-up turns to the editor-domain
+  operation API (`/ai/rich-text/operations/chat`) with bounded `history` plus
+  the current selected text, cursor before/after text, and document metadata.
+  The backend prompt must render that explicit editor context for chat turns;
+  a transcript-only prompt such as "answer my question" is not sufficient
+  because the side panel is no longer supplying context.
+- Rich-text AI writeback stays preview-first. Transform actions stream into an
+  editable preview before apply; chat assistant messages may be copied or
+  inserted, but neither path may mutate the document until the user explicitly
+  chooses apply/insert and the captured selection revision still validates.
+- Plain input AI writeback uses an immutable selection session captured when
+  the floating menu opens: source element, selection range, selected text,
+  bounded before/after text, selection direction, value fingerprint, and field
+  policy. Preview generation, inline chat, and apply must use that frozen
+  session rather than rereading the current browser selection after focus,
+  click, scroll, or another field selection.
+- Rich-text AI apply/insert paths must convert model plain-text or Markdown-ish
+  output into TipTap document JSON before calling editor writeback. Block
+  structure and inline formatting such as lists, blockquotes, headings, bold,
+  code, and strike marks must be represented as TipTap nodes/marks; source-code
+  mode, raw HTML injection, or literal Markdown marker insertion is not an
+  acceptable runtime writeback path.
 - Shared AI chat API calls live in the shared API module so UI surfaces do not
   embed their own requestClient flows.
 - Monitoring and admin AI pages now follow the same wrapper-to-shell rule:
