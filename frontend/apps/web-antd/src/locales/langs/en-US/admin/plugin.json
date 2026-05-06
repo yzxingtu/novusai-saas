@@ -18,6 +18,27 @@
   "pricingType": "Pricing",
   "errorCount": "Error Count",
   "capabilitiesLabel": "Capabilities",
+  "compatibility": {
+    "title": "Compatibility",
+    "edition": {
+      "saasCompatible": "SaaS-compatible",
+      "saasIncompatible": "Not SaaS-compatible",
+      "singleManagementCompatible": "Single-management compatible",
+      "singleManagementIncompatible": "Not single-management compatible"
+    },
+    "tenantExposure": {
+      "allTenants": "All tenants",
+      "explicitRequired": "Explicit assignment required",
+      "none": "Not exposed to tenants",
+      "partialTenants": "Partial tenants",
+      "platformOnly": "Platform only",
+      "platformOrUser": "Platform or user side",
+      "scopeInherited": "Scope inherited",
+      "selectedTenants": "Selected tenants",
+      "specifiedTenants": "Specified tenants",
+      "userSide": "User side"
+    }
+  },
   "aiAssignment": {
     "hintTitle": "This plugin declares AI features",
     "hintDesc": "Agent bindings are managed only under AI Feature Assignment for a single entry point and consistent rules. Configure plugin.* feature codes there with platform-level globally shared agents.",

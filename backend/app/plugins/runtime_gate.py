@@ -21,6 +21,7 @@ from sqlalchemy import select
 from app.core.scope import ScopeChecker
 from app.enums.plugin import PluginStatusEnum
 from app.models.system.plugin import Plugin
+from app.plugins.exposure_policy import build_plugin_exposure_profile
 from app.plugins.license import get_plugin_runtime_license_status
 
 if TYPE_CHECKING:
@@ -40,6 +41,7 @@ class PluginRuntimeGateResult:
     granted_capabilities: list[str]
     pricing_type: str | None
     license_status: dict[str, Any]
+    compatibility_profile: dict[str, Any] | None = None
 
 
 async def evaluate_plugin_runtime_gate(
@@ -102,6 +104,8 @@ async def evaluate_plugin_runtime_gate(
     license_status = await get_plugin_runtime_license_status(
         plugin_id, pricing_type, db
     )
+    exposure_profile = build_plugin_exposure_profile(manifest, scope=scope)
+    compatibility_profile = exposure_profile.to_dict()
 
     if require_enabled and status != PluginStatusEnum.ENABLED.value:
         return PluginRuntimeGateResult(
@@ -116,20 +120,16 @@ async def evaluate_plugin_runtime_gate(
             granted_capabilities=granted_capabilities,
             pricing_type=pricing_type,
             license_status=license_status,
+            compatibility_profile=compatibility_profile,
         )
 
     if enforce_scope and tenant_id is not None:
-        visible = await ScopeChecker.is_visible_to_tenant(
-            scope=scope,
-            resource_type="plugin",
-            resource_id=plugin_id,
-            tenant_id=tenant_id,
-            db=db,
-        )
-        if not visible:
+        if exposure_profile.tenant_runtime_scope is None:
             return PluginRuntimeGateResult(
                 allowed=False,
-                reason_code="scope_denied",
+                reason_code=(
+                    exposure_profile.tenant_runtime_denial_reason or "scope_denied"
+                ),
                 plugin_id=plugin_id,
                 plugin_name=plugin_name,
                 plugin_scope=scope,
@@ -139,6 +139,33 @@ async def evaluate_plugin_runtime_gate(
                 granted_capabilities=granted_capabilities,
                 pricing_type=pricing_type,
                 license_status=license_status,
+                compatibility_profile=compatibility_profile,
+            )
+        visible = await ScopeChecker.is_visible_to_tenant(
+            scope=exposure_profile.tenant_runtime_scope,
+            resource_type="plugin",
+            resource_id=plugin_id,
+            tenant_id=tenant_id,
+            db=db,
+        )
+        if not visible:
+            return PluginRuntimeGateResult(
+                allowed=False,
+                reason_code=(
+                    "tenant_assignment_required"
+                    if exposure_profile.tenant_assignment_required
+                    else "scope_denied"
+                ),
+                plugin_id=plugin_id,
+                plugin_name=plugin_name,
+                plugin_scope=scope,
+                plugin_status=status,
+                manifest=manifest,
+                config=config,
+                granted_capabilities=granted_capabilities,
+                pricing_type=pricing_type,
+                license_status=license_status,
+                compatibility_profile=compatibility_profile,
             )
 
     if not license_status.get("runtime_allowed", False):
@@ -154,6 +181,7 @@ async def evaluate_plugin_runtime_gate(
             granted_capabilities=granted_capabilities,
             pricing_type=pricing_type,
             license_status=license_status,
+            compatibility_profile=compatibility_profile,
         )
 
     return PluginRuntimeGateResult(
@@ -168,4 +196,5 @@ async def evaluate_plugin_runtime_gate(
         granted_capabilities=granted_capabilities,
         pricing_type=pricing_type,
         license_status=license_status,
+        compatibility_profile=compatibility_profile,
     )

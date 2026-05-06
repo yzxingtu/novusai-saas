@@ -18,6 +18,27 @@
   "pricingType": "定价",
   "errorCount": "错误次数",
   "capabilitiesLabel": "能力授权",
+  "compatibility": {
+    "title": "兼容性",
+    "edition": {
+      "saasCompatible": "SaaS 可用",
+      "saasIncompatible": "SaaS 不可用",
+      "singleManagementCompatible": "单管理版可用",
+      "singleManagementIncompatible": "单管理版不可用"
+    },
+    "tenantExposure": {
+      "allTenants": "全部企业可用",
+      "explicitRequired": "需显式分配",
+      "none": "不暴露给企业",
+      "partialTenants": "部分企业可用",
+      "platformOnly": "仅平台侧",
+      "platformOrUser": "平台或用户侧",
+      "scopeInherited": "沿用作用域",
+      "selectedTenants": "指定企业可用",
+      "specifiedTenants": "指定企业可用",
+      "userSide": "用户侧可用"
+    }
+  },
   "aiAssignment": {
     "hintTitle": "本插件包含 AI 功能",
     "hintDesc": "智能体绑定已统一在「AI 功能分配」中管理，入口唯一、规则与全平台一致。请在该页为 plugin.* 功能码绑定平台级全局共享智能体。",

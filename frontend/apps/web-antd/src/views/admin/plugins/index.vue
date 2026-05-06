@@ -17,6 +17,9 @@ import { Button, Input, message, Switch, Tag, Tooltip } from 'ant-design-vue';
 
 import {
   getPluginListApi,
+  getPluginTenantExposureColor,
+  getPluginTenantExposureLabelKey,
+  resolvePluginCompatibilityProfile,
   updatePluginMenuConfigApi,
 } from '#/api/admin/plugin';
 import { refreshAdminMenusAndPluginRoutes as _refreshRoutes } from '#/composables/use-plugin-admin-refresh';
@@ -394,6 +397,41 @@ function getDependencyStatusText(plugin: PluginInfo): string {
     : $t('admin.plugin.dependency.missing');
 }
 
+function getCompatibilityProfile(plugin: PluginInfo) {
+  return resolvePluginCompatibilityProfile(plugin);
+}
+
+function getSaasCompatibilityColor(plugin: PluginInfo): string {
+  return getCompatibilityProfile(plugin).saasCompatible ? 'success' : 'default';
+}
+
+function getSingleManagementCompatibilityColor(plugin: PluginInfo): string {
+  return getCompatibilityProfile(plugin).singleManagementCompatible
+    ? 'processing'
+    : 'default';
+}
+
+function getSaasCompatibilityText(plugin: PluginInfo): string {
+  return $t(
+    getCompatibilityProfile(plugin).saasCompatible
+      ? 'admin.plugin.compatibility.edition.saasCompatible'
+      : 'admin.plugin.compatibility.edition.saasIncompatible',
+  );
+}
+
+function getSingleManagementCompatibilityText(plugin: PluginInfo): string {
+  return $t(
+    getCompatibilityProfile(plugin).singleManagementCompatible
+      ? 'admin.plugin.compatibility.edition.singleManagementCompatible'
+      : 'admin.plugin.compatibility.edition.singleManagementIncompatible',
+  );
+}
+
+function getTenantExposureText(plugin: PluginInfo): string {
+  const mode = getCompatibilityProfile(plugin).tenantExposureMode;
+  return $t(getPluginTenantExposureLabelKey(mode));
+}
+
 onUnmounted(() => {
   progressStore.stopListening();
 });
@@ -660,6 +698,39 @@ onUnmounted(() => {
               class="!m-0 !rounded-md !border-0 !text-[11px]"
             >
               {{ getDependencyStatusText(plugin) }}
+            </Tag>
+            <Tag
+              :color="getSaasCompatibilityColor(plugin)"
+              class="!m-0 !rounded-md !border-0 !text-[11px]"
+            >
+              {{ getSaasCompatibilityText(plugin) }}
+            </Tag>
+            <Tag
+              :color="getSingleManagementCompatibilityColor(plugin)"
+              class="!m-0 !rounded-md !border-0 !text-[11px]"
+            >
+              {{ getSingleManagementCompatibilityText(plugin) }}
+            </Tag>
+            <Tag
+              :color="
+                getPluginTenantExposureColor(
+                  getCompatibilityProfile(plugin).tenantExposureMode,
+                )
+              "
+              class="!m-0 !rounded-md !border-0 !text-[11px]"
+            >
+              {{ getTenantExposureText(plugin) }}
+            </Tag>
+            <Tag
+              v-if="getCompatibilityProfile(plugin).tenantAssignmentRequired"
+              color="orange"
+              class="!m-0 !rounded-md !border-0 !text-[11px]"
+            >
+              {{
+                $t(
+                  'admin.plugin.compatibility.tenantExposure.explicitRequired',
+                )
+              }}
             </Tag>
             <Tag
               v-if="plugin.status === 'error'"

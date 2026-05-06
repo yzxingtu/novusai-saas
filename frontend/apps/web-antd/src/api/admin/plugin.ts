@@ -67,6 +67,429 @@ export interface PluginRecoveryState {
   severity: PluginRecoverySeverity;
 }
 
+export type PluginCompatibilityEdition = 'saas' | 'single_management';
+
+export type PluginCompatibilitySurface =
+  | 'admin'
+  | 'api'
+  | 'global'
+  | 'platform'
+  | 'runtime'
+  | 'tenant'
+  | 'user';
+
+export type PluginTenantExposureMode =
+  | 'all_tenants'
+  | 'none'
+  | 'partial_tenants'
+  | 'platform_only'
+  | 'platform_or_user'
+  | 'scope_inherited'
+  | 'selected_tenants'
+  | 'specified_tenants'
+  | 'user_side';
+
+export interface PluginTenantExposureProfile {
+  assigned_tenant_ids?: number[];
+  default_enabled?: boolean;
+  mode?: string;
+  requires_explicit_assignment?: boolean;
+  tenant_assignment_required?: boolean;
+  tenant_ids?: number[];
+}
+
+export interface PluginCompatibilityProfile {
+  declared_editions?: string[] | string | Record<string, boolean>;
+  edition_support?: Record<string, boolean>;
+  editions?: string[] | string | Record<string, boolean>;
+  is_saas_compatible?: boolean;
+  is_single_management_compatible?: boolean;
+  notes?: string[];
+  requires_tenant_assignment?: boolean;
+  saas_compatible?: boolean;
+  single_compatible?: boolean;
+  single_management_compatible?: boolean;
+  supported_editions?: string[] | string | Record<string, boolean>;
+  supported_surfaces?: string[] | string | Record<string, boolean>;
+  surfaces?: string[] | string | Record<string, boolean>;
+  tenant_assignment_required?: boolean;
+  tenant_exposure?: PluginTenantExposureProfile | string;
+  tenant_exposure_mode?: string;
+}
+
+export interface PluginLegacyCompatibility {
+  conflicts?: string[];
+  conflicts_count?: number;
+  platform_version?: string;
+}
+
+export interface ResolvedPluginCompatibilityProfile {
+  editions: PluginCompatibilityEdition[];
+  saasCompatible: boolean;
+  singleManagementCompatible: boolean;
+  surfaces: PluginCompatibilitySurface[];
+  tenantAssignmentRequired: boolean;
+  tenantExposureMode: PluginTenantExposureMode;
+}
+
+export interface PluginCompatibilitySource {
+  compatibility?: null | PluginCompatibilityProfile | PluginLegacyCompatibility;
+  compatibility_profile?: null | PluginCompatibilityProfile;
+  manifest?: null | Record<string, unknown>;
+  plugin_info?: null | Record<string, unknown>;
+  scope?: null | string;
+}
+
+const DEFAULT_COMPATIBILITY_PROFILE: ResolvedPluginCompatibilityProfile = {
+  editions: ['saas'],
+  saasCompatible: true,
+  singleManagementCompatible: false,
+  surfaces: [],
+  tenantAssignmentRequired: false,
+  tenantExposureMode: 'scope_inherited',
+};
+
+const TENANT_EXPOSURE_LABEL_KEYS: Record<PluginTenantExposureMode, string> = {
+  all_tenants: 'admin.plugin.compatibility.tenantExposure.allTenants',
+  none: 'admin.plugin.compatibility.tenantExposure.none',
+  partial_tenants: 'admin.plugin.compatibility.tenantExposure.partialTenants',
+  platform_only: 'admin.plugin.compatibility.tenantExposure.platformOnly',
+  platform_or_user: 'admin.plugin.compatibility.tenantExposure.platformOrUser',
+  scope_inherited: 'admin.plugin.compatibility.tenantExposure.scopeInherited',
+  selected_tenants: 'admin.plugin.compatibility.tenantExposure.selectedTenants',
+  specified_tenants:
+    'admin.plugin.compatibility.tenantExposure.specifiedTenants',
+  user_side: 'admin.plugin.compatibility.tenantExposure.userSide',
+};
+
+const TENANT_EXPOSURE_COLORS: Record<PluginTenantExposureMode, string> = {
+  all_tenants: 'success',
+  none: 'default',
+  partial_tenants: 'orange',
+  platform_only: 'blue',
+  platform_or_user: 'geekblue',
+  scope_inherited: 'default',
+  selected_tenants: 'cyan',
+  specified_tenants: 'purple',
+  user_side: 'processing',
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function getRecord(
+  source: null | Record<string, unknown> | undefined,
+  key: string,
+): null | Record<string, unknown> {
+  const value = source?.[key];
+  return isRecord(value) ? value : null;
+}
+
+function getString(
+  source: null | Record<string, unknown> | undefined,
+  keys: string[],
+): string | undefined {
+  for (const key of keys) {
+    const value = source?.[key];
+    if (typeof value === 'string' && value.trim()) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+function getBoolean(
+  source: null | Record<string, unknown> | undefined,
+  keys: string[],
+): boolean | undefined {
+  for (const key of keys) {
+    const value = source?.[key];
+    if (typeof value === 'boolean') {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+function normalizeStringList(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.filter(
+      (item): item is string => typeof item === 'string' && item.length > 0,
+    );
+  }
+  if (typeof value === 'string' && value.trim()) {
+    return [value];
+  }
+  if (isRecord(value)) {
+    return Object.entries(value).flatMap(([key, enabled]) =>
+      enabled === true ? [key] : [],
+    );
+  }
+  return [];
+}
+
+function getStringList(
+  source: null | Record<string, unknown> | undefined,
+  keys: string[],
+): string[] {
+  for (const key of keys) {
+    const values = normalizeStringList(source?.[key]);
+    if (values.length > 0) {
+      return values;
+    }
+  }
+  return [];
+}
+
+function normalizeEdition(value: string): null | PluginCompatibilityEdition {
+  const normalized = value.trim().toLowerCase().replaceAll('-', '_');
+  if (normalized === 'saas') {
+    return 'saas';
+  }
+  if (
+    normalized === 'single' ||
+    normalized === 'single_management' ||
+    normalized === 'single_management_admin'
+  ) {
+    return 'single_management';
+  }
+  return null;
+}
+
+function normalizeSurface(value: string): null | PluginCompatibilitySurface {
+  const normalized = value.trim().toLowerCase().replaceAll('-', '_');
+  if (
+    normalized === 'admin' ||
+    normalized === 'api' ||
+    normalized === 'global' ||
+    normalized === 'platform' ||
+    normalized === 'runtime' ||
+    normalized === 'tenant' ||
+    normalized === 'user'
+  ) {
+    return normalized;
+  }
+  return null;
+}
+
+function normalizeTenantExposureMode(
+  value: null | string | undefined,
+  fallback: PluginTenantExposureMode,
+): PluginTenantExposureMode {
+  const normalized = (value || '').trim().toLowerCase().replaceAll('-', '_');
+  switch (normalized) {
+    case 'all':
+    case 'all_tenants': {
+      return 'all_tenants';
+    }
+    case 'explicit':
+    case 'explicit_assignment':
+    case 'selected':
+    case 'selected_tenants':
+    case 'tenant_assignment': {
+      return 'selected_tenants';
+    }
+    case 'partial':
+    case 'partial_tenants': {
+      return 'partial_tenants';
+    }
+    case 'specified':
+    case 'specified_tenants': {
+      return 'specified_tenants';
+    }
+    case 'admin':
+    case 'admin_only':
+    case 'platform':
+    case 'platform_only': {
+      return 'platform_only';
+    }
+    case 'platform_and_user':
+    case 'platform_or_user':
+    case 'platform_user': {
+      return 'platform_or_user';
+    }
+    case 'user':
+    case 'user_only':
+    case 'user_side': {
+      return 'user_side';
+    }
+    case 'none': {
+      return 'none';
+    }
+    case 'scope_inherited': {
+      return 'scope_inherited';
+    }
+    case 'scope_default': {
+      return fallback;
+    }
+    default: {
+      return fallback;
+    }
+  }
+}
+
+function deriveTenantExposureModeFromScope(
+  scope: null | string | undefined,
+): PluginTenantExposureMode {
+  switch (scope) {
+    case 'all_tenants': {
+      return 'all_tenants';
+    }
+    case 'global_shared': {
+      return 'all_tenants';
+    }
+    case 'admin_and_selected_tenants': {
+      return 'partial_tenants';
+    }
+    case 'selected_tenants': {
+      return 'selected_tenants';
+    }
+    case 'admin_only':
+    case 'platform': {
+      return 'platform_only';
+    }
+    default: {
+      return 'scope_inherited';
+    }
+  }
+}
+
+function getCompatibilityProfileRecord(
+  source: null | PluginCompatibilitySource | undefined,
+): null | Record<string, unknown> {
+  if (!source || !isRecord(source)) {
+    return null;
+  }
+  const pluginInfo = getRecord(source, 'plugin_info');
+  const manifest =
+    getRecord(source, 'manifest') ?? getRecord(pluginInfo, 'manifest');
+  return (
+    getRecord(source, 'compatibility_profile') ??
+    getRecord(pluginInfo, 'compatibility_profile') ??
+    getRecord(manifest, 'compatibility_profile') ??
+    getRecord(source, 'compatibility') ??
+    getRecord(pluginInfo, 'compatibility') ??
+    getRecord(manifest, 'compatibility')
+  );
+}
+
+function getCompatibilityScope(
+  source: null | PluginCompatibilitySource | undefined,
+): null | string | undefined {
+  if (!source || !isRecord(source)) {
+    return undefined;
+  }
+  const pluginInfo = getRecord(source, 'plugin_info');
+  const manifest =
+    getRecord(source, 'manifest') ?? getRecord(pluginInfo, 'manifest');
+  return (
+    (typeof source.scope === 'string' ? source.scope : undefined) ??
+    getString(pluginInfo, ['scope']) ??
+    getString(manifest, ['scope'])
+  );
+}
+
+export function resolvePluginCompatibilityProfile(
+  source: null | PluginCompatibilitySource | undefined,
+): ResolvedPluginCompatibilityProfile {
+  const profile = getCompatibilityProfileRecord(source);
+  const tenantExposureValue = profile?.tenant_exposure;
+  const tenantExposure = isRecord(tenantExposureValue)
+    ? tenantExposureValue
+    : null;
+  const scope = getCompatibilityScope(source);
+  const editionValues = getStringList(profile, [
+    'declared_editions',
+    'editions',
+    'supported_editions',
+  ]);
+  const editionSupport = getRecord(profile, 'edition_support');
+  const allEditionValues = [
+    ...editionValues,
+    ...normalizeStringList(editionSupport),
+  ];
+  const editions = Array.from(
+    new Set(
+      allEditionValues
+        .map((value) => normalizeEdition(value))
+        .filter((value): value is PluginCompatibilityEdition => value !== null),
+    ),
+  );
+  const saasCompatible =
+    getBoolean(profile, ['is_saas_compatible', 'saas_compatible']) ??
+    (editions.length > 0
+      ? editions.includes('saas')
+      : DEFAULT_COMPATIBILITY_PROFILE.saasCompatible);
+  const singleManagementCompatible =
+    getBoolean(profile, [
+      'is_single_management_compatible',
+      'single_management_compatible',
+      'single_compatible',
+    ]) ??
+    (editions.length > 0
+      ? editions.includes('single_management')
+      : DEFAULT_COMPATIBILITY_PROFILE.singleManagementCompatible);
+  const surfaces = Array.from(
+    new Set(
+      getStringList(profile, ['surfaces', 'supported_surfaces'])
+        .map((value) => normalizeSurface(value))
+        .filter((value): value is PluginCompatibilitySurface => value !== null),
+    ),
+  );
+  const fallbackExposureMode = deriveTenantExposureModeFromScope(scope);
+  const tenantExposureText =
+    typeof tenantExposureValue === 'string' ? tenantExposureValue : undefined;
+  const tenantExposureMode = normalizeTenantExposureMode(
+    tenantExposureText ??
+      getString(tenantExposure, ['mode']) ??
+      getString(profile, ['tenant_exposure_mode']),
+    fallbackExposureMode,
+  );
+  const explicitAssignmentRequired =
+    getBoolean(tenantExposure, [
+      'requires_explicit_assignment',
+      'tenant_assignment_required',
+    ]) ??
+    getBoolean(profile, [
+      'requires_tenant_assignment',
+      'tenant_assignment_required',
+    ]);
+  const assignmentModeRequiresTenants =
+    tenantExposureMode === 'partial_tenants' ||
+    tenantExposureMode === 'selected_tenants' ||
+    tenantExposureMode === 'specified_tenants';
+  const tenantAssignmentRequired =
+    explicitAssignmentRequired ?? assignmentModeRequiresTenants;
+
+  return {
+    editions: editions.length > 0 ? editions : ['saas'],
+    saasCompatible,
+    singleManagementCompatible,
+    surfaces,
+    tenantAssignmentRequired,
+    tenantExposureMode,
+  };
+}
+
+export function pluginRequiresTenantAssignment(
+  source: null | PluginCompatibilitySource | undefined,
+): boolean {
+  return resolvePluginCompatibilityProfile(source).tenantAssignmentRequired;
+}
+
+export function getPluginTenantExposureLabelKey(
+  mode: PluginTenantExposureMode,
+): string {
+  return TENANT_EXPOSURE_LABEL_KEYS[mode];
+}
+
+export function getPluginTenantExposureColor(
+  mode: PluginTenantExposureMode,
+): string {
+  return TENANT_EXPOSURE_COLORS[mode];
+}
+
 /** Plugin info / 插件信息 */
 export interface PluginInfo {
   id: number;
@@ -86,6 +509,8 @@ export interface PluginInfo {
   tier: string;
   install_source: string;
   marketplace_slug: null | string;
+  compatibility?: null | PluginCompatibilityProfile | PluginLegacyCompatibility;
+  compatibility_profile?: null | PluginCompatibilityProfile;
   manifest: Record<string, unknown>;
   config: Record<string, unknown>;
   ai_requirements: null | Record<string, unknown>;
@@ -161,7 +586,8 @@ export interface InstallPreview {
   };
   conflicts: Array<Record<string, string>>;
   capabilities: Array<{ code: string; description: string }>;
-  compatibility: Record<string, unknown>;
+  compatibility?: PluginCompatibilityProfile | PluginLegacyCompatibility;
+  compatibility_profile?: null | PluginCompatibilityProfile;
   warnings: string[];
   preview_token: string;
 }

@@ -11,7 +11,13 @@ import { IconifyIcon } from '@vben/icons';
 
 import { Alert, Button, message, Modal, Tag, Upload } from 'ant-design-vue';
 
-import { installPluginApi, previewPluginInstallApi } from '#/api/admin/plugin';
+import {
+  getPluginTenantExposureColor,
+  getPluginTenantExposureLabelKey,
+  installPluginApi,
+  previewPluginInstallApi,
+  resolvePluginCompatibilityProfile,
+} from '#/api/admin/plugin';
 import {
   marketplaceConfirmInstallApi,
   marketplacePreviewInstallApi,
@@ -214,6 +220,14 @@ const deps = computed(
       plugins: [],
     },
 );
+const compatibilityProfile = computed(() =>
+  resolvePluginCompatibilityProfile(
+    previewInfo.value ?? {
+      plugin_info: pluginInfo.value,
+      scope: pluginScope.value,
+    },
+  ),
+);
 
 const resolvedPluginMetadataIcon = computed(() =>
   resolvePluginMetadataIcon(
@@ -234,6 +248,40 @@ const canConfirmInstall = computed(() => {
   }
   return Boolean(selectedFile.value && previewInfo.value?.preview_token);
 });
+
+function getSaasCompatibilityColor(): string {
+  return compatibilityProfile.value.saasCompatible ? 'success' : 'default';
+}
+
+function getSingleManagementCompatibilityColor(): string {
+  return compatibilityProfile.value.singleManagementCompatible
+    ? 'processing'
+    : 'default';
+}
+
+function getSaasCompatibilityText(): string {
+  return $t(
+    compatibilityProfile.value.saasCompatible
+      ? 'admin.plugin.compatibility.edition.saasCompatible'
+      : 'admin.plugin.compatibility.edition.saasIncompatible',
+  );
+}
+
+function getSingleManagementCompatibilityText(): string {
+  return $t(
+    compatibilityProfile.value.singleManagementCompatible
+      ? 'admin.plugin.compatibility.edition.singleManagementCompatible'
+      : 'admin.plugin.compatibility.edition.singleManagementIncompatible',
+  );
+}
+
+function getTenantExposureText(): string {
+  return $t(
+    getPluginTenantExposureLabelKey(
+      compatibilityProfile.value.tenantExposureMode,
+    ),
+  );
+}
 
 defineExpose({ open, openMarketplace });
 </script>
@@ -446,6 +494,34 @@ defineExpose({ open, openMarketplace });
           </Tag>
           <Tag :color="getScopeColor(pluginScope)" class="!m-0 !rounded-md">
             {{ getScopeText(pluginScope) }}
+          </Tag>
+          <Tag :color="getSaasCompatibilityColor()" class="!m-0 !rounded-md">
+            {{ getSaasCompatibilityText() }}
+          </Tag>
+          <Tag
+            :color="getSingleManagementCompatibilityColor()"
+            class="!m-0 !rounded-md"
+          >
+            {{ getSingleManagementCompatibilityText() }}
+          </Tag>
+          <Tag
+            :color="
+              getPluginTenantExposureColor(
+                compatibilityProfile.tenantExposureMode,
+              )
+            "
+            class="!m-0 !rounded-md"
+          >
+            {{ getTenantExposureText() }}
+          </Tag>
+          <Tag
+            v-if="compatibilityProfile.tenantAssignmentRequired"
+            color="orange"
+            class="!m-0 !rounded-md"
+          >
+            {{
+              $t('admin.plugin.compatibility.tenantExposure.explicitRequired')
+            }}
           </Tag>
           <Tag
             v-if="deps.python && deps.python.length > 0"

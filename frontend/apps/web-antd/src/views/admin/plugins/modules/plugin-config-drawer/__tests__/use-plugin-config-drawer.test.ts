@@ -59,6 +59,35 @@ const mockRefs = vi.hoisted(() => {
     revokePluginLicenseApi: vi.fn(),
     rollbackPluginApi: vi.fn(),
     routerPush: vi.fn(),
+    resolvePluginCompatibilityProfile: vi.fn(
+      (source: {
+        compatibility_profile?: {
+          tenant_exposure?: {
+            mode?: string;
+            requires_explicit_assignment?: boolean;
+          };
+        } | null;
+        scope?: string;
+      }) => {
+        const tenantExposure =
+          source.compatibility_profile?.tenant_exposure ?? {};
+        const tenantExposureMode =
+          tenantExposure.mode ??
+          (source.scope === 'selected_tenants'
+            ? 'selected_tenants'
+            : 'scope_inherited');
+        return {
+          editions: ['saas'],
+          saasCompatible: true,
+          singleManagementCompatible: false,
+          surfaces: [],
+          tenantAssignmentRequired:
+            tenantExposure.requires_explicit_assignment === true ||
+            source.scope === 'selected_tenants',
+          tenantExposureMode,
+        };
+      },
+    ),
     scopeNeedsAssignment: vi.fn(
       (scope: string) => scope === 'selected_tenants',
     ),
@@ -101,6 +130,7 @@ vi.mock('#/api/admin/plugin', () => ({
   getPluginTenantsApi: mockRefs.getPluginTenantsApi,
   getPluginVersionsApi: mockRefs.getPluginVersionsApi,
   listPluginBackupsApi: mockRefs.listPluginBackupsApi,
+  resolvePluginCompatibilityProfile: mockRefs.resolvePluginCompatibilityProfile,
   revokePluginLicenseApi: mockRefs.revokePluginLicenseApi,
   rollbackPluginApi: mockRefs.rollbackPluginApi,
   unassignPluginTenantApi: mockRefs.unassignPluginTenantApi,
@@ -212,6 +242,35 @@ describe('usePluginConfigDrawer', () => {
     mockRefs.getPluginVersionsApi.mockResolvedValue({ data: [] });
     mockRefs.getTenantListApi.mockResolvedValue({ items: [] });
     mockRefs.listPluginBackupsApi.mockResolvedValue([]);
+    mockRefs.resolvePluginCompatibilityProfile.mockImplementation(
+      (source: {
+        compatibility_profile?: {
+          tenant_exposure?: {
+            mode?: string;
+            requires_explicit_assignment?: boolean;
+          };
+        } | null;
+        scope?: string;
+      }) => {
+        const tenantExposure =
+          source.compatibility_profile?.tenant_exposure ?? {};
+        const tenantExposureMode =
+          tenantExposure.mode ??
+          (source.scope === 'selected_tenants'
+            ? 'selected_tenants'
+            : 'scope_inherited');
+        return {
+          editions: ['saas'],
+          saasCompatible: true,
+          singleManagementCompatible: false,
+          surfaces: [],
+          tenantAssignmentRequired:
+            tenantExposure.requires_explicit_assignment === true ||
+            source.scope === 'selected_tenants',
+          tenantExposureMode,
+        };
+      },
+    );
     mockRefs.scopeNeedsAssignment.mockImplementation(
       (scope: string) => scope === 'selected_tenants',
     );
@@ -305,6 +364,61 @@ describe('usePluginConfigDrawer', () => {
     );
     expect(drawer.availableTenants.value.map((tenant) => tenant.id)).toEqual([
       2,
+    ]);
+  });
+
+  it('[behavioral] loads tenant assignments when compatibility profile requires explicit assignment', async () => {
+    const plugin = createPlugin({
+      compatibility_profile: {
+        editions: ['saas', 'single-management'],
+        tenant_exposure: {
+          mode: 'specified_tenants',
+          requires_explicit_assignment: true,
+        },
+      },
+      id: 52,
+      scope: 'platform',
+    });
+
+    mockRefs.getPluginDetailApi.mockResolvedValue({
+      data: {
+        ...plugin,
+        display_name: 'Compatibility Detail Plugin',
+      },
+    });
+    mockRefs.getPluginTenantsApi.mockResolvedValue({
+      data: [
+        {
+          config: {},
+          created_at: '2026-05-06T00:00:00Z',
+          id: 9,
+          is_active: true,
+          plugin_id: 52,
+          tenant_id: 3,
+        },
+      ],
+    });
+    mockRefs.getTenantListApi.mockResolvedValue({
+      items: [
+        { id: 3, name: 'Assigned Tenant' },
+        { id: 4, name: 'Available Tenant' },
+      ],
+    });
+
+    const drawer = usePluginConfigDrawer({ onSaved: vi.fn() });
+
+    await drawer.open(plugin);
+
+    expect(drawer.needsTenantAssignment.value).toBe(true);
+    expect(mockRefs.getPluginTenantsApi).toHaveBeenCalledWith(52);
+    expect(mockRefs.getTenantListApi).toHaveBeenCalledWith({
+      'page[size]': 200,
+    });
+    expect(drawer.tenantAssignments.value.map((item) => item.tenant_id)).toEqual(
+      [3],
+    );
+    expect(drawer.availableTenants.value.map((tenant) => tenant.id)).toEqual([
+      4,
     ]);
   });
 

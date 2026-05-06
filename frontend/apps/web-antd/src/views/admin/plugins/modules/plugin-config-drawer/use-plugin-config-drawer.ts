@@ -27,6 +27,7 @@ import {
   getPluginTenantsApi,
   getPluginVersionsApi,
   listPluginBackupsApi,
+  resolvePluginCompatibilityProfile,
   revokePluginLicenseApi,
   rollbackPluginApi,
   unassignPluginTenantApi,
@@ -125,6 +126,9 @@ export function usePluginConfigDrawer(options: UsePluginConfigDrawerOptions) {
   const backupsLoading = ref(false);
 
   const currentLocale = computed(() => preferences.app.locale || 'zh-CN');
+  const compatibilityProfile = computed(() =>
+    plugin.value ? resolvePluginCompatibilityProfile(plugin.value) : null,
+  );
 
   const needsTenantAssignment = computed(() => {
     if (!plugin.value) return false;
@@ -132,7 +136,10 @@ export function usePluginConfigDrawer(options: UsePluginConfigDrawerOptions) {
       ? plugin.value.manifest
       : undefined;
     const scope = plugin.value.scope || manifest?.scope;
-    return scopeNeedsAssignment(String(scope || ''));
+    return (
+      scopeNeedsAssignment(String(scope || '')) ||
+      compatibilityProfile.value?.tenantAssignmentRequired === true
+    );
   });
 
   const pluginHasAiFeatures = computed(() => {
@@ -235,13 +242,14 @@ export function usePluginConfigDrawer(options: UsePluginConfigDrawerOptions) {
     visible.value = true;
     configJson.value = JSON.stringify(row.config || {}, null, 2);
     configValues.value = { ...row.config };
+    await loadDetail(row.id);
+    const pluginId = plugin.value?.id ?? row.id;
     await Promise.allSettled([
-      loadDetail(row.id),
-      loadVersions(row.id),
-      loadTenantAssignments(row.id),
-      loadLicense(row.id),
-      loadBackups(row.id),
-      loadPluginAudit(row.id),
+      loadVersions(pluginId),
+      loadTenantAssignments(pluginId),
+      loadLicense(pluginId),
+      loadBackups(pluginId),
+      loadPluginAudit(pluginId),
     ]);
   }
 
@@ -306,7 +314,13 @@ export function usePluginConfigDrawer(options: UsePluginConfigDrawerOptions) {
   }
 
   async function loadTenantAssignments(id: number) {
-    if (!needsTenantAssignment.value) return;
+    if (!needsTenantAssignment.value) {
+      tenantAssignments.value = [];
+      allTenants.value = [];
+      selectedTenantIds.value = [];
+      showTenantSelect.value = false;
+      return;
+    }
     tenantLoading.value = true;
     try {
       const response = await getPluginTenantsApi(id);
@@ -336,9 +350,7 @@ export function usePluginConfigDrawer(options: UsePluginConfigDrawerOptions) {
     if (!plugin.value || selectedTenantIds.value.length === 0) return;
     try {
       await assignPluginTenantsApi(plugin.value.id, selectedTenantIds.value);
-      message.success(
-        $t('admin.plugin.messages.assignSuccess') || 'Tenants assigned',
-      );
+      message.success($t('admin.plugin.messages.assignSuccess'));
       selectedTenantIds.value = [];
       showTenantSelect.value = false;
       await loadTenantAssignments(plugin.value.id);
@@ -644,6 +656,7 @@ export function usePluginConfigDrawer(options: UsePluginConfigDrawerOptions) {
     licenseLoading,
     licenseKeyInput,
     licenseActivating,
+    compatibilityProfile,
     needsTenantAssignment,
     pluginHasAiFeatures,
     availableTenants,

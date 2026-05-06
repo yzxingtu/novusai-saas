@@ -18,6 +18,7 @@ from app.plugins.dependencies import (
     build_plugin_dependency_states,
     normalize_plugin_dependencies,
 )
+from app.plugins.exposure_policy import build_plugin_exposure_profile
 from app.plugins.registry import ExtensionRegistry
 from app.rbac.services import PermissionService
 
@@ -161,12 +162,14 @@ class PluginReadModelService:
             filter_grouped_plugin_slots_by_permission_codes,
         )
 
-        visible_names = await self._get_plugin_service().get_tenant_visible_plugin_names(
-            tenant_admin.tenant_id
+        visible_names = (
+            await self._get_plugin_service().get_tenant_visible_plugin_names(
+                tenant_admin.tenant_id
+            )
         )
-        permission_codes = await PermissionService(self._db).get_tenant_admin_permissions(
-            tenant_admin
-        )
+        permission_codes = await PermissionService(
+            self._db
+        ).get_tenant_admin_permissions(tenant_admin)
 
         registry = ExtensionRegistry.get_instance()
         grouped = registry.get_frontend_slots_grouped(scope="tenant")
@@ -194,7 +197,9 @@ class PluginReadModelService:
 
         registry = ExtensionRegistry.get_instance()
         grouped = registry.get_frontend_slots_grouped(scope="admin")
-        permission_codes = await PermissionService(self._db).get_admin_permissions(admin)
+        permission_codes = await PermissionService(self._db).get_admin_permissions(
+            admin
+        )
 
         plugin_names = {
             slot.get("plugin_name")
@@ -234,12 +239,14 @@ class PluginReadModelService:
             filter_grouped_plugin_slots_by_permission_codes,
         )
 
-        visible_names = await self._get_plugin_service().get_tenant_visible_plugin_names(
-            tenant_admin.tenant_id
+        visible_names = (
+            await self._get_plugin_service().get_tenant_visible_plugin_names(
+                tenant_admin.tenant_id
+            )
         )
-        permission_codes = await PermissionService(self._db).get_tenant_admin_permissions(
-            tenant_admin
-        )
+        permission_codes = await PermissionService(
+            self._db
+        ).get_tenant_admin_permissions(tenant_admin)
 
         registry = ExtensionRegistry.get_instance()
         grouped = registry.get_frontend_slots_grouped(scope="tenant")
@@ -265,6 +272,22 @@ class PluginReadModelService:
             data["config"] = mask_plugin_config(data["config"], config_schema)
         return data
 
+    @staticmethod
+    def _attach_compatibility_profile(data: dict[str, Any]) -> dict[str, Any]:
+        """中文: 给插件 payload 附加版本/端别/企业暴露投影。
+
+        EN: Attach the derived edition/surface/tenant exposure profile.
+        """
+        manifest_data = data.get("manifest") if isinstance(data, dict) else {}
+        if not isinstance(manifest_data, dict):
+            manifest_data = {}
+        scope = str(data.get("scope") or manifest_data.get("scope") or "")
+        data["compatibility_profile"] = build_plugin_exposure_profile(
+            manifest_data,
+            scope=scope,
+        ).to_dict()
+        return data
+
     async def build_admin_plugin_list(
         self,
         query,
@@ -275,6 +298,7 @@ class PluginReadModelService:
         result_items: list[dict[str, Any]] = []
         for item in items:
             data = self._mask_sensitive_config(item.to_dict())
+            data = self._attach_compatibility_profile(data)
             dependency_status = await service.get_dependency_status(item)
             data["dependency_status"] = dependency_status
             data["recovery_state"] = service.get_recovery_state(
@@ -295,6 +319,7 @@ class PluginReadModelService:
         plugin = await self._get_plugin_or_raise(plugin_id)
 
         data = self._mask_sensitive_config(plugin.to_dict())
+        data = self._attach_compatibility_profile(data)
         dependency_status = await service.get_dependency_status(plugin)
         data["dependency_status"] = dependency_status
         data["recovery_state"] = service.get_recovery_state(
@@ -304,10 +329,17 @@ class PluginReadModelService:
         data["readme"] = await service.get_readme(plugin_id, locale=locale)
         return data
 
-    async def list_tenant_visible_plugin_items(self, tenant_admin) -> list[dict[str, Any]]:
+    async def list_tenant_visible_plugin_items(
+        self, tenant_admin
+    ) -> list[dict[str, Any]]:
         """Build masked tenant-visible plugin list items."""
         plugins = await self.list_tenant_visible_plugins(tenant_admin)
-        return [self._mask_sensitive_config(plugin.to_dict()) for plugin in plugins]
+        return [
+            self._attach_compatibility_profile(
+                self._mask_sensitive_config(plugin.to_dict())
+            )
+            for plugin in plugins
+        ]
 
     async def list_ai_feature_assignments(
         self,
@@ -527,5 +559,6 @@ class PluginReadModelService:
         plugin = await self._get_plugin_or_raise(plugin_id)
         monitor = PluginHealthMonitor(self._db)
         return await monitor.get_health_status(plugin.name)
+
 
 __all__ = ["PluginReadModelService"]

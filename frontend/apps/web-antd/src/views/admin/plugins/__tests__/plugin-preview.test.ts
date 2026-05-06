@@ -1,14 +1,20 @@
 import type { InstallManifestSummary } from '#/api/admin/plugin';
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+import { resolvePluginCompatibilityProfile } from '#/api/admin/plugin';
 
 import {
   deriveInstallPreviewPluginType,
   summarizeInstallManifest,
 } from '../plugin-preview';
 
+vi.mock('#/utils/request', () => ({
+  requestClient: {},
+}));
+
 describe('plugin preview helpers', () => {
-  it('derives plugin type from install summary instead of manifest shape', () => {
+  it('[structural] derives plugin type from install summary instead of manifest shape', () => {
     const installManifest: InstallManifestSummary = {
       skills: 1,
       api_routes: 2,
@@ -23,7 +29,7 @@ describe('plugin preview helpers', () => {
     expect(deriveInstallPreviewPluginType({})).toBe('basic');
   });
 
-  it('summarizes visible frontend extension counts with localized labels', () => {
+  it('[structural] summarizes visible frontend extension counts with localized labels', () => {
     const installManifest: InstallManifestSummary = {
       frontend_pages: 1,
       frontend_pages_details: ['Docs'],
@@ -72,5 +78,30 @@ describe('plugin preview helpers', () => {
         details: ['Weather Overview'],
       },
     ]);
+  });
+
+  it('[structural] resolves compatibility profile edition and tenant exposure fields', () => {
+    const profile = resolvePluginCompatibilityProfile({
+      scope: 'all_tenants',
+      compatibility_profile: {
+        editions: ['saas', 'single-management'],
+        surfaces: ['admin', 'user'],
+        tenant_exposure: {
+          mode: 'specified_tenants',
+          requires_explicit_assignment: true,
+        },
+      },
+    });
+
+    expect(profile).toEqual(
+      expect.objectContaining({
+        editions: ['saas', 'single_management'],
+        saasCompatible: true,
+        singleManagementCompatible: true,
+        surfaces: ['admin', 'user'],
+        tenantAssignmentRequired: true,
+        tenantExposureMode: 'specified_tenants',
+      }),
+    );
   });
 });

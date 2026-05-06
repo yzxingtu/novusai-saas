@@ -23,6 +23,7 @@ from app.plugins.dependencies import (
     normalize_plugin_dependencies,
     normalize_python_package_name,
 )
+from app.plugins.exposure_policy import build_plugin_exposure_profile
 from app.plugins.frontend_contract_checks import collect_frontend_i18n_warnings
 from app.plugins.loader import PluginLoader
 
@@ -38,6 +39,7 @@ class InstallPreview(BaseModel):
     conflicts: list[dict] = Field(default_factory=list)
     capabilities: list[dict] = Field(default_factory=list)
     compatibility: dict = Field(default_factory=dict)
+    compatibility_profile: dict = Field(default_factory=dict)
     warnings: list[str] = Field(default_factory=list)
     preview_token: str = ""
 
@@ -351,6 +353,10 @@ async def generate_preview(
             "platform_version": manifest.compatibility.platform_version,
             "conflicts_count": len(manifest.compatibility.conflicts),
         }
+    compatibility_profile = build_plugin_exposure_profile(
+        manifest,
+        scope=manifest.scope,
+    ).to_dict()
 
     # Security scan / 安全扫描
     from app.plugins.security_scan import scan_plugin_directory
@@ -504,5 +510,6 @@ async def generate_preview(
         conflicts=conflicts,
         capabilities=capabilities,
         compatibility=compatibility,
+        compatibility_profile=compatibility_profile,
         warnings=warnings,
     )

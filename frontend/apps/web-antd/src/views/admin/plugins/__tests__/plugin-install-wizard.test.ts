@@ -27,8 +27,38 @@ const mockRefs = vi.hoisted(() => ({
 }));
 
 vi.mock('#/api/admin/plugin', () => ({
+  getPluginTenantExposureColor: (mode: string) => `color:${mode}`,
+  getPluginTenantExposureLabelKey: (mode: string) =>
+    mode === 'specified_tenants'
+      ? 'admin.plugin.compatibility.tenantExposure.specifiedTenants'
+      : `admin.plugin.compatibility.tenantExposure.${mode}`,
   installPluginApi: mockRefs.installPluginApi,
   previewPluginInstallApi: mockRefs.previewPluginInstallApi,
+  resolvePluginCompatibilityProfile: (source: {
+    compatibility_profile?: {
+      editions?: string[];
+      saas_compatible?: boolean;
+      single_management_compatible?: boolean;
+      tenant_exposure?: {
+        mode?: string;
+        requires_explicit_assignment?: boolean;
+      };
+    };
+  }) => {
+    const profile = source.compatibility_profile ?? {};
+    const tenantExposure = profile.tenant_exposure ?? {};
+    return {
+      editions: profile.editions ?? ['saas'],
+      saasCompatible: profile.saas_compatible ?? true,
+      singleManagementCompatible:
+        profile.single_management_compatible ??
+        (profile.editions ?? []).includes('single-management'),
+      surfaces: [],
+      tenantAssignmentRequired:
+        tenantExposure.requires_explicit_assignment === true,
+      tenantExposureMode: tenantExposure.mode ?? 'scope_inherited',
+    };
+  },
 }));
 
 vi.mock('#/api/admin/plugin-marketplace', () => ({
@@ -215,6 +245,15 @@ function buildPreviewResponse() {
     conflicts: [],
     capabilities: [],
     compatibility: {},
+    compatibility_profile: {
+      editions: ['saas', 'single-management'],
+      saas_compatible: true,
+      single_management_compatible: true,
+      tenant_exposure: {
+        mode: 'specified_tenants',
+        requires_explicit_assignment: true,
+      },
+    },
     warnings: [],
     preview_token: 'preview-token',
   };
@@ -346,5 +385,31 @@ describe('pluginInstallWizard', () => {
       throw new Error('Expected confirm install button to exist');
     }
     expect(confirmButton.attributes('disabled')).toBeDefined();
+  });
+
+  it('[structural] renders compatibility tags from install preview profile', async () => {
+    const wrapper = mount(PluginInstallWizard);
+    const vm = wrapper.vm as unknown as PluginInstallWizardVm;
+
+    await vm.openMarketplace({
+      slug: 'weather-widget',
+      name: 'weather-widget',
+      display_name: 'Weather Widget',
+      version: '1.2.3',
+    });
+    await flushPromises();
+
+    expect(wrapper.text()).toContain(
+      'admin.plugin.compatibility.edition.saasCompatible',
+    );
+    expect(wrapper.text()).toContain(
+      'admin.plugin.compatibility.edition.singleManagementCompatible',
+    );
+    expect(wrapper.text()).toContain(
+      'admin.plugin.compatibility.tenantExposure.specifiedTenants',
+    );
+    expect(wrapper.text()).toContain(
+      'admin.plugin.compatibility.tenantExposure.explicitRequired',
+    );
   });
 });

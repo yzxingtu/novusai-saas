@@ -20,6 +20,10 @@ import {
   Upload,
 } from 'ant-design-vue';
 
+import {
+  getPluginTenantExposureColor,
+  getPluginTenantExposureLabelKey,
+} from '#/api/admin/plugin';
 import { ConfigImagePicker } from '#/components/business/config-image-picker';
 import { MarkdownRender } from '#/components/business/markdown-render';
 import { $t } from '#/locales';
@@ -54,6 +58,7 @@ const {
   licenseLoading,
   licenseKeyInput,
   licenseActivating,
+  compatibilityProfile,
   needsTenantAssignment,
   pluginHasAiFeatures,
   availableTenants,
@@ -253,6 +258,70 @@ const {
     <Descriptions :column="1" size="small" bordered class="mb-6">
       <DescriptionsItem :label="$t('admin.plugin.scope')">
         {{ getScopeText(plugin.scope) }}
+      </DescriptionsItem>
+      <DescriptionsItem
+        v-if="compatibilityProfile"
+        :label="$t('admin.plugin.compatibility.title')"
+      >
+        <div class="flex flex-wrap gap-1.5">
+          <Tag
+            :color="compatibilityProfile.saasCompatible ? 'success' : 'default'"
+            :bordered="false"
+            class="text-xs"
+          >
+            {{
+              $t(
+                compatibilityProfile.saasCompatible
+                  ? 'admin.plugin.compatibility.edition.saasCompatible'
+                  : 'admin.plugin.compatibility.edition.saasIncompatible',
+              )
+            }}
+          </Tag>
+          <Tag
+            :color="
+              compatibilityProfile.singleManagementCompatible
+                ? 'processing'
+                : 'default'
+            "
+            :bordered="false"
+            class="text-xs"
+          >
+            {{
+              $t(
+                compatibilityProfile.singleManagementCompatible
+                  ? 'admin.plugin.compatibility.edition.singleManagementCompatible'
+                  : 'admin.plugin.compatibility.edition.singleManagementIncompatible',
+              )
+            }}
+          </Tag>
+          <Tag
+            :color="
+              getPluginTenantExposureColor(
+                compatibilityProfile.tenantExposureMode,
+              )
+            "
+            :bordered="false"
+            class="text-xs"
+          >
+            {{
+              $t(
+                getPluginTenantExposureLabelKey(
+                  compatibilityProfile.tenantExposureMode,
+                ),
+              )
+            }}
+          </Tag>
+          <Tag
+            v-if="compatibilityProfile.tenantAssignmentRequired"
+            color="orange"
+            :bordered="false"
+            class="text-xs"
+          >
+            {{
+              $t('admin.plugin.compatibility.tenantExposure.explicitRequired')
+            }}
+          </Tag>
+        </div>
       </DescriptionsItem>
       <DescriptionsItem :label="$t('admin.plugin.installSource')">
         {{ plugin.install_source }}

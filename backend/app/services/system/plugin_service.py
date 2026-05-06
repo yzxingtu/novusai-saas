@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from app.core.base_service import BaseService
 from app.core.i18n import _
@@ -25,6 +25,7 @@ from app.plugins.dependencies import (
     build_python_dependency_states,
     normalize_plugin_dependencies,
 )
+from app.plugins.exposure_policy import build_plugin_exposure_profile
 from app.plugins.runtime_recovery import build_plugin_recovery_state
 from app.repositories.system.plugin_repository import PluginRepository
 
@@ -448,6 +449,182 @@ class PluginService(BaseService[Plugin, PluginRepository]):
 
     # ── 企业分配 ── / ── Tenant assignment ──
 
+    @staticmethod
+    def _normalize_tenant_assignment_ids(tenant_ids: list[int]) -> list[int]:
+        normalized: list[int] = []
+        invalid: list[str] = []
+        seen: set[int] = set()
+        for raw_id in tenant_ids:
+            try:
+                tenant_id = int(raw_id)
+            except (TypeError, ValueError):
+                invalid.append(str(raw_id))
+                continue
+            if tenant_id <= 0:
+                invalid.append(str(raw_id))
+                continue
+            if tenant_id not in seen:
+                normalized.append(tenant_id)
+                seen.add(tenant_id)
+
+        if invalid:
+            raise BusinessException(
+                message=_("plugin.error.invalid_tenant_assignment_targets").format(
+                    tenant_ids=", ".join(invalid),
+                )
+            )
+        return normalized
+
+    @staticmethod
+    def _tenant_entitlement_markers_for_plugin(
+        plugin: Plugin,
+    ) -> tuple[set[str], tuple[str, ...]]:
+        manifest = plugin.manifest if isinstance(plugin.manifest, dict) else {}
+        extensions = manifest.get("extensions") if isinstance(manifest, dict) else {}
+        if not isinstance(extensions, dict):
+            extensions = {}
+
+        plugin_name = str(getattr(plugin, "name", "") or "").strip()
+        if not plugin_name:
+            return set(), ()
+
+        full_codes: set[str] = set()
+        prefixes: set[str] = set()
+
+        permission_exts = extensions.get("permissions") or []
+        if isinstance(permission_exts, list):
+            for permission in permission_exts:
+                if not isinstance(permission, dict):
+                    continue
+                scope = str(permission.get("scope") or "tenant").strip().lower()
+                if scope not in {"tenant", "both"}:
+                    continue
+                base_code = str(permission.get("code") or "").strip()
+                if not base_code:
+                    continue
+                full_base = (
+                    base_code
+                    if base_code.startswith("plugin.")
+                    else f"plugin.{plugin_name}.{base_code}"
+                )
+                prefixes.add(f"{full_base}:")
+                for action in permission.get("actions") or []:
+                    action_text = str(action or "").strip()
+                    if action_text:
+                        full_codes.add(f"{full_base}:{action_text}")
+
+        frontend = extensions.get("frontend") or {}
+        pages = frontend.get("pages") if isinstance(frontend, dict) else []
+        if isinstance(pages, list):
+            safe_name = plugin_name.replace("-", "_")
+            for page in pages:
+                if not isinstance(page, dict):
+                    continue
+                scope = str(page.get("scope") or "").strip().lower()
+                if scope in {"tenant", "both"} and page.get("menu") is not None:
+                    prefixes.add(f"menu:tenant.plugin_{safe_name}_")
+                for access_code in page.get("access_codes") or []:
+                    code_text = str(access_code or "").strip()
+                    if code_text.startswith(f"plugin.{plugin_name}."):
+                        full_codes.add(code_text)
+
+        return full_codes, tuple(sorted(prefixes))
+
+    @staticmethod
+    def _tenant_plan_has_plugin_entitlement(
+        plan_permissions: list[Any],
+        *,
+        full_codes: set[str],
+        prefixes: tuple[str, ...],
+    ) -> bool:
+        if not full_codes and not prefixes:
+            return True
+
+        for permission in plan_permissions:
+            if not bool(getattr(permission, "is_enabled", False)):
+                continue
+            if bool(getattr(permission, "is_deleted", False)):
+                continue
+            scope = str(getattr(permission, "scope", "") or "").strip().lower()
+            if scope not in {"tenant", "both"}:
+                continue
+            code = str(getattr(permission, "code", "") or "").strip()
+            if code in full_codes or any(code.startswith(prefix) for prefix in prefixes):
+                return True
+        return False
+
+    async def _validate_tenant_assignment_targets(
+        self,
+        plugin: Plugin,
+        tenant_ids: list[int],
+    ) -> list[int]:
+        from sqlalchemy import select
+        from sqlalchemy.orm import selectinload
+
+        from app.models.tenant.tenant import Tenant
+        from app.models.tenant.tenant_plan import TenantPlan
+
+        normalized_ids = self._normalize_tenant_assignment_ids(tenant_ids)
+        if not normalized_ids:
+            return []
+
+        result = await self.db.execute(
+            select(Tenant)
+            .where(Tenant.id.in_(normalized_ids), Tenant.is_deleted.is_(False))
+            .options(selectinload(Tenant.tenant_plan).selectinload(TenantPlan.permissions))
+        )
+        tenants = {int(tenant.id): tenant for tenant in result.scalars().all()}
+
+        invalid_ids: list[int] = []
+        for tenant_id in normalized_ids:
+            tenant = tenants.get(tenant_id)
+            if tenant is None:
+                invalid_ids.append(tenant_id)
+                continue
+            plan = getattr(tenant, "tenant_plan", None)
+            if (
+                not bool(getattr(tenant, "is_active", False))
+                or bool(getattr(tenant, "is_deleted", False))
+                or getattr(tenant, "plan_id", None) is None
+                or plan is None
+                or not bool(getattr(plan, "is_active", False))
+            ):
+                invalid_ids.append(tenant_id)
+
+        if invalid_ids:
+            raise BusinessException(
+                message=_("plugin.error.invalid_tenant_assignment_targets").format(
+                    tenant_ids=", ".join(str(item) for item in invalid_ids),
+                )
+            )
+
+        full_codes, prefixes = self._tenant_entitlement_markers_for_plugin(plugin)
+        if full_codes or prefixes:
+            missing_entitlement: list[int] = []
+            for tenant_id in normalized_ids:
+                tenant = tenants[tenant_id]
+                plan = tenant.tenant_plan
+                plan_permissions = list(getattr(plan, "permissions", []) or [])
+                if not self._tenant_plan_has_plugin_entitlement(
+                    plan_permissions,
+                    full_codes=full_codes,
+                    prefixes=prefixes,
+                ):
+                    missing_entitlement.append(tenant_id)
+
+            if missing_entitlement:
+                raise BusinessException(
+                    message=_(
+                        "plugin.error.tenant_assignment_missing_entitlement"
+                    ).format(
+                        tenant_ids=", ".join(
+                            str(item) for item in missing_entitlement
+                        ),
+                    )
+                )
+
+        return normalized_ids
+
     async def assign_tenants(self, plugin_id: int, tenant_ids: list[int]) -> int:
         """
         批量分配企业 / Assign tenants to plugin in batch.
@@ -464,6 +641,19 @@ class PluginService(BaseService[Plugin, PluginRepository]):
         plugin = await self.repo.get_by_id(plugin_id)
         if not plugin:
             raise NotFoundException(message="plugin.error.not_found")
+        exposure_profile = build_plugin_exposure_profile(
+            plugin.manifest or {},
+            scope=plugin.scope,
+        )
+        if tenant_ids and exposure_profile.tenant_runtime_scope is None:
+            raise BusinessException(
+                message=_("plugin.error.scope_disallows_tenant_assignment").format(
+                    scope=plugin.scope
+                    or exposure_profile.tenant_runtime_denial_reason
+                    or "-",
+                )
+            )
+        tenant_ids = await self._validate_tenant_assignment_targets(plugin, tenant_ids)
 
         # 查询已有分配（仅非软删除记录；已删除的分配不阻止重新分配） / Query existing assignments (non-deleted only; deleted rows do not block re-assign)
         result = await self.db.execute(
@@ -531,6 +721,12 @@ class PluginService(BaseService[Plugin, PluginRepository]):
         from app.services.system.plugin_managed_agent_sync_service import (
             PluginManagedAgentSyncService,
         )
+
+        if is_active:
+            plugin = await self.repo.get_by_id(plugin_id)
+            if not plugin:
+                raise NotFoundException(message="plugin.error.not_found")
+            await self._validate_tenant_assignment_targets(plugin, [tenant_id])
 
         await self.db.execute(
             update(ResourceTenantAssignment)
