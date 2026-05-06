@@ -219,8 +219,11 @@ class AuthService(AuthCaptchaVerificationMixin):
         return get_password_hash(password)
 
     @staticmethod
-    def _verify_impersonate_token(token: str) -> dict[str, Any]:
-        return verify_impersonate_token(token)
+    async def _verify_impersonate_token(
+        token: str,
+        expected_target_scope: str,
+    ) -> dict[str, Any] | None:
+        return await verify_impersonate_token(token, expected_target_scope)
 
     @staticmethod
     async def _verify_token_with_scope(

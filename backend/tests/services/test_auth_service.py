@@ -619,6 +619,82 @@ class TestTenantAdminLogin:
         )
 
 
+class TestTenantAdminImpersonation:
+    """企业管理员一键登录测试 / Tenant admin impersonation tests."""
+
+    @pytest.mark.asyncio
+    async def test_impersonate_accepts_real_one_click_token(self, mock_db):
+        from app.core.security import (
+            TOKEN_SCOPE_TENANT_ADMIN,
+            create_impersonate_token,
+        )
+        from app.services.common.auth_service import AuthService
+
+        tenant = _make_tenant(id=12, code="tenant-a", is_active=True)
+        tenant_owner = _make_tenant_admin(id=21, tenant_id=12, is_owner=True)
+        platform_admin = _make_admin(id=5, username="root")
+        mock_db.execute.side_effect = [
+            make_scalar_result(tenant),
+            make_scalar_result(tenant_owner),
+            make_scalar_result(platform_admin),
+        ]
+        service = AuthService(mock_db)
+        impersonate_token = create_impersonate_token(
+            admin_id=platform_admin.id,
+            target_scope=TOKEN_SCOPE_TENANT_ADMIN,
+            target_tenant_id=tenant.id,
+            target_role_id=9,
+        )
+
+        with (
+            patch.object(
+                service,
+                "_create_token_pair",
+                return_value={
+                    "access_token": "tenant_access",
+                    "refresh_token": "tenant_refresh",
+                    "access_jti": "tenant_access_jti",
+                    "refresh_jti": "tenant_refresh_jti",
+                    "token_type": "bearer",
+                },
+            ) as mock_create_token_pair,
+            patch.object(
+                service,
+                "_record_active_tokens",
+                new_callable=AsyncMock,
+            ) as mock_record_active_tokens,
+            patch.object(service, "_log_auth_info"),
+        ):
+            tokens, audit_info = await service.impersonate_tenant_admin(
+                impersonate_token
+            )
+
+        assert tokens["access_token"] == "tenant_access"
+        assert audit_info == {
+            "admin_id": platform_admin.id,
+            "admin_username": platform_admin.username,
+            "target_tenant_id": tenant.id,
+            "target_tenant_code": tenant.code,
+            "tenant_owner_id": tenant_owner.id,
+            "target_role_id": 9,
+        }
+        mock_create_token_pair.assert_called_once_with(
+            tenant_owner.id,
+            scope=TOKEN_SCOPE_TENANT_ADMIN,
+            extra_claims={
+                "tenant_id": tenant.id,
+                "impersonated_by": platform_admin.id,
+                "impersonate_role_id": 9,
+            },
+        )
+        mock_record_active_tokens.assert_awaited_once_with(
+            "tenant_admin",
+            str(tenant_owner.id),
+            "tenant_access_jti",
+            "tenant_refresh_jti",
+        )
+
+
 class TestTenantUserDevBootstrap:
     """开发环境 tenant user bootstrap 测试 / Dev bootstrap tests for tenant user."""
 
