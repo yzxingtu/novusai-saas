@@ -340,10 +340,14 @@ class ContextCapabilityInputs:
 
 @dataclass
 class ContextCapabilityAwareness:
-    """Dynamic capability-awareness snapshot for diagnostics-only surfaces."""
+    """中文: 动态能力感知快照。
+
+    EN: Dynamic capability-awareness snapshot.
+    """
 
     enabled: bool = False
     categories: list[str] = field(default_factory=list)
+    sections: list[dict[str, Any]] = field(default_factory=list)
     error: str | None = None
 
 
@@ -355,7 +359,7 @@ class ContextCapabilityFinalization:
     diagnostics: dict[str, Any] = field(default_factory=dict)
     capability_injection_decision: dict[str, Any] = field(default_factory=dict)
     runtime_manifest: dict[str, Any] = field(default_factory=dict)
-    runtime_capability_summary: str = ""
+    runtime_capability_summary: dict[str, Any] = field(default_factory=dict)
 
 
 class ContextCapabilityBridge(Protocol):

@@ -6,6 +6,8 @@ Provides CRUD operations for configs, supporting platform and tenant configs.
 """
 
 import json
+import math
+import re
 import time
 from typing import Any
 
@@ -14,8 +16,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.configs.meta import ConfigMeta
 from app.configs.registry import ConfigRegistry, config_registry
+from app.core.i18n import _
 from app.core.logging import LogManager
 from app.enums.config import ConfigScope, ConfigValueType
+from app.enums.error_code import ErrorCode
+from app.exceptions import BusinessException
 from app.models.system.config import (
     SystemConfig,
     SystemConfigGroup,
@@ -178,6 +183,24 @@ class ConfigService:
             return config_meta.default_value
 
         return default
+
+    async def get_tenant_config_override(
+        self,
+        tenant_id: int,
+        key: str,
+    ) -> Any:
+        """中文: 获取企业显式保存的配置值，不回退到元数据默认值。
+
+        EN: Return an explicitly stored tenant config value without metadata defaults.
+        """
+
+        return await self._get_config_value(
+            key=key,
+            tenant_id=tenant_id,
+            scope=ConfigScope.ALL_TENANTS,
+            default=None,
+            skip_default=True,
+        )
 
     async def set_tenant_config(
         self,
@@ -462,6 +485,8 @@ class ConfigService:
             "sort_order": config_meta.sort_order,
             "display_rules": [rule.to_dict() for rule in config_meta.display_rules],
             "value_path": config_meta.value_path,
+            "tag_separator": config_meta.tag_separator,
+            "file_accept": config_meta.file_accept,
         }
 
         if config_meta.children:
@@ -533,6 +558,9 @@ class ConfigService:
                 value = str(value)
             value = sanitize_config_html(value)
 
+        if config_meta is not None:
+            value = self._normalize_and_validate_config_value(config_meta, value)
+
         serialized_value = self._serialize_value(value)
 
         if value_record:
@@ -552,6 +580,186 @@ class ConfigService:
         # Invalidate cache after write / 写入后立即失效缓存
         cache_key = f"{tenant_id}:{group_code or '*'}:{key}"
         _config_value_cache.pop(cache_key, None)
+
+    def _raise_config_validation_failed(self) -> None:
+        raise BusinessException(
+            message=_("error.config.validation_failed"),
+            code=ErrorCode.CONFIG_VALIDATION_FAILED,
+        )
+
+    def _normalize_and_validate_config_value(
+        self,
+        config_meta: ConfigMeta,
+        value: Any,
+    ) -> Any:
+        normalized = self._normalize_config_value(config_meta, value)
+        self._validate_required_config_value(config_meta, normalized)
+        self._validate_config_rules(config_meta, normalized)
+        return normalized
+
+    def _normalize_config_value(self, config_meta: ConfigMeta, value: Any) -> Any:
+        if value is None:
+            return None
+
+        value_type = config_meta.value_type
+        if value_type == ConfigValueType.BOOLEAN:
+            return self._normalize_boolean_config_value(value)
+        if value_type == ConfigValueType.NUMBER:
+            return self._normalize_number_config_value(value)
+        if value_type == ConfigValueType.SELECT:
+            return self._normalize_select_config_value(config_meta, value)
+        if value_type == ConfigValueType.MULTI_SELECT:
+            return self._normalize_multi_select_config_value(config_meta, value)
+        if value_type == ConfigValueType.JSON:
+            return self._normalize_json_config_value(value)
+        if value_type == ConfigValueType.TAG:
+            return self._normalize_tag_config_value(config_meta, value)
+        if value_type in {
+            ConfigValueType.COLOR,
+            ConfigValueType.FILE,
+            ConfigValueType.HTML,
+            ConfigValueType.IMAGE,
+            ConfigValueType.PASSWORD,
+            ConfigValueType.STRING,
+            ConfigValueType.TEXT,
+        }:
+            return str(value)
+        return value
+
+    def _normalize_boolean_config_value(self, value: Any) -> bool:
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized in {"1", "true", "yes", "on"}:
+                return True
+            if normalized in {"0", "false", "no", "off"}:
+                return False
+        self._raise_config_validation_failed()
+
+    def _normalize_number_config_value(self, value: Any) -> int | float:
+        if isinstance(value, bool):
+            self._raise_config_validation_failed()
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            self._raise_config_validation_failed()
+        if not math.isfinite(number):
+            self._raise_config_validation_failed()
+        return int(number) if number.is_integer() else number
+
+    def _normalize_select_config_value(
+        self,
+        config_meta: ConfigMeta,
+        value: Any,
+    ) -> Any:
+        if not config_meta.options:
+            return value
+        for option in config_meta.options:
+            if value == option.value or str(value) == str(option.value):
+                return option.value
+        self._raise_config_validation_failed()
+
+    def _normalize_multi_select_config_value(
+        self,
+        config_meta: ConfigMeta,
+        value: Any,
+    ) -> list[Any]:
+        if not isinstance(value, (list, tuple, set)):
+            self._raise_config_validation_failed()
+        raw_values = list(value)
+        if not config_meta.options:
+            return raw_values
+
+        normalized_values: list[Any] = []
+        for raw_value in raw_values:
+            matched = False
+            for option in config_meta.options:
+                if raw_value == option.value or str(raw_value) == str(option.value):
+                    normalized_values.append(option.value)
+                    matched = True
+                    break
+            if not matched:
+                self._raise_config_validation_failed()
+        return normalized_values
+
+    def _normalize_json_config_value(self, value: Any) -> Any:
+        if isinstance(value, str):
+            try:
+                return json.loads(value)
+            except json.JSONDecodeError:
+                self._raise_config_validation_failed()
+        try:
+            json.dumps(value, ensure_ascii=False)
+        except (TypeError, ValueError):
+            self._raise_config_validation_failed()
+        return value
+
+    def _normalize_tag_config_value(self, config_meta: ConfigMeta, value: Any) -> str:
+        if isinstance(value, str):
+            return value
+        if isinstance(value, (list, tuple, set)):
+            separator = config_meta.tag_separator or ","
+            return separator.join(
+                str(item).strip() for item in value if str(item).strip()
+            )
+        self._raise_config_validation_failed()
+
+    def _validate_required_config_value(
+        self,
+        config_meta: ConfigMeta,
+        value: Any,
+    ) -> None:
+        if not config_meta.is_required:
+            return
+        if value is None:
+            self._raise_config_validation_failed()
+        if isinstance(value, str) and not value.strip():
+            self._raise_config_validation_failed()
+        if isinstance(value, (list, tuple, set, dict)) and not value:
+            self._raise_config_validation_failed()
+
+    def _validate_config_rules(
+        self,
+        config_meta: ConfigMeta,
+        value: Any,
+    ) -> None:
+        if value is None:
+            return
+        for rule in config_meta.validation_rules:
+            rule_type = str(rule.type or "").strip()
+            if rule_type in {"min", "min_value"}:
+                if self._normalize_number_config_value(
+                    value
+                ) < self._coerce_rule_number(rule.value):
+                    self._raise_config_validation_failed()
+            elif rule_type in {"max", "max_value"}:
+                if self._normalize_number_config_value(
+                    value
+                ) > self._coerce_rule_number(rule.value):
+                    self._raise_config_validation_failed()
+            elif rule_type == "min_length":
+                if len(str(value)) < int(rule.value):
+                    self._raise_config_validation_failed()
+            elif rule_type == "max_length":
+                if len(str(value)) > int(rule.value):
+                    self._raise_config_validation_failed()
+            elif rule_type == "pattern":
+                try:
+                    matched = re.fullmatch(str(rule.value), str(value))
+                except re.error:
+                    self._raise_config_validation_failed()
+                if not matched:
+                    self._raise_config_validation_failed()
+
+    def _coerce_rule_number(self, value: Any) -> float:
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            self._raise_config_validation_failed()
+        if not math.isfinite(number):
+            self._raise_config_validation_failed()
+        return number
 
     async def _get_configs_by_group(
         self,

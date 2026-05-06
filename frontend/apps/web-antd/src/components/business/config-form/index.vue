@@ -2,11 +2,7 @@
 import type { FormInstance } from 'ant-design-vue';
 import type { Rule } from 'ant-design-vue/es/form';
 
-import type {
-  ConfigItemMeta,
-  DisplayRuleMeta,
-  ValidationRuleMeta,
-} from '#/types/config';
+import type { ConfigItemMeta, DisplayRuleMeta } from '#/types/config';
 
 import { computed, ref } from 'vue';
 
@@ -15,6 +11,7 @@ import { Form } from 'ant-design-vue';
 import { $t as t } from '#/locales';
 
 import { useConfigFormModel } from './composables/use-config-form-model';
+import { convertConfigRules, getValidationRuleNumber } from './rules';
 import ConfigFormFieldSection from './sections/ConfigFormFieldSection.vue';
 
 interface Props {
@@ -165,72 +162,17 @@ const formRules = computed<Record<string, Rule[]>>(() => {
 });
 
 function convertRules(cfg: ConfigItemMeta): Rule[] {
-  const rules: Rule[] = [];
-  if (cfg.is_required) {
-    const fieldName = cfg.name_key ? t(cfg.name_key) : cfg.key;
-    rules.push({
-      required: true,
-      message: t('shared.config.validation.required', { field: fieldName }),
-    });
-  }
-  (cfg.validation_rules || []).forEach((rule: ValidationRuleMeta) => {
-    switch (rule.type) {
-      case 'max_length': {
-        rules.push({
-          max: Number(rule.value),
-          message: rule.message_key
-            ? t(rule.message_key, { max: rule.value })
-            : '',
-        });
-        break;
-      }
-      case 'max_value': {
-        rules.push({
-          type: 'number',
-          max: Number(rule.value),
-          message: rule.message_key
-            ? t(rule.message_key, { max: rule.value })
-            : '',
-        });
-        break;
-      }
-      case 'min_length': {
-        rules.push({
-          min: Number(rule.value),
-          message: rule.message_key
-            ? t(rule.message_key, { min: rule.value })
-            : '',
-        });
-        break;
-      }
-      case 'min_value': {
-        rules.push({
-          type: 'number',
-          min: Number(rule.value),
-          message: rule.message_key
-            ? t(rule.message_key, { min: rule.value })
-            : '',
-        });
-        break;
-      }
-      case 'pattern': {
-        rules.push({
-          pattern: new RegExp(String(rule.value)),
-          message: rule.message_key ? t(rule.message_key) : '',
-        });
-        break;
-      }
-    }
+  return convertConfigRules(cfg, {
+    fieldName: getConfigLabel(cfg),
+    translate: t,
   });
-  return rules;
 }
 
 function getRuleNumber(
   cfg: ConfigItemMeta,
   type: 'max_value' | 'min_value',
 ): number | undefined {
-  const rule = (cfg.validation_rules || []).find((item) => item.type === type);
-  return rule ? Number(rule.value) : undefined;
+  return getValidationRuleNumber(cfg, type);
 }
 
 async function validate() {

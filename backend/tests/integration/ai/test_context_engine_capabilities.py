@@ -1,3 +1,10 @@
+"""
+Test type: structural / behavioral
+Scope: context-engine capability awareness, runtime inventory, and prompt additions.
+Mocked dependencies: Static config, KB/RAG IO, model-capability lookup, and intent
+planner fixtures are mocked so tests cover downstream context assembly behavior.
+"""
+
 from __future__ import annotations
 
 from types import SimpleNamespace
@@ -92,6 +99,23 @@ def _build_intent_plan(*kinds: str) -> list[IntentPlan]:
             metadata={},
         )
         for index, kind in enumerate(kinds, start=1)
+    ]
+
+
+def _build_shortcircuit_intent_plan(kind: str = "direct_reply") -> list[IntentPlan]:
+    return [
+        IntentPlan(
+            intent_id="intent-shortcircuit",
+            kind=kind,
+            family="none",
+            order=1,
+            user_visible_label=kind,
+            source_text="capability self-report",
+            requires_tools=False,
+            allow_text_response=True,
+            shortcircuit=True,
+            metadata={},
+        )
     ]
 
 
@@ -266,6 +290,12 @@ async def test_context_engine_enables_long_term_memory_recall_on_generic_turns()
 
 @pytest.mark.asyncio
 async def test_context_engine_handles_mapping_description_inputs() -> None:
+    """
+    中文: 测试类型 behavioral；验证 mapping 形态的技能描述会被注入能力块。
+    EN: Test type behavioral; mapping-shaped skill descriptions reach the block.
+    中文: Mock 的是配置、知识库、RAG、模型能力 IO 固定输入，prompt 渲染走真实逻辑。
+    EN: Config, KB, RAG, and model-capability IO are fixed fixtures; rendering is real.
+    """
     skill_result = _build_skill_result(
         CapabilityDescriptor(
             name="intent_mapper",
@@ -288,42 +318,210 @@ async def test_context_engine_handles_mapping_description_inputs() -> None:
             intent_plan=_build_intent_plan("assistant_response"),
         )
 
-    assert "[CAPABILITIES]" not in assembly.messages[0].content
+    assert "[RUNTIME CAPABILITIES]" in assembly.messages[0].content
+    assert "Mapping Skills" in assembly.messages[0].content
+    assert "mapped_tool: Mapping item" in assembly.messages[0].content
+    assert any(
+        "[RUNTIME CAPABILITIES]" in addition
+        for addition in (assembly.system_prompt_additions or [])
+    )
     assert assembly.diagnostics["dynamic_capability_awareness_enabled"] is True
+    assert assembly.diagnostics["dynamic_capability_awareness_injected"] is True
     assert assembly.diagnostics["dynamic_capability_awareness_categories"] == ["skills"]
     assert "dynamic_capability_awareness_error" not in assembly.diagnostics
 
 
 @pytest.mark.asyncio
-async def test_context_engine_tracks_knowledge_base_capabilities_without_prompt_injection() -> (
+async def test_context_engine_injects_live_selected_skill_capability_descriptions() -> (
     None
 ):
+    """
+    中文: 测试类型 behavioral；本轮显式选择的 live skill 会通过真实 builder 注入能力块。
+    EN: Test type behavioral; live selected skills reach the capability block through the real builder.
+    中文: Mock 的是配置、知识库、RAG、模型能力 IO 与 intent fixture；builder 与 activation 走真实逻辑。
+    EN: Config, KB, RAG, model-capability IO, and intent fixture are mocked; builder and activation are real.
+    """
+    skill_result = _build_skill_result(
+        CapabilityDescriptor(
+            name="intent_mapper",
+            kind="capability_pack",
+            source="skill_package:mapper",
+            description="Map intents to capabilities",
+            metadata={"family": "general", "has_execution_tools": True},
+        ),
+        CapabilityDescriptor(
+            name="catalog_only",
+            kind="capability_pack",
+            source="skill_package:catalog",
+            description="Catalog metadata only",
+            metadata={"family": "general", "has_execution_tools": False},
+        ),
+    )
+
+    assembly = await _assemble_context(
+        request=_build_request(
+            messages=[ChatMessage(role="user", content="帮我规划这轮任务")],
+            selected_skill_names=["intent_mapper"],
+        ),
+        skill_result=skill_result,
+        settings=TenantCapabilityAwarenessSettings(),
+        intent_plan=_build_intent_plan("assistant_response"),
+    )
+
+    assert "[RUNTIME CAPABILITIES]" in assembly.messages[0].content
+    assert "General Skills" in assembly.messages[0].content
+    assert "intent_mapper: Map intents to capabilities" in assembly.messages[0].content
+    assert "catalog_only" not in assembly.messages[0].content
+    assert assembly.diagnostics["dynamic_capability_awareness_categories"] == ["skills"]
+
+
+@pytest.mark.asyncio
+async def test_context_engine_does_not_inject_unactivated_skill_inventory() -> None:
+    """
+    中文: 测试类型 behavioral；普通回合不会把全量授权技能库存注入 system prompt。
+    EN: Test type behavioral; ordinary turns do not inject the full authorized skill inventory.
+    中文: Mock 的是配置、知识库、RAG、模型能力 IO 与 intent fixture；builder 与 activation 走真实逻辑。
+    EN: Config, KB, RAG, model-capability IO, and intent fixture are mocked; builder and activation are real.
+    """
+    skill_result = _build_skill_result(
+        CapabilityDescriptor(
+            name="intent_mapper",
+            kind="capability_pack",
+            source="skill_package:mapper",
+            description="Map intents to capabilities",
+            metadata={"family": "general", "has_execution_tools": True},
+        )
+    )
+
+    assembly = await _assemble_context(
+        request=_build_request(
+            messages=[ChatMessage(role="user", content="帮我写一段欢迎语")],
+        ),
+        skill_result=skill_result,
+        settings=TenantCapabilityAwarenessSettings(),
+        intent_plan=_build_intent_plan("assistant_response"),
+    )
+
+    assert "[RUNTIME CAPABILITIES]" not in assembly.messages[0].content
+    assert (
+        "intent_mapper: Map intents to capabilities" not in assembly.messages[0].content
+    )
+    assert assembly.diagnostics["dynamic_capability_awareness_enabled"] is True
+    assert assembly.diagnostics["dynamic_capability_awareness_injected"] is False
+    assert assembly.diagnostics["dynamic_capability_awareness_categories"] == []
+
+
+@pytest.mark.asyncio
+async def test_context_engine_injects_self_report_skills_despite_shortcircuit() -> None:
+    """
+    中文: 测试类型 behavioral；能力自报短路回合仍注入当前可描述的技能能力。
+    EN: Test type behavioral; capability self-report shortcircuit turns still inject skill descriptions.
+    中文: Mock 的是配置、知识库、RAG、模型能力 IO 与 direct-reply intent fixture；builder 与 activation 走真实逻辑。
+    EN: Config, KB, RAG, model-capability IO, and direct-reply intent fixture are mocked; builder and activation are real.
+    """
+    skill_result = _build_skill_result(
+        CapabilityDescriptor(
+            name="intent_mapper",
+            kind="capability_pack",
+            source="skill_package:mapper",
+            description="Map intents to capabilities",
+            metadata={"family": "general", "has_execution_tools": True},
+        )
+    )
+
+    assembly = await _assemble_context(
+        request=_build_request(
+            messages=[ChatMessage(role="user", content="你有哪些能力")],
+        ),
+        skill_result=skill_result,
+        settings=TenantCapabilityAwarenessSettings(),
+        intent_plan=_build_shortcircuit_intent_plan(),
+    )
+
+    assert assembly.diagnostics["intent_plan"][0]["shortcircuit"] is True
+    assert "[RUNTIME CAPABILITIES]" in assembly.messages[0].content
+    assert "intent_mapper: Map intents to capabilities" in assembly.messages[0].content
+    assert assembly.diagnostics["dynamic_capability_awareness_injected"] is True
+    assert assembly.diagnostics["dynamic_capability_awareness_categories"] == ["skills"]
+
+
+@pytest.mark.asyncio
+async def test_context_engine_injects_limited_knowledge_base_capabilities() -> None:
+    """
+    中文: 测试类型 behavioral；租户风格和最大条目数会塑造注入的知识库能力文本。
+    EN: Test type behavioral; tenant style and item limits shape injected KB text.
+    中文: Mock 的是配置、知识库、RAG、模型能力 IO 固定输入，prompt 渲染走真实逻辑。
+    EN: Config, KB, RAG, and model-capability IO are fixed fixtures; rendering is real.
+    """
     assembly = await _assemble_context(
         request=_build_request(),
         skill_result=None,
-        settings=TenantCapabilityAwarenessSettings(),
-        kb_ids=[101],
+        settings=TenantCapabilityAwarenessSettings(
+            capability_description_style="concise",
+            max_capability_items_per_category=1,
+        ),
+        kb_ids=[101, 202],
         kb_bindings=[
             {
                 "kb_id": 101,
                 "kb_name": "产品文档库",
                 "kb_description": "包含产品手册与 API 文档",
                 "kb_document_count": 12,
-            }
+            },
+            {
+                "kb_id": 202,
+                "kb_name": "内部政策库",
+                "kb_description": "包含审批制度",
+                "kb_document_count": 8,
+            },
         ],
         intent_plan=_build_intent_plan("knowledge_query"),
     )
 
-    assert "[CAPABILITIES]" not in assembly.messages[0].content
-    assert not any(
-        "[CAPABILITIES]" in addition
-        for addition in (assembly.system_prompt_additions or [])
-    )
+    assert "[RUNTIME CAPABILITIES]" in assembly.messages[0].content
+    assert "产品文档库" in assembly.messages[0].content
+    assert "包含产品手册与 API 文档" not in assembly.messages[0].content
+    assert "内部政策库" not in assembly.messages[0].content
+    assert "Additional items omitted by tenant limit: 1" in assembly.messages[0].content
     assert assembly.diagnostics["dynamic_capability_awareness_enabled"] is True
+    assert assembly.diagnostics["dynamic_capability_awareness_injected"] is True
     assert assembly.diagnostics["dynamic_capability_awareness_categories"] == [
         "knowledge_bases"
     ]
     assert "knowledge_base" in assembly.diagnostics["context_source_kinds"]
+
+
+@pytest.mark.asyncio
+async def test_context_engine_does_not_inject_capability_block_when_disabled() -> None:
+    """
+    中文: 测试类型 behavioral；关闭租户能力感知后不会注入运行时能力块。
+    EN: Test type behavioral; disabled tenant awareness leaves capability text absent.
+    中文: Mock 的是配置、知识库、RAG、模型能力 IO 固定输入，prompt 渲染走真实逻辑。
+    EN: Config, KB, RAG, and model-capability IO are fixed fixtures; rendering is real.
+    """
+    skill_result = _build_skill_result(
+        CapabilityDescriptor(
+            name="intent_mapper",
+            kind="capability_pack",
+            source="skill_package:mapper",
+            description="Map intents to capabilities",
+            metadata={"family": "general", "has_execution_tools": True},
+        )
+    )
+
+    assembly = await _assemble_context(
+        request=_build_request(),
+        skill_result=skill_result,
+        settings=TenantCapabilityAwarenessSettings(
+            enable_dynamic_capability_awareness=False,
+        ),
+        intent_plan=_build_intent_plan("assistant_response"),
+    )
+
+    assert "[RUNTIME CAPABILITIES]" not in assembly.messages[0].content
+    assert assembly.diagnostics["dynamic_capability_awareness_enabled"] is False
+    assert assembly.diagnostics["dynamic_capability_awareness_injected"] is False
+    assert assembly.diagnostics["dynamic_capability_awareness_categories"] == []
 
 
 @pytest.mark.asyncio

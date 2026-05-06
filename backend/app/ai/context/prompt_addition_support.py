@@ -79,8 +79,31 @@ def build_visible_output_locale_hint(request: Any) -> str:
     )
 
 
+def build_runtime_capability_block(sections: list[dict[str, Any]]) -> str:
+    normalized_sections = []
+    for section in sections or []:
+        if not isinstance(section, dict):
+            continue
+        items = [
+            str(item or "").strip()
+            for item in section.get("items") or []
+            if str(item or "").strip()
+        ]
+        if not items:
+            continue
+        normalized_sections.append({**section, "items": items})
+    if not normalized_sections:
+        return ""
+    return render_prompt_contract(
+        "turn_capabilities",
+        selected_skill_names="",
+        capability_sections=normalized_sections,
+    )
+
+
 __all__ = [
     "build_memory_recall_block",
     "build_profile_snapshot_block",
+    "build_runtime_capability_block",
     "build_visible_output_locale_hint",
 ]

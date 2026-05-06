@@ -118,7 +118,7 @@ async def test_context_engine_uses_local_kb_binding_loader_seam() -> None:
                 diagnostics={},
                 capability_injection_decision={},
                 runtime_manifest={},
-                runtime_capability_summary="",
+                runtime_capability_summary={},
             )
         ),
     )

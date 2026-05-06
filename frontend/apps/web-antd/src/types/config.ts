@@ -6,6 +6,7 @@
 export type ConfigValueType =
   | 'boolean'
   | 'color'
+  | 'file'
   | 'html'
   | 'image'
   | 'json'
@@ -14,6 +15,7 @@ export type ConfigValueType =
   | 'password'
   | 'select'
   | 'string'
+  | 'tag'
   | 'text';
 
 export type ConfigScalar = boolean | null | number | string;
@@ -25,9 +27,17 @@ export interface ConfigObject {
 export type ConfigValue = ConfigObject | ConfigScalar | ConfigValue[];
 
 export interface ValidationRuleMeta {
-  type: 'max_length' | 'max_value' | 'min_length' | 'min_value' | 'pattern';
+  type:
+    | 'max'
+    | 'max_length'
+    | 'max_value'
+    | 'min'
+    | 'min_length'
+    | 'min_value'
+    | 'pattern';
   value: number | string;
-  message_key: string;
+  message?: string;
+  message_key?: string;
 }
 
 export interface ConfigOptionMeta {
@@ -102,6 +112,10 @@ export interface ConfigItemMeta {
    * 用于 JSON 类型字段的结构化表单渲染
    */
   children?: ConfigItemMeta[];
+  /** Tag separator for tag fields / 标签字段分隔符 */
+  tag_separator?: string;
+  /** File accept pattern for file fields / 文件字段接受类型 */
+  file_accept?: string;
 }
 
 export interface ConfigGroupListItemMeta {
@@ -119,7 +133,12 @@ export interface ConfigGroupListItemMeta {
 
 export interface ConfigGroupMeta {
   code: string;
-  name_key: string;
+  /** Group name (direct text) / 分组名称（直接文本） */
+  name?: string;
+  /** Group name (translation key) / 分组名称（翻译 key） */
+  name_key?: string;
+  /** Group description (direct text) / 分组描述（直接文本） */
+  description?: string;
   description_key?: string;
   icon?: string;
   sort_order: number;

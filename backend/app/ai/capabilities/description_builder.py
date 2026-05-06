@@ -74,7 +74,10 @@ class CapabilityDescriptionBuilder:
         tools = list(activated_tools_for_turn(skill_result))
         descriptors = list(getattr(skill_result, "capability_descriptors", []) or [])
         activation = getattr(skill_result, "turn_activation", None)
-        if activation is not None and activation.applied:
+        if activation is not None and not activation.applied:
+            tools = []
+            descriptors = []
+        elif activation is not None and activation.applied:
             activated_skill_names = {
                 str(name or "").strip()
                 for name in activation.activated_skill_names or []
@@ -286,6 +289,40 @@ class CapabilityDescriptionBuilder:
             },
         )
 
+    def build_prompt_sections(
+        self,
+        descriptions: list[CapabilityDescription | Mapping[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """中文: 从能力描述构建 prompt 模板可消费的段落结构。
+
+        EN: Build prompt-template sections from capability descriptions.
+        """
+        sections: list[dict[str, Any]] = []
+        for description in descriptions:
+            category = self._extract_descriptor_category(description)
+            title = self._extract_descriptor_title(description)
+            items = self._extract_descriptor_items(description)
+            if not items:
+                continue
+            metadata = self._extract_descriptor_metadata(description)
+            total_count = self._coerce_count(metadata.get("total_count"), len(items))
+            displayed_count = self._coerce_count(
+                metadata.get("displayed_count"),
+                len(items),
+            )
+            omitted_count = max(total_count - displayed_count, 0)
+            sections.append(
+                {
+                    "category": category,
+                    "title": title or category.replace("_", " ").title(),
+                    "items": items,
+                    "total_count": total_count,
+                    "displayed_count": displayed_count,
+                    "omitted_count": omitted_count,
+                }
+            )
+        return sections
+
     # ========================================
     # Helper Methods / 辅助方法
     # ========================================
@@ -379,6 +416,26 @@ class CapabilityDescriptionBuilder:
         return str(title_value or "").strip()
 
     @staticmethod
+    def _extract_descriptor_category(
+        desc: CapabilityDescription | Mapping[str, Any],
+    ) -> str:
+        if isinstance(desc, Mapping):
+            category_value = desc.get("category")
+        else:
+            category_value = getattr(desc, "category", None)
+        return str(category_value or "").strip()
+
+    @staticmethod
+    def _extract_descriptor_metadata(
+        desc: CapabilityDescription | Mapping[str, Any],
+    ) -> dict[str, Any]:
+        if isinstance(desc, Mapping):
+            raw_metadata = desc.get("metadata")
+        else:
+            raw_metadata = getattr(desc, "metadata", None)
+        return dict(raw_metadata or {}) if isinstance(raw_metadata, Mapping) else {}
+
+    @staticmethod
     def _extract_descriptor_items(
         desc: CapabilityDescription | Mapping[str, Any],
     ) -> list[str]:
@@ -409,3 +466,10 @@ class CapabilityDescriptionBuilder:
             for item in iterable_items
             if str(item or "").strip()
         ]
+
+    @staticmethod
+    def _coerce_count(value: Any, default: int) -> int:
+        try:
+            return max(int(value), 0)
+        except (TypeError, ValueError):
+            return max(int(default), 0)

@@ -2,7 +2,14 @@
 import type { ConfigFormExpose } from '#/components/business/config-form/types';
 import type { ConfigGroupListItemMeta, ConfigItemMeta } from '#/types/config';
 
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import {
+  computed,
+  nextTick,
+  onActivated,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+} from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -24,6 +31,9 @@ import TenantStoragePanel from '../storage/index.vue';
 
 defineOptions({ name: 'TenantConfigList' });
 
+const CONFIG_GROUP_QUERY_KEY = 'group';
+const CONFIG_ITEM_QUERY_KEY = 'config';
+
 const groups = ref<ConfigGroupListItemMeta[]>([]);
 const activeGroup = ref<string>('');
 const configs = ref<ConfigItemMeta[]>([]);
@@ -36,6 +46,76 @@ const formRef = ref<ConfigFormExpose>();
 const activeGroupData = computed(() =>
   groups.value.find((g) => g.code === activeGroup.value),
 );
+
+function getQueryStringParam(key: string): string {
+  if (typeof window !== 'undefined') {
+    return new URLSearchParams(window.location.search).get(key) || '';
+  }
+  return '';
+}
+
+function getRequestedGroupCode(): string {
+  return getQueryStringParam(CONFIG_GROUP_QUERY_KEY);
+}
+
+function getRequestedConfigKey(): string {
+  return getQueryStringParam(CONFIG_ITEM_QUERY_KEY);
+}
+
+function getResolvedRequestedGroupCode(): string | undefined {
+  const requestedGroupCode = getRequestedGroupCode();
+  if (!requestedGroupCode) return undefined;
+  return groups.value.some((group) => group.code === requestedGroupCode)
+    ? requestedGroupCode
+    : undefined;
+}
+
+async function syncRouteSelection(groupCode: string, configKey?: string) {
+  const currentGroupCode = getRequestedGroupCode();
+  const currentConfigKey = getRequestedConfigKey();
+  const nextConfigKey = configKey ?? '';
+  if (currentGroupCode === groupCode && currentConfigKey === nextConfigKey) {
+    return;
+  }
+
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  const url = new URL(window.location.href);
+  url.searchParams.set(CONFIG_GROUP_QUERY_KEY, groupCode);
+  if (configKey) {
+    url.searchParams.set(CONFIG_ITEM_QUERY_KEY, configKey);
+  } else {
+    url.searchParams.delete(CONFIG_ITEM_QUERY_KEY);
+  }
+
+  const nextUrl = `${url.pathname}${url.search}${url.hash}`;
+  const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  if (nextUrl !== currentUrl) {
+    window.history.replaceState(window.history.state, '', nextUrl);
+  }
+}
+
+async function scrollToConfigItem(configKey: string) {
+  await nextTick();
+  const target = document.querySelector<HTMLElement>(
+    `#config-item-${CSS.escape(configKey)}`,
+  );
+  target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+async function focusRequestedConfig(groupCode: string) {
+  const requestedConfigKey = getRequestedConfigKey();
+  if (
+    !requestedConfigKey ||
+    groupCode !== getRequestedGroupCode() ||
+    !configs.value.some((cfg) => cfg.key === requestedConfigKey)
+  ) {
+    return;
+  }
+  await scrollToConfigItem(requestedConfigKey);
+}
 
 // Get group name (prefer name, then name_key translation, fallback to code) / 获取分组名称
 function getGroupName(g: ConfigGroupListItemMeta): string {
@@ -76,6 +156,21 @@ const groupNavItems = computed(() =>
   })),
 );
 
+async function activateGroup(
+  code: string,
+  options?: { configKey?: string; syncRoute?: boolean },
+) {
+  activeGroup.value = code;
+  if (options?.syncRoute !== false) {
+    await syncRouteSelection(code, options?.configKey);
+  }
+  if (code === 'tenant_storage') {
+    configs.value = [];
+    return;
+  }
+  await loadGroupDetail(code);
+}
+
 async function loadGroups() {
   groupLoading.value = true;
   try {
@@ -87,11 +182,14 @@ async function loadGroups() {
       );
       const firstGroup = sorted[0];
       if (!firstGroup) return;
-      activeGroup.value = firstGroup.code;
-      // tenant_storage uses dedicated panel, no need to load config detail / 专用面板无需加载配置详情
-      if (activeGroup.value !== 'tenant_storage') {
-        await loadGroupDetail(activeGroup.value);
-      }
+      const requestedGroupCode = getResolvedRequestedGroupCode();
+      const initialGroupCode = requestedGroupCode || firstGroup.code;
+      await activateGroup(initialGroupCode, {
+        configKey:
+          requestedGroupCode === initialGroupCode
+            ? getRequestedConfigKey() || undefined
+            : undefined,
+      });
     }
   } finally {
     groupLoading.value = false;
@@ -105,6 +203,7 @@ async function loadGroupDetail(code: string) {
     configs.value = (detail.configs || []).toSorted(
       (a, b) => (a.sort_order || 0) - (b.sort_order || 0),
     );
+    await focusRequestedConfig(code);
   } finally {
     loading.value = false;
   }
@@ -120,19 +219,11 @@ async function onSelectGroup(code: string) {
       okText: t('shared.common.confirm'),
       cancelText: t('shared.common.cancel'),
       onOk: async () => {
-        activeGroup.value = code;
-        // tenant_storage uses dedicated panel / 专用面板
-        if (code !== 'tenant_storage') {
-          await loadGroupDetail(code);
-        }
+        await activateGroup(code);
       },
     });
   } else {
-    activeGroup.value = code;
-    // tenant_storage uses dedicated panel / 专用面板
-    if (code !== 'tenant_storage') {
-      await loadGroupDetail(code);
-    }
+    await activateGroup(code);
   }
 }
 
@@ -168,6 +259,24 @@ function beforeUnloadHandler(e: BeforeUnloadEvent) {
 onMounted(() => {
   loadGroups();
   window.addEventListener('beforeunload', beforeUnloadHandler);
+});
+let isInitialMount = true;
+onActivated(() => {
+  if (isInitialMount) {
+    isInitialMount = false;
+    return;
+  }
+  const requestedGroupCode = getResolvedRequestedGroupCode();
+  if (requestedGroupCode) {
+    activateGroup(requestedGroupCode, {
+      configKey: getRequestedConfigKey() || undefined,
+      syncRoute: false,
+    });
+    return;
+  }
+  if (activeGroup.value && activeGroup.value !== 'tenant_storage') {
+    loadGroupDetail(activeGroup.value);
+  }
 });
 onBeforeUnmount(() => {
   window.removeEventListener('beforeunload', beforeUnloadHandler);

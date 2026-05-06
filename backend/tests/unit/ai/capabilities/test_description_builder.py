@@ -1,6 +1,7 @@
 """
-Unit tests for CapabilityDescriptionBuilder
-能力描述构建器单元测试
+Test type: structural / behavioral
+Scope: CapabilityDescriptionBuilder item grouping, limits, and turn activation.
+Mocked dependencies: none.
 """
 
 import pytest
@@ -8,6 +9,7 @@ import pytest
 from app.ai.capabilities.description_builder import (
     CapabilityDescriptionBuilder,
 )
+from app.ai.skills.activation import TurnSkillActivation
 
 
 class TestCapabilityDescriptionBuilder:
@@ -292,6 +294,107 @@ class TestCapabilityDescriptionBuilder:
         assert len(result[0].items) == 5  # Limited to 5
         assert result[0].metadata["total_count"] == 10
         assert result[0].metadata["displayed_count"] == 5
+
+    def test_turn_activation_suppresses_unactivated_skill_inventory(self):
+        """
+        中文: 测试类型 behavioral；普通回合不会把全量技能库存写进能力描述。
+        EN: Test type behavioral; ordinary turns do not describe the full skill inventory.
+        """
+
+        class MockDescriptor:
+            def __init__(self, name, description):
+                self.name = name
+                self.description = description
+                self.kind = "capability_pack"
+                self.metadata = {
+                    "family": "general",
+                    "has_execution_tools": True,
+                }
+
+        class MockSkillResult:
+            def __init__(self):
+                self.tools = []
+                self.capability_descriptors = [
+                    MockDescriptor("live_skill", "Actually executable")
+                ]
+                self.turn_activation = TurnSkillActivation(
+                    applied=False,
+                    reason="no_turn_skill_activation",
+                )
+
+        builder = CapabilityDescriptionBuilder()
+        result = builder.build_skill_descriptions(MockSkillResult())
+
+        assert result == []
+
+    def test_turn_activation_filters_to_selected_skill_names(self):
+        """
+        中文: 测试类型 behavioral；显式激活时只描述本轮选中的技能。
+        EN: Test type behavioral; applied activation only describes turn-selected skills.
+        """
+
+        class MockDescriptor:
+            def __init__(self, name, description):
+                self.name = name
+                self.description = description
+                self.kind = "capability_pack"
+                self.metadata = {
+                    "family": "general",
+                    "has_execution_tools": True,
+                }
+
+        class MockSkillResult:
+            def __init__(self):
+                self.tools = []
+                self.capability_descriptors = [
+                    MockDescriptor("active_skill", "Active description"),
+                    MockDescriptor("inactive_skill", "Inactive description"),
+                ]
+                self.turn_activation = TurnSkillActivation(
+                    applied=True,
+                    activated_skill_names=["active_skill"],
+                    reason="requested_skill_selection",
+                )
+
+        builder = CapabilityDescriptionBuilder()
+        result = builder.build_skill_descriptions(MockSkillResult())
+
+        assert len(result) == 1
+        assert result[0].items == ["active_skill: Active description"]
+
+    def test_build_prompt_sections_preserves_counts_for_template(self):
+        """中文: 测试类型 structural。EN: Test type structural."""
+        builder = CapabilityDescriptionBuilder(max_items_per_category=1)
+        description = builder.build_knowledge_base_descriptions(
+            [
+                {
+                    "kb_id": 1,
+                    "kb_name": "产品文档库",
+                    "kb_description": "API docs",
+                    "kb_document_count": 12,
+                },
+                {
+                    "kb_id": 2,
+                    "kb_name": "政策库",
+                    "kb_description": "Policies",
+                    "kb_document_count": 8,
+                },
+            ]
+        )
+        assert description is not None
+
+        sections = builder.build_prompt_sections([description])
+
+        assert sections == [
+            {
+                "category": "knowledge_bases",
+                "title": "Knowledge Bases",
+                "items": ["产品文档库: API docs (12 documents)"],
+                "total_count": 2,
+                "displayed_count": 1,
+                "omitted_count": 1,
+            }
+        ]
 
 
 if __name__ == "__main__":

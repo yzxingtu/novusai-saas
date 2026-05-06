@@ -79,6 +79,16 @@ function updateJson(val: string) {
     @update:value="(val) => fieldApi.setMultiSelectValue(config.key, val)"
   />
 
+  <Select
+    v-else-if="config.value_type === 'tag'"
+    :value="fieldApi.getTagValue(config.key, config.tag_separator)"
+    mode="tags"
+    :options="getSelectOptions(config)"
+    @update:value="
+      (val) => fieldApi.setTagValue(config.key, val, config.tag_separator)
+    "
+  />
+
   <Input.TextArea
     v-else-if="config.value_type === 'text'"
     :value="fieldApi.getStringValue(config.key)"
@@ -144,6 +154,12 @@ function updateJson(val: string) {
     v-else-if="config.value_type === 'image'"
     :model-value="fieldApi.getImageValue(config.key)"
     @update:model-value="(val) => fieldApi.setImageValue(config.key, val)"
+  />
+
+  <Input
+    v-else-if="config.value_type === 'file'"
+    :value="fieldApi.getStringValue(config.key)"
+    @update:value="(val) => fieldApi.setStringValue(config.key, val)"
   />
 
   <template

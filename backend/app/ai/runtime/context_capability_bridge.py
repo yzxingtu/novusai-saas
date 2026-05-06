@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.ai.capabilities import CapabilityDescriptionBuilder
+from app.ai.engine.system_prompt_intent_helpers import is_capability_reporting_query
 from app.ai.runtime.capabilities import CapabilityContext, CapabilityRegistry
 from app.ai.runtime.context_assembler import (
     ContextAssembler,
@@ -61,6 +62,17 @@ def _to_context_assembler_state(
 ) -> ContextAssemblerState:
     state_payload = capability_inputs.to_state_dict()
     return ContextAssemblerState(**state_payload)
+
+
+def _last_user_text(request: Any) -> str:
+    messages = list(getattr(request, "messages", None) or [])
+    for message in reversed(messages):
+        if str(getattr(message, "role", "") or "").strip() != "user":
+            continue
+        text = str(getattr(message, "content", "") or "").strip()
+        if text:
+            return text
+    return ""
 
 
 @dataclass
@@ -145,7 +157,13 @@ class DefaultContextCapabilityBridge(ContextCapabilityBridge):
             awareness = ContextCapabilityAwareness(
                 enabled=bool(settings.enable_dynamic_capability_awareness),
             )
-            if not awareness.enabled or intent_flags.get("all_shortcircuit", False):
+            capability_reporting_query = is_capability_reporting_query(
+                _last_user_text(request),
+            )
+            if not awareness.enabled or (
+                intent_flags.get("all_shortcircuit", False)
+                and not capability_reporting_query
+            ):
                 return awareness
 
             capability_builder = CapabilityDescriptionBuilder(
@@ -193,6 +211,9 @@ class DefaultContextCapabilityBridge(ContextCapabilityBridge):
                     capability_descriptions.append(memory_description)
 
             awareness.categories = _stable_unique_categories(capability_descriptions)
+            awareness.sections = capability_builder.build_prompt_sections(
+                capability_descriptions,
+            )
             return awareness
         except Exception as exc:
             logger.warning(

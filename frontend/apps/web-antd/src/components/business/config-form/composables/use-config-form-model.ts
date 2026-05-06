@@ -263,6 +263,39 @@ export function useConfigFormModel(options: UseConfigFormModelOptions) {
     formModel[key] = value;
   }
 
+  function getTagValue(key: string, separator = ','): string[] {
+    const value = formModel[key];
+    if (Array.isArray(value)) {
+      return value
+        .map((item) => String(item).trim())
+        .filter((item) => item.length > 0);
+    }
+    if (typeof value === 'string') {
+      return value
+        .split(separator || ',')
+        .map((item) => item.trim())
+        .filter((item) => item.length > 0);
+    }
+    return [];
+  }
+
+  function setTagValue(
+    key: string,
+    value: unknown,
+    separator = ',',
+  ): void {
+    const resolvedSeparator = separator || ',';
+    const values = Array.isArray(value)
+      ? value.map((item) => String(item).trim()).filter(Boolean)
+      : typeof value === 'string'
+        ? value
+            .split(resolvedSeparator)
+            .map((item) => item.trim())
+            .filter((item) => item.length > 0)
+      : [];
+    formModel[key] = values.join(resolvedSeparator);
+  }
+
   const fieldApi: ConfigFormFieldApi = {
     getBooleanValue,
     getHtmlValue,
@@ -271,6 +304,7 @@ export function useConfigFormModel(options: UseConfigFormModelOptions) {
     getNumberValue,
     getSelectValue,
     getStringValue,
+    getTagValue,
     setBooleanValue,
     setHtmlValue,
     setImageValue,
@@ -278,6 +312,7 @@ export function useConfigFormModel(options: UseConfigFormModelOptions) {
     setNumberValue,
     setSelectValue,
     setStringValue,
+    setTagValue,
   };
 
   function getValues(): ConfigFormModel {

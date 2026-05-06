@@ -1,3 +1,7 @@
+// Test type: behavioral
+// Verifies: config form model hydration, dirty tracking, and backend payload shaping.
+// Mock strategy: Vue reactivity runs real; no business logic is mocked.
+
 import type { ConfigItemMeta } from '#/types/config';
 
 import { nextTick, shallowRef } from 'vue';
@@ -111,5 +115,36 @@ describe('useConfigFormModel', () => {
       feature_enabled: true,
     });
     expect(model.isDirty()).toBe(false);
+  });
+
+  it('normalizes tag fields between Select tags and backend string payloads', async () => {
+    const configs = shallowRef<ConfigItemMeta[]>([
+      {
+        key: 'tenant_storage_allowed_extensions',
+        tag_separator: ',',
+        value: 'jpg, png,',
+        value_type: 'tag',
+      },
+    ]);
+
+    const model = useConfigFormModel({
+      configs: () => configs.value,
+    });
+
+    await nextTick();
+
+    expect(
+      model.fieldApi.getTagValue('tenant_storage_allowed_extensions', ','),
+    ).toEqual(['jpg', 'png']);
+
+    model.fieldApi.setTagValue('tenant_storage_allowed_extensions', [
+      'pdf',
+      ' docx ',
+      '',
+    ]);
+
+    expect(model.prepareSubmitData()).toEqual({
+      tenant_storage_allowed_extensions: 'pdf,docx',
+    });
   });
 });

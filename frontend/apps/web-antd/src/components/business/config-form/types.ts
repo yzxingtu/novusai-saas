@@ -23,6 +23,8 @@ export interface ConfigFormFieldApi {
   setHtmlValue: (key: string, value: string) => void;
   getImageValue: (key: string) => string;
   setImageValue: (key: string, value: string) => void;
+  getTagValue: (key: string, separator?: string) => string[];
+  setTagValue: (key: string, value: unknown, separator?: string) => void;
 }
 
 export interface ConfigFormExpose {

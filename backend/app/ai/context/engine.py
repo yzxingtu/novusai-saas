@@ -250,6 +250,7 @@ class ConversationContextEngine(ContextEngine):
         memory_recalled = False
         memory_recall_slice: dict[str, Any] | None = None
         dynamic_capability_awareness_enabled = False
+        dynamic_capability_awareness_injected = False
         capability_awareness_categories: list[str] = []
         capability_awareness_error: str | None = None
         compaction_source_tokens = compaction_support.messages_token_estimate(messages)
@@ -278,6 +279,24 @@ class ConversationContextEngine(ContextEngine):
         dynamic_capability_awareness_enabled = bool(capability_awareness.enabled)
         capability_awareness_categories = list(capability_awareness.categories or [])
         capability_awareness_error = capability_awareness.error
+        capability_awareness_block = (
+            prompt_addition_support.build_runtime_capability_block(
+                list(capability_awareness.sections or []),
+            )
+        )
+        if capability_awareness_block:
+            addition_count = len(system_prompt_additions)
+            self._append_budgeted_addition(
+                additions=system_prompt_additions,
+                text=capability_awareness_block,
+                category="dynamic_capability_awareness",
+                per_item_token_limit=context_budget["capability_block_tokens"],
+                total_token_limit=context_budget["system_additions_tokens"],
+                budget_usage=budget_usage,
+            )
+            dynamic_capability_awareness_injected = (
+                len(system_prompt_additions) > addition_count
+            )
 
         split_index = compaction_support.compaction_split_index(
             messages,
@@ -380,6 +399,9 @@ class ConversationContextEngine(ContextEngine):
                 intent_flags=intent_flags,
                 dynamic_capability_awareness_enabled=(
                     dynamic_capability_awareness_enabled
+                ),
+                dynamic_capability_awareness_injected=(
+                    dynamic_capability_awareness_injected
                 ),
                 capability_awareness_categories=capability_awareness_categories,
                 capability_awareness_error=capability_awareness_error,

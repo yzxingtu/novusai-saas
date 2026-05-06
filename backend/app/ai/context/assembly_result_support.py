@@ -22,6 +22,7 @@ class ContextDiagnosticsInputs:
     intent_plan: list[Any] = field(default_factory=list)
     intent_flags: dict[str, bool] = field(default_factory=dict)
     dynamic_capability_awareness_enabled: bool = False
+    dynamic_capability_awareness_injected: bool = False
     capability_awareness_categories: list[str] = field(default_factory=list)
     capability_awareness_error: str | None = None
     requested_knowledge_base_ids: list[int] = field(default_factory=list)
@@ -94,6 +95,9 @@ def build_context_diagnostics(
         ),
         "dynamic_capability_awareness_enabled": (
             inputs.dynamic_capability_awareness_enabled
+        ),
+        "dynamic_capability_awareness_injected": (
+            inputs.dynamic_capability_awareness_injected
         ),
         "dynamic_capability_awareness_categories": list(
             inputs.capability_awareness_categories or []
