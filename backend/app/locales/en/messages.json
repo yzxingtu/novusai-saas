@@ -824,6 +824,7 @@
             "account_ai_disabled": "AI chat is disabled for this account",
             "leader_ai_disabled": "AI chat is disabled by an upstream organization leader",
             "tenant_plan_ai_disabled": "AI chat is disabled by the tenant plan",
+            "plain_text_input_ai_disabled": "Selected-text AI assistance for plain inputs is disabled by account or policy",
             "fallback_self_reference": "Fallback model cannot reference itself",
             "embedding_empty_result": "Embedding returned empty result",
             "embedding_model_not_configured": "Embedding model not configured for this knowledge base",
@@ -2340,6 +2341,8 @@
             "activation_failed": "Activation failed",
             "source_agent_scope_locked": "Plugin-managed agents must follow the scope of source plugin {plugin}",
             "scope_disallows_tenant_assignment": "Plugin scope {scope} does not allow explicit tenant assignment",
+            "invalid_tenant_assignment_targets": "Plugin tenant assignment requires active tenants with active plans. Invalid tenant IDs: {tenant_ids}",
+            "tenant_assignment_missing_entitlement": "Plugin tenant assignment requires the tenant plan to include this plugin entitlement. Tenant IDs without entitlement: {tenant_ids}",
             "invalid_backup_name": "Invalid backup name",
             "backup_not_found": "Backup not found",
             "raw_session_forbidden": "Access to the raw database session is forbidden in plugin sandbox",
@@ -2424,7 +2427,8 @@
         "invalid_feature": "Unsupported AI writing feature: {feature}",
         "selection_required": "The {action} action requires selected text",
         "instruction_required": "The {action} action requires an instruction",
-        "input_required": "The {action} action requires an instruction or surrounding context"
+        "input_required": "The {action} action requires an instruction or surrounding context",
+        "assignment_unavailable": "The document writing assistant is unassigned, disabled, or unavailable"
     },
     "crud_generation_record": {
         "field": {
@@ -2471,7 +2475,7 @@
             },
             "platform_ai_toolkit": {
                 "name": "AI Toolkit & Runtime Context",
-                "desc": "Security policies and resource limits for user-uploaded Toolkits, plus AI chat context-budget limits"
+                "desc": "Security policies and resource limits for user-uploaded Toolkits, AI chat context-budget limits, and input AI assistance policy"
             },
             "platform_websocket": {
                 "name": "Real-time & Notifications",
@@ -2490,8 +2494,8 @@
                 "desc": "Registration, notifications, file upload and other member features"
             },
             "tenant_ai": {
-                "name": "AI Capability Awareness",
-                "desc": "Controls runtime capability descriptions injected into AI conversations"
+                "name": "AI Capabilities & Input Assistance",
+                "desc": "Controls runtime capability descriptions injected on demand into AI conversations and tenant-side input AI assistance"
             },
             "tenant_storage": {
                 "name": "Storage Settings",
@@ -2783,6 +2787,18 @@
                 "name": "Scan on Upload",
                 "desc": "Automatically scan source code for dangerous imports and system calls when creating or updating a Toolkit skill"
             },
+            "platform_plain_text_input_ai_admin_enabled": {
+                "name": "Admin Input AI Assistance",
+                "desc": "Enable local AI assistance when selected text appears in admin-side plain input/textarea controls"
+            },
+            "platform_plain_text_input_ai_allow_tenant_enable": {
+                "name": "Allow Tenant Input AI Assistance",
+                "desc": "When disabled, tenant admins and personal preferences cannot enable plain-input selection AI"
+            },
+            "platform_plain_text_input_ai_tenant_default_enabled": {
+                "name": "Tenant Default Input AI Assistance",
+                "desc": "Default enabled state for tenant-side plain-input selection AI when the tenant has not explicitly configured it"
+            },
             "ws_enabled": {
                 "name": "Real-time Communication",
                 "desc": "Enable Socket.IO real-time communication (online status, push notifications, etc.)"
@@ -2948,17 +2964,21 @@
             },
             "enable_dynamic_capability_awareness": {
                 "name": "Dynamic Capability Awareness",
-                "desc": "Inject current skills, knowledge bases, and memory capabilities into AI system prompts"
+                "desc": "Inject current skills, knowledge bases, and memory capability descriptions into AI system prompts when they exist and are relevant to the turn"
             },
             "capability_description_style": {
                 "name": "Capability Description Style",
-                "desc": "Choose whether capability descriptions use detailed or concise wording",
+                "desc": "Choose whether injected system prompt capability descriptions use detailed or concise wording",
                 "detailed": "Detailed",
                 "concise": "Concise"
             },
             "max_capability_items_per_category": {
                 "name": "Max Capability Items Per Category",
-                "desc": "Maximum number of capability items shown for each category in the system prompt"
+                "desc": "Maximum number of capability items shown for each category when injecting into the system prompt"
+            },
+            "plain_text_input_ai_enabled": {
+                "name": "Input AI Assistance",
+                "desc": "Allow tenant admins to use local AI assistance when selected text appears in plain input/textarea controls"
             },
             "email_notification": {
                 "name": "Email Notifications",
@@ -3311,8 +3331,8 @@
     "config.group.platform_domain.desc": "Tenant domain suffix and custom-domain verification settings",
     "config.group.tenant_registration.name": "Registration & Legal",
     "config.group.tenant_registration.desc": "User registration flow, default role, privacy policy and terms settings",
-    "config.group.tenant_ai.name": "AI Capability Awareness",
-    "config.group.tenant_ai.desc": "Controls runtime capability descriptions injected into AI conversations",
+    "config.group.tenant_ai.name": "AI Capabilities & Input Assistance",
+    "config.group.tenant_ai.desc": "Controls runtime capability descriptions injected on demand into AI conversations and tenant-side input AI assistance",
     "config.platform.platform_default_memory_enabled.name": "Default Memory Enabled",
     "config.platform.platform_default_memory_enabled.desc": "Default memory switch for all agents",
     "config.platform.memory_extraction_provider.name": "Memory Extraction Provider",
@@ -3334,13 +3354,13 @@
     "config.tenant.user_default_role_id.desc": "Role automatically assigned to newly registered users. Select 'No Role' to leave users without a role",
     "config.tenant.user_default_role_id.option_none": "No Role",
     "config.tenant.enable_dynamic_capability_awareness.name": "Dynamic Capability Awareness",
-    "config.tenant.enable_dynamic_capability_awareness.desc": "Inject current skills, knowledge bases, and memory capabilities into AI system prompts",
+    "config.tenant.enable_dynamic_capability_awareness.desc": "Inject current skills, knowledge bases, and memory capability descriptions into AI system prompts when they exist and are relevant to the turn",
     "config.tenant.capability_description_style.name": "Capability Description Style",
-    "config.tenant.capability_description_style.desc": "Choose whether capability descriptions use detailed or concise wording",
+    "config.tenant.capability_description_style.desc": "Choose whether injected system prompt capability descriptions use detailed or concise wording",
     "config.tenant.capability_description_style.detailed": "Detailed",
     "config.tenant.capability_description_style.concise": "Concise",
     "config.tenant.max_capability_items_per_category.name": "Max Capability Items Per Category",
-    "config.tenant.max_capability_items_per_category.desc": "Maximum number of capability items shown for each category in the system prompt",
+    "config.tenant.max_capability_items_per_category.desc": "Maximum number of capability items shown for each category when injecting into the system prompt",
     "enum.agent_model.max_tokens": "Max Output Tokens",
     "agent.version.field.max_tokens": "Max Output Tokens",
     "enum.ai_model.max_output_tokens": "Max Output Tokens",

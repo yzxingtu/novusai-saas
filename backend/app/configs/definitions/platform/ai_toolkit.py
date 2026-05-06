@@ -77,6 +77,37 @@ TOOLKIT_SCAN_ON_UPLOAD = ConfigMeta(
     sort_order=40,
 )
 
+# Plain text input selection AI policy / 普通输入框选区 AI 策略
+PLATFORM_PLAIN_TEXT_INPUT_AI_ADMIN_ENABLED = ConfigMeta(
+    key="platform_plain_text_input_ai_admin_enabled",
+    name_key="config.platform.platform_plain_text_input_ai_admin_enabled.name",
+    description_key="config.platform.platform_plain_text_input_ai_admin_enabled.desc",
+    scope=ConfigScope.ADMIN_ONLY,
+    value_type=ConfigValueType.BOOLEAN,
+    default_value=True,
+    sort_order=50,
+)
+
+PLATFORM_PLAIN_TEXT_INPUT_AI_ALLOW_TENANT_ENABLE = ConfigMeta(
+    key="platform_plain_text_input_ai_allow_tenant_enable",
+    name_key="config.platform.platform_plain_text_input_ai_allow_tenant_enable.name",
+    description_key="config.platform.platform_plain_text_input_ai_allow_tenant_enable.desc",
+    scope=ConfigScope.ADMIN_ONLY,
+    value_type=ConfigValueType.BOOLEAN,
+    default_value=True,
+    sort_order=60,
+)
+
+PLATFORM_PLAIN_TEXT_INPUT_AI_TENANT_DEFAULT_ENABLED = ConfigMeta(
+    key="platform_plain_text_input_ai_tenant_default_enabled",
+    name_key="config.platform.platform_plain_text_input_ai_tenant_default_enabled.name",
+    description_key="config.platform.platform_plain_text_input_ai_tenant_default_enabled.desc",
+    scope=ConfigScope.ADMIN_ONLY,
+    value_type=ConfigValueType.BOOLEAN,
+    default_value=True,
+    sort_order=70,
+)
+
 # ==========================================
 # Register configs to group / 注册配置到分组
 # ==========================================
@@ -86,6 +117,9 @@ PLATFORM_AI_TOOLKIT_GROUP.configs = [
     TOOLKIT_MEMORY_LIMIT_MB,
     TOOLKIT_MAX_TIMEOUT,
     TOOLKIT_SCAN_ON_UPLOAD,
+    PLATFORM_PLAIN_TEXT_INPUT_AI_ADMIN_ENABLED,
+    PLATFORM_PLAIN_TEXT_INPUT_AI_ALLOW_TENANT_ENABLE,
+    PLATFORM_PLAIN_TEXT_INPUT_AI_TENANT_DEFAULT_ENABLED,
 ]
 
 
@@ -94,4 +128,7 @@ __all__ = [
     "TOOLKIT_MEMORY_LIMIT_MB",
     "TOOLKIT_MAX_TIMEOUT",
     "TOOLKIT_SCAN_ON_UPLOAD",
+    "PLATFORM_PLAIN_TEXT_INPUT_AI_ADMIN_ENABLED",
+    "PLATFORM_PLAIN_TEXT_INPUT_AI_ALLOW_TENANT_ENABLE",
+    "PLATFORM_PLAIN_TEXT_INPUT_AI_TENANT_DEFAULT_ENABLED",
 ]

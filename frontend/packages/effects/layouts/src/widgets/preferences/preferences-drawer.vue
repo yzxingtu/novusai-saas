@@ -69,6 +69,9 @@ const appEnableStickyPreferencesNavigationBar = defineModel<boolean>(
 const appPreferencesButtonPosition = defineModel<PreferencesButtonPositionType>(
   'appPreferencesButtonPosition',
 );
+const appPlainTextInputAiEnabled = defineModel<boolean>(
+  'appPlainTextInputAiEnabled',
+);
 
 const transitionProgress = defineModel<boolean>('transitionProgress');
 const transitionName = defineModel<string>('transitionName');
@@ -275,6 +278,9 @@ async function handleReset() {
                 v-model:app-dynamic-title="appDynamicTitle"
                 v-model:app-enable-check-updates="appEnableCheckUpdates"
                 v-model:app-locale="appLocale"
+                v-model:app-plain-text-input-ai-enabled="
+                  appPlainTextInputAiEnabled
+                "
                 v-model:app-watermark="appWatermark"
                 v-model:app-watermark-content="appWatermarkContent"
                 :show-watermark="false"

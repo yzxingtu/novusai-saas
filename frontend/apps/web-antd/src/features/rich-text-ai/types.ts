@@ -1,9 +1,9 @@
 /**
  * Shared Rich Text AI frontend contracts.
  *
- * The NovusDoc/RichTextEditor runtime resolves system.ai_writing and delegates
- * selected editor text to the existing global AI panel. Keep this file free of
- * page-runtime, DOM-scanning, or local writing transport coupling.
+ * The NovusDoc/RichTextEditor runtime uses system.ai_writing for editor-domain
+ * rich-text operations. Keep this file free of page-runtime, DOM-scanning, or
+ * page operation tool coupling.
  */
 
 export const RICH_TEXT_AI_MANIFEST_FEATURE_CODE = 'rich_text_ai' as const;
@@ -53,22 +53,6 @@ export type RichTextAiFormatPreset =
   | 'plain_text'
   | 'preserve_structure'
   | 'structured_sections';
-
-export interface RichTextAiPanelHandoff {
-  action: RichTextAiWritingAction;
-  afterText: string;
-  agentId: number;
-  beforeText: string;
-  documentTitle: string;
-  editorInstanceId: string;
-  message: string;
-  selectedText: string;
-  selectionRange: {
-    from: number;
-    revision: number;
-    to: number;
-  };
-}
 
 export interface RichTextAiActionTemplate {
   action: RichTextAiActionType;

@@ -13,7 +13,7 @@ import type { Ref, ShallowRef } from 'vue';
 export interface RichTextEditorAiWritingOptions {
   /** Whether the editor-domain AI writing UI is enabled. */
   enabled?: boolean;
-  /** API prefix used by resolveAgentAssignmentApi for the global AI panel handoff. */
+  /** API prefix used by the editor-domain rich-text AI assignment and operation APIs. */
   apiPrefix?: string;
   /** Optional document title sent as editor-domain context. */
   documentTitle?: string;
@@ -95,6 +95,9 @@ export interface RichTextEditorExposed {
   getHTML(): string;
   getText(): string;
   getSelectionSnapshot(): RichTextEditorSelectionSnapshot;
+  validateSelectionSnapshot(
+    selection: RichTextEditorSelectionSnapshot | null | undefined,
+  ): boolean;
   setContent(
     content: JSONContent | string,
     options?: RichTextEditorSetContentOptions,
@@ -114,6 +117,9 @@ export interface MountedEditor {
   getHTML(): string;
   getText(): string;
   getSelectionSnapshot(): RichTextEditorSelectionSnapshot;
+  validateSelectionSnapshot(
+    selection: RichTextEditorSelectionSnapshot | null | undefined,
+  ): boolean;
   setContent(
     content: JSONContent | string,
     options?: RichTextEditorSetContentOptions,

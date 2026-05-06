@@ -1,6 +1,8 @@
 // Test type: structural
-// Scope: Rich Text AI frontend contract constants and global AI panel handoff shape.
+// Scope: Rich Text AI frontend contract constants and editor-domain operation payload shape.
 // Mock strategy: No mocks; pure shared contract helpers are imported directly.
+import type { RichTextAiOperationPayload } from '#/api/shared/rich-text-ai';
+
 import { describe, expect, it } from 'vitest';
 
 import * as richTextAiExports from '../index';
@@ -11,8 +13,6 @@ import {
   RICH_TEXT_AI_MANIFEST_FEATURE_CODE,
   RICH_TEXT_AI_WRITING_ACTIONS,
 } from '../index';
-
-import type { RichTextAiPanelHandoff } from '../index';
 
 describe('rich text ai structural contract', () => {
   it('keeps feature codes aligned with the single system writing assignment', () => {
@@ -48,34 +48,44 @@ describe('rich text ai structural contract', () => {
     expect(retiredTransportExport in richTextAiExports).toBe(false);
   });
 
-  it('types the global AI panel handoff using explicit editor-domain fields only', () => {
-    const handoff = {
-      action: 'rewrite',
-      afterText: 'Next paragraph',
-      agentId: 9,
-      beforeText: 'Previous paragraph',
-      documentTitle: 'Launch Plan',
-      editorInstanceId: 'editor-1',
-      message: '请对富文本选区执行「改写」操作。\n选中文本：Selected paragraph',
-      selectedText: 'Selected paragraph',
-      selectionRange: { from: 2, revision: 7, to: 20 },
-    } satisfies RichTextAiPanelHandoff;
+  it('types editor-domain operation payloads without global panel or page-runtime fields', () => {
+    const payload = {
+      after_text: 'Next paragraph',
+      before_text: 'Previous paragraph',
+      document_id: 9,
+      document_title: 'Launch Plan',
+      document_type: 'novusdoc',
+      history: [
+        { content: 'Please review this selection.', role: 'user' },
+        { content: 'I can suggest a tighter wording.', role: 'assistant' },
+      ],
+      instruction: 'Make the selected paragraph tighter.',
+      selected_text: 'Selected paragraph',
+      surface: 'rich_text_editor',
+    } satisfies RichTextAiOperationPayload;
 
-    expect(Object.keys(handoff).sort()).toEqual([
-      'action',
-      'afterText',
-      'agentId',
-      'beforeText',
-      'documentTitle',
-      'editorInstanceId',
-      'message',
-      'selectedText',
-      'selectionRange',
+    expect(Object.keys(payload).sort()).toEqual([
+      'after_text',
+      'before_text',
+      'document_id',
+      'document_title',
+      'document_type',
+      'history',
+      'instruction',
+      'selected_text',
+      'surface',
     ]);
-    expect(handoff.message).toContain('Selected paragraph');
+    expect(payload.selected_text).toBe('Selected paragraph');
+    expect(payload.history?.[1]).toEqual({
+      content: 'I can suggest a tighter wording.',
+      role: 'assistant',
+    });
 
-    const serialized = JSON.stringify(handoff);
+    const serialized = JSON.stringify(payload);
     const forbiddenFragments = [
+      'agentId',
+      'message',
+      'openWithContext',
       `page${'_'}context`,
       `page${'_'}session`,
       `page${'_'}data`,

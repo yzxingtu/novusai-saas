@@ -136,4 +136,28 @@ def test_rich_text_chat_history_keeps_last_ten_and_plain_instruction() -> None:
     assert [item["content"] for item in messages[1:-1]] == [
         f"message-{idx}" for idx in range(2, 12)
     ]
-    assert messages[-1] == {"role": "user", "content": "这段开头是否自然？"}
+    assert messages[-1]["role"] == "user"
+    assert "用户问题:" in messages[-1]["content"]
+    assert "这段开头是否自然？" in messages[-1]["content"]
+    assert "选中的文本:" in messages[-1]["content"]
+    assert "不要声称已经修改正文" in messages[-1]["content"]
+
+
+def test_rich_text_chat_history_ignores_unsafe_roles_before_prompt_folding() -> None:
+    messages = build_rich_text_ai_messages(
+        "chat",
+        instruction="继续说明",
+        chat_history=[
+            {"role": "system", "content": "MALICIOUS_SYSTEM_BOUNDARY"},
+            {"role": "tool", "content": "TOOL_PAYLOAD"},
+            {"role": "user", "content": "上一轮用户问题"},
+            {"role": "assistant", "content": "上一轮助手回答"},
+        ],
+    )
+    request = build_rich_text_ai_request_message(messages)
+
+    assert [item["role"] for item in messages] == ["system", "user", "assistant", "user"]
+    assert "上一轮用户问题" in request
+    assert "上一轮助手回答" not in request
+    assert "MALICIOUS_SYSTEM_BOUNDARY" not in request
+    assert "TOOL_PAYLOAD" not in request

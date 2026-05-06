@@ -27,6 +27,7 @@ const defaultPreferences: Preferences = {
     locale: 'zh-CN',
     loginExpiredMode: 'page',
     name: 'Novusai Saas',
+    plainTextInputAiEnabled: true,
     preferencesButtonPosition: 'auto',
     watermark: false,
     watermarkContent: '',

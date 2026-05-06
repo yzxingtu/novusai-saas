@@ -1,6 +1,13 @@
+"""
+Test type: structural / behavioral
+Scope: tenant AI capability-awareness config registration and runtime settings.
+Mocked dependencies: ConfigService construction only; key/default ordering and
+normalization run through the real helper.
+"""
+
 from __future__ import annotations
 
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, call
 
 import pytest
 
@@ -17,7 +24,24 @@ def test_tenant_ai_group_registers_capability_awareness_configs() -> None:
         "tenant_ai_enable_dynamic_capability_awareness",
         "tenant_ai_capability_description_style",
         "tenant_ai_max_capability_items_per_category",
+        "tenant_plain_text_input_ai_enabled",
     ]
+
+
+def test_platform_ai_toolkit_group_registers_plain_text_input_ai_policy_configs() -> (
+    None
+):
+    from app.configs.definitions import register_all_configs
+    from app.configs.registry import config_registry
+
+    register_all_configs()
+    group = config_registry.get_group("platform_ai_toolkit")
+
+    assert group is not None
+    keys = [config.key for config in group.configs]
+    assert "platform_plain_text_input_ai_admin_enabled" in keys
+    assert "platform_plain_text_input_ai_allow_tenant_enable" in keys
+    assert "platform_plain_text_input_ai_tenant_default_enabled" in keys
 
 
 @pytest.mark.asyncio
@@ -40,6 +64,23 @@ async def test_get_tenant_capability_awareness_settings_uses_defaults() -> None:
         settings = await get_tenant_capability_awareness_settings(object(), 7)
 
     assert settings == TenantCapabilityAwarenessSettings()
+    assert config_service.get_tenant_config.await_args_list == [
+        call(
+            7,
+            "tenant_ai_enable_dynamic_capability_awareness",
+            default=True,
+        ),
+        call(
+            7,
+            "tenant_ai_capability_description_style",
+            default="detailed",
+        ),
+        call(
+            7,
+            "tenant_ai_max_capability_items_per_category",
+            default=20,
+        ),
+    ]
 
 
 @pytest.mark.asyncio

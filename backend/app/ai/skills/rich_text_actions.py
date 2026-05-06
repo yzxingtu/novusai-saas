@@ -2,10 +2,10 @@
 Rich-text AI action contracts / 富文本 AI 动作契约。
 
 Defines stable action semantics used by editor APIs and skill-package catalog
-metadata. Runtime callers resolve system.ai_writing and send the rendered action
-message through global AgentChat/conversation routes.
-/ 定义编辑器 API 与技能包目录元数据复用的稳定动作语义。运行时调用方解析
-system.ai_writing，并通过全局 AgentChat/会话路由发送渲染后的动作消息。
+metadata. Runtime operation routes resolve system.ai_writing and send the
+rendered action message through AgentChat.
+/ 定义编辑器 API 与技能包目录元数据复用的稳定动作语义。运行时操作路由解析
+system.ai_writing，并通过 AgentChat 发送渲染后的动作消息。
 """
 
 from __future__ import annotations
@@ -27,6 +27,8 @@ MAX_BEFORE_TEXT = 2000
 MAX_AFTER_TEXT = 500
 MAX_SELECTED_TEXT = 5000
 MAX_INSTRUCTION = 1000
+MAX_CHAT_HISTORY_CONTENT = 4000
+VALID_CHAT_HISTORY_ROLES = {"assistant", "user"}
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,6 +69,7 @@ class RichTextAIActionTemplate:
             "operation": self.operation,
             "apply_strategy": self.apply_strategy,
             "selection_policy": self.selection_policy,
+            "supports_target_lang": self.supports_target_lang,
             "output_contract": self.output_contract,
         }
 
@@ -283,7 +286,7 @@ def build_rich_text_action_context(
     after_text: str = "",
     context_title: str = "",
     instruction: str = "",
-    target_lang: str = "English",
+    target_lang: str = "",
     format_instruction: str = "",
 ) -> dict[str, str]:
     """裁剪并规范化编辑器上下文 / Trim and normalize explicit editor context."""
@@ -295,7 +298,7 @@ def build_rich_text_action_context(
         "after_text": _bounded_text(after_text, MAX_AFTER_TEXT) or "(end of document)",
         "context_title": _bounded_text(context_title, 200) or "Untitled",
         "instruction": _bounded_text(instruction, MAX_INSTRUCTION),
-        "target_lang": _bounded_text(target_lang, 50) or "English",
+        "target_lang": _bounded_text(target_lang, 50),
         "format_instruction": _bounded_text(format_instruction, MAX_INSTRUCTION),
     }
 
@@ -308,19 +311,20 @@ def build_rich_text_ai_messages(
     after_text: str = "",
     context_title: str = "",
     instruction: str = "",
-    target_lang: str = "English",
+    target_lang: str = "",
     format_instruction: str = "",
     chat_history: list[dict[str, str]] | None = None,
 ) -> list[dict[str, str]]:
     """构建富文本 AI 消息 / Build rich-text AI messages."""
     action = get_rich_text_action_template(feature)
+    effective_target_lang = target_lang if action.supports_target_lang else ""
     context = build_rich_text_action_context(
         selected_text=selected_text,
         before_text=before_text,
         after_text=after_text,
         context_title=context_title,
         instruction=instruction,
-        target_lang=target_lang,
+        target_lang=effective_target_lang,
         format_instruction=format_instruction,
     )
     action_payload = action.to_prompt_payload()
@@ -339,10 +343,16 @@ def build_rich_text_ai_messages(
     messages: list[dict[str, str]] = [{"role": "system", "content": system_content}]
     if action.key == "chat" and chat_history:
         for msg in chat_history[-10:]:
+            role = str(msg.get("role") or "").strip().lower()
+            if role not in VALID_CHAT_HISTORY_ROLES:
+                continue
+            content = _bounded_text(msg.get("content"), MAX_CHAT_HISTORY_CONTENT)
+            if not content:
+                continue
             messages.append(
                 {
-                    "role": str(msg.get("role") or "user"),
-                    "content": str(msg.get("content") or ""),
+                    "role": role,
+                    "content": content,
                 }
             )
     messages.append({"role": "user", "content": user_content})
@@ -389,15 +399,17 @@ def build_rich_text_action_input_schema() -> dict[str, Any]:
             "after_text": {"type": "string", "maxLength": 2000},
             "context_title": {"type": "string", "maxLength": 200},
             "instruction": {"type": "string", "maxLength": 2000},
-            "target_lang": {"type": "string", "maxLength": 50, "default": "English"},
+            "target_lang": {"type": "string", "maxLength": 50, "default": ""},
             "format_instruction": {"type": "string", "maxLength": 2000},
             "history": {
                 "type": "array",
+                "maxItems": 10,
                 "items": {
                     "type": "object",
+                    "additionalProperties": False,
                     "properties": {
                         "role": {"type": "string", "enum": ["user", "assistant"]},
-                        "content": {"type": "string"},
+                        "content": {"type": "string", "maxLength": 4000},
                     },
                     "required": ["role", "content"],
                 },

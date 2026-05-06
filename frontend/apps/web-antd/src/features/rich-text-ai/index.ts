@@ -16,7 +16,6 @@ export type {
   RichTextAiFormatPreset,
   RichTextAiFormatTemplate,
   RichTextAiOperationKind,
-  RichTextAiPanelHandoff,
   RichTextAiWritingAction,
 } from './types';
 export {

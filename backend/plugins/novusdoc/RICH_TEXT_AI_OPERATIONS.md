@@ -163,7 +163,6 @@ Before release, frontend action templates/types/tests must be aligned with backe
 Backend request fields currently include:
 
 - `selected_text`
-- `selection_html`
 - `before_text`
 - `after_text`
 - `context_title`
@@ -175,6 +174,7 @@ Backend request fields currently include:
 - `format_instruction`
 - `target_lang`
 - `history`
+- `plain_input_policy` (only for plain input/textarea operations; contains field kind, enabled flag, and action allowlist)
 
 Frontend request types may expose only a subset; keep both schemas synchronized before declaring API complete.
 

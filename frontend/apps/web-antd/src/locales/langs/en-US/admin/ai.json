@@ -1224,7 +1224,7 @@
       "tab": "Document Writing Assistant",
       "configBtn": "Document Writing Assistant",
       "runtimeHint": "Document Writing Assistant uses system.ai_writing",
-      "runtimeDescription": "Rich-text right-click writing always calls /ai/writing/{action} through the agent bound to system.ai_writing in agent assignments. Configure the document writing assistant on the feature assignment page.",
+      "runtimeDescription": "Rich-text right-click writing always calls /ai/rich-text/operations/{action} through the agent bound to system.ai_writing in agent assignments. Preview, chat, and writeback stay inside the editor surface. Configure the document writing assistant on the feature assignment page.",
       "noAgent": "No agent bound",
       "stats": {
         "contextActions": "Context Actions",
@@ -1244,7 +1244,7 @@
       "endpointPattern": "Example Endpoint",
       "requestFields": "Request Fields",
       "runtimeBoundary": "Runtime Boundary",
-      "noPageRuntime": "Do not inject page_context, page_session_id, ui_*, or editor_* tools. Selection text is explicitly submitted by the rich text component to the backend writing endpoint.",
+      "noPageRuntime": "Do not inject page_context, page_session_id, ui_*, or pageop_* tools. Selected text, cursor before/after context, and bounded history are submitted explicitly to the editor-domain endpoint without relying on the global side panel.",
       "actionsTitle": "Default Action Templates",
       "actionsDesc": "These templates can be reused by rich text context menus or future editor integrations. Runtime enablement is decided by the caller's permissions and editor state.",
       "requiresSelection": "Requires Selection",

@@ -821,6 +821,7 @@
             "account_ai_disabled": "当前账号已关闭 AI 对话权限",
             "leader_ai_disabled": "上级负责人已关闭 AI 对话权限",
             "tenant_plan_ai_disabled": "当前企业套餐未启用 AI 对话",
+            "plain_text_input_ai_disabled": "当前账号或策略未启用输入框选中文字 AI 辅助",
             "fallback_self_reference": "备用模型不能指向自身",
             "embedding_empty_result": "Embedding 返回空结果",
             "embedding_model_not_configured": "该知识库未配置 Embedding 模型",
@@ -2300,6 +2301,8 @@
             "activation_failed": "激活失败",
             "source_agent_scope_locked": "插件托管智能体的作用域必须跟随来源插件 {plugin}",
             "scope_disallows_tenant_assignment": "当前插件作用域 {scope} 不支持指定企业分配",
+            "invalid_tenant_assignment_targets": "插件企业分配要求目标企业启用且拥有启用中的套餐，无效企业 ID：{tenant_ids}",
+            "tenant_assignment_missing_entitlement": "插件企业分配要求目标企业套餐已包含该插件授权，缺少授权的企业 ID：{tenant_ids}",
             "invalid_backup_name": "无效的备份名称",
             "backup_not_found": "备份不存在",
             "raw_session_forbidden": "插件沙箱中禁止访问原始数据库会话",
@@ -2384,7 +2387,8 @@
         "invalid_feature": "不支持的 AI 写作功能：{feature}",
         "selection_required": "执行 {action} 操作需要先选择文本",
         "instruction_required": "执行 {action} 操作需要填写指令",
-        "input_required": "执行 {action} 操作需要提供指令或上下文"
+        "input_required": "执行 {action} 操作需要提供指令或上下文",
+        "assignment_unavailable": "文档写作助手未绑定、已停用或不可用"
     },
     "crud_generation_record": {
         "field": {
@@ -2428,7 +2432,7 @@
             },
             "platform_ai_toolkit": {
                 "name": "AI Toolkit 与运行时上下文",
-                "desc": "用户上传 Toolkit 的安全策略、资源限制，以及 AI 聊天上下文预算限制"
+                "desc": "用户上传 Toolkit 的安全策略、资源限制、AI 聊天上下文预算限制，以及输入框 AI 辅助策略"
             },
             "platform_websocket": {
                 "name": "实时通信 & 通知",
@@ -2444,8 +2448,8 @@
                 "desc": "注册、通知、文件上传等会员功能开关"
             },
             "tenant_ai": {
-                "name": "AI 能力感知",
-                "desc": "控制 AI 对话中注入的运行时能力描述"
+                "name": "AI 能力与输入辅助",
+                "desc": "控制 AI 对话中按需注入的运行时能力描述，以及企业内输入框 AI 辅助开关"
             },
             "tenant_storage": {"name": "存储设置", "desc": "企业存储方案与云存储配置"},
             "platform_ai_memory": {"name": "AI 记忆", "desc": "平台记忆默认开关配置"}
@@ -2704,6 +2708,18 @@
                 "name": "上传时静态分析",
                 "desc": "创建或更新 Toolkit 技能时，自动扫描源码中的危险 import 和系统调用"
             },
+            "platform_plain_text_input_ai_admin_enabled": {
+                "name": "管理端输入框 AI 辅助",
+                "desc": "是否在管理端普通 input/textarea 选中文字时启用原地 AI 辅助"
+            },
+            "platform_plain_text_input_ai_allow_tenant_enable": {
+                "name": "允许企业开启输入框 AI 辅助",
+                "desc": "关闭后，企业端管理员和个人偏好都无法启用普通输入框选区 AI"
+            },
+            "platform_plain_text_input_ai_tenant_default_enabled": {
+                "name": "企业端默认开启输入框 AI 辅助",
+                "desc": "企业未显式设置时，普通输入框选区 AI 的默认开启状态"
+            },
             "ws_enabled": {
                 "name": "实时通信开关",
                 "desc": "启用 Socket.IO 实时通信功能（在线状态、通知推送等）"
@@ -2853,17 +2869,21 @@
             },
             "enable_dynamic_capability_awareness": {
                 "name": "动态能力感知",
-                "desc": "在 AI system prompt 中注入当前技能、知识库与记忆能力描述"
+                "desc": "在存在对应能力且本轮需要时，将当前技能、知识库与记忆能力描述注入 AI system prompt"
             },
             "capability_description_style": {
                 "name": "能力描述风格",
-                "desc": "选择能力描述使用详细还是简洁表述",
+                "desc": "选择注入到 system prompt 的能力描述使用详细还是简洁表述",
                 "detailed": "详细",
                 "concise": "简洁"
             },
             "max_capability_items_per_category": {
                 "name": "每类能力最大条目数",
-                "desc": "system prompt 中每个能力类别最多展示的能力项数量"
+                "desc": "注入 system prompt 时每个能力类别最多展示的能力项数量"
+            },
+            "plain_text_input_ai_enabled": {
+                "name": "输入框 AI 辅助",
+                "desc": "是否允许企业内部管理员在普通 input/textarea 选中文字时使用原地 AI 辅助"
             },
             "email_notification": {"name": "邮件通知", "desc": "是否启用邮件通知功能"},
             "sms_notification": {"name": "短信通知", "desc": "是否启用短信通知功能"},
@@ -3195,13 +3215,13 @@
     "config.tenant.user_default_role_id.desc": "新注册用户自动分配的角色，选择「不分配角色」则用户注册后无角色",
     "config.tenant.user_default_role_id.option_none": "不分配角色",
     "config.tenant.enable_dynamic_capability_awareness.name": "动态能力感知",
-    "config.tenant.enable_dynamic_capability_awareness.desc": "在 AI system prompt 中注入当前技能、知识库与记忆能力描述",
+    "config.tenant.enable_dynamic_capability_awareness.desc": "在存在对应能力且本轮需要时，将当前技能、知识库与记忆能力描述注入 AI system prompt",
     "config.tenant.capability_description_style.name": "能力描述风格",
-    "config.tenant.capability_description_style.desc": "选择能力描述使用详细还是简洁表述",
+    "config.tenant.capability_description_style.desc": "选择注入到 system prompt 的能力描述使用详细还是简洁表述",
     "config.tenant.capability_description_style.detailed": "详细",
     "config.tenant.capability_description_style.concise": "简洁",
     "config.tenant.max_capability_items_per_category.name": "每类能力最大条目数",
-    "config.tenant.max_capability_items_per_category.desc": "system prompt 中每个能力类别最多展示的能力项数量",
+    "config.tenant.max_capability_items_per_category.desc": "注入 system prompt 时每个能力类别最多展示的能力项数量",
     "enum.agent_model.max_tokens": "最大输出 Token",
     "agent.version.field.max_tokens": "最大输出 Token",
     "enum.ai_model.max_output_tokens": "最大输出 Token",
@@ -3209,8 +3229,8 @@
     "config.group.platform_domain.desc": "企业默认域名后缀与自定义域名验证配置",
     "config.group.tenant_registration.name": "注册与协议",
     "config.group.tenant_registration.desc": "用户注册流程、默认角色、隐私政策和服务条款配置",
-    "config.group.tenant_ai.name": "AI 能力感知",
-    "config.group.tenant_ai.desc": "控制 AI 对话中注入的运行时能力描述",
+    "config.group.tenant_ai.name": "AI 能力与输入辅助",
+    "config.group.tenant_ai.desc": "控制 AI 对话中按需注入的运行时能力描述，以及企业内输入框 AI 辅助开关",
     "config.platform.marketplace_github_url.name": "插件市场 GitHub URL",
     "config.platform.marketplace_github_url.desc": "插件市场 GitHub 镜像的 registry 基础地址",
     "config.platform.marketplace_cache_ttl.name": "插件市场缓存 TTL",

@@ -108,6 +108,8 @@ export function mountRichTextEditor(
         selectedText: '',
         to: 0,
       },
+    validateSelectionSnapshot: (selection) =>
+      editorRef?.validateSelectionSnapshot?.(selection) ?? false,
     setContent: (
       content,
       setContentOptions?: RichTextEditorSetContentOptions,

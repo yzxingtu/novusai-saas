@@ -41,6 +41,10 @@
   "watermark": "Watermark",
   "watermarkContent": "Please input Watermark content",
   "checkUpdates": "Periodic update check",
+  "ai": {
+    "plainTextInputAssist": "Selected-text AI in inputs",
+    "plainTextInputAssistTip": "Only controls the local AI menu for selected text in plain input/textarea controls. Rich-text editor AI is not affected."
+  },
   "position": {
     "title": "Preferences Postion",
     "header": "Header",

@@ -78,6 +78,7 @@ const FLAT_TO_VBEN_MAP: Record<string, [string, string]> = {
   layout_mode: ['app', 'layout'],
   content_compact: ['app', 'contentCompact'],
   locale: ['app', 'locale'],
+  plain_text_input_ai_enabled: ['app', 'plainTextInputAiEnabled'],
   // General / 通用
   dynamic_title: ['app', 'dynamicTitle'],
   // Sidebar / 侧栏

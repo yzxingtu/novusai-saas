@@ -28,6 +28,7 @@ from app.api.tenant.ai_quotas import TenantAIQuotaController
 from app.api.tenant.ai_quotas import router as ai_quotas_router
 from app.api.tenant.ai_usage import TenantAIUsageController
 from app.api.tenant.ai_usage import router as ai_usage_router
+from app.api.tenant.ai_writing import router as ai_writing_router
 from app.api.tenant.analytics import router as analytics_router
 from app.api.tenant.announcement import TenantAnnouncementController
 from app.api.tenant.announcement import router as announcement_router
@@ -56,6 +57,7 @@ from app.api.tenant.permission_roles import TenantPermissionRoleController
 from app.api.tenant.permission_roles import router as permission_roles_router
 from app.api.tenant.permissions import TenantPermissionController
 from app.api.tenant.permissions import router as permissions_router
+from app.api.tenant.plain_text_input_ai import router as plain_text_input_ai_router
 from app.api.tenant.plugins import router as plugins_router
 from app.api.tenant.preferences import router as preferences_router
 from app.api.tenant.user_roles import TenantUserRoleController
@@ -92,6 +94,10 @@ tenant_router.include_router(agents_router)
 tenant_router.include_router(conversations_router)
 # AI 对话 / AI chat
 tenant_router.include_router(agent_chat_router)
+# 富文本 AI 操作流 / Rich-text AI operation stream
+tenant_router.include_router(ai_writing_router)
+# 普通输入框选区 AI 策略 / Plain input selection AI policy
+tenant_router.include_router(plain_text_input_ai_router)
 # 功能分配 resolve / Feature assignment resolve
 tenant_router.include_router(agent_assignments_router)
 # AI 操作审计 / AI action logs
@@ -111,8 +117,8 @@ tenant_router.include_router(plugins_router)
 # 数据分析 / Analytics
 tenant_router.include_router(analytics_router)
 tenant_router.include_router(execution_decisions_router)
-# 中文: 富文本 AI 独立写作路由已退役，不再挂载到公开 tenant API。
-# EN: Standalone rich-text AI writing routes are retired and no longer mounted.
+# 中文: 保留编辑器域富文本 AI 操作流；旧 `/ai/writing/*` 路由仍不挂载。
+# EN: Keep editor-domain rich-text AI operations; legacy `/ai/writing/*` routes stay unmounted.
 # 公告管理 / Announcement management
 tenant_router.include_router(announcement_router)
 

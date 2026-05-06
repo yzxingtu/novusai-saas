@@ -73,6 +73,8 @@ interface AppPreferences {
   loginExpiredMode: LoginExpiredModeType;
   /** 应用名 */
   name: string;
+  /** 普通输入框选中文字 AI 辅助 */
+  plainTextInputAiEnabled: boolean;
   /** 偏好设置按钮位置 */
   preferencesButtonPosition: PreferencesButtonPositionType;
   /**

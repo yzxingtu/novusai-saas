@@ -120,6 +120,9 @@ SYSTEM_DEFAULTS: dict[str, Any] = {
     "transition_loading": True,
     "transition_progress": True,
     "transition_name": "fade-slide",
+    # 中文: 普通输入框选区 AI 作为个人体验偏好默认开启。
+    # EN: Keep plain input selection AI enabled by default as a personal preference.
+    "plain_text_input_ai_enabled": True,
 }
 
 VALID_KEYS = set(SYSTEM_DEFAULTS.keys())

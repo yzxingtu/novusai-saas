@@ -1224,7 +1224,7 @@
       "tab": "文档写作助手",
       "configBtn": "文档写作助手",
       "runtimeHint": "文档写作助手使用 system.ai_writing",
-      "runtimeDescription": "富文本右键写作运行时统一通过 /ai/writing/{action} 调用 agent-assignments 中绑定到 system.ai_writing 的智能体；请在「功能分配」中配置文档写作助手。",
+      "runtimeDescription": "富文本右键写作运行时统一通过 /ai/rich-text/operations/{action} 调用 agent-assignments 中绑定到 system.ai_writing 的智能体；预览、对话和写回都停留在编辑器内，请在「功能分配」中配置文档写作助手。",
       "noAgent": "未绑定智能体",
       "stats": {
         "contextActions": "右键动作",
@@ -1244,7 +1244,7 @@
       "endpointPattern": "示例端点",
       "requestFields": "请求字段",
       "runtimeBoundary": "运行时边界",
-      "noPageRuntime": "不注入 page_context、page_session_id、ui_* 或 editor_* 工具；选区文本由富文本组件显式提交给后端写作接口。",
+      "noPageRuntime": "不注入 page_context、page_session_id、ui_* 或 pageop_* 工具；选区文本、光标前后文和有限历史由富文本组件显式提交给编辑器域接口，不依赖全局侧边栏。",
       "actionsTitle": "默认动作模板",
       "actionsDesc": "这些模板供富文本右键菜单或未来编辑器集成复用；启用状态由调用方按权限与编辑器状态决定。",
       "requiresSelection": "需要选区",

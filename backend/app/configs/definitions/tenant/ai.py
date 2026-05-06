@@ -51,6 +51,16 @@ TENANT_AI_MAX_CAPABILITY_ITEMS_PER_CATEGORY = ConfigMeta(
     sort_order=30,
 )
 
+TENANT_PLAIN_TEXT_INPUT_AI_ENABLED = ConfigMeta(
+    key="tenant_plain_text_input_ai_enabled",
+    name_key="config.tenant.plain_text_input_ai_enabled.name",
+    description_key="config.tenant.plain_text_input_ai_enabled.desc",
+    scope=ConfigScope.ALL_TENANTS,
+    value_type=ConfigValueType.BOOLEAN,
+    default_value=True,
+    sort_order=40,
+)
+
 
 # ==========================================
 # Register configs to group / 注册配置到分组
@@ -60,6 +70,7 @@ TENANT_AI_GROUP.configs = [
     TENANT_AI_ENABLE_DYNAMIC_CAPABILITY_AWARENESS,
     TENANT_AI_CAPABILITY_DESCRIPTION_STYLE,
     TENANT_AI_MAX_CAPABILITY_ITEMS_PER_CATEGORY,
+    TENANT_PLAIN_TEXT_INPUT_AI_ENABLED,
 ]
 
 
@@ -67,4 +78,5 @@ __all__ = [
     "TENANT_AI_ENABLE_DYNAMIC_CAPABILITY_AWARENESS",
     "TENANT_AI_CAPABILITY_DESCRIPTION_STYLE",
     "TENANT_AI_MAX_CAPABILITY_ITEMS_PER_CATEGORY",
+    "TENANT_PLAIN_TEXT_INPUT_AI_ENABLED",
 ]

@@ -8,6 +8,7 @@ import { Button, Spin } from 'ant-design-vue';
 
 import NotificationSettings from '#/components/business/notification-panel/NotificationSettings.vue';
 import { PreferenceForm } from '#/components/business/preference-form';
+import AiInputAssistPolicySettings from '#/components/business/preference-page/AiInputAssistPolicySettings.vue';
 import { useGlobalPreferencePage } from '#/composables/use-global-preference-page';
 import { $t } from '#/locales';
 
@@ -17,6 +18,7 @@ const props = defineProps<{
 }>();
 
 const NOTIFICATION_SECTION_ANCHOR = 'preference-section-notification';
+const AI_INPUT_ASSIST_SECTION_ANCHOR = 'preference-section-ai-input-assist';
 const PREFERENCE_FORM_SECTIONS = [
   {
     anchor: 'preference-section-appearance',
@@ -115,6 +117,11 @@ const quickLinks = computed(() => {
       icon: section.icon,
       label: $t(section.labelKey),
     })),
+    {
+      anchor: AI_INPUT_ASSIST_SECTION_ANCHOR,
+      icon: 'lucide:sparkles',
+      label: $t('common.preference.aiInputAssist.title'),
+    },
     {
       anchor: NOTIFICATION_SECTION_ANCHOR,
       icon: 'lucide:bell',
@@ -345,6 +352,12 @@ async function onSaveNotif() {
               :api-prefix="apiPrefix"
             />
           </section>
+
+          <AiInputAssistPolicySettings
+            :id="AI_INPUT_ASSIST_SECTION_ANCHOR"
+            :api-prefix="apiPrefix"
+            :side="side"
+          />
         </aside>
       </section>
     </div>

@@ -1,4 +1,6 @@
 <script lang="ts" setup>
+import type { PlainTextInputAiPolicy } from '#/api/shared/plain-text-input-ai-policy';
+
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 
@@ -21,6 +23,7 @@ import { useAccessStore, useTabbarStore, useUserStore } from '@vben/stores';
 
 import { message, Popover, Tooltip } from 'ant-design-vue';
 
+import { getPlainTextInputAiPolicyApi } from '#/api/shared/plain-text-input-ai-policy';
 import { AIChatSlidePanel } from '#/components/business/ai-slide-panel';
 import AnnouncementGlobalModal from '#/components/business/announcement/AnnouncementGlobalModal.vue';
 import CacheClearModal from '#/components/business/cache-clear-modal/CacheClearModal.vue';
@@ -29,6 +32,7 @@ import NotificationPanel from '#/components/business/notification-panel/Notifica
 import NotificationToast from '#/components/business/notification-toast/NotificationToast.vue';
 import PluginFloatingPanels from '#/components/business/plugin-slots/PluginFloatingPanels.vue';
 import ReLoginForm from '#/components/business/re-login-form/ReLoginForm.vue';
+import { GlobalPlainTextInputAiAssist } from '#/components/business/text-selection-ai-assist';
 import { useAIEntryPolicy } from '#/composables';
 import {
   refreshPluginSlots,
@@ -79,6 +83,8 @@ const { initSnapshot, skipSync } = usePreferenceSync();
 // ============ AI Panel / AI 面板 ============
 
 const { aiChatEnabled, commandBarEnabled } = useAIEntryPolicy();
+const plainTextInputAiPolicy = ref<null | PlainTextInputAiPolicy>(null);
+let plainTextInputAiPolicyTask: null | Promise<void> = null;
 
 const apiPrefix = computed(() => {
   const path = router.currentRoute.value.path;
@@ -102,6 +108,15 @@ const endpointIcon = computed(() =>
 );
 
 const uploadUrl = computed(() => `${apiPrefix.value}/attachments/upload`);
+const personalPlainTextInputAiEnabled = computed(
+  () => preferences.app.plainTextInputAiEnabled !== false,
+);
+const plainTextInputAiEnabled = computed(
+  () =>
+    aiChatEnabled.value &&
+    personalPlainTextInputAiEnabled.value &&
+    plainTextInputAiPolicy.value?.enabled === true,
+);
 
 /** AI Panel 固定时的右侧偏移量（页面禁用 AI 时归零） / AI Panel right offset */
 const aiPanelRightOffset = computed(() => {
@@ -174,11 +189,47 @@ function refreshAIAvailabilityFromServer() {
 }
 
 function onAIAvailabilityInvalidated() {
-  void refreshAIAvailabilityFromServer().catch(() => {});
+  void refreshAIAvailabilityFromServer()
+    .then(() => refreshPlainTextInputAiPolicy())
+    .catch(() => {});
 }
 
 /** CommandBar 组件引用 / CommandBar component ref */
 const commandBarRef = ref<InstanceType<typeof CommandBar> | null>(null);
+
+function refreshPlainTextInputAiPolicy() {
+  if (plainTextInputAiPolicyTask) {
+    return plainTextInputAiPolicyTask;
+  }
+
+  plainTextInputAiPolicyTask = (async () => {
+    if (!aiChatEnabled.value) {
+      plainTextInputAiPolicy.value = null;
+      return;
+    }
+    const prefix = apiPrefix.value;
+    try {
+      const policy = await getPlainTextInputAiPolicyApi(prefix);
+      if (apiPrefix.value === prefix) {
+        plainTextInputAiPolicy.value = policy;
+      }
+    } catch {
+      plainTextInputAiPolicy.value = null;
+    }
+  })().finally(() => {
+    plainTextInputAiPolicyTask = null;
+  });
+
+  return plainTextInputAiPolicyTask;
+}
+
+watch(
+  () => [apiPrefix.value, aiChatEnabled.value] as const,
+  () => {
+    void refreshPlainTextInputAiPolicy();
+  },
+  { immediate: true },
+);
 
 // 初始化插件前端（动态加载已启用插件的 UMD 包并注册到插槽 Store）/ plugin UMD + slots
 const currentEndpointPrefix = computed(() => {
@@ -260,6 +311,7 @@ onMounted(async () => {
   skipSync();
   await preferenceStore.loadPreferences(ep as 'admin' | 'tenant');
   initSnapshot();
+  await refreshPlainTextInputAiPolicy();
 });
 
 onBeforeUnmount(() => {
@@ -609,6 +661,11 @@ watch(
         :pending-conversation-id="pendingConversationId"
         @message-sent="onMessageSent"
         @conversation-restored="onConversationRestored"
+      />
+      <GlobalPlainTextInputAiAssist
+        v-if="plainTextInputAiEnabled"
+        :api-prefix="apiPrefix"
+        :enabled="plainTextInputAiEnabled"
       />
       <CacheClearModal ref="cacheClearModalRef" />
       <AnnouncementGlobalModal />

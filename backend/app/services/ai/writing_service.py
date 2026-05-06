@@ -1,14 +1,11 @@
 """
 Rich-text AI message template service / 富文本 AI 消息模板服务。
 
-This module intentionally does not expose an independent writing runtime.
-Rich-text editor actions are normalized into a single AgentChat user message;
-the caller must resolve the `system.ai_writing` assignment through the existing
-agent-assignment API and then send the message through the global AgentChat /
-conversation route.
-/ 本模块不再暴露独立 AI 写作运行时。富文本编辑器动作会被规整成一条
-AgentChat 用户消息；调用方必须通过既有智能体分配 API 解析 `system.ai_writing`
-绑定，再通过全局 AgentChat/会话路由发送该消息。
+This module intentionally remains a template/message builder. Rich-text editor
+operation routes resolve `system.ai_writing` and run the rendered message
+through the existing AgentChat runtime.
+/ 本模块仍只负责模板与消息构造。富文本编辑器操作路由解析 `system.ai_writing`
+绑定，并通过既有 AgentChat 运行时发送渲染后的消息。
 """
 
 from __future__ import annotations
@@ -108,7 +105,7 @@ def build_ai_messages(
     after_text: str = "",
     context_title: str = "",
     instruction: str = "",
-    target_lang: str = "English",
+    target_lang: str = "",
     format_instruction: str = "",
     chat_history: list[dict[str, str]] | None = None,
 ) -> list[dict[str, str]]:
@@ -140,10 +137,10 @@ def build_ai_messages(
 def build_rich_text_agent_chat_message(feature: str, body: dict[str, Any]) -> str:
     """构建可发送到全局 AgentChat 的富文本操作消息。
 
-    EN: Build the rich-text operation message that should be sent through the
-    global AgentChat conversation route. This helper does not resolve an agent,
-    open an SSE stream, or write AI action logs; those responsibilities stay in
-    the normal AgentChat runtime.
+    EN: Build the rich-text operation message sent by the editor-domain route
+    through AgentChat. This helper does not resolve an agent, open an SSE stream,
+    or write AI action logs; those responsibilities stay in the normal AgentChat
+    runtime.
     """
     payload = dict(body or {})
     action_key = normalize_writing_action(feature)
@@ -158,7 +155,7 @@ def build_rich_text_agent_chat_message(feature: str, body: dict[str, Any]) -> st
         or payload.get("document_title")
         or "",
         instruction=payload.get("instruction", ""),
-        target_lang=payload.get("target_lang", "English"),
+        target_lang=payload.get("target_lang", ""),
         format_instruction=format_instruction,
         chat_history=payload.get("history"),
     )
