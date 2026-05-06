@@ -182,6 +182,7 @@ class BaseTask(Task):
 
         self._start_time = time.monotonic()
         self._apply_db_config()
+        self._before_task_run_start(task_id, args, kwargs)
         logger.info(f"Task started: {self.name} [{task_id}]")
         self._record_task_run_start(task_id, args, kwargs)
 
@@ -228,6 +229,15 @@ class BaseTask(Task):
             self.max_retries = config["max_retries"]
         if config.get("timeout") is not None:
             self.soft_time_limit = config["timeout"]
+
+    def _before_task_run_start(
+        self,
+        task_id: str,
+        args: tuple,
+        kwargs: dict,
+    ) -> None:
+        """中文: 任务启动前的 fail-closed 扩展点。EN: Fail-closed hook before task execution starts."""
+        _ = (task_id, args, kwargs)
 
     def get_retry_countdown(self) -> int:
         """
@@ -790,11 +800,83 @@ class TenantTask(BaseTask):
     abstract = True
     _tenant_id: int | None = None
 
-    def before_start(self, task_id: str, args: tuple, kwargs: dict) -> None:
-        super().before_start(task_id, args, kwargs)
-        self._tenant_id = kwargs.get("tenant_id")
-        if self._tenant_id:
-            logger.info(f"Task tenant context: tenant_id={self._tenant_id}")
+    @staticmethod
+    def _normalize_tenant_id(value: Any) -> int | None:
+        if value in (None, "", "null"):
+            return None
+        try:
+            tenant_id = int(value)
+        except (TypeError, ValueError):
+            return None
+        return tenant_id if tenant_id > 0 else None
+
+    def _before_task_run_start(
+        self,
+        task_id: str,
+        args: tuple,
+        kwargs: dict,
+    ) -> None:
+        _ = (task_id, args)
+        tenant_id = self._normalize_tenant_id(kwargs.get("tenant_id"))
+        if tenant_id is None:
+            logger.warning("Rejected tenant task without tenant_id: task={}", self.name)
+            raise Ignore()
+
+        headers = getattr(self.request, "headers", None) or {}
+        if isinstance(headers, dict):
+            header_tenant_id = self._normalize_tenant_id(
+                headers.get("effective_tenant_id")
+            )
+            if header_tenant_id is not None and header_tenant_id != tenant_id:
+                logger.warning(
+                    "Rejected tenant task with mismatched tenant context: task={} "
+                    "tenant_id={} effective_tenant_id={}",
+                    self.name,
+                    tenant_id,
+                    header_tenant_id,
+                )
+                raise Ignore()
+
+        self._require_eligible_tenant(tenant_id)
+        self._tenant_id = tenant_id
+        logger.info("Task tenant context: tenant_id={}", self._tenant_id)
+
+    def _require_eligible_tenant(self, tenant_id: int) -> None:
+        """中文: 兜底校验企业任务资格。EN: Guard tenant task eligibility as a final runtime boundary."""
+        session = None
+        try:
+            from app.services.system.task_tenant_eligibility_service import (
+                TaskTenantEligibilityService,
+            )
+
+            session = sync_session_factory()
+            result = TaskTenantEligibilityService.resolve_tenant_eligibility_sync(
+                session,
+                tenant_id,
+            )
+            if not result.is_eligible:
+                logger.warning(
+                    "Rejected tenant task for ineligible tenant: task={} "
+                    "tenant_id={} reason={}",
+                    self.name,
+                    tenant_id,
+                    result.reason,
+                )
+                raise Ignore()
+        except Ignore:
+            raise
+        except Exception as exc:
+            logger.warning(
+                "Rejected tenant task because eligibility resolution failed: "
+                "task={} tenant_id={} error={}",
+                self.name,
+                tenant_id,
+                exc,
+            )
+            raise Ignore() from exc
+        finally:
+            if session:
+                session.close()
 
     @property
     def tenant_id(self) -> int | None:
