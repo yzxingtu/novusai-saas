@@ -575,9 +575,23 @@
     "bindingAlertGlobal": "This mode does not use an explicit tenant list. Saving will clear any existing tenant bindings and switch back to platform-managed delivery semantics.",
     "bindingTenantTitle": "Tenant list",
     "bindingTenantHelpSelected": "Choose the tenants that should receive this task definition.",
+    "bindingTenantHelpAllTenantsOptOut": "All-tenants mode includes every eligible tenant by default. Select tenants here only when they should opt out of this default task.",
     "bindingTenantHelpGlobal": "This mode does not require an explicit tenant list. Coverage is defined directly by the selected scope.",
     "bindingGlobalNote": "Global shared, all-tenants, and admin-only modes do not rely on an explicit tenant list. Preserved selections stay here so you can switch back and continue editing.",
     "bindingWarning": "Explicit tenant bindings are still missing",
+    "bindingOverride": {
+      "title": "Per-tenant overrides",
+      "help": "Set tenant-level enablement, disable reason, schedule override, and JSON kwargs/config overrides for selected tenants.",
+      "count": "{count} tenants",
+      "enabled": "Tenant enabled",
+      "disableReason": "Enter disable reason",
+      "inheritSchedule": "Use task default schedule",
+      "effective": "Effective preview: {value}",
+      "intervalPreview": "Every {seconds} seconds",
+      "kwargsOverride": "kwargs override, JSON object",
+      "configOverride": "config override, JSON object",
+      "saveTenant": "Save tenant"
+    },
     "taskDescriptions": {
       "ai_provider_health_check": "Checks the availability of all enabled AI providers every 5 minutes and writes the result to Redis for failover.",
       "clean_expired_captchas": "Cleans expired captcha cache entries every hour.",
@@ -642,6 +656,9 @@
       "updateSuccess": "Updated successfully",
       "deleteSuccess": "Deleted successfully",
       "bindingSaveSuccess": "Tenant bindings saved",
+      "bindingTenantSaveSuccess": "Tenant binding saved",
+      "bindingMissing": "This mode requires at least one tenant",
+      "bindingJsonInvalid": "{field} must be a valid JSON object",
       "deleteConfirm": "Are you sure you want to delete periodic task \"{name}\"?",
       "triggerSuccess": "Task triggered successfully",
       "triggerConfirm": "Are you sure you want to trigger this task now?",
@@ -785,11 +802,27 @@
     "channels": "Channels",
     "priority": "Priority",
     "isSystem": "Type",
+    "scope": "Scope",
+    "tenant": "Tenant",
+    "plugin": "Plugin",
+    "source": "Source",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "override": "Override",
+    "defaultTemplate": "Default",
     "titleTemplate": "Title Template",
     "bodyTemplate": "Body Template",
     "editTitle": "Edit Notification Template",
+    "previewTitle": "Effective Preview",
+    "previewEffective": "Effective Content",
+    "preview": "Preview",
+    "restoreDefault": "Restore Default",
+    "restoreConfirmTitle": "Restore default template",
+    "restoreConfirmContent": "Restore template \"{code}\" to its default content?",
     "systemBuiltin": "System",
     "custom": "Custom",
+    "scopeGlobal": "Global",
+    "sourceSystem": "System",
     "channelWs": "Push",
     "channelInbox": "Inbox",
     "channelEmail": "Email",
@@ -801,6 +834,20 @@
       "biz": "Business",
       "audit": "Audit"
     },
+    "scope_options": {
+      "global": "Global",
+      "tenant": "Tenant",
+      "plugin": "Plugin",
+      "system": "System",
+      "admin": "Admin"
+    },
+    "source_options": {
+      "system": "System",
+      "tenant": "Tenant",
+      "plugin": "Plugin",
+      "custom": "Custom",
+      "override": "Override"
+    },
     "priority_options": {
       "low": "Low",
       "normal": "Normal",
@@ -809,12 +856,14 @@
     },
     "placeholder": {
       "allCategories": "All Categories",
-      "allPriorities": "All Priorities"
+      "allPriorities": "All Priorities",
+      "allEnabledStates": "All Enabled States"
     },
     "test": "Test",
     "messages": {
       "updateSuccess": "Notification template updated",
       "updateFailed": "Update failed",
+      "restoreSuccess": "Notification template restored",
       "testSuccess": "Test notification sent, check the notification panel",
       "testFailed": "Failed to send test notification"
     }

@@ -12,17 +12,22 @@ import {
   Button,
   Card,
   Checkbox,
+  Descriptions,
   Drawer,
   Form,
   Input,
   message,
+  Modal,
   Select,
+  Switch,
   Tag,
 } from 'ant-design-vue';
 
 import { useCrudPage } from '#/adapter/vxe-table';
 import {
   getNotificationTemplateListApi,
+  getNotificationTemplatePreviewApi,
+  restoreNotificationTemplateDefaultApi,
   testNotificationTemplateApi,
   updateNotificationTemplateApi,
 } from '#/api/admin/notification-templates';
@@ -32,7 +37,10 @@ import {
   getCategoryColor,
   getChannelColor,
   getChannelLabel,
+  getOverrideLabel,
   getPriorityColor,
+  getScopeLabel,
+  getSourceLabel,
   useColumns,
   useGridFormSchema,
 } from './data';
@@ -41,20 +49,38 @@ defineOptions({ name: 'AdminNotificationTemplates' });
 
 const editOpen = ref(false);
 const editLoading = ref(false);
+const previewOpen = ref(false);
+const previewLoading = ref(false);
+const previewData = ref<NotificationTemplateInfo['effectivePreview'] | null>(
+  null,
+);
+const previewRecord = ref<NotificationTemplateInfo | null>(null);
 const editForm = ref<{
-  body_template: string;
+  bodyTemplate: string;
   channels: string[];
   code: string;
+  enabled: boolean;
   id: number;
+  isOverride: boolean;
+  pluginName: null | string;
   priority: string;
-  title_template: string;
+  scope: null | string;
+  source: null | string;
+  tenantName: null | string;
+  titleTemplate: string;
 }>({
   id: 0,
   code: '',
+  scope: null,
+  tenantName: null,
+  pluginName: null,
+  source: null,
+  isOverride: false,
+  enabled: true,
   channels: [],
   priority: 'normal',
-  title_template: '',
-  body_template: '',
+  titleTemplate: '',
+  bodyTemplate: '',
 });
 
 const CHANNEL_OPTIONS = [
@@ -107,12 +133,48 @@ function onEdit(row: NotificationTemplateInfo) {
   editForm.value = {
     id: row.id,
     code: row.code,
+    scope: row.scope,
+    tenantName: row.tenantName,
+    pluginName: row.pluginName,
+    source: row.source,
+    isOverride: row.isOverride,
+    enabled: row.enabled,
     channels: row.channels || [],
     priority: row.priority,
-    title_template: row.title_template,
-    body_template: row.body_template || '',
+    titleTemplate: row.titleTemplate,
+    bodyTemplate: row.bodyTemplate || '',
   };
   editOpen.value = true;
+}
+
+async function onPreview(row: NotificationTemplateInfo) {
+  previewRecord.value = row;
+  previewData.value = row.effectivePreview;
+  previewOpen.value = true;
+  previewLoading.value = true;
+  try {
+    previewData.value = await getNotificationTemplatePreviewApi(row.id);
+  } finally {
+    previewLoading.value = false;
+  }
+}
+
+function onRestore(row: NotificationTemplateInfo) {
+  Modal.confirm({
+    title: $t('admin.system.notificationTemplate.restoreConfirmTitle'),
+    content: $t('admin.system.notificationTemplate.restoreConfirmContent', {
+      code: row.code,
+    }),
+    okText: $t('admin.system.notificationTemplate.restoreDefault'),
+    cancelText: $t('common.cancel'),
+    async onOk() {
+      await restoreNotificationTemplateDefaultApi(row.id);
+      message.success(
+        $t('admin.system.notificationTemplate.messages.restoreSuccess'),
+      );
+      gridReload();
+    },
+  });
 }
 
 async function handleSave() {
@@ -121,8 +183,9 @@ async function handleSave() {
     await updateNotificationTemplateApi(editForm.value.id, {
       channels: editForm.value.channels,
       priority: editForm.value.priority,
-      title_template: editForm.value.title_template,
-      body_template: editForm.value.body_template || undefined,
+      enabled: editForm.value.enabled,
+      titleTemplate: editForm.value.titleTemplate,
+      bodyTemplate: editForm.value.bodyTemplate || null,
     });
     message.success(
       $t('admin.system.notificationTemplate.messages.updateSuccess'),
@@ -148,6 +211,8 @@ const { Grid, onRefresh: gridReload } = useCrudPage<NotificationTemplateInfo>({
   i18nPrefix: 'admin.system.notificationTemplate',
   defaultSort: 'category',
   customActions: {
+    preview: onPreview,
+    restore: onRestore,
     test: onTest,
     edit: onEdit,
   },
@@ -170,6 +235,18 @@ const { Grid, onRefresh: gridReload } = useCrudPage<NotificationTemplateInfo>({
         <Form.Item :label="$t('admin.system.notificationTemplate.code')">
           <Input :value="editForm.code" disabled />
         </Form.Item>
+        <Form.Item :label="$t('admin.system.notificationTemplate.scope')">
+          <Input :value="getScopeLabel(editForm.scope)" disabled />
+        </Form.Item>
+        <Form.Item :label="$t('admin.system.notificationTemplate.source')">
+          <Input :value="getSourceLabel(editForm.source)" disabled />
+        </Form.Item>
+        <Form.Item :label="$t('admin.system.notificationTemplate.override')">
+          <Input :value="getOverrideLabel(editForm.isOverride)" disabled />
+        </Form.Item>
+        <Form.Item :label="$t('admin.system.notificationTemplate.enabled')">
+          <Switch v-model:checked="editForm.enabled" />
+        </Form.Item>
         <Form.Item :label="$t('admin.system.notificationTemplate.channels')">
           <Checkbox.Group
             v-model:value="editForm.channels"
@@ -185,12 +262,12 @@ const { Grid, onRefresh: gridReload } = useCrudPage<NotificationTemplateInfo>({
         <Form.Item
           :label="$t('admin.system.notificationTemplate.titleTemplate')"
         >
-          <Input v-model:value="editForm.title_template" />
+          <Input v-model:value="editForm.titleTemplate" />
         </Form.Item>
         <Form.Item
           :label="$t('admin.system.notificationTemplate.bodyTemplate')"
         >
-          <Input.TextArea v-model:value="editForm.body_template" :rows="4" />
+          <Input.TextArea v-model:value="editForm.bodyTemplate" :rows="4" />
         </Form.Item>
         <Form.Item>
           <Button type="primary" :loading="editLoading" @click="handleSave">
@@ -211,16 +288,16 @@ const { Grid, onRefresh: gridReload } = useCrudPage<NotificationTemplateInfo>({
 
         <!-- 标题模板列 -->
         <template #title_cell="{ row }">
-          <span class="text-sm text-foreground">{{ row.title_template }}</span>
+          <span class="text-sm text-foreground">{{ row.titleTemplate }}</span>
         </template>
 
         <!-- 正文模板列 -->
         <template #body_cell="{ row }">
           <span
-            v-if="row.body_template"
+            v-if="row.bodyTemplate"
             class="line-clamp-2 text-xs text-muted-foreground"
           >
-            {{ row.body_template }}
+            {{ row.bodyTemplate }}
           </span>
           <span v-else class="text-xs text-muted-foreground">-</span>
         </template>
@@ -250,6 +327,26 @@ const { Grid, onRefresh: gridReload } = useCrudPage<NotificationTemplateInfo>({
           </div>
         </template>
 
+        <template #scope_cell="{ row }">
+          <Tag color="blue">{{ getScopeLabel(row.scope) }}</Tag>
+        </template>
+
+        <template #source_cell="{ row }">
+          <span class="text-xs text-muted-foreground">
+            {{ getSourceLabel(row.source) }}
+          </span>
+        </template>
+
+        <template #enabled_cell="{ row }">
+          <Tag :color="row.enabled ? 'green' : 'red'">
+            {{
+              row.enabled
+                ? $t('admin.system.notificationTemplate.enabled')
+                : $t('admin.system.notificationTemplate.disabled')
+            }}
+          </Tag>
+        </template>
+
         <!-- 优先级列 -->
         <template #priority_cell="{ row }">
           <Tag :color="getPriorityColor(row.priority)">
@@ -263,9 +360,9 @@ const { Grid, onRefresh: gridReload } = useCrudPage<NotificationTemplateInfo>({
 
         <!-- 系统内置列 -->
         <template #isSystem_cell="{ row }">
-          <Tag :color="row.is_system ? 'blue' : 'default'">
+          <Tag :color="row.isSystem ? 'blue' : 'default'">
             {{
-              row.is_system
+              row.isSystem
                 ? $t('admin.system.notificationTemplate.systemBuiltin')
                 : $t('admin.system.notificationTemplate.custom')
             }}
@@ -273,5 +370,58 @@ const { Grid, onRefresh: gridReload } = useCrudPage<NotificationTemplateInfo>({
         </template>
       </Grid>
     </Card>
+
+    <Drawer
+      v-model:open="previewOpen"
+      :title="$t('admin.system.notificationTemplate.previewTitle')"
+      width="560"
+    >
+      <div class="flex flex-col gap-4">
+        <Card>
+          <Descriptions :column="1" size="small">
+            <Descriptions.Item
+              :label="$t('admin.system.notificationTemplate.code')"
+            >
+              {{ previewRecord?.code || '-' }}
+            </Descriptions.Item>
+            <Descriptions.Item
+              :label="$t('admin.system.notificationTemplate.scope')"
+            >
+              {{ getScopeLabel(previewRecord?.scope) }}
+            </Descriptions.Item>
+            <Descriptions.Item
+              :label="$t('admin.system.notificationTemplate.source')"
+            >
+              {{ getSourceLabel(previewRecord?.source) }}
+            </Descriptions.Item>
+            <Descriptions.Item
+              :label="$t('admin.system.notificationTemplate.enabled')"
+            >
+              {{
+                previewRecord?.enabled
+                  ? $t('admin.system.notificationTemplate.enabled')
+                  : $t('admin.system.notificationTemplate.disabled')
+              }}
+            </Descriptions.Item>
+          </Descriptions>
+        </Card>
+
+        <Card :loading="previewLoading">
+          <div
+            class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400"
+          >
+            {{ $t('admin.system.notificationTemplate.previewEffective') }}
+          </div>
+          <div class="mt-3 text-sm font-medium text-slate-900">
+            {{ previewData?.titleTemplate || '-' }}
+          </div>
+          <div
+            class="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-600"
+          >
+            {{ previewData?.bodyTemplate || '-' }}
+          </div>
+        </Card>
+      </div>
+    </Drawer>
   </Page>
 </template>

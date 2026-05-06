@@ -1,7 +1,13 @@
 <script lang="ts" setup>
+import type { TaskBindingOverrideDraft } from './binding-overrides';
+
+import type {
+  PeriodicTaskBindingInfo,
+  PeriodicTaskBindingUpdatePayload,
+} from '#/api/admin/periodic-task';
 import type { TenantSelectOption } from '#/api/admin/tenant';
 
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 import { useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -11,6 +17,7 @@ import { Alert, Button, message, Spin, Tag } from 'ant-design-vue';
 import {
   getPeriodicTaskBindingsApi,
   syncPeriodicTaskBindingsApi,
+  updatePeriodicTaskBindingApi,
 } from '#/api/admin/periodic-task';
 import { getTenantSelectApi } from '#/api/admin/tenant';
 import { ApiSelect } from '#/components/business/api-select';
@@ -30,6 +37,11 @@ import {
   normalizeScopeValue,
   scopeNeedsExplicitBindings,
 } from '../data';
+import {
+  reconcileBindingOverrideDrafts,
+  toBindingOverridePayload,
+} from './binding-overrides';
+import TaskBindingOverridesPanel from './TaskBindingOverridesPanel.vue';
 
 defineOptions({ name: 'TaskBindingDrawer' });
 
@@ -63,8 +75,11 @@ const originalScope = ref<BindingScope>('admin_only');
 const bindingScope = ref<BindingScope>('admin_only');
 const selectedTenantIds = ref<number[]>([]);
 const cachedTenantOptions = ref<TenantOption[]>([]);
+const loadedBindings = ref<PeriodicTaskBindingInfo[]>([]);
+const bindingDrafts = ref<TaskBindingOverrideDraft[]>([]);
 const loading = ref(false);
 const saving = ref(false);
+const savingTenantId = ref<null | number>(null);
 const tenantSelectParams = Object.freeze({ is_active: 'true' });
 
 function toBindingScope(scope: null | string | undefined): BindingScope {
@@ -203,9 +218,23 @@ const tenantSurfaceSummary = computed(() => {
 });
 
 const tenantSectionHelp = computed(() => {
+  if (bindingScope.value === 'all_tenants') {
+    return $t('admin.system.periodicTask.bindingTenantHelpAllTenantsOptOut');
+  }
   return requiresExplicitBindings.value
     ? $t('admin.system.periodicTask.bindingTenantHelpSelected')
     : $t('admin.system.periodicTask.bindingTenantHelpGlobal');
+});
+
+const shouldShowOverrides = computed(() => {
+  return (
+    (requiresExplicitBindings.value || bindingScope.value === 'all_tenants') &&
+    selectedTenantIds.value.length > 0
+  );
+});
+
+const bindingOverrideDefaultEnabled = computed(() => {
+  return bindingScope.value !== 'all_tenants';
 });
 
 const tenantSelectionValue = computed<ApiSelectValue>({
@@ -247,9 +276,15 @@ const [Drawer, drawerApi] = useVbenDrawer({
       data.assignedTenantIds,
       data.assignedTenantNames,
     );
+    loadedBindings.value = [];
+    bindingDrafts.value = [];
 
     await loadData();
   },
+});
+
+watch([selectedTenantIds, cachedTenantOptions], () => {
+  syncBindingDrafts();
 });
 
 async function loadData() {
@@ -258,19 +293,23 @@ async function loadData() {
   loading.value = true;
   try {
     const bindingItems = await getPeriodicTaskBindingsApi(taskId.value);
-    const activeBindings = bindingItems.filter((item) => item.is_enabled);
+    loadedBindings.value = bindingItems;
 
     cachedTenantOptions.value = mergeTenantOptions(
       cachedTenantOptions.value,
-      activeBindings.map((item) => ({
-        label: item.tenant_name || `#${item.tenant_id}`,
-        value: item.tenant_id,
+      bindingItems.map((item) => ({
+        label: item.tenantName || `#${item.tenantId}`,
+        value: item.tenantId,
       })),
     );
 
-    if (scopeNeedsExplicitBindings(originalScope.value)) {
-      selectedTenantIds.value = activeBindings.map((item) => item.tenant_id);
+    if (
+      scopeNeedsExplicitBindings(originalScope.value) ||
+      originalScope.value === 'all_tenants'
+    ) {
+      selectedTenantIds.value = bindingItems.map((item) => item.tenantId);
     }
+    syncBindingDrafts();
   } finally {
     loading.value = false;
   }
@@ -283,14 +322,103 @@ function handleTenantOptionsLoaded(options: TenantOption[]) {
   );
 }
 
+function syncBindingDrafts() {
+  if (!requiresExplicitBindings.value && bindingScope.value !== 'all_tenants') {
+    bindingDrafts.value = [];
+    return;
+  }
+  bindingDrafts.value = reconcileBindingOverrideDrafts(
+    bindingDrafts.value,
+    selectedTenantIds.value,
+    cachedTenantOptions.value,
+    loadedBindings.value,
+    bindingOverrideDefaultEnabled.value,
+  );
+}
+
+function updateBindingDraft(
+  tenantId: number,
+  patch: Partial<TaskBindingOverrideDraft>,
+) {
+  bindingDrafts.value = bindingDrafts.value.map((draft) =>
+    draft.tenantId === tenantId ? { ...draft, ...patch } : draft,
+  );
+}
+
+function resolveBindingPayloads() {
+  const payloads: PeriodicTaskBindingUpdatePayload[] = [];
+  const errorFields = new Set<'config' | 'kwargs'>();
+  for (const draft of bindingDrafts.value) {
+    const result = toBindingOverridePayload(draft);
+    payloads.push(result.payload);
+    for (const error of result.errors) {
+      errorFields.add(error);
+    }
+  }
+  return { errorFields, payloads };
+}
+
+function showJsonError(errorFields: Set<'config' | 'kwargs'>): boolean {
+  if (errorFields.size === 0) {
+    return false;
+  }
+  const field = errorFields.has('kwargs')
+    ? $t('admin.system.periodicTask.bindingOverride.kwargsOverride')
+    : $t('admin.system.periodicTask.bindingOverride.configOverride');
+  message.error(
+    $t('admin.system.periodicTask.messages.bindingJsonInvalid', { field }),
+  );
+  return true;
+}
+
+async function onSaveTenant(draft: TaskBindingOverrideDraft) {
+  if (!taskId.value) return;
+
+  const result = toBindingOverridePayload(draft);
+  if (showJsonError(new Set(result.errors))) {
+    return;
+  }
+
+  savingTenantId.value = draft.tenantId;
+  try {
+    const updated = await updatePeriodicTaskBindingApi(
+      taskId.value,
+      draft.tenantId,
+      result.payload,
+    );
+    loadedBindings.value = [
+      ...loadedBindings.value.filter(
+        (item) => item.tenantId !== draft.tenantId,
+      ),
+      updated,
+    ];
+    syncBindingDrafts();
+    message.success(
+      $t('admin.system.periodicTask.messages.bindingTenantSaveSuccess'),
+    );
+  } finally {
+    savingTenantId.value = null;
+  }
+}
+
 async function onSave() {
   if (!taskId.value) return;
+  if (requiresExplicitBindings.value && selectedTenantIds.value.length === 0) {
+    message.warning($t('admin.system.periodicTask.messages.bindingMissing'));
+    return;
+  }
+
+  const { errorFields, payloads } = resolveBindingPayloads();
+  if (showJsonError(errorFields)) {
+    return;
+  }
 
   saving.value = true;
   try {
     await syncPeriodicTaskBindingsApi(taskId.value, {
       scope: bindingScope.value,
-      tenant_ids: selectedTenantIds.value,
+      tenantIds: selectedTenantIds.value,
+      bindings: shouldShowOverrides.value ? payloads : [],
     });
     message.success(
       $t('admin.system.periodicTask.messages.bindingSaveSuccess'),
@@ -475,7 +603,9 @@ async function onSave() {
             :pagination="true"
             :click-pagination="true"
             :page-size="20"
-            :disabled="!requiresExplicitBindings"
+            :disabled="
+              !(requiresExplicitBindings || bindingScope === 'all_tenants')
+            "
             max-tag-count="responsive"
             :placeholder="
               $t('admin.system.periodicTask.placeholder.selectTenant')
@@ -484,12 +614,22 @@ async function onSave() {
           />
 
           <div
-            v-if="!requiresExplicitBindings"
+            v-if="!requiresExplicitBindings && bindingScope !== 'all_tenants'"
             class="mt-3 text-xs leading-5 text-slate-500"
           >
             {{ $t('admin.system.periodicTask.bindingGlobalNote') }}
           </div>
         </section>
+
+        <TaskBindingOverridesPanel
+          v-if="shouldShowOverrides"
+          :drafts="bindingDrafts"
+          :disabled="saving"
+          :deny-only="bindingScope === 'all_tenants'"
+          :saving-tenant-id="savingTenantId"
+          @update-draft="updateBindingDraft"
+          @save-tenant="onSaveTenant"
+        />
 
         <div class="flex justify-end gap-3">
           <Button @click="drawerApi.close()">

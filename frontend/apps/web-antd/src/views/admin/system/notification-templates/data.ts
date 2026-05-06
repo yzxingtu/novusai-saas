@@ -53,6 +53,19 @@ function getPriorityOptions() {
   ];
 }
 
+function getEnabledOptions() {
+  return [
+    {
+      label: $t('admin.system.notificationTemplate.enabled'),
+      value: 'true',
+    },
+    {
+      label: $t('admin.system.notificationTemplate.disabled'),
+      value: 'false',
+    },
+  ];
+}
+
 export function getCategoryColor(category: string): string {
   switch (category) {
     case 'ai': {
@@ -136,6 +149,28 @@ export function getChannelColor(channel: string): string {
   }
 }
 
+export function getScopeLabel(scope: null | string | undefined): string {
+  if (!scope) {
+    return $t('admin.system.notificationTemplate.scopeGlobal');
+  }
+  const key = `admin.system.notificationTemplate.scope_options.${scope}`;
+  return $t(key);
+}
+
+export function getSourceLabel(source: null | string | undefined): string {
+  if (!source) {
+    return $t('admin.system.notificationTemplate.sourceSystem');
+  }
+  const key = `admin.system.notificationTemplate.source_options.${source}`;
+  return $t(key);
+}
+
+export function getOverrideLabel(isOverride: boolean): string {
+  return isOverride
+    ? $t('admin.system.notificationTemplate.override')
+    : $t('admin.system.notificationTemplate.defaultTemplate');
+}
+
 export function useColumns<T = Record<string, unknown>>(
   onActionClick: OnActionClickFn<T>,
 ): VxeTableGridOptions['columns'] {
@@ -147,13 +182,13 @@ export function useColumns<T = Record<string, unknown>>(
       slots: { default: 'code_cell' },
     },
     {
-      field: 'title_template',
+      field: 'titleTemplate',
       title: $t('admin.system.notificationTemplate.titleTemplate'),
       minWidth: 200,
       slots: { default: 'title_cell' },
     },
     {
-      field: 'body_template',
+      field: 'bodyTemplate',
       title: $t('admin.system.notificationTemplate.bodyTemplate'),
       minWidth: 260,
       slots: { default: 'body_cell' },
@@ -179,9 +214,28 @@ export function useColumns<T = Record<string, unknown>>(
       slots: { default: 'priority_cell' },
     },
     {
-      field: 'is_system',
+      field: 'scope',
+      title: $t('admin.system.notificationTemplate.scope'),
+      width: 150,
+      slots: { default: 'scope_cell' },
+    },
+    {
+      field: 'source',
+      title: $t('admin.system.notificationTemplate.source'),
+      width: 160,
+      slots: { default: 'source_cell' },
+    },
+    {
+      field: 'enabled',
+      title: $t('admin.system.notificationTemplate.enabled'),
+      width: 96,
+      align: 'center',
+      slots: { default: 'enabled_cell' },
+    },
+    {
+      field: 'isSystem',
       title: $t('admin.system.notificationTemplate.isSystem'),
-      width: 100,
+      width: 120,
       align: 'center',
       slots: { default: 'isSystem_cell' },
     },
@@ -197,6 +251,12 @@ export function useColumns<T = Record<string, unknown>>(
         name: 'CellOperation',
         options: [
           {
+            code: 'preview',
+            text: $t('admin.system.notificationTemplate.preview'),
+            icon: 'lucide:eye',
+            accessCodes: ['notification_template:list'],
+          },
+          {
             code: 'test',
             text: $t('admin.system.notificationTemplate.test'),
             icon: 'lucide:play',
@@ -208,12 +268,20 @@ export function useColumns<T = Record<string, unknown>>(
             icon: 'lucide:pencil',
             accessCodes: ['notification_template:update'],
           },
+          {
+            code: 'restore',
+            text: $t('admin.system.notificationTemplate.restoreDefault'),
+            icon: 'lucide:rotate-ccw',
+            accessCodes: ['notification_template:update'],
+            show: (row: Record<string, unknown>) =>
+              row.isOverride === true || row.isSystem === false,
+          },
         ],
       },
       field: 'operation',
       fixed: 'right',
       title: $t('admin.common.operation'),
-      width: 140,
+      width: 190,
     },
   ];
 }
@@ -237,6 +305,16 @@ export function useGridFormSchema(): VbenFormSchema[] {
         options: getPriorityOptions(),
         placeholder: $t(
           'admin.system.notificationTemplate.placeholder.allPriorities',
+        ),
+      },
+    ),
+    select(
+      'filter[is_enabled][eq]',
+      $t('admin.system.notificationTemplate.enabled'),
+      {
+        options: getEnabledOptions(),
+        placeholder: $t(
+          'admin.system.notificationTemplate.placeholder.allEnabledStates',
         ),
       },
     ),

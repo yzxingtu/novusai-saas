@@ -585,9 +585,23 @@
     "bindingAlertGlobal": "当前模式不会使用显式企业名单。保存时若已有旧绑定，会一并清空，改为平台统一分发语义。",
     "bindingTenantTitle": "企业名单",
     "bindingTenantHelpSelected": "选择需要接收这条任务定义的企业。",
+    "bindingTenantHelpAllTenantsOptOut": "全企业模式默认覆盖所有符合条件的企业；这里选择的是不接收该默认任务的企业。",
     "bindingTenantHelpGlobal": "当前模式无需维护企业名单，企业覆盖范围由作用域直接决定。",
     "bindingGlobalNote": "全局共享、全企业和仅管理端模式都不依赖显式名单。这里保留旧选择只是方便你来回切换模式时继续调整。",
     "bindingWarning": "需要补齐企业绑定",
+    "bindingOverride": {
+      "title": "单企业覆盖配置",
+      "help": "为选中的企业单独设置启停状态、禁用原因、调度覆盖和 JSON 参数覆盖。",
+      "count": "{count} 家企业",
+      "enabled": "企业启用",
+      "disableReason": "请输入禁用原因",
+      "inheritSchedule": "继承任务默认调度",
+      "effective": "生效预览: {value}",
+      "intervalPreview": "每 {seconds} 秒",
+      "kwargsOverride": "kwargs 覆盖，JSON 对象",
+      "configOverride": "config 覆盖，JSON 对象",
+      "saveTenant": "保存企业配置"
+    },
     "taskDescriptions": {
       "ai_provider_health_check": "每 5 分钟检查所有启用的 AI 供应商可用性，写入 Redis 供故障转移。",
       "clean_expired_captchas": "每小时清理过期的验证码缓存。",
@@ -672,7 +686,9 @@
       "updateSuccess": "更新成功",
       "deleteSuccess": "删除成功",
       "bindingSaveSuccess": "分发配置已保存",
+      "bindingTenantSaveSuccess": "企业绑定配置已保存",
       "bindingMissing": "当前模式要求至少选择一个企业",
+      "bindingJsonInvalid": "{field} 必须是有效的 JSON 对象",
       "deleteConfirm": "确定要删除定时任务 \"{name}\" 吗？",
       "triggerSuccess": "任务已触发",
       "triggerConfirm": "确定要立即触发此任务吗？",
@@ -817,11 +833,27 @@
     "channels": "发送渠道",
     "priority": "优先级",
     "isSystem": "类型",
+    "scope": "作用域",
+    "tenant": "企业",
+    "plugin": "插件",
+    "source": "来源",
+    "enabled": "启用",
+    "disabled": "停用",
+    "override": "覆盖模板",
+    "defaultTemplate": "默认模板",
     "titleTemplate": "标题模板",
     "bodyTemplate": "正文模板",
     "editTitle": "编辑通知模板",
+    "previewTitle": "生效预览",
+    "previewEffective": "最终生效内容",
+    "preview": "预览",
+    "restoreDefault": "恢复默认",
+    "restoreConfirmTitle": "恢复默认模板",
+    "restoreConfirmContent": "确定要将模板 \"{code}\" 恢复为默认内容吗？",
     "systemBuiltin": "系统内置",
     "custom": "自定义",
+    "scopeGlobal": "全局",
+    "sourceSystem": "系统",
     "channelWs": "实时推送",
     "channelInbox": "站内信",
     "channelEmail": "邮件",
@@ -833,6 +865,20 @@
       "biz": "业务",
       "audit": "审计"
     },
+    "scope_options": {
+      "global": "全局",
+      "tenant": "企业",
+      "plugin": "插件",
+      "system": "系统",
+      "admin": "管理端"
+    },
+    "source_options": {
+      "system": "系统",
+      "tenant": "企业",
+      "plugin": "插件",
+      "custom": "自定义",
+      "override": "覆盖"
+    },
     "priority_options": {
       "low": "低",
       "normal": "正常",
@@ -841,12 +887,14 @@
     },
     "placeholder": {
       "allCategories": "全部分类",
-      "allPriorities": "全部优先级"
+      "allPriorities": "全部优先级",
+      "allEnabledStates": "全部启停状态"
     },
     "test": "\u6d4b\u8bd5",
     "messages": {
       "updateSuccess": "\u901a\u77e5\u6a21\u677f\u5df2\u66f4\u65b0",
       "updateFailed": "\u66f4\u65b0\u5931\u8d25",
+      "restoreSuccess": "已恢复默认模板",
       "testSuccess": "\u6d4b\u8bd5\u901a\u77e5\u5df2\u53d1\u9001\uff0c\u8bf7\u68c0\u67e5\u901a\u77e5\u9762\u677f",
       "testFailed": "\u6d4b\u8bd5\u901a\u77e5\u53d1\u9001\u5931\u8d25"
     }
