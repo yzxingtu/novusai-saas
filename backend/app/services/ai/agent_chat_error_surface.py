@@ -7,6 +7,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.ai.exceptions import (
+    ProviderAuthError,
     extract_provider_error_message,
     looks_like_html_document_text,
 )
@@ -43,12 +44,18 @@ def _resolve_safe_provider_message(error: Any) -> str:
 
 def _mapped_provider_failure_public_detail(failure_kind: str) -> str | None:
     return {
+        "provider_auth": _("ai.error.provider_auth"),
+        "provider_auth_error": _("ai.error.provider_auth"),
         "provider_bad_response": _("ai.request_failed"),
         "provider_http_5xx": _("ai.error.provider_server_error"),
         "provider_rate_limit": _("ai.error.provider_rate_limit"),
         "provider_timeout": _("ai.error.provider_timeout"),
         "provider_unavailable": _("ai.error.provider_connection"),
     }.get(failure_kind)
+
+
+def _should_prefer_mapped_provider_message(failure_kind: str) -> bool:
+    return failure_kind in {"provider_timeout", "provider_unavailable"}
 
 
 def friendly_stream_error_text(
@@ -62,7 +69,14 @@ def friendly_stream_error_text(
         return _("ai.stream.error.interrupted")
 
     normalized_kind = str(failure_kind or "").strip().lower()
+    if isinstance(error, ProviderAuthError):
+        return _("ai.error.provider_auth")
     if normalized_kind.startswith("provider_"):
+        mapped_detail = _mapped_provider_failure_public_detail(normalized_kind)
+        if normalized_kind in {"provider_auth", "provider_auth_error"}:
+            return mapped_detail or _("ai.error.provider_auth")
+        if mapped_detail and _should_prefer_mapped_provider_message(normalized_kind):
+            return mapped_detail
         provider_message = _resolve_safe_provider_message(error)
         if provider_message:
             return provider_message
@@ -72,7 +86,6 @@ def friendly_stream_error_text(
             and not looks_like_html_document_text(sanitized_error)
         ):
             return sanitized_error
-        mapped_detail = _mapped_provider_failure_public_detail(normalized_kind)
         if mapped_detail:
             return mapped_detail
         return _("ai.request_failed")
@@ -89,6 +102,10 @@ def friendly_stream_error_detail(
     failure_kind: str | None = None,
 ) -> str | None:
     normalized_kind = str(failure_kind or "").strip().lower()
+    if isinstance(error, ProviderAuthError):
+        return _("ai.error.provider_auth")
+    if normalized_kind in {"provider_auth", "provider_auth_error"}:
+        return _("ai.error.provider_auth")
     sanitized_error = strip_stream_error_trace(error)
     provider_message = _resolve_safe_provider_message(error)
     if normalized_kind.startswith("provider_") and provider_message:

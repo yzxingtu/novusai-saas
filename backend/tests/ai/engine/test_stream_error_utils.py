@@ -1,3 +1,9 @@
+"""Test type: behavioral.
+
+Scope: stream error public-message sanitization.
+Mocked dependencies: none; imports the helper module directly.
+"""
+
 from __future__ import annotations
 
 import sys
@@ -5,7 +11,13 @@ import types
 from importlib import import_module
 from pathlib import Path
 
-from app.ai.exceptions import AIGatewayError, ProviderError
+from app.ai.exceptions import (
+    AIGatewayError,
+    ProviderAuthError,
+    ProviderConnectionError,
+    ProviderError,
+    ProviderTimeoutError,
+)
 from app.core.i18n import _
 from app.middleware.trace import trace_id_var
 
@@ -35,9 +47,10 @@ def test_trace_payload_injects_trace_id_only_when_missing() -> None:
 
 
 def test_is_stream_interruption_error_detects_disconnect_keywords() -> None:
-    assert is_stream_interruption_error(
-        RuntimeError("client disconnected [trace_id=abc]")
-    ) is True
+    assert (
+        is_stream_interruption_error(RuntimeError("client disconnected [trace_id=abc]"))
+        is True
+    )
     assert is_stream_interruption_error(RuntimeError("provider timeout")) is False
 
 
@@ -56,3 +69,29 @@ def test_resolve_stream_public_error_message_suppresses_html_gateway_payload() -
     assert resolve_stream_public_error_message(error) == _(
         "ai.error.provider_server_error"
     )
+
+
+def test_resolve_stream_public_error_message_localizes_generic_connection_error() -> (
+    None
+):
+    error = ProviderConnectionError("Connection error.")
+
+    assert resolve_stream_public_error_message(error) == _(
+        "ai.error.provider_connection"
+    )
+
+
+def test_resolve_stream_public_error_message_localizes_generic_timeout_error() -> None:
+    error = ProviderTimeoutError("Request timed out.")
+
+    assert resolve_stream_public_error_message(error) == _("ai.error.provider_timeout")
+
+
+def test_resolve_stream_public_error_message_sanitizes_provider_auth_detail() -> None:
+    error = ProviderAuthError("Incorrect API key provided: sk-test-secret")
+
+    message = resolve_stream_public_error_message(error)
+
+    assert message == _("ai.error.provider_auth")
+    assert "sk-test-secret" not in message
+    assert "Incorrect API key" not in message

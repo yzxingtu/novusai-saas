@@ -234,6 +234,39 @@ def test_build_stream_error_display_suppresses_html_provider_payload() -> None:
     assert display["debug_message"] == _("ai.error.provider_server_error")
 
 
+def test_build_stream_error_display_localizes_provider_unavailable_connection_error() -> (
+    None
+):
+    from app.core.i18n import _
+    from app.services.ai.agent_chat_service import AgentChatService
+
+    display = AgentChatService._build_stream_error_display(
+        "Connection error.",
+        failure_kind="provider_unavailable",
+    )
+
+    assert display["message"] == _("ai.error.provider_connection")
+
+
+def test_build_stream_error_display_sanitizes_provider_auth_error_detail() -> None:
+    """Test type: behavioral. Provider auth text never exposes raw API-key detail."""
+    from app.ai.exceptions import ProviderAuthError
+    from app.core.i18n import _
+    from app.services.ai.agent_chat_service import AgentChatService
+
+    display = AgentChatService._build_stream_error_display(
+        ProviderAuthError("Incorrect API key provided: sk-test-secret"),
+        failure_kind="provider_bad_response",
+    )
+
+    assert display["message"] == _("ai.error.provider_auth")
+    assert display["debug_message"] == _("ai.error.provider_auth")
+    assert "sk-test-secret" not in display["message"]
+    assert "sk-test-secret" not in (display["debug_message"] or "")
+    assert "Incorrect API key" not in display["message"]
+    assert "Incorrect API key" not in (display["debug_message"] or "")
+
+
 async def _build_stream_service(mock_db):
     from app.services.ai.agent_chat_service import AgentChatService
     from app.services.ai.agent_chat_stream_runtime_dependencies import (

@@ -48,6 +48,13 @@ def is_stream_interruption_error(error: BaseException) -> bool:
 
 
 def resolve_provider_public_error_message(error: BaseException) -> str:
+    if isinstance(error, ProviderTimeoutError):
+        return _("ai.error.provider_timeout")
+    if isinstance(error, ProviderConnectionError):
+        return _("ai.error.provider_connection")
+    if isinstance(error, ProviderAuthError):
+        return _("ai.error.provider_auth")
+
     provider_message = strip_error_trace_suffix(
         extract_provider_error_message(error) or ""
     )
@@ -56,12 +63,6 @@ def resolve_provider_public_error_message(error: BaseException) -> str:
 
     if isinstance(error, ProviderRateLimitError):
         return _("ai.error.provider_rate_limit")
-    if isinstance(error, ProviderTimeoutError):
-        return _("ai.error.provider_timeout")
-    if isinstance(error, ProviderConnectionError):
-        return _("ai.error.provider_connection")
-    if isinstance(error, ProviderAuthError):
-        return _("ai.error.provider_auth")
     if isinstance(error, ProviderError):
         status_code = int(getattr(error, "status_code", 0) or 0)
         if 500 <= status_code < 600:
