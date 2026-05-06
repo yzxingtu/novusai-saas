@@ -14,6 +14,8 @@ Pass ``name`` as the contract id (usually ``PromptContractName.X.value``) and te
 
 from __future__ import annotations
 
+import json
+import re
 from dataclasses import dataclass
 from enum import StrEnum
 from functools import cache
@@ -29,6 +31,41 @@ _ENV = Environment(
     keep_trailing_newline=True,
     undefined=ChainableUndefined,
 )
+_CONTROL_CHARS_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]+")
+_WHITESPACE_RE = re.compile(r"\s+")
+
+
+def _normalize_prompt_data(value: object) -> object:
+    """中文: 将外部元数据压成不可跨行注入的 prompt 数据。
+
+    EN: Fold external metadata into prompt-safe data that cannot inject new lines.
+    """
+    if isinstance(value, str):
+        without_controls = _CONTROL_CHARS_RE.sub(" ", value)
+        return _WHITESPACE_RE.sub(" ", without_controls).strip()
+    if isinstance(value, dict):
+        return {
+            str(_normalize_prompt_data(key)): _normalize_prompt_data(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, (list, tuple, set)):
+        return [_normalize_prompt_data(item) for item in value]
+    return value
+
+
+def _prompt_json(value: object) -> str:
+    """中文: 将 prompt 元数据序列化为紧凑 JSON 字面量。
+
+    EN: Serialize prompt metadata as compact JSON literals.
+    """
+    return json.dumps(
+        _normalize_prompt_data(value),
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+
+
+_ENV.filters["prompt_json"] = _prompt_json
 
 
 class PromptContractName(StrEnum):

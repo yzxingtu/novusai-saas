@@ -13,6 +13,7 @@ from typing import Any
 
 from app.ai.capabilities import CapabilityDescriptionBuilder
 from app.ai.engine.system_prompt_intent_helpers import is_capability_reporting_query
+from app.ai.memory_policy import resolve_memory_runtime_policy
 from app.ai.runtime.capabilities import CapabilityContext, CapabilityRegistry
 from app.ai.runtime.context_assembler import (
     ContextAssembler,
@@ -177,7 +178,11 @@ class DefaultContextCapabilityBridge(ContextCapabilityBridge):
                     capability_builder.build_skill_descriptions(skill_result)
                 )
 
-            if intent_flags.get("has_knowledge_intent") and knowledge_base_ids:
+            include_kb_awareness = bool(
+                (intent_flags.get("has_knowledge_intent") or capability_reporting_query)
+                and knowledge_base_ids
+            )
+            if include_kb_awareness:
                 from app.services.ai.agent_kb_binding_service import (
                     AgentKBBindingService,
                 )
@@ -202,10 +207,22 @@ class DefaultContextCapabilityBridge(ContextCapabilityBridge):
                 if kb_description:
                     capability_descriptions.append(kb_description)
 
-            if intent_flags.get("memory_context_enabled"):
+            memory_policy = resolve_memory_runtime_policy(request)
+            include_memory_awareness = bool(
+                intent_flags.get("memory_context_enabled")
+                or (
+                    capability_reporting_query
+                    and (
+                        memory_policy.session_memory_runtime_enabled
+                        or memory_policy.long_term_memory_runtime_enabled
+                    )
+                )
+            )
+            if include_memory_awareness:
                 memory_description = capability_builder.build_memory_description(
                     memory_enabled=request.memory_enabled,
                     long_term_memory_enabled=long_term_memory_enabled,
+                    memory_policy=memory_policy.to_dict(),
                 )
                 if memory_description:
                     capability_descriptions.append(memory_description)

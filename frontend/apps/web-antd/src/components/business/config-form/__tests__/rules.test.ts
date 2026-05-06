@@ -26,7 +26,7 @@ describe('config form rules', () => {
         },
         {
           type: 'max',
-          value: 50,
+          value: 100,
           message_key: 'shared.config.validation.custom_max',
         },
       ],
@@ -50,13 +50,13 @@ describe('config form rules', () => {
         type: 'number',
       },
       {
-        max: 50,
-        message: 'shared.config.validation.custom_max:{"max":50}',
+        max: 100,
+        message: 'shared.config.validation.custom_max:{"max":100}',
         type: 'number',
       },
     ]);
     expect(getValidationRuleNumber(cfg, 'min_value')).toBe(1);
-    expect(getValidationRuleNumber(cfg, 'max_value')).toBe(50);
+    expect(getValidationRuleNumber(cfg, 'max_value')).toBe(100);
   });
 
   it('keeps pattern and length rules user-visible without message_key', () => {

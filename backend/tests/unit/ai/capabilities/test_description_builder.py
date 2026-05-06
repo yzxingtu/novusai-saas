@@ -396,6 +396,70 @@ class TestCapabilityDescriptionBuilder:
             }
         ]
 
+    def test_knowledge_base_totals_ignore_blank_names_before_limiting(self):
+        """
+        中文: 测试类型 behavioral；知识库统计先过滤有效绑定再按租户上限展示。
+        EN: Test type behavioral; KB totals filter valid bindings before tenant display limits.
+        """
+        builder = CapabilityDescriptionBuilder(max_items_per_category=1)
+        description = builder.build_knowledge_base_descriptions(
+            [
+                {
+                    "kb_id": 0,
+                    "kb_name": "",
+                    "kb_description": "blank should not count",
+                    "kb_document_count": 99,
+                },
+                {
+                    "kb_id": 1,
+                    "kb_name": "产品文档库",
+                    "kb_description": "API docs",
+                    "kb_document_count": 12,
+                },
+                {
+                    "kb_id": 2,
+                    "kb_name": "政策库",
+                    "kb_description": "Policies",
+                    "kb_document_count": 8,
+                },
+            ]
+        )
+
+        assert description is not None
+        assert description.items == ["产品文档库: API docs (12 documents)"]
+        assert description.metadata["total_count"] == 2
+        assert description.metadata["displayed_count"] == 1
+        assert description.metadata["total_documents"] == 20
+        assert description.metadata["displayed_documents"] == 12
+
+    def test_memory_description_uses_policy_degraded_state(self):
+        """
+        中文: 测试类型 behavioral；记忆能力描述使用运行时策略而不是原始开关夸大能力。
+        EN: Test type behavioral; memory descriptions use runtime policy instead of overstating raw flags.
+        """
+        builder = CapabilityDescriptionBuilder()
+        description = builder.build_memory_description(
+            memory_enabled=True,
+            long_term_memory_enabled=True,
+            memory_policy={
+                "session_memory_runtime_enabled": True,
+                "session_memory_read_enabled": False,
+                "session_memory_write_enabled": False,
+                "session_memory_state": "runtime_without_scope",
+                "long_term_memory_runtime_enabled": True,
+                "long_term_memory_recall_enabled": False,
+                "long_term_memory_recall_state": "suppressed_external_context",
+                "external_context_reason": "external_context_polluted",
+            },
+        )
+
+        assert description is not None
+        assert "Session memory: Degraded (runtime_without_scope)" in description.items
+        assert (
+            "Long-term memory: Degraded (suppressed_external_context; external_context_polluted)"
+            in description.items
+        )
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

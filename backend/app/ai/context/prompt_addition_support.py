@@ -13,6 +13,14 @@ from app.ai.page_locale import (
 from app.ai.prompt_contracts import render_prompt_contract
 
 
+def _coerce_non_negative_int(value: Any, default: int = 0) -> int:
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        return max(default, 0)
+    return max(number, 0)
+
+
 def build_memory_recall_block(records: list[Any]) -> str:
     lines = ["[LONG-TERM MEMORY RECALL]"]
     for record in records:
@@ -91,7 +99,25 @@ def build_runtime_capability_block(sections: list[dict[str, Any]]) -> str:
         ]
         if not items:
             continue
-        normalized_sections.append({**section, "items": items})
+        displayed_count = _coerce_non_negative_int(
+            section.get("displayed_count"),
+            len(items),
+        )
+        total_count = _coerce_non_negative_int(
+            section.get("total_count"),
+            displayed_count,
+        )
+        omitted_count = _coerce_non_negative_int(section.get("omitted_count"))
+        normalized_sections.append(
+            {
+                "category": str(section.get("category") or "").strip(),
+                "title": str(section.get("title") or "").strip(),
+                "items": items,
+                "displayed_count": displayed_count,
+                "total_count": max(total_count, displayed_count),
+                "omitted_count": max(omitted_count, 0),
+            }
+        )
     if not normalized_sections:
         return ""
     return render_prompt_contract(

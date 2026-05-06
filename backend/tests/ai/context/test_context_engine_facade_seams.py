@@ -1,3 +1,11 @@
+"""
+Test type: structural
+中文: 范围是上下文引擎在预算、压缩、知识库加载和 bridge 调用上的 facade seam。
+EN: Scope is context-engine facade seams for budget, compaction, KB loading, and bridge calls.
+中文: Mock 依赖为 patch facade 协作者，让每个 seam 调用保持隔离。
+EN: Mocked dependencies are facade collaborators patched so each seam call remains isolated.
+"""
+
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 

@@ -205,16 +205,21 @@ class CapabilityDescriptionBuilder:
         if not kb_bindings:
             return None
 
-        items: list[str] = []
+        valid_bindings: list[dict[str, Any]] = []
         total_documents = 0
+        for binding in kb_bindings:
+            kb_name = str(binding.get("kb_name") or "").strip()
+            if not kb_name:
+                continue
+            valid_bindings.append(binding)
+            total_documents += int(binding.get("kb_document_count") or 0)
 
-        for binding in kb_bindings[: self.max_items_per_category]:
+        items: list[str] = []
+        displayed_documents = 0
+        for binding in valid_bindings[: self.max_items_per_category]:
             kb_name = str(binding.get("kb_name") or "").strip()
             kb_description = str(binding.get("kb_description") or "").strip()
             kb_document_count = int(binding.get("kb_document_count") or 0)
-
-            if not kb_name:
-                continue
 
             # Build description
             if self.style == "detailed":
@@ -232,7 +237,7 @@ class CapabilityDescriptionBuilder:
                 item = kb_name
 
             items.append(item)
-            total_documents += kb_document_count
+            displayed_documents += kb_document_count
 
         if not items:
             return None
@@ -242,9 +247,10 @@ class CapabilityDescriptionBuilder:
             title="Knowledge Bases",
             items=items,
             metadata={
-                "total_count": len(kb_bindings),
+                "total_count": len(valid_bindings),
                 "displayed_count": len(items),
                 "total_documents": total_documents,
+                "displayed_documents": displayed_documents,
             },
         )
 
@@ -252,6 +258,7 @@ class CapabilityDescriptionBuilder:
         self,
         memory_enabled: bool,
         long_term_memory_enabled: bool,
+        memory_policy: dict[str, Any] | None = None,
     ) -> CapabilityDescription | None:
         """
         Build memory capability description.
@@ -264,20 +271,48 @@ class CapabilityDescriptionBuilder:
         Returns:
             CapabilityDescription or None if no memory enabled
         """
-        if not memory_enabled and not long_term_memory_enabled:
-            return None
-
         items: list[str] = []
+        policy = dict(memory_policy or {})
 
-        if memory_enabled:
-            items.append(
-                "Session memory: Enabled (maintains conversation context within this session)"
-            )
+        if policy:
+            if bool(policy.get("session_memory_runtime_enabled")):
+                if bool(policy.get("session_memory_read_enabled")) and bool(
+                    policy.get("session_memory_write_enabled")
+                ):
+                    items.append(
+                        "Session memory: Available (reads and writes facts within this conversation)"
+                    )
+                else:
+                    state = str(
+                        policy.get("session_memory_state") or "runtime_without_scope"
+                    ).strip()
+                    items.append(f"Session memory: Degraded ({state})")
 
-        if long_term_memory_enabled:
-            items.append(
-                "Long-term memory: Enabled (recalls user preferences and history across sessions)"
-            )
+            if bool(policy.get("long_term_memory_runtime_enabled")):
+                if bool(policy.get("long_term_memory_recall_enabled")):
+                    items.append(
+                        "Long-term memory: Available (recalls durable user preferences and history)"
+                    )
+                else:
+                    state = str(
+                        policy.get("long_term_memory_recall_state") or "disabled"
+                    ).strip()
+                    reason = str(policy.get("external_context_reason") or "").strip()
+                    suffix = f"{state}; {reason}" if reason else state
+                    items.append(f"Long-term memory: Degraded ({suffix})")
+        else:
+            if memory_enabled:
+                items.append(
+                    "Session memory: Available (maintains conversation context within this session)"
+                )
+
+            if long_term_memory_enabled:
+                items.append(
+                    "Long-term memory: Available (recalls user preferences and history across sessions)"
+                )
+
+        if not items:
+            return None
 
         return CapabilityDescription(
             category="memory",

@@ -74,7 +74,9 @@ def test_build_runtime_capability_hint_renders_live_selected_skills() -> None:
         }
     )
 
-    assert "runtime.selected_skills=browser, researcher" in hint
+    assert "[RUNTIME CAPABILITIES METADATA]" in hint
+    assert '"browser","researcher"' in hint
+    assert "runtime.selected_skills=" not in hint
 
 
 def test_skip_capability_summary_requires_injected_skill_awareness() -> None:

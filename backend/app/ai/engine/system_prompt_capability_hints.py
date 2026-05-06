@@ -57,7 +57,7 @@ def build_runtime_capability_hint(
 
     return "\n\n" + render_contract(
         "turn_capabilities",
-        selected_skill_names=", ".join(selected_skill_names),
+        selected_skill_names=selected_skill_names,
     )
 
 

@@ -9,7 +9,9 @@ import {
   onBeforeUnmount,
   onMounted,
   ref,
+  watch,
 } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -33,6 +35,8 @@ defineOptions({ name: 'TenantConfigList' });
 
 const CONFIG_GROUP_QUERY_KEY = 'group';
 const CONFIG_ITEM_QUERY_KEY = 'config';
+const route = useRoute();
+const router = useRouter();
 
 const groups = ref<ConfigGroupListItemMeta[]>([]);
 const activeGroup = ref<string>('');
@@ -48,10 +52,9 @@ const activeGroupData = computed(() =>
 );
 
 function getQueryStringParam(key: string): string {
-  if (typeof window !== 'undefined') {
-    return new URLSearchParams(window.location.search).get(key) || '';
-  }
-  return '';
+  const value = route.query[key];
+  if (Array.isArray(value)) return value[0] ? String(value[0]) : '';
+  return value ? String(value) : '';
 }
 
 function getRequestedGroupCode(): string {
@@ -78,23 +81,17 @@ async function syncRouteSelection(groupCode: string, configKey?: string) {
     return;
   }
 
-  if (typeof window === 'undefined') {
-    return;
-  }
-
-  const url = new URL(window.location.href);
-  url.searchParams.set(CONFIG_GROUP_QUERY_KEY, groupCode);
+  const query: Record<string, null | string | string[] | undefined> = {
+    ...route.query,
+    [CONFIG_GROUP_QUERY_KEY]: groupCode,
+  };
   if (configKey) {
-    url.searchParams.set(CONFIG_ITEM_QUERY_KEY, configKey);
+    query[CONFIG_ITEM_QUERY_KEY] = configKey;
   } else {
-    url.searchParams.delete(CONFIG_ITEM_QUERY_KEY);
+    Reflect.deleteProperty(query, CONFIG_ITEM_QUERY_KEY);
   }
 
-  const nextUrl = `${url.pathname}${url.search}${url.hash}`;
-  const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-  if (nextUrl !== currentUrl) {
-    window.history.replaceState(window.history.state, '', nextUrl);
-  }
+  await router.replace({ hash: route.hash, path: route.path, query });
 }
 
 async function scrollToConfigItem(configKey: string) {
@@ -115,6 +112,22 @@ async function focusRequestedConfig(groupCode: string) {
     return;
   }
   await scrollToConfigItem(requestedConfigKey);
+}
+
+async function applyRouteSelection() {
+  const requestedGroupCode = getResolvedRequestedGroupCode();
+  if (!requestedGroupCode) return;
+  const requestedConfigKey = getRequestedConfigKey() || undefined;
+  if (requestedGroupCode !== activeGroup.value) {
+    await activateGroup(requestedGroupCode, {
+      configKey: requestedConfigKey,
+      syncRoute: false,
+    });
+    return;
+  }
+  if (requestedConfigKey) {
+    await focusRequestedConfig(requestedGroupCode);
+  }
 }
 
 // Get group name (prefer name, then name_key translation, fallback to code) / 获取分组名称
@@ -278,6 +291,12 @@ onActivated(() => {
     loadGroupDetail(activeGroup.value);
   }
 });
+watch(
+  () => [route.query[CONFIG_GROUP_QUERY_KEY], route.query[CONFIG_ITEM_QUERY_KEY]],
+  () => {
+    void applyRouteSelection();
+  },
+);
 onBeforeUnmount(() => {
   window.removeEventListener('beforeunload', beforeUnloadHandler);
 });

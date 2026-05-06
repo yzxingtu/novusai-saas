@@ -318,11 +318,11 @@ async def test_context_engine_handles_mapping_description_inputs() -> None:
             intent_plan=_build_intent_plan("assistant_response"),
         )
 
-    assert "[RUNTIME CAPABILITIES]" in assembly.messages[0].content
+    assert "[RUNTIME CAPABILITIES METADATA]" in assembly.messages[0].content
     assert "Mapping Skills" in assembly.messages[0].content
     assert "mapped_tool: Mapping item" in assembly.messages[0].content
     assert any(
-        "[RUNTIME CAPABILITIES]" in addition
+        "[RUNTIME CAPABILITIES METADATA]" in addition
         for addition in (assembly.system_prompt_additions or [])
     )
     assert assembly.diagnostics["dynamic_capability_awareness_enabled"] is True
@@ -368,7 +368,7 @@ async def test_context_engine_injects_live_selected_skill_capability_description
         intent_plan=_build_intent_plan("assistant_response"),
     )
 
-    assert "[RUNTIME CAPABILITIES]" in assembly.messages[0].content
+    assert "[RUNTIME CAPABILITIES METADATA]" in assembly.messages[0].content
     assert "General Skills" in assembly.messages[0].content
     assert "intent_mapper: Map intents to capabilities" in assembly.messages[0].content
     assert "catalog_only" not in assembly.messages[0].content
@@ -402,7 +402,7 @@ async def test_context_engine_does_not_inject_unactivated_skill_inventory() -> N
         intent_plan=_build_intent_plan("assistant_response"),
     )
 
-    assert "[RUNTIME CAPABILITIES]" not in assembly.messages[0].content
+    assert "[RUNTIME CAPABILITIES METADATA]" not in assembly.messages[0].content
     assert (
         "intent_mapper: Map intents to capabilities" not in assembly.messages[0].content
     )
@@ -412,10 +412,12 @@ async def test_context_engine_does_not_inject_unactivated_skill_inventory() -> N
 
 
 @pytest.mark.asyncio
-async def test_context_engine_injects_self_report_skills_despite_shortcircuit() -> None:
+async def test_context_engine_injects_self_report_capabilities_despite_shortcircuit() -> (
+    None
+):
     """
-    中文: 测试类型 behavioral；能力自报短路回合仍注入当前可描述的技能能力。
-    EN: Test type behavioral; capability self-report shortcircuit turns still inject skill descriptions.
+    中文: 测试类型 behavioral；能力自报短路回合仍注入可描述的技能、知识库和记忆能力。
+    EN: Test type behavioral; capability self-report shortcircuit turns still inject describable skill, KB, and memory capabilities.
     中文: Mock 的是配置、知识库、RAG、模型能力 IO 与 direct-reply intent fixture；builder 与 activation 走真实逻辑。
     EN: Config, KB, RAG, model-capability IO, and direct-reply intent fixture are mocked; builder and activation are real.
     """
@@ -432,17 +434,35 @@ async def test_context_engine_injects_self_report_skills_despite_shortcircuit() 
     assembly = await _assemble_context(
         request=_build_request(
             messages=[ChatMessage(role="user", content="你有哪些能力")],
+            memory_enabled=True,
+            long_term_memory_enabled=True,
         ),
         skill_result=skill_result,
+        kb_ids=[101],
+        kb_bindings=[
+            {
+                "kb_id": 101,
+                "kb_name": "产品文档库",
+                "kb_description": "包含产品手册与 API 文档",
+                "kb_document_count": 12,
+            }
+        ],
         settings=TenantCapabilityAwarenessSettings(),
         intent_plan=_build_shortcircuit_intent_plan(),
     )
 
     assert assembly.diagnostics["intent_plan"][0]["shortcircuit"] is True
-    assert "[RUNTIME CAPABILITIES]" in assembly.messages[0].content
+    assert "[RUNTIME CAPABILITIES METADATA]" in assembly.messages[0].content
     assert "intent_mapper: Map intents to capabilities" in assembly.messages[0].content
+    assert "产品文档库" in assembly.messages[0].content
+    assert "Session memory: Degraded" in assembly.messages[0].content
+    assert "Long-term memory: Available" in assembly.messages[0].content
     assert assembly.diagnostics["dynamic_capability_awareness_injected"] is True
-    assert assembly.diagnostics["dynamic_capability_awareness_categories"] == ["skills"]
+    assert assembly.diagnostics["dynamic_capability_awareness_categories"] == [
+        "skills",
+        "knowledge_bases",
+        "memory",
+    ]
 
 
 @pytest.mark.asyncio
@@ -478,11 +498,11 @@ async def test_context_engine_injects_limited_knowledge_base_capabilities() -> N
         intent_plan=_build_intent_plan("knowledge_query"),
     )
 
-    assert "[RUNTIME CAPABILITIES]" in assembly.messages[0].content
+    assert "[RUNTIME CAPABILITIES METADATA]" in assembly.messages[0].content
     assert "产品文档库" in assembly.messages[0].content
     assert "包含产品手册与 API 文档" not in assembly.messages[0].content
     assert "内部政策库" not in assembly.messages[0].content
-    assert "Additional items omitted by tenant limit: 1" in assembly.messages[0].content
+    assert '"omitted_count":1' in assembly.messages[0].content
     assert assembly.diagnostics["dynamic_capability_awareness_enabled"] is True
     assert assembly.diagnostics["dynamic_capability_awareness_injected"] is True
     assert assembly.diagnostics["dynamic_capability_awareness_categories"] == [
@@ -518,7 +538,7 @@ async def test_context_engine_does_not_inject_capability_block_when_disabled() -
         intent_plan=_build_intent_plan("assistant_response"),
     )
 
-    assert "[RUNTIME CAPABILITIES]" not in assembly.messages[0].content
+    assert "[RUNTIME CAPABILITIES METADATA]" not in assembly.messages[0].content
     assert assembly.diagnostics["dynamic_capability_awareness_enabled"] is False
     assert assembly.diagnostics["dynamic_capability_awareness_injected"] is False
     assert assembly.diagnostics["dynamic_capability_awareness_categories"] == []
