@@ -34,9 +34,13 @@ async def test_trigger_now_dispatches_platform_wrapper(mock_db) -> None:
     with patch("app.services.system.task_definition_service.celery_app.send_task",
         return_value=fake_result,
     ) as send_task:
-        task_id = await service.trigger_now(3)
+        trigger_result = await service.trigger_now(3)
 
-    assert task_id == "celery-123"
+    assert trigger_result == {
+        "triggered_task_id": "celery-123",
+        "dispatched_task_ids": ["celery-123"],
+        "dispatched_count": 1,
+    }
     assert send_task.call_args.kwargs["queue"] == "scheduled"
     assert send_task.call_args.args[0] == "app.tasks.task_scheduling.run_task_definition"
 
@@ -75,9 +79,10 @@ async def test_trigger_now_dispatches_binding_wrapper_for_tenant_owned_definitio
     ), patch("app.services.system.task_definition_service.celery_app.send_task",
         return_value=fake_result,
     ) as send_task:
-        task_id = await service.trigger_now(5)
+        trigger_result = await service.trigger_now(5)
 
-    assert task_id == "celery-tenant-1"
+    assert trigger_result["triggered_task_id"] == "celery-tenant-1"
+    assert trigger_result["dispatched_task_ids"] == ["celery-tenant-1"]
     assert send_task.call_args.args[0] == "app.tasks.task_scheduling.run_tenant_task_binding"
 
 
@@ -105,9 +110,10 @@ async def test_trigger_now_dispatches_all_tenants_wrapper(mock_db) -> None:
         "app.services.system.task_definition_service.celery_app.send_task",
         return_value=fake_result,
     ) as send_task:
-        task_id = await service.trigger_now(21)
+        trigger_result = await service.trigger_now(21)
 
-    assert task_id == "all-tenants-123"
+    assert trigger_result["triggered_task_id"] == "all-tenants-123"
+    assert trigger_result["dispatched_task_ids"] == ["all-tenants-123"]
     assert send_task.call_args.args[0] == "app.tasks.task_scheduling.run_all_tenants_task_definition"
     assert send_task.call_args.kwargs["kwargs"]["trigger_source"] == "admin_manual"
 
@@ -185,9 +191,14 @@ async def test_trigger_now_dispatches_all_bindings_and_returns_first_task_id(moc
         "app.services.system.task_definition_service.celery_app.send_task",
         send_task,
     ):
-        task_id = await service.trigger_now(8)
+        trigger_result = await service.trigger_now(8)
 
-    assert task_id == "binding-task-1"
+    assert trigger_result["triggered_task_id"] == "binding-task-1"
+    assert trigger_result["dispatched_task_ids"] == [
+        "binding-task-1",
+        "binding-task-2",
+    ]
+    assert trigger_result["dispatched_count"] == 2
     assert send_task.call_count == 2
     assert send_task.call_args_list[0].args[0] == "app.tasks.task_scheduling.run_tenant_task_binding"
     assert send_task.call_args_list[1].args[0] == "app.tasks.task_scheduling.run_tenant_task_binding"
@@ -235,9 +246,14 @@ async def test_trigger_now_dispatches_platform_and_selected_bindings_for_admin_a
         "app.services.system.task_definition_service.celery_app.send_task",
         send_task,
     ):
-        task_id = await service.trigger_now(13)
+        trigger_result = await service.trigger_now(13)
 
-    assert task_id == "binding-task-1"
+    assert trigger_result["triggered_task_id"] == "binding-task-1"
+    assert trigger_result["dispatched_task_ids"] == [
+        "binding-task-1",
+        "platform-task-1",
+    ]
+    assert trigger_result["dispatched_count"] == 2
     assert send_task.call_count == 2
     assert send_task.call_args_list[0].args[0] == "app.tasks.task_scheduling.run_tenant_task_binding"
     assert send_task.call_args_list[1].args[0] == "app.tasks.task_scheduling.run_task_definition"
@@ -262,12 +278,11 @@ async def test_trigger_now_rejects_selected_scope_without_dispatch_targets(mock_
     binding_rows.scalars.return_value.all.return_value = []
     mock_db.execute = AsyncMock(return_value=binding_rows)
 
-    with pytest.raises(BusinessException) as exc_info:
-        with patch(
-            "app.services.system.task_definition_service.handler_supports_tenant_dispatch",
-            return_value=True,
-        ):
-            await service.trigger_now(21)
+    with pytest.raises(BusinessException) as exc_info, patch(
+        "app.services.system.task_definition_service.handler_supports_tenant_dispatch",
+        return_value=True,
+    ):
+        await service.trigger_now(21)
 
     assert exc_info.value.message == _("periodic_task.error.binding_required")
 

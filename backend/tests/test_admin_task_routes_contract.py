@@ -129,7 +129,17 @@ def test_retry_task_route_reuses_original_queue_when_body_omitted(monkeypatch) -
 
     task_log = SimpleNamespace(
         id=7,
+        celery_task_id="task-original-7",
+        task_definition_id=3,
+        binding_id=5,
+        task_code_snapshot="tenant.cleanup",
+        task_name_snapshot="Tenant Cleanup",
         handler_path_snapshot="app.tasks.system.nightly_cleanup",
+        trigger_source="scheduler",
+        run_kind="tenant_binding",
+        owner_tenant_id=None,
+        effective_tenant_id=9,
+        trace_id="trace-original",
         args_summary={"args": [1, 2], "kwargs": {"tenant_id": 9}},
         queue="scheduled",
     )
@@ -137,7 +147,13 @@ def test_retry_task_route_reuses_original_queue_when_body_omitted(monkeypatch) -
     relation_resolver = SimpleNamespace(
         unpack_args_kwargs=Mock(return_value=([1, 2], {"tenant_id": 9}))
     )
-    retry_task = Mock(return_value="retry-task-77")
+    retry_task = Mock(
+        return_value={
+            "new_task_id": "retry-task-77",
+            "retry_of_run_id": 7,
+            "trace_id": "trace-original",
+        }
+    )
 
     monkeypatch.setattr(
         tasks_module.AdminTaskController,
@@ -159,7 +175,11 @@ def test_retry_task_route_reuses_original_queue_when_body_omitted(monkeypatch) -
     assert response.status_code == 200
     payload = response.json()
     assert payload["code"] == 0
-    assert payload["data"] == {"new_task_id": "retry-task-77"}
+    assert payload["data"] == {
+        "new_task_id": "retry-task-77",
+        "retry_of_run_id": 7,
+        "trace_id": "trace-original",
+    }
     service.get_by_id.assert_awaited_once_with(7)
     relation_resolver.unpack_args_kwargs.assert_called_once_with(task_log.args_summary)
     retry_task.assert_called_once_with(
@@ -167,6 +187,7 @@ def test_retry_task_route_reuses_original_queue_when_body_omitted(monkeypatch) -
         args=[1, 2],
         kwargs={"tenant_id": 9},
         queue="scheduled",
+        original_run=task_log,
     )
 
 

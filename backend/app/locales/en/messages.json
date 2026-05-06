@@ -2357,6 +2357,10 @@
             "ssrf_blocked_host": "SSRF blocked: plugin HTTP request cannot access {host}",
             "ai_feature_unbound": "AI feature {feature_code} is not bound to any agent yet. Configure it in plugin management first.",
             "ai_feature_agent_unavailable": "AI feature {feature_code} is bound to agent #{agent_id}, which is no longer available",
+            "notification_tenant_required": "Plugin notifications must specify a tenant ID",
+            "notification_tenant_forbidden": "Plugin notifications can only target the current request tenant",
+            "notification_template_forbidden": "Plugin notification templates must belong to the current plugin",
+            "notification_recipient_forbidden": "Plugin notification recipients must belong to the current active tenant",
             "ai_call_failed": "AI call failed",
             "path_traversal_detected": "Path traversal detected in storage access: {path}"
         },
@@ -3304,6 +3308,10 @@
             "reject_tenant_id_field": "Field tenant_id is removed; use owner_tenant_id",
             "binding_required": "This distribution mode requires at least one bound tenant before it can be triggered manually",
             "tenant_dispatch_requires_tenant_handler": "Handler '{handler}' does not support tenant-dispatch scopes. Use a tenant-aware handler or switch back to a platform scope",
+            "tenant_dispatch_scope_required": "Current task scope '{scope}' does not support tenant bindings. Switch to a tenant-dispatch scope first",
+            "tenant_not_eligible": "Tenant is not eligible for scheduled task dispatch: {reason}",
+            "all_tenants_binding_deny_only": "All-tenants bindings only support disabled tenant deny entries; per-tenant overrides require a selected-tenants scope",
+            "binding_tenant_not_selected": "Binding override tenant must be included in the selected tenant list",
             "plugin_disabled": "Plugin '{plugin}' is disabled. Enable the plugin before enabling or triggering its scheduled task",
             "edit_locked": "This task is protected and only supports toggling active status",
             "delete_locked": "Task '{name}' is protected and cannot be deleted"

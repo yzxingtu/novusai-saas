@@ -8,16 +8,20 @@ Provides BaseTask, TenantTask base classes and @register_task decorator.
 from __future__ import annotations
 
 import time
+import uuid
 from collections.abc import Callable
 from typing import Any
 
 from celery import Task
+from celery.exceptions import Ignore
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.celery_app import celery_app
 from app.core.base_model import utc_now
 from app.core.database import sync_session_factory
 from app.core.logging import LogManager
+from app.enums.task import TaskStatusEnum
 from app.middleware.trace import trace_id_var
 
 logger = LogManager.get_logger("queue")
@@ -27,6 +31,44 @@ _task_registry: dict[str, dict[str, Any]] = {}
 
 def get_task_registry() -> dict[str, dict[str, Any]]:
     return _task_registry
+
+
+def build_task_run_key(
+    *,
+    task_definition_id: int | None,
+    binding_id: int | None,
+    owner_tenant_id: int | None,
+    effective_tenant_id: int | None,
+    trigger_source: str | None,
+    trigger_slot: str | None = None,
+    trigger_id: str | None = None,
+    explicit_run_key: str | None = None,
+) -> str | None:
+    """中文: 构造不依赖 Celery task id 的业务幂等键。
+
+    EN: Build a business idempotency key that does not depend on the Celery task id.
+    """
+    if explicit_run_key:
+        return str(explicit_run_key)[:255]
+    if task_definition_id is None:
+        return None
+    trigger_token = trigger_slot or trigger_id
+    if not trigger_token:
+        return None
+    if binding_id is not None:
+        tenant_token = f"binding:{binding_id}"
+    else:
+        tenant_id = (
+            effective_tenant_id
+            if effective_tenant_id is not None
+            else owner_tenant_id
+        )
+        tenant_token = f"tenant:{tenant_id}"
+    key = (
+        f"task_definition:{task_definition_id}|{tenant_token}|"
+        f"source:{trigger_source or 'unknown'}|trigger:{trigger_token}"
+    )
+    return key[:255]
 
 
 def _load_task_definition_config(
@@ -134,7 +176,9 @@ class BaseTask(Task):
         # 从任务 headers 恢复 trace_id 用于日志关联
         req_headers = getattr(self.request, "headers", None) or {}
         tid = req_headers.get("trace_id") if isinstance(req_headers, dict) else None
-        trace_id_var.set(tid or "")
+        if not tid:
+            tid = str(uuid.uuid4())
+        trace_id_var.set(tid)
 
         self._start_time = time.monotonic()
         self._apply_db_config()
@@ -329,6 +373,7 @@ class BaseTask(Task):
         return {
             "task_definition_id": _to_int(headers.get("task_definition_id")),
             "binding_id": _to_int(headers.get("binding_id")),
+            "run_key": headers.get("run_key"),
             "task_code_snapshot": str(task_code),
             "task_name_snapshot": str(headers.get("task_name_snapshot") or self.name),
             "handler_path_snapshot": str(
@@ -338,6 +383,10 @@ class BaseTask(Task):
             "run_kind": str(headers.get("run_kind") or "platform"),
             "owner_tenant_id": _to_int(headers.get("owner_tenant_id")),
             "effective_tenant_id": _to_int(headers.get("effective_tenant_id")),
+            "trigger_slot": headers.get("trigger_slot"),
+            "trigger_id": headers.get("trigger_id"),
+            "retry_of_run_id": _to_int(headers.get("retry_of_run_id")),
+            "retry_of_task_id": headers.get("retry_of_task_id"),
         }
 
     def _summarize_payload(self, value: Any) -> str | None:
@@ -351,6 +400,43 @@ class BaseTask(Task):
             return text[:500]
         text = str(value)
         return text[:500] if text else None
+
+    def _build_context_run_key(self, context: dict[str, Any]) -> str | None:
+        run_key = build_task_run_key(
+            task_definition_id=context["task_definition_id"],
+            binding_id=context["binding_id"],
+            owner_tenant_id=context["owner_tenant_id"],
+            effective_tenant_id=context["effective_tenant_id"],
+            trigger_source=context["trigger_source"],
+            trigger_slot=(
+                str(context["trigger_slot"]) if context.get("trigger_slot") else None
+            ),
+            trigger_id=str(context["trigger_id"]) if context.get("trigger_id") else None,
+            explicit_run_key=str(context["run_key"]) if context.get("run_key") else None,
+        )
+        if run_key:
+            return run_key
+        trace_id = trace_id_var.get()
+        if not trace_id:
+            return None
+        return build_task_run_key(
+            task_definition_id=context["task_definition_id"],
+            binding_id=context["binding_id"],
+            owner_tenant_id=context["owner_tenant_id"],
+            effective_tenant_id=context["effective_tenant_id"],
+            trigger_source=context["trigger_source"],
+            trigger_id=f"trace:{trace_id}",
+        )
+
+    def _raise_duplicate_task_run(self, task_id: str, run_key: str, existing: Any) -> None:
+        logger.warning(
+            "Deduplicated task run: task={} duplicate_task_id={} run_key={} existing_run_id={}",
+            self.name,
+            task_id,
+            run_key,
+            getattr(existing, "id", None),
+        )
+        raise Ignore()
 
     def _record_task_run_start(
         self,
@@ -375,8 +461,22 @@ class BaseTask(Task):
             if safe_args is not None or safe_kwargs is not None:
                 args_summary = {"args": safe_args, "kwargs": safe_kwargs}
 
+            run_key = self._build_context_run_key(context)
+            if run_key:
+                existing = (
+                    session.query(TaskRun)
+                    .filter(
+                        TaskRun.run_key == run_key,
+                        TaskRun.is_deleted.is_(False),
+                    )
+                    .first()
+                )
+                if existing:
+                    self._raise_duplicate_task_run(task_id, run_key, existing)
+
             run = TaskRun(
                 celery_task_id=task_id,
+                run_key=run_key,
                 task_definition_id=context["task_definition_id"],
                 binding_id=context["binding_id"],
                 task_code_snapshot=context["task_code_snapshot"],
@@ -387,13 +487,37 @@ class BaseTask(Task):
                 owner_tenant_id=context["owner_tenant_id"],
                 effective_tenant_id=context["effective_tenant_id"],
                 queue=queue,
-                status="running",
+                status=TaskStatusEnum.RUNNING.value,
                 args_summary=args_summary,
                 trace_id=trace_id_var.get() or None,
                 started_at=utc_now(),
             )
             session.add(run)
             session.commit()
+        except IntegrityError:
+            if session:
+                session.rollback()
+                try:
+                    from app.models.system.task_run import TaskRun
+
+                    run_key = self._build_context_run_key(context)
+                    existing = (
+                        session.query(TaskRun)
+                        .filter(
+                            TaskRun.run_key == run_key,
+                            TaskRun.is_deleted.is_(False),
+                        )
+                        .first()
+                        if run_key
+                        else None
+                    )
+                    if existing and run_key:
+                        self._raise_duplicate_task_run(task_id, run_key, existing)
+                except Ignore:
+                    raise
+            logger.warning("Failed to record task run start due to unique constraint")
+        except Ignore:
+            raise
         except Exception as e:
             logger.warning(f"Failed to record task run start: {e}")
             if session:
@@ -422,7 +546,7 @@ class BaseTask(Task):
                 session.query(TaskRun).filter(TaskRun.celery_task_id == task_id).first()
             )
             if run:
-                run.status = "success"
+                run.status = TaskStatusEnum.SUCCESS.value
                 run.result_summary = self._safe_json(retval)
                 run.summary = self._summarize_payload(retval)
                 run.finished_at = utc_now()
@@ -459,7 +583,7 @@ class BaseTask(Task):
             )
             now = utc_now()
             if run:
-                run.status = "failed"
+                run.status = TaskStatusEnum.FAILED.value
                 run.summary = str(exc)[:500]
                 run.error_message_public = str(exc)[:500]
                 run.error_message_internal = str(exc)[:2000]
@@ -470,6 +594,7 @@ class BaseTask(Task):
             else:
                 run = TaskRun(
                     celery_task_id=task_id,
+                    run_key=self._build_context_run_key(context),
                     task_definition_id=context["task_definition_id"],
                     binding_id=context["binding_id"],
                     task_code_snapshot=context["task_code_snapshot"],
@@ -480,7 +605,7 @@ class BaseTask(Task):
                     owner_tenant_id=context["owner_tenant_id"],
                     effective_tenant_id=context["effective_tenant_id"],
                     queue=getattr(self, "queue", "default") or "default",
-                    status="failed",
+                    status=TaskStatusEnum.FAILED.value,
                     summary=str(exc)[:500],
                     error_message_public=str(exc)[:500],
                     error_message_internal=str(exc)[:2000],
@@ -515,7 +640,7 @@ class BaseTask(Task):
                 session.query(TaskRun).filter(TaskRun.celery_task_id == task_id).first()
             )
             if run:
-                run.status = "retrying"
+                run.status = TaskStatusEnum.RETRYING.value
                 run.summary = str(exc)[:500]
                 run.error_message_public = str(exc)[:500]
                 run.error_message_internal = str(exc)[:2000]

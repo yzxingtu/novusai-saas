@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import json
 import asyncio
+import json
 import uuid
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -81,6 +81,21 @@ def test_base_task_restores_and_clears_trace_id() -> None:
     trace_id_var.set("stale-value")
     task.before_start("task-1", (), {})
     assert trace_id_var.get() == "trace-task"
+
+    task.after_return("SUCCESS", None, "task-1", (), {}, None)
+    assert trace_id_var.get() == ""
+
+
+def test_base_task_generates_trace_id_when_header_missing() -> None:
+    task = _DummyTask()
+    task.request_stack = SimpleNamespace(top=SimpleNamespace(headers={}))
+
+    trace_id_var.set("")
+    task.before_start("task-1", (), {})
+    generated = trace_id_var.get()
+
+    assert generated
+    assert uuid.UUID(generated)
 
     task.after_return("SUCCESS", None, "task-1", (), {}, None)
     assert trace_id_var.get() == ""

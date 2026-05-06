@@ -18,6 +18,7 @@ class TaskLogResponse(BaseSchema):
 
     id: int = Field(..., description="ID")
     task_id: str = Field(..., description="Celery Task ID")
+    run_key: str | None = Field(None, description="业务运行幂等键")
     task_name: str = Field(..., description="任务名称")
     handler_path: str | None = Field(None, description="处理器路径")
     task_definition_id: int | None = Field(None, description="任务定义 ID")

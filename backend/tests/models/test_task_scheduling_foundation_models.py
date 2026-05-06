@@ -16,3 +16,11 @@ def test_task_scheduling_foundation_models_exported() -> None:
     assert TaskDefinition.__tablename__ == "task_definitions"
     assert TenantTaskBinding.__tablename__ == "tenant_task_bindings"
     assert TaskRun.__tablename__ == "task_runs"
+
+
+def test_task_run_has_business_run_key_unique_index() -> None:
+    assert "run_key" in TaskRun.__table__.columns
+    index = next(
+        idx for idx in TaskRun.__table__.indexes if idx.name == "ix_task_runs_run_key"
+    )
+    assert index.unique is True

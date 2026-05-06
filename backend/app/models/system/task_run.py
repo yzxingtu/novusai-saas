@@ -7,7 +7,7 @@ Acts as the execution fact table for the next-generation task run center.
 
 from datetime import datetime
 
-from sqlalchemy import ForeignKey, Index, Integer, String, Text
+from sqlalchemy import ForeignKey, Index, Integer, String, Text, text
 from sqlalchemy.dialects.postgresql import JSON
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -29,6 +29,7 @@ class TaskRun(BaseModel):
         "id": "id",
         "celery_task_id": "celery_task_id",
         "task_id": "celery_task_id",
+        "run_key": "run_key",
         "task_definition_id": "task_definition_id",
         "binding_id": "binding_id",
         "task_name": "task_name_snapshot",
@@ -56,6 +57,12 @@ class TaskRun(BaseModel):
     __table_args__ = (
         Index("ix_task_runs_celery_task_id", "celery_task_id", unique=True),
         Index(
+            "ix_task_runs_run_key",
+            "run_key",
+            unique=True,
+            postgresql_where=text("run_key IS NOT NULL"),
+        ),
+        Index(
             "ix_task_runs_definition_status",
             "task_definition_id",
             "status",
@@ -77,6 +84,11 @@ class TaskRun(BaseModel):
         String(100),
         nullable=False,
         comment="Celery 任务 ID",
+    )
+    run_key: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+        comment="业务运行幂等键",
     )
     task_definition_id: Mapped[int | None] = mapped_column(
         Integer,

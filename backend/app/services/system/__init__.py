@@ -46,6 +46,11 @@ if TYPE_CHECKING:
     )
     from app.services.system.task_binding_service import TaskBindingService
     from app.services.system.task_definition_service import TaskDefinitionService
+    from app.services.system.task_tenant_eligibility_service import (
+        TaskTenantEligibilityRequirements,
+        TaskTenantEligibilityResult,
+        TaskTenantEligibilityService,
+    )
     from app.services.system.task_log_service import TaskLogService
     from app.services.system.task_manager_service import TaskManagerService
     from app.services.system.task_run_service import TaskRunService
@@ -81,6 +86,9 @@ __all__ = [
     "sanitize_marketplace_slug",
     "TaskBindingService",
     "TaskDefinitionService",
+    "TaskTenantEligibilityRequirements",
+    "TaskTenantEligibilityResult",
+    "TaskTenantEligibilityService",
     "LogCategoryInfo",
     "LogContentLineItem",
     "LogContentPage",
@@ -120,6 +128,9 @@ _LAZY_EXPORTS = {
     "sanitize_marketplace_slug": "app.services.system.plugin_install_preview_service",
     "TaskBindingService": "app.services.system.task_binding_service",
     "TaskDefinitionService": "app.services.system.task_definition_service",
+    "TaskTenantEligibilityRequirements": "app.services.system.task_tenant_eligibility_service",
+    "TaskTenantEligibilityResult": "app.services.system.task_tenant_eligibility_service",
+    "TaskTenantEligibilityService": "app.services.system.task_tenant_eligibility_service",
     "LogCategoryInfo": "app.services.system.system_log_service",
     "LogContentLineItem": "app.services.system.system_log_service",
     "LogContentPage": "app.services.system.system_log_service",

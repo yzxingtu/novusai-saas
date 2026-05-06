@@ -98,6 +98,7 @@ class TaskLogRelationService:
         return TaskLogResponse(
             id=task_run.id,
             task_id=task_run.celery_task_id,
+            run_key=task_run.run_key,
             task_name=task_run.task_name_snapshot,
             handler_path=task_run.handler_path_snapshot,
             task_definition_id=task_run.task_definition_id,
@@ -152,6 +153,7 @@ class TaskLogRelationService:
         return TaskLogDetailResponse(
             id=task_run.id,
             task_id=task_run.celery_task_id,
+            run_key=task_run.run_key,
             task_name=task_run.task_name_snapshot,
             handler_path=task_run.handler_path_snapshot,
             task_definition_id=task_run.task_definition_id,

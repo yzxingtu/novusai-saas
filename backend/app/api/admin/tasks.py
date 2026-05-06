@@ -165,13 +165,14 @@ class AdminTaskController(GlobalController):
             relation_resolver = TaskLogRelationService(db)
             args, kwargs = relation_resolver.unpack_args_kwargs(task_log.args_summary)
 
-            new_task_id = TaskManagerService.retry_task(
+            retry_result = TaskManagerService.retry_task(
                 task_name=task_log.handler_path_snapshot,
                 args=args,
                 kwargs=kwargs,
                 queue=body.queue if body and body.queue else task_log.queue,
+                original_run=task_log,
             )
-            return success(data={"new_task_id": new_task_id})
+            return success(data=retry_result)
 
         @router.post("/{task_log_id}/cancel", summary="取消任务")
         @action_update("action.task_log.cancel")

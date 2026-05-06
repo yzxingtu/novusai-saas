@@ -24,6 +24,7 @@ from app.rbac.decorators import (
 from app.schemas.system import (
     PeriodicTaskBindingResponse,
     PeriodicTaskBindingSyncRequest,
+    PeriodicTaskBindingUpdateRequest,
     PeriodicTaskCreateRequest,
     PeriodicTaskToggleRequest,
     PeriodicTaskUpdateRequest,
@@ -171,6 +172,7 @@ class AdminPeriodicTaskController(GlobalController):
                 task.id,
                 target_tenant_ids,
                 target_scope=body.scope,
+                binding_payloads=[],
             )
             task = await service.get_by_id(task.id)
             binding_summary = await binding_service.get_definition_binding_summary(
@@ -277,9 +279,49 @@ class AdminPeriodicTaskController(GlobalController):
                 task_id,
                 target_tenant_ids,
                 target_scope=target_scope,
+                binding_payloads=[
+                    item.model_dump(exclude_unset=True) for item in body.bindings
+                ],
+                replace_all_tenant_bindings=True,
             )
             await db.commit()
             return success(data=result)
+
+        @router.patch("/{task_id}/bindings/{tenant_id}", summary="更新单条企业绑定")
+        @action_update("action.periodic_task.bindings")
+        async def update_periodic_task_binding(
+            request: Request,
+            db: DbSession,
+            current_admin: ActiveAdmin,
+            body: PeriodicTaskBindingUpdateRequest,
+            task_id: int = Path(..., description=_("api.param.task_id")),
+            tenant_id: int = Path(..., description=_("api.param.tenant_id")),
+        ):
+            _ = (request, current_admin)
+            service = self.get_service(db)
+            task = await service.get_by_id(task_id)
+            if task is None:
+                from app.exceptions import NotFoundException
+
+                raise NotFoundException(message=_("periodic_task.error.not_found"))
+
+            binding_service = TaskBindingService(db)
+            binding = await binding_service.upsert_tenant_binding(
+                task_id,
+                tenant_id,
+                body.model_dump(exclude_unset=True),
+            )
+            await db.commit()
+            await db.refresh(binding)
+            return success(
+                data=PeriodicTaskBindingResponse(
+                    **binding_service.serialize_binding(
+                        binding,
+                        definition=task,
+                        tenant_name=None,
+                    )
+                ).model_dump()
+            )
 
         @router.put("/{task_id}", summary="更新定时任务")
         @action_update("action.periodic_task.update")
@@ -418,8 +460,8 @@ class AdminPeriodicTaskController(GlobalController):
             task_id: int = Path(..., description=_("api.param.task_id")),
         ):
             service = self.get_service(db)
-            new_task_id = await service.trigger_now(task_id)
-            return success(data={"triggered_task_id": new_task_id})
+            trigger_result = await service.trigger_now(task_id)
+            return success(data=trigger_result)
 
 
 router = AdminPeriodicTaskController.get_router()

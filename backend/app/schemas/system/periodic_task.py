@@ -164,17 +164,58 @@ class PeriodicTaskBindingResponse(BaseSchema):
     tenant_id: int = Field(..., description="企业 ID")
     tenant_name: str | None = Field(None, description="企业名称")
     is_enabled: bool = Field(True, description="是否启用")
+    disabled_reason: str | None = Field(None, description="禁用原因")
     schedule_type_override: str | None = Field(None, description="覆盖调度类型")
     cron_expression_override: str | None = Field(None, description="覆盖 Cron 表达式")
     interval_seconds_override: int | None = Field(None, description="覆盖间隔秒数")
+    config_override: dict | None = Field(None, description="覆盖配置")
+    args_override: dict | list | None = Field(None, description="覆盖位置参数")
+    kwargs_override: dict | None = Field(None, description="覆盖关键字参数")
+    effective_schedule_type: str | None = Field(None, description="生效调度类型")
+    effective_cron_expression: str | None = Field(None, description="生效 Cron 表达式")
+    effective_interval_seconds: int | None = Field(None, description="生效间隔秒数")
     last_run_at: datetime | None = Field(None, description="上次执行时间")
     next_run_at: datetime | None = Field(None, description="下次执行时间")
+
+
+class PeriodicTaskBindingUpdateRequest(BaseSchema):
+    """单条企业绑定更新请求 / Single tenant binding update request."""
+
+    is_enabled: bool | None = Field(None, description="是否启用")
+    disabled_reason: str | None = Field(None, max_length=500, description="禁用原因")
+    schedule_type_override: str | None = Field(None, description="覆盖调度类型")
+    cron_expression_override: str | None = Field(None, description="覆盖 Cron 表达式")
+    interval_seconds_override: int | None = Field(
+        None,
+        ge=10,
+        description="覆盖间隔秒数",
+    )
+    config_override: dict | None = Field(None, description="覆盖配置")
+    args_override: dict | list | None = Field(None, description="覆盖位置参数")
+    kwargs_override: dict | None = Field(None, description="覆盖关键字参数")
+
+    @field_validator("schedule_type_override")
+    @classmethod
+    def validate_schedule_type_override(cls, value: str | None) -> str | None:
+        if value is not None and value not in {"cron", "interval"}:
+            raise ValueError("invalid schedule_type_override")
+        return value
+
+
+class PeriodicTaskBindingSyncItem(PeriodicTaskBindingUpdateRequest):
+    """批量同步中的单条企业绑定配置 / Tenant binding config in batch sync."""
+
+    tenant_id: int = Field(..., description="企业 ID")
 
 
 class PeriodicTaskBindingSyncRequest(BaseSchema):
     """定时任务企业绑定同步请求 / Periodic task tenant binding sync request."""
 
     tenant_ids: list[int] = Field(default_factory=list, description="企业 ID 列表")
+    bindings: list[PeriodicTaskBindingSyncItem] = Field(
+        default_factory=list,
+        description="企业绑定覆盖配置列表",
+    )
     scope: str | None = Field(
         None,
         description="同步后的目标作用域；不传时按是否有企业绑定自动推导",
@@ -192,6 +233,7 @@ class PeriodicTaskBindingSyncRequest(BaseSchema):
         if self.scope is not None and self.scope not in (
             ResourceScopeEnum.SELECTED_TENANTS.value,
             ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
+            ResourceScopeEnum.ALL_TENANTS.value,
         ):
             self.tenant_ids = []
         return self
@@ -203,5 +245,7 @@ __all__ = [
     "PeriodicTaskUpdateRequest",
     "PeriodicTaskToggleRequest",
     "PeriodicTaskBindingResponse",
+    "PeriodicTaskBindingUpdateRequest",
+    "PeriodicTaskBindingSyncItem",
     "PeriodicTaskBindingSyncRequest",
 ]

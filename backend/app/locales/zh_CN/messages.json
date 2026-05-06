@@ -2317,6 +2317,10 @@
             "ssrf_blocked_host": "已阻止 SSRF：插件 HTTP 请求不能访问 {host}",
             "ai_feature_unbound": "AI 功能 {feature_code} 尚未绑定智能体，请先在插件管理中配置",
             "ai_feature_agent_unavailable": "AI 功能 {feature_code} 绑定的智能体 #{agent_id} 当前不可用",
+            "notification_tenant_required": "插件通知必须指定企业 ID",
+            "notification_tenant_forbidden": "插件通知只能发送到当前请求所属企业",
+            "notification_template_forbidden": "插件通知模板必须属于当前插件",
+            "notification_recipient_forbidden": "插件通知目标用户不属于当前企业或已停用",
             "ai_call_failed": "AI 调用失败",
             "path_traversal_detected": "检测到非法存储路径：{path}"
         },
@@ -3184,6 +3188,10 @@
             "reject_tenant_id_field": "已废弃字段 tenant_id，请使用 owner_tenant_id",
             "binding_required": "当前分发模式需要至少绑定一个企业后才能手动触发",
             "tenant_dispatch_requires_tenant_handler": "任务处理器 '{handler}' 不支持企业分发作用域，请改用 tenant-aware 任务处理器或切换为平台作用域",
+            "tenant_dispatch_scope_required": "当前任务作用域 '{scope}' 不支持企业绑定，请先切换为企业分发作用域",
+            "tenant_not_eligible": "企业不满足定时任务分发条件：{reason}",
+            "all_tenants_binding_deny_only": "全部企业绑定只支持禁用企业的拒绝条目；如需单企业覆盖，请切换为指定企业作用域",
+            "binding_tenant_not_selected": "绑定覆盖中的企业必须包含在已选择企业列表中",
             "plugin_disabled": "插件 '{plugin}' 未启用，请先启用插件后再启用或触发其定时任务",
             "edit_locked": "该任务不允许编辑，仅允许切换启用状态",
             "delete_locked": "任务 '{name}' 已被保护，禁止删除"

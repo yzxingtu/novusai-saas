@@ -78,6 +78,12 @@ class TenantTaskBinding(BaseModel):
         default=True,
         comment="是否启用",
     )
+    disabled_reason: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        default=None,
+        comment="禁用原因",
+    )
     schedule_type_override: Mapped[str | None] = mapped_column(
         String(20),
         nullable=True,

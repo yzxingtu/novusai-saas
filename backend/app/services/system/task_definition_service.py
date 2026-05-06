@@ -130,7 +130,7 @@ class TaskDefinitionService(GlobalService[TaskDefinition, TaskDefinitionReposito
         )
         return updated
 
-    async def trigger_now(self, definition_id: int) -> str:
+    async def trigger_now(self, definition_id: int) -> dict[str, Any]:
         definition = await self.get_by_id(definition_id)
         await self._ensure_plugin_task_available(definition)
         binding_service = TaskBindingService(self.db)
@@ -250,7 +250,12 @@ class TaskDefinitionService(GlobalService[TaskDefinition, TaskDefinitionReposito
             definition.code,
             dispatched_task_ids,
         )
-        return dispatched_task_ids[0]
+        first_task_id = dispatched_task_ids[0] if dispatched_task_ids else None
+        return {
+            "triggered_task_id": first_task_id,
+            "dispatched_task_ids": dispatched_task_ids,
+            "dispatched_count": len(dispatched_task_ids),
+        }
 
     async def _before_create(self, data: dict) -> dict:
         handler_path = data.get("handler_path", "")

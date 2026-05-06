@@ -11,12 +11,16 @@ from __future__ import annotations
 from typing import Any
 
 from app.celery_app import celery_app
+from app.core.base_model import utc_now
 from app.core.database import sync_session_factory
 from app.core.logging import LogManager
 from app.enums.task import TaskRunKindEnum, TaskTriggerSourceEnum
+from app.middleware.trace import trace_id_var
 from app.models.system.task_definition import TaskDefinition
 from app.models.system.tenant_task_binding import TenantTaskBinding
-from app.models.tenant.tenant import Tenant
+from app.services.system.task_tenant_eligibility_service import (
+    TaskTenantEligibilityService,
+)
 from app.tasks.base import BaseTask, get_task_registry, register_task
 
 logger = LogManager.get_logger("queue")
@@ -63,8 +67,10 @@ def _build_task_run_headers(
     trigger_source: str,
     run_kind: str,
     effective_tenant_id: int | None,
+    trigger_id: str | None = None,
+    trigger_slot: str | None = None,
 ) -> dict[str, Any]:
-    return {
+    headers = {
         "task_definition_id": definition.id,
         "binding_id": binding.id if binding else None,
         "task_code_snapshot": definition.code,
@@ -75,6 +81,51 @@ def _build_task_run_headers(
         "owner_tenant_id": definition.owner_tenant_id,
         "effective_tenant_id": effective_tenant_id,
     }
+    trace_id = trace_id_var.get()
+    if trace_id:
+        headers["trace_id"] = trace_id
+    if trigger_id:
+        headers["trigger_id"] = trigger_id
+    if trigger_slot:
+        headers["trigger_slot"] = trigger_slot
+    return headers
+
+
+def _resolve_trigger_slot(
+    *,
+    definition: TaskDefinition,
+    binding: TenantTaskBinding | None,
+    trigger_source: str,
+) -> str | None:
+    if trigger_source != TaskTriggerSourceEnum.SCHEDULER.value:
+        return None
+    schedule_type = getattr(definition, "default_schedule_type", None)
+    interval_seconds = getattr(definition, "default_interval_seconds", None)
+    cron_expression = getattr(definition, "default_cron_expression", None)
+    if binding:
+        schedule_type = (
+            getattr(binding, "schedule_type_override", None) or schedule_type
+        )
+        interval_seconds = (
+            getattr(binding, "interval_seconds_override", None)
+            if getattr(binding, "interval_seconds_override", None) is not None
+            else interval_seconds
+        )
+        cron_expression = (
+            getattr(binding, "cron_expression_override", None) or cron_expression
+        )
+    now = utc_now()
+    if schedule_type == "interval" and interval_seconds:
+        slot = int(now.timestamp()) // int(interval_seconds)
+        return f"interval:{interval_seconds}:{slot}"
+    if schedule_type == "cron" and cron_expression:
+        return f"cron:{cron_expression}:{now.strftime('%Y%m%dT%H%M')}"
+    return f"scheduler:{now.strftime('%Y%m%dT%H%M')}"
+
+
+def _get_current_request_id(task: BaseTask) -> str | None:
+    request_id = getattr(getattr(task, "request", None), "id", None)
+    return str(request_id) if request_id else None
 
 
 def _resolve_queue(definition: TaskDefinition) -> str:
@@ -91,14 +142,11 @@ def _handler_requires_tenant(definition: TaskDefinition) -> bool:
     return handler_supports_tenant_dispatch(definition.handler_path)
 
 
-def _resolve_all_tenant_ids(session) -> list[int]:
-    rows = (
-        session.query(Tenant.id)
-        .filter(Tenant.is_deleted.is_(False))
-        .order_by(Tenant.id.asc())
-        .all()
+def _resolve_all_tenant_ids(session, task_definition_id: int) -> list[int]:
+    return TaskTenantEligibilityService.resolve_all_tenant_ids_sync(
+        session,
+        task_definition_id=task_definition_id,
     )
-    return [tenant_id for (tenant_id,) in rows]
 
 
 @register_task(
@@ -137,6 +185,12 @@ def run_task_definition(
             trigger_source=trigger_source,
             run_kind=TaskRunKindEnum.PLATFORM.value,
             effective_tenant_id=None,
+            trigger_id=_get_current_request_id(self),
+            trigger_slot=_resolve_trigger_slot(
+                definition=definition,
+                binding=None,
+                trigger_source=trigger_source,
+            ),
         )
 
         result = celery_app.send_task(
@@ -197,14 +251,15 @@ def run_all_tenants_task_definition(
                 "handler_path": definition.handler_path,
             }
 
-        tenant_ids = _resolve_all_tenant_ids(session)
+        tenant_ids = _resolve_all_tenant_ids(session, definition.id)
         dispatched_task_ids: list[str] = []
+        dispatch_results: list[dict[str, Any]] = []
 
         for tenant_id in tenant_ids:
             args = _resolve_args(definition.default_args, None)
             kwargs = _merge_kwargs(definition.default_kwargs, None)
             if _handler_requires_tenant(definition):
-                kwargs.setdefault("tenant_id", tenant_id)
+                kwargs["tenant_id"] = tenant_id
 
             headers = _build_task_run_headers(
                 definition=definition,
@@ -212,16 +267,46 @@ def run_all_tenants_task_definition(
                 trigger_source=trigger_source,
                 run_kind=TaskRunKindEnum.TENANT_BINDING.value,
                 effective_tenant_id=tenant_id,
+                trigger_id=_get_current_request_id(self),
+                trigger_slot=_resolve_trigger_slot(
+                    definition=definition,
+                    binding=None,
+                    trigger_source=trigger_source,
+                ),
             )
 
-            result = celery_app.send_task(
-                definition.handler_path,
-                args=args,
-                kwargs=kwargs,
-                queue=_resolve_queue(definition),
-                headers=headers,
-            )
-            dispatched_task_ids.append(str(result.id))
+            try:
+                result = celery_app.send_task(
+                    definition.handler_path,
+                    args=args,
+                    kwargs=kwargs,
+                    queue=_resolve_queue(definition),
+                    headers=headers,
+                )
+                dispatched_task_id = str(result.id)
+                dispatched_task_ids.append(dispatched_task_id)
+                dispatch_results.append(
+                    {
+                        "tenant_id": tenant_id,
+                        "dispatched": True,
+                        "task_id": dispatched_task_id,
+                    }
+                )
+            except Exception as exc:
+                logger.error(
+                    "Failed to dispatch all-tenant task definition {} tenant={} error={}",
+                    definition.code,
+                    tenant_id,
+                    str(exc),
+                )
+                dispatch_results.append(
+                    {
+                        "tenant_id": tenant_id,
+                        "dispatched": False,
+                        "error": str(exc)[:500],
+                    }
+                )
+                continue
 
         logger.info(
             "Dispatched all-tenant task definition {} -> {} tenant task(s)",
@@ -233,7 +318,10 @@ def run_all_tenants_task_definition(
             "task_definition_id": definition.id,
             "handler_path": definition.handler_path,
             "tenant_count": len(tenant_ids),
+            "dispatched_count": len(dispatched_task_ids),
+            "failed_count": len(tenant_ids) - len(dispatched_task_ids),
             "dispatched_task_ids": dispatched_task_ids,
+            "dispatch_results": dispatch_results,
         }
     finally:
         if session:
@@ -267,18 +355,14 @@ def run_tenant_task_binding(
                 "reason": "binding_not_available",
                 "binding_id": binding_id,
             }
-        tenant = (
-            session.query(Tenant)
-            .filter(
-                Tenant.id == binding.tenant_id,
-                Tenant.is_deleted.is_(False),
-            )
-            .first()
+        eligibility = TaskTenantEligibilityService.resolve_tenant_eligibility_sync(
+            session,
+            binding.tenant_id,
         )
-        if tenant is None:
+        if not eligibility.is_eligible:
             return {
                 "dispatched": False,
-                "reason": "tenant_not_available",
+                "reason": eligibility.reason,
                 "binding_id": binding_id,
                 "tenant_id": binding.tenant_id,
             }
@@ -310,7 +394,7 @@ def run_tenant_task_binding(
         args = _resolve_args(definition.default_args, binding.args_override)
         kwargs = _merge_kwargs(definition.default_kwargs, binding.kwargs_override)
         if _handler_requires_tenant(definition):
-            kwargs.setdefault("tenant_id", binding.tenant_id)
+            kwargs["tenant_id"] = binding.tenant_id
 
         headers = _build_task_run_headers(
             definition=definition,
@@ -318,6 +402,12 @@ def run_tenant_task_binding(
             trigger_source=trigger_source,
             run_kind=TaskRunKindEnum.TENANT_BINDING.value,
             effective_tenant_id=binding.tenant_id,
+            trigger_id=_get_current_request_id(self),
+            trigger_slot=_resolve_trigger_slot(
+                definition=definition,
+                binding=binding,
+                trigger_source=trigger_source,
+            ),
         )
 
         result = celery_app.send_task(

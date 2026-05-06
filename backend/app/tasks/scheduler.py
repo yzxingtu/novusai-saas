@@ -22,6 +22,10 @@ from app.enums.common import ResourceScopeEnum
 from app.models.system.task_definition import TaskDefinition
 from app.models.system.tenant_task_binding import TenantTaskBinding
 from app.models.tenant.tenant import Tenant
+from app.models.tenant.tenant_plan import TenantPlan
+from app.services.system.task_tenant_eligibility_service import (
+    TaskTenantEligibilityService,
+)
 from app.tasks.task_scheduling import (
     ALL_TENANTS_TASK_DEFINITION_WRAPPER,
     TASK_DEFINITION_WRAPPER,
@@ -217,13 +221,17 @@ def load_task_schedules_from_db(
                 TaskDefinition.id == TenantTaskBinding.task_definition_id,
             )
             .join(Tenant, Tenant.id == TenantTaskBinding.tenant_id)
+            .join(
+                TenantPlan,
+                TaskTenantEligibilityService.eligible_tenant_join_condition(),
+            )
             .filter(
                 TenantTaskBinding.is_enabled.is_(True),  # noqa: E712
                 TenantTaskBinding.is_deleted.is_(False),  # noqa: E712
                 TaskDefinition.is_enabled.is_(True),  # noqa: E712
                 TaskDefinition.is_deleted.is_(False),  # noqa: E712
                 TaskDefinition.scope.in_(EXPLICIT_BINDING_SCHEDULE_SCOPES),
-                Tenant.is_deleted.is_(False),  # noqa: E712
+                *TaskTenantEligibilityService.eligible_tenant_filters(),
             )
             .all()
         )

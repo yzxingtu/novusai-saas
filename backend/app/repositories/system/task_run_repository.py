@@ -23,6 +23,7 @@ class TaskRunRepository(BaseRepository[TaskRun]):
         "admin": {
             "id",
             "task_id",
+            "run_key",
             "task_name",
             "handler_path",
             "queue",

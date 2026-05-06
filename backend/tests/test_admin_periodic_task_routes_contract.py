@@ -271,6 +271,7 @@ def test_create_periodic_task_route_maps_request_fields_and_syncs_bindings(
         12,
         [3, 4],
         target_scope="selected_tenants",
+        binding_payloads=[],
     )
 
 
@@ -340,5 +341,37 @@ def test_sync_bindings_route_preserves_explicit_scope_when_request_omits_scope(
         18,
         [8, 9],
         target_scope="selected_tenants",
+        binding_payloads=[],
+        replace_all_tenant_bindings=True,
     )
     mock_db.commit.assert_awaited_once_with()
+
+
+def test_trigger_periodic_task_route_returns_full_dispatch_payload(monkeypatch) -> None:
+    periodic_tasks_module = _load_periodic_tasks_module()
+    monkeypatch.setattr(periodic_tasks_module.AdminPeriodicTaskController, "_instance", None)
+    monkeypatch.setattr(periodic_tasks_module.AdminPeriodicTaskController, "_router", None)
+
+    dispatch_payload = {
+        "triggered_task_id": "binding-task-1",
+        "dispatched_task_ids": ["binding-task-1", "binding-task-2"],
+        "dispatched_count": 2,
+    }
+    service = SimpleNamespace(trigger_now=AsyncMock(return_value=dispatch_payload))
+
+    monkeypatch.setattr(
+        periodic_tasks_module.AdminPeriodicTaskController,
+        "get_service",
+        _return(service),
+    )
+
+    app = _build_test_app(SimpleNamespace(), periodic_tasks_module)
+
+    with TestClient(app) as client:
+        response = client.post("/periodic-tasks/18/trigger")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["code"] == 0
+    assert payload["data"] == dispatch_payload
+    service.trigger_now.assert_awaited_once_with(18)
