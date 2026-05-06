@@ -11,13 +11,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import and_, func, select, update
+from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.configs.service import PLATFORM_TENANT_ID
 from app.core.base_model import utc_now
 from app.core.logging import LogManager
 from app.models.common.notification import Notification
+from app.models.common.notification_delivery import NotificationDelivery
 from app.models.common.notification_preference import NotificationPreference
 from app.models.common.notification_template import NotificationTemplate
 
@@ -81,7 +82,7 @@ class NotificationService:
             return 0
 
         # 查询模板 / Query template
-        template = await self._get_template(template_code)
+        template = await self._get_template(template_code, tenant_id=tenant_id)
         if not template:
             logger.warning("Notification template not found: {}", template_code)
             return 0
@@ -92,6 +93,7 @@ class NotificationService:
 
         # force_all_channels 模式：绕过偏好和渠道开关（用于测试发送）
         force = kwargs.pop("force_all_channels", False)
+        external_created_notifications = kwargs.pop("created_notifications", None)
 
         # 预缓存渠道启用状态（避免在 recipients 循环内重复查询 DB）
         channel_enabled_cache: dict[str, bool] = {}
@@ -121,19 +123,53 @@ class NotificationService:
                     default_enabled = channel_code in ("ws", "inbox")
                     pref_key = f"channel_{channel_code}"
                     if not pref.get(pref_key, default_enabled):
+                        await self._record_delivery_status(
+                            template=template,
+                            channel_code=channel_code,
+                            user_type=user_type,
+                            user_id=user_id,
+                            tenant_id=tenant_id,
+                            status="skipped",
+                            last_error="disabled_by_preference",
+                        )
                         continue
 
-                # 获取渠道实例 / Resolve channel instance
                 channel = get_channel(channel_code)
                 if not channel:
+                    await self._record_delivery_status(
+                        template=template,
+                        channel_code=channel_code,
+                        user_type=user_type,
+                        user_id=user_id,
+                        tenant_id=tenant_id,
+                        status="skipped",
+                        last_error="channel_not_registered",
+                    )
                     continue
 
                 # 渠道全局启用检查（force 模式跳过，使用预缓存结果）
                 if not force and not channel_enabled_cache.get(channel_code, False):
+                    await self._record_delivery_status(
+                        template=template,
+                        channel_code=channel_code,
+                        user_type=user_type,
+                        user_id=user_id,
+                        tenant_id=tenant_id,
+                        status="skipped",
+                        last_error="channel_disabled",
+                    )
                     continue
 
                 # 投递 / Deliver
-                await channel.deliver(
+                delivery = await self._create_delivery_record(
+                    template=template,
+                    channel_code=channel_code,
+                    user_type=user_type,
+                    user_id=user_id,
+                    tenant_id=tenant_id,
+                )
+                created_notifications: list[Notification] = []
+                delivered = await channel.deliver(
                     db=self.db,
                     user_type=user_type,
                     user_id=user_id,
@@ -144,15 +180,26 @@ class NotificationService:
                     priority=template.priority,
                     template_code=template_code,
                     tenant_id=tenant_id,
+                    delivery_record=delivery,
+                    created_notifications=created_notifications,
                     **kwargs,
                 )
+                await self._finalize_delivery_record(
+                    delivery,
+                    delivered=delivered,
+                    created_notifications=created_notifications,
+                )
+                if isinstance(external_created_notifications, list):
+                    external_created_notifications.extend(created_notifications)
 
             sent += 1
 
         # inbox 渠道的数量限制
         for user_type, user_id in recipients:
             if "inbox" in template_channels:
-                await self._enforce_max_per_user(user_type, user_id)
+                await self._enforce_max_per_user(
+                    user_type, user_id, tenant_id=tenant_id
+                )
 
         logger.info(
             "Notification sent: template={} recipients={} sent={}",
@@ -172,6 +219,7 @@ class NotificationService:
         fallback_title: str | None = None,
         fallback_body: str | None = None,
         fallback_priority: str = "normal",
+        tenant_id: int | None = None,
     ) -> dict[str, Any] | None:
         """
         构建实时 WS payload，优先使用通知模板渲染。
@@ -183,7 +231,7 @@ class NotificationService:
         if not await self._notifications_enabled():
             return None
 
-        template = await self._get_template(template_code)
+        template = await self._get_template(template_code, tenant_id=tenant_id)
         if template:
             template_channels = template.channels or ["ws", "inbox"]
             if "ws" not in template_channels:
@@ -223,6 +271,7 @@ class NotificationService:
         is_read: bool | None = None,
         page: int = 1,
         page_size: int = 20,
+        tenant_id: int | None = None,
     ) -> tuple[list[Notification], int]:
         """
         查询通知列表（分页）/ Query notification list (paginated).
@@ -234,6 +283,7 @@ class NotificationService:
             Notification.recipient_type == user_type,
             Notification.recipient_id == user_id,
             Notification.is_deleted.is_(False),
+            self._notification_tenant_condition(tenant_id),
         ]
         if category:
             conditions.append(Notification.category == category)
@@ -262,11 +312,13 @@ class NotificationService:
         self,
         user_type: str,
         user_id: int,
+        tenant_id: int | None = None,
     ) -> int:
         """获取未读通知总数 / Get total unread notification count."""
         q = select(func.count(Notification.id)).where(
             Notification.recipient_type == user_type,
             Notification.recipient_id == user_id,
+            self._notification_tenant_condition(tenant_id),
             Notification.is_read.is_(False),
             Notification.is_deleted.is_(False),
         )
@@ -281,6 +333,7 @@ class NotificationService:
         notification_id: int,
         user_type: str,
         user_id: int,
+        tenant_id: int | None = None,
     ) -> bool:
         """标记单条通知已读 / Mark single notification as read."""
         result = await self.db.execute(
@@ -289,6 +342,7 @@ class NotificationService:
                 Notification.id == notification_id,
                 Notification.recipient_type == user_type,
                 Notification.recipient_id == user_id,
+                self._notification_tenant_condition(tenant_id),
                 Notification.is_deleted.is_(False),
             )
             .values(is_read=True, read_at=utc_now())
@@ -300,11 +354,13 @@ class NotificationService:
         user_type: str,
         user_id: int,
         category: str | None = None,
+        tenant_id: int | None = None,
     ) -> int:
         """标记全部已读，返回更新数量 / Mark all as read, return updated count."""
         conditions = [
             Notification.recipient_type == user_type,
             Notification.recipient_id == user_id,
+            self._notification_tenant_condition(tenant_id),
             Notification.is_read.is_(False),
             Notification.is_deleted.is_(False),
         ]
@@ -323,6 +379,7 @@ class NotificationService:
         notification_id: int,
         user_type: str,
         user_id: int,
+        tenant_id: int | None = None,
     ) -> bool:
         """软删除通知 / Soft-delete notification."""
         result = await self.db.execute(
@@ -331,6 +388,7 @@ class NotificationService:
                 Notification.id == notification_id,
                 Notification.recipient_type == user_type,
                 Notification.recipient_id == user_id,
+                self._notification_tenant_condition(tenant_id),
             )
             .values(is_deleted=True, deleted_at=utc_now())
         )
@@ -340,15 +398,105 @@ class NotificationService:
     # 内部方法 / Internal methods
     # ========================================
 
-    async def _get_template(self, code: str) -> NotificationTemplate | None:
-        """查询通知模板 / Get notification template by code."""
-        result = await self.db.execute(
-            select(NotificationTemplate).where(
-                NotificationTemplate.code == code,
-                NotificationTemplate.is_deleted.is_(False),
-            )
+    async def _get_template(
+        self,
+        code: str,
+        tenant_id: int | None = None,
+    ) -> NotificationTemplate | None:
+        """按租户覆盖 -> 插件/source -> 平台默认查询模板 / Resolve template with tenant fallback."""
+        from app.repositories.common.notification_template_repository import (
+            NotificationTemplateRepository,
         )
-        return result.scalar_one_or_none()
+
+        repo = NotificationTemplateRepository(self.db)
+        return await repo.resolve_effective_template(code, tenant_id)
+
+    @staticmethod
+    def _notification_tenant_condition(tenant_id: int | None):
+        if tenant_id == PLATFORM_TENANT_ID:
+            return or_(
+                Notification.tenant_id.is_(None),
+                Notification.tenant_id == PLATFORM_TENANT_ID,
+            )
+        if tenant_id is None:
+            return Notification.tenant_id.is_(None)
+        return Notification.tenant_id == tenant_id
+
+    @staticmethod
+    def _model_int_id(model: object) -> int | None:
+        value = getattr(model, "id", None)
+        return value if isinstance(value, int) else None
+
+    async def _record_delivery_status(
+        self,
+        *,
+        template: NotificationTemplate,
+        channel_code: str,
+        user_type: str,
+        user_id: int,
+        tenant_id: int | None,
+        status: str,
+        last_error: str | None = None,
+    ) -> NotificationDelivery:
+        delivery = NotificationDelivery(
+            template_id=self._model_int_id(template),
+            template_code=template.code,
+            channel=channel_code,
+            recipient_type=user_type,
+            recipient_id=user_id,
+            tenant_id=tenant_id,
+            status=status,
+            attempt=0,
+            last_error=last_error,
+            delivered_at=utc_now() if status in {"sent", "skipped"} else None,
+        )
+        self.db.add(delivery)
+        return delivery
+
+    async def _create_delivery_record(
+        self,
+        *,
+        template: NotificationTemplate,
+        channel_code: str,
+        user_type: str,
+        user_id: int,
+        tenant_id: int | None,
+    ) -> NotificationDelivery:
+        delivery = await self._record_delivery_status(
+            template=template,
+            channel_code=channel_code,
+            user_type=user_type,
+            user_id=user_id,
+            tenant_id=tenant_id,
+            status="pending",
+        )
+        await self.db.flush()
+        return delivery
+
+    async def _finalize_delivery_record(
+        self,
+        delivery: NotificationDelivery,
+        *,
+        delivered: bool,
+        created_notifications: list[Notification],
+    ) -> None:
+        await self.db.flush()
+
+        if created_notifications:
+            delivery.notification_id = self._model_int_id(created_notifications[0])
+
+        if delivery.status == "pending":
+            delivery.attempt = (delivery.attempt or 0) + 1
+            delivery.status = "sent" if delivered else "failed"
+            delivery.last_error = None if delivered else "channel_deliver_failed"
+            if delivered:
+                delivery.delivered_at = utc_now()
+        elif delivered and delivery.status == "queued":
+            delivery.last_error = None
+        elif delivery.status == "skipped" and delivery.delivered_at is None:
+            delivery.delivered_at = utc_now()
+
+        await self.db.flush()
 
     async def _notifications_enabled(self) -> bool:
         """检查通知系统总开关 / Check notification master switch."""
@@ -411,6 +559,7 @@ class NotificationService:
         self,
         recipient_type: str,
         recipient_id: int,
+        tenant_id: int | None = None,
     ) -> None:
         """
         执行每用户最大通知数限制 / Enforce max notifications per user.
@@ -429,6 +578,7 @@ class NotificationService:
             count_q = select(func.count(Notification.id)).where(
                 Notification.recipient_type == recipient_type,
                 Notification.recipient_id == recipient_id,
+                self._notification_tenant_condition(tenant_id),
                 Notification.is_deleted.is_(False),
             )
             total = (await self.db.execute(count_q)).scalar() or 0
@@ -443,6 +593,7 @@ class NotificationService:
                 .where(
                     Notification.recipient_type == recipient_type,
                     Notification.recipient_id == recipient_id,
+                    self._notification_tenant_condition(tenant_id),
                     Notification.is_deleted.is_(False),
                     Notification.is_read.is_(True),
                 )
@@ -599,6 +750,7 @@ def build_ws_payload_sync(
     fallback_title: str | None = None,
     fallback_body: str | None = None,
     fallback_priority: str = "normal",
+    tenant_id: int | None = None,
 ) -> dict[str, Any] | None:
     """
     同步便捷函数 — 用于 Celery 等同步上下文构建 WS payload。
@@ -620,6 +772,7 @@ def build_ws_payload_sync(
                 fallback_title=fallback_title,
                 fallback_body=fallback_body,
                 fallback_priority=fallback_priority,
+                tenant_id=tenant_id,
             )
 
     try:

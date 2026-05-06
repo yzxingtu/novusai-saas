@@ -80,8 +80,7 @@ class PluginCleanupService:
         raw_prefix = plugin_name.replace("-", "_") + "_"
         await self._db.execute(
             text(
-                "DELETE FROM alembic_version "
-                "WHERE version_num LIKE :prefix ESCAPE '\\'"
+                "DELETE FROM alembic_version WHERE version_num LIKE :prefix ESCAPE '\\'"
             ),
             {"prefix": f"{_escape_like_pattern(raw_prefix)}%"},
         )
@@ -200,7 +199,9 @@ class PluginCleanupService:
             return
 
         await self._db.execute(delete(Skill).where(Skill.package_id == package_id))
-        await self._db.execute(delete(SkillPackage).where(SkillPackage.id == package_id))
+        await self._db.execute(
+            delete(SkillPackage).where(SkillPackage.id == package_id)
+        )
         await self._db.flush()
         logger.info("Deleted skill records for plugin {}", plugin_name)
 
@@ -240,7 +241,9 @@ class PluginCleanupService:
                 "zh-CN",
                 feature.display_name.get("en", feature.feature_code),
             )
-            feature_desc = feature.description.get("zh-CN", feature.description.get("en", ""))
+            feature_desc = feature.description.get(
+                "zh-CN", feature.description.get("en", "")
+            )
             existing = await self._db.execute(
                 select(SystemAgentAssignment.id).where(
                     SystemAgentAssignment.feature_code == feature_code,
@@ -290,6 +293,8 @@ class PluginCleanupService:
             result = await self._db.execute(
                 select(NotificationTemplate).where(
                     NotificationTemplate.code == full_code,
+                    NotificationTemplate.plugin_name == plugin_name,
+                    NotificationTemplate.scope == "plugin",
                 )
             )
             existing = result.scalar_one_or_none()
@@ -299,6 +304,10 @@ class PluginCleanupService:
                 existing.channels = channels
                 existing.category = category
                 existing.title_template = title
+                existing.scope = "plugin"
+                existing.source = "plugin"
+                existing.plugin_name = plugin_name
+                existing.is_enabled = True
                 existing.updated_at = utc_now()
             else:
                 self._db.add(
@@ -308,6 +317,10 @@ class PluginCleanupService:
                         title_template=title,
                         channels=channels,
                         priority="normal",
+                        scope="plugin",
+                        source="plugin",
+                        plugin_name=plugin_name,
+                        is_enabled=True,
                         is_system=True,
                     )
                 )
@@ -330,6 +343,8 @@ class PluginCleanupService:
                     f"plugin.{escaped_name}.%",
                     escape="\\",
                 ),
+                NotificationTemplate.plugin_name == plugin_name,
+                NotificationTemplate.scope == "plugin",
             )
         )
         if result.rowcount:
@@ -372,7 +387,9 @@ class PluginCleanupService:
                 existing = matched[0]
 
             duplicate_rows = [
-                item for item in matched if existing is not None and item.id != existing.id
+                item
+                for item in matched
+                if existing is not None and item.id != existing.id
             ]
             schedule_type = task_ext.schedule_type or ScheduleTypeEnum.INTERVAL.value
             description_text = resolve_i18n(task_ext.description, "zh-CN")
@@ -480,5 +497,6 @@ class PluginCleanupService:
                 plugin_name,
                 result.rowcount,
             )
+
 
 __all__ = ["PluginCleanupService", "_escape_like_pattern"]

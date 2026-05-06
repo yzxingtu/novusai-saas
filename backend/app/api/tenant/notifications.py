@@ -45,6 +45,7 @@ async def list_notifications(
         is_read=read_filter,
         page=page,
         page_size=page_size,
+        tenant_id=tenant_admin.tenant_id,
     )
 
     return success(
@@ -80,7 +81,11 @@ async def get_unread_count(
 ):
     """获取当前企业管理员的未读通知数量 / Get current tenant admin unread notification count"""
     service = NotificationService(db)
-    count = await service.get_unread_count("tenant_admin", tenant_admin.id)
+    count = await service.get_unread_count(
+        "tenant_admin",
+        tenant_admin.id,
+        tenant_id=tenant_admin.tenant_id,
+    )
     return success(data={"count": count})
 
 
@@ -93,7 +98,12 @@ async def mark_read(
 ):
     """标记单条通知已读 / Mark single notification as read"""
     service = NotificationService(db)
-    found = await service.mark_read(notification_id, "tenant_admin", tenant_admin.id)
+    found = await service.mark_read(
+        notification_id,
+        "tenant_admin",
+        tenant_admin.id,
+        tenant_id=tenant_admin.tenant_id,
+    )
     if not found:
         raise NotFoundException(message=_("common.not_found"))
     return success()
@@ -109,7 +119,10 @@ async def mark_all_read(
     """标记全部通知已读 / Mark all notifications as read"""
     service = NotificationService(db)
     count = await service.mark_all_read(
-        "tenant_admin", tenant_admin.id, category or None
+        "tenant_admin",
+        tenant_admin.id,
+        category or None,
+        tenant_id=tenant_admin.tenant_id,
     )
     return success(data={"count": count})
 
@@ -124,7 +137,10 @@ async def delete_notification(
     """删除单条通知（软删除） / Delete single notification (soft delete)"""
     service = NotificationService(db)
     found = await service.delete_notification(
-        notification_id, "tenant_admin", tenant_admin.id
+        notification_id,
+        "tenant_admin",
+        tenant_admin.id,
+        tenant_id=tenant_admin.tenant_id,
     )
     if not found:
         raise NotFoundException(message=_("common.not_found"))

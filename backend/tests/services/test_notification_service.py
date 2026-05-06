@@ -7,8 +7,9 @@ from __future__ import annotations
 from unittest.mock import AsyncMock
 
 import pytest
+from sqlalchemy.dialects import postgresql
 
-from tests.services.conftest import make_mock_model, make_scalar_result
+from tests.services.conftest import make_mock_model, make_scalars_result
 
 
 def _make_notification(**overrides):
@@ -138,8 +139,12 @@ class TestNotificationWsPayload:
             body_template="任务 {task_name} 执行失败，错误信息：{error}",
             priority="high",
             channels=["ws", "inbox"],
+            scope="platform",
+            tenant_id=None,
+            source="core",
+            plugin_name=None,
         )
-        mock_db.execute.return_value = make_scalar_result(template)
+        mock_db.execute.return_value = make_scalars_result([template])
 
         service = NotificationService(mock_db)
         service._notifications_enabled = AsyncMock(return_value=True)
@@ -175,8 +180,12 @@ class TestNotificationWsPayload:
             body_template="批处理任务已完成，共处理 {total} 条数据。",
             priority="normal",
             channels=["inbox"],
+            scope="platform",
+            tenant_id=None,
+            source="core",
+            plugin_name=None,
         )
-        mock_db.execute.return_value = make_scalar_result(template)
+        mock_db.execute.return_value = make_scalars_result([template])
 
         service = NotificationService(mock_db)
         service._notifications_enabled = AsyncMock(return_value=True)
@@ -192,7 +201,7 @@ class TestNotificationWsPayload:
     async def test_build_ws_payload_falls_back_when_template_missing(self, mock_db):
         from app.services.common.notification_service import NotificationService
 
-        mock_db.execute.return_value = make_scalar_result(None)
+        mock_db.execute.return_value = make_scalars_result([])
 
         service = NotificationService(mock_db)
         service._notifications_enabled = AsyncMock(return_value=True)
@@ -250,3 +259,155 @@ class TestNotificationWsPayload:
         )
 
         assert payload == expected
+
+
+class TestNotificationTemplateFallback:
+    @pytest.mark.asyncio
+    async def test_tenant_template_override_wins_over_platform_default(self, mock_db):
+        from app.services.common.notification_service import NotificationService
+
+        platform_template = make_mock_model(
+            id=1,
+            code="biz.user_approved",
+            scope="platform",
+            tenant_id=None,
+            source="core",
+            plugin_name=None,
+        )
+        tenant_template = make_mock_model(
+            id=2,
+            code="biz.user_approved",
+            scope="tenant",
+            tenant_id=42,
+            source="core",
+            plugin_name=None,
+        )
+        mock_db.execute.return_value = make_scalars_result(
+            [platform_template, tenant_template]
+        )
+
+        service = NotificationService(mock_db)
+
+        result = await service._get_template("biz.user_approved", tenant_id=42)
+
+        assert result is tenant_template
+
+    @pytest.mark.asyncio
+    async def test_plugin_template_wins_before_platform_default(self, mock_db):
+        from app.services.common.notification_service import NotificationService
+
+        platform_template = make_mock_model(
+            id=1,
+            code="plugin.demo.biz.alert",
+            scope="platform",
+            tenant_id=None,
+            source="core",
+            plugin_name=None,
+        )
+        plugin_template = make_mock_model(
+            id=2,
+            code="plugin.demo.biz.alert",
+            scope="plugin",
+            tenant_id=None,
+            source="plugin",
+            plugin_name="demo",
+        )
+        mock_db.execute.return_value = make_scalars_result(
+            [platform_template, plugin_template]
+        )
+
+        service = NotificationService(mock_db)
+
+        result = await service._get_template("plugin.demo.biz.alert", tenant_id=42)
+
+        assert result is plugin_template
+
+
+class TestNotificationTenantBoundary:
+    @pytest.mark.asyncio
+    async def test_mark_read_includes_tenant_filter_and_refuses_mismatch(self, mock_db):
+        from app.services.common.notification_service import NotificationService
+
+        result = make_mock_model(rowcount=0)
+        mock_db.execute.return_value = result
+        service = NotificationService(mock_db)
+
+        found = await service.mark_read(
+            notification_id=10,
+            user_type="tenant_admin",
+            user_id=7,
+            tenant_id=99,
+        )
+
+        statement = mock_db.execute.await_args.args[0]
+        compiled = statement.compile(dialect=postgresql.dialect())
+        assert found is False
+        assert "tenant_id" in str(compiled)
+        assert 99 in compiled.params.values()
+
+
+class TestNotificationDeliveryOutbox:
+    @pytest.mark.asyncio
+    async def test_send_records_delivery_status_for_channel(self, mock_db, monkeypatch):
+        from app.models.common.notification_delivery import NotificationDelivery
+        from app.services.common.notification_service import NotificationService
+
+        class _FakeChannel:
+            @property
+            def channel_code(self):
+                return "ws"
+
+            async def is_enabled(self):
+                return True
+
+            async def deliver(self, **kwargs):
+                assert kwargs["tenant_id"] == 42
+                assert kwargs["delivery_record"].status == "pending"
+                return True
+
+        template = make_mock_model(
+            id=5,
+            code="task.failed",
+            category="task",
+            title_template="任务失败",
+            body_template="任务失败：{error}",
+            priority="high",
+            channels=["ws"],
+            scope="platform",
+            tenant_id=None,
+            source="core",
+            plugin_name=None,
+        )
+        mock_db.execute.return_value = make_scalars_result([template])
+        monkeypatch.setattr(
+            "app.services.common.channels.get_channel",
+            lambda code: _FakeChannel() if code == "ws" else None,
+        )
+
+        service = NotificationService(mock_db)
+        service._notifications_enabled = AsyncMock(return_value=True)
+
+        sent = await service.send(
+            template_code="task.failed",
+            recipients=[("tenant_admin", 7)],
+            data={"error": "timeout"},
+            tenant_id=42,
+            force_all_channels=True,
+        )
+
+        deliveries = [
+            call.args[0]
+            for call in mock_db.add.call_args_list
+            if isinstance(call.args[0], NotificationDelivery)
+        ]
+        assert sent == 1
+        assert len(deliveries) == 1
+        assert deliveries[0].template_id == 5
+        assert deliveries[0].template_code == "task.failed"
+        assert deliveries[0].channel == "ws"
+        assert deliveries[0].tenant_id == 42
+        assert deliveries[0].recipient_type == "tenant_admin"
+        assert deliveries[0].recipient_id == 7
+        assert deliveries[0].status == "sent"
+        assert deliveries[0].attempt == 1
+        assert deliveries[0].delivered_at is not None

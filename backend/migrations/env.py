@@ -61,6 +61,7 @@ from app.models import (
     # 通知
     NotificationTemplate,
     Notification,
+    NotificationDelivery,
     NotificationPreference,
     # AI 网关
     AIProvider,

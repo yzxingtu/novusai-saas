@@ -81,6 +81,7 @@ class EmailChannel(NotificationChannel):
             email_text: 自定义纯文本正文
         """
         _ = data
+        delivery_record = kwargs.get("delivery_record")
         try:
             # 企业级邮件通知开关检查 / Tenant-level email notification switch check
             if tenant_id:
@@ -97,6 +98,11 @@ class EmailChannel(NotificationChannel):
                             "EmailChannel: tenant {} email notification disabled, skip",
                             tenant_id,
                         )
+                        if delivery_record is not None:
+                            delivery_record.status = "skipped"
+                            delivery_record.last_error = (
+                                "tenant_email_notification_disabled"
+                            )
                         return False
                 except Exception as cfg_err:
                     logger.warning(
@@ -108,6 +114,9 @@ class EmailChannel(NotificationChannel):
                 logger.debug(
                     "EmailChannel: no email for {}:{}, skip", user_type, user_id
                 )
+                if delivery_record is not None:
+                    delivery_record.status = "skipped"
+                    delivery_record.last_error = "recipient_email_missing"
                 return False
 
             from app.tasks.notification import send_notification_email
@@ -142,17 +151,27 @@ class EmailChannel(NotificationChannel):
                     # 降级为纯文本 / Degrade to plain text
                     email_html = body or title
 
-            send_notification_email.delay(
+            async_result = send_notification_email.delay(
                 to=[email],
                 subject=email_subject,
                 html_body=email_html,
                 text_body=email_text,
                 triggered_by=template_code,
                 tenant_id=tenant_id,
+                delivery_id=getattr(delivery_record, "id", None),
             )
+            if delivery_record is not None:
+                delivery_record.status = "queued"
+                delivery_record.attempt = (delivery_record.attempt or 0) + 1
+                delivery_record.task_id = getattr(async_result, "id", None)
+                delivery_record.last_error = None
             return True
         except Exception as e:
             logger.warning("EmailChannel deliver failed: {}", str(e))
+            if delivery_record is not None:
+                delivery_record.status = "failed"
+                delivery_record.attempt = (delivery_record.attempt or 0) + 1
+                delivery_record.last_error = str(e)[:2000]
             return False
 
     @staticmethod

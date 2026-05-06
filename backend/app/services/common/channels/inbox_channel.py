@@ -54,6 +54,7 @@ class InboxChannel(NotificationChannel):
         try:
             from app.models.common.notification import Notification
 
+            delivery_record = kwargs.get("delivery_record")
             notification = Notification(
                 tenant_id=tenant_id,
                 recipient_type=user_type,
@@ -72,9 +73,18 @@ class InboxChannel(NotificationChannel):
             created_notifications = kwargs.get("created_notifications")
             if isinstance(created_notifications, list):
                 created_notifications.append(notification)
+            if delivery_record is not None:
+                delivery_record.status = "sent"
+                delivery_record.attempt = (delivery_record.attempt or 0) + 1
+                delivery_record.last_error = None
             return True
         except Exception as e:
             logger.warning("InboxChannel deliver failed: {}", str(e))
+            delivery_record = kwargs.get("delivery_record")
+            if delivery_record is not None:
+                delivery_record.status = "failed"
+                delivery_record.attempt = (delivery_record.attempt or 0) + 1
+                delivery_record.last_error = str(e)[:2000]
             return False
 
 

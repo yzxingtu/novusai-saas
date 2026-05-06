@@ -197,6 +197,8 @@ async def seed_notification_templates(db: AsyncSession) -> dict[str, int]:
     result = await db.execute(
         select(NotificationTemplate).where(
             NotificationTemplate.code.in_(all_codes),
+            NotificationTemplate.scope == "platform",
+            NotificationTemplate.tenant_id.is_(None),
         )
     )
     existing_map = {t.code: t for t in result.scalars().all()}
@@ -228,6 +230,9 @@ async def seed_notification_templates(db: AsyncSession) -> dict[str, int]:
                 body_template=tpl_data.get("body_template"),
                 channels=tpl_data["channels"],
                 priority=tpl_data["priority"],
+                scope="platform",
+                source="core",
+                is_enabled=True,
                 is_system=True,
             )
             db.add(tpl)

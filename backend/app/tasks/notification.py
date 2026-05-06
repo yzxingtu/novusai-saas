@@ -29,6 +29,7 @@ def send_notification_email(
     text_body: str | None = None,
     triggered_by: str = "notification",
     tenant_id: int | None = None,
+    delivery_id: int | None = None,
 ) -> dict:
     """
     Email sending triggered by notification system (notification queue)
@@ -41,6 +42,7 @@ def send_notification_email(
         text_body: Plain text body / 纯文本正文
         triggered_by: Trigger source (notification template code, e.g. system.password_reset) / 触发来源（通知模板编码，如 system.password_reset）
         tenant_id: Associated tenant ID / 关联企业 ID
+        delivery_id: Notification delivery/outbox ID / 通知投递记录 ID
 
     Returns:
         Send result dict / 发送结果 dict
@@ -68,6 +70,12 @@ def send_notification_email(
         )
 
         if result.success:
+            _update_notification_delivery(
+                delivery_id=delivery_id,
+                status="sent",
+                task_id=getattr(self.request, "id", None),
+                attempt=getattr(self.request, "retries", 0) + 1,
+            )
             logger.info(
                 "Notification email sent: to={} subject={} triggered_by={}",
                 ", ".join(to),
@@ -86,6 +94,13 @@ def send_notification_email(
             "config_incomplete",
             "no_recipients",
         ):
+            _update_notification_delivery(
+                delivery_id=delivery_id,
+                status="skipped",
+                task_id=getattr(self.request, "id", None),
+                attempt=getattr(self.request, "retries", 0) + 1,
+                error=result.error or result.message,
+            )
             logger.warning(
                 "Notification email skipped: reason={} to={}",
                 result.message,
@@ -97,13 +112,35 @@ def send_notification_email(
                 "triggered_by": triggered_by,
             }
 
+        _update_notification_delivery(
+            delivery_id=delivery_id,
+            status="failed",
+            task_id=getattr(self.request, "id", None),
+            attempt=getattr(self.request, "retries", 0) + 1,
+            error=result.error or result.message,
+        )
+
         # SMTP error retry / SMTP 错误重试
         raise RuntimeError(result.error or result.message)
 
-    except RuntimeError:
+    except RuntimeError as e:
+        _update_notification_delivery(
+            delivery_id=delivery_id,
+            status="failed",
+            task_id=getattr(self.request, "id", None),
+            attempt=getattr(self.request, "retries", 0) + 1,
+            error=str(e),
+        )
         raise
     except Exception as e:
         logger.error("Notification email task failed: {}", str(e))
+        _update_notification_delivery(
+            delivery_id=delivery_id,
+            status="failed",
+            task_id=getattr(self.request, "id", None),
+            attempt=getattr(self.request, "retries", 0) + 1,
+            error=str(e),
+        )
         _record_notification_email_log(
             to=to,
             subject=subject,
@@ -118,6 +155,46 @@ def send_notification_email(
             exc=e,
             countdown=self.get_retry_countdown() * (self.request.retries + 1),
         ) from e
+
+
+def _update_notification_delivery(
+    *,
+    delivery_id: int | None,
+    status: str,
+    task_id: str | None = None,
+    attempt: int | None = None,
+    error: str | None = None,
+) -> None:
+    """Update durable notification delivery status / 更新通知投递记录状态。"""
+    if not delivery_id:
+        return
+
+    from app.core.base_model import utc_now
+    from app.core.database import sync_session_factory
+    from app.models.common.notification_delivery import NotificationDelivery
+
+    session = None
+    try:
+        session = sync_session_factory()
+        delivery = session.query(NotificationDelivery).filter_by(id=delivery_id).first()
+        if delivery is None:
+            return
+
+        delivery.status = status
+        delivery.task_id = task_id or delivery.task_id
+        if attempt is not None:
+            delivery.attempt = attempt
+        delivery.last_error = error[:2000] if error else None
+        if status in {"sent", "skipped"}:
+            delivery.delivered_at = utc_now()
+        session.commit()
+    except Exception as exc:
+        logger.warning("Failed to update notification delivery: {}", str(exc))
+        if session:
+            session.rollback()
+    finally:
+        if session:
+            session.close()
 
 
 def _record_notification_email_log(

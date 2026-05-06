@@ -699,12 +699,71 @@ class PluginContext:
         variables: dict | None = None,
     ) -> None:
         """Send notification, requires notifications:send capability / 发送通知，需 notifications:send 能力"""
-        _ = tenant_id
         self._require("notifications:send")
+        await self._ensure_notification_targets_allowed(
+            tenant_id=tenant_id,
+            user_ids=user_ids,
+            template_code=template_code,
+        )
         from app.services.common.notification_service import notify
 
         recipients = [("tenant_admin", uid) for uid in user_ids]
-        await notify(self._db, template_code, recipients, variables or {})
+        await notify(
+            self._db,
+            template_code,
+            recipients,
+            variables or {},
+            tenant_id=tenant_id,
+        )
+
+    async def _ensure_notification_targets_allowed(
+        self,
+        *,
+        tenant_id: int,
+        user_ids: list[int],
+        template_code: str,
+    ) -> None:
+        """Validate plugin notification tenant and recipient ownership / 校验插件通知租户与收件人归属。"""
+        if tenant_id in (None, PLATFORM_TENANT_ID):
+            raise PluginSecurityError(
+                message=_("plugin.error.notification_tenant_required")
+            )
+
+        current_tenant_id = self.get_current_tenant_id()
+        if current_tenant_id is None or current_tenant_id != tenant_id:
+            raise PluginSecurityError(
+                message=_("plugin.error.notification_tenant_forbidden")
+            )
+
+        own_plugin_prefix = f"plugin.{self.plugin_name}."
+        if template_code.startswith("plugin.") and not template_code.startswith(
+            own_plugin_prefix
+        ):
+            raise PluginSecurityError(
+                message=_("plugin.error.notification_template_forbidden")
+            )
+
+        if not user_ids:
+            return
+
+        from sqlalchemy import func, select
+
+        from app.models import TenantAdmin
+
+        unique_user_ids = set(user_ids)
+        result = await self._db.execute(
+            select(func.count(TenantAdmin.id)).where(
+                TenantAdmin.id.in_(unique_user_ids),
+                TenantAdmin.tenant_id == tenant_id,
+                TenantAdmin.is_active.is_(True),
+                TenantAdmin.is_deleted.is_(False),
+            )
+        )
+        matched = result.scalar() or 0
+        if matched != len(unique_user_ids):
+            raise PluginSecurityError(
+                message=_("plugin.error.notification_recipient_forbidden")
+            )
 
     # ── Events / 事件 ──
 

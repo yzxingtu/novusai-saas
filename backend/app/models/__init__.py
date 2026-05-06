@@ -59,6 +59,7 @@ from app.models.auth import (
     tenant_user_role_permissions,
 )
 from app.models.common.notification import Notification
+from app.models.common.notification_delivery import NotificationDelivery
 from app.models.common.notification_preference import NotificationPreference
 
 # 通知模型 / Notification models
@@ -206,6 +207,7 @@ __all__ = [
     # 通知 / Notifications
     "NotificationTemplate",
     "Notification",
+    "NotificationDelivery",
     "NotificationPreference",
     # 用户偏好 / User preferences
     "UserPreference",

@@ -15,6 +15,8 @@ from app.core.deps import ActiveAdmin, DbSession, QueryParams
 from app.core.i18n import _
 from app.core.response import paginated, success
 from app.enums.rbac import PermissionScope
+from app.exceptions import NotFoundException
+from app.models.common.notification_template import NotificationTemplate
 from app.rbac.decorators import (
     MenuConfig,
     action_read,
@@ -33,6 +35,8 @@ class UpdateTemplateRequest(BaseModel):
     priority: str | None = Field(None, description=_("api.param.priority"))
     title_template: str | None = Field(None, description=_("api.param.title_template"))
     body_template: str | None = Field(None, description=_("api.param.body_template"))
+    is_enabled: bool | None = Field(None, description=_("api.param.is_enabled"))
+    enabled: bool | None = Field(None, description=_("api.param.is_enabled"))
 
 
 @permission_resource(
@@ -58,6 +62,56 @@ class AdminNotificationTemplateController(GlobalController):
     prefix = "/notification-templates"
     tags = [_("menu.tags.notification_template")]
 
+    @staticmethod
+    def _preview_payload(
+        template: NotificationTemplate | None,
+    ) -> dict[str, list[str] | str | None]:
+        if template is None:
+            return {
+                "title_template": "",
+                "body_template": None,
+                "channels": [],
+                "priority": "normal",
+            }
+        return {
+            "title_template": template.title_template,
+            "body_template": template.body_template,
+            "channels": template.channels or [],
+            "priority": template.priority,
+        }
+
+    async def _serialize_template(
+        self,
+        repo: NotificationTemplateRepository,
+        template: NotificationTemplate,
+    ) -> dict:
+        effective = (
+            await repo.resolve_effective_template(template.code, template.tenant_id)
+        ) or template
+        return {
+            "id": template.id,
+            "code": template.code,
+            "category": template.category,
+            "title_template": template.title_template,
+            "body_template": template.body_template,
+            "channels": template.channels,
+            "priority": template.priority,
+            "scope": template.scope,
+            "source": template.source,
+            "plugin_name": template.plugin_name,
+            "is_enabled": template.is_enabled,
+            "enabled": template.is_enabled,
+            "is_system": template.is_system,
+            "tenant_id": template.tenant_id,
+            "tenant_name": None,
+            "override_of": template.override_of,
+            "is_override": template.override_of is not None,
+            "locked_fields": template.locked_fields,
+            "effective_preview": self._preview_payload(effective),
+            "created_at": template.created_at,
+            "updated_at": template.updated_at,
+        }
+
     def _register_routes(self) -> None:
         router = self.router
 
@@ -73,21 +127,7 @@ class AdminNotificationTemplateController(GlobalController):
             repo = NotificationTemplateRepository(db)
             items, total = await repo.query_list(query)
 
-            result = [
-                {
-                    "id": t.id,
-                    "code": t.code,
-                    "category": t.category,
-                    "title_template": t.title_template,
-                    "body_template": t.body_template,
-                    "channels": t.channels,
-                    "priority": t.priority,
-                    "is_system": t.is_system,
-                    "created_at": t.created_at,
-                    "updated_at": t.updated_at,
-                }
-                for t in items
-            ]
+            result = [await self._serialize_template(repo, t) for t in items]
 
             return paginated(
                 items=result,
@@ -114,31 +154,68 @@ class AdminNotificationTemplateController(GlobalController):
             repo = NotificationTemplateRepository(db)
             template = await repo.get_by_id(template_id)
             if not template:
-                from app.exceptions import NotFoundException
-
                 raise NotFoundException(message=_("common.not_found"))
 
             update_fields = data.model_dump(exclude_unset=True)
+            if "enabled" in update_fields:
+                update_fields["is_enabled"] = update_fields.pop("enabled")
             if not update_fields:
                 return success(message=_("common.success"))
 
             for field, value in update_fields.items():
+                if template.locked_fields and field in template.locked_fields:
+                    continue
                 setattr(template, field, value)
 
             await db.commit()
             await db.refresh(template)
 
             return success(
-                data={
-                    "id": template.id,
-                    "code": template.code,
-                    "category": template.category,
-                    "title_template": template.title_template,
-                    "body_template": template.body_template,
-                    "channels": template.channels,
-                    "priority": template.priority,
-                    "is_system": template.is_system,
-                },
+                data=await self._serialize_template(repo, template),
+                message=_("common.update_success"),
+            )
+
+        @router.get("/{template_id}/effective-preview", summary="获取通知模板生效预览")
+        @action_read("action.notification_template.list")
+        async def effective_preview(
+            request: Request,
+            db: DbSession,
+            template_id: int,
+            admin: ActiveAdmin,
+        ):
+            _ = (request, admin)
+            repo = NotificationTemplateRepository(db)
+            template = await repo.get_by_id(template_id)
+            if not template:
+                raise NotFoundException(message=_("common.not_found"))
+
+            effective = (
+                await repo.resolve_effective_template(template.code, template.tenant_id)
+            ) or template
+            return success(data=self._preview_payload(effective))
+
+        @router.post("/{template_id}/restore-default", summary="恢复通知模板默认配置")
+        @action_update("action.notification_template.update")
+        async def restore_default(
+            request: Request,
+            db: DbSession,
+            template_id: int,
+            admin: ActiveAdmin,
+        ):
+            _ = (request, admin)
+            repo = NotificationTemplateRepository(db)
+            template = await repo.get_by_id(template_id)
+            if not template:
+                raise NotFoundException(message=_("common.not_found"))
+            default_template = await repo.resolve_default_template(template)
+            if default_template is None:
+                raise NotFoundException(message=_("common.not_found"))
+
+            template.soft_delete()
+            await db.commit()
+            await db.refresh(default_template)
+            return success(
+                data=await self._serialize_template(repo, default_template),
                 message=_("common.update_success"),
             )
 
@@ -161,8 +238,6 @@ class AdminNotificationTemplateController(GlobalController):
             repo = NotificationTemplateRepository(db)
             template = await repo.get_by_id(template_id)
             if not template:
-                from app.exceptions import NotFoundException
-
                 raise NotFoundException(message=_("common.not_found"))
 
             from app.services.common.notification_service import NotificationService
@@ -209,6 +284,7 @@ class AdminNotificationTemplateController(GlobalController):
                 template_code=template.code,
                 recipients=[("admin", admin.id)],
                 data=sample_data,
+                tenant_id=None,
                 force_all_channels=True,
             )
             await db.commit()
