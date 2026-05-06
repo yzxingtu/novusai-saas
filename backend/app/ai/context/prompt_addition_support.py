@@ -107,15 +107,16 @@ def build_runtime_capability_block(sections: list[dict[str, Any]]) -> str:
             section.get("total_count"),
             displayed_count,
         )
-        omitted_count = _coerce_non_negative_int(section.get("omitted_count"))
+        total_count = max(total_count, displayed_count)
+        omitted_count = max(total_count - displayed_count, 0)
         normalized_sections.append(
             {
                 "category": str(section.get("category") or "").strip(),
                 "title": str(section.get("title") or "").strip(),
                 "items": items,
                 "displayed_count": displayed_count,
-                "total_count": max(total_count, displayed_count),
-                "omitted_count": max(omitted_count, 0),
+                "total_count": total_count,
+                "omitted_count": omitted_count,
             }
         )
     if not normalized_sections:

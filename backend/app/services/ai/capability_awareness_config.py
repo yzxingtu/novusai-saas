@@ -15,6 +15,7 @@ from app.configs.service import ConfigService
 DEFAULT_DYNAMIC_CAPABILITY_AWARENESS_ENABLED = True
 DEFAULT_CAPABILITY_DESCRIPTION_STYLE = "detailed"
 DEFAULT_MAX_CAPABILITY_ITEMS_PER_CATEGORY = 20
+MAX_CAPABILITY_ITEMS_PER_CATEGORY = 100
 _ALLOWED_CAPABILITY_DESCRIPTION_STYLES = {"detailed", "concise"}
 
 
@@ -52,13 +53,18 @@ def _coerce_style(value: Any) -> str:
     return DEFAULT_CAPABILITY_DESCRIPTION_STYLE
 
 
-def _coerce_positive_int(value: Any, *, default: int) -> int:
-    """Coerce config values to positive int / 将配置值归一化为正整数"""
+def _coerce_bounded_positive_int(
+    value: Any,
+    *,
+    default: int,
+    maximum: int,
+) -> int:
+    """Coerce config values to bounded positive int / 将配置值归一化为有上限的正整数"""
     try:
         parsed = int(value)
     except (TypeError, ValueError):
         return default
-    return max(parsed, 1)
+    return min(max(parsed, 1), maximum)
 
 
 async def get_tenant_capability_awareness_settings(
@@ -90,9 +96,10 @@ async def get_tenant_capability_awareness_settings(
             default=DEFAULT_DYNAMIC_CAPABILITY_AWARENESS_ENABLED,
         ),
         capability_description_style=_coerce_style(raw_style),
-        max_capability_items_per_category=_coerce_positive_int(
+        max_capability_items_per_category=_coerce_bounded_positive_int(
             raw_max_items,
             default=DEFAULT_MAX_CAPABILITY_ITEMS_PER_CATEGORY,
+            maximum=MAX_CAPABILITY_ITEMS_PER_CATEGORY,
         ),
     )
 
@@ -101,6 +108,7 @@ __all__ = [
     "DEFAULT_DYNAMIC_CAPABILITY_AWARENESS_ENABLED",
     "DEFAULT_CAPABILITY_DESCRIPTION_STYLE",
     "DEFAULT_MAX_CAPABILITY_ITEMS_PER_CATEGORY",
+    "MAX_CAPABILITY_ITEMS_PER_CATEGORY",
     "TenantCapabilityAwarenessSettings",
     "get_tenant_capability_awareness_settings",
 ]
