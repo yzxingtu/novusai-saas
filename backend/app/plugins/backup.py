@@ -153,8 +153,10 @@ async def backup_plugin_data(
                     if not _is_safe_plugin_table(table_name, table_prefixes):
                         logger.warning("Skipping unsafe table name: {}", table_name)
                         continue
+                    # 中文: table_name 已经过插件前缀和标识符白名单校验，无法用绑定参数表示 SQL 标识符。
+                    # EN: table_name is plugin-prefix and identifier allowlisted; SQL identifiers cannot be bound as values.
                     rows_result = await db.execute(
-                        text(f'SELECT * FROM "{table_name}"')
+                        text(f'SELECT * FROM "{table_name}"')  # nosec B608
                     )
                     columns = list(rows_result.keys())
                     rows = [
@@ -251,7 +253,11 @@ async def export_plugin_data(
             if not _is_safe_plugin_table(table_name, table_prefixes):
                 logger.warning("Skipping unsafe table name in export: {}", table_name)
                 continue
-            rows_result = await db.execute(text(f'SELECT * FROM "{table_name}"'))
+            # 中文: table_name 已经过插件前缀和标识符白名单校验，无法用绑定参数表示 SQL 标识符。
+            # EN: table_name is plugin-prefix and identifier allowlisted; SQL identifiers cannot be bound as values.
+            rows_result = await db.execute(
+                text(f'SELECT * FROM "{table_name}"')  # nosec B608
+            )
             columns = list(rows_result.keys())
             rows = [
                 dict(zip(columns, row, strict=False)) for row in rows_result.fetchall()

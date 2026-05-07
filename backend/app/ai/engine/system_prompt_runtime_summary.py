@@ -73,7 +73,8 @@ def inject_runtime_summary(
             ensure_ascii=False,
             sort_keys=True,
             default=str,
-        ).encode("utf-8")
+        ).encode("utf-8"),
+        usedforsecurity=False,
     ).hexdigest()
     metadata = dict(messages[0].metadata or {})
     if metadata.get("runtime_summary_signature") == signature:

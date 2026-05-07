@@ -25,6 +25,42 @@ Use this contract when a task claims repository-wide backend quality baseline,
 changes `backend/pyproject.toml` quality-tool settings, fixes pytest collection,
 or makes broad mechanical lint/format changes.
 
+## Production Acceptance Probe Contract
+
+Use this contract when a task claims production delivery readiness, SaaS
+handoff readiness, security-audit closure, capacity-readiness closure, or
+release acceptance beyond ordinary unit/lint gates.
+
+Run from `backend/`:
+
+```powershell
+python scripts/production_acceptance_probe.py --api-base-url http://localhost:8000 --frontend-base-url http://localhost:5666 --load-smoke-requests 32 --load-smoke-concurrency 8 --allow-blocked
+python -m pip_audit --local
+python -m bandit -r app scripts -x .venv,migrations,plugins/.backups,tests -ll
+```
+
+Contract:
+
+- `passed` means the local probe proved that specific gate in the current
+  environment.
+- `blocked` means the delivery gate is still not accepted because required
+  infrastructure, credentials, scenario ledgers, or operator tooling is absent.
+  Do not report `blocked` as production-ready.
+- The local `/ready` load smoke is a health-smoke only; it is not a capacity
+  benchmark. Real capacity acceptance still requires k6/Locust or an equivalent
+  load plan, target concurrency/throughput, SLOs, and operator signoff.
+- Security acceptance needs both dependency audit and SAST/DAST evidence.
+  `pip-audit` and `bandit -ll` passing does not replace DAST or a manual
+  threat-model review for public routes.
+- Backup/restore acceptance requires actual `pg_dump`/`pg_restore`/`psql`
+  tooling and a restore drill against a disposable database, not only a script
+  presence check.
+- AI runtime readiness remains governed by
+  `.trellis/spec/ai-runtime/testing-discipline.md`: real-dialogue smoke must
+  have provider credentials, a scenario ledger, an agent selector, and an
+  archived smoke report before anyone can claim complete AI dialogue production
+  acceptance.
+
 ### Scope / Trigger
 
 - Trigger: `python -m pytest -q`, `python -m ruff check .`, or

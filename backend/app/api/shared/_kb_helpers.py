@@ -120,7 +120,7 @@ async def serialize_selectable_knowledge_bases(
 def build_content_hash(content: bytes | str) -> str:
     """Build a stable md5 content hash for KB documents."""
     raw = content.encode("utf-8") if isinstance(content, str) else content
-    return hashlib.md5(raw).hexdigest()
+    return hashlib.md5(raw, usedforsecurity=False).hexdigest()
 
 
 def build_document_progress_payload(

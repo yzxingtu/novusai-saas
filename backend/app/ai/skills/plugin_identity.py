@@ -18,7 +18,9 @@ def make_plugin_skill_identity(plugin_name: str, skill_name: str) -> tuple[str, 
         )
     if len(source_ref) <= PLUGIN_SKILL_KEY_MAX_LENGTH:
         return source_ref, source_ref
-    digest = hashlib.sha1(source_ref.encode("utf-8")).hexdigest()[:12]
+    digest = hashlib.sha1(
+        source_ref.encode("utf-8"), usedforsecurity=False
+    ).hexdigest()[:12]
     prefix_budget = PLUGIN_SKILL_KEY_MAX_LENGTH - len(digest) - 1
     return f"{source_ref[:prefix_budget]}:{digest}", source_ref
 

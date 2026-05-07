@@ -1069,7 +1069,9 @@ if __name__ == "__main__":
 
     uvicorn.run(
         "app.main:app",
-        host="0.0.0.0",
+        # 中文: 直接运行 main.py 是本地/容器启动入口，公网暴露由部署层控制。
+        # EN: Running main.py directly is a local/container entrypoint; public exposure is controlled by deployment.
+        host="0.0.0.0",  # nosec B104
         port=8000,
         reload=settings.DEBUG,
         reload_dirs=["app"],

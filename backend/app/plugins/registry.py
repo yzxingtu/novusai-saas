@@ -124,7 +124,9 @@ def _build_plugin_menu_action(scope_prefix: str, safe_name: str, name: str) -> s
     if len(raw_action) <= _PLUGIN_MENU_ACTION_MAX_LEN:
         return raw_action
 
-    digest = hashlib.sha1(raw_action.encode("utf-8")).hexdigest()[:10]
+    digest = hashlib.sha1(
+        raw_action.encode("utf-8"), usedforsecurity=False
+    ).hexdigest()[:10]
     compact_source = f"{safe_name}_{name}".replace("-", "_")
     reserved = len(scope_prefix) + len(".plugin.") + len(digest) + 1
     budget = max(1, _PLUGIN_MENU_ACTION_MAX_LEN - reserved)

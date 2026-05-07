@@ -43,7 +43,9 @@ def _ensure_celery_broker_available() -> None:
 
 
 @click.command("run")
-@click.option("--host", default="0.0.0.0", help="Host to bind")
+# 中文: CLI 默认监听所有网卡用于容器/内网部署；生产入口仍应由外层网络策略限制。
+# EN: The CLI defaults to all interfaces for container/LAN deployment; production exposure is still controlled by outer network policy.
+@click.option("--host", default="0.0.0.0", help="Host to bind")  # nosec B104
 @click.option("--port", type=int, default=8000, help="Port to listen")
 @click.option(
     "--reload/--no-reload",

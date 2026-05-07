@@ -303,7 +303,7 @@ class LocalStorageDriver(StorageDriver):
         Get cache file path / 获取缓存文件路径
         """
         # Generate cache key: {path_hash}_{params_hash}.{format} / 生成缓存键
-        path_hash = hashlib.md5(path.encode()).hexdigest()[:8]
+        path_hash = hashlib.md5(path.encode(), usedforsecurity=False).hexdigest()[:8]
         params_hash = params.to_cache_key()
 
         # Determine output format / 确定输出格式
@@ -384,7 +384,7 @@ class LocalStorageDriver(StorageDriver):
         """
         统计指定源路径的现有缓存变体数量 / Count existing cache variants for a given source path.
         """
-        path_hash = hashlib.md5(path.encode()).hexdigest()[:8]
+        path_hash = hashlib.md5(path.encode(), usedforsecurity=False).hexdigest()[:8]
         cache_root = self._get_cache_root()
         if not cache_root.exists():
             return 0

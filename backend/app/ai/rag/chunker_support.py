@@ -19,7 +19,7 @@ _CJK_OUTLINE_NUMERALS = frozenset("一二三四五六七八九十百零")
 
 def compute_chunk_hash(text: str) -> str:
     """Compute MD5 hash of text / 计算文本 MD5 哈希"""
-    return hashlib.md5(text.encode("utf-8")).hexdigest()
+    return hashlib.md5(text.encode("utf-8"), usedforsecurity=False).hexdigest()
 
 
 def looks_like_outline_heading(line: str) -> bool:

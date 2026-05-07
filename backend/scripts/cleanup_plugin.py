@@ -25,6 +25,7 @@
 """
 
 import argparse
+import re
 import subprocess
 import sys
 
@@ -32,6 +33,8 @@ import sys
 _this_file: str = __file__
 _base_dir = _this_file.replace("\\", "/").rsplit("/", 1)[0]  # scripts/
 PROJECT_ROOT_STR = _base_dir.rsplit("/", 1)[0]  # backend/
+_SAFE_PLUGIN_NAME_RE = re.compile(r"^[a-z][a-z0-9_-]*$")
+_SAFE_REVISION_RE = re.compile(r"^[A-Za-z0-9_]+$")
 
 
 def parse_args() -> argparse.Namespace:
@@ -48,6 +51,18 @@ def parse_args() -> argparse.Namespace:
         help="可选：alembic_version 中需清理的 revision（如 ncc_001），逗号分隔多个",
     )
     return parser.parse_args()
+
+
+def validate_inputs(plugin_name: str, revision_ids: list[str]) -> None:
+    """中文: 限制清理脚本只接受插件名和 Alembic revision 标识符。
+
+    EN: Restrict the cleanup script to plugin names and Alembic revision identifiers.
+    """
+    if not _SAFE_PLUGIN_NAME_RE.match(plugin_name):
+        raise ValueError(f"Unsafe plugin name: {plugin_name}")
+    unsafe_revisions = [rev for rev in revision_ids if not _SAFE_REVISION_RE.match(rev)]
+    if unsafe_revisions:
+        raise ValueError(f"Unsafe revision id(s): {', '.join(unsafe_revisions)}")
 
 
 def get_db_url() -> str:
@@ -106,9 +121,9 @@ def connect():
     )
 
 
-def execute_step(cur, conn, sql: str, label: str) -> None:
+def execute_step(cur, conn, sql: str, label: str, params: tuple = ()) -> None:
     try:
-        cur.execute(sql)
+        cur.execute(sql, params)
         count = cur.rowcount
         conn.commit()
         print(f"  [OK]  {label}: {count} row(s) deleted")
@@ -128,79 +143,87 @@ def clean_db(
     cur = conn.cursor()
 
     # ── 按依赖顺序清理 ──────────────────────────────────────────────
+    plugin_prefix_pattern = f"plugin.{plugin_name}.%"
+    menu_prefix_pattern = f"menu:%.plugin_{plugin_safe}_%"
+    plugin_contains_pattern = f"%{plugin_name}%"
 
     execute_step(
         cur,
         conn,
-        f"DELETE FROM periodic_tasks WHERE name LIKE 'plugin.{plugin_name}.%'",
+        "DELETE FROM periodic_tasks WHERE name LIKE %s",
         "periodic_tasks",
+        (plugin_prefix_pattern,),
     )
 
     execute_step(
         cur,
         conn,
-        f"DELETE FROM notification_templates WHERE code LIKE 'plugin.{plugin_name}.%'",
+        "DELETE FROM notification_templates WHERE code LIKE %s",
         "notification_templates",
+        (plugin_prefix_pattern,),
     )
 
     execute_step(
         cur,
         conn,
-        f"DELETE FROM system_agent_assignments "
-        f"WHERE feature_code LIKE 'plugin.{plugin_name}.%'",
+        "DELETE FROM system_agent_assignments WHERE feature_code LIKE %s",
         "system_agent_assignments",
+        (plugin_prefix_pattern,),
     )
 
     execute_step(
         cur,
         conn,
-        f"DELETE FROM skills WHERE package_id IN ("
-        f"  SELECT id FROM skill_packages WHERE source_plugin = '{plugin_name}'"
-        f")",
+        "DELETE FROM skills WHERE package_id IN ("
+        "  SELECT id FROM skill_packages WHERE source_plugin = %s"
+        ")",
         "skills",
+        (plugin_name,),
     )
 
     execute_step(
         cur,
         conn,
-        f"DELETE FROM skill_packages WHERE source_plugin = '{plugin_name}'",
+        "DELETE FROM skill_packages WHERE source_plugin = %s",
         "skill_packages",
+        (plugin_name,),
     )
 
     execute_step(
         cur,
         conn,
-        f"DELETE FROM permissions "
-        f"WHERE code LIKE 'menu:%.plugin_{plugin_safe}_%' "
-        f"   OR code LIKE 'plugin.{plugin_name}.%' "
-        f"   OR code LIKE '%{plugin_name}%'",
+        "DELETE FROM permissions WHERE code LIKE %s OR code LIKE %s OR code LIKE %s",
         "permissions",
+        (menu_prefix_pattern, plugin_prefix_pattern, plugin_contains_pattern),
     )
 
     execute_step(
         cur,
         conn,
-        f"DELETE FROM resource_tenant_assignments "
-        f"WHERE resource_type = 'plugin' AND resource_id IN ("
-        f"  SELECT id FROM plugins WHERE name = '{plugin_name}'"
-        f")",
+        "DELETE FROM resource_tenant_assignments "
+        "WHERE resource_type = 'plugin' AND resource_id IN ("
+        "  SELECT id FROM plugins WHERE name = %s"
+        ")",
         "resource_tenant_assignments",
+        (plugin_name,),
     )
 
     execute_step(
         cur,
         conn,
-        f"DELETE FROM plugin_versions WHERE plugin_id IN ("
-        f"  SELECT id FROM plugins WHERE name = '{plugin_name}'"
-        f")",
+        "DELETE FROM plugin_versions WHERE plugin_id IN ("
+        "  SELECT id FROM plugins WHERE name = %s"
+        ")",
         "plugin_versions",
+        (plugin_name,),
     )
 
     execute_step(
         cur,
         conn,
-        f"DELETE FROM plugins WHERE name = '{plugin_name}'",
+        "DELETE FROM plugins WHERE name = %s",
         "plugins",
+        (plugin_name,),
     )
 
     if revision_ids:
@@ -208,8 +231,9 @@ def clean_db(
             execute_step(
                 cur,
                 conn,
-                f"DELETE FROM alembic_version WHERE version_num = '{rev.strip()}'",
+                "DELETE FROM alembic_version WHERE version_num = %s",
                 f"alembic_version ({rev})",
+                (rev.strip(),),
             )
 
     cur.close()
@@ -222,20 +246,33 @@ def build_manual_sql(
     rev_sql = ""
     if revision_ids:
         for r in revision_ids:
-            rev_sql += f"DELETE FROM alembic_version WHERE version_num = '{r}';\n"
-    return f"""
+            safe_revision = r.replace("'", "''")
+            # 中文: revision 已通过正则校验；这里是在拼接人工 SQL 文本，而不是执行参数化查询。
+            # EN: revision is regex-validated; this concatenates manual SQL text instead of executing a parameterized query.
+            rev_sql += (
+                "DELETE FROM alembic_version WHERE version_num = "
+                f"'{safe_revision}';\n"  # nosec B608
+            )
+    safe_plugin = plugin_name.replace("'", "''")
+    safe_plugin_safe = plugin_safe.replace("'", "''")
+    # 中文: 手工 SQL 只在 psycopg2 不可用时打印，输入已由 validate_inputs 限制。
+    # EN: Manual SQL is only printed when psycopg2 is unavailable; inputs are constrained by validate_inputs.
+    manual_sql = (  # nosec B608
+        f"""
 -- 手动执行（psycopg2 不可用时）:
-DELETE FROM periodic_tasks WHERE name LIKE 'plugin.{plugin_name}.%';
-DELETE FROM notification_templates WHERE code LIKE 'plugin.{plugin_name}.%';
-DELETE FROM system_agent_assignments WHERE feature_code LIKE 'plugin.{plugin_name}.%';
-DELETE FROM skills WHERE package_id IN (SELECT id FROM skill_packages WHERE source_plugin = '{plugin_name}');
-DELETE FROM skill_packages WHERE source_plugin = '{plugin_name}';
-DELETE FROM permissions WHERE code LIKE 'menu:%.plugin_{plugin_safe}_%' OR code LIKE 'plugin.{plugin_name}.%';
-DELETE FROM resource_tenant_assignments WHERE resource_type = 'plugin' AND resource_id IN (SELECT id FROM plugins WHERE name = '{plugin_name}');
-DELETE FROM plugin_versions WHERE plugin_id IN (SELECT id FROM plugins WHERE name = '{plugin_name}');
-DELETE FROM plugins WHERE name = '{plugin_name}';
+DELETE FROM periodic_tasks WHERE name LIKE 'plugin.{safe_plugin}.%';
+DELETE FROM notification_templates WHERE code LIKE 'plugin.{safe_plugin}.%';
+DELETE FROM system_agent_assignments WHERE feature_code LIKE 'plugin.{safe_plugin}.%';
+DELETE FROM skills WHERE package_id IN (SELECT id FROM skill_packages WHERE source_plugin = '{safe_plugin}');
+DELETE FROM skill_packages WHERE source_plugin = '{safe_plugin}';
+DELETE FROM permissions WHERE code LIKE 'menu:%.plugin_{safe_plugin_safe}_%' OR code LIKE 'plugin.{safe_plugin}.%';
+DELETE FROM resource_tenant_assignments WHERE resource_type = 'plugin' AND resource_id IN (SELECT id FROM plugins WHERE name = '{safe_plugin}');
+DELETE FROM plugin_versions WHERE plugin_id IN (SELECT id FROM plugins WHERE name = '{safe_plugin}');
+DELETE FROM plugins WHERE name = '{safe_plugin}';
 {rev_sql}
-"""
+"""  # nosec B608
+    )
+    return manual_sql
 
 
 def clean_filesystem(plugin_name: str) -> None:
@@ -283,6 +320,7 @@ if __name__ == "__main__":
     revision_ids = (
         [r.strip() for r in args.revision.split(",")] if args.revision else []
     )
+    validate_inputs(plugin_name, revision_ids)
 
     print(f"\n{'=' * 50}")
     print(f"  {plugin_name} 插件完整清理")

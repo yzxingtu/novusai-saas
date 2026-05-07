@@ -24,11 +24,13 @@ from app.schemas.ai.invalid_ai_runtime_input import (
 
 logger = LogManager.get_logger("ai.engine")
 
+# 中文: 这里渲染纯文本 system prompt，不渲染 HTML；autoescape 会破坏模型提示词字面量。
+# EN: This renders plain-text system prompts, not HTML; autoescape would alter model prompt literals.
 _jinja_env = Environment(
     loader=BaseLoader(),
     keep_trailing_newline=True,
     undefined=ChainableUndefined,
-)
+)  # nosec B701
 
 
 def build_system_message(

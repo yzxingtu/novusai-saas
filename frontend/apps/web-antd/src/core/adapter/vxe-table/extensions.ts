@@ -5,9 +5,10 @@
 import type { VxeGridInstance } from 'vxe-table';
 
 import { message } from 'ant-design-vue';
-import * as XLSX from 'xlsx';
 
 import { $t } from '#/locales';
+
+import { writeRecordsToExcel } from './excel-export';
 
 // ============================================================
 // 1. Batch Selection / 批量选择相关
@@ -159,29 +160,22 @@ export async function exportToExcel(
         title: String(col.title || col.field!),
       })) as ExportColumn[]);
 
-  // Transform data / 转换数据
-  const exportData = tableData.map((row: any) => {
-    const rowData: Record<string, any> = {};
-    exportColumns.forEach((col) => {
+  const headers = exportColumns.map((col) =>
+    col.titleKey ? $t(col.titleKey) : col.title || col.field,
+  );
+  const rows = tableData.map((row: any) =>
+    exportColumns.map((col) => {
       const value = row[col.field];
-      // Use titleKey for i18n translation, otherwise use title / 使用 titleKey 进行 i18n 翻译，否则使用 title
-      const headerTitle = col.titleKey
-        ? $t(col.titleKey)
-        : col.title || col.field;
-      rowData[headerTitle] = col.formatter
-        ? col.formatter(value, row)
-        : (value ?? '');
-    });
-    return rowData;
+      return col.formatter ? col.formatter(value, row) : (value ?? '');
+    }),
+  );
+
+  await writeRecordsToExcel({
+    filename,
+    headers,
+    rows,
+    sheetName,
   });
-
-  // Create workbook / 创建工作簿
-  const worksheet = XLSX.utils.json_to_sheet(exportData);
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
-
-  // Export file / 导出文件
-  XLSX.writeFile(workbook, `${filename}.xlsx`);
 
   message.success($t('shared.common.exportSuccess'));
   afterExport?.();

@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from hashlib import md5
+import hashlib
 from typing import Any
 
 from sqlalchemy import select
@@ -70,7 +70,9 @@ class TaskDefinitionService(GlobalService[TaskDefinition, TaskDefinitionReposito
     @staticmethod
     def build_definition_code(handler_path: str) -> str:
         leaf = handler_path.split(".")[-1][:48]
-        digest = md5(handler_path.encode("utf-8")).hexdigest()[:8]
+        digest = hashlib.md5(
+            handler_path.encode("utf-8"), usedforsecurity=False
+        ).hexdigest()[:8]
         return f"task.{leaf}.{digest}"
 
     @staticmethod

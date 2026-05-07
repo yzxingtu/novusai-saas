@@ -645,7 +645,10 @@ def run_migrations() -> bool:
         # 将迁移脚本写入临时文件 / Write migration script to temp file to avoid complex one-liner escaping
         import tempfile
 
-        migration_script = f"""
+        # 中文: 这里生成受控的临时 Python 迁移脚本，脚本内 SQL 仍使用绑定参数。
+        # EN: This builds a controlled temporary Python migration script; SQL inside still uses bound parameters.
+        migration_script = (  # nosec B608
+            f"""
 import sys
 import os
 import re
@@ -764,7 +767,8 @@ except Exception as e:
                 raise
     else:
         raise
-"""
+"""  # nosec B608
+        )
 
         # 写入临时文件并执行 / Write to temp file and execute
         with tempfile.NamedTemporaryFile(

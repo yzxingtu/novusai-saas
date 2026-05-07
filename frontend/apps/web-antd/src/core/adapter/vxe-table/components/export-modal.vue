@@ -23,9 +23,10 @@ import {
   message,
   RadioGroup,
 } from 'ant-design-vue';
-import * as XLSX from 'xlsx';
 
 import { $t } from '#/locales';
+
+import { writeRecordsToExcel } from '../excel-export';
 
 interface ColumnOption {
   disabled?: boolean;
@@ -157,25 +158,20 @@ async function handleExport() {
     return;
   }
 
-  // Transform data / 转换数据
-  const exportData = tableData.map((row: any) => {
-    const rowData: Record<string, any> = {};
-    exportColumns.forEach((col) => {
+  const headers = exportColumns.map((col) => String(col.title || col.field));
+  const rows = tableData.map((row: any) =>
+    exportColumns.map((col) => {
       const field = col.field;
-      if (!field) return;
-      const headerTitle = String(col.title || col.field);
-      rowData[headerTitle] = row[field] ?? '';
-    });
-    return rowData;
+      return field ? (row[field] ?? '') : '';
+    }),
+  );
+
+  await writeRecordsToExcel({
+    filename: filename.value,
+    headers,
+    rows,
+    sheetName: sheetName.value,
   });
-
-  // Create workbook / 创建工作簿
-  const worksheet = XLSX.utils.json_to_sheet(exportData);
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, sheetName.value);
-
-  // Export file / 导出文件
-  XLSX.writeFile(workbook, `${filename.value}.xlsx`);
 
   message.success($t('shared.common.exportSuccess'));
   emits('success');

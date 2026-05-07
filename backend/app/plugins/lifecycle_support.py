@@ -29,8 +29,12 @@ async def run_subprocess_async(
     shell: bool | None = None,
     env: dict[str, str] | None = None,
 ) -> Any:
-    """Run subprocess.run in a worker thread to avoid blocking the event loop."""
-    use_shell = shell if shell is not None else _IS_WINDOWS
+    """中文: 在线程池中运行 subprocess.run，避免阻塞事件循环。
+
+    EN: Run subprocess.run in a worker thread to avoid blocking the event loop.
+    """
+    if shell:
+        raise ValueError("shell=True is not allowed for plugin subprocesses")
     return await anyio.to_thread.run_sync(
         functools.partial(
             subprocess.run,
@@ -39,7 +43,7 @@ async def run_subprocess_async(
             text=text,
             timeout=timeout,
             cwd=cwd,
-            shell=use_shell,
+            shell=False,
             env=env,
             encoding="utf-8" if text else None,
             errors="replace" if text else None,

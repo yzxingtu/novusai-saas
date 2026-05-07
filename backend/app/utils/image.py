@@ -91,7 +91,7 @@ class ImageProcessParams:
             f"m{self.mode}",
         ]
         key_str = "_".join(p for p in parts if p)
-        return hashlib.md5(key_str.encode()).hexdigest()[:12]
+        return hashlib.md5(key_str.encode(), usedforsecurity=False).hexdigest()[:12]
 
     @classmethod
     def from_preset(cls, preset: str) -> ImageProcessParams:

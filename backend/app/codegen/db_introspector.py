@@ -297,7 +297,9 @@ class DbIntrospector:
 
         cols = [value_field, display_field]
         col_list = ", ".join(f'"{c}"' for c in cols)
-        q = f'SELECT {col_list} FROM "{table_name}"'
+        # 中文: 表名和列名已由 inspector 白名单校验；值仍走参数化绑定。
+        # EN: Table and column names are inspector allowlisted; values remain parameter-bound.
+        q = f'SELECT {col_list} FROM "{table_name}"'  # nosec B608
         params: dict[str, Any] = {"limit": min(limit, 500)}
         conditions: list[str] = []
         if has_is_deleted:

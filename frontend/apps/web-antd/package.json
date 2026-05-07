@@ -75,11 +75,11 @@
     "ant-design-vue": "catalog:",
     "axios": "catalog:",
     "dayjs": "catalog:",
-    "dompurify": "^3.2.7",
+    "dompurify": "^3.4.0",
     "highlight.js": "^11.11.1",
     "js-yaml": "^4.1.1",
     "lowlight": "^3.3.0",
-    "markdown-it": "^14.1.0",
+    "markdown-it": "^14.1.1",
     "pinia": "catalog:",
     "qs": "catalog:",
     "socket.io-client": "^4.8.3",
@@ -87,7 +87,7 @@
     "vue": "catalog:",
     "vue-router": "catalog:",
     "vxe-table": "catalog:",
-    "xlsx": "^0.18.5"
+    "write-excel-file": "^4.0.5"
   },
   "devDependencies": {
     "@iconify-json/lucide": "^1.2.89",

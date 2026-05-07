@@ -27,7 +27,7 @@ from app.repositories.ai.profile_snapshot_repository import ProfileSnapshotRepos
 
 
 def _memory_hash(text: str) -> str:
-    return hashlib.md5(text.encode("utf-8")).hexdigest()
+    return hashlib.md5(text.encode("utf-8"), usedforsecurity=False).hexdigest()
 
 
 def _extract_keywords(text: str, *, limit: int = 12) -> list[str]:

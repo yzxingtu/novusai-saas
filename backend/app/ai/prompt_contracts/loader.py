@@ -26,11 +26,13 @@ from jinja2 import ChainableUndefined, Environment, FileSystemLoader
 # Jinja template root (mostly ``*.md`` next to this package) / Jinja 模板根目录（同目录 resources，多为 md）
 _RESOURCE_DIR = Path(__file__).resolve().parent / "resources"
 # Shared loader: keep final newline; undefined keys chain to empty string / 共享加载器：保留末尾换行；未定义变量链式为空
+# 中文: Prompt contract 模板输出纯文本给模型，不是浏览器 HTML；autoescape 会改变契约文本。
+# EN: Prompt contract templates produce model-facing plain text, not browser HTML; autoescape would change contract text.
 _ENV = Environment(
     loader=FileSystemLoader(str(_RESOURCE_DIR)),
     keep_trailing_newline=True,
     undefined=ChainableUndefined,
-)
+)  # nosec B701
 _CONTROL_CHARS_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]+")
 _WHITESPACE_RE = re.compile(r"\s+")
 
