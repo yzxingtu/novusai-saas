@@ -97,6 +97,25 @@ class AIRuntimeCliBridge:
             fallback={"status": "not_available", "scope": scope.as_dict()},
         )
 
+    async def run_real_dialogue_smoke(
+        self,
+        scope: RuntimeCliScope,
+        payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        return await self._dispatch(
+            operation="real-dialogue-smoke",
+            scope=scope,
+            payload=payload,
+            candidates=[
+                (
+                    "app.services.ai.runtime_diagnostics_service",
+                    "RuntimeDiagnosticsService",
+                    "run_real_dialogue_smoke",
+                ),
+            ],
+            fallback={"status": "not_available", "scope": scope.as_dict()},
+        )
+
     async def run_root_cause(
         self,
         *,

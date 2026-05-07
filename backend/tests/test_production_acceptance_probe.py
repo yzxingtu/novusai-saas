@@ -7,6 +7,7 @@ Test type: structural
 
 from __future__ import annotations
 
+import json
 import urllib.error
 from pathlib import Path
 
@@ -232,7 +233,8 @@ def test_ai_smoke_readiness_requires_ledger_selector_and_report(
     cli_dir = tmp_path / "backend" / "app" / "cli_commands"
     cli_dir.mkdir(parents=True)
     (cli_dir / "ai_commands.py").write_text(
-        '@ai_cmd.command("smoke")\ndef ai_smoke():\n    pass\n',
+        '@ai_cmd.command("smoke")\ndef ai_smoke():\n    pass\n'
+        '@ai_cmd.command("real-dialogue-smoke")\ndef ai_real_dialogue_smoke():\n    pass\n',
         encoding="utf-8",
     )
 
@@ -247,7 +249,81 @@ def test_ai_smoke_readiness_requires_ledger_selector_and_report(
     assert results["ai_real_dialogue_smoke_execution"].status == probe.STATUS_BLOCKED
 
 
-def test_ai_smoke_report_can_satisfy_execution_evidence(
+def _write_smoke_ledger(path: Path) -> str:
+    path.parent.mkdir(parents=True)
+    content = (
+        "scenario_id: S1\n"
+        "user_input: ping\n"
+        "required_capabilities: provider\n"
+        "expected_observable_outcome: answer\n"
+    )
+    path.write_text(content, encoding="utf-8")
+    import hashlib
+
+    return hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+
+def _strict_ai_smoke_report_payload(
+    ledger_hash: str,
+    *,
+    provider: dict | None = None,
+    scenario_results: list[dict] | None = None,
+    overall_status: str = "passed",
+) -> dict:
+    return {
+        "schema_version": "ai-real-dialogue-smoke/v1",
+        "report_type": "ai_real_dialogue_smoke",
+        "execution_kind": "real_dialogue",
+        "overall_status": overall_status,
+        "command": {
+            "argv": ["python", "-m", "app.cli", "ai", "real-dialogue-smoke"],
+            "exit_code": 0,
+        },
+        "ledger": {"sha256": ledger_hash, "scenario_ids": ["S1"]},
+        "agent": {
+            "selector_type": "id",
+            "selector_value": "59",
+            "resolved_agent_id": 59,
+        },
+        "provider": provider
+        if provider is not None
+        else {
+            "live_provider_call_count": 1,
+            "mocked_llm": False,
+            "replay": False,
+            "call_logs": [
+                {
+                    "id": 202,
+                    "conversation_id": 101,
+                    "status": "success",
+                    "provider_name": "test-provider",
+                    "model_name": "test-model",
+                    "request_type": "chat",
+                    "call_type": "main_chat",
+                }
+            ],
+        },
+        "scenario_results": scenario_results
+        if scenario_results is not None
+        else [
+            {
+                "scenario_id": "S1",
+                "must_pass": True,
+                "status": "passed",
+                "conversation_id": 101,
+                "provider_call_log_id": 202,
+                "observable_checks": {
+                    "assistant_text_non_empty": True,
+                    "provider_call_log_present": True,
+                    "provider_call_succeeded": True,
+                    "retired_current_page_or_online_search_exposed": False,
+                },
+            }
+        ],
+    }
+
+
+def test_ai_smoke_minimal_passed_json_is_not_execution_evidence(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -255,18 +331,12 @@ def test_ai_smoke_report_can_satisfy_execution_evidence(
     cli_dir = tmp_path / "backend" / "app" / "cli_commands"
     cli_dir.mkdir(parents=True)
     (cli_dir / "ai_commands.py").write_text(
-        '@ai_cmd.command("smoke")\ndef ai_smoke():\n    pass\n',
+        '@ai_cmd.command("smoke")\ndef ai_smoke():\n    pass\n'
+        '@ai_cmd.command("real-dialogue-smoke")\ndef ai_real_dialogue_smoke():\n    pass\n',
         encoding="utf-8",
     )
     ledger = tmp_path / "ops" / "ai-smoke" / "smoke-scenarios.md"
-    ledger.parent.mkdir(parents=True)
-    ledger.write_text(
-        "scenario_id: S1\n"
-        "user_input: ping\n"
-        "required_capabilities: provider\n"
-        "expected_observable_outcome: answer\n",
-        encoding="utf-8",
-    )
+    _write_smoke_ledger(ledger)
     report = tmp_path / "smoke-report.json"
     report.write_text('{"overall_status":"passed"}', encoding="utf-8")
 
@@ -280,9 +350,184 @@ def test_ai_smoke_report_can_satisfy_execution_evidence(
     }
 
     assert results["ai_real_dialogue_smoke_scenarios"].status == probe.STATUS_PASSED
-    assert results["ai_provider_credentials"].status == probe.STATUS_PASSED
+    assert results["ai_provider_credentials"].status == probe.STATUS_BLOCKED
+    assert results["ai_smoke_agent_selector"].status == probe.STATUS_PASSED
+    assert results["ai_real_dialogue_smoke_execution"].status == probe.STATUS_BLOCKED
+    assert (
+        "schema_version_invalid_or_missing"
+        in results["ai_real_dialogue_smoke_execution"].details["report"][
+            "validation_errors"
+        ]
+    )
+
+
+def test_ai_smoke_strict_report_can_satisfy_execution_evidence(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    cli_dir = tmp_path / "backend" / "app" / "cli_commands"
+    cli_dir.mkdir(parents=True)
+    (cli_dir / "ai_commands.py").write_text(
+        '@ai_cmd.command("smoke")\ndef ai_smoke():\n    pass\n'
+        '@ai_cmd.command("real-dialogue-smoke")\ndef ai_real_dialogue_smoke():\n    pass\n',
+        encoding="utf-8",
+    )
+    ledger = tmp_path / "ops" / "ai-smoke" / "smoke-scenarios.md"
+    ledger_hash = _write_smoke_ledger(ledger)
+    report = tmp_path / "smoke-report.json"
+    report.write_text(
+        json.dumps(_strict_ai_smoke_report_payload(ledger_hash)),
+        encoding="utf-8",
+    )
+
+    results = {
+        result.name: result
+        for result in probe.probe_ai_smoke_readiness(
+            tmp_path,
+            ai_smoke_agent_id=59,
+            smoke_report_path=report,
+        )
+    }
+
+    assert results["ai_real_dialogue_smoke_scenarios"].status == probe.STATUS_PASSED
+    assert results["ai_provider_credentials"].status == probe.STATUS_BLOCKED
+    assert results["ai_provider_credentials"].details[
+        "strict_smoke_report_provider_evidence"
+    ]
     assert results["ai_smoke_agent_selector"].status == probe.STATUS_PASSED
     assert results["ai_real_dialogue_smoke_execution"].status == probe.STATUS_PASSED
+
+
+def test_ai_smoke_markdown_passed_report_is_blocked(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    cli_dir = tmp_path / "backend" / "app" / "cli_commands"
+    cli_dir.mkdir(parents=True)
+    (cli_dir / "ai_commands.py").write_text(
+        '@ai_cmd.command("smoke")\ndef ai_smoke():\n    pass\n'
+        '@ai_cmd.command("real-dialogue-smoke")\ndef ai_real_dialogue_smoke():\n    pass\n',
+        encoding="utf-8",
+    )
+    _write_smoke_ledger(tmp_path / "ops" / "ai-smoke" / "smoke-scenarios.md")
+    report = tmp_path / "smoke-report.md"
+    report.write_text("overall_status: passed\n", encoding="utf-8")
+
+    results = {
+        result.name: result
+        for result in probe.probe_ai_smoke_readiness(
+            tmp_path,
+            ai_smoke_agent_id=59,
+            smoke_report_path=report,
+        )
+    }
+
+    assert results["ai_real_dialogue_smoke_execution"].status == probe.STATUS_BLOCKED
+    assert (
+        "report_must_be_strict_json"
+        in results["ai_real_dialogue_smoke_execution"].details["report"][
+            "validation_errors"
+        ]
+    )
+
+
+def test_ai_smoke_report_requires_ledger_authoritative_provider_log_evidence(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    cli_dir = tmp_path / "backend" / "app" / "cli_commands"
+    cli_dir.mkdir(parents=True)
+    (cli_dir / "ai_commands.py").write_text(
+        '@ai_cmd.command("smoke")\ndef ai_smoke():\n    pass\n'
+        '@ai_cmd.command("real-dialogue-smoke")\ndef ai_real_dialogue_smoke():\n    pass\n',
+        encoding="utf-8",
+    )
+    ledger_hash = _write_smoke_ledger(
+        tmp_path / "ops" / "ai-smoke" / "smoke-scenarios.md"
+    )
+    report = tmp_path / "smoke-report.json"
+    report.write_text(
+        json.dumps(
+            _strict_ai_smoke_report_payload(
+                ledger_hash,
+                scenario_results=[{"scenario_id": "S1", "status": "passed"}],
+            )
+        ),
+        encoding="utf-8",
+    )
+
+    results = {
+        result.name: result
+        for result in probe.probe_ai_smoke_readiness(
+            tmp_path,
+            ai_smoke_agent_id=59,
+            smoke_report_path=report,
+        )
+    }
+
+    report_details = results["ai_real_dialogue_smoke_execution"].details["report"]
+    assert results["ai_real_dialogue_smoke_execution"].status == probe.STATUS_BLOCKED
+    assert (
+        "passed_scenario_lacks_real_dialogue_evidence"
+        in report_details["blocking_errors"]
+    )
+    assert report_details["invalid_passed_scenarios"] == ["S1"]
+
+
+@pytest.mark.parametrize(
+    ("provider_patch", "expected_error"),
+    [
+        ({"mocked_llm": True}, "provider_mocked_llm_forbidden"),
+        ({"replay": True}, "provider_replay_forbidden"),
+        ({"mocked_llm": None}, "provider_mocked_llm_flag_missing"),
+        ({"live_provider_call_count": "1"}, "provider_live_call_count_invalid"),
+    ],
+)
+def test_ai_smoke_report_rejects_mock_replay_or_weak_provider_evidence(
+    tmp_path: Path,
+    monkeypatch,
+    provider_patch: dict,
+    expected_error: str,
+) -> None:
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    cli_dir = tmp_path / "backend" / "app" / "cli_commands"
+    cli_dir.mkdir(parents=True)
+    (cli_dir / "ai_commands.py").write_text(
+        '@ai_cmd.command("smoke")\ndef ai_smoke():\n    pass\n'
+        '@ai_cmd.command("real-dialogue-smoke")\ndef ai_real_dialogue_smoke():\n    pass\n',
+        encoding="utf-8",
+    )
+    ledger_hash = _write_smoke_ledger(
+        tmp_path / "ops" / "ai-smoke" / "smoke-scenarios.md"
+    )
+    provider = _strict_ai_smoke_report_payload(ledger_hash)["provider"]
+    provider.update(provider_patch)
+    report = tmp_path / "smoke-report.json"
+    report.write_text(
+        json.dumps(_strict_ai_smoke_report_payload(ledger_hash, provider=provider)),
+        encoding="utf-8",
+    )
+
+    results = {
+        result.name: result
+        for result in probe.probe_ai_smoke_readiness(
+            tmp_path,
+            ai_smoke_agent_id=59,
+            smoke_report_path=report,
+        )
+    }
+
+    report_details = results["ai_real_dialogue_smoke_execution"].details["report"]
+    assert results["ai_real_dialogue_smoke_execution"].status in {
+        probe.STATUS_BLOCKED,
+        probe.STATUS_FAILED,
+    }
+    assert expected_error in (
+        report_details["blocking_errors"] + report_details["failure_errors"]
+    )
 
 
 def test_capacity_benchmark_blocks_when_not_requested() -> None:

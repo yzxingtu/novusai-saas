@@ -19,6 +19,9 @@ from app.services.ai.runtime_diagnostics_query_service import (
 )
 from app.services.ai.runtime_diagnostics_support import RuntimeDiagnosticsCheckSupport
 from app.services.ai.runtime_inventory_service import RuntimeInventoryService
+from app.services.ai.runtime_real_dialogue_smoke_service import (
+    RuntimeRealDialogueSmokeService,
+)
 from app.services.ai.runtime_root_cause_projector import RuntimeRootCauseProjector
 from app.services.ai.skill_registry_service import SkillRegistryService
 
@@ -151,6 +154,35 @@ class RuntimeDiagnosticsService:
             "runtime_capability_manifest": manifest,
             "recommended_actions": recommended_actions,
         }
+
+    async def run_real_dialogue_smoke(
+        self,
+        *,
+        scope: Any = "runtime",
+        tenant_id: int | None = None,
+        agent_id: int | None = None,
+        agent_code: str | None = None,
+        ledger_path: str | None = None,
+        scenario_ids: list[str] | None = None,
+        message: str | None = None,
+        user_id: int | None = None,
+        user_role: str = "platform_admin",
+        user_role_id: int | None = None,
+        repo_root: str | None = None,
+    ) -> dict[str, Any]:
+        del scope
+        return await RuntimeRealDialogueSmokeService(self.db).run(
+            tenant_id=tenant_id,
+            agent_id=agent_id,
+            agent_code=agent_code,
+            ledger_path=ledger_path,
+            scenario_ids=scenario_ids,
+            message=message,
+            user_id=user_id,
+            user_role=user_role,
+            user_role_id=user_role_id,
+            repo_root=repo_root,
+        )
 
     async def build_root_cause(
         self,

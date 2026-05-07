@@ -1,6 +1,6 @@
 """AI conversation CLI tests / AI 对话 CLI 测试。
 
-Test type: behavioral
+Test types: structural, behavioral
 Scope: CLI conversation detail and diagnostics read-model projection.
 Mocked dependencies: CLI async loaders return stable stored snapshots; the
 diagnostic hydration and turn-flow projection logic runs real code.
@@ -500,6 +500,40 @@ def test_ai_conversation_show_json_success(monkeypatch) -> None:
     assert '"id": 563' in result.output
     assert '"last_assistant_textual_tool_call_names": [' in result.output
     assert '"crm_lookup"' in result.output
+
+
+def test_ai_real_dialogue_smoke_raw_json_outputs_archivable_report(monkeypatch) -> None:
+    # 中文: 该用例只验证 CLI raw JSON 契约，不声称跑过真实 provider。
+    # EN: This case only verifies the CLI raw JSON contract; it does not claim a real provider run.
+    from app.cli import cli
+
+    report = {
+        "schema_version": "ai-real-dialogue-smoke/v1",
+        "report_type": "ai_real_dialogue_smoke",
+        "execution_kind": "real_dialogue",
+        "overall_status": "blocked",
+        "scenario_results": [],
+    }
+    monkeypatch.setattr("app.cli._run_async", _return_value(report))
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "ai",
+            "real-dialogue-smoke",
+            "--agent-id",
+            "59",
+            "--message",
+            "ping",
+            "--raw-json",
+        ],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["schema_version"] == "ai-real-dialogue-smoke/v1"
+    assert "success" not in payload
 
 
 def test_ai_conversation_show_json_suppresses_runtime_logs(monkeypatch) -> None:

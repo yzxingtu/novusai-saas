@@ -28,6 +28,12 @@ are available:
   --timeout 5
 ```
 
+`--allow-blocked` only allows automation to exit 0 when no gate failed. It does
+not convert blocked gates into passed gates. If any required provider
+credential, agent selector, or archived real-dialogue report is missing, the
+report's `overall_status` remains `blocked` and production acceptance must not
+be claimed as passed.
+
 ## Latest Local Result
 
 Last local run: 2026-05-08, Asia/Shanghai.
@@ -68,26 +74,35 @@ Blocked gates:
 The probe intentionally does not mark AI dialogue production acceptance as
 passed without real external evidence. To clear the remaining blocked gates:
 
-1. Configure a real provider credential in `backend/.env` or the process
-   environment.
+1. Configure a real provider credential through runtime provider config,
+   `backend/.env`, or the process environment.
 2. Configure `AI_SMOKE_AGENT_ID` or `AI_SMOKE_AGENT_CODE`.
-3. Run the AI smoke command against the scenarios in
-   `ops/ai-smoke/smoke-scenarios.md`.
-4. Archive a report with `overall_status: passed` and per-scenario pass/fail
-   results, then pass the report path to the probe with `--ai-smoke-report`.
+3. Run the AI real-dialogue smoke command against the scenarios in
+   `.trellis/tasks/04-23-codex-llm-first-dialogue-replan/smoke-scenarios.md`.
+4. Archive the strict JSON report with `schema_version:
+   ai-real-dialogue-smoke/v1`, `report_type: ai_real_dialogue_smoke`,
+   `execution_kind: real_dialogue`, `overall_status: passed`, matching ledger
+   hash, provider call evidence, `provider.call_logs`, and per-scenario
+   `conversation_id`, `provider_call_log_id`, observable checks, and pass/fail
+   results. Then pass the report path to the probe with `--ai-smoke-report`.
 
 Example:
 
 ```powershell
-.\.venv\Scripts\python.exe -m app.cli ai smoke --agent-id <id> --json `
+.\.venv\Scripts\python.exe -m app.cli ai real-dialogue-smoke --agent-id <id> --raw-json `
   > ..\ops\acceptance-artifacts\ai-real-dialogue-smoke.json
 
 .\.venv\Scripts\python.exe scripts\production_acceptance_probe.py `
   --api-base-url http://localhost:8000 `
   --frontend-base-url http://localhost:5666 `
+  --ai-smoke-agent-id <id> `
   --ai-smoke-report ..\ops\acceptance-artifacts\ai-real-dialogue-smoke.json `
   --allow-blocked
 ```
+
+The older `python -m app.cli ai smoke` command remains useful as a runtime
+capability/manifest check, but it is not a real-dialogue smoke because it does
+not send a prompt through `AgentChatService` or prove a live provider call.
 
 ## Artifact Policy
 

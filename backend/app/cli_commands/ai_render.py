@@ -581,6 +581,13 @@ async def _run_ai_runtime_cli_operation(
     tenant_id: int | None = None,
     agent_id: int | None = None,
     agent_code: str | None = None,
+    ledger_path: str | None = None,
+    scenario_ids: list[str] | None = None,
+    message: str | None = None,
+    user_id: int | None = None,
+    user_role: str | None = None,
+    user_role_id: int | None = None,
+    repo_root: str | None = None,
     trace_id: str | None = None,
     call_log_id: int | None = None,
     conversation_id: int | None = None,
@@ -602,6 +609,19 @@ async def _run_ai_runtime_cli_operation(
             return await bridge.run_doctor(scope)
         if operation == "smoke":
             return await bridge.run_smoke(scope)
+        if operation == "real-dialogue-smoke":
+            return await bridge.run_real_dialogue_smoke(
+                scope,
+                {
+                    "ledger_path": ledger_path,
+                    "scenario_ids": list(scenario_ids or []),
+                    "message": message,
+                    "user_id": user_id,
+                    "user_role": user_role or "platform_admin",
+                    "user_role_id": user_role_id,
+                    "repo_root": repo_root,
+                },
+            )
         if operation == "root-cause":
             return await bridge.run_root_cause(
                 trace_id=trace_id,

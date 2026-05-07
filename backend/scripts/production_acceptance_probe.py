@@ -7,6 +7,7 @@ gates.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import importlib.util
 import json
 import os
@@ -41,6 +42,9 @@ _SMOKE_SCENARIO_MARKERS = (
     "required_capabilities",
     "expected_observable_outcome",
 )
+AI_REAL_DIALOGUE_SMOKE_SCHEMA_VERSION = "ai-real-dialogue-smoke/v1"
+AI_REAL_DIALOGUE_SMOKE_REPORT_TYPE = "ai_real_dialogue_smoke"
+AI_REAL_DIALOGUE_SMOKE_EXECUTION_KIND = "real_dialogue"
 _NETWORK_BLOCK_MARKERS = (
     "ERR_PNPM_AUDIT_ENDPOINT_NOT_EXISTS",
     "ECONNRESET",
@@ -63,6 +67,17 @@ class ProbeResult:
     status: str
     summary: str
     details: dict[str, Any]
+
+
+@dataclass(frozen=True, slots=True)
+class SmokeScenarioLedger:
+    path: str
+    sha256: str | None
+    scenario_ids: list[str]
+    required_scenario_ids: list[str]
+    valid: bool
+    missing_markers: list[str]
+    duplicate_scenario_ids: list[str]
 
 
 def _normalize_base_url(value: str) -> str:
@@ -634,14 +649,73 @@ def probe_external_tooling(
     ]
 
 
-def _scenario_ledger_valid(path: Path) -> bool:
+def _parse_smoke_scenario_ledger(path: Path) -> SmokeScenarioLedger:
     if not path.exists():
-        return False
+        return SmokeScenarioLedger(
+            path=str(path),
+            sha256=None,
+            scenario_ids=[],
+            required_scenario_ids=[],
+            valid=False,
+            missing_markers=list(_SMOKE_SCENARIO_MARKERS),
+            duplicate_scenario_ids=[],
+        )
     text = path.read_text(encoding="utf-8", errors="replace")
-    return all(marker in text for marker in _SMOKE_SCENARIO_MARKERS)
+    digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    missing_markers = [
+        marker for marker in _SMOKE_SCENARIO_MARKERS if marker not in text
+    ]
+    scenario_ids = [
+        match.group(1).strip().strip("`").strip()
+        for match in re.finditer(r"scenario_id\s*:\s*`?([^`\n]+)`?", text)
+        if match.group(1).strip().strip("`").strip()
+    ]
+    duplicate_ids = sorted(
+        {
+            scenario_id
+            for scenario_id in scenario_ids
+            if scenario_ids.count(scenario_id) > 1
+        }
+    )
+    return SmokeScenarioLedger(
+        path=str(path),
+        sha256=digest,
+        scenario_ids=scenario_ids,
+        required_scenario_ids=list(scenario_ids),
+        valid=bool(scenario_ids) and not missing_markers and not duplicate_ids,
+        missing_markers=missing_markers,
+        duplicate_scenario_ids=duplicate_ids,
+    )
 
 
-def _smoke_report_status(path: Path | None) -> tuple[str, dict[str, Any]]:
+def _scenario_ledger_valid(path: Path) -> bool:
+    return _parse_smoke_scenario_ledger(path).valid
+
+
+def _extract_smoke_report_payload(payload: Any) -> tuple[Any, str]:
+    if not isinstance(payload, dict):
+        return payload, "unknown"
+    if payload.get("schema_version") == AI_REAL_DIALOGUE_SMOKE_SCHEMA_VERSION:
+        return payload, "direct"
+    data = payload.get("data")
+    if isinstance(data, dict):
+        result = data.get("result")
+        if isinstance(result, dict):
+            return result, "cli_envelope"
+    return payload, "unknown"
+
+
+def _report_status_text(payload: dict[str, Any]) -> str:
+    return str(payload.get("overall_status") or payload.get("status") or "").lower()
+
+
+def _smoke_report_status(
+    path: Path | None,
+    *,
+    ledger: SmokeScenarioLedger | None = None,
+    expected_agent_id: int | None = None,
+    expected_agent_code: str | None = None,
+) -> tuple[str, dict[str, Any]]:
     if path is None:
         return STATUS_BLOCKED, {"path": None}
     if not path.exists():
@@ -649,45 +723,274 @@ def _smoke_report_status(path: Path | None) -> tuple[str, dict[str, Any]]:
 
     text = path.read_text(encoding="utf-8", errors="replace")
     try:
-        payload: Any = json.loads(text)
+        raw_payload: Any = json.loads(text)
     except json.JSONDecodeError:
-        payload = None
-    if isinstance(payload, dict):
-        raw_status = str(payload.get("overall_status") or payload.get("status") or "")
-        status = raw_status.lower()
-        scenario_results = payload.get("scenario_results")
-        failed_must_pass: list[str] = []
-        if isinstance(scenario_results, list):
-            for item in scenario_results:
-                if not isinstance(item, dict):
-                    continue
-                priority = str(item.get("priority") or "").lower()
-                must_pass = bool(item.get("must_pass")) or priority == "must-pass"
-                item_status = str(item.get("status") or "").lower()
-                if must_pass and item_status != STATUS_PASSED:
-                    failed_must_pass.append(str(item.get("scenario_id") or "unknown"))
-        if failed_must_pass:
-            resolved_status = STATUS_FAILED
-        elif status in {STATUS_PASSED, STATUS_FAILED, STATUS_BLOCKED}:
-            resolved_status = status
-        else:
-            resolved_status = STATUS_BLOCKED
-        return resolved_status, {
+        return STATUS_BLOCKED, {
             "path": str(path),
-            "format": "json",
-            "status": raw_status,
-            "failed_must_pass_scenarios": failed_must_pass,
+            "format": "text",
+            "validation_errors": ["report_must_be_strict_json"],
         }
-    lowered = text.lower()
-    if "overall_status: passed" in lowered or "status: passed" in lowered:
-        return STATUS_PASSED, {"path": str(path), "format": "text"}
-    if "overall_status: failed" in lowered or "status: failed" in lowered:
-        return STATUS_FAILED, {"path": str(path), "format": "text"}
-    return STATUS_BLOCKED, {"path": str(path), "format": "text"}
+    payload, payload_format = _extract_smoke_report_payload(raw_payload)
+    if not isinstance(payload, dict):
+        return STATUS_BLOCKED, {
+            "path": str(path),
+            "format": payload_format,
+            "validation_errors": ["report_payload_must_be_object"],
+        }
+
+    raw_status = _report_status_text(payload)
+    validation_errors: list[str] = []
+    blocking_errors: list[str] = []
+    failure_errors: list[str] = []
+
+    expected_fields = {
+        "schema_version": AI_REAL_DIALOGUE_SMOKE_SCHEMA_VERSION,
+        "report_type": AI_REAL_DIALOGUE_SMOKE_REPORT_TYPE,
+        "execution_kind": AI_REAL_DIALOGUE_SMOKE_EXECUTION_KIND,
+    }
+    for field_name, expected_value in expected_fields.items():
+        if payload.get(field_name) != expected_value:
+            validation_errors.append(f"{field_name}_invalid_or_missing")
+
+    command = payload.get("command")
+    if not isinstance(command, dict):
+        blocking_errors.append("command_missing")
+    elif command.get("exit_code") != 0:
+        failure_errors.append("command_exit_code_nonzero")
+    elif "real-dialogue-smoke" not in {
+        str(part) for part in command.get("argv", []) if part is not None
+    }:
+        blocking_errors.append("command_argv_not_real_dialogue_smoke")
+
+    provider = payload.get("provider")
+    provider_evidence_passed = False
+    live_provider_call_count: int | None = None
+    provider_call_log_by_id: dict[str, dict[str, Any]] = {}
+    provider_summary_duplicate_log_ids: list[str] = []
+    if not isinstance(provider, dict):
+        blocking_errors.append("provider_evidence_missing")
+    else:
+        mocked_llm = provider.get("mocked_llm")
+        replay = provider.get("replay")
+        if mocked_llm is True:
+            failure_errors.append("provider_mocked_llm_forbidden")
+        elif mocked_llm is not False:
+            blocking_errors.append("provider_mocked_llm_flag_missing")
+        if replay is True:
+            failure_errors.append("provider_replay_forbidden")
+        elif replay is not False:
+            blocking_errors.append("provider_replay_flag_missing")
+
+        call_count = provider.get("live_provider_call_count")
+        if isinstance(call_count, bool) or not isinstance(call_count, int):
+            blocking_errors.append("provider_live_call_count_invalid")
+        elif call_count <= 0:
+            blocking_errors.append("provider_live_call_count_missing")
+        else:
+            live_provider_call_count = call_count
+        provider_call_logs = provider.get("call_logs")
+        if not isinstance(provider_call_logs, list) or not provider_call_logs:
+            blocking_errors.append("provider_call_logs_missing")
+        else:
+            provider_summary_log_ids: list[str] = []
+            for call_log in provider_call_logs:
+                if not isinstance(call_log, dict):
+                    blocking_errors.append("provider_call_log_summary_must_be_object")
+                    continue
+                log_id = str(call_log.get("id") or "")
+                if not log_id:
+                    blocking_errors.append("provider_call_log_summary_id_missing")
+                    continue
+                provider_summary_log_ids.append(log_id)
+                provider_call_log_by_id[log_id] = call_log
+                if call_log.get("request_type") != "chat":
+                    blocking_errors.append("provider_call_log_request_type_invalid")
+                if call_log.get("call_type") != "main_chat":
+                    blocking_errors.append("provider_call_log_call_type_invalid")
+            provider_summary_duplicate_log_ids = sorted(
+                {
+                    log_id
+                    for log_id in provider_summary_log_ids
+                    if provider_summary_log_ids.count(log_id) > 1
+                }
+            )
+            if provider_summary_duplicate_log_ids:
+                blocking_errors.append("provider_call_log_summary_id_not_unique")
+            if live_provider_call_count is not None and live_provider_call_count != len(
+                provider_summary_log_ids
+            ):
+                blocking_errors.append("provider_live_call_count_mismatch")
+
+    report_ledger = payload.get("ledger")
+    if ledger is None or not ledger.valid:
+        blocking_errors.append("ledger_validation_missing")
+    if not isinstance(report_ledger, dict):
+        blocking_errors.append("ledger_evidence_missing")
+    elif ledger and ledger.valid and report_ledger.get("sha256") != ledger.sha256:
+        blocking_errors.append("ledger_sha256_mismatch")
+
+    scenario_results = payload.get("scenario_results")
+    if not isinstance(scenario_results, list) or not scenario_results:
+        blocking_errors.append("scenario_results_missing")
+        scenario_results = []
+
+    result_by_id = {
+        str(item.get("scenario_id") or ""): item
+        for item in scenario_results
+        if isinstance(item, dict)
+    }
+    required_ids = ledger.required_scenario_ids if ledger and ledger.valid else []
+    missing_required = [
+        scenario_id for scenario_id in required_ids if scenario_id not in result_by_id
+    ]
+    if missing_required:
+        blocking_errors.append("scenario_coverage_missing")
+
+    failed_must_pass: list[str] = []
+    blocked_must_pass: list[str] = []
+    invalid_passed_results: list[str] = []
+    must_pass_provider_log_ids: list[str] = []
+    must_pass_provider_links: list[tuple[str, str, str]] = []
+    required_id_set = set(required_ids)
+    for item in scenario_results:
+        if not isinstance(item, dict):
+            blocking_errors.append("scenario_result_must_be_object")
+            continue
+        priority = str(item.get("priority") or "").lower()
+        scenario_id = str(item.get("scenario_id") or "unknown")
+        ledger_required = scenario_id in required_id_set
+        must_pass = (
+            ledger_required or bool(item.get("must_pass")) or priority == "must-pass"
+        )
+        item_status = str(item.get("status") or "").lower()
+        if must_pass and item_status == STATUS_FAILED:
+            failed_must_pass.append(scenario_id)
+        elif must_pass and item_status != STATUS_PASSED:
+            blocked_must_pass.append(scenario_id)
+        if item_status == STATUS_PASSED and must_pass:
+            checks = item.get("observable_checks")
+            lacks_dialogue_ids = not item.get("conversation_id") or not item.get(
+                "provider_call_log_id"
+            )
+            lacks_observable_checks = not isinstance(checks, dict) or not all(
+                [
+                    bool(checks.get("assistant_text_non_empty")),
+                    bool(checks.get("provider_call_log_present")),
+                    bool(checks.get("provider_call_succeeded")),
+                    not bool(
+                        checks.get("retired_current_page_or_online_search_exposed")
+                    ),
+                ]
+            )
+            if lacks_dialogue_ids or lacks_observable_checks:
+                invalid_passed_results.append(scenario_id)
+            else:
+                log_id = str(item["provider_call_log_id"])
+                conversation_id = str(item["conversation_id"])
+                must_pass_provider_log_ids.append(log_id)
+                must_pass_provider_links.append((scenario_id, log_id, conversation_id))
+    if failed_must_pass:
+        failure_errors.append("must_pass_scenario_failed")
+    if blocked_must_pass:
+        blocking_errors.append("must_pass_scenario_blocked")
+    if invalid_passed_results:
+        blocking_errors.append("passed_scenario_lacks_real_dialogue_evidence")
+    duplicate_log_ids = sorted(
+        {
+            log_id
+            for log_id in must_pass_provider_log_ids
+            if must_pass_provider_log_ids.count(log_id) > 1
+        }
+    )
+    if duplicate_log_ids:
+        blocking_errors.append("provider_call_log_id_not_unique")
+    if (
+        live_provider_call_count is not None
+        and must_pass_provider_log_ids
+        and live_provider_call_count < len(set(must_pass_provider_log_ids))
+    ):
+        blocking_errors.append("provider_live_call_count_mismatch")
+    missing_provider_log_summaries = sorted(
+        {
+            log_id
+            for log_id in must_pass_provider_log_ids
+            if log_id not in provider_call_log_by_id
+        }
+    )
+    if missing_provider_log_summaries:
+        blocking_errors.append("provider_call_log_summary_missing")
+    provider_log_conversation_mismatches = sorted(
+        {
+            scenario_id
+            for scenario_id, log_id, conversation_id in must_pass_provider_links
+            if log_id in provider_call_log_by_id
+            and str(provider_call_log_by_id[log_id].get("conversation_id") or "")
+            != conversation_id
+        }
+    )
+    if provider_log_conversation_mismatches:
+        blocking_errors.append("provider_call_log_conversation_mismatch")
+
+    agent = payload.get("agent")
+    if not isinstance(agent, dict):
+        blocking_errors.append("agent_evidence_missing")
+    else:
+        if expected_agent_id is not None:
+            resolved_agent_id = agent.get("resolved_agent_id")
+            try:
+                resolved_agent_id_int = int(resolved_agent_id)
+            except (TypeError, ValueError):
+                resolved_agent_id_int = None
+            if resolved_agent_id_int != expected_agent_id:
+                failure_errors.append("agent_id_mismatch")
+        normalized_expected_code = str(expected_agent_code or "").strip()
+        if normalized_expected_code:
+            report_selector = str(agent.get("selector_value") or "").strip()
+            if report_selector != normalized_expected_code:
+                failure_errors.append("agent_code_mismatch")
+
+    provider_evidence_passed = live_provider_call_count is not None
+
+    if validation_errors:
+        resolved_status = STATUS_BLOCKED
+    elif failure_errors or raw_status == STATUS_FAILED:
+        resolved_status = STATUS_FAILED
+    elif blocking_errors or raw_status == STATUS_BLOCKED:
+        resolved_status = STATUS_BLOCKED
+    elif raw_status == STATUS_PASSED:
+        resolved_status = STATUS_PASSED
+    else:
+        resolved_status = STATUS_BLOCKED
+
+    return resolved_status, {
+        "path": str(path),
+        "format": payload_format,
+        "status": raw_status,
+        "validation_errors": validation_errors,
+        "blocking_errors": blocking_errors,
+        "failure_errors": failure_errors,
+        "failed_must_pass_scenarios": failed_must_pass,
+        "blocked_must_pass_scenarios": blocked_must_pass,
+        "invalid_passed_scenarios": invalid_passed_results,
+        "missing_required_scenarios": missing_required,
+        "duplicate_provider_call_log_ids": duplicate_log_ids,
+        "duplicate_provider_summary_log_ids": provider_summary_duplicate_log_ids,
+        "missing_provider_log_summaries": missing_provider_log_summaries,
+        "provider_log_conversation_mismatches": provider_log_conversation_mismatches,
+        "provider_evidence_passed": provider_evidence_passed
+        and not validation_errors
+        and not failure_errors
+        and not blocking_errors,
+        "schema_version": payload.get("schema_version"),
+        "report_type": payload.get("report_type"),
+        "execution_kind": payload.get("execution_kind"),
+    }
 
 
-def _smoke_report_passed(path: Path | None) -> tuple[bool, dict[str, Any]]:
-    status, details = _smoke_report_status(path)
+def _smoke_report_passed(
+    path: Path | None, *, ledger: SmokeScenarioLedger | None = None
+) -> tuple[bool, dict[str, Any]]:
+    status, details = _smoke_report_status(path, ledger=ledger)
     return status == STATUS_PASSED, details
 
 
@@ -699,8 +1002,6 @@ def probe_ai_smoke_readiness(
     smoke_report_path: Path | None = None,
 ) -> list[ProbeResult]:
     backend_env = _read_env_file(repo_root / "backend" / ".env")
-    smoke_report_status, smoke_report_details = _smoke_report_status(smoke_report_path)
-    smoke_passed = smoke_report_status == STATUS_PASSED
     has_provider_key, provider_keys = _has_env_value(
         (
             "OPENAI_API_KEY",
@@ -715,6 +1016,8 @@ def probe_ai_smoke_readiness(
         ("AI_SMOKE_AGENT_ID", "AI_SMOKE_AGENT_CODE"),
         env_file_values=backend_env,
     )
+    expected_agent_id = ai_smoke_agent_id
+    expected_agent_code = ai_smoke_agent_code
     if ai_smoke_agent_id is not None:
         has_agent_selector = True
         selectors.append("--ai-smoke-agent-id")
@@ -723,7 +1026,6 @@ def probe_ai_smoke_readiness(
         selectors.append("--ai-smoke-agent-code")
 
     scenario_paths = [
-        repo_root / "ops" / "ai-smoke" / "smoke-scenarios.md",
         repo_root
         / ".trellis"
         / "tasks"
@@ -734,10 +1036,22 @@ def probe_ai_smoke_readiness(
         / "tasks"
         / "04-29-ai-dialogue-governance-reset"
         / "smoke-scenarios.md",
+        repo_root / "ops" / "ai-smoke" / "smoke-scenarios.md",
     ]
-    valid_scenarios = [
-        str(path) for path in scenario_paths if _scenario_ledger_valid(path)
-    ]
+    parsed_ledgers = [_parse_smoke_scenario_ledger(path) for path in scenario_paths]
+    valid_ledgers = [ledger for ledger in parsed_ledgers if ledger.valid]
+    primary_ledger = valid_ledgers[0] if valid_ledgers else None
+    valid_scenarios = [ledger.path for ledger in valid_ledgers]
+    smoke_report_status, smoke_report_details = _smoke_report_status(
+        smoke_report_path,
+        ledger=primary_ledger,
+        expected_agent_id=expected_agent_id,
+        expected_agent_code=expected_agent_code,
+    )
+    smoke_passed = smoke_report_status == STATUS_PASSED
+    report_provider_evidence = bool(
+        smoke_report_details.get("provider_evidence_passed")
+    )
     cli_file = repo_root / "backend" / "app" / "cli_commands" / "ai_commands.py"
     cli_text = (
         cli_file.read_text(encoding="utf-8", errors="replace")
@@ -745,17 +1059,24 @@ def probe_ai_smoke_readiness(
         else ""
     )
     cli_available = '@ai_cmd.command("smoke")' in cli_text
+    real_dialogue_cli_available = '@ai_cmd.command("real-dialogue-smoke")' in cli_text
 
-    credential_passed = has_provider_key or smoke_passed
+    credential_passed = has_provider_key
     return [
         ProbeResult(
             area="ai_runtime",
             name="ai_runtime_smoke_cli",
-            status=STATUS_PASSED if cli_available else STATUS_BLOCKED,
-            summary="novusai ai smoke command is present"
-            if cli_available
-            else "novusai ai smoke command is missing",
-            details={"path": str(cli_file)},
+            status=STATUS_PASSED
+            if cli_available and real_dialogue_cli_available
+            else STATUS_BLOCKED,
+            summary="AI capability and real-dialogue smoke commands are present"
+            if cli_available and real_dialogue_cli_available
+            else "AI smoke command coverage is incomplete",
+            details={
+                "path": str(cli_file),
+                "capability_smoke_present": cli_available,
+                "real_dialogue_smoke_present": real_dialogue_cli_available,
+            },
         ),
         ProbeResult(
             area="ai_runtime",
@@ -768,6 +1089,7 @@ def probe_ai_smoke_readiness(
                 "valid_paths": valid_scenarios,
                 "expected_paths": [str(path) for path in scenario_paths],
                 "required_markers": list(_SMOKE_SCENARIO_MARKERS),
+                "parsed_ledgers": [asdict(ledger) for ledger in parsed_ledgers],
             },
         ),
         ProbeResult(
@@ -776,10 +1098,10 @@ def probe_ai_smoke_readiness(
             status=STATUS_PASSED if credential_passed else STATUS_BLOCKED,
             summary="AI provider credential evidence is configured"
             if credential_passed
-            else "no AI provider credential or passed smoke report is configured",
+            else "no AI provider credential is configured in the current environment",
             details={
                 "configured_variable_names": provider_keys,
-                "passed_smoke_report_counts_as_credential_evidence": smoke_passed,
+                "strict_smoke_report_provider_evidence": report_provider_evidence,
             },
         ),
         ProbeResult(
@@ -803,7 +1125,7 @@ def probe_ai_smoke_readiness(
             details={
                 "report": smoke_report_details,
                 "run_command": (
-                    "python -m app.cli ai smoke --agent-id <id> --json "
+                    "python -m app.cli ai real-dialogue-smoke --agent-id <id> --raw-json "
                     "> <archived smoke report>"
                 ),
             },

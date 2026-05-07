@@ -21,6 +21,7 @@ from app.cli_commands.ai_snapshot import (
     _hydrate_ai_conversation_snapshot,
     _load_ai_conversation_snapshot,
 )
+from app.enums.common import UserRoleEnum
 
 _BACKEND_DIR = S._BACKEND_DIR
 _echo_compact_json = S._echo_compact_json
@@ -133,6 +134,103 @@ def ai_smoke(
         _echo_json(_json_success({"operation": "smoke", "result": payload}))
         return
     click.echo(_render_ai_runtime_section("AI Runtime Smoke", payload))
+
+
+@ai_cmd.command("real-dialogue-smoke")
+@click.option("--tenant-id", type=int, default=0, help="Tenant scope ID")
+@click.option("--agent-id", type=int, default=None, help="Agent ID")
+@click.option("--agent-code", default=None, help="Agent feature code or exact name")
+@click.option(
+    "--ledger",
+    "ledger_path",
+    type=click.Path(dir_okay=False),
+    default=str(
+        _BACKEND_DIR.parent
+        / ".trellis"
+        / "tasks"
+        / "04-23-codex-llm-first-dialogue-replan"
+        / "smoke-scenarios.md"
+    ),
+    show_default=True,
+    help="Scenario ledger path",
+)
+@click.option(
+    "--scenario-id",
+    "scenario_ids",
+    multiple=True,
+    help="Scenario ID to run; repeat to run several. Defaults to all ledger scenarios.",
+)
+@click.option("--message", default=None, help="Run a one-off custom smoke prompt")
+@click.option("--user-id", type=int, default=None, help="Actor user ID")
+@click.option(
+    "--user-role",
+    type=click.Choice(
+        [
+            UserRoleEnum.PLATFORM_ADMIN.value,
+            UserRoleEnum.TENANT_ADMIN.value,
+            UserRoleEnum.TENANT_USER.value,
+        ]
+    ),
+    default=UserRoleEnum.PLATFORM_ADMIN.value,
+    show_default=True,
+    help="Actor user role",
+)
+@click.option("--user-role-id", type=int, default=None, help="Actor role/org node ID")
+@click.option("--json", "output_json", is_flag=True, help="Output JSON envelope")
+@click.option(
+    "--raw-json",
+    "raw_json",
+    is_flag=True,
+    help="Output raw acceptance report JSON for production probe archives",
+)
+def ai_real_dialogue_smoke(
+    tenant_id: int,
+    agent_id: int | None,
+    agent_code: str | None,
+    ledger_path: str,
+    scenario_ids: tuple[str, ...],
+    message: str | None,
+    user_id: int | None,
+    user_role: str,
+    user_role_id: int | None,
+    output_json: bool,
+    raw_json: bool,
+) -> None:
+    """Run real provider-backed agent dialogue smoke / 运行真实模型对话冒烟检查。"""
+    os.chdir(_BACKEND_DIR)
+    normalized_agent_code = _normalize_cli_identifier(agent_code)
+    if agent_id is not None and normalized_agent_code:
+        raise click.ClickException("Use either --agent-id or --agent-code, not both.")
+    if agent_id is None and not normalized_agent_code:
+        raise click.ClickException(
+            "real-dialogue-smoke requires --agent-id or --agent-code."
+        )
+    payload = _run_quietly(
+        True,
+        _run_async,
+        _run_ai_runtime_cli_operation(
+            "real-dialogue-smoke",
+            tenant_id=tenant_id,
+            agent_id=agent_id,
+            agent_code=normalized_agent_code,
+            ledger_path=ledger_path,
+            scenario_ids=list(scenario_ids),
+            message=message,
+            user_id=user_id,
+            user_role=user_role,
+            user_role_id=user_role_id,
+            repo_root=str(_BACKEND_DIR.parent),
+        ),
+    )
+    if raw_json:
+        _echo_json(payload)
+        return
+    if output_json:
+        _echo_json(
+            _json_success({"operation": "real-dialogue-smoke", "result": payload})
+        )
+        return
+    click.echo(_render_ai_runtime_section("AI Real Dialogue Smoke", payload))
 
 
 @ai_cmd.command("root-cause")
