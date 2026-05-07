@@ -236,6 +236,7 @@ def test_create_periodic_task_route_maps_request_fields_and_syncs_bindings(
                 "timeout": 1800,
                 "notify_on_failure": True,
                 "notify_emails": "ops@example.com",
+                "default_priority": 7,
             },
         )
 
@@ -268,6 +269,7 @@ def test_create_periodic_task_route_maps_request_fields_and_syncs_bindings(
             "notify_on_failure": True,
             "notify_emails": "ops@example.com",
             "default_queue": "scheduled",
+            "default_priority": 7,
             "definition_type": "system",
         }
     )

@@ -5,6 +5,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  getPeriodicTaskListApi,
   getPeriodicTaskBindingsApi,
   syncPeriodicTaskBindingsApi,
   updatePeriodicTaskBindingApi,
@@ -34,6 +35,46 @@ describe('periodic task binding api', () => {
     requestGetMock.mockReset();
     requestPatchMock.mockReset();
     requestPutMock.mockReset();
+  });
+
+  it('normalizes periodic task default priority from backend fields', async () => {
+    requestGetMock.mockResolvedValue({
+      items: [
+        {
+          id: 8,
+          name: 'Nightly cleanup',
+          task_path: 'app.tasks.cleanup',
+          schedule_type: 'interval',
+          cron_expression: null,
+          interval_seconds: 600,
+          is_active: true,
+          last_run_at: null,
+          next_run_at: null,
+          description: null,
+          created_at: '2026-05-01T00:00:00Z',
+          scope: 'admin_only',
+          owner_tenant_id: null,
+          is_locked: false,
+          is_editable: true,
+          default_priority: 7,
+          max_retries: 0,
+          retry_delay: 60,
+          timeout: 3600,
+          notify_on_failure: false,
+          notify_emails: null,
+        },
+      ],
+      page: 1,
+      page_size: 20,
+      total: 1,
+    });
+
+    const result = await getPeriodicTaskListApi();
+
+    expect(result.items[0]).toMatchObject({
+      id: 8,
+      defaultPriority: 7,
+    });
   });
 
   it('normalizes disabled binding overrides from backend fields', async () => {

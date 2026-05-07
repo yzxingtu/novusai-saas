@@ -33,6 +33,7 @@ export interface PeriodicTaskInfo {
   bindingSummary: null | string;
   isLocked: boolean;
   isEditable: boolean;
+  defaultPriority: null | number;
   maxRetries: number;
   retryDelay: number;
   timeout: null | number;
@@ -54,6 +55,7 @@ export interface PeriodicTaskFormData {
   scope?: null | string;
   owner_tenant_id?: null | number;
   tenant_ids?: number[];
+  default_priority?: null | number;
   max_retries?: number;
   retry_delay?: number;
   timeout?: null | number;

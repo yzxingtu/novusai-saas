@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+from PIL import Image
 
 from app.api.shared._captcha_helpers import inject_captcha_provider_options
 from app.captcha.provider import CaptchaProviderMetadata
@@ -31,9 +32,13 @@ async def test_slider_captcha_provider_roundtrip() -> None:
     async def _delete_stored_challenge(challenge_id: str) -> None:
         stored_challenges.pop(challenge_id, None)
 
+    async def _load_background_image(_plugin_config: dict[str, Any]) -> Image.Image:
+        return Image.new("RGB", (320, 180), color=(96, 144, 192))
+
     provider._store_challenge = _store_challenge  # type: ignore[method-assign]
     provider._load_stored_challenge = _load_stored_challenge  # type: ignore[method-assign]
     provider._delete_stored_challenge = _delete_stored_challenge  # type: ignore[method-assign]
+    provider._load_background_image = _load_background_image  # type: ignore[method-assign]
 
     challenge = await provider.generate_challenge(
         {

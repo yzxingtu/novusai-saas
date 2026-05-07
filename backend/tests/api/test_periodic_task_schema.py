@@ -28,6 +28,20 @@ def test_periodic_task_create_request_allows_selected_scope_without_tenant_ids()
     assert payload.tenant_ids == []
 
 
+def test_periodic_task_create_request_accepts_default_priority() -> None:
+    payload = PeriodicTaskCreateRequest.model_validate(
+        {
+            "name": "Tenant Pending",
+            "task_path": "app.tasks.demo.handle_tenant",
+            "schedule_type": "interval",
+            "interval_seconds": 60,
+            "default_priority": 6,
+        }
+    )
+
+    assert payload.default_priority == 6
+
+
 def test_periodic_task_update_request_rejects_invalid_scope() -> None:
     with pytest.raises(ValidationError, match="invalid scope"):
         PeriodicTaskUpdateRequest.model_validate({"scope": "platform_only"})

@@ -26,6 +26,7 @@ def test_build_task_definition_schedule_uses_wrapper_task() -> None:
         default_schedule_type="interval",
         default_cron_expression=None,
         default_interval_seconds=300,
+        default_priority=3,
     )
 
     schedule = _build_task_definition_schedule([definition])
@@ -34,6 +35,7 @@ def test_build_task_definition_schedule_uses_wrapper_task() -> None:
     entry = schedule["task_definition:11:system.health"]
     assert entry["task"] == TASK_DEFINITION_WRAPPER
     assert entry["args"] == (11,)
+    assert entry["options"] == {"queue": "scheduled", "priority": 3}
 
 
 def test_build_tenant_task_binding_schedule_prefers_override_values() -> None:
@@ -50,6 +52,7 @@ def test_build_tenant_task_binding_schedule_prefers_override_values() -> None:
         default_schedule_type="interval",
         default_cron_expression=None,
         default_interval_seconds=600,
+        default_priority=8,
     )
 
     with patch(
@@ -61,6 +64,7 @@ def test_build_tenant_task_binding_schedule_prefers_override_values() -> None:
     entry = schedule["tenant_task_binding:7:42:tenant.sync"]
     assert entry["task"] == TENANT_BINDING_WRAPPER
     assert entry["args"] == (7,)
+    assert entry["options"] == {"queue": "scheduled", "priority": 8}
 
 
 def test_build_all_tenants_task_definition_schedule_uses_runtime_fanout_wrapper() -> (
@@ -74,6 +78,7 @@ def test_build_all_tenants_task_definition_schedule_uses_runtime_fanout_wrapper(
         default_schedule_type="interval",
         default_cron_expression=None,
         default_interval_seconds=300,
+        default_priority=2,
     )
 
     with patch(
@@ -85,6 +90,7 @@ def test_build_all_tenants_task_definition_schedule_uses_runtime_fanout_wrapper(
     entry = schedule["all_tenants_task_definition:18:tenant.everyone"]
     assert entry["task"] == ALL_TENANTS_TASK_DEFINITION_WRAPPER
     assert entry["args"] == (18,)
+    assert entry["options"] == {"queue": "scheduled", "priority": 2}
 
 
 def test_load_task_schedules_keeps_hybrid_platform_definitions_and_tenant_bindings() -> (

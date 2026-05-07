@@ -81,6 +81,8 @@ async def test_chat_passes_memory_scene_for_tenant_page(mock_db):
     service.conversation_svc.persist_chat_messages = AsyncMock(return_value=([], 0))
     service.conversation_svc.update_stats = AsyncMock(return_value=None)
     service._resolve_effective_memory_enabled = AsyncMock(return_value=True)
+    service._load_session_memory_context = AsyncMock(return_value="")
+    service._persist_session_memory = AsyncMock(return_value=None)
 
     dispatcher = AsyncMock()
     dispatcher.dispatch = AsyncMock(return_value=_make_execution_result())

@@ -248,6 +248,16 @@ onMounted(async () => {
             >
               {{ getScheduleDisplay(row) }}
             </span>
+            <Tag
+              v-if="
+                row.defaultPriority !== null &&
+                row.defaultPriority !== undefined
+              "
+              color="gold"
+              class="!m-0 !w-fit !text-[10px] !leading-4"
+            >
+              P{{ row.defaultPriority }}
+            </Tag>
           </div>
         </template>
 

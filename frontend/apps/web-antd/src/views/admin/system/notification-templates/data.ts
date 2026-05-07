@@ -4,7 +4,8 @@
 import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
 
-import { select } from '#/adapter/form';
+import { searchInput, select } from '#/adapter/form';
+import { getTenantSelectApi } from '#/api/admin/tenant';
 import { $t } from '#/locales';
 
 function getCategoryOptions() {
@@ -61,6 +62,61 @@ function getEnabledOptions() {
     },
     {
       label: $t('admin.system.notificationTemplate.disabled'),
+      value: 'false',
+    },
+  ];
+}
+
+function getScopeOptions() {
+  return [
+    {
+      label: $t('admin.system.notificationTemplate.scope_options.platform'),
+      value: 'platform',
+    },
+    {
+      label: $t('admin.system.notificationTemplate.scope_options.tenant'),
+      value: 'tenant',
+    },
+    {
+      label: $t('admin.system.notificationTemplate.scope_options.plugin'),
+      value: 'plugin',
+    },
+    {
+      label: $t('admin.system.notificationTemplate.scope_options.source'),
+      value: 'source',
+    },
+  ];
+}
+
+function getSourceOptions() {
+  return [
+    {
+      label: $t('admin.system.notificationTemplate.source_options.core'),
+      value: 'core',
+    },
+    {
+      label: $t('admin.system.notificationTemplate.source_options.plugin'),
+      value: 'plugin',
+    },
+    {
+      label: $t('admin.system.notificationTemplate.source_options.import'),
+      value: 'import',
+    },
+    {
+      label: $t('admin.system.notificationTemplate.source_options.custom'),
+      value: 'custom',
+    },
+  ];
+}
+
+function getOverrideOptions() {
+  return [
+    {
+      label: $t('admin.system.notificationTemplate.override'),
+      value: 'true',
+    },
+    {
+      label: $t('admin.system.notificationTemplate.defaultTemplate'),
       value: 'false',
     },
   ];
@@ -216,14 +272,33 @@ export function useColumns<T = Record<string, unknown>>(
     {
       field: 'scope',
       title: $t('admin.system.notificationTemplate.scope'),
-      width: 150,
+      width: 120,
       slots: { default: 'scope_cell' },
+    },
+    {
+      field: 'tenantName',
+      title: $t('admin.system.notificationTemplate.tenant'),
+      width: 150,
+      slots: { default: 'tenant_cell' },
+    },
+    {
+      field: 'pluginName',
+      title: $t('admin.system.notificationTemplate.plugin'),
+      width: 150,
+      slots: { default: 'plugin_cell' },
     },
     {
       field: 'source',
       title: $t('admin.system.notificationTemplate.source'),
-      width: 160,
+      width: 130,
       slots: { default: 'source_cell' },
+    },
+    {
+      field: 'isOverride',
+      title: $t('admin.system.notificationTemplate.override'),
+      width: 120,
+      align: 'center',
+      slots: { default: 'override_cell' },
     },
     {
       field: 'enabled',
@@ -305,6 +380,48 @@ export function useGridFormSchema(): VbenFormSchema[] {
         options: getPriorityOptions(),
         placeholder: $t(
           'admin.system.notificationTemplate.placeholder.allPriorities',
+        ),
+      },
+    ),
+    select('filter[scope][eq]', $t('admin.system.notificationTemplate.scope'), {
+      options: getScopeOptions(),
+      placeholder: $t(
+        'admin.system.notificationTemplate.placeholder.allScopes',
+      ),
+    }),
+    select(
+      'filter[tenant_id][eq]',
+      $t('admin.system.notificationTemplate.tenant'),
+      {
+        api: getTenantSelectApi,
+        params: { is_active: 'true' },
+        placeholder: $t(
+          'admin.system.notificationTemplate.placeholder.allTenants',
+        ),
+      },
+    ),
+    searchInput('plugin_name', $t('admin.system.notificationTemplate.plugin'), {
+      placeholder: $t(
+        'admin.system.notificationTemplate.placeholder.searchPlugin',
+      ),
+    }),
+    select(
+      'filter[source][eq]',
+      $t('admin.system.notificationTemplate.source'),
+      {
+        options: getSourceOptions(),
+        placeholder: $t(
+          'admin.system.notificationTemplate.placeholder.allSources',
+        ),
+      },
+    ),
+    select(
+      'filter[is_override][eq]',
+      $t('admin.system.notificationTemplate.override'),
+      {
+        options: getOverrideOptions(),
+        placeholder: $t(
+          'admin.system.notificationTemplate.placeholder.allOverrideStates',
         ),
       },
     ),

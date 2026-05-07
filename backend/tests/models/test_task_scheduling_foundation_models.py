@@ -18,6 +18,14 @@ def test_task_scheduling_foundation_models_exported() -> None:
     assert TaskRun.__tablename__ == "task_runs"
 
 
+def test_task_definition_has_default_broker_priority_column() -> None:
+    assert "default_priority" in TaskDefinition.__table__.columns
+    assert any(
+        constraint.name == "ck_task_definitions_default_priority_range"
+        for constraint in TaskDefinition.__table__.constraints
+    )
+
+
 def test_task_run_has_business_run_key_unique_index() -> None:
     assert "run_key" in TaskRun.__table__.columns
     index = next(

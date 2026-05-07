@@ -645,6 +645,21 @@ export function useFormSchema(isEdit: boolean): VbenFormSchema[] {
     }),
 
     dividerField(
+      'queue_divider',
+      $t('admin.system.periodicTask.section.queue'),
+    ),
+    numberField(
+      'default_priority',
+      $t('admin.system.periodicTask.defaultPriority'),
+      {
+        min: 0,
+        max: 9,
+        precision: 0,
+        placeholder: $t('admin.system.periodicTask.placeholder.inputPriority'),
+      },
+    ),
+
+    dividerField(
       'retry_divider',
       $t('admin.system.periodicTask.section.retry'),
     ),
@@ -700,6 +715,7 @@ export function getFormDefaults(): Record<string, unknown> {
     is_active: true,
     scope: 'admin_only',
     tenant_ids: [],
+    default_priority: null,
     max_retries: 0,
     retry_delay: 60,
     timeout: 3600,

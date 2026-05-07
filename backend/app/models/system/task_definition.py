@@ -7,7 +7,7 @@ Serves as the catalog layer for the next-generation task scheduling architecture
 
 from datetime import datetime
 
-from sqlalchemy import ForeignKey, Index, Integer, String, Text
+from sqlalchemy import CheckConstraint, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSON
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -41,6 +41,7 @@ class TaskDefinition(BaseModel):
         "is_active": "is_enabled",
         "is_editable": "is_editable",
         "is_deletable": "is_deletable",
+        "default_priority": "default_priority",
         "max_retries": "max_retries",
         "retry_delay": "retry_delay",
         "timeout": "timeout",
@@ -55,6 +56,7 @@ class TaskDefinition(BaseModel):
         "code",
         "name",
         "handler_path",
+        "default_priority",
         "created_at",
         "updated_at",
         "last_run_at",
@@ -62,6 +64,10 @@ class TaskDefinition(BaseModel):
     }
 
     __table_args__ = (
+        CheckConstraint(
+            "default_priority IS NULL OR (default_priority >= 0 AND default_priority <= 9)",
+            name="ck_task_definitions_default_priority_range",
+        ),
         Index("ix_task_definitions_code", "code", unique=True),
         Index(
             "ix_task_definitions_scope_type",
@@ -73,6 +79,7 @@ class TaskDefinition(BaseModel):
             "owner_tenant_id",
             "is_enabled",
         ),
+        Index("ix_task_definitions_default_priority", "default_priority"),
     )
 
     owner_tenant_id: Mapped[int | None] = mapped_column(
@@ -141,6 +148,12 @@ class TaskDefinition(BaseModel):
         nullable=False,
         default="scheduled",
         comment="默认队列",
+    )
+    default_priority: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        default=None,
+        comment="默认队列优先级 / Default broker priority",
     )
     default_args: Mapped[dict | list | None] = mapped_column(
         JSON,

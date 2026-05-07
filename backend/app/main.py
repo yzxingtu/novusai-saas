@@ -481,6 +481,36 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("Redis connections closed")
 
 
+async def readiness_check():
+    """
+    Kubernetes readiness: verifies database connectivity.
+    / K8s 就绪探针：校验数据库可连（与 /health 区分，/health 可仅表示进程存活）。
+    """
+    from sqlalchemy import text
+
+    from app.core.database import async_session_factory
+
+    try:
+        async with async_session_factory() as db:
+            await db.execute(text("SELECT 1"))
+    except Exception as exc:
+        logger = get_logger(__name__)
+        logger.warning("Readiness check failed (database): {}", exc)
+        return JSONResponse(
+            status_code=503,
+            content={
+                "code": 5030,
+                "message": "not_ready",
+                "data": {"database": "unavailable"},
+            },
+        )
+    return {
+        "code": 0,
+        "message": _("common.success"),
+        "data": {"ready": True, "database": "ok"},
+    }
+
+
 def create_application() -> FastAPI:
     """
     Create FastAPI application instance. / 创建 FastAPI 应用实例。
@@ -676,35 +706,7 @@ def create_application() -> FastAPI:
             },
         }
 
-    @app.get("/ready", tags=["Health"], response_model=None)
-    async def readiness_check():
-        """
-        Kubernetes readiness: verifies database connectivity.
-        / K8s 就绪探针：校验数据库可连（与 /health 区分，/health 可仅表示进程存活）。
-        """
-        from sqlalchemy import text
-
-        from app.core.database import async_session_factory
-
-        try:
-            async with async_session_factory() as db:
-                await db.execute(text("SELECT 1"))
-        except Exception as exc:
-            logger = get_logger(__name__)
-            logger.warning("Readiness check failed (database): {}", exc)
-            return JSONResponse(
-                status_code=503,
-                content={
-                    "code": 5030,
-                    "message": "not_ready",
-                    "data": {"database": "unavailable"},
-                },
-            )
-        return {
-            "code": 0,
-            "message": _("common.success"),
-            "data": {"ready": True, "database": "ok"},
-        }
+    app.get("/ready", tags=["Health"], response_model=None)(readiness_check)
 
     # Register directory menus (must be before controller imports to ensure parent menus are registered first)
     # 注册目录型菜单（必须在控制器导入之前，确保父菜单先注册）

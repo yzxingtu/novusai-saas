@@ -23,6 +23,7 @@ async def test_trigger_now_dispatches_platform_wrapper(mock_db) -> None:
         default_schedule_type="interval",
         default_cron_expression=None,
         default_interval_seconds=300,
+        default_priority=4,
     )
     service.get_by_id = AsyncMock(return_value=definition)
     service.update = AsyncMock(return_value=definition)
@@ -43,6 +44,7 @@ async def test_trigger_now_dispatches_platform_wrapper(mock_db) -> None:
         "dispatched_count": 1,
     }
     assert send_task.call_args.kwargs["queue"] == "scheduled"
+    assert send_task.call_args.kwargs["priority"] == 4
     assert (
         send_task.call_args.args[0] == "app.tasks.task_scheduling.run_task_definition"
     )

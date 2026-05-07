@@ -633,6 +633,7 @@
     "scopeHelp": "作用域选择继续复用系统统一的 scope 体系，但这页会额外把企业分发名单和平台治理语义一起落地。",
     "isLocked": "保护（禁止删除）",
     "isEditable": "允许编辑",
+    "defaultPriority": "队列优先级",
     "maxRetries": "最大重试次数",
     "retryDelay": "重试间隔（秒）",
     "timeout": "超时时间（秒）",
@@ -641,6 +642,7 @@
     "section": {
       "basic": "基本设置",
       "scope": "作用域与分发",
+      "queue": "队列与投递",
       "protection": "保护设置",
       "retry": "重试策略",
       "notify": "失败通知"
@@ -711,6 +713,7 @@
       "allScopes": "全部范围",
       "selectScope": "请选择作用范围",
       "selectTenant": "请选择企业",
+      "inputPriority": "0-9，留空则使用 broker 默认值",
       "inputMaxRetries": "0-10 次",
       "inputRetryDelay": "1-3600 秒",
       "inputTimeout": "10-86400 秒",
@@ -837,6 +840,8 @@
     "tenant": "企业",
     "plugin": "插件",
     "source": "来源",
+    "platformDefault": "平台默认",
+    "noPlugin": "非插件模板",
     "enabled": "启用",
     "disabled": "停用",
     "override": "覆盖模板",
@@ -866,16 +871,20 @@
       "audit": "审计"
     },
     "scope_options": {
+      "platform": "平台",
       "global": "全局",
       "tenant": "企业",
       "plugin": "插件",
+      "source": "来源",
       "system": "系统",
       "admin": "管理端"
     },
     "source_options": {
+      "core": "核心",
       "system": "系统",
       "tenant": "企业",
       "plugin": "插件",
+      "import": "导入",
       "custom": "自定义",
       "override": "覆盖"
     },
@@ -888,7 +897,12 @@
     "placeholder": {
       "allCategories": "全部分类",
       "allPriorities": "全部优先级",
-      "allEnabledStates": "全部启停状态"
+      "allEnabledStates": "全部启停状态",
+      "allScopes": "全部作用域",
+      "allTenants": "全部企业",
+      "allSources": "全部来源",
+      "allOverrideStates": "全部覆盖状态",
+      "searchPlugin": "搜索插件名称"
     },
     "test": "\u6d4b\u8bd5",
     "messages": {

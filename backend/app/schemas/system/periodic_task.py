@@ -56,6 +56,12 @@ class PeriodicTaskResponse(BaseSchema):
     binding_summary: str | None = Field(None, description="绑定摘要")
     is_locked: bool = Field(False, description="是否禁止删除")
     is_editable: bool = Field(True, description="是否允许编辑")
+    default_priority: int | None = Field(
+        None,
+        ge=0,
+        le=9,
+        description="默认 Celery broker 优先级（0-9）",
+    )
     max_retries: int = Field(0, description="最大重试次数")
     retry_delay: int = Field(60, description="重试间隔（秒）")
     timeout: int = Field(3600, description="执行超时（秒）")
@@ -83,6 +89,12 @@ class PeriodicTaskCreateRequest(BaseSchema):
         None, description="归属企业ID（单企业任务时填写）"
     )
     tenant_ids: list[int] = Field(default_factory=list, description="分发企业 ID 列表")
+    default_priority: int | None = Field(
+        None,
+        ge=0,
+        le=9,
+        description="默认 Celery broker 优先级（0-9）",
+    )
     max_retries: int = Field(0, ge=0, le=10, description="最大重试次数")
     retry_delay: int = Field(60, ge=1, le=3600, description="重试间隔（秒）")
     timeout: int = Field(3600, ge=10, le=86400, description="执行超时（秒）")
@@ -127,6 +139,12 @@ class PeriodicTaskUpdateRequest(BaseSchema):
     scope: str | None = Field(None, description="资源作用域")
     owner_tenant_id: int | None = Field(None, description="归属企业ID")
     tenant_ids: list[int] | None = Field(None, description="分发企业 ID 列表")
+    default_priority: int | None = Field(
+        None,
+        ge=0,
+        le=9,
+        description="默认 Celery broker 优先级（0-9）",
+    )
     max_retries: int | None = Field(None, ge=0, le=10, description="最大重试次数")
     retry_delay: int | None = Field(None, ge=1, le=3600, description="重试间隔（秒）")
     timeout: int | None = Field(None, ge=10, le=86400, description="执行超时（秒）")

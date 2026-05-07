@@ -304,6 +304,7 @@ class TestSyncLitellmRegistryTask:
                 return litellm_resp
             r = MagicMock()
             r.raise_for_status = MagicMock()
+            r.text = "<html></html>"
             r.json.return_value = {
                 "models": {"openai:gpt-4": {"max_input_tokens": 128}}
             }

@@ -84,10 +84,15 @@ class AdminNotificationTemplateController(GlobalController):
         self,
         repo: NotificationTemplateRepository,
         template: NotificationTemplate,
+        *,
+        tenant_name_map: dict[int, str] | None = None,
     ) -> dict:
         effective = (
             await repo.resolve_effective_template(template.code, template.tenant_id)
         ) or template
+        tenant_name = None
+        if template.tenant_id is not None and tenant_name_map is not None:
+            tenant_name = tenant_name_map.get(template.tenant_id)
         return {
             "id": template.id,
             "code": template.code,
@@ -103,7 +108,7 @@ class AdminNotificationTemplateController(GlobalController):
             "enabled": template.is_enabled,
             "is_system": template.is_system,
             "tenant_id": template.tenant_id,
-            "tenant_name": None,
+            "tenant_name": tenant_name,
             "override_of": template.override_of,
             "is_override": template.override_of is not None,
             "locked_fields": template.locked_fields,
@@ -126,8 +131,18 @@ class AdminNotificationTemplateController(GlobalController):
             """获取所有通知模板（分页 + 筛选） / Get all notification templates (paginated + filtered)"""
             repo = NotificationTemplateRepository(db)
             items, total = await repo.query_list(query)
+            tenant_name_map = await repo.get_tenant_name_map(
+                {template.tenant_id for template in items if template.tenant_id}
+            )
 
-            result = [await self._serialize_template(repo, t) for t in items]
+            result = [
+                await self._serialize_template(
+                    repo,
+                    t,
+                    tenant_name_map=tenant_name_map,
+                )
+                for t in items
+            ]
 
             return paginated(
                 items=result,
@@ -169,9 +184,16 @@ class AdminNotificationTemplateController(GlobalController):
 
             await db.commit()
             await db.refresh(template)
+            tenant_name_map = await repo.get_tenant_name_map(
+                {template.tenant_id} if template.tenant_id else set()
+            )
 
             return success(
-                data=await self._serialize_template(repo, template),
+                data=await self._serialize_template(
+                    repo,
+                    template,
+                    tenant_name_map=tenant_name_map,
+                ),
                 message=_("common.update_success"),
             )
 
@@ -214,8 +236,15 @@ class AdminNotificationTemplateController(GlobalController):
             template.soft_delete()
             await db.commit()
             await db.refresh(default_template)
+            tenant_name_map = await repo.get_tenant_name_map(
+                {default_template.tenant_id} if default_template.tenant_id else set()
+            )
             return success(
-                data=await self._serialize_template(repo, default_template),
+                data=await self._serialize_template(
+                    repo,
+                    default_template,
+                    tenant_name_map=tenant_name_map,
+                ),
                 message=_("common.update_success"),
             )
 

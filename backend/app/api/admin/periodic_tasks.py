@@ -160,6 +160,7 @@ class AdminPeriodicTaskController(GlobalController):
                 "notify_on_failure": body.notify_on_failure,
                 "notify_emails": body.notify_emails,
                 "default_queue": "scheduled",
+                "default_priority": body.default_priority,
                 "definition_type": "system",
             }
             task = await service.create(payload)
@@ -353,6 +354,7 @@ class AdminPeriodicTaskController(GlobalController):
                 "timeout": "timeout",
                 "notify_on_failure": "notify_on_failure",
                 "notify_emails": "notify_emails",
+                "default_priority": "default_priority",
             }
             for old_key, new_key in field_map.items():
                 if old_key in raw:

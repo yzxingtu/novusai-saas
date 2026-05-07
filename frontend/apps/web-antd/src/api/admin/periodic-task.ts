@@ -51,6 +51,7 @@ export interface PeriodicTaskInfoRaw {
   binding_summary?: null | string;
   is_locked: boolean;
   is_editable: boolean;
+  default_priority?: null | number;
   max_retries: number;
   retry_delay: number;
   timeout: null | number;
@@ -201,6 +202,7 @@ function transformPeriodicTaskInfo(raw: PeriodicTaskInfoRaw): PeriodicTaskInfo {
     bindingSummary: raw.binding_summary ?? null,
     isLocked: raw.is_locked,
     isEditable: raw.is_editable,
+    defaultPriority: raw.default_priority ?? null,
     maxRetries: raw.max_retries,
     retryDelay: raw.retry_delay,
     timeout: raw.timeout,

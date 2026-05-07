@@ -80,6 +80,14 @@ def _apply_schedule_config(
     return False
 
 
+def _build_schedule_options(definition: TaskDefinition) -> dict[str, object]:
+    options: dict[str, object] = {"queue": "scheduled"}
+    priority = getattr(definition, "default_priority", None)
+    if priority is not None:
+        options["priority"] = int(priority)
+    return options
+
+
 def _build_task_definition_schedule(
     definitions: list[TaskDefinition],
 ) -> dict[str, dict]:
@@ -89,7 +97,7 @@ def _build_task_definition_schedule(
             "task": TASK_DEFINITION_WRAPPER,
             "args": (definition.id,),
             "kwargs": {},
-            "options": {"queue": "scheduled"},
+            "options": _build_schedule_options(definition),
         }
         if not _apply_schedule_config(
             entry,
@@ -115,7 +123,7 @@ def _build_tenant_task_binding_schedule(
             "task": TENANT_BINDING_WRAPPER,
             "args": (binding.id,),
             "kwargs": {},
-            "options": {"queue": "scheduled"},
+            "options": _build_schedule_options(definition),
         }
         if not handler_supports_tenant_dispatch(definition.handler_path):
             logger.warning(
@@ -161,7 +169,7 @@ def _build_all_tenants_task_definition_schedule(
             "task": ALL_TENANTS_TASK_DEFINITION_WRAPPER,
             "args": (definition.id,),
             "kwargs": {},
-            "options": {"queue": "scheduled"},
+            "options": _build_schedule_options(definition),
         }
         if not handler_supports_tenant_dispatch(definition.handler_path):
             logger.warning(

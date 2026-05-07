@@ -61,19 +61,19 @@ class TestDynamicCORSMiddleware:
             '["http://192.168.31.129:5666"]',
             raising=False,
         )
-        client = TestClient(_build_app())
         origin = "http://192.168.31.129:5666"
 
-        resp = client.get("/ok", headers={"Origin": origin})
+        with TestClient(_build_app()) as client:
+            resp = client.get("/ok", headers={"Origin": origin})
 
         assert resp.status_code == 200
         assert resp.headers["Access-Control-Allow-Origin"] == origin
 
     def test_allows_tenant_subdomain_origin(self):
-        client = TestClient(_build_app())
         origin = f"https://demo{settings.TENANT_DOMAIN_SUFFIX}"
 
-        resp = client.get("/ok", headers={"Origin": origin})
+        with TestClient(_build_app()) as client:
+            resp = client.get("/ok", headers={"Origin": origin})
 
         assert resp.status_code == 200
         assert resp.headers["Access-Control-Allow-Origin"] == origin
@@ -81,9 +81,8 @@ class TestDynamicCORSMiddleware:
         assert resp.headers["Vary"] == "Origin"
 
     def test_rejects_unknown_origin(self):
-        client = TestClient(_build_app())
-
-        resp = client.get("/ok", headers={"Origin": "https://evil.example.com"})
+        with TestClient(_build_app()) as client:
+            resp = client.get("/ok", headers={"Origin": "https://evil.example.com"})
 
         assert resp.status_code == 200
         assert "Access-Control-Allow-Origin" not in resp.headers
@@ -106,16 +105,16 @@ class TestDynamicCORSMiddleware:
             lambda: _SessionManager(mock_db),
         )
 
-        client = TestClient(_build_app())
         origin = "https://tenant.custom.example.com"
-        resp = client.options(
-            "/ok",
-            headers={
-                "Origin": origin,
-                "Access-Control-Request-Method": "POST",
-                "Access-Control-Request-Headers": "content-type,x-trace-id",
-            },
-        )
+        with TestClient(_build_app()) as client:
+            resp = client.options(
+                "/ok",
+                headers={
+                    "Origin": origin,
+                    "Access-Control-Request-Method": "POST",
+                    "Access-Control-Request-Headers": "content-type,x-trace-id",
+                },
+            )
 
         assert resp.status_code == 204
         assert resp.headers["Access-Control-Allow-Origin"] == origin

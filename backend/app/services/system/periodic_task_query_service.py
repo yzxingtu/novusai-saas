@@ -216,6 +216,7 @@ class PeriodicTaskPresentationService:
             tenant_access_mode=str(semantics["tenant_access_mode"]),
             is_locked=not definition.is_deletable,
             is_editable=definition.is_editable,
+            default_priority=getattr(definition, "default_priority", None),
             max_retries=definition.max_retries,
             retry_delay=definition.retry_delay,
             timeout=definition.timeout,

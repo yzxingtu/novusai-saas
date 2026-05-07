@@ -24,6 +24,7 @@ def test_run_all_tenants_task_definition_dispatches_each_eligible_tenant() -> No
         default_cron_expression=None,
         default_interval_seconds=300,
         default_queue="scheduled",
+        default_priority=6,
         is_enabled=True,
     )
 
@@ -61,6 +62,8 @@ def test_run_all_tenants_task_definition_dispatches_each_eligible_tenant() -> No
     assert send_task.call_args_list[0].kwargs["kwargs"]["tenant_id"] == 7
     assert send_task.call_args_list[1].kwargs["kwargs"]["tenant_id"] == 11
     assert send_task.call_args_list[0].kwargs["kwargs"]["mode"] == "daily"
+    assert send_task.call_args_list[0].kwargs["priority"] == 6
+    assert send_task.call_args_list[1].kwargs["priority"] == 6
     assert (
         send_task.call_args_list[0].kwargs["headers"]["trigger_source"] == "scheduler"
     )
@@ -123,6 +126,7 @@ def test_run_tenant_task_binding_overwrites_payload_tenant_id() -> None:
         default_cron_expression=None,
         default_interval_seconds=300,
         default_queue="scheduled",
+        default_priority=5,
         is_enabled=True,
     )
 
@@ -154,6 +158,7 @@ def test_run_tenant_task_binding_overwrites_payload_tenant_id() -> None:
     assert kwargs["tenant_id"] == 42
     assert kwargs["base_mode"] == "default"
     assert kwargs["binding_mode"] == "override"
+    assert send_task.call_args.kwargs["priority"] == 5
 
 
 def test_run_tenant_task_binding_skips_tenant_without_active_plan() -> None:

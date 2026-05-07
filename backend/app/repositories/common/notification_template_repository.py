@@ -10,12 +10,69 @@ from sqlalchemy import or_, select
 from app.configs.service import PLATFORM_TENANT_ID
 from app.core.base_repository import BaseRepository
 from app.models.common.notification_template import NotificationTemplate
+from app.models.tenant.tenant import Tenant
+from app.schemas.common.query import FilterOp, FilterRule, QuerySpec
 
 
 class NotificationTemplateRepository(BaseRepository[NotificationTemplate]):
     """通知模板仓库（全局，无企业过滤） / Notification template repository (global, no tenant filter)."""
 
     model = NotificationTemplate
+
+    async def query_list(
+        self,
+        spec: QuerySpec,
+        scope: str | None = None,
+        forced_filters: list[FilterRule] | None = None,
+        include_deleted: bool = False,
+    ) -> tuple[list[NotificationTemplate], int]:
+        """中文: 支持 is_override 派生筛选，同时复用基础列表查询。
+
+        EN: Support derived is_override filtering while reusing the base list query.
+        """
+        filters: list[FilterRule] = []
+        for rule in spec.filters:
+            if rule.field != "is_override":
+                filters.append(rule)
+                continue
+
+            is_override = str(rule.value).strip().lower() in {"1", "true", "yes"}
+            filters.append(
+                FilterRule(
+                    field="override_of",
+                    op=FilterOp.notnull if is_override else FilterOp.isnull,
+                    value=True,
+                )
+            )
+
+        next_spec = spec.model_copy(update={"filters": filters})
+        return await super().query_list(
+            next_spec,
+            scope=scope,
+            forced_filters=forced_filters,
+            include_deleted=include_deleted,
+        )
+
+    async def get_tenant_name_map(self, tenant_ids: set[int]) -> dict[int, str]:
+        """中文: 批量加载通知模板归属企业名称。
+
+        EN: Batch load tenant names for notification-template ownership display.
+        """
+        normalized_ids = {
+            int(tenant_id)
+            for tenant_id in tenant_ids
+            if tenant_id not in (None, PLATFORM_TENANT_ID)
+        }
+        if not normalized_ids:
+            return {}
+
+        result = await self.db.execute(
+            select(Tenant.id, Tenant.name).where(
+                Tenant.id.in_(normalized_ids),
+                Tenant.is_deleted.is_(False),
+            )
+        )
+        return {int(row.id): str(row.name) for row in result.all()}
 
     async def resolve_effective_template(
         self,

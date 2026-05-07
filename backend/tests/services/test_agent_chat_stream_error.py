@@ -855,7 +855,25 @@ async def test_stream_post_persist_tail_skips_memory_extraction_after_failed_res
     service = await _build_stream_service(mock_db)
     on_complete, _hook_registry = await _capture_on_complete(service, mock_db)
 
+    cb_db = AsyncMock()
+    cb_db.commit = AsyncMock()
+    cb_db.rollback = AsyncMock()
+    conversation = _build_conversation()
+    cb_conv_svc = MagicMock()
+    cb_conv_svc.repo.get_by_id = AsyncMock(return_value=conversation)
+    cb_conv_svc.persist_chat_messages = AsyncMock(return_value=([], 0))
+    cb_conv_svc.update_stats = AsyncMock()
+    _attach_stream_persistence_contract(cb_conv_svc, cb_db)
+
     with (
+        patch(
+            "app.services.ai.agent_chat_service.async_session_factory",
+            return_value=_SessionManager(cb_db),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.ConversationService",
+            return_value=cb_conv_svc,
+        ),
         patch(
             "app.services.ai.agent_chat_service.AgentQuotaManager.adjust_usage",
             new=AsyncMock(),

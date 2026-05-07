@@ -47,6 +47,18 @@ ALL_TENANTS_DYNAMIC_SCOPE = ResourceScopeEnum.ALL_TENANTS.value
 TENANT_DISPATCH_SCOPES = EXPLICIT_BINDING_EXECUTION_SCOPES | {ALL_TENANTS_DYNAMIC_SCOPE}
 
 
+def _scheduled_wrapper_options(
+    definition: TaskDefinition,
+    *,
+    kwargs: dict[str, Any],
+) -> dict[str, Any]:
+    options: dict[str, Any] = {"queue": "scheduled", "kwargs": kwargs}
+    priority = getattr(definition, "default_priority", None)
+    if priority is not None:
+        options["priority"] = int(priority)
+    return options
+
+
 class TaskDefinitionService(GlobalService[TaskDefinition, TaskDefinitionRepository]):
     """
     任务定义服务 / Task definition service.
@@ -147,8 +159,10 @@ class TaskDefinitionService(GlobalService[TaskDefinition, TaskDefinitionReposito
             result = celery_app.send_task(
                 ALL_TENANTS_TASK_DEFINITION_WRAPPER,
                 args=[definition.id],
-                queue="scheduled",
-                kwargs={"trigger_source": "admin_manual"},
+                **_scheduled_wrapper_options(
+                    definition,
+                    kwargs={"trigger_source": "admin_manual"},
+                ),
             )
             dispatched_task_ids.append(str(result.id))
         elif scope == ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value:
@@ -159,15 +173,19 @@ class TaskDefinitionService(GlobalService[TaskDefinition, TaskDefinitionReposito
                 result = celery_app.send_task(
                     TENANT_BINDING_WRAPPER,
                     args=[binding.id],
-                    queue="scheduled",
-                    kwargs={"trigger_source": "admin_manual"},
+                    **_scheduled_wrapper_options(
+                        definition,
+                        kwargs={"trigger_source": "admin_manual"},
+                    ),
                 )
                 dispatched_task_ids.append(str(result.id))
             result = celery_app.send_task(
                 TASK_DEFINITION_WRAPPER,
                 args=[definition.id],
-                queue="scheduled",
-                kwargs={"trigger_source": "admin_manual"},
+                **_scheduled_wrapper_options(
+                    definition,
+                    kwargs={"trigger_source": "admin_manual"},
+                ),
             )
             dispatched_task_ids.append(str(result.id))
         elif scope in EXPLICIT_BINDING_EXECUTION_SCOPES:
@@ -182,16 +200,20 @@ class TaskDefinitionService(GlobalService[TaskDefinition, TaskDefinitionReposito
                 result = celery_app.send_task(
                     TENANT_BINDING_WRAPPER,
                     args=[binding.id],
-                    queue="scheduled",
-                    kwargs={"trigger_source": "admin_manual"},
+                    **_scheduled_wrapper_options(
+                        definition,
+                        kwargs={"trigger_source": "admin_manual"},
+                    ),
                 )
                 dispatched_task_ids.append(str(result.id))
         elif scope in PLATFORM_EXECUTION_SCOPES:
             result = celery_app.send_task(
                 TASK_DEFINITION_WRAPPER,
                 args=[definition.id],
-                queue="scheduled",
-                kwargs={"trigger_source": "admin_manual"},
+                **_scheduled_wrapper_options(
+                    definition,
+                    kwargs={"trigger_source": "admin_manual"},
+                ),
             )
             dispatched_task_ids.append(str(result.id))
         else:
@@ -203,16 +225,20 @@ class TaskDefinitionService(GlobalService[TaskDefinition, TaskDefinitionReposito
                     result = celery_app.send_task(
                         TENANT_BINDING_WRAPPER,
                         args=[binding.id],
-                        queue="scheduled",
-                        kwargs={"trigger_source": "admin_manual"},
+                        **_scheduled_wrapper_options(
+                            definition,
+                            kwargs={"trigger_source": "admin_manual"},
+                        ),
                     )
                     dispatched_task_ids.append(str(result.id))
             else:
                 result = celery_app.send_task(
                     TASK_DEFINITION_WRAPPER,
                     args=[definition.id],
-                    queue="scheduled",
-                    kwargs={"trigger_source": "admin_manual"},
+                    **_scheduled_wrapper_options(
+                        definition,
+                        kwargs={"trigger_source": "admin_manual"},
+                    ),
                 )
                 dispatched_task_ids.append(str(result.id))
 

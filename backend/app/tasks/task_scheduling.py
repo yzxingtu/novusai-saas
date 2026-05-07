@@ -133,6 +133,28 @@ def _resolve_queue(definition: TaskDefinition) -> str:
     return str(definition.default_queue or registry_info.get("queue") or "scheduled")
 
 
+def _resolve_priority(definition: TaskDefinition) -> int | None:
+    priority = getattr(definition, "default_priority", None)
+    if priority is None:
+        return None
+    return int(priority)
+
+
+def _build_handler_options(
+    definition: TaskDefinition,
+    *,
+    headers: dict[str, Any],
+) -> dict[str, Any]:
+    options: dict[str, Any] = {
+        "queue": _resolve_queue(definition),
+        "headers": headers,
+    }
+    priority = _resolve_priority(definition)
+    if priority is not None:
+        options["priority"] = priority
+    return options
+
+
 def handler_supports_tenant_dispatch(handler_path: str) -> bool:
     registry_info = get_task_registry().get(handler_path, {})
     return registry_info.get("base") == "TenantTask"
@@ -197,8 +219,7 @@ def run_task_definition(
             definition.handler_path,
             args=args,
             kwargs=kwargs,
-            queue=_resolve_queue(definition),
-            headers=headers,
+            **_build_handler_options(definition, headers=headers),
         )
         logger.info(
             "Dispatched task definition {} -> {}",
@@ -280,8 +301,7 @@ def run_all_tenants_task_definition(
                     definition.handler_path,
                     args=args,
                     kwargs=kwargs,
-                    queue=_resolve_queue(definition),
-                    headers=headers,
+                    **_build_handler_options(definition, headers=headers),
                 )
                 dispatched_task_id = str(result.id)
                 dispatched_task_ids.append(dispatched_task_id)
@@ -414,8 +434,7 @@ def run_tenant_task_binding(
             definition.handler_path,
             args=args,
             kwargs=kwargs,
-            queue=_resolve_queue(definition),
-            headers=headers,
+            **_build_handler_options(definition, headers=headers),
         )
         logger.info(
             "Dispatched tenant task binding {} (tenant={}) -> {}",

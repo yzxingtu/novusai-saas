@@ -238,6 +238,24 @@ const { Grid, onRefresh: gridReload } = useCrudPage<NotificationTemplateInfo>({
         <Form.Item :label="$t('admin.system.notificationTemplate.scope')">
           <Input :value="getScopeLabel(editForm.scope)" disabled />
         </Form.Item>
+        <Form.Item :label="$t('admin.system.notificationTemplate.tenant')">
+          <Input
+            :value="
+              editForm.tenantName ||
+              $t('admin.system.notificationTemplate.platformDefault')
+            "
+            disabled
+          />
+        </Form.Item>
+        <Form.Item :label="$t('admin.system.notificationTemplate.plugin')">
+          <Input
+            :value="
+              editForm.pluginName ||
+              $t('admin.system.notificationTemplate.noPlugin')
+            "
+            disabled
+          />
+        </Form.Item>
         <Form.Item :label="$t('admin.system.notificationTemplate.source')">
           <Input :value="getSourceLabel(editForm.source)" disabled />
         </Form.Item>
@@ -331,10 +349,34 @@ const { Grid, onRefresh: gridReload } = useCrudPage<NotificationTemplateInfo>({
           <Tag color="blue">{{ getScopeLabel(row.scope) }}</Tag>
         </template>
 
+        <template #tenant_cell="{ row }">
+          <span v-if="row.tenantName" class="text-xs text-foreground">
+            {{ row.tenantName }}
+          </span>
+          <Tag v-else color="default" class="!m-0">
+            {{ $t('admin.system.notificationTemplate.platformDefault') }}
+          </Tag>
+        </template>
+
+        <template #plugin_cell="{ row }">
+          <Tag v-if="row.pluginName" color="purple" class="!m-0">
+            {{ row.pluginName }}
+          </Tag>
+          <span v-else class="text-xs text-muted-foreground">
+            {{ $t('admin.system.notificationTemplate.noPlugin') }}
+          </span>
+        </template>
+
         <template #source_cell="{ row }">
           <span class="text-xs text-muted-foreground">
             {{ getSourceLabel(row.source) }}
           </span>
+        </template>
+
+        <template #override_cell="{ row }">
+          <Tag :color="row.isOverride ? 'orange' : 'default'">
+            {{ getOverrideLabel(row.isOverride) }}
+          </Tag>
         </template>
 
         <template #enabled_cell="{ row }">
@@ -390,9 +432,30 @@ const { Grid, onRefresh: gridReload } = useCrudPage<NotificationTemplateInfo>({
               {{ getScopeLabel(previewRecord?.scope) }}
             </Descriptions.Item>
             <Descriptions.Item
+              :label="$t('admin.system.notificationTemplate.tenant')"
+            >
+              {{
+                previewRecord?.tenantName ||
+                $t('admin.system.notificationTemplate.platformDefault')
+              }}
+            </Descriptions.Item>
+            <Descriptions.Item
+              :label="$t('admin.system.notificationTemplate.plugin')"
+            >
+              {{
+                previewRecord?.pluginName ||
+                $t('admin.system.notificationTemplate.noPlugin')
+              }}
+            </Descriptions.Item>
+            <Descriptions.Item
               :label="$t('admin.system.notificationTemplate.source')"
             >
               {{ getSourceLabel(previewRecord?.source) }}
+            </Descriptions.Item>
+            <Descriptions.Item
+              :label="$t('admin.system.notificationTemplate.override')"
+            >
+              {{ getOverrideLabel(previewRecord?.isOverride || false) }}
             </Descriptions.Item>
             <Descriptions.Item
               :label="$t('admin.system.notificationTemplate.enabled')"

@@ -623,6 +623,7 @@
     "scopeLabel": "Scope",
     "isLocked": "Protected (no delete)",
     "isEditable": "Allow Edit",
+    "defaultPriority": "Queue Priority",
     "maxRetries": "Max Retries",
     "retryDelay": "Retry Delay (s)",
     "timeout": "Timeout (s)",
@@ -631,6 +632,7 @@
     "section": {
       "basic": "Basic Settings",
       "scope": "Scope",
+      "queue": "Queue and Dispatch",
       "protection": "Protection",
       "retry": "Retry Policy",
       "notify": "Failure Notification"
@@ -680,6 +682,7 @@
       "allScopes": "All Scopes",
       "selectScope": "Please select scope",
       "selectTenant": "Please select tenant",
+      "inputPriority": "0-9, leave empty to use the broker default",
       "inputMaxRetries": "0-10",
       "inputRetryDelay": "1-3600 seconds",
       "inputTimeout": "10-86400 seconds",
@@ -806,6 +809,8 @@
     "tenant": "Tenant",
     "plugin": "Plugin",
     "source": "Source",
+    "platformDefault": "Platform Default",
+    "noPlugin": "Non-plugin Template",
     "enabled": "Enabled",
     "disabled": "Disabled",
     "override": "Override",
@@ -835,16 +840,20 @@
       "audit": "Audit"
     },
     "scope_options": {
+      "platform": "Platform",
       "global": "Global",
       "tenant": "Tenant",
       "plugin": "Plugin",
+      "source": "Source",
       "system": "System",
       "admin": "Admin"
     },
     "source_options": {
+      "core": "Core",
       "system": "System",
       "tenant": "Tenant",
       "plugin": "Plugin",
+      "import": "Import",
       "custom": "Custom",
       "override": "Override"
     },
@@ -857,7 +866,12 @@
     "placeholder": {
       "allCategories": "All Categories",
       "allPriorities": "All Priorities",
-      "allEnabledStates": "All Enabled States"
+      "allEnabledStates": "All Enabled States",
+      "allScopes": "All Scopes",
+      "allTenants": "All Tenants",
+      "allSources": "All Sources",
+      "allOverrideStates": "All Override States",
+      "searchPlugin": "Search plugin name"
     },
     "test": "Test",
     "messages": {

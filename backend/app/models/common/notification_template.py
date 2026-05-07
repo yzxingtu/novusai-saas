@@ -80,6 +80,7 @@ class NotificationTemplate(BaseModel):
         "is_enabled": "is_enabled",
         "is_system": "is_system",
         "tenant_id": "tenant_id",
+        "override_of": "override_of",
         "created_at": "created_at",
     }
 
@@ -91,6 +92,7 @@ class NotificationTemplate(BaseModel):
         "scope",
         "source",
         "plugin_name",
+        "override_of",
         "created_at",
     }
 
