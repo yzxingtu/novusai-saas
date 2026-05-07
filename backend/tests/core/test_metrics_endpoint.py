@@ -7,9 +7,11 @@ Test type: structural
 
 from __future__ import annotations
 
+import pytest
 from fastapi import FastAPI
 from starlette.testclient import TestClient
 
+import app.main as app_main
 from app.main import create_application
 from app.middleware.access_control import EXEMPT_PATH_PREFIXES, AccessControlMiddleware
 from app.middleware.audit_log import should_log_request
@@ -163,3 +165,38 @@ def test_metrics_path_is_infra_exempt_and_not_audited() -> None:
     assert access_control._is_exempt_path("/metrics-admin") is False
     assert should_log_request("/metrics", "GET") is False
     assert should_log_request("/metrics-admin", "GET") is True
+
+
+@pytest.mark.asyncio
+async def test_metrics_component_health_refresh_is_ttl_cached(monkeypatch) -> None:
+    calls = {"database": 0, "redis": 0}
+
+    async def fake_database_check() -> bool:
+        calls["database"] += 1
+        set_component_health("database", True)
+        return True
+
+    async def fake_redis_check() -> bool:
+        calls["redis"] += 1
+        return True
+
+    from app.core.redis import RedisManager
+
+    monkeypatch.setattr(app_main, "_check_database_component", fake_database_check)
+    monkeypatch.setattr(
+        RedisManager,
+        "health_check",
+        staticmethod(fake_redis_check),
+    )
+    monkeypatch.setattr(
+        app_main,
+        "_METRICS_COMPONENT_HEALTH_REFRESH_TTL_SECONDS",
+        3600.0,
+    )
+    monkeypatch.setattr(app_main, "_metrics_component_health_last_refresh", 0.0)
+    monkeypatch.setattr(app_main, "_metrics_component_health_lock", None)
+
+    await app_main._refresh_metrics_component_health()
+    await app_main._refresh_metrics_component_health()
+
+    assert calls == {"database": 1, "redis": 1}

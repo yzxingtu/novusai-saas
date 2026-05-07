@@ -44,6 +44,11 @@ from app.middleware.tenant import TenantMiddleware
 from app.middleware.trace import TraceIdMiddleware
 from app.rbac.decorators import public
 
+_METRICS_COMPONENT_HEALTH_REFRESH_TTL_SECONDS = 15.0
+_METRICS_COMPONENT_HEALTH_REFRESH_TIMEOUT_SECONDS = 2.0
+_metrics_component_health_last_refresh = 0.0
+_metrics_component_health_lock: asyncio.Lock | None = None
+
 # Suppress noisy version compatibility warnings from requests lib (urllib3/charset_normalizer versions exceed preset test ranges but are actually compatible)
 # 抑制 requests 库的版本兼容性噪音警告（urllib3/charset_normalizer 版本超出其预设测试范围，但实际兼容）
 warnings.filterwarnings(
@@ -487,10 +492,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("Redis connections closed")
 
 
-async def readiness_check():
-    """
-    Kubernetes readiness: verifies database connectivity.
-    / K8s 就绪探针：校验数据库可连（与 /health 区分，/health 可仅表示进程存活）。
+async def _check_database_component() -> bool:
+    """中文: 执行轻量数据库探活并刷新 Prometheus 组件健康指标。
+
+    EN: Runs a lightweight database probe and refreshes the Prometheus
+    component health gauge.
     """
     from sqlalchemy import text
 
@@ -503,6 +509,73 @@ async def readiness_check():
         set_component_health("database", False)
         logger = get_logger(__name__)
         logger.warning("Readiness check failed (database): {}", exc)
+        return False
+    set_component_health("database", True)
+    return True
+
+
+def _get_metrics_component_health_lock() -> asyncio.Lock:
+    global _metrics_component_health_lock
+    if _metrics_component_health_lock is None:
+        _metrics_component_health_lock = asyncio.Lock()
+    return _metrics_component_health_lock
+
+
+async def _refresh_metrics_component_health() -> None:
+    """中文: Prometheus 抓取前主动刷新组件健康，避免只依赖 /ready 和 /health 副作用。
+
+    EN: Refreshes component health before Prometheus scrapes so DB/Redis gauges
+    do not depend only on /ready and /health side effects.
+    """
+    global _metrics_component_health_last_refresh
+    loop = asyncio.get_running_loop()
+    now = loop.time()
+    if (
+        now - _metrics_component_health_last_refresh
+        < _METRICS_COMPONENT_HEALTH_REFRESH_TTL_SECONDS
+    ):
+        return
+
+    async with _get_metrics_component_health_lock():
+        now = loop.time()
+        if (
+            now - _metrics_component_health_last_refresh
+            < _METRICS_COMPONENT_HEALTH_REFRESH_TTL_SECONDS
+        ):
+            return
+
+        try:
+            await asyncio.wait_for(
+                _check_database_component(),
+                timeout=_METRICS_COMPONENT_HEALTH_REFRESH_TIMEOUT_SECONDS,
+            )
+        except Exception as exc:
+            set_component_health("database", False)
+            logger = get_logger(__name__)
+            logger.warning("Metrics component refresh failed (database): {}", exc)
+
+        try:
+            from app.core.redis import RedisManager
+
+            redis_ok = await asyncio.wait_for(
+                RedisManager.health_check(),
+                timeout=_METRICS_COMPONENT_HEALTH_REFRESH_TIMEOUT_SECONDS,
+            )
+            set_component_health("redis", redis_ok)
+        except Exception as exc:
+            set_component_health("redis", False)
+            logger = get_logger(__name__)
+            logger.warning("Metrics component refresh failed (redis): {}", exc)
+
+        _metrics_component_health_last_refresh = loop.time()
+
+
+async def readiness_check():
+    """
+    Kubernetes readiness: verifies database connectivity.
+    / K8s 就绪探针：校验数据库可连（与 /health 区分，/health 可仅表示进程存活）。
+    """
+    if not await _check_database_component():
         return JSONResponse(
             status_code=503,
             content={
@@ -511,7 +584,6 @@ async def readiness_check():
                 "data": {"database": "unavailable"},
             },
         )
-    set_component_health("database", True)
     return {
         "code": 0,
         "message": _("common.success"),
@@ -724,6 +796,7 @@ def create_application() -> FastAPI:
     @public
     async def prometheus_metrics() -> Response:
         """Prometheus metrics endpoint / Prometheus 指标端点。"""
+        await _refresh_metrics_component_health()
         return metrics_response()
 
     # Register directory menus (must be before controller imports to ensure parent menus are registered first)

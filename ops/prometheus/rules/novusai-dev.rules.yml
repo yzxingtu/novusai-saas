@@ -42,19 +42,27 @@ groups:
           description: Backend HTTP P95 latency exceeded the local acceptance threshold.
 
       - alert: NovusAIDatabaseReadinessDown
-        expr: novusai_component_health{job="novusai-api",component="database"} == 0
+        expr: |
+          novusai_component_health{job="novusai-api",component="database"} == 0
+          or absent_over_time(
+            novusai_component_health{job="novusai-api",component="database"}[2m]
+          )
         for: 1m
         labels:
           severity: critical
         annotations:
           summary: NovusAI database readiness is unhealthy
-          description: The /ready probe reported database connectivity unavailable.
+          description: The metrics refresh reported database connectivity unavailable or missing.
 
       - alert: NovusAIRedisHealthDown
-        expr: novusai_component_health{job="novusai-api",component="redis"} == 0
+        expr: |
+          novusai_component_health{job="novusai-api",component="redis"} == 0
+          or absent_over_time(
+            novusai_component_health{job="novusai-api",component="redis"}[2m]
+          )
         for: 1m
         labels:
           severity: warning
         annotations:
           summary: NovusAI Redis health is degraded
-          description: The /health probe reported Redis disconnected.
+          description: The metrics refresh reported Redis disconnected or missing.

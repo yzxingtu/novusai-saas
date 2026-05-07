@@ -35,8 +35,10 @@ Run from `backend/`:
 
 ```powershell
 python scripts/production_acceptance_probe.py --api-base-url http://localhost:8000 --frontend-base-url http://localhost:5666 --load-smoke-requests 32 --load-smoke-concurrency 8 --allow-blocked
-python -m pip_audit --local
+python -m pip_audit --local --skip-editable
 python -m bandit -r app scripts -x .venv,migrations,plugins/.backups,tests -ll
+pnpm --dir ../frontend audit --audit-level high --registry https://registry.npmjs.org --json
+pnpm --dir ../frontend audit --prod --audit-level high --registry https://registry.npmjs.org --json
 ```
 
 Contract:
@@ -55,6 +57,13 @@ Contract:
 - Backup/restore acceptance requires actual `pg_dump`/`pg_restore`/`psql`
   tooling and a restore drill against a disposable database, not only a script
   presence check.
+- DAST acceptance requires an actual OWASP ZAP baseline/API scan execution
+  against a local or test target. Docker availability alone is tooling evidence,
+  not scan acceptance; a missing local image or unreachable registry is
+  `blocked`, and ZAP FAIL alerts are `failed`.
+- Frontend dependency audit must use a registry with a working audit endpoint.
+  Registry endpoint/network failures are `blocked`; high/critical production
+  dependency findings are `failed`.
 - AI runtime readiness remains governed by
   `.trellis/spec/ai-runtime/testing-discipline.md`: real-dialogue smoke must
   have provider credentials, a scenario ledger, an agent selector, and an

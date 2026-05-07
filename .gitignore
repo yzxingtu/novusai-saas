@@ -50,6 +50,7 @@ pip-delete-this-directory.txt
 backend/ruff_full_report.txt
 
 # Unit test / coverage reports
+reports/
 htmlcov/
 .tox/
 .nox/
@@ -248,6 +249,9 @@ ehthumbs_vista.db
 # ============================================
 # Project Specific
 # ============================================
+
+# Local production-acceptance artifacts
+/ops/acceptance-artifacts/
 
 # Workspace docs & Trellis (not committed)
 /docs/
