@@ -19,6 +19,156 @@ Primary references:
 - `backend/pyproject.toml`
 - `README.md`
 
+## Repository Quality Baseline Contract
+
+Use this contract when a task claims repository-wide backend quality baseline,
+changes `backend/pyproject.toml` quality-tool settings, fixes pytest collection,
+or makes broad mechanical lint/format changes.
+
+### Scope / Trigger
+
+- Trigger: `python -m pytest -q`, `python -m ruff check .`, or
+  `python -m ruff format --check .` fails for reasons outside one narrow
+  feature test.
+- Trigger: a task modifies pytest collection/package layout, Ruff
+  `select`/`ignore`/`exclude`/format settings, or Alembic/model registration
+  helpers as part of quality cleanup.
+- Non-trigger: one targeted unit test failure for a feature branch. Use the
+  smallest relevant test there, then include the baseline gates before merge if
+  the branch touches shared quality configuration.
+
+### Command Signatures
+
+Run these from `backend/` unless noted:
+
+```powershell
+python -m pytest -q
+python -m ruff check .
+python -m ruff format --check .
+python scripts/check_prompt_contracts.py
+python scripts/lint_migrations.py
+```
+
+For frontend impact from a backend-quality cleanup, run from repo root:
+
+```powershell
+pnpm --dir frontend/apps/web-antd exec vue-tsc --noEmit --skipLibCheck --pretty false
+```
+
+For Alembic graph checks on Windows, set the import root explicitly:
+
+```powershell
+$env:PYTHONPATH='.'; alembic heads
+```
+
+### Configuration Contracts
+
+- `backend/pyproject.toml` must keep pytest collecting the real backend suite:
+  `testpaths = ["tests"]`. Do not narrow this to make collection green.
+- Keep pytest temporary files in a repo-local ignored directory when the
+  developer machine's global temp directory is unreliable. The accepted
+  setting is `--basetemp=.pytest-tmp`, and `.pytest-tmp/` must remain ignored.
+- Ruff format must use `line-ending = "lf"` so Windows `core.autocrlf`
+  warnings do not decide formatter output.
+- Ruff cleanup must not add broad `exclude`, `extend-exclude`, `per-file-ignores`,
+  or remove lint families from `select` unless the task records a concrete
+  rule conflict with the owning Trellis spec.
+- `git diff --check` warnings about `LF will be replaced by CRLF` are line-ending
+  conversion notices. They are not whitespace failures when the command exits
+  zero and reports no `trailing whitespace`, `space before tab`, blank-EOF, or
+  conflict-marker issue.
+
+### Validation And Error Matrix
+
+| Symptom | Allowed Fix | Forbidden Fix | Required Check |
+|---|---|---|---|
+| pytest import mismatch from same-named tests | Add package `__init__.py` files or rename one test module while preserving both tests | Delete one test, narrow `testpaths`, or add broad `--ignore` | `python -m pytest -q` plus targeted duplicate-module tests |
+| pytest references a retired structural seam | Update the structural test to the current public facade, or add a compatibility facade only if the import is still a supported contract | Reintroduce deprecated runtime behavior only for tests | Targeted structural test and full pytest |
+| Ruff unused imports in files with registration side effects | Replace long import lists with explicit registration/facade contracts that still trigger side effects | Blind `ruff --fix` that removes registration imports without proving behavior | `python -m ruff check .` plus subsystem structural check |
+| Formatter drift across many files | Run `python -m ruff format .` as a mechanical pass, then inspect non-format semantic files separately | Mix broad format with unrelated product refactors | `python -m ruff format --check .` and `git diff --check` |
+| Windows temp permission errors in pytest | Use repo-local ignored `--basetemp=.pytest-tmp` | Skip affected tests or mark global warnings as ignored | Full pytest from `backend/` |
+
+### Good / Base / Bad Cases
+
+Good:
+
+```text
+Fix collection by adding package __init__.py files so
+tests/unit/ai/test_prompt_addition_support.py and
+tests/ai/context/test_prompt_addition_support.py have distinct module names.
+Both tests still collect and run.
+```
+
+Base:
+
+```text
+Format-only changes are accepted when they are produced by
+python -m ruff format . and followed by ruff format --check, ruff check, and
+git diff --check.
+```
+
+Bad:
+
+```toml
+# Do not shrink collection to hide failures.
+testpaths = ["tests/services"]
+
+# Do not exclude live backend code to make lint green.
+extend-exclude = ["app/ai", "plugins"]
+```
+
+### Wrong Vs Correct
+
+Wrong:
+
+```python
+# A retired runtime path was deleted, so the test is simply skipped forever.
+pytestmark = pytest.mark.skip(reason="old AI path")
+```
+
+Correct:
+
+```python
+def test_current_facade_composes_supported_mixins() -> None:
+    assert issubclass(CurrentFacade, SupportedMixin)
+```
+
+Wrong:
+
+```powershell
+python -m ruff check . --fix
+# Then commit without checking that Alembic/model registration still happens.
+```
+
+Correct:
+
+```powershell
+python -m ruff check . --fix --select I001,UP009,UP012,UP035,UP037,C420,SIM117
+python -m ruff check .
+python -m pytest -q
+$env:PYTHONPATH='.'; alembic heads
+```
+
+### Tests Required
+
+When a PR claims the repository quality baseline is clean, report these exact
+commands and outcomes:
+
+- `python -m pytest -q`: include passed/skipped/warning counts.
+- `python -m ruff check .`: must pass.
+- `python -m ruff format --check .`: must pass.
+- `python scripts/check_prompt_contracts.py`: must pass for any backend baseline
+  touching `app/ai`, `app/services/ai`, tests under `tests/ai`, or broad format
+  that includes AI files.
+- `python scripts/lint_migrations.py`: must pass when migrations, Alembic env,
+  model exports, or broad backend format touches migration files.
+- Frontend type/lint/test command(s) when frontend files or shared contracts
+  changed.
+
+If AI dialogue live paths are changed, these structural gates are not enough:
+also follow `.trellis/spec/ai-runtime/testing-discipline.md` and do not claim a
+dialogue milestone is green without behavioral and smoke evidence.
+
 ## Forbidden Patterns
 
 - Controller logic that performs business decisions or direct DB queries.
@@ -34,6 +184,9 @@ Primary references:
 - New migration SQL using interpolated identifiers.
 - Shipping backend work without the tests that already exist for the touched
   subsystem.
+- Manufacturing a repository green state by deleting tests, narrowing pytest
+  collection, adding broad `skip`/`xfail`, broadening Ruff excludes, or removing
+  lint families without a spec-backed justification.
 - Reintroducing deprecated AI runtime paths such as `ToolRegistry` or
   `tool_bindings`.
 - Reintroducing fixed LLM-facing prompt text directly in Python under
