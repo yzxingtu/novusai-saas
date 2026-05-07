@@ -610,9 +610,7 @@ async def test_admin_plain_text_input_surface_checks_local_policy_before_runtime
             action,
             field_policy,
         ) -> None:
-            service_events.append(
-                f"plain-denied:{action}:{field_policy.field_kind}"
-            )
+            service_events.append(f"plain-denied:{action}:{field_policy.field_kind}")
             raise AuthorizationException(message="plain input disabled")
 
     class UnexpectedPermissionService:
@@ -829,9 +827,7 @@ async def test_tenant_plain_text_input_surface_checks_local_policy_before_runtim
             action,
             field_policy,
         ) -> None:
-            service_events.append(
-                f"plain-denied:{action}:{field_policy.field_kind}"
-            )
+            service_events.append(f"plain-denied:{action}:{field_policy.field_kind}")
             raise AuthorizationException(message="tenant plain input disabled")
 
     class UnexpectedPermissionService:

@@ -31,7 +31,8 @@ async def test_trigger_now_dispatches_platform_wrapper(mock_db) -> None:
     mock_db.execute = AsyncMock(return_value=binding_rows)
 
     fake_result = SimpleNamespace(id="celery-123")
-    with patch("app.services.system.task_definition_service.celery_app.send_task",
+    with patch(
+        "app.services.system.task_definition_service.celery_app.send_task",
         return_value=fake_result,
     ) as send_task:
         trigger_result = await service.trigger_now(3)
@@ -42,11 +43,15 @@ async def test_trigger_now_dispatches_platform_wrapper(mock_db) -> None:
         "dispatched_count": 1,
     }
     assert send_task.call_args.kwargs["queue"] == "scheduled"
-    assert send_task.call_args.args[0] == "app.tasks.task_scheduling.run_task_definition"
+    assert (
+        send_task.call_args.args[0] == "app.tasks.task_scheduling.run_task_definition"
+    )
 
 
 @pytest.mark.asyncio
-async def test_trigger_now_dispatches_binding_wrapper_for_tenant_owned_definition(mock_db) -> None:
+async def test_trigger_now_dispatches_binding_wrapper_for_tenant_owned_definition(
+    mock_db,
+) -> None:
     service = TaskDefinitionService(mock_db)
     definition = SimpleNamespace(
         id=5,
@@ -73,17 +78,24 @@ async def test_trigger_now_dispatches_binding_wrapper_for_tenant_owned_definitio
     ]
     mock_db.execute = AsyncMock(return_value=binding_rows)
 
-    with patch(
-        "app.services.system.task_definition_service.handler_supports_tenant_dispatch",
-        return_value=True,
-    ), patch("app.services.system.task_definition_service.celery_app.send_task",
-        return_value=fake_result,
-    ) as send_task:
+    with (
+        patch(
+            "app.services.system.task_definition_service.handler_supports_tenant_dispatch",
+            return_value=True,
+        ),
+        patch(
+            "app.services.system.task_definition_service.celery_app.send_task",
+            return_value=fake_result,
+        ) as send_task,
+    ):
         trigger_result = await service.trigger_now(5)
 
     assert trigger_result["triggered_task_id"] == "celery-tenant-1"
     assert trigger_result["dispatched_task_ids"] == ["celery-tenant-1"]
-    assert send_task.call_args.args[0] == "app.tasks.task_scheduling.run_tenant_task_binding"
+    assert (
+        send_task.call_args.args[0]
+        == "app.tasks.task_scheduling.run_tenant_task_binding"
+    )
 
 
 @pytest.mark.asyncio
@@ -103,18 +115,24 @@ async def test_trigger_now_dispatches_all_tenants_wrapper(mock_db) -> None:
     service.update = AsyncMock(return_value=definition)
 
     fake_result = SimpleNamespace(id="all-tenants-123")
-    with patch(
-        "app.services.system.task_definition_service.handler_supports_tenant_dispatch",
-        return_value=True,
-    ), patch(
-        "app.services.system.task_definition_service.celery_app.send_task",
-        return_value=fake_result,
-    ) as send_task:
+    with (
+        patch(
+            "app.services.system.task_definition_service.handler_supports_tenant_dispatch",
+            return_value=True,
+        ),
+        patch(
+            "app.services.system.task_definition_service.celery_app.send_task",
+            return_value=fake_result,
+        ) as send_task,
+    ):
         trigger_result = await service.trigger_now(21)
 
     assert trigger_result["triggered_task_id"] == "all-tenants-123"
     assert trigger_result["dispatched_task_ids"] == ["all-tenants-123"]
-    assert send_task.call_args.args[0] == "app.tasks.task_scheduling.run_all_tenants_task_definition"
+    assert (
+        send_task.call_args.args[0]
+        == "app.tasks.task_scheduling.run_all_tenants_task_definition"
+    )
     assert send_task.call_args.kwargs["kwargs"]["trigger_source"] == "admin_manual"
 
 
@@ -133,7 +151,9 @@ async def test_trigger_now_rejects_plugin_task_when_plugin_is_disabled(mock_db) 
     service.get_by_id = AsyncMock(return_value=definition)
 
     plugin_status_result = MagicMock()
-    plugin_status_result.scalar_one_or_none.return_value = PluginStatusEnum.DISABLED.value
+    plugin_status_result.scalar_one_or_none.return_value = (
+        PluginStatusEnum.DISABLED.value
+    )
     mock_db.execute = AsyncMock(return_value=plugin_status_result)
 
     with pytest.raises(BusinessException) as exc_info:
@@ -146,7 +166,9 @@ async def test_trigger_now_rejects_plugin_task_when_plugin_is_disabled(mock_db) 
 
 
 @pytest.mark.asyncio
-async def test_trigger_now_dispatches_all_bindings_and_returns_first_task_id(mock_db) -> None:
+async def test_trigger_now_dispatches_all_bindings_and_returns_first_task_id(
+    mock_db,
+) -> None:
     service = TaskDefinitionService(mock_db)
     definition = SimpleNamespace(
         id=8,
@@ -184,12 +206,15 @@ async def test_trigger_now_dispatches_all_bindings_and_returns_first_task_id(moc
         ]
     )
 
-    with patch(
-        "app.services.system.task_definition_service.handler_supports_tenant_dispatch",
-        return_value=True,
-    ), patch(
-        "app.services.system.task_definition_service.celery_app.send_task",
-        send_task,
+    with (
+        patch(
+            "app.services.system.task_definition_service.handler_supports_tenant_dispatch",
+            return_value=True,
+        ),
+        patch(
+            "app.services.system.task_definition_service.celery_app.send_task",
+            send_task,
+        ),
     ):
         trigger_result = await service.trigger_now(8)
 
@@ -200,8 +225,14 @@ async def test_trigger_now_dispatches_all_bindings_and_returns_first_task_id(moc
     ]
     assert trigger_result["dispatched_count"] == 2
     assert send_task.call_count == 2
-    assert send_task.call_args_list[0].args[0] == "app.tasks.task_scheduling.run_tenant_task_binding"
-    assert send_task.call_args_list[1].args[0] == "app.tasks.task_scheduling.run_tenant_task_binding"
+    assert (
+        send_task.call_args_list[0].args[0]
+        == "app.tasks.task_scheduling.run_tenant_task_binding"
+    )
+    assert (
+        send_task.call_args_list[1].args[0]
+        == "app.tasks.task_scheduling.run_tenant_task_binding"
+    )
 
 
 @pytest.mark.asyncio
@@ -239,12 +270,15 @@ async def test_trigger_now_dispatches_platform_and_selected_bindings_for_admin_a
         ]
     )
 
-    with patch(
-        "app.services.system.task_definition_service.handler_supports_tenant_dispatch",
-        return_value=True,
-    ), patch(
-        "app.services.system.task_definition_service.celery_app.send_task",
-        send_task,
+    with (
+        patch(
+            "app.services.system.task_definition_service.handler_supports_tenant_dispatch",
+            return_value=True,
+        ),
+        patch(
+            "app.services.system.task_definition_service.celery_app.send_task",
+            send_task,
+        ),
     ):
         trigger_result = await service.trigger_now(13)
 
@@ -255,12 +289,20 @@ async def test_trigger_now_dispatches_platform_and_selected_bindings_for_admin_a
     ]
     assert trigger_result["dispatched_count"] == 2
     assert send_task.call_count == 2
-    assert send_task.call_args_list[0].args[0] == "app.tasks.task_scheduling.run_tenant_task_binding"
-    assert send_task.call_args_list[1].args[0] == "app.tasks.task_scheduling.run_task_definition"
+    assert (
+        send_task.call_args_list[0].args[0]
+        == "app.tasks.task_scheduling.run_tenant_task_binding"
+    )
+    assert (
+        send_task.call_args_list[1].args[0]
+        == "app.tasks.task_scheduling.run_task_definition"
+    )
 
 
 @pytest.mark.asyncio
-async def test_trigger_now_rejects_selected_scope_without_dispatch_targets(mock_db) -> None:
+async def test_trigger_now_rejects_selected_scope_without_dispatch_targets(
+    mock_db,
+) -> None:
     service = TaskDefinitionService(mock_db)
     definition = SimpleNamespace(
         id=21,
@@ -278,9 +320,12 @@ async def test_trigger_now_rejects_selected_scope_without_dispatch_targets(mock_
     binding_rows.scalars.return_value.all.return_value = []
     mock_db.execute = AsyncMock(return_value=binding_rows)
 
-    with pytest.raises(BusinessException) as exc_info, patch(
-        "app.services.system.task_definition_service.handler_supports_tenant_dispatch",
-        return_value=True,
+    with (
+        pytest.raises(BusinessException) as exc_info,
+        patch(
+            "app.services.system.task_definition_service.handler_supports_tenant_dispatch",
+            return_value=True,
+        ),
     ):
         await service.trigger_now(21)
 
@@ -288,7 +333,9 @@ async def test_trigger_now_rejects_selected_scope_without_dispatch_targets(mock_
 
 
 @pytest.mark.asyncio
-async def test_trigger_now_rejects_tenant_dispatch_scope_for_non_tenant_handler(mock_db) -> None:
+async def test_trigger_now_rejects_tenant_dispatch_scope_for_non_tenant_handler(
+    mock_db,
+) -> None:
     service = TaskDefinitionService(mock_db)
     definition = SimpleNamespace(
         id=31,

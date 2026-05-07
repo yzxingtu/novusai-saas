@@ -11,7 +11,6 @@ from tests.services.conftest import make_mock_model, make_scalars_result
 
 
 class TestAdminDashboardService:
-
     @pytest.mark.asyncio
     async def test_get_overview_aggregates_service_sections(self, mock_db):
         from app.services.system.dashboard_service import AdminDashboardService
@@ -23,7 +22,9 @@ class TestAdminDashboardService:
         service.get_ai_overview = AsyncMock(return_value={"today_calls": 7})
         service.get_storage_overview = AsyncMock(return_value={"total_files": 14})
         service.get_plugin_overview = AsyncMock(return_value={"enabled": 5})
-        service.get_tenant_growth = AsyncMock(return_value=[{"date": "2026-03-22", "count": 2}])
+        service.get_tenant_growth = AsyncMock(
+            return_value=[{"date": "2026-03-22", "count": 2}]
+        )
         service.get_recent_activities = AsyncMock(return_value=[{"id": 1}])
 
         result = await service.get_overview(activity_limit=8, growth_days=21)
@@ -41,7 +42,9 @@ class TestAdminDashboardService:
         service.get_recent_activities.assert_awaited_once_with(limit=8)
 
     @pytest.mark.asyncio
-    async def test_get_recent_activities_enriches_actor_identity(self, mock_db, monkeypatch):
+    async def test_get_recent_activities_enriches_actor_identity(
+        self, mock_db, monkeypatch
+    ):
         import app.services.system.dashboard_service as dashboard_service
 
         log = make_mock_model(

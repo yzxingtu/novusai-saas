@@ -60,7 +60,9 @@ class PermissionMenuDomain:
         )
         visible_plugin_safe_names = {
             name.replace("-", "_")
-            for name in await PluginService(self._service.db).get_tenant_visible_plugin_names(
+            for name in await PluginService(
+                self._service.db
+            ).get_tenant_visible_plugin_names(
                 tenant_admin.tenant_id,
             )
         }

@@ -1,8 +1,7 @@
-"\"\"\"Tests for TenantPlanPluginEntitlementService.\"\"\""
+'"""Tests for TenantPlanPluginEntitlementService."""'
 
 from __future__ import annotations
 
-from typing import cast
 from unittest.mock import AsyncMock
 
 import pytest
@@ -28,7 +27,7 @@ async def test_sync_plan_permissions_grants_when_flag_enabled(mock_db, monkeypat
     monkeypatch.setattr(
         service,
         "_get_plugin_policy",
-        lambda plugin: {"grant_mode": "auto_all_active_plans"},
+        lambda _plugin: {"grant_mode": "auto_all_active_plans"},
     )
     grant = AsyncMock()
     monkeypatch.setattr(service, "_grant_permissions", grant)
@@ -57,7 +56,7 @@ async def test_sync_plan_permissions_revokes_when_flag_disabled(mock_db, monkeyp
     monkeypatch.setattr(
         service,
         "_get_plugin_policy",
-        lambda plugin: {"grant_mode": "auto_all_active_plans"},
+        lambda _plugin: {"grant_mode": "auto_all_active_plans"},
     )
     grant = AsyncMock()
     monkeypatch.setattr(service, "_grant_permissions", grant)
@@ -86,7 +85,7 @@ async def test_sync_plan_permissions_skips_manual_policy(mock_db, monkeypatch):
     monkeypatch.setattr(
         service,
         "_get_plugin_policy",
-        lambda plugin: {"grant_mode": "manual_entitlement"},
+        lambda _plugin: {"grant_mode": "manual_entitlement"},
     )
     grant = AsyncMock()
     monkeypatch.setattr(service, "_grant_permissions", grant)
@@ -100,7 +99,9 @@ async def test_sync_plan_permissions_skips_manual_policy(mock_db, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_sync_plan_feature_entitlements_grants_manual_policy(mock_db, monkeypatch):
+async def test_sync_plan_feature_entitlements_grants_manual_policy(
+    mock_db, monkeypatch
+):
     service = TenantPlanPluginEntitlementService(mock_db)
     monkeypatch.setattr(
         service,
@@ -115,7 +116,7 @@ async def test_sync_plan_feature_entitlements_grants_manual_policy(mock_db, monk
     monkeypatch.setattr(
         service,
         "_get_plugin_policy",
-        lambda plugin: {"grant_mode": "manual_entitlement"},
+        lambda _plugin: {"grant_mode": "manual_entitlement"},
     )
     grant = AsyncMock()
     monkeypatch.setattr(service, "_grant_permissions", grant)
@@ -134,7 +135,9 @@ async def test_sync_plan_feature_entitlements_grants_manual_policy(mock_db, monk
 
 
 @pytest.mark.asyncio
-async def test_sync_plan_feature_entitlements_revokes_when_flag_disabled(mock_db, monkeypatch):
+async def test_sync_plan_feature_entitlements_revokes_when_flag_disabled(
+    mock_db, monkeypatch
+):
     service = TenantPlanPluginEntitlementService(mock_db)
     monkeypatch.setattr(
         service,
@@ -149,7 +152,7 @@ async def test_sync_plan_feature_entitlements_revokes_when_flag_disabled(mock_db
     monkeypatch.setattr(
         service,
         "_get_plugin_policy",
-        lambda plugin: {"grant_mode": "manual_entitlement"},
+        lambda _plugin: {"grant_mode": "manual_entitlement"},
     )
     grant = AsyncMock()
     monkeypatch.setattr(service, "_grant_permissions", grant)

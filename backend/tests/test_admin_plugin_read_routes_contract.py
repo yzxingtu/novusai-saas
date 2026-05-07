@@ -91,9 +91,7 @@ def test_list_plugins_route_keeps_plugin_read_model_facade_chain(monkeypatch) ->
     assert payload["code"] == 0
     assert payload["data"]["total"] == 1
     assert payload["data"]["items"][0]["name"] == "demo-plugin"
-    assert payload["data"]["items"][0]["dependency_status"] == {
-        "overall": "installed"
-    }
+    assert payload["data"]["items"][0]["dependency_status"] == {"overall": "installed"}
     assert payload["data"]["items"][0]["recovery_state"] == {"state": "healthy"}
     service.get_dependency_status.assert_awaited_once_with(plugin)
     service.get_recovery_state.assert_called_once_with(

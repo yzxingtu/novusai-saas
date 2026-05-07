@@ -47,7 +47,6 @@ class TenantUserRole(TenantModel):
 
     __tablename__ = "tenant_user_roles"
 
-
     __delete_deps__ = [
         DeletionDep(
             "TenantUser",

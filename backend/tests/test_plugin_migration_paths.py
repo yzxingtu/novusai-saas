@@ -44,12 +44,13 @@ def _prepare_plugin_db(tmp_path: Path, rows: list[dict[str, object]]) -> str:
     db_path = tmp_path / "plugins.sqlite"
     engine = create_engine(f"sqlite:///{db_path.as_posix()}")
     with engine.begin() as conn:
-        conn.execute(text("CREATE TABLE plugins (name TEXT NOT NULL, is_deleted BOOLEAN)"))
+        conn.execute(
+            text("CREATE TABLE plugins (name TEXT NOT NULL, is_deleted BOOLEAN)")
+        )
         for row in rows:
             conn.execute(
                 text(
-                    "INSERT INTO plugins (name, is_deleted) "
-                    "VALUES (:name, :is_deleted)"
+                    "INSERT INTO plugins (name, is_deleted) VALUES (:name, :is_deleted)"
                 ),
                 row,
             )
@@ -57,7 +58,9 @@ def _prepare_plugin_db(tmp_path: Path, rows: list[dict[str, object]]) -> str:
     return f"sqlite:///{db_path.as_posix()}"
 
 
-def test_get_db_registered_plugin_names_ignores_soft_deleted_rows(tmp_path: Path) -> None:
+def test_get_db_registered_plugin_names_ignores_soft_deleted_rows(
+    tmp_path: Path,
+) -> None:
     db_url = _prepare_plugin_db(
         tmp_path,
         [

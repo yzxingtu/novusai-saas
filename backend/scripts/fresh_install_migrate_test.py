@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 空库 / 指定库迁移验证：对 PostgreSQL 执行 `alembic upgrade heads`（与项目 Docker 默认一致）。
 
@@ -63,6 +62,7 @@ def _verify_schema(url: str) -> list[str]:
     issues: list[str] = []
     eng = create_engine(url, echo=False)
     with eng.connect() as conn:
+
         def has_table(name: str) -> bool:
             r = conn.execute(
                 text(
@@ -135,26 +135,33 @@ def _verify_schema(url: str) -> list[str]:
                 continue
             for column in columns:
                 if has_column(table, column):
-                    issues.append(f"旧列 {table}.{column} 仍存在（fresh schema 不应创建）")
+                    issues.append(
+                        f"旧列 {table}.{column} 仍存在（fresh schema 不应创建）"
+                    )
 
-        if has_table("agents"):
-            if not has_column("agents", "owner_tenant_id"):
-                issues.append("agents 缺少 owner_tenant_id")
+        if has_table("agents") and not has_column("agents", "owner_tenant_id"):
+            issues.append("agents 缺少 owner_tenant_id")
 
-        if has_table("knowledge_bases"):
-            if not has_column("knowledge_bases", "owner_tenant_id"):
-                issues.append("knowledge_bases 缺少 owner_tenant_id")
+        if has_table("knowledge_bases") and not has_column(
+            "knowledge_bases",
+            "owner_tenant_id",
+        ):
+            issues.append("knowledge_bases 缺少 owner_tenant_id")
 
-        if has_table("ai_api_keys"):
-            if not has_column("ai_api_keys", "owner_tenant_id"):
-                issues.append("ai_api_keys 缺少 owner_tenant_id")
+        if has_table("ai_api_keys") and not has_column(
+            "ai_api_keys",
+            "owner_tenant_id",
+        ):
+            issues.append("ai_api_keys 缺少 owner_tenant_id")
 
         if has_table("skills"):
             n = conn.execute(
                 text("SELECT COUNT(*) FROM skills WHERE type = 'data_intelligence'")
             ).scalar_one()
             if int(n or 0) > 0:
-                issues.append("旧 data_intelligence 技能仍存在（fresh schema 不应创建）")
+                issues.append(
+                    "旧 data_intelligence 技能仍存在（fresh schema 不应创建）"
+                )
 
         if has_table("skill_packages"):
             n = conn.execute(
@@ -177,13 +184,23 @@ def _verify_schema(url: str) -> list[str]:
 
 
 def main() -> None:
-    p = argparse.ArgumentParser(description="Fresh DB alembic upgrade heads + optional verify")
-    p.add_argument("--database", default=os.environ.get("DATABASE_NAME", "test"), help="目标库名")
+    p = argparse.ArgumentParser(
+        description="Fresh DB alembic upgrade heads + optional verify"
+    )
+    p.add_argument(
+        "--database", default=os.environ.get("DATABASE_NAME", "test"), help="目标库名"
+    )
     p.add_argument("--host", default=os.environ.get("DATABASE_HOST", "localhost"))
-    p.add_argument("--port", type=int, default=int(os.environ.get("DATABASE_PORT", "5432")))
+    p.add_argument(
+        "--port", type=int, default=int(os.environ.get("DATABASE_PORT", "5432"))
+    )
     p.add_argument("--user", default=os.environ.get("DATABASE_USER", "postgres"))
-    p.add_argument("--password", default=os.environ.get("DATABASE_PASSWORD", "postgres"))
-    p.add_argument("--no-verify", action="store_true", help="跳过迁移后 schema 抽样检查")
+    p.add_argument(
+        "--password", default=os.environ.get("DATABASE_PASSWORD", "postgres")
+    )
+    p.add_argument(
+        "--no-verify", action="store_true", help="跳过迁移后 schema 抽样检查"
+    )
     p.add_argument(
         "--yes-i-know",
         action="store_true",
@@ -192,7 +209,11 @@ def main() -> None:
     args = p.parse_args()
 
     url = _build_sync_url(
-        args.host, args.port, args.user, args.password, args.database,
+        args.host,
+        args.port,
+        args.user,
+        args.password,
+        args.database,
     )
 
     if not args.yes_i_know:

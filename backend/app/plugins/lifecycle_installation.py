@@ -35,6 +35,7 @@ logger = get_logger(__name__)
 
 class LifecycleInstallationMixin:
     """Install/rollback orchestration extracted from PluginLifecycle."""
+
     async def install(
         self,
         source_path: Path,

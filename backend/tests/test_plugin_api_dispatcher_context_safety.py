@@ -33,8 +33,12 @@ def test_build_plugin_context_uses_db_manifest_in_production(
         captured.update(kwargs)
         return {"ok": True}
 
-    monkeypatch.setattr("app.plugins.api_dispatcher._get_plugin_loader", lambda: _Loader())
-    monkeypatch.setattr("app.plugins.api_dispatcher.settings.DEBUG", False, raising=False)
+    monkeypatch.setattr(
+        "app.plugins.api_dispatcher._get_plugin_loader", lambda: _Loader()
+    )
+    monkeypatch.setattr(
+        "app.plugins.api_dispatcher.settings.DEBUG", False, raising=False
+    )
     monkeypatch.setattr(
         "app.plugins.context_factory.create_plugin_context",
         _fake_create_plugin_context,
@@ -73,8 +77,12 @@ def test_build_plugin_context_debug_falls_back_to_db_manifest_on_loader_error(
         captured.update(kwargs)
         return {"ok": True}
 
-    monkeypatch.setattr("app.plugins.api_dispatcher._get_plugin_loader", lambda: _BrokenLoader())
-    monkeypatch.setattr("app.plugins.api_dispatcher.settings.DEBUG", True, raising=False)
+    monkeypatch.setattr(
+        "app.plugins.api_dispatcher._get_plugin_loader", lambda: _BrokenLoader()
+    )
+    monkeypatch.setattr(
+        "app.plugins.api_dispatcher.settings.DEBUG", True, raising=False
+    )
     monkeypatch.setattr(
         "app.plugins.context_factory.create_plugin_context",
         _fake_create_plugin_context,

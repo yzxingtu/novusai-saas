@@ -18,7 +18,8 @@ class NovusdocFolder(BaseModel):
         comment="0=platform/admin space, N=tenant N's space",
     )
     name: Mapped[str] = mapped_column(
-        String(200), nullable=False,
+        String(200),
+        nullable=False,
     )
     parent_id: Mapped[int | None] = mapped_column(
         Integer,
@@ -27,7 +28,9 @@ class NovusdocFolder(BaseModel):
         index=True,
     )
     sort_order: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0,
+        Integer,
+        nullable=False,
+        default=0,
     )
     created_by: Mapped[int | None] = mapped_column(
         Integer,

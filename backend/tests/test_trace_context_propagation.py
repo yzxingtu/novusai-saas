@@ -130,7 +130,9 @@ async def test_notify_sync_preserves_trace_context_in_worker_thread(
             observed_trace_ids.append(trace_id_var.get())
             return 1
 
-    monkeypatch.setattr(notification_module, "NotificationService", _FakeNotificationService)
+    monkeypatch.setattr(
+        notification_module, "NotificationService", _FakeNotificationService
+    )
     monkeypatch.setattr(
         "app.core.database.async_session_factory",
         lambda: _DummySessionContext(),

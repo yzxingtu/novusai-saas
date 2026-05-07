@@ -85,4 +85,3 @@ class CodegenConfigSyncMixin:
             data["config_hash"] = hashlib.sha256(
                 json.dumps(config_json, sort_keys=True).encode()
             ).hexdigest()[:16]
-

@@ -24,7 +24,13 @@ def test_permission_endpoint_scope_alias_removed() -> None:
 def test_resource_scope_enum_has_five_canonical_values() -> None:
     from app.enums.common import ResourceScopeEnum
 
-    expected = {"global_shared", "admin_only", "all_tenants", "admin_and_selected_tenants", "selected_tenants"}
+    expected = {
+        "global_shared",
+        "admin_only",
+        "all_tenants",
+        "admin_and_selected_tenants",
+        "selected_tenants",
+    }
     actual = {e.value for e in ResourceScopeEnum}
     assert actual == expected
 

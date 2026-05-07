@@ -30,29 +30,45 @@ class NovusdocDocument(BaseModel):
         index=True,
     )
     title: Mapped[str] = mapped_column(
-        String(500), nullable=False, default="Untitled",
+        String(500),
+        nullable=False,
+        default="Untitled",
     )
     content: Mapped[dict | None] = mapped_column(
-        JSON, nullable=True, comment="Tiptap JSON content",
+        JSON,
+        nullable=True,
+        comment="Tiptap JSON content",
     )
     content_text: Mapped[str | None] = mapped_column(
-        Text, nullable=True, comment="Plain text for search",
+        Text,
+        nullable=True,
+        comment="Plain text for search",
     )
     content_html: Mapped[str | None] = mapped_column(
-        Text, nullable=True, comment="HTML export cache",
+        Text,
+        nullable=True,
+        comment="HTML export cache",
     )
     word_count: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0,
+        Integer,
+        nullable=False,
+        default=0,
     )
     status: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="draft",
+        String(20),
+        nullable=False,
+        default="draft",
     )
     is_pinned: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=False,
+        Boolean,
+        nullable=False,
+        default=False,
     )
     cover_image: Mapped[str | None] = mapped_column(
-        String(500), nullable=True,
+        String(500),
+        nullable=True,
     )
     created_by: Mapped[int | None] = mapped_column(
-        Integer, nullable=True,
+        Integer,
+        nullable=True,
     )

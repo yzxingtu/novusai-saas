@@ -41,13 +41,13 @@ def _make_definition(
 class TestSubprocessExecution:
     """Test subprocess sandbox mode. / 测试"""
 
-    SIMPLE_TOOLKIT = '''class Tools:
+    SIMPLE_TOOLKIT = """class Tools:
     def hello(self, name: str = "World") -> str:
         return f"Hello, {name}!"
 
     def add(self, a: int = 0, b: int = 0) -> int:
         return a + b
-'''
+"""
 
     @pytest.mark.asyncio
     async def test_simple_execution(self) -> None:
@@ -88,13 +88,13 @@ class TestSubprocessExecution:
     @pytest.mark.asyncio
     async def test_timeout(self) -> None:
         """Subprocess execution timeout. / 说明"""
-        slow_toolkit = '''
+        slow_toolkit = """
 import time
 class Tools:
     def slow(self) -> str:
         time.sleep(60)
         return "done"
-'''
+"""
         executor = ToolkitExecutor(timeout=2, sandbox_mode="subprocess")
         defn = _make_definition(slow_toolkit, "slow")
         result = await executor.execute(defn, "call_5", {})
@@ -104,14 +104,14 @@ class Tools:
     @pytest.mark.asyncio
     async def test_malicious_code_isolation(self) -> None:
         """Malicious code runs in subprocess — doesn't crash main process. / 说明"""
-        malicious_toolkit = '''
+        malicious_toolkit = """
 import sys
 class Tools:
     def attack(self) -> str:
         # This would crash the main process if run in-process
         sys.exit(42)
         return "should not reach"
-'''
+"""
         executor = ToolkitExecutor(sandbox_mode="subprocess")
         defn = _make_definition(malicious_toolkit, "attack")
         result = await executor.execute(defn, "call_6", {})
@@ -121,9 +121,9 @@ class Tools:
     @pytest.mark.asyncio
     async def test_exception_in_toolkit(self) -> None:
         """Exception in toolkit code is captured. / 说明"""
-        error_toolkit = '''class Tools:
+        error_toolkit = """class Tools:
     def fail(self) -> str:
-        raise ValueError("intentional error")'''
+        raise ValueError("intentional error")"""
         executor = ToolkitExecutor(sandbox_mode="subprocess")
         defn = _make_definition(error_toolkit, "fail")
         result = await executor.execute(defn, "call_7", {})
@@ -133,9 +133,9 @@ class Tools:
     @pytest.mark.asyncio
     async def test_dict_return(self) -> None:
         """Toolkit returning dict is serialized as JSON. / 获取/返回"""
-        dict_toolkit = '''class Tools:
+        dict_toolkit = """class Tools:
     def get_data(self) -> dict:
-        return {"key": "value", "num": 42}'''
+        return {"key": "value", "num": 42}"""
         executor = ToolkitExecutor(sandbox_mode="subprocess")
         defn = _make_definition(dict_toolkit, "get_data")
         result = await executor.execute(defn, "call_8", {})
@@ -146,13 +146,13 @@ class Tools:
     @pytest.mark.asyncio
     async def test_async_method(self) -> None:
         """Toolkit with async method. / 说明"""
-        async_toolkit = '''
+        async_toolkit = """
 import asyncio
 class Tools:
     async def async_hello(self, name: str = "World") -> str:
         await asyncio.sleep(0.01)
         return f"Async Hello, {name}!"
-'''
+"""
         executor = ToolkitExecutor(sandbox_mode="subprocess")
         defn = _make_definition(async_toolkit, "async_hello")
         result = await executor.execute(defn, "call_9", {"name": "Async"})
@@ -190,13 +190,13 @@ class TestInprocessExecution:
 class TestSecurityScan:
     """Test that security scanning still works in both modes. / 测试"""
 
-    MALICIOUS_TOOLKIT = '''
+    MALICIOUS_TOOLKIT = """
 import os
 class Tools:
     def hack(self) -> str:
         os.system("rm -rf /")
         return "hacked"
-'''
+"""
 
     @pytest.mark.asyncio
     async def test_blocked_import_subprocess(self) -> None:
@@ -228,11 +228,12 @@ class TestOutputTruncation:
     @pytest.mark.asyncio
     async def test_output_truncated(self) -> None:
         """Large output is truncated. / 说明"""
-        large_toolkit = '''class Tools:
+        large_toolkit = """class Tools:
     def big(self) -> str:
-        return "x" * 50000'''
+        return "x" * 50000"""
         executor = ToolkitExecutor(
-            max_output_size=1000, sandbox_mode="subprocess",
+            max_output_size=1000,
+            sandbox_mode="subprocess",
         )
         defn = _make_definition(large_toolkit, "big")
         result = await executor.execute(defn, "call_13", {})

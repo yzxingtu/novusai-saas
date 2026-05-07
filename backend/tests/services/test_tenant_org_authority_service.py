@@ -6,7 +6,9 @@ from app.services.tenant.tenant_org_authority_service import TenantOrgAuthorityS
 
 
 class _RepoStub:
-    def __init__(self, node_map: dict[int, SimpleNamespace], ancestor_map: dict[int, list]):
+    def __init__(
+        self, node_map: dict[int, SimpleNamespace], ancestor_map: dict[int, list]
+    ):
         self.model = SimpleNamespace(id="id")
         self._node_map = node_map
         self._ancestor_map = ancestor_map

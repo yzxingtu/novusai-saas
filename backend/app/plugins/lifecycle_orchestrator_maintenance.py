@@ -19,6 +19,7 @@ logger = get_logger(__name__)
 
 class LifecycleOrchestratorMaintenanceMixin:
     """Scheduler/dependency/uninstall helpers for LifecycleOrchestrator."""
+
     async def refresh_schedules_impl(self, plugin_id: int) -> dict[str, Any]:
         """Reconcile plugin task definitions with the in-process scheduler."""
         from sqlalchemy import select

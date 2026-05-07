@@ -69,4 +69,3 @@ def clear_runtime(task_id: int) -> None:
     _running_migrations.pop(task_id, None)
     _pause_events.pop(task_id, None)
     _cancel_flags.discard(task_id)
-

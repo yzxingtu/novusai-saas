@@ -11,7 +11,9 @@ from app.ai.engine.types import ExecutionRequest, ExecutionResult
 from app.ai.types import ChatMessage
 
 
-def _make_engine_agent_request() -> tuple[ConversationEngine, SimpleNamespace, ExecutionRequest]:
+def _make_engine_agent_request() -> tuple[
+    ConversationEngine, SimpleNamespace, ExecutionRequest
+]:
     engine = ConversationEngine(
         db=MagicMock(),
         gateway=MagicMock(),
@@ -76,9 +78,13 @@ async def test_conversation_stream_execute_facade_delegates_to_entrypoint(
         captured["skill_result"] = skill_result
         return sentinel
 
-    monkeypatch.setattr(conversation, "_stream_execute_conversation", _fake_stream_execute)
+    monkeypatch.setattr(
+        conversation, "_stream_execute_conversation", _fake_stream_execute
+    )
 
-    result = await engine.stream_execute(agent, request, on_complete=None, skill_result=None)
+    result = await engine.stream_execute(
+        agent, request, on_complete=None, skill_result=None
+    )
 
     assert result is sentinel
     assert captured["engine"] is engine

@@ -62,7 +62,9 @@ class _LegacyOnlyAdapterStub:
 async def test_gateway_call_chat_adapter_prefers_protocol_safe_openai_facade() -> None:
     gateway = AIGateway.__new__(AIGateway)
     adapter = _OpenAIProtocolSafeAdapterStub()
-    provider = SimpleNamespace(type="openai_compatible", config={"wire_api": "responses"})
+    provider = SimpleNamespace(
+        type="openai_compatible", config={"wire_api": "responses"}
+    )
 
     response = await gateway._call_chat_adapter(
         adapter=adapter,
@@ -83,10 +85,14 @@ async def test_gateway_call_chat_adapter_prefers_protocol_safe_openai_facade() -
 
 
 @pytest.mark.asyncio
-async def test_gateway_stream_chat_adapter_prefers_protocol_safe_openai_facade() -> None:
+async def test_gateway_stream_chat_adapter_prefers_protocol_safe_openai_facade() -> (
+    None
+):
     gateway = AIGateway.__new__(AIGateway)
     adapter = _OpenAIProtocolSafeAdapterStub()
-    provider = SimpleNamespace(type="openai_compatible", config={"wire_api": "responses"})
+    provider = SimpleNamespace(
+        type="openai_compatible", config={"wire_api": "responses"}
+    )
 
     chunks = [
         chunk
@@ -109,7 +115,9 @@ async def test_gateway_stream_chat_adapter_prefers_protocol_safe_openai_facade()
 
 
 @pytest.mark.asyncio
-async def test_gateway_call_chat_adapter_keeps_legacy_path_for_non_openai_provider() -> None:
+async def test_gateway_call_chat_adapter_keeps_legacy_path_for_non_openai_provider() -> (
+    None
+):
     gateway = AIGateway.__new__(AIGateway)
     adapter = _LegacyOnlyAdapterStub()
     provider = SimpleNamespace(type="anthropic", config={})

@@ -101,12 +101,7 @@ SYSTEM_PROMPT = render_prompt_contract("rag_multi_query_system")
 def test_guard_scan_paths_skips_prompt_contract_resources(tmp_path: Path) -> None:
     backend_root = tmp_path / "backend"
     prompt_resource = (
-        backend_root
-        / "app"
-        / "ai"
-        / "prompt_contracts"
-        / "resources"
-        / "fake.py"
+        backend_root / "app" / "ai" / "prompt_contracts" / "resources" / "fake.py"
     )
     _write_file(
         prompt_resource,

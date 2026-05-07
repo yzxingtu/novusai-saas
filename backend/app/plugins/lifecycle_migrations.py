@@ -26,6 +26,7 @@ logger = get_logger(__name__)
 
 class LifecycleMigrationMixin:
     """Alembic/database cleanup helpers extracted from PluginLifecycle."""
+
     async def _purge_orphaned_alembic_stamps(self) -> None:
         """Purge orphaned version stamps in alembic_version that no longer have corresponding migration files.
         / 升级前清除 alembic_version 中已无对应迁移文件的孤立版本戳。

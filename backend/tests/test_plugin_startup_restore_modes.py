@@ -341,7 +341,9 @@ async def test_restore_skips_license_inactive_plugins_and_disables_them(
             self.plugins_dir = tmp_path / "plugins"
 
         def load_manifest(self, _plugin_name: str):
-            raise AssertionError("license inactive plugin should not continue loading manifest")
+            raise AssertionError(
+                "license inactive plugin should not continue loading manifest"
+            )
 
     lifecycle_instances: list[object] = []
 
@@ -380,7 +382,9 @@ async def test_restore_skips_license_inactive_plugins_and_disables_them(
     assert plugin.error_count == 0
     assert lifecycle_instances
     lifecycle = lifecycle_instances[0]
-    lifecycle._set_plugin_permissions_enabled.assert_awaited_once_with(plugin.name, False)
+    lifecycle._set_plugin_permissions_enabled.assert_awaited_once_with(
+        plugin.name, False
+    )
     registry.unregister_all.assert_called_once_with(plugin.name)
     db.flush.assert_awaited_once()
     assert result == {"restored": 0, "failed": 0, "total": 1}
@@ -464,7 +468,9 @@ async def test_restore_marks_error_when_python_dependencies_missing(
     assert plugin.status == PluginStatusEnum.ERROR.value
     assert lifecycle_instances
     lifecycle = lifecycle_instances[0]
-    lifecycle._set_plugin_permissions_enabled.assert_awaited_once_with(plugin.name, False)
+    lifecycle._set_plugin_permissions_enabled.assert_awaited_once_with(
+        plugin.name, False
+    )
     registry.unregister_all.assert_called_once_with(plugin.name)
     assert "Dependency validation failed" in (plugin.error_message or "")
 
@@ -496,7 +502,9 @@ async def test_restore_marks_error_when_heavy_restore_step_fails(
     )
 
     plugins_dir = tmp_path / "plugins"
-    (plugins_dir / "broken-migration-plugin" / "backend" / "migrations" / "versions").mkdir(
+    (
+        plugins_dir / "broken-migration-plugin" / "backend" / "migrations" / "versions"
+    ).mkdir(
         parents=True,
         exist_ok=True,
     )
@@ -566,7 +574,9 @@ async def test_restore_marks_error_when_heavy_restore_step_fails(
     lifecycle = lifecycle_instances[0]
     lifecycle.run_alembic_upgrade.assert_not_awaited()
     lifecycle._sync_plugin_task_definitions.assert_awaited_once()
-    lifecycle._set_plugin_permissions_enabled.assert_awaited_once_with(plugin.name, False)
+    lifecycle._set_plugin_permissions_enabled.assert_awaited_once_with(
+        plugin.name, False
+    )
     register_all_extensions.assert_not_called()
     registry.unregister_all.assert_called_once_with(plugin.name)
     db.flush.assert_awaited_once()

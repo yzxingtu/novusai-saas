@@ -42,7 +42,8 @@ class _FakeRedis:
         if match and match.startswith("mem:sess:1:*:*:*:*:"):
             conversation_id = match.rsplit(":", 1)[-1]
             keys = [
-                k for k in self.store
+                k
+                for k in self.store
                 if k.startswith("mem:sess:1:") and k.endswith(f":{conversation_id}")
             ]
         elif match == "mem:sess:1:*":
@@ -100,7 +101,9 @@ class _FakePipeline:
 @pytest.mark.asyncio
 async def test_session_memory_upsert_and_idempotent(monkeypatch):
     fake = _FakeRedis()
-    monkeypatch.setattr("app.services.ai.session_memory_service.get_redis_client", lambda: fake)
+    monkeypatch.setattr(
+        "app.services.ai.session_memory_service.get_redis_client", lambda: fake
+    )
 
     svc = SessionMemoryService(tenant_id=1)
     state = await svc.upsert_state(
@@ -136,7 +139,9 @@ async def test_session_memory_upsert_and_idempotent(monkeypatch):
 @pytest.mark.asyncio
 async def test_session_memory_clear_by_conversation(monkeypatch):
     fake = _FakeRedis()
-    monkeypatch.setattr("app.services.ai.session_memory_service.get_redis_client", lambda: fake)
+    monkeypatch.setattr(
+        "app.services.ai.session_memory_service.get_redis_client", lambda: fake
+    )
 
     # 准备两条同 conversation key
     fake.store["mem:sess:1:tenant_chat:ai_chat_page:10:20:100"] = "{}"
@@ -152,7 +157,9 @@ async def test_session_memory_clear_by_conversation(monkeypatch):
 @pytest.mark.asyncio
 async def test_session_memory_clear_multiple_conversations(monkeypatch):
     fake = _FakeRedis()
-    monkeypatch.setattr("app.services.ai.session_memory_service.get_redis_client", lambda: fake)
+    monkeypatch.setattr(
+        "app.services.ai.session_memory_service.get_redis_client", lambda: fake
+    )
 
     fake.store["mem:sess:1:tenant_chat:ai_chat_page:10:20:100"] = "{}"
     fake.store["mem:sess:1:tenant_chat:ai_chat_page:10:20:101"] = "{}"

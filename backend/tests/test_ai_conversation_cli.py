@@ -713,8 +713,7 @@ def test_ai_conversation_show_json_scrubs_context_source_polluted_turn_flow(
     )
     assert diagnostics["turn_record"]["turn_flow"]["evidence"] == []
     assert (
-        diagnostics["turn_record"]["turn_flow"]["answer_card"]["source_chip_ids"]
-        == []
+        diagnostics["turn_record"]["turn_flow"]["answer_card"]["source_chip_ids"] == []
     )
     output = json.dumps(payload, ensure_ascii=False)
     assert "Retrieved 3 sources" not in output

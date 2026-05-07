@@ -123,7 +123,9 @@ class TestLongTermMemoryServiceAsync:
             return []
 
         with (
-            patch.object(LongTermMemoryService, "_resolve_embedding_target", new=_no_embed),
+            patch.object(
+                LongTermMemoryService, "_resolve_embedding_target", new=_no_embed
+            ),
             patch.object(LongTermMemoryService, "_generate_embeddings", new=_no_gen),
             patch.object(
                 LongTermMemoryService,
@@ -158,7 +160,9 @@ class TestLongTermMemoryServiceAsync:
             return []
 
         with (
-            patch.object(LongTermMemoryService, "_resolve_embedding_target", new=_no_embed),
+            patch.object(
+                LongTermMemoryService, "_resolve_embedding_target", new=_no_embed
+            ),
             patch.object(LongTermMemoryService, "_generate_embeddings", new=_no_gen),
         ):
             out = await service.recall(

@@ -13,7 +13,10 @@ def test_find_entry_avoids_cross_provider_mismatch_when_provider_known() -> None
     }
 
     assert _find_entry(registry, "qwen-vl-plus", provider_code="dashscope") is None
-    assert _find_entry(registry, "qwen-vl-plus") == registry["openrouter/qwen/qwen-vl-plus"]
+    assert (
+        _find_entry(registry, "qwen-vl-plus")
+        == registry["openrouter/qwen/qwen-vl-plus"]
+    )
 
 
 def test_find_entry_latest_alias_reuses_same_provider_base_entry() -> None:
@@ -24,11 +27,14 @@ def test_find_entry_latest_alias_reuses_same_provider_base_entry() -> None:
         }
     }
 
-    assert _find_entry(
-        registry,
-        "qwen-max-latest",
-        provider_code="dashscope",
-    ) == registry["dashscope/qwen-max"]
+    assert (
+        _find_entry(
+            registry,
+            "qwen-max-latest",
+            provider_code="dashscope",
+        )
+        == registry["dashscope/qwen-max"]
+    )
 
 
 def test_extract_capabilities_derives_modalities_and_rate_limits() -> None:

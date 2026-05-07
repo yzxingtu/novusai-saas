@@ -29,7 +29,6 @@ class AgentConversation(TenantModel):
 
     __tablename__ = "agent_conversations"
 
-
     __delete_deps__ = [
         DeletionDep(
             "ConversationMessage",

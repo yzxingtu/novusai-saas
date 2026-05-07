@@ -96,10 +96,8 @@ class PlainTextInputAiPolicyService:
         self._account_access_service = AccountAIAccessService(db)
 
     async def get_admin_policy(self, admin: Admin) -> dict[str, Any]:
-        ai_profile = (
-            await self._account_access_service.get_platform_admin_ai_availability_profile(
-                admin
-            )
+        ai_profile = await self._account_access_service.get_platform_admin_ai_availability_profile(
+            admin
         )
         account_enabled = _as_bool(
             ai_profile.get("effective_ai_enabled"),
@@ -281,9 +279,7 @@ class PlainTextInputAiPolicyService:
             "account_ai_enabled": policy.get("account_ai_enabled"),
             "personal_enabled": policy.get("personal_enabled"),
             "platform_admin_enabled": policy.get("platform_admin_enabled"),
-            "platform_allow_tenant_enable": policy.get(
-                "platform_allow_tenant_enable"
-            ),
+            "platform_allow_tenant_enable": policy.get("platform_allow_tenant_enable"),
             "tenant_enabled": policy.get("tenant_enabled"),
         }
         if field_policy is not None:

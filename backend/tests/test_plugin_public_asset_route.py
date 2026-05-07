@@ -110,7 +110,9 @@ async def test_public_plugin_asset_route_clears_cookie_on_invalid_path(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     endpoint = _get_public_asset_endpoint()
-    authorize_mock = AsyncMock(side_effect=AssertionError("authorize should not be called"))
+    authorize_mock = AsyncMock(
+        side_effect=AssertionError("authorize should not be called")
+    )
     monkeypatch.setattr(
         "app.plugins.asset_runtime.authorize_public_captcha_asset_request",
         authorize_mock,

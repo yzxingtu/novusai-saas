@@ -20,10 +20,14 @@ def test_extract_responses_reasoning_text_supports_dict_payload() -> None:
         ]
     }
 
-    assert extract_responses_reasoning_text(response) == "first thought\n\nsecond thought"
+    assert (
+        extract_responses_reasoning_text(response) == "first thought\n\nsecond thought"
+    )
 
 
-def test_extract_responses_reasoning_text_falls_back_to_message_reasoning_blocks() -> None:
+def test_extract_responses_reasoning_text_falls_back_to_message_reasoning_blocks() -> (
+    None
+):
     response = SimpleNamespace(
         output=[
             SimpleNamespace(

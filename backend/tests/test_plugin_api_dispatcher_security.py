@@ -94,6 +94,7 @@ def test_handler_accepts_param_by_name() -> None:
 
 def test_handler_accepts_param_by_kwargs() -> None:
     """**kwargs 不视为显式接受参数，不自动注入 / **kwargs does not receive auto-injection."""
+
     def handler(request, **kwargs):
         return request, kwargs
 
@@ -204,7 +205,9 @@ async def test_dispatch_rejects_protected_plugin_route_without_permission(
         "app.plugins.api_dispatcher.evaluate_plugin_runtime_gate",
         AsyncMock(return_value=_gate_result(manifest)),
     )
-    monkeypatch.setattr("app.plugins.api_dispatcher.load_plugin_handler", lambda *_: _handler)
+    monkeypatch.setattr(
+        "app.plugins.api_dispatcher.load_plugin_handler", lambda *_: _handler
+    )
 
     response = await _dispatch_plugin_api(
         plugin_name="demo",
@@ -252,8 +255,12 @@ async def test_dispatch_raises_app_exception_when_handler_returns_error_dict(
         "app.plugins.api_dispatcher.evaluate_plugin_runtime_gate",
         AsyncMock(return_value=_gate_result(manifest)),
     )
-    monkeypatch.setattr("app.plugins.api_dispatcher.load_plugin_handler", lambda *_: _handler)
-    monkeypatch.setattr("app.plugins.api_dispatcher._build_plugin_context", lambda **_: _CtxWithoutCap())
+    monkeypatch.setattr(
+        "app.plugins.api_dispatcher.load_plugin_handler", lambda *_: _handler
+    )
+    monkeypatch.setattr(
+        "app.plugins.api_dispatcher._build_plugin_context", lambda **_: _CtxWithoutCap()
+    )
 
     request = _build_request(path="/admin/plugins/demo/api/ping")
     with pytest.raises(Exception) as exc_info:
@@ -299,9 +306,15 @@ async def test_dispatch_raises_app_exception_on_handler_runtime_error(
         "app.plugins.api_dispatcher.evaluate_plugin_runtime_gate",
         AsyncMock(return_value=_gate_result(manifest)),
     )
-    monkeypatch.setattr("app.plugins.api_dispatcher.load_plugin_handler", lambda *_: _handler)
-    monkeypatch.setattr("app.plugins.api_dispatcher._build_plugin_context", lambda **_: _CtxWithoutCap())
-    monkeypatch.setattr("app.plugins.api_dispatcher.settings.DEBUG", False, raising=False)
+    monkeypatch.setattr(
+        "app.plugins.api_dispatcher.load_plugin_handler", lambda *_: _handler
+    )
+    monkeypatch.setattr(
+        "app.plugins.api_dispatcher._build_plugin_context", lambda **_: _CtxWithoutCap()
+    )
+    monkeypatch.setattr(
+        "app.plugins.api_dispatcher.settings.DEBUG", False, raising=False
+    )
 
     request = _build_request(path="/admin/plugins/demo/api/ping")
     with pytest.raises(Exception) as exc_info:
@@ -351,9 +364,15 @@ async def test_dispatch_raises_app_exception_on_error_json_response(
         "app.plugins.api_dispatcher.evaluate_plugin_runtime_gate",
         AsyncMock(return_value=_gate_result(manifest)),
     )
-    monkeypatch.setattr("app.plugins.api_dispatcher.load_plugin_handler", lambda *_: _handler)
-    monkeypatch.setattr("app.plugins.api_dispatcher._build_plugin_context", lambda **_: _CtxWithoutCap())
-    monkeypatch.setattr("app.plugins.api_dispatcher.settings.DEBUG", False, raising=False)
+    monkeypatch.setattr(
+        "app.plugins.api_dispatcher.load_plugin_handler", lambda *_: _handler
+    )
+    monkeypatch.setattr(
+        "app.plugins.api_dispatcher._build_plugin_context", lambda **_: _CtxWithoutCap()
+    )
+    monkeypatch.setattr(
+        "app.plugins.api_dispatcher.settings.DEBUG", False, raising=False
+    )
 
     request = _build_request(path="/admin/plugins/demo/api/ping")
     with pytest.raises(Exception) as exc_info:
@@ -399,8 +418,12 @@ async def test_dispatch_allows_success_streaming_response_passthrough(
         "app.plugins.api_dispatcher.evaluate_plugin_runtime_gate",
         AsyncMock(return_value=_gate_result(manifest)),
     )
-    monkeypatch.setattr("app.plugins.api_dispatcher.load_plugin_handler", lambda *_: _handler)
-    monkeypatch.setattr("app.plugins.api_dispatcher._build_plugin_context", lambda **_: _CtxWithoutCap())
+    monkeypatch.setattr(
+        "app.plugins.api_dispatcher.load_plugin_handler", lambda *_: _handler
+    )
+    monkeypatch.setattr(
+        "app.plugins.api_dispatcher._build_plugin_context", lambda **_: _CtxWithoutCap()
+    )
 
     response = await _dispatch_plugin_api(
         plugin_name="demo",
@@ -448,8 +471,12 @@ async def test_dispatch_uses_scope_trace_id_for_plugin_context_request_id(
         "app.plugins.api_dispatcher.evaluate_plugin_runtime_gate",
         AsyncMock(return_value=_gate_result(manifest)),
     )
-    monkeypatch.setattr("app.plugins.api_dispatcher.load_plugin_handler", lambda *_: _handler)
-    monkeypatch.setattr("app.plugins.api_dispatcher._build_plugin_context", _fake_build_plugin_context)
+    monkeypatch.setattr(
+        "app.plugins.api_dispatcher.load_plugin_handler", lambda *_: _handler
+    )
+    monkeypatch.setattr(
+        "app.plugins.api_dispatcher._build_plugin_context", _fake_build_plugin_context
+    )
 
     request = _build_request(path="/admin/plugins/demo/api/ping")
     request.scope["state"] = {"trace_id": "trace-generated-by-middleware"}

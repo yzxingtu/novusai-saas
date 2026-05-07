@@ -25,7 +25,6 @@ class _FakeProviderApiKey:
 
 
 class TestCreateKey:
-
     @pytest.mark.asyncio
     async def test_create_key_normalizes_scope_and_syncs_assignments(self, mock_db):
         from app.services.ai.api_key_service import ProviderApiKeyService
@@ -37,12 +36,15 @@ class TestCreateKey:
         service.db = mock_db
         service.repo = AsyncMock()
 
-        with patch(
-            "app.services.ai.api_key_service.ProviderApiKey",
-            _FakeProviderApiKey,
-        ), patch(
-            "app.services.ai.api_key_service.ResourceTenantAssignmentRepository",
-            return_value=rta_repo,
+        with (
+            patch(
+                "app.services.ai.api_key_service.ProviderApiKey",
+                _FakeProviderApiKey,
+            ),
+            patch(
+                "app.services.ai.api_key_service.ResourceTenantAssignmentRepository",
+                return_value=rta_repo,
+            ),
         ):
             key = await service.create_key(
                 ProviderApiKeyCreate(
@@ -82,7 +84,6 @@ class TestCreateKey:
 
 
 class TestUpdateKey:
-
     @pytest.mark.asyncio
     async def test_update_key_updates_metadata_with_real_schema(self, mock_db):
         from app.services.ai.api_key_service import ProviderApiKeyService
@@ -118,7 +119,6 @@ class TestUpdateKey:
 
 
 class TestToggleStatus:
-
     @pytest.mark.asyncio
     async def test_toggle_status_flips_active_flag(self, mock_db):
         from app.services.ai.api_key_service import ProviderApiKeyService
@@ -149,7 +149,6 @@ class TestToggleStatus:
 
 
 class TestDelegatingMethods:
-
     @pytest.mark.asyncio
     async def test_increment_usage_delegates_with_default_increment(self, mock_db):
         from app.services.ai.api_key_service import ProviderApiKeyService
@@ -181,7 +180,9 @@ class TestDelegatingMethods:
         service = ProviderApiKeyService.__new__(ProviderApiKeyService)
         service.db = mock_db
         service.repo = AsyncMock()
-        service.repo.get_keys_by_provider = AsyncMock(return_value=[SimpleNamespace(id=1)])
+        service.repo.get_keys_by_provider = AsyncMock(
+            return_value=[SimpleNamespace(id=1)]
+        )
 
         result = await service.get_keys_by_provider(provider_id=3, tenant_id=8)
 
@@ -192,7 +193,9 @@ class TestDelegatingMethods:
         )
 
     @pytest.mark.asyncio
-    async def test_get_keys_by_provider_returns_empty_list_for_default_filters(self, mock_db):
+    async def test_get_keys_by_provider_returns_empty_list_for_default_filters(
+        self, mock_db
+    ):
         from app.services.ai.api_key_service import ProviderApiKeyService
 
         service = ProviderApiKeyService.__new__(ProviderApiKeyService)

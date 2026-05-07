@@ -257,7 +257,10 @@ def test_identity_detail_helpers_include_expected_flags() -> None:
 def test_identity_role_presentation_suppresses_architecture_duplicates() -> None:
     assert resolve_identity_display_role_name("平台管理组", "平台管理组") is None
     assert resolve_identity_display_role_name(" 平台管理组 ", "平台管理组") is None
-    assert resolve_identity_display_role_name("平台审核角色", "平台管理组") == "平台审核角色"
+    assert (
+        resolve_identity_display_role_name("平台审核角色", "平台管理组")
+        == "平台审核角色"
+    )
 
 
 @pytest.mark.asyncio

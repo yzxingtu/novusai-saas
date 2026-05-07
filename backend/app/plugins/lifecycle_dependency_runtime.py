@@ -32,6 +32,7 @@ logger = get_logger(__name__)
 
 class LifecycleDependencyRuntimeMixin:
     """Host dependency/runtime helpers extracted from PluginLifecycle."""
+
     def _load_project_pyproject_requirements(self) -> list[str]:
         """Load declared host requirements from pyproject.toml. / 从 pyproject.toml 加载宿主声明的 requirement。"""
         requirements: list[str] = []

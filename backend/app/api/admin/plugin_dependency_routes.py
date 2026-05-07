@@ -37,9 +37,7 @@ def register_plugin_dependency_routes(
 
     @controller.router.get("/{plugin_id}/dependents")
     @action_read("action.plugin.read")
-    async def get_plugin_dependents(
-        plugin_id: int, db: DbSession, admin: ActiveAdmin
-    ):
+    async def get_plugin_dependents(plugin_id: int, db: DbSession, admin: ActiveAdmin):
         _ = admin
         from app.plugins.lifecycle import PluginLifecycle
 

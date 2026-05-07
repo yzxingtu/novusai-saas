@@ -15,7 +15,6 @@ from app.core.deletion import DeletionDep, DeletionStrategy
 class Attachment(TenantModel):
     __tablename__ = "attachments"
 
-
     __delete_deps__ = [
         DeletionDep(
             "KnowledgeDocument",

@@ -41,4 +41,3 @@ async def test_rag_contributor_does_not_mark_kb_injected_without_sources() -> No
     assert contribution.rag_sources is None
     assert contribution.rag_source_kinds == []
     assert contribution.kb_injected is False
-

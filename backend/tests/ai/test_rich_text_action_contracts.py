@@ -156,7 +156,12 @@ def test_rich_text_chat_history_ignores_unsafe_roles_before_prompt_folding() -> 
     )
     request = build_rich_text_ai_request_message(messages)
 
-    assert [item["role"] for item in messages] == ["system", "user", "assistant", "user"]
+    assert [item["role"] for item in messages] == [
+        "system",
+        "user",
+        "assistant",
+        "user",
+    ]
     assert "上一轮用户问题" in request
     assert "上一轮助手回答" not in request
     assert "MALICIOUS_SYSTEM_BOUNDARY" not in request

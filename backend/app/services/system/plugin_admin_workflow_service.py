@@ -42,7 +42,9 @@ class PluginAdminWorkflowService:
                     "name": item.name,
                     "parent": item.parent,
                 }
-                tenant_parent = item.tenant_parent if hasattr(item, "tenant_parent") else None
+                tenant_parent = (
+                    item.tenant_parent if hasattr(item, "tenant_parent") else None
+                )
                 if tenant_parent is not None:
                     data["tenant_parent"] = tenant_parent
 
@@ -183,7 +185,9 @@ class PluginAdminWorkflowService:
             content=await file.read(),
         )
 
-    async def activate_license(self, *, plugin_id: int, license_key: str) -> dict[str, Any]:
+    async def activate_license(
+        self, *, plugin_id: int, license_key: str
+    ) -> dict[str, Any]:
         from app.plugins.license import activate_license as do_activate
 
         result = await do_activate(plugin_id, license_key, self._db)

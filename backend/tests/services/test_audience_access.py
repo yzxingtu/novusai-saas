@@ -14,12 +14,22 @@ import pytest
 
 # Stub out all heavy deps before importing app modules
 _MOCK_MODULES = [
-    "redis", "redis.asyncio", "redis.asyncio.client", "redis.exceptions",
-    "redis.asyncio.connection", "redis.commands",
-    "celery", "celery.signals", "celery.app", "celery.contrib",
+    "redis",
+    "redis.asyncio",
+    "redis.asyncio.client",
+    "redis.exceptions",
+    "redis.asyncio.connection",
+    "redis.commands",
+    "celery",
+    "celery.signals",
+    "celery.app",
+    "celery.contrib",
     "socketio.asyncio_server",
-    "app.ai.agent_quota", "app.ai.agent_stats", "app.ai.gateway",
-    "app.ai.cache", "app.core.redis",
+    "app.ai.agent_quota",
+    "app.ai.agent_stats",
+    "app.ai.gateway",
+    "app.ai.cache",
+    "app.core.redis",
 ]
 for _mod in _MOCK_MODULES:
     if _mod not in sys.modules:
@@ -52,7 +62,10 @@ def _audience_allows_role(target_audience: str, user_role: str | None) -> bool:
     if target_audience == AudienceEnum.ALL.value:
         return True
     if target_audience == AudienceEnum.ADMIN_TENANT.value:
-        return user_role in (UserRoleEnum.PLATFORM_ADMIN.value, UserRoleEnum.TENANT_ADMIN.value)
+        return user_role in (
+            UserRoleEnum.PLATFORM_ADMIN.value,
+            UserRoleEnum.TENANT_ADMIN.value,
+        )
     if target_audience == AudienceEnum.ADMIN_ONLY.value:
         return user_role == UserRoleEnum.PLATFORM_ADMIN.value
     return True  # unknown → allow
@@ -62,38 +75,84 @@ def _audience_allows_role(target_audience: str, user_role: str | None) -> bool:
 # _audience_allows_role tests
 # ============================================================
 
+
 class TestAudienceAllowsRole:
     """Test all combinations of target_audience × user_role. / 测试"""
 
     # AudienceEnum.ALL allows everyone
     def test_all_allows_platform_admin(self):
-        assert _audience_allows_role(AudienceEnum.ALL.value, UserRoleEnum.PLATFORM_ADMIN.value) is True
+        assert (
+            _audience_allows_role(
+                AudienceEnum.ALL.value, UserRoleEnum.PLATFORM_ADMIN.value
+            )
+            is True
+        )
 
     def test_all_allows_tenant_admin(self):
-        assert _audience_allows_role(AudienceEnum.ALL.value, UserRoleEnum.TENANT_ADMIN.value) is True
+        assert (
+            _audience_allows_role(
+                AudienceEnum.ALL.value, UserRoleEnum.TENANT_ADMIN.value
+            )
+            is True
+        )
 
     def test_all_allows_tenant_user(self):
-        assert _audience_allows_role(AudienceEnum.ALL.value, UserRoleEnum.TENANT_USER.value) is True
+        assert (
+            _audience_allows_role(
+                AudienceEnum.ALL.value, UserRoleEnum.TENANT_USER.value
+            )
+            is True
+        )
 
     # AudienceEnum.ADMIN_TENANT allows admin and tenant_admin
     def test_admin_tenant_allows_platform_admin(self):
-        assert _audience_allows_role(AudienceEnum.ADMIN_TENANT.value, UserRoleEnum.PLATFORM_ADMIN.value) is True
+        assert (
+            _audience_allows_role(
+                AudienceEnum.ADMIN_TENANT.value, UserRoleEnum.PLATFORM_ADMIN.value
+            )
+            is True
+        )
 
     def test_admin_tenant_allows_tenant_admin(self):
-        assert _audience_allows_role(AudienceEnum.ADMIN_TENANT.value, UserRoleEnum.TENANT_ADMIN.value) is True
+        assert (
+            _audience_allows_role(
+                AudienceEnum.ADMIN_TENANT.value, UserRoleEnum.TENANT_ADMIN.value
+            )
+            is True
+        )
 
     def test_admin_tenant_denies_tenant_user(self):
-        assert _audience_allows_role(AudienceEnum.ADMIN_TENANT.value, UserRoleEnum.TENANT_USER.value) is False
+        assert (
+            _audience_allows_role(
+                AudienceEnum.ADMIN_TENANT.value, UserRoleEnum.TENANT_USER.value
+            )
+            is False
+        )
 
     # AudienceEnum.ADMIN_ONLY allows only platform_admin
     def test_admin_only_allows_platform_admin(self):
-        assert _audience_allows_role(AudienceEnum.ADMIN_ONLY.value, UserRoleEnum.PLATFORM_ADMIN.value) is True
+        assert (
+            _audience_allows_role(
+                AudienceEnum.ADMIN_ONLY.value, UserRoleEnum.PLATFORM_ADMIN.value
+            )
+            is True
+        )
 
     def test_admin_only_denies_tenant_admin(self):
-        assert _audience_allows_role(AudienceEnum.ADMIN_ONLY.value, UserRoleEnum.TENANT_ADMIN.value) is False
+        assert (
+            _audience_allows_role(
+                AudienceEnum.ADMIN_ONLY.value, UserRoleEnum.TENANT_ADMIN.value
+            )
+            is False
+        )
 
     def test_admin_only_denies_tenant_user(self):
-        assert _audience_allows_role(AudienceEnum.ADMIN_ONLY.value, UserRoleEnum.TENANT_USER.value) is False
+        assert (
+            _audience_allows_role(
+                AudienceEnum.ADMIN_ONLY.value, UserRoleEnum.TENANT_USER.value
+            )
+            is False
+        )
 
     # user_role=None always allows (backward compat with old call paths)
     def test_none_user_role_allows_all(self):
@@ -103,12 +162,16 @@ class TestAudienceAllowsRole:
 
     # Unknown audience value falls through to allow
     def test_unknown_audience_allows(self):
-        assert _audience_allows_role("unknown_value", UserRoleEnum.TENANT_USER.value) is True
+        assert (
+            _audience_allows_role("unknown_value", UserRoleEnum.TENANT_USER.value)
+            is True
+        )
 
 
 # ============================================================
 # check_user_access tests (with mocked DB)
 # ============================================================
+
 
 @pytest.fixture
 def mock_db():
@@ -141,6 +204,7 @@ class TestCheckUserAccess:
 
     def _make_service(self, mock_db):
         from app.services.ai.agent_service import AgentService
+
         service = AgentService.__new__(AgentService)
         service.db = mock_db
         service.tenant_id = 1
@@ -209,7 +273,9 @@ class TestCheckUserAccess:
         assert result is True
 
     @pytest.mark.asyncio
-    async def test_admin_only_blocks_everyone_except_platform_admin(self, mock_db, mock_agent):
+    async def test_admin_only_blocks_everyone_except_platform_admin(
+        self, mock_db, mock_agent
+    ):
         """Tenant admin without matching role and tenant user without publication are blocked. / 获取/返回"""
         service = self._make_service(mock_db)
         service.repo.get_by_id = AsyncMock(return_value=mock_agent)
@@ -225,18 +291,20 @@ class TestCheckUserAccess:
         service._get_publication_repo = MagicMock(return_value=publication_repo)
 
         result_tenant_admin = await service.check_user_access(
-            agent_id=1, user_id=10,
+            agent_id=1,
+            user_id=10,
             user_role=UserRoleEnum.TENANT_ADMIN.value,
         )
         result_tenant_user = await service.check_user_access(
-            agent_id=1, user_id=10,
+            agent_id=1,
+            user_id=10,
             user_role=UserRoleEnum.TENANT_USER.value,
         )
         assert result_tenant_admin is False
         assert result_tenant_user is False
 
     @pytest.mark.asyncio
-    async def test_private_no_access_record_allows(self, mock_db, mock_agent, mock_access):
+    async def test_private_no_access_record_allows(self, mock_db, mock_agent):
         """Tenant user with no publication record is denied. / 说明"""
         service = self._make_service(mock_db)
         service.repo.get_by_id = AsyncMock(return_value=mock_agent)
@@ -248,13 +316,16 @@ class TestCheckUserAccess:
         service._get_publication_repo = MagicMock(return_value=publication_repo)
 
         result = await service.check_user_access(
-            agent_id=1, user_id=10,
+            agent_id=1,
+            user_id=10,
             user_role=UserRoleEnum.TENANT_USER.value,
         )
         assert result is False
 
     @pytest.mark.asyncio
-    async def test_tenant_role_ids_null_allows_all(self, mock_db, mock_agent, mock_access):
+    async def test_tenant_role_ids_null_allows_all(
+        self, mock_db, mock_agent, mock_access
+    ):
         """tenant_role_ids=NULL means no restriction (allow all). / 说明"""
         service = self._make_service(mock_db)
         service.repo.get_by_id = AsyncMock(return_value=mock_agent)
@@ -268,7 +339,8 @@ class TestCheckUserAccess:
         service._get_access_repo = MagicMock(return_value=access_repo)
 
         result = await service.check_user_access(
-            agent_id=1, user_id=10,
+            agent_id=1,
+            user_id=10,
             user_role=UserRoleEnum.TENANT_ADMIN.value,
             user_role_id=5,
         )
@@ -277,7 +349,10 @@ class TestCheckUserAccess:
 
     @pytest.mark.asyncio
     async def test_tenant_role_ids_with_user_role_id_none_denies(
-        self, mock_db, mock_agent, mock_access,
+        self,
+        mock_db,
+        mock_agent,
+        mock_access,
     ):
         """tenant_role_ids=[5] but user_role_id=None → deny (chat must pass role_id)."""
         service = self._make_service(mock_db)
@@ -300,7 +375,10 @@ class TestCheckUserAccess:
 
     @pytest.mark.asyncio
     async def test_tenant_role_ids_with_matching_user_role_id_allows(
-        self, mock_db, mock_agent, mock_access,
+        self,
+        mock_db,
+        mock_agent,
+        mock_access,
     ):
         """tenant_role_ids=[5,10] and user_role_id=5 → allow."""
         service = self._make_service(mock_db)

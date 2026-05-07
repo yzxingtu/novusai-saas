@@ -37,11 +37,16 @@ def test_build_menu_tree_includes_backend_owned_ai_meta(monkeypatch) -> None:
         ),
     )
 
-    menu_tree = PermissionService._build_menu_tree([permission], user_permission_codes=set())  # noqa: SLF001
+    menu_tree = PermissionService._build_menu_tree(
+        [permission], user_permission_codes=set()
+    )  # noqa: SLF001
 
     assert len(menu_tree) == 1
     assert menu_tree[0].meta is not None
     assert menu_tree[0].meta.ai is not None
-    assert menu_tree[0].meta.ai.description == "Create, edit, publish, and manage AI agents"
+    assert (
+        menu_tree[0].meta.ai.description
+        == "Create, edit, publish, and manage AI agents"
+    )
     assert menu_tree[0].meta.ai.keywords[:3] == ["智能体", "AI助手", "agent"]
     assert menu_tree[0].meta.ai.category == "ai"

@@ -44,7 +44,11 @@ async def save_provider_profiles(request: Request, ctx) -> dict:
 async def validate_provider_profile(request: Request, ctx) -> dict:
     """Validate a provider profile. / 校验单个提供方配置。"""
     provider_code = str(request.path_params["provider"]).strip()
-    body = await request.json() if request.headers.get("content-type", "").startswith("application/json") else {}
+    body = (
+        await request.json()
+        if request.headers.get("content-type", "").startswith("application/json")
+        else {}
+    )
     raw_profile = body.get("profile") if isinstance(body, dict) else {}
     service = StorageBillingProviderProfileService.from_context(ctx)
     return await service.validate_provider_profile(
@@ -111,8 +115,12 @@ async def list_reconciliation_run_charges(request: Request, ctx) -> dict:
     raw_source_id = request.query_params.get("source_id")
     raw_tenant_id = request.query_params.get("tenant_id")
 
-    source_id = int(raw_source_id) if raw_source_id and raw_source_id.isdigit() else None
-    tenant_id = int(raw_tenant_id) if raw_tenant_id and raw_tenant_id.isdigit() else None
+    source_id = (
+        int(raw_source_id) if raw_source_id and raw_source_id.isdigit() else None
+    )
+    tenant_id = (
+        int(raw_tenant_id) if raw_tenant_id and raw_tenant_id.isdigit() else None
+    )
 
     service = StorageBillingReconciliationService.from_context(ctx)
     return await service.list_run_charges(
@@ -130,8 +138,12 @@ async def export_reconciliation_run_charges(request: Request, ctx):
     raw_source_id = request.query_params.get("source_id")
     raw_tenant_id = request.query_params.get("tenant_id")
 
-    source_id = int(raw_source_id) if raw_source_id and raw_source_id.isdigit() else None
-    tenant_id = int(raw_tenant_id) if raw_tenant_id and raw_tenant_id.isdigit() else None
+    source_id = (
+        int(raw_source_id) if raw_source_id and raw_source_id.isdigit() else None
+    )
+    tenant_id = (
+        int(raw_tenant_id) if raw_tenant_id and raw_tenant_id.isdigit() else None
+    )
 
     service = StorageBillingReconciliationService.from_context(ctx)
     return await service.export_run_charges_csv(
@@ -144,14 +156,22 @@ async def export_reconciliation_run_charges(request: Request, ctx):
 
 async def run_reconciliation(request: Request, ctx) -> dict:
     """Trigger a persisted reconciliation run. / 触发持久化对账任务。"""
-    body = await request.json() if request.headers.get("content-type", "").startswith("application/json") else {}
+    body = (
+        await request.json()
+        if request.headers.get("content-type", "").startswith("application/json")
+        else {}
+    )
     service = StorageBillingReconciliationService.from_context(ctx)
     return await service.trigger_manual_run(body if isinstance(body, dict) else {})
 
 
 async def run_qiniu_monthly_settlement(request: Request, ctx) -> dict:
     """Trigger a persisted Qiniu monthly settlement run. / 触发七牛云月结账单拉取。"""
-    body = await request.json() if request.headers.get("content-type", "").startswith("application/json") else {}
+    body = (
+        await request.json()
+        if request.headers.get("content-type", "").startswith("application/json")
+        else {}
+    )
     service = StorageBillingReconciliationService.from_context(ctx)
     return await service.trigger_qiniu_monthly_settlement(
         body if isinstance(body, dict) else {}

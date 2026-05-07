@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
+import base64
+import hmac
 from collections.abc import Mapping
 from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
-import hmac
 from hashlib import sha1
 from typing import Any
 from urllib.parse import urlencode
-import base64
 
 import httpx
 
@@ -104,7 +104,7 @@ def _qiniu_management_token(
     signature_data = url.split("://", 1)[-1]
     path_start = signature_data.find("/")
     signature_payload = signature_data[path_start:] if path_start >= 0 else "/"
-    signature_payload = f"{signature_payload}\n".encode("utf-8")
+    signature_payload = f"{signature_payload}\n".encode()
     digest = hmac.new(secret_key.encode("utf-8"), signature_payload, sha1).digest()
     return f"{access_key}:{_urlsafe_base64_encode(digest)}"
 
@@ -218,7 +218,9 @@ class QiniuKodoOfficialBillAdapter:
             source_status=source_status,
             source_ref=f"qiniu_bill_detail:{period_start.strftime('%Y-%m')}",
             currency=payload_currency,
-            amount_total=sum((item.amount_total for item in charge_items), Decimal("0")),
+            amount_total=sum(
+                (item.amount_total for item in charge_items), Decimal("0")
+            ),
             usage_bytes=sum(item.usage_bytes for item in charge_items),
             charge_items=charge_items,
             raw_payload_json={
@@ -238,7 +240,9 @@ class QiniuKodoOfficialBillAdapter:
         access_key: str,
         secret_key: str,
     ) -> dict[str, Any]:
-        next_month_start = (period_start.replace(day=28) + timedelta(days=4)).replace(day=1)
+        next_month_start = (period_start.replace(day=28) + timedelta(days=4)).replace(
+            day=1
+        )
         params = {
             "start": period_start.isoformat(),
             "end": next_month_start.isoformat(),
@@ -259,7 +263,10 @@ class QiniuKodoOfficialBillAdapter:
         if not isinstance(payload, Mapping):
             raise RuntimeError("Qiniu finance API returned invalid payload.")
         if int(payload.get("code") or 0) != 0:
-            message = _stringify(payload.get("message")) or "Qiniu finance API request failed."
+            message = (
+                _stringify(payload.get("message"))
+                or "Qiniu finance API request failed."
+            )
             raise RuntimeError(message)
         return dict(payload)
 
@@ -314,7 +321,9 @@ class QiniuKodoOfficialBillAdapter:
                         "price": _stringify(raw_item.get("price")),
                         "price_unit": _stringify(raw_item.get("price_unit")),
                         "usage_unit": _stringify(raw_item.get("usage_unit")),
-                        "usage_coefficient": _stringify(raw_item.get("usage_coefficient")),
+                        "usage_coefficient": _stringify(
+                            raw_item.get("usage_coefficient")
+                        ),
                         "usage_amount": _stringify(raw_item.get("usage_amount")),
                         "total_usage": _stringify(raw_item.get("total_usage")),
                         "item_money": _stringify(raw_item.get("item_money")),

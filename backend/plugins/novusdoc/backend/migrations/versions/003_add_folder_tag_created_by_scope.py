@@ -8,7 +8,6 @@ Create Date: 2026-03-24
 import sqlalchemy as sa
 from alembic import op
 
-
 revision = "novusdoc_003_folder_tag_owner"
 down_revision = "novusdoc_002_tid_nullable"
 branch_labels = None

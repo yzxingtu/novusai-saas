@@ -8,9 +8,7 @@ Tests atomic_write, conflict, backup, SmartAppender idempotency, merge_json.
 import json
 from pathlib import Path
 
-import pytest
-
-from app.codegen.file_writer import FileWriter, SmartAppender, WriteResult
+from app.codegen.file_writer import FileWriter, SmartAppender
 from app.codegen.generator import GeneratedFile
 
 # ============================================================
@@ -23,7 +21,9 @@ def test_atomic_write_creates_new_files(tmp_path: Path) -> None:
     dest_dir = tmp_path / "subdir"
     dest_dir.mkdir(parents=True, exist_ok=True)
     files = [
-        GeneratedFile(path="subdir/new_file.py", content="print('hello')", action="create"),
+        GeneratedFile(
+            path="subdir/new_file.py", content="print('hello')", action="create"
+        ),
     ]
     writer = FileWriter(project_root=tmp_path)
     result = writer.write_atomic(files, project_root=tmp_path)
@@ -49,7 +49,9 @@ def test_atomic_write_conflict_when_file_exists(tmp_path: Path) -> None:
 
     assert result.success is True
     assert any(c.get("reason") == "file_exists" for c in result.conflicts)
-    assert "existing.py" in result.files_modified or str(existing) in result.files_modified
+    assert (
+        "existing.py" in result.files_modified or str(existing) in result.files_modified
+    )
     assert existing.read_text() == "overridden"
     assert result.backup_dir
 
@@ -196,7 +198,9 @@ def test_atomic_write_rolls_back_created_files_when_later_error(tmp_path: Path) 
     assert any("register_model failed" in err for err in result.errors)
     assert result.files_created == []
     assert result.files_modified == []
-    assert not (tmp_path / "backend" / "app" / "models" / "system" / "category.py").exists()
+    assert not (
+        tmp_path / "backend" / "app" / "models" / "system" / "category.py"
+    ).exists()
 
 
 def test_atomic_write_rolls_back_previous_writes_on_conflict_when_force_false(
@@ -227,5 +231,7 @@ def test_atomic_write_rolls_back_previous_writes_on_conflict_when_force_false(
     assert any(conflict.get("reason") == "file_exists" for conflict in result.conflicts)
     assert result.files_created == []
     assert result.files_modified == []
-    assert not (tmp_path / "backend" / "app" / "models" / "system" / "category.py").exists()
+    assert not (
+        tmp_path / "backend" / "app" / "models" / "system" / "category.py"
+    ).exists()
     assert existing.read_text(encoding="utf-8") == "# existing\n"

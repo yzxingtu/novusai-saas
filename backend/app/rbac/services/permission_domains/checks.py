@@ -23,7 +23,8 @@ class PermissionCheckDomain:
         required_permissions: list[str],
     ) -> bool:
         return any(
-            cls.check_permission(user_permissions, perm) for perm in required_permissions
+            cls.check_permission(user_permissions, perm)
+            for perm in required_permissions
         )
 
     @classmethod
@@ -33,5 +34,6 @@ class PermissionCheckDomain:
         required_permissions: list[str],
     ) -> bool:
         return all(
-            cls.check_permission(user_permissions, perm) for perm in required_permissions
+            cls.check_permission(user_permissions, perm)
+            for perm in required_permissions
         )

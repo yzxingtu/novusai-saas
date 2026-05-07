@@ -113,7 +113,9 @@ class PermissionQueryDomain:
                     if permission.type == perm_type
                 ]
         else:
-            effective_ids = await self._service.get_admin_effective_permission_ids(admin)
+            effective_ids = await self._service.get_admin_effective_permission_ids(
+                admin
+            )
             if not effective_ids:
                 return []
             permissions = await self._load_permissions_by_ids(

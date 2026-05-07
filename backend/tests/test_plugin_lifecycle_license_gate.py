@@ -79,13 +79,17 @@ async def test_enable_impl_blocks_paid_plugin_when_license_inactive(
     db.flush = AsyncMock()
 
     lifecycle = PluginLifecycle(db)
-    monkeypatch.setattr(lifecycle._loader, "load_manifest", lambda _name: _build_manifest())
+    monkeypatch.setattr(
+        lifecycle._loader, "load_manifest", lambda _name: _build_manifest()
+    )
 
     emitter = MagicMock()
     emitter.emit_step = AsyncMock()
     emitter.emit_done = AsyncMock()
     emitter.emit_error = AsyncMock()
-    monkeypatch.setattr("app.plugins.progress.PluginProgressEmitter", lambda *_args, **_kwargs: emitter)
+    monkeypatch.setattr(
+        "app.plugins.progress.PluginProgressEmitter", lambda *_args, **_kwargs: emitter
+    )
 
     guard = AsyncMock(side_effect=PluginLicenseError(message="license inactive"))
     monkeypatch.setattr("app.plugins.license.assert_plugin_license_active", guard)
@@ -123,7 +127,9 @@ async def test_enable_impl_isolates_permission_sync_failure_with_savepoint(
     db = _PermissionPoisonDB(plugin)
     lifecycle = PluginLifecycle(db)
     lifecycle._loader.plugins_dir = Path("E:/nonexistent-plugin-root")
-    monkeypatch.setattr(lifecycle._loader, "load_manifest", lambda _name: _build_manifest())
+    monkeypatch.setattr(
+        lifecycle._loader, "load_manifest", lambda _name: _build_manifest()
+    )
     monkeypatch.setattr("app.core.config.settings.DEBUG", False, raising=False)
     monkeypatch.setattr(
         "app.plugins.frontend_contract.validate_runtime_frontend_contract",
@@ -155,7 +161,9 @@ async def test_enable_impl_isolates_permission_sync_failure_with_savepoint(
         async def on_enable(self, _ctx):
             return None
 
-    monkeypatch.setattr(lifecycle._loader, "load_plugin_class", lambda _name: _PluginImpl)
+    monkeypatch.setattr(
+        lifecycle._loader, "load_plugin_class", lambda _name: _PluginImpl
+    )
 
     class _FailingPermissionSyncService:
         def __init__(self, session):
@@ -174,7 +182,9 @@ async def test_enable_impl_isolates_permission_sync_failure_with_savepoint(
         if db.poisoned:
             raise AssertionError("session remained poisoned")
 
-    lifecycle._set_plugin_permissions_enabled = AsyncMock(side_effect=_assert_session_clean)
+    lifecycle._set_plugin_permissions_enabled = AsyncMock(
+        side_effect=_assert_session_clean
+    )
     lifecycle._auto_grant_plugin_menus_to_plans = AsyncMock()
 
     from app.plugins.exceptions import PluginError

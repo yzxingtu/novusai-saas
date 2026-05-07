@@ -42,7 +42,9 @@ def test_extract_plugin_asset_access_token_prefers_bearer_header() -> None:
 
 
 def test_extract_plugin_asset_access_token_falls_back_to_cookie() -> None:
-    request = _build_request(headers={"Cookie": "novus_plugin_asset_token=cookie-token"})
+    request = _build_request(
+        headers={"Cookie": "novus_plugin_asset_token=cookie-token"}
+    )
 
     assert extract_plugin_asset_access_token(request) == "cookie-token"
 
@@ -234,7 +236,9 @@ async def test_authorize_plugin_icon_request_rejects_non_admin_scope(
 ) -> None:
     monkeypatch.setattr(
         "app.plugins.asset_runtime.decode_token",
-        AsyncMock(return_value={"type": "access", "scope": "tenant_admin", "tenant_id": 7}),
+        AsyncMock(
+            return_value={"type": "access", "scope": "tenant_admin", "tenant_id": 7}
+        ),
     )
     db = AsyncMock()
 

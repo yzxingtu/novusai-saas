@@ -39,5 +39,3 @@ async def test_dedupes_identical_get_current_weather_same_turn() -> None:
     assert ms2 == 0
     assert r2.tool_call_id == "tc-2"
     assert r1.output == r2.output
-
-

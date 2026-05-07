@@ -47,8 +47,12 @@ class AnnouncementFormField(BaseSchema):
 class AnnouncementCreate(BaseCreateSchema):
     """创建公告草稿请求 / Create announcement draft request."""
 
-    title: str = Field(..., min_length=1, description=_("tenant.announcement.field.title"))
-    content: str | None = Field(None, description=_("tenant.announcement.field.content"))
+    title: str = Field(
+        ..., min_length=1, description=_("tenant.announcement.field.title")
+    )
+    content: str | None = Field(
+        None, description=_("tenant.announcement.field.content")
+    )
     priority: AnnouncementPriority = Field(
         "normal", description=_("tenant.announcement.field.priority")
     )
@@ -65,8 +69,12 @@ class AnnouncementCreate(BaseCreateSchema):
 class AnnouncementUpdate(BaseUpdateSchema):
     """更新公告草稿请求 / Update announcement draft request."""
 
-    title: str | None = Field(None, min_length=1, description=_("tenant.announcement.field.title"))
-    content: str | None = Field(None, description=_("tenant.announcement.field.content"))
+    title: str | None = Field(
+        None, min_length=1, description=_("tenant.announcement.field.title")
+    )
+    content: str | None = Field(
+        None, description=_("tenant.announcement.field.content")
+    )
     priority: AnnouncementPriority | None = Field(
         None, description=_("tenant.announcement.field.priority")
     )
@@ -93,7 +101,9 @@ class AnnouncementBaseResponse(TenantResponseSchema):
 
     scope: str = Field(..., description=_("tenant.announcement.field.scope"))
     title: str = Field(..., description=_("tenant.announcement.field.title"))
-    content: str | None = Field(None, description=_("tenant.announcement.field.content"))
+    content: str | None = Field(
+        None, description=_("tenant.announcement.field.content")
+    )
     status: str = Field(..., description=_("tenant.announcement.field.status"))
     priority: str = Field(..., description=_("tenant.announcement.field.priority"))
     require_response: bool = Field(

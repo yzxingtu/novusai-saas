@@ -335,7 +335,9 @@ def test_public_image_endpoint_redirects_to_original_when_params_are_empty(
         assert kwargs["width"] is None
         return params
 
-    get_redirect_url = AsyncMock(return_value="https://cdn.example.com/original-empty.png")
+    get_redirect_url = AsyncMock(
+        return_value="https://cdn.example.com/original-empty.png"
+    )
 
     monkeypatch.setattr(
         ConfigService,

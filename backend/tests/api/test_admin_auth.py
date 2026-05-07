@@ -2,6 +2,7 @@
 """平台管理员认证 API 测试模块 / API.
 
 测试 /admin/auth/* 接口"""
+
 import os
 import sys
 
@@ -16,7 +17,9 @@ try:
         config,
     )
 except ModuleNotFoundError:
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+    sys.path.insert(
+        0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    )
     from tests.api.base import (  # noqa: I001
         BaseAPITest,
         assert_error,
@@ -56,7 +59,10 @@ class ManualTestAdminAuth(BaseAPITest):
         self.run_test("刷新 Token - 无效 Token", self.test_refresh_token_invalid)
 
         # 8. 测试 scope 隔离 - Admin Token 访问企业接口应 401
-        self.run_test("scope 隔离 - Admin Token 访问企业接口应 401", self.test_scope_isolation_admin_token_to_tenant)
+        self.run_test(
+            "scope 隔离 - Admin Token 访问企业接口应 401",
+            self.test_scope_isolation_admin_token_to_tenant,
+        )
 
         # 9. 测试修改密码 - 正确旧密码
         self.run_test("修改密码 - 正确旧密码", self.test_change_password_success)
@@ -69,7 +75,9 @@ class ManualTestAdminAuth(BaseAPITest):
 
     def test_login_success(self) -> None:
         """测试正确凭据登录 / Test login with valid credentials."""
-        resp = self.post_admin_login_request(config.ADMIN_USERNAME, config.ADMIN_PASSWORD)
+        resp = self.post_admin_login_request(
+            config.ADMIN_USERNAME, config.ADMIN_PASSWORD
+        )
         data = assert_success(resp, "登录失败")
         assert_has_keys(data["data"], ["access_token", "refresh_token", "token_type"])
 
@@ -96,7 +104,9 @@ class ManualTestAdminAuth(BaseAPITest):
 
         resp = self.client.get("/admin/auth/me")
         data = assert_success(resp, "获取用户信息失败")
-        assert_has_keys(data["data"], ["id", "username", "email", "is_super", "is_active"])
+        assert_has_keys(
+            data["data"], ["id", "username", "email", "is_super", "is_active"]
+        )
 
     def test_get_me_unauthenticated(self) -> None:
         """测试未认证状态获取用户信息 / Test get me when unauthenticated."""
@@ -119,9 +129,12 @@ class ManualTestAdminAuth(BaseAPITest):
             self._do_login()
             refresh_token = self._test_data.get("refresh_token")
 
-        resp = self.client.post("/admin/auth/refresh", data={
-            "refresh_token": refresh_token,
-        })
+        resp = self.client.post(
+            "/admin/auth/refresh",
+            data={
+                "refresh_token": refresh_token,
+            },
+        )
         data = assert_success(resp, "刷新 Token 失败")
         assert_has_keys(data["data"], ["access_token", "refresh_token"])
 
@@ -132,9 +145,12 @@ class ManualTestAdminAuth(BaseAPITest):
 
     def test_refresh_token_invalid(self) -> None:
         """测试无效 Refresh Token 刷新 / Test invalid refresh token."""
-        resp = self.client.post("/admin/auth/refresh", data={
-            "refresh_token": "invalid_refresh_token",
-        })
+        resp = self.client.post(
+            "/admin/auth/refresh",
+            data={
+                "refresh_token": "invalid_refresh_token",
+            },
+        )
         assert_error(resp, 401, "应返回 401 错误")
 
     def test_scope_isolation_admin_token_to_tenant(self) -> None:
@@ -152,10 +168,13 @@ class ManualTestAdminAuth(BaseAPITest):
 
         # 修改密码
         new_password = config.ADMIN_PASSWORD + "_new"
-        resp = self.client.put("/admin/auth/password", data={
-            "old_password": config.ADMIN_PASSWORD,
-            "new_password": new_password,
-        })
+        resp = self.client.put(
+            "/admin/auth/password",
+            data={
+                "old_password": config.ADMIN_PASSWORD,
+                "new_password": new_password,
+            },
+        )
         assert_success(resp, "修改密码失败")
 
         # 用新密码登录
@@ -165,10 +184,13 @@ class ManualTestAdminAuth(BaseAPITest):
         self.client.set_token(data["data"]["access_token"])
 
         # 改回原密码
-        resp = self.client.put("/admin/auth/password", data={
-            "old_password": new_password,
-            "new_password": config.ADMIN_PASSWORD,
-        })
+        resp = self.client.put(
+            "/admin/auth/password",
+            data={
+                "old_password": new_password,
+                "new_password": config.ADMIN_PASSWORD,
+            },
+        )
         assert_success(resp, "恢复原密码失败")
 
     def test_change_password_wrong_old(self) -> None:
@@ -176,10 +198,13 @@ class ManualTestAdminAuth(BaseAPITest):
         if not self.client.token:
             self._do_login()
 
-        resp = self.client.put("/admin/auth/password", data={
-            "old_password": "wrong_old_password",
-            "new_password": "new_password_123",
-        })
+        resp = self.client.put(
+            "/admin/auth/password",
+            data={
+                "old_password": "wrong_old_password",
+                "new_password": "new_password_123",
+            },
+        )
         data = assert_error(resp, 422, "应返回 422 业务错误")
         assert_equals(data.get("code"), 4004, "错误旧密码应返回 OLD_PASSWORD_INCORRECT")
 

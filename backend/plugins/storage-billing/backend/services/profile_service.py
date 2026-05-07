@@ -15,10 +15,10 @@ from ..constants import (
     PROVIDER_BILL_SOURCES,
     PROVIDER_SECRET_FIELDS,
     SUPPORTED_CLOUD_DRIVERS,
+    get_default_provider_profiles,
     get_provider_bill_source_capability,
     get_provider_implemented_bill_sources,
     get_provider_required_fields,
-    get_default_provider_profiles,
 )
 
 _LEGACY_FLAT_FIELD_MAP: dict[str, dict[str, str]] = {
@@ -80,7 +80,9 @@ def _plugin_profile_fields(provider: str) -> set[str]:
     return set((DEFAULT_PROVIDER_PROFILES.get(provider) or {}).keys())
 
 
-def _sanitize_plugin_profile(provider: str, raw_profile: Mapping[str, Any] | None) -> dict[str, Any]:
+def _sanitize_plugin_profile(
+    provider: str, raw_profile: Mapping[str, Any] | None
+) -> dict[str, Any]:
     result = dict(DEFAULT_PROVIDER_PROFILES.get(provider) or {})
     payload = dict(raw_profile or {})
     for field in _plugin_profile_fields(provider):
@@ -114,18 +116,24 @@ def _sanitize_plugin_profile(provider: str, raw_profile: Mapping[str, Any] | Non
     return result
 
 
-def _configured_secret_fields(provider: str, profile: dict[str, Any]) -> dict[str, bool]:
+def _configured_secret_fields(
+    provider: str, profile: dict[str, Any]
+) -> dict[str, bool]:
     return {
         field: bool(_stringify(profile.get(field)))
         for field in PROVIDER_SECRET_FIELDS.get(provider) or []
     }
 
 
-def _normalize_provider_profiles(raw_config: dict[str, Any] | None) -> dict[str, dict[str, Any]]:
+def _normalize_provider_profiles(
+    raw_config: dict[str, Any] | None,
+) -> dict[str, dict[str, Any]]:
     profiles = get_default_provider_profiles()
     raw = dict(raw_config or {})
     source_profiles = raw.get("providers")
-    source_profiles = dict(source_profiles or {}) if isinstance(source_profiles, dict) else {}
+    source_profiles = (
+        dict(source_profiles or {}) if isinstance(source_profiles, dict) else {}
+    )
 
     for provider in SUPPORTED_CLOUD_DRIVERS:
         current = dict(profiles.get(provider) or {})
@@ -179,9 +187,15 @@ def _merge_profile(
 def _normalize_storage_context(raw_context: Mapping[str, Any] | None) -> dict[str, Any]:
     payload = dict(raw_context or {})
     raw_storage_config = payload.get("storage_config")
-    storage_config = dict(raw_storage_config or {}) if isinstance(raw_storage_config, Mapping) else {}
+    storage_config = (
+        dict(raw_storage_config or {})
+        if isinstance(raw_storage_config, Mapping)
+        else {}
+    )
     options = storage_config.get("options")
-    storage_config["options"] = dict(options or {}) if isinstance(options, Mapping) else {}
+    storage_config["options"] = (
+        dict(options or {}) if isinstance(options, Mapping) else {}
+    )
     return {
         "storage_mode": _stringify(payload.get("storage_mode")) or "platform",
         "apply_quota": bool(payload.get("apply_quota", True)),
@@ -233,8 +247,7 @@ def _build_host_storage_runtime(
 
     host_fields = _PROVIDER_HOST_FIELD_MAP.get(provider) or []
     host_field_status = {
-        field: bool(_stringify(resolved_fields.get(field)))
-        for field in host_fields
+        field: bool(_stringify(resolved_fields.get(field))) for field in host_fields
     }
 
     return {
@@ -284,8 +297,12 @@ def _build_runtime_profile(
         bool(COLLECTOR_IMPLEMENTATION_STATUS.get(provider, False))
         and selected_bill_source in implemented_sources
     )
-    runtime["settlement_mode"] = _stringify(capability.get("settlement_mode")) or "unsupported"
-    runtime["settlement_cycle"] = _stringify(capability.get("settlement_cycle")) or "daily"
+    runtime["settlement_mode"] = (
+        _stringify(capability.get("settlement_mode")) or "unsupported"
+    )
+    runtime["settlement_cycle"] = (
+        _stringify(capability.get("settlement_cycle")) or "daily"
+    )
     runtime["strict_reconciliation_supported"] = bool(
         capability.get("strict_daily_reconciliation_supported", False)
     )
@@ -295,7 +312,9 @@ def _build_runtime_profile(
     runtime["scheduled_daily_supported"] = bool(
         capability.get("scheduled_daily_supported", False)
     )
-    runtime["supported_period_types"] = list(capability.get("supported_period_types") or [])
+    runtime["supported_period_types"] = list(
+        capability.get("supported_period_types") or []
+    )
     runtime["recommended_scope_types"] = list(
         capability.get("recommended_scope_types") or []
     )
@@ -345,7 +364,9 @@ def build_provider_validation(
 
     if enabled:
         if not bool(runtime_profile.get("storage_driver_match")):
-            errors.append(_("Current platform storage driver does not match this provider."))
+            errors.append(
+                _("Current platform storage driver does not match this provider.")
+            )
 
         for field in required_fields:
             if not _stringify(runtime_profile.get(field)):
@@ -387,7 +408,8 @@ def build_provider_validation(
         "driver_enabled": driver_plugin_enabled,
         "supported_bill_sources": list(PROVIDER_BILL_SOURCES.get(provider) or []),
         "required_fields": required_fields,
-        "settlement_mode": _stringify(capability.get("settlement_mode")) or "unsupported",
+        "settlement_mode": _stringify(capability.get("settlement_mode"))
+        or "unsupported",
         "settlement_cycle": _stringify(capability.get("settlement_cycle")) or "daily",
         "strict_reconciliation_supported": bool(
             capability.get("strict_daily_reconciliation_supported", False)
@@ -403,7 +425,9 @@ def build_provider_validation(
         "official_billing_lag_days": capability.get("official_billing_lag_days"),
         "official_target_rule": _stringify(capability.get("official_target_rule")),
         "capability_message": _stringify(capability.get("capability_message")),
-        "active_storage_driver": _stringify(runtime_profile.get("active_storage_driver")),
+        "active_storage_driver": _stringify(
+            runtime_profile.get("active_storage_driver")
+        ),
         "storage_driver_match": bool(runtime_profile.get("storage_driver_match")),
         "host_credentials_configured": bool(
             runtime_profile.get("host_credentials_configured", False)
@@ -417,16 +441,16 @@ class StorageBillingProviderProfileService:
 
     def __init__(self, ctx, *, host_read=None) -> None:
         self._ctx = ctx
-        self._host_read = host_read if host_read is not None else getattr(ctx, "host", None)
+        self._host_read = (
+            host_read if host_read is not None else getattr(ctx, "host", None)
+        )
 
     @classmethod
-    def from_context(cls, ctx) -> "StorageBillingProviderProfileService":
+    def from_context(cls, ctx) -> StorageBillingProviderProfileService:
         return cls(ctx, host_read=getattr(ctx, "host", None))
 
     async def _get_driver_plugin_enabled_map(self) -> dict[str, bool | None]:
-        result: dict[str, bool | None] = {
-            provider: None for provider in SUPPORTED_CLOUD_DRIVERS
-        }
+        result: dict[str, bool | None] = dict.fromkeys(SUPPORTED_CLOUD_DRIVERS)
         if self._host_read is None:
             return result
 
@@ -489,7 +513,9 @@ class StorageBillingProviderProfileService:
             return {}
         return dict(config)
 
-    async def _build_response(self, *, include_secret_placeholders: bool) -> dict[str, Any]:
+    async def _build_response(
+        self, *, include_secret_placeholders: bool
+    ) -> dict[str, Any]:
         current_config = await self._load_config()
         profiles = _normalize_provider_profiles(current_config)
         enabled_map = await self._get_driver_plugin_enabled_map()
@@ -535,7 +561,9 @@ class StorageBillingProviderProfileService:
             raise BusinessException(message=_("Provider profiles payload is empty."))
 
         unsupported = [
-            provider for provider in providers if provider not in SUPPORTED_CLOUD_DRIVERS
+            provider
+            for provider in providers
+            if provider not in SUPPORTED_CLOUD_DRIVERS
         ]
         if unsupported:
             raise BusinessException(

@@ -244,8 +244,7 @@ class TaskBindingService(GlobalService[TenantTaskBinding, TenantTaskBindingRepos
             return payload
 
         has_override = any(
-            payload.get(field) not in (None, {}, [])
-            for field in self.OVERRIDE_FIELDS
+            payload.get(field) not in (None, {}, []) for field in self.OVERRIDE_FIELDS
         )
         if payload.get("is_enabled") is not False or has_override:
             raise BusinessException(
@@ -399,8 +398,7 @@ class TaskBindingService(GlobalService[TenantTaskBinding, TenantTaskBindingRepos
         if is_all_tenants:
             if replace_all_tenant_bindings:
                 stale_ids = [
-                    existing_map[tenant_id].id
-                    for tenant_id in sorted(current - target)
+                    existing_map[tenant_id].id for tenant_id in sorted(current - target)
                 ]
             else:
                 stale_ids = [

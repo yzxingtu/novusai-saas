@@ -23,7 +23,9 @@ def test_context_and_base_modules_import_without_cycle(
     importlib.import_module(second_module)
 
 
-def test_context_engine_import_does_not_eager_load_service_backed_dependencies() -> None:
+def test_context_engine_import_does_not_eager_load_service_backed_dependencies() -> (
+    None
+):
     module_names = (
         "app.ai.context.engine",
         "app.ai.runtime.context_capability_bridge",

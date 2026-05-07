@@ -236,7 +236,9 @@ class _RuntimeQueryEngineCaptureOverridesStub:
         return [chunk async for chunk in self.iter_stream_turn(**kwargs)]
 
 
-def _build_runtime_context(*, should_record_call_log: bool = False) -> _StreamRuntimeContext:
+def _build_runtime_context(
+    *, should_record_call_log: bool = False
+) -> _StreamRuntimeContext:
     provider = SimpleNamespace(
         id=101,
         code="provider_1",
@@ -341,9 +343,7 @@ async def test_runtime_v2_active_mode_uses_query_engine(mock_db) -> None:
     else:
         runtime_turn_record = {}
     assert runtime_turn_record
-    assert runtime_turn_record.get("selected_skill_names") == [
-        "runtime.query_records"
-    ]
+    assert runtime_turn_record.get("selected_skill_names") == ["runtime.query_records"]
     assert runtime_turn_record.get("fallback_history")
     assert runtime_turn_record.get("metadata", {}).get("diagnostics_diff")
     assert adapter.stream_calls == []
@@ -352,7 +352,9 @@ async def test_runtime_v2_active_mode_uses_query_engine(mock_db) -> None:
 
 
 @pytest.mark.asyncio
-async def test_runtime_v2_stream_path_uses_query_engine_for_query_tools(mock_db) -> None:
+async def test_runtime_v2_stream_path_uses_query_engine_for_query_tools(
+    mock_db,
+) -> None:
     engine = _build_engine(mock_db)
     adapter = _AdapterStub(delta="unused-adapter")
     runtime_context = _build_runtime_context(should_record_call_log=False)
@@ -404,7 +406,9 @@ async def test_runtime_v2_stream_path_uses_query_engine_for_query_tools(mock_db)
 
 
 @pytest.mark.asyncio
-async def test_runtime_v2_fast_text_round_passes_low_reasoning_override(mock_db) -> None:
+async def test_runtime_v2_fast_text_round_passes_low_reasoning_override(
+    mock_db,
+) -> None:
     engine = _build_engine(mock_db)
     adapter = _AdapterStub(delta="unused-adapter")
     runtime_context = _build_runtime_context(should_record_call_log=False)
@@ -452,7 +456,9 @@ async def test_runtime_v2_fast_text_round_passes_low_reasoning_override(mock_db)
     ] == {"_runtime_reasoning_effort_override": "low"}
 
 
-def test_agent_chat_service_context_diagnostics_infers_partial_interrupted_without_turn_record() -> None:
+def test_agent_chat_service_context_diagnostics_infers_partial_interrupted_without_turn_record() -> (
+    None
+):
     from app.services.ai.agent_chat_service import AgentChatService
 
     result = SimpleNamespace(
@@ -479,7 +485,9 @@ def test_agent_chat_service_context_diagnostics_infers_partial_interrupted_witho
     assert payload["last_interrupted"] is True
 
 
-def test_agent_chat_service_last_run_summary_carries_turn_record_skill_and_protocol() -> None:
+def test_agent_chat_service_last_run_summary_carries_turn_record_skill_and_protocol() -> (
+    None
+):
     from app.services.ai.agent_chat_service import AgentChatService
 
     result = SimpleNamespace(
@@ -516,7 +524,9 @@ def test_agent_chat_service_last_run_summary_carries_turn_record_skill_and_proto
 
 
 @pytest.mark.asyncio
-async def test_runtime_v2_stream_failure_before_first_chunk_raises_without_fallback(mock_db) -> None:
+async def test_runtime_v2_stream_failure_before_first_chunk_raises_without_fallback(
+    mock_db,
+) -> None:
     engine = _build_engine(mock_db)
     adapter = _AdapterStub(delta="unused-fallback-stream")
     runtime_context = _build_runtime_context(should_record_call_log=False)
@@ -561,7 +571,9 @@ async def test_runtime_v2_stream_failure_before_first_chunk_raises_without_fallb
 
 
 @pytest.mark.asyncio
-async def test_runtime_v2_stream_failure_before_first_chunk_does_not_fallback_to_sync_chat(mock_db) -> None:
+async def test_runtime_v2_stream_failure_before_first_chunk_does_not_fallback_to_sync_chat(
+    mock_db,
+) -> None:
     engine = _build_engine(mock_db)
     adapter = _AdapterStub(
         delta="ignored",
@@ -606,7 +618,9 @@ async def test_runtime_v2_stream_failure_before_first_chunk_does_not_fallback_to
 
 
 @pytest.mark.asyncio
-async def test_runtime_v2_stream_success_with_call_log_enabled_records_success_log(mock_db) -> None:
+async def test_runtime_v2_stream_success_with_call_log_enabled_records_success_log(
+    mock_db,
+) -> None:
     engine = _build_engine(mock_db)
     adapter = _AdapterStub()
     runtime_context = _build_runtime_context(should_record_call_log=True)
@@ -645,15 +659,21 @@ async def test_runtime_v2_stream_success_with_call_log_enabled_records_success_l
 
     assert "".join(chunk.delta for chunk in chunks) == "runtime-v2-path"
     assert engine.gateway.usage_recorder.log_call_failure.await_count == 0
-    assert engine.gateway.usage_recorder.call_log_service.log_call_async.await_count == 1
-    log_kwargs = engine.gateway.usage_recorder.call_log_service.log_call_async.await_args.kwargs
+    assert (
+        engine.gateway.usage_recorder.call_log_service.log_call_async.await_count == 1
+    )
+    log_kwargs = (
+        engine.gateway.usage_recorder.call_log_service.log_call_async.await_args.kwargs
+    )
     assert log_kwargs["status"] == "success"
     assert log_kwargs["turn_record"]["protocol_path"] == "responses"
     assert log_kwargs["protocol_path"] == "responses"
 
 
 @pytest.mark.asyncio
-async def test_runtime_v2_stream_failure_with_call_log_enabled_records_failure_log(mock_db) -> None:
+async def test_runtime_v2_stream_failure_with_call_log_enabled_records_failure_log(
+    mock_db,
+) -> None:
     engine = _build_engine(mock_db)
     adapter = _AdapterStub(delta="ignored")
     runtime_context = _build_runtime_context(should_record_call_log=True)
@@ -691,7 +711,9 @@ async def test_runtime_v2_stream_failure_with_call_log_enabled_records_failure_l
             pass
 
     assert engine.gateway.usage_recorder.log_call_failure.await_count == 1
-    assert engine.gateway.usage_recorder.call_log_service.log_call_async.await_count == 0
+    assert (
+        engine.gateway.usage_recorder.call_log_service.log_call_async.await_count == 0
+    )
     failure_kwargs = engine.gateway.usage_recorder.log_call_failure.await_args.kwargs
     assert failure_kwargs["protocol_path"] == "responses"
     assert failure_kwargs["turn_record"]["termination_reason"] == "error"
@@ -721,7 +743,9 @@ async def test_runtime_v2_stream_failure_after_chunk_records_flag(mock_db) -> No
             "app.ai.engine.conversation.ConversationQueryEngine",
             new=_RuntimeQueryEngineFailAfterMeaningfulChunkStub,
         ),
-        pytest.raises(RuntimeError, match="runtime-v2 stream failed after meaningful chunk"),
+        pytest.raises(
+            RuntimeError, match="runtime-v2 stream failed after meaningful chunk"
+        ),
     ):
         async for _ in engine._stream_llm_chunks(
             agent=agent,

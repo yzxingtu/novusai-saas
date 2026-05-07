@@ -69,7 +69,9 @@ async def test_resolve_memory_effective_config_disabled_by_tenant(mock_db):
     svc.repo.get_by_id = AsyncMock(return_value=_make_agent(memory_enabled=True))
     svc._get_platform_default_memory_enabled = AsyncMock(return_value=True)
     override_repo = AsyncMock()
-    override_repo.get_by_agent_id = AsyncMock(return_value=_make_override(disabled=True))
+    override_repo.get_by_agent_id = AsyncMock(
+        return_value=_make_override(disabled=True)
+    )
     svc._get_memory_override_repo = MagicMock(return_value=override_repo)
 
     result = await svc.resolve_memory_effective_config(1)
@@ -111,7 +113,9 @@ async def test_admin_set_memory_enabled_updates_agent(mock_db):
     svc.db = mock_db
     svc.repo = AsyncMock()
     svc.repo.get_by_id = AsyncMock(return_value=_make_agent(memory_enabled=True))
-    svc.get_memory_config = AsyncMock(return_value={"admin_agent_memory_enabled": False})
+    svc.get_memory_config = AsyncMock(
+        return_value={"admin_agent_memory_enabled": False}
+    )
 
     result = await svc.set_memory_enabled(1, enabled=False)
 

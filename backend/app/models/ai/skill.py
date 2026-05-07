@@ -27,7 +27,6 @@ class Skill(TenantModel):
 
     __tablename__ = "skills"
 
-
     # 覆盖 TenantModel 的 tenant_id，逐步从 SkillPackage 归属迁移为 Skill 自有归属
     tenant_id = Column(
         Integer, nullable=True, index=True, comment="企业ID（过渡期可继承自技能包）"

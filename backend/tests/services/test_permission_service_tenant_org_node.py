@@ -6,7 +6,9 @@ import pytest
 from app.rbac.services.permission_service import PermissionService
 
 
-def _perm(permission_id: int, code: str, *, enabled: bool = True, deleted: bool = False):
+def _perm(
+    permission_id: int, code: str, *, enabled: bool = True, deleted: bool = False
+):
     return SimpleNamespace(
         id=permission_id,
         code=code,
@@ -16,7 +18,9 @@ def _perm(permission_id: int, code: str, *, enabled: bool = True, deleted: bool 
 
 
 @pytest.mark.asyncio
-async def test_tenant_admin_permissions_prefer_org_node_permissions_with_plan_intersection() -> None:
+async def test_tenant_admin_permissions_prefer_org_node_permissions_with_plan_intersection() -> (
+    None
+):
     service = PermissionService(AsyncMock())
     service._get_tenant_plan_permissions = AsyncMock(  # type: ignore[method-assign]
         return_value=(
@@ -44,13 +48,13 @@ async def test_tenant_admin_permissions_prefer_org_node_permissions_with_plan_in
     assert await service.get_tenant_admin_permissions(tenant_admin) == {
         "tenant.dashboard.view"
     }
-    assert await service.get_tenant_admin_effective_permission_ids(tenant_admin) == {
-        11
-    }
+    assert await service.get_tenant_admin_effective_permission_ids(tenant_admin) == {11}
 
 
 @pytest.mark.asyncio
-async def test_tenant_admin_org_node_permissions_override_role_when_org_binding_exists() -> None:
+async def test_tenant_admin_org_node_permissions_override_role_when_org_binding_exists() -> (
+    None
+):
     service = PermissionService(AsyncMock())
     service._get_tenant_plan_permissions = AsyncMock(  # type: ignore[method-assign]
         return_value=(
@@ -75,6 +79,4 @@ async def test_tenant_admin_org_node_permissions_override_role_when_org_binding_
     assert await service.get_tenant_admin_permissions(tenant_admin) == {
         "tenant.user.manage"
     }
-    assert await service.get_tenant_admin_effective_permission_ids(tenant_admin) == {
-        12
-    }
+    assert await service.get_tenant_admin_effective_permission_ids(tenant_admin) == {12}

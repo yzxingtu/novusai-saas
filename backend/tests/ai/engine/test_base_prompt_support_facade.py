@@ -8,7 +8,6 @@ from __future__ import annotations
 import app.ai.engine.base_helpers as base_helpers
 from app.ai.engine.base_prompt_contract_support import BasePromptContractSupportMixin
 from app.ai.engine.base_prompt_llm_support import BasePromptLLMSupportMixin
-from app.ai.engine.base_prompt_research_support import BasePromptResearchSupportMixin
 from app.ai.engine.base_prompt_support import BaseEnginePromptSupport
 from app.ai.engine.base_prompt_system_support import BasePromptSystemSupportMixin
 from app.ai.engine.base_prompt_tool_policy_support import (
@@ -19,7 +18,6 @@ from app.ai.engine.base_prompt_tool_policy_support import (
 def test_base_prompt_support_facade_composes_split_mixins() -> None:
     assert issubclass(BaseEnginePromptSupport, BasePromptSystemSupportMixin)
     assert issubclass(BaseEnginePromptSupport, BasePromptToolPolicySupportMixin)
-    assert issubclass(BaseEnginePromptSupport, BasePromptResearchSupportMixin)
     assert issubclass(BaseEnginePromptSupport, BasePromptContractSupportMixin)
     assert issubclass(BaseEnginePromptSupport, BasePromptLLMSupportMixin)
 

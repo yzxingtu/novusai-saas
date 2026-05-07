@@ -34,7 +34,6 @@ class AIModel(BaseModel):
         ),
     )
 
-
     __delete_deps__ = [
         DeletionDep(
             "Agent",

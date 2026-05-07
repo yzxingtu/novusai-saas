@@ -26,7 +26,9 @@ def _make_binding_key() -> str:
 class StorageTenantBinding(BaseModel):
     __tablename__ = "px_storage_billing_tenant_bindings"
     __table_args__ = (
-        UniqueConstraint("binding_key", name="uq_px_storage_billing_tenant_bindings_key"),
+        UniqueConstraint(
+            "binding_key", name="uq_px_storage_billing_tenant_bindings_key"
+        ),
         UniqueConstraint(
             "tenant_id",
             "provider_code",
@@ -34,11 +36,21 @@ class StorageTenantBinding(BaseModel):
             "scope_value",
             name="uq_px_storage_billing_tenant_bindings_scope",
         ),
-        Index("ix_px_storage_billing_tenant_bindings_tenant_provider", "tenant_id", "provider_code"),
-        Index("ix_px_storage_billing_tenant_bindings_validation", "validation_status", "is_active"),
+        Index(
+            "ix_px_storage_billing_tenant_bindings_tenant_provider",
+            "tenant_id",
+            "provider_code",
+        ),
+        Index(
+            "ix_px_storage_billing_tenant_bindings_validation",
+            "validation_status",
+            "is_active",
+        ),
     )
 
-    binding_key: Mapped[str] = mapped_column(String(40), nullable=False, default=_make_binding_key)
+    binding_key: Mapped[str] = mapped_column(
+        String(40), nullable=False, default=_make_binding_key
+    )
     tenant_id: Mapped[int] = mapped_column(Integer, nullable=False)
     provider_code: Mapped[str] = mapped_column(
         String(50),
@@ -69,10 +81,14 @@ class StorageTenantBinding(BaseModel):
         default=StorageBillingValidationStatusEnum.PENDING.value,
     )
     validation_message: Mapped[str | None] = mapped_column(Text, nullable=True)
-    entitlement_snapshot_json: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    entitlement_snapshot_json: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, default=dict
+    )
     metadata_json: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    validated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    validated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
 
 __all__ = ["StorageTenantBinding"]

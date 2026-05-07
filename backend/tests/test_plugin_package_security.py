@@ -11,6 +11,7 @@ import pytest
 def _get_install_error():
     """延迟导入避免循环依赖。 / 。"""
     from app.plugins.package_security import PluginInstallError  # re-exported
+
     return PluginInstallError
 
 
@@ -19,11 +20,13 @@ def _import_funcs():
         extract_plugin_zip_safely,
         validate_plugin_zip_archive,
     )
+
     return extract_plugin_zip_safely, validate_plugin_zip_archive
+
 
 _MINIMAL_PLUGIN_YAML = (
     b"name: demo-plugin\n"
-    b"version: \"1.0.0\"\n"
+    b'version: "1.0.0"\n'
     b"display_name:\n"
     b"  en: Demo Plugin\n"
     b"scope: all_tenants"

@@ -14,7 +14,9 @@ def _scalar_result(value):
 
 
 @pytest.mark.asyncio
-async def test_router_conversation_access_scopes_tenant_admin_by_owner_type_and_user_id(mock_db):
+async def test_router_conversation_access_scopes_tenant_admin_by_owner_type_and_user_id(
+    mock_db,
+):
     from app.services.ai.agent_router_service import AgentRouterService
 
     conversation = MagicMock()
@@ -37,7 +39,9 @@ async def test_router_conversation_access_scopes_tenant_admin_by_owner_type_and_
 
 
 @pytest.mark.asyncio
-async def test_router_conversation_access_scopes_platform_admin_to_platform_owner_type(mock_db):
+async def test_router_conversation_access_scopes_platform_admin_to_platform_owner_type(
+    mock_db,
+):
     from app.services.ai.agent_router_service import AgentRouterService
 
     conversation = MagicMock()

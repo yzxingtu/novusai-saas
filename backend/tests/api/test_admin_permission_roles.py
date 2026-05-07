@@ -3,6 +3,7 @@
 
 覆盖当前已暴露的 /admin/permissions 与 /admin/organization 上的权限绑定能力。
 """
+
 import contextlib
 import os
 import sys
@@ -17,7 +18,9 @@ try:
         assert_true,
     )
 except ModuleNotFoundError:
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+    sys.path.insert(
+        0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    )
     from tests.api.base import (  # noqa: I001
         BaseAPITest,
         assert_equals,
@@ -48,7 +51,9 @@ class ManualTestAdminPermissionRoles(BaseAPITest):
     def _run_tests(self) -> None:
         """运行所有测试 / Run all tests."""
         self.run_test("获取平台权限树", self.test_get_permission_tree)
-        self.run_test("创建带权限的组织节点", self.test_create_org_node_with_permissions)
+        self.run_test(
+            "创建带权限的组织节点", self.test_create_org_node_with_permissions
+        )
         self.run_test("获取组织节点权限详情", self.test_get_org_node_detail)
         self.run_test("更新组织节点权限绑定", self.test_update_permission_bindings)
         self.run_test("清空组织节点权限绑定", self.test_clear_permission_bindings)

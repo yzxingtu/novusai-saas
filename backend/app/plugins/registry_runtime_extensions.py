@@ -228,7 +228,9 @@ class RegistryRuntimeExtensionsMixin:
     ) -> list[dict[str, Any]]:
         result: list[dict[str, Any]] = []
         plugins_iter = (
-            [plugin_name] if plugin_name else list(self._plugin_custom_extensions.keys())
+            [plugin_name]
+            if plugin_name
+            else list(self._plugin_custom_extensions.keys())
         )
         for pname in plugins_iter:
             for ext in self._plugin_custom_extensions.get(pname, []):
@@ -421,7 +423,9 @@ class RegistryRuntimeExtensionsMixin:
             "hidden": hidden,
         }
         menus = self._plugin_menus.setdefault(plugin_name, [])
-        self._plugin_menus[plugin_name] = [menu for menu in menus if menu.get("name") != name]
+        self._plugin_menus[plugin_name] = [
+            menu for menu in menus if menu.get("name") != name
+        ]
         self._plugin_menus[plugin_name].append(menu_entry)
 
         if title:
@@ -516,7 +520,9 @@ class RegistryRuntimeExtensionsMixin:
         name = ext.key
         if plugin_name in self._plugin_menus:
             self._plugin_menus[plugin_name] = [
-                menu for menu in self._plugin_menus[plugin_name] if menu.get("name") != name
+                menu
+                for menu in self._plugin_menus[plugin_name]
+                if menu.get("name") != name
             ]
         if plugin_name in self._plugin_menu_titles:
             safe_name = plugin_name.replace("-", "_")
@@ -629,7 +635,9 @@ class RegistryRuntimeExtensionsMixin:
 
         slots = self._plugin_frontend_slots.setdefault(plugin_name, [])
         self._plugin_frontend_slots[plugin_name] = [
-            slot for slot in slots if f"{slot['slot_type']}:{slot.get('name', '')}" != dedup_key
+            slot
+            for slot in slots
+            if f"{slot['slot_type']}:{slot.get('name', '')}" != dedup_key
         ]
         self._plugin_frontend_slots[plugin_name].append(slot_entry)
 

@@ -123,7 +123,9 @@ class PeriodicTaskPresentationService:
         return description, display_name
 
     @staticmethod
-    def binding_semantics(scope: str | None, binding_count: int) -> dict[str, bool | str]:
+    def binding_semantics(
+        scope: str | None, binding_count: int
+    ) -> dict[str, bool | str]:
         selected_scopes = {
             ResourceScopeEnum.SELECTED_TENANTS.value,
             ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,

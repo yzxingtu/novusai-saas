@@ -618,7 +618,7 @@ async def test_tenant_ai_guard_matches_auth_profile_for_legacy_plan_feature_defa
                     is_active=True,
                     get_feature=lambda key, default=False: (
                         feature_calls.append((key, default)) or default
-                    )
+                    ),
                 ),
             )
 
@@ -785,8 +785,7 @@ async def test_tenant_admin_guard_rejects_when_leader_chain_disables_ai() -> Non
                     plan_id=9,
                     quota={},
                     tenant_plan=SimpleNamespace(
-                        is_active=True,
-                        get_feature=lambda _key, default=False: default
+                        is_active=True, get_feature=lambda _key, default=False: default
                     ),
                 )
             ),

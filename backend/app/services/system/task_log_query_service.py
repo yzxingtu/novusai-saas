@@ -43,9 +43,9 @@ class TaskLogRelationService:
 
         if definition_ids:
             result = await self._db.execute(
-                select(TaskDefinition.id, TaskDefinition.name, TaskDefinition.scope).where(
-                    TaskDefinition.id.in_(definition_ids)
-                )
+                select(
+                    TaskDefinition.id, TaskDefinition.name, TaskDefinition.scope
+                ).where(TaskDefinition.id.in_(definition_ids))
             )
             definition_map = {
                 row.id: {"name": row.name, "scope": row.scope} for row in result.all()

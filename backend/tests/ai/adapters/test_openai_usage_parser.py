@@ -51,8 +51,13 @@ def test_estimate_responses_stream_usage_delegates_to_usage_mode(
 
 
 def test_compat_usage_parser_matches_support_exports() -> None:
-    assert compat_usage_parser.extract_usage_int is support_usage_parser.extract_usage_int
-    assert compat_usage_parser.extract_usage_tokens is support_usage_parser.extract_usage_tokens
+    assert (
+        compat_usage_parser.extract_usage_int is support_usage_parser.extract_usage_int
+    )
+    assert (
+        compat_usage_parser.extract_usage_tokens
+        is support_usage_parser.extract_usage_tokens
+    )
     assert (
         compat_usage_parser.estimate_responses_stream_usage
         is support_usage_parser.estimate_responses_stream_usage

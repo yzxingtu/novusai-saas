@@ -88,7 +88,9 @@ async def test_sync_plugin_permissions_disables_stale_plugin_menu_records() -> N
     db.execute = AsyncMock(
         side_effect=[
             _make_scalars_result([current_db, stale_db]),
-            _make_rows_result([(current_db.code, current_db.id), (stale_db.code, stale_db.id)]),
+            _make_rows_result(
+                [(current_db.code, current_db.id), (stale_db.code, stale_db.id)]
+            ),
         ],
     )
     db.flush = AsyncMock()
@@ -108,7 +110,9 @@ async def test_sync_plugin_permissions_disables_stale_plugin_menu_records() -> N
 
 
 @pytest.mark.asyncio
-async def test_sync_plugin_permissions_persists_i18n_key_for_plugin_action_permissions() -> None:
+async def test_sync_plugin_permissions_persists_i18n_key_for_plugin_action_permissions() -> (
+    None
+):
     from app.models.auth.permission import Permission
     from app.rbac.sync import PermissionSyncService
 

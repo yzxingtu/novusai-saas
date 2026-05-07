@@ -16,7 +16,7 @@ class AuthCaptchaVerificationMixin:
     """Shared CAPTCHA verification behavior for auth flows."""
 
     async def _verify_captcha(
-        self: "AuthService",
+        self: AuthService,
         challenge_id: str | None,
         solution: str | None,
         provider_code: str | None,

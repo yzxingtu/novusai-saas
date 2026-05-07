@@ -3,11 +3,14 @@
 
 测试 /admin/organization/* 接口
 """
+
 import os
 import sys
 import time
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+sys.path.insert(
+    0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+)
 
 import contextlib
 
@@ -17,7 +20,6 @@ from tests.api.base import (
     assert_has_keys,
     assert_success,
     assert_true,
-    config,
 )
 
 
@@ -45,7 +47,9 @@ class ManualTestAdminOrganization(BaseAPITest):
         member_org_node_id = self._test_data.get("member_org_node_id")
         if admin_id and member_org_node_id:
             with contextlib.suppress(Exception):
-                self.client.delete(f"/admin/organization/{member_org_node_id}/members/{admin_id}")
+                self.client.delete(
+                    f"/admin/organization/{member_org_node_id}/members/{admin_id}"
+                )
 
         for key in ("secondary_org_node_id", "primary_org_node_id"):
             org_node_id = self._test_data.get(key)
@@ -88,7 +92,9 @@ class ManualTestAdminOrganization(BaseAPITest):
         permission_ids = collect(data["data"])
         return permission_ids[0] if permission_ids else None
 
-    def _assert_member_mapping(self, member: dict, expected_org_node_id: int | None) -> None:
+    def _assert_member_mapping(
+        self, member: dict, expected_org_node_id: int | None
+    ) -> None:
         assert_equals(member["org_node_id"], expected_org_node_id)
 
     def test_list_organization(self) -> None:
@@ -120,7 +126,9 @@ class ManualTestAdminOrganization(BaseAPITest):
         )
         data = assert_success(resp, "创建主组织节点失败")
 
-        assert_has_keys(data["data"], ["id", "name", "type", "allow_members", "data_scope"])
+        assert_has_keys(
+            data["data"], ["id", "name", "type", "allow_members", "data_scope"]
+        )
         assert_equals(data["data"]["name"], self._test_data["primary_name"])
         self._test_data["primary_org_node_id"] = data["data"]["id"]
 
@@ -214,7 +222,9 @@ class ManualTestAdminOrganization(BaseAPITest):
             "is_active": True,
         }
 
-        resp = self.client.post(f"/admin/organization/{org_node_id}/members/create", data=payload)
+        resp = self.client.post(
+            f"/admin/organization/{org_node_id}/members/create", data=payload
+        )
         data = assert_success(resp, "创建组织成员失败")
 
         assert_has_keys(data["data"], ["id", "username", "org_node_id"])
@@ -237,7 +247,9 @@ class ManualTestAdminOrganization(BaseAPITest):
         data = assert_success(resp, "获取组织节点成员列表失败")
 
         assert_has_keys(data["data"], ["items", "total", "page", "page_size", "pages"])
-        member = next((item for item in data["data"]["items"] if item["id"] == admin_id), None)
+        member = next(
+            (item for item in data["data"]["items"] if item["id"] == admin_id), None
+        )
         assert_true(member is not None, "创建的成员未出现在组织节点成员列表中")
         self._assert_member_mapping(member, org_node_id)
 
@@ -300,7 +312,9 @@ class ManualTestAdminOrganization(BaseAPITest):
         if not org_node_id or not admin_id:
             raise AssertionError("没有可用的组织节点 ID 或成员 ID")
 
-        resp = self.client.delete(f"/admin/organization/{org_node_id}/members/{admin_id}")
+        resp = self.client.delete(
+            f"/admin/organization/{org_node_id}/members/{admin_id}"
+        )
         data = assert_success(resp, "移除成员失败")
         self._assert_member_mapping(data["data"], None)
         self._test_data.pop("member_org_node_id", None)

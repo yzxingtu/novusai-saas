@@ -25,7 +25,6 @@ class AIProvider(BaseModel):
 
     __tablename__ = "ai_providers"
 
-
     __delete_deps__ = [
         DeletionDep(
             "AIModel",

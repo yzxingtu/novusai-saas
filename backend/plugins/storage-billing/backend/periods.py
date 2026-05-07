@@ -53,7 +53,9 @@ def resolve_billing_date(
     parsed = parse_optional_billing_date(raw_value)
     if parsed is not None:
         return parsed
-    return (utc_now().astimezone(SHANGHAI_TZ) - timedelta(days=default_offset_days)).date()
+    return (
+        utc_now().astimezone(SHANGHAI_TZ) - timedelta(days=default_offset_days)
+    ).date()
 
 
 def parse_optional_billing_month(raw_value: Any) -> date | None:
@@ -79,7 +81,9 @@ def parse_optional_period_type(raw_value: Any) -> str | None:
     if not normalized:
         return None
     if not StorageBillingPeriodTypeEnum.has_value(normalized):
-        raise BusinessException(message=_("period_type must be one of: daily, monthly."))
+        raise BusinessException(
+            message=_("period_type must be one of: daily, monthly.")
+        )
     return normalized
 
 

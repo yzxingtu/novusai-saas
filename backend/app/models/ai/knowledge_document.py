@@ -41,7 +41,6 @@ class KnowledgeDocument(TenantModel):
 
     __tablename__ = "knowledge_documents"
 
-
     __delete_deps__ = [
         DeletionDep(
             "DocumentChunk",

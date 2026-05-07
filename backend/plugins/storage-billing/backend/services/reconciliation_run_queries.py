@@ -60,19 +60,27 @@ class StorageBillingReconciliationRunQueryMixin:
             )
         ).scalar_one_or_none()
         if run is None:
-            raise NotFoundException(message="Storage billing reconciliation run not found.")
+            raise NotFoundException(
+                message="Storage billing reconciliation run not found."
+            )
 
         sources = (
-            await self._db.execute(
-                select(StorageProviderBillSource).where(
-                    StorageProviderBillSource.run_id == run_id,
-                    StorageProviderBillSource.is_deleted.is_(False),
-                ).order_by(
-                    StorageProviderBillSource.provider_code,
-                    StorageProviderBillSource.id,
+            (
+                await self._db.execute(
+                    select(StorageProviderBillSource)
+                    .where(
+                        StorageProviderBillSource.run_id == run_id,
+                        StorageProviderBillSource.is_deleted.is_(False),
+                    )
+                    .order_by(
+                        StorageProviderBillSource.provider_code,
+                        StorageProviderBillSource.id,
+                    )
                 )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         return {
             "run": _serialize_run(run),
             "sources": [_serialize_source(item) for item in sources],
@@ -99,7 +107,9 @@ class StorageBillingReconciliationRunQueryMixin:
             )
         ).scalar_one_or_none()
         if run is None:
-            raise NotFoundException(message="Storage billing reconciliation run not found.")
+            raise NotFoundException(
+                message="Storage billing reconciliation run not found."
+            )
 
         normalized_provider_code = _stringify(provider_code) or None
         source_stmt = select(StorageProviderBillSource).where(
@@ -130,7 +140,9 @@ class StorageBillingReconciliationRunQueryMixin:
             StorageTenantDailyCharge.source_id.in_(list(source_map)),
         )
         if tenant_id is not None:
-            charge_stmt = charge_stmt.where(StorageTenantDailyCharge.tenant_id == tenant_id)
+            charge_stmt = charge_stmt.where(
+                StorageTenantDailyCharge.tenant_id == tenant_id
+            )
         charge_stmt = charge_stmt.order_by(
             desc(StorageTenantDailyCharge.amount_total),
             desc(StorageTenantDailyCharge.usage_bytes),

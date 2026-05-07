@@ -40,7 +40,9 @@ class _TenantPlanPermissionResolver:
         result = await self._db.execute(
             select(Tenant)
             .where(Tenant.id == tenant_id)
-            .options(selectinload(Tenant.tenant_plan).selectinload(TenantPlan.permissions))
+            .options(
+                selectinload(Tenant.tenant_plan).selectinload(TenantPlan.permissions)
+            )
         )
         tenant = await self._scalar_one_or_none(result)
         if tenant is None or tenant.plan_id is None:
@@ -185,7 +187,9 @@ class PermissionAggregationDomain:
 
     async def get_admin_manageable_role_ids(self, admin: Admin) -> set[int]:
         return set(
-            await AdminOrgAuthorityService(self._db, admin).get_manageable_org_node_ids()
+            await AdminOrgAuthorityService(
+                self._db, admin
+            ).get_manageable_org_node_ids()
         )
 
     async def get_admin_visible_role_ids(self, admin: Admin) -> set[int]:

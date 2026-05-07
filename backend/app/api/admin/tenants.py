@@ -346,7 +346,9 @@ class AdminTenantController(GlobalController):
             权限 / Permission: tenant:detail
             """
             storage_service = TenantStorageAdminService(db)
-            return success(data=await storage_service.get_tenant_storage_config(tenant_id))
+            return success(
+                data=await storage_service.get_tenant_storage_config(tenant_id)
+            )
 
         @router.put("/{tenant_id}/storage-config", summary="设置企业存储配置")
         @action_update("action.tenant.update")

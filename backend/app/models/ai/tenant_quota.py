@@ -25,7 +25,6 @@ class TenantQuota(TenantModel):
 
     __tablename__ = "tenant_quotas"
 
-
     # 允许前端筛选的字段 / Fields exposed for list filtering
     __filterable__ = {
         "id": "id",

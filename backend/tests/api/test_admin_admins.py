@@ -3,12 +3,15 @@
 
 覆盖当前经 /admin/organization/* 暴露的平台管理员成员管理能力。
 """
+
 import contextlib
 import os
 import sys
 import time
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+sys.path.insert(
+    0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+)
 
 from tests.api.base import (
     BaseAPITest,
@@ -45,7 +48,9 @@ class ManualTestAdminAdmins(BaseAPITest):
         member_org_node_id = self._test_data.get("member_org_node_id")
         if admin_id and member_org_node_id:
             with contextlib.suppress(Exception):
-                self.client.delete(f"/admin/organization/{member_org_node_id}/members/{admin_id}")
+                self.client.delete(
+                    f"/admin/organization/{member_org_node_id}/members/{admin_id}"
+                )
 
         for key in ("secondary_org_node_id", "primary_org_node_id"):
             org_node_id = self._test_data.get(key)
@@ -119,7 +124,9 @@ class ManualTestAdminAdmins(BaseAPITest):
         )
         data = assert_success(resp, "创建管理员成员失败")
 
-        assert_has_keys(data["data"], ["id", "username", "email", "org_node_id", "is_active"])
+        assert_has_keys(
+            data["data"], ["id", "username", "email", "org_node_id", "is_active"]
+        )
         assert_equals(data["data"]["username"], self._test_data["member_username"])
         assert_equals(data["data"]["org_node_id"], org_node_id)
         self._test_data["created_admin_id"] = data["data"]["id"]
@@ -139,7 +146,9 @@ class ManualTestAdminAdmins(BaseAPITest):
         data = assert_success(resp, "获取组织节点成员列表失败")
 
         assert_has_keys(data["data"], ["items", "total", "page", "page_size", "pages"])
-        member = next((item for item in data["data"]["items"] if item["id"] == admin_id), None)
+        member = next(
+            (item for item in data["data"]["items"] if item["id"] == admin_id), None
+        )
         assert_true(member is not None, "创建的成员未出现在组织节点成员列表中")
         assert_equals(member["org_node_id"], org_node_id)
 
@@ -221,7 +230,9 @@ class ManualTestAdminAdmins(BaseAPITest):
         if not org_node_id or not admin_id:
             raise AssertionError("没有可用的组织节点 ID 或成员 ID")
 
-        resp = self.client.delete(f"/admin/organization/{org_node_id}/members/{admin_id}")
+        resp = self.client.delete(
+            f"/admin/organization/{org_node_id}/members/{admin_id}"
+        )
         data = assert_success(resp, "移除管理员成员失败")
         assert_equals(data["data"]["org_node_id"], None)
         self._test_data.pop("member_org_node_id", None)

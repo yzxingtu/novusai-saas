@@ -74,4 +74,3 @@ async def test_refresh_schedules_recovers_schedule_refresh_error_state() -> None
     assert plugin.error_message is None
     assert plugin.error_count == 0
     assert plugin.enabled_at is not None
-

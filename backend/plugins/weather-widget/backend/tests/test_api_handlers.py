@@ -86,13 +86,15 @@ class TestGetCurrentWeather:
     @pytest.mark.asyncio
     async def test_success(self):
         mock_open_meteo = MagicMock()
-        mock_open_meteo.get_weather_all = AsyncMock(return_value={
-            "current": {
-                "temperature": 22.5,
-                "weather_code": 0,
-                "weather_icon": "sun",
-            },
-        })
+        mock_open_meteo.get_weather_all = AsyncMock(
+            return_value={
+                "current": {
+                    "temperature": 22.5,
+                    "weather_code": 0,
+                    "weather_icon": "sun",
+                },
+            }
+        )
 
         req = _make_request({"lat": "31.23", "lon": "121.47"})
 
@@ -105,9 +107,7 @@ class TestGetCurrentWeather:
     @pytest.mark.asyncio
     async def test_api_error(self):
         mock_open_meteo = MagicMock()
-        mock_open_meteo.get_weather_all = AsyncMock(
-            side_effect=Exception("timeout")
-        )
+        mock_open_meteo.get_weather_all = AsyncMock(side_effect=Exception("timeout"))
 
         req = _make_request({"lat": "31.23", "lon": "121.47"})
 
@@ -200,11 +200,13 @@ class TestGetForecast:
     @pytest.mark.asyncio
     async def test_success(self):
         mock_open_meteo = MagicMock()
-        mock_open_meteo.get_weather_all = AsyncMock(return_value={
-            "daily": [
-                {"date": "2026-02-23", "temp_max": 25.0, "temp_min": 15.0},
-            ],
-        })
+        mock_open_meteo.get_weather_all = AsyncMock(
+            return_value={
+                "daily": [
+                    {"date": "2026-02-23", "temp_max": 25.0, "temp_min": 15.0},
+                ],
+            }
+        )
 
         req = _make_request({"lat": "31.23", "lon": "121.47", "days": "1"})
 
@@ -274,9 +276,16 @@ class TestSearchCity:
     @pytest.mark.asyncio
     async def test_success(self):
         mock_open_meteo = MagicMock()
-        mock_open_meteo.search_city = AsyncMock(return_value=[
-            {"name": "Shanghai", "country": "China", "latitude": 31.23, "longitude": 121.47},
-        ])
+        mock_open_meteo.search_city = AsyncMock(
+            return_value=[
+                {
+                    "name": "Shanghai",
+                    "country": "China",
+                    "latitude": 31.23,
+                    "longitude": 121.47,
+                },
+            ]
+        )
 
         req = _make_request({"name": "Shanghai"})
 
@@ -290,9 +299,7 @@ class TestSearchCity:
     @pytest.mark.asyncio
     async def test_api_error(self):
         mock_open_meteo = MagicMock()
-        mock_open_meteo.search_city = AsyncMock(
-            side_effect=Exception("service down")
-        )
+        mock_open_meteo.search_city = AsyncMock(side_effect=Exception("service down"))
 
         req = _make_request({"name": "Shanghai"})
 

@@ -11,6 +11,7 @@ import pytest
 
 # ── Helpers ──
 
+
 def _make_trend_rows(days: int = 3):
     """生成 mock 调用趋势数据 / mock"""
     rows = []
@@ -38,8 +39,8 @@ def _make_model_dist_rows():
 
 # ── Tests: AnalyticsService ──
 
-class TestCallTrend:
 
+class TestCallTrend:
     @pytest.mark.asyncio
     async def test_call_trend_returns_list(self, mock_db):
         from app.services.ai.analytics_service import AnalyticsService
@@ -102,7 +103,6 @@ class TestCallTrend:
 
 
 class TestModelDistribution:
-
     @pytest.mark.asyncio
     async def test_model_distribution_returns_list(self, mock_db):
         from app.services.ai.analytics_service import AnalyticsService
@@ -120,7 +120,6 @@ class TestModelDistribution:
 
 
 class TestLatencyDistribution:
-
     @pytest.mark.asyncio
     async def test_latency_distribution_single_query(self, mock_db):
         from app.services.ai.analytics_service import AnalyticsService
@@ -144,7 +143,6 @@ class TestLatencyDistribution:
 
 
 class TestSuccessRateTrend:
-
     @pytest.mark.asyncio
     async def test_success_rate_trend(self, mock_db):
         from app.services.ai.analytics_service import AnalyticsService
@@ -165,7 +163,6 @@ class TestSuccessRateTrend:
 
 
 class TestProviderPerformance:
-
     @pytest.mark.asyncio
     async def test_provider_performance_returns_list(self, mock_db):
         from app.services.ai.analytics_service import AnalyticsService
@@ -192,7 +189,6 @@ class TestProviderPerformance:
 
 
 class TestTenantRanking:
-
     @pytest.mark.asyncio
     async def test_tenant_ranking_returns_list(self, mock_db):
         from app.services.ai.analytics_service import AnalyticsService

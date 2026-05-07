@@ -22,7 +22,6 @@ class OperationLog(BaseModel):
 
     __tablename__ = "operation_logs"
 
-
     # 表级索引 / Table-level indexes
     __table_args__ = (
         # 复合索引：企业 + 时间，用于企业日志查询 / tenant + time for tenant log queries

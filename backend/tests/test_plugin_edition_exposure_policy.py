@@ -8,8 +8,7 @@ fail-closed runtime gate.
 from __future__ import annotations
 
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -341,9 +340,7 @@ async def test_behavioral_assign_tenants_rejects_inactive_plan_before_writing() 
     plugin = _selected_tenant_plugin()
     db = AsyncMock()
     db.add = MagicMock()
-    db.execute = AsyncMock(
-        return_value=_ScalarsAllResult([_tenant(plan_active=False)])
-    )
+    db.execute = AsyncMock(return_value=_ScalarsAllResult([_tenant(plan_active=False)]))
     db.flush = AsyncMock()
     service = _plugin_service_for_assignment(db, plugin)
 

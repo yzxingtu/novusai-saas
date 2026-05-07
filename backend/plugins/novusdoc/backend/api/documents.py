@@ -30,8 +30,10 @@ async def list_docs(request, db, ctx):
     status = request.query_params.get("status")
 
     from ..services.document_service import list_documents
+
     return await list_documents(
-        db, tenant_id,
+        db,
+        tenant_id,
         folder_id=int(folder_id) if folder_id else None,
         status=status,
         page=page,
@@ -46,6 +48,7 @@ async def create_doc(request, db, ctx):
     body["created_by"] = ctx.get_current_user_id()
 
     from ..services.document_service import create_document
+
     doc = await create_document(db, tenant_id, body)
     return {"document": doc}
 
@@ -55,6 +58,7 @@ async def get_doc(request, db, ctx):
 
     doc_id = int(request.path_params["doc_id"])
     from ..services.document_service import get_document
+
     doc = await get_document(db, tenant_id, doc_id)
     if not doc:
         return {"error": "Document not found", "status_code": 404}
@@ -68,6 +72,7 @@ async def update_doc(request, db, ctx):
     body = await request.json()
 
     from ..services.document_service import update_document
+
     doc = await update_document(db, tenant_id, doc_id, body)
     if not doc:
         return {"error": "Document not found", "status_code": 404}
@@ -79,6 +84,7 @@ async def delete_doc(request, db, ctx):
 
     doc_id = int(request.path_params["doc_id"])
     from ..services.document_service import delete_document
+
     ok = await delete_document(db, tenant_id, doc_id)
     if not ok:
         return {"error": "Document not found", "status_code": 404}

@@ -97,9 +97,7 @@ class UserAgentChatController(BaseController):
             db: DbSession,
             current_user: ActiveTenantUser,
         ) -> None:
-            await AccountAIAccessService(db).require_tenant_user_ai_access(
-                current_user
-            )
+            await AccountAIAccessService(db).require_tenant_user_ai_access(current_user)
 
         # ========================================
         # 对话执行 / Chat execution

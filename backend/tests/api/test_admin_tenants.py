@@ -2,12 +2,15 @@
 """企业管理 API 测试模块 / API.
 
 测试 /admin/tenants/* 接口"""
+
 import contextlib
 import os
 import sys
 import time
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+sys.path.insert(
+    0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+)
 
 from sqlalchemy import text
 
@@ -19,7 +22,6 @@ from tests.api.base import (
     assert_has_keys,
     assert_success,
     assert_true,
-    config,
 )
 
 
@@ -97,7 +99,9 @@ class ManualTestAdminTenants(BaseAPITest):
 
     def test_list_tenants_filter_status(self) -> None:
         """测试获取企业列表 - 按状态过滤 / Test."""
-        resp = self.client.get("/admin/tenants", params={"filter[is_active][eq]": "true"})
+        resp = self.client.get(
+            "/admin/tenants", params={"filter[is_active][eq]": "true"}
+        )
         data = assert_success(resp, "获取企业列表失败")
 
         # 验证所有返回的企业都是激活状态
@@ -106,16 +110,19 @@ class ManualTestAdminTenants(BaseAPITest):
 
     def test_create_tenant(self) -> None:
         """测试创建企业（编码自动生成） / Test."""
-        resp = self.client.post("/admin/tenants", data={
-            "name": self._test_data["tenant_name"],
-            "contact_name": "测试联系人",
-            "contact_phone": "13800138000",
-            "contact_email": "test@example.com",
-            "quota": {"max_users": 100},
-            "admin_username": self._test_data["admin_username"],
-            "admin_email": self._test_data["admin_email"],
-            "admin_password": "test123456",
-        })
+        resp = self.client.post(
+            "/admin/tenants",
+            data={
+                "name": self._test_data["tenant_name"],
+                "contact_name": "测试联系人",
+                "contact_phone": "13800138000",
+                "contact_email": "test@example.com",
+                "quota": {"max_users": 100},
+                "admin_username": self._test_data["admin_username"],
+                "admin_email": self._test_data["admin_email"],
+                "admin_password": "test123456",
+            },
+        )
         data = assert_success(resp, "创建企业失败")
 
         assert_has_keys(data["data"], ["id", "code", "name", "is_active"])
@@ -152,10 +159,13 @@ class ManualTestAdminTenants(BaseAPITest):
             raise AssertionError("没有可用的企业ID")
 
         new_name = "更新后的企业名称"
-        resp = self.client.put(f"/admin/tenants/{tenant_id}", data={
-            "name": new_name,
-            "remark": "已更新备注",
-        })
+        resp = self.client.put(
+            f"/admin/tenants/{tenant_id}",
+            data={
+                "name": new_name,
+                "remark": "已更新备注",
+            },
+        )
         data = assert_success(resp, "更新企业失败")
         assert_equals(data["data"]["name"], new_name)
 
@@ -166,12 +176,16 @@ class ManualTestAdminTenants(BaseAPITest):
             raise AssertionError("没有可用的企业ID")
 
         # 禁用企业
-        resp = self.client.put(f"/admin/tenants/{tenant_id}/status", data={"is_active": False})
+        resp = self.client.put(
+            f"/admin/tenants/{tenant_id}/status", data={"is_active": False}
+        )
         data = assert_success(resp, "禁用企业失败")
         assert_equals(data["data"]["is_active"], False)
 
         # 启用企业
-        resp = self.client.put(f"/admin/tenants/{tenant_id}/status", data={"is_active": True})
+        resp = self.client.put(
+            f"/admin/tenants/{tenant_id}/status", data={"is_active": True}
+        )
         data = assert_success(resp, "启用企业失败")
         assert_equals(data["data"]["is_active"], True)
 
@@ -187,11 +201,18 @@ class ManualTestAdminTenants(BaseAPITest):
 
         dependencies = data.get("dependencies") or []
         tenant_admin_dep = next(
-            (dependency for dependency in dependencies if dependency.get("type") == "tenant_admin"),
+            (
+                dependency
+                for dependency in dependencies
+                if dependency.get("type") == "tenant_admin"
+            ),
             None,
         )
         assert_true(tenant_admin_dep is not None, "阻塞依赖中应包含 tenant_admin")
-        assert_true(int(tenant_admin_dep.get("count") or 0) >= 1, "tenant_admin 依赖数量应至少为 1")
+        assert_true(
+            int(tenant_admin_dep.get("count") or 0) >= 1,
+            "tenant_admin 依赖数量应至少为 1",
+        )
 
     def _do_login(self) -> None:
         """执行登录 / Description."""
@@ -219,4 +240,3 @@ if __name__ == "__main__":
     test = ManualTestAdminTenants()
     report = test.run_all()
     report.print_summary()
-

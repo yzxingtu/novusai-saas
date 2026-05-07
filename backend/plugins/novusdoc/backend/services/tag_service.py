@@ -14,15 +14,18 @@ from app.core.data_permission import (
 
 
 async def list_tags(
-    db: AsyncSession, tenant_id: int,
+    db: AsyncSession,
+    tenant_id: int,
 ) -> list[dict[str, Any]]:
     from ..models.tag import NovusdocTag
 
     stmt = apply_data_permission_if_needed(
-        select(NovusdocTag).where(
+        select(NovusdocTag)
+        .where(
             NovusdocTag.tenant_id == tenant_id,
             NovusdocTag.is_deleted.is_(False),
-        ).order_by(NovusdocTag.name),
+        )
+        .order_by(NovusdocTag.name),
         NovusdocTag,
     )
     result = await db.execute(stmt)
@@ -31,7 +34,9 @@ async def list_tags(
 
 
 async def create_tag(
-    db: AsyncSession, tenant_id: int, data: dict[str, Any],
+    db: AsyncSession,
+    tenant_id: int,
+    data: dict[str, Any],
 ) -> dict[str, Any]:
     from ..models.tag import NovusdocTag
 
@@ -55,7 +60,9 @@ async def create_tag(
 
 
 async def delete_tag(
-    db: AsyncSession, tenant_id: int, tag_id: int,
+    db: AsyncSession,
+    tenant_id: int,
+    tag_id: int,
 ) -> bool:
     from ..models.tag import NovusdocTag
 

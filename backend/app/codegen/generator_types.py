@@ -25,4 +25,3 @@ class GenerateResult:
 
     files: list[GeneratedFile]
     errors: list[str]
-

@@ -153,9 +153,7 @@ class TestWeatherWidgetExecutor:
     async def test_execute_unknown_tool(self):
         definition = MagicMock(spec=ToolDefinition)
         definition.name = "unknown_tool"
-        result = await self.executor.execute(
-            definition, "call-1", {"city": "Shanghai"}
-        )
+        result = await self.executor.execute(definition, "call-1", {"city": "Shanghai"})
         assert result.success is False
         assert "unknown" in result.output.lower()
 
@@ -164,22 +162,26 @@ class TestWeatherWidgetExecutor:
     @pytest.mark.asyncio
     async def test_execute_current_weather_success(self):
         mock_open_meteo = MagicMock()
-        mock_open_meteo.search_city = AsyncMock(return_value=[
-            {"name": "Shanghai", "latitude": 31.23, "longitude": 121.47}
-        ])
-        mock_open_meteo.get_current_weather = AsyncMock(return_value={
-            "temperature": 22.5,
-            "weather_text_en": "Clear sky",
-            "weather_text_zh": "晴",
-            "humidity": 68,
-            "wind_speed": 15.2,
-            "uv_index": 5.0,
-        })
+        mock_open_meteo.search_city = AsyncMock(
+            return_value=[{"name": "Shanghai", "latitude": 31.23, "longitude": 121.47}]
+        )
+        mock_open_meteo.get_current_weather = AsyncMock(
+            return_value={
+                "temperature": 22.5,
+                "weather_text_en": "Clear sky",
+                "weather_text_zh": "晴",
+                "humidity": 68,
+                "wind_speed": 15.2,
+                "uv_index": 5.0,
+            }
+        )
 
         definition = MagicMock(spec=ToolDefinition)
         definition.name = "get_current_weather"
 
-        with patch.object(executor_mod, "_get_open_meteo", return_value=mock_open_meteo):
+        with patch.object(
+            executor_mod, "_get_open_meteo", return_value=mock_open_meteo
+        ):
             result = await self.executor.execute(
                 definition, "call-1", {"city": "Shanghai"}
             )
@@ -193,22 +195,26 @@ class TestWeatherWidgetExecutor:
     @pytest.mark.asyncio
     async def test_execute_current_weather_supports_county_name_query(self):
         mock_open_meteo = MagicMock()
-        mock_open_meteo.search_city = AsyncMock(return_value=[
-            {"name": "凤凰", "latitude": 27.9483, "longitude": 109.5996}
-        ])
-        mock_open_meteo.get_current_weather = AsyncMock(return_value={
-            "temperature": 7.5,
-            "weather_text_en": "Clear sky",
-            "weather_text_zh": "晴",
-            "humidity": 22,
-            "wind_speed": 25.7,
-            "uv_index": 6.0,
-        })
+        mock_open_meteo.search_city = AsyncMock(
+            return_value=[{"name": "凤凰", "latitude": 27.9483, "longitude": 109.5996}]
+        )
+        mock_open_meteo.get_current_weather = AsyncMock(
+            return_value={
+                "temperature": 7.5,
+                "weather_text_en": "Clear sky",
+                "weather_text_zh": "晴",
+                "humidity": 22,
+                "wind_speed": 25.7,
+                "uv_index": 6.0,
+            }
+        )
 
         definition = MagicMock(spec=ToolDefinition)
         definition.name = "get_current_weather"
 
-        with patch.object(executor_mod, "_get_open_meteo", return_value=mock_open_meteo):
+        with patch.object(
+            executor_mod, "_get_open_meteo", return_value=mock_open_meteo
+        ):
             result = await self.executor.execute(
                 definition, "call-county", {"city": "凤凰县"}
             )
@@ -218,7 +224,9 @@ class TestWeatherWidgetExecutor:
         mock_open_meteo.search_city.assert_called_once_with("凤凰县", count=1)
 
     @pytest.mark.asyncio
-    async def test_execute_current_weather_falls_back_to_direct_trimmed_lookup_after_exact_timeout(self):
+    async def test_execute_current_weather_falls_back_to_direct_trimmed_lookup_after_exact_timeout(
+        self,
+    ):
         mock_open_meteo = MagicMock()
 
         async def _search_city(name: str, count: int = 1):
@@ -229,23 +237,27 @@ class TestWeatherWidgetExecutor:
 
         mock_open_meteo.search_city = AsyncMock(side_effect=_search_city)
         mock_open_meteo._trim_city_label_suffix = MagicMock(return_value="凤凰")
-        mock_open_meteo._search_city_open_meteo = AsyncMock(return_value=[
-            {"name": "凤凰", "latitude": 27.9483, "longitude": 109.5996}
-        ])
-        mock_open_meteo.get_current_weather = AsyncMock(return_value={
-            "temperature": 7.5,
-            "weather_text_en": "Clear sky",
-            "weather_text_zh": "晴",
-            "humidity": 22,
-            "wind_speed": 25.7,
-            "uv_index": 6.0,
-        })
+        mock_open_meteo._search_city_open_meteo = AsyncMock(
+            return_value=[{"name": "凤凰", "latitude": 27.9483, "longitude": 109.5996}]
+        )
+        mock_open_meteo.get_current_weather = AsyncMock(
+            return_value={
+                "temperature": 7.5,
+                "weather_text_en": "Clear sky",
+                "weather_text_zh": "晴",
+                "humidity": 22,
+                "wind_speed": 25.7,
+                "uv_index": 6.0,
+            }
+        )
 
         definition = MagicMock(spec=ToolDefinition)
         definition.name = "get_current_weather"
         definition.timeout = 15
 
-        with patch.object(executor_mod, "_get_open_meteo", return_value=mock_open_meteo):
+        with patch.object(
+            executor_mod, "_get_open_meteo", return_value=mock_open_meteo
+        ):
             result = await self.executor.execute(
                 definition, "call-county-timeout", {"city": "凤凰县"}
             )
@@ -260,30 +272,34 @@ class TestWeatherWidgetExecutor:
     @pytest.mark.asyncio
     async def test_execute_forecast_success(self):
         mock_open_meteo = MagicMock()
-        mock_open_meteo.search_city = AsyncMock(return_value=[
-            {"name": "Beijing", "latitude": 39.91, "longitude": 116.40}
-        ])
-        mock_open_meteo.get_forecast = AsyncMock(return_value=[
-            {
-                "date": "2026-02-23",
-                "temp_max": 25.0,
-                "temp_min": 15.0,
-                "weather_text_en": "Clear sky",
-                "weather_text_zh": "晴",
-            },
-            {
-                "date": "2026-02-24",
-                "temp_max": 22.0,
-                "temp_min": 12.0,
-                "weather_text_en": "Partly cloudy",
-                "weather_text_zh": "多云",
-            },
-        ])
+        mock_open_meteo.search_city = AsyncMock(
+            return_value=[{"name": "Beijing", "latitude": 39.91, "longitude": 116.40}]
+        )
+        mock_open_meteo.get_forecast = AsyncMock(
+            return_value=[
+                {
+                    "date": "2026-02-23",
+                    "temp_max": 25.0,
+                    "temp_min": 15.0,
+                    "weather_text_en": "Clear sky",
+                    "weather_text_zh": "晴",
+                },
+                {
+                    "date": "2026-02-24",
+                    "temp_max": 22.0,
+                    "temp_min": 12.0,
+                    "weather_text_en": "Partly cloudy",
+                    "weather_text_zh": "多云",
+                },
+            ]
+        )
 
         definition = MagicMock(spec=ToolDefinition)
         definition.name = "get_weather_forecast"
 
-        with patch.object(executor_mod, "_get_open_meteo", return_value=mock_open_meteo):
+        with patch.object(
+            executor_mod, "_get_open_meteo", return_value=mock_open_meteo
+        ):
             result = await self.executor.execute(
                 definition, "call-2", {"city": "Beijing", "days": 2}
             )
@@ -296,33 +312,35 @@ class TestWeatherWidgetExecutor:
     @pytest.mark.asyncio
     async def test_execute_forecast_default_days(self):
         mock_open_meteo = MagicMock()
-        mock_open_meteo.search_city = AsyncMock(return_value=[
-            {"name": "Tokyo", "latitude": 35.68, "longitude": 139.69}
-        ])
+        mock_open_meteo.search_city = AsyncMock(
+            return_value=[{"name": "Tokyo", "latitude": 35.68, "longitude": 139.69}]
+        )
         mock_open_meteo.get_forecast = AsyncMock(return_value=[])
 
         definition = MagicMock(spec=ToolDefinition)
         definition.name = "get_weather_forecast"
 
-        with patch.object(executor_mod, "_get_open_meteo", return_value=mock_open_meteo):
-            await self.executor.execute(
-                definition, "call-3", {"city": "Tokyo"}
-            )
+        with patch.object(
+            executor_mod, "_get_open_meteo", return_value=mock_open_meteo
+        ):
+            await self.executor.execute(definition, "call-3", {"city": "Tokyo"})
 
         mock_open_meteo.get_forecast.assert_called_once_with(35.68, 139.69, 3)
 
     @pytest.mark.asyncio
     async def test_execute_forecast_invalid_days(self):
         mock_open_meteo = MagicMock()
-        mock_open_meteo.search_city = AsyncMock(return_value=[
-            {"name": "London", "latitude": 51.51, "longitude": -0.13}
-        ])
+        mock_open_meteo.search_city = AsyncMock(
+            return_value=[{"name": "London", "latitude": 51.51, "longitude": -0.13}]
+        )
         mock_open_meteo.get_forecast = AsyncMock(return_value=[])
 
         definition = MagicMock(spec=ToolDefinition)
         definition.name = "get_weather_forecast"
 
-        with patch.object(executor_mod, "_get_open_meteo", return_value=mock_open_meteo):
+        with patch.object(
+            executor_mod, "_get_open_meteo", return_value=mock_open_meteo
+        ):
             await self.executor.execute(
                 definition, "call-4", {"city": "London", "days": "abc"}
             )
@@ -340,7 +358,9 @@ class TestWeatherWidgetExecutor:
         definition = MagicMock(spec=ToolDefinition)
         definition.name = "get_current_weather"
 
-        with patch.object(executor_mod, "_get_open_meteo", return_value=mock_open_meteo):
+        with patch.object(
+            executor_mod, "_get_open_meteo", return_value=mock_open_meteo
+        ):
             result = await self.executor.execute(
                 definition, "call-5", {"city": "XYZNONEXISTENT"}
             )
@@ -353,9 +373,9 @@ class TestWeatherWidgetExecutor:
     @pytest.mark.asyncio
     async def test_execute_api_error(self):
         mock_open_meteo = MagicMock()
-        mock_open_meteo.search_city = AsyncMock(return_value=[
-            {"name": "Shanghai", "latitude": 31.23, "longitude": 121.47}
-        ])
+        mock_open_meteo.search_city = AsyncMock(
+            return_value=[{"name": "Shanghai", "latitude": 31.23, "longitude": 121.47}]
+        )
         mock_open_meteo.get_current_weather = AsyncMock(
             side_effect=Exception("API timeout")
         )
@@ -363,7 +383,9 @@ class TestWeatherWidgetExecutor:
         definition = MagicMock(spec=ToolDefinition)
         definition.name = "get_current_weather"
 
-        with patch.object(executor_mod, "_get_open_meteo", return_value=mock_open_meteo):
+        with patch.object(
+            executor_mod, "_get_open_meteo", return_value=mock_open_meteo
+        ):
             result = await self.executor.execute(
                 definition, "call-6", {"city": "Shanghai"}
             )

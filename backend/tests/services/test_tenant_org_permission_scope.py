@@ -7,7 +7,9 @@ from app.rbac.services.permission_service import PermissionService
 from app.services.tenant.tenant_org_authority_service import TenantOrgAuthorityService
 
 
-def _perm(*, permission_id: int, code: str, enabled: bool = True, deleted: bool = False):
+def _perm(
+    *, permission_id: int, code: str, enabled: bool = True, deleted: bool = False
+):
     return SimpleNamespace(
         id=permission_id,
         code=code,
@@ -39,7 +41,9 @@ async def test_owner_can_assign_permissions_for_root_node(mock_db):
 
 
 @pytest.mark.asyncio
-async def test_tenant_admin_permissions_use_org_node_permissions_when_available(mock_db):
+async def test_tenant_admin_permissions_use_org_node_permissions_when_available(
+    mock_db,
+):
     service = PermissionService(mock_db)
     service._get_tenant_plan_permissions = AsyncMock(
         return_value=(

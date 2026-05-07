@@ -57,12 +57,14 @@ class _FakeAsyncClient:
 async def test_fetch_public_url_text_blocks_ssrf_urls() -> None:
     from app.ai.rag.url_fetcher import fetch_public_url_text
 
-    with patch(
-        "app.ai.rag.url_fetcher.UrlValidator.validate",
-        new=AsyncMock(side_effect=SSRFBlockedError("blocked")),
+    with (
+        patch(
+            "app.ai.rag.url_fetcher.UrlValidator.validate",
+            new=AsyncMock(side_effect=SSRFBlockedError("blocked")),
+        ),
+        pytest.raises(BusinessException),
     ):
-        with pytest.raises(BusinessException):
-            await fetch_public_url_text("http://169.254.169.254/latest/meta-data")
+        await fetch_public_url_text("http://169.254.169.254/latest/meta-data")
 
 
 @pytest.mark.asyncio
@@ -81,15 +83,18 @@ async def test_fetch_public_url_text_rejects_large_content_length() -> None:
         ]
     )
 
-    with patch(
-        "app.ai.rag.url_fetcher.UrlValidator.validate",
-        new=AsyncMock(return_value=None),
-    ), patch(
-        "app.ai.rag.url_fetcher.httpx.AsyncClient",
-        new=lambda **_kwargs: fake_client,
+    with (
+        patch(
+            "app.ai.rag.url_fetcher.UrlValidator.validate",
+            new=AsyncMock(return_value=None),
+        ),
+        patch(
+            "app.ai.rag.url_fetcher.httpx.AsyncClient",
+            new=lambda **_kwargs: fake_client,
+        ),
+        pytest.raises(BusinessException),
     ):
-        with pytest.raises(BusinessException):
-            await fetch_public_url_text("https://example.com/page")
+        await fetch_public_url_text("https://example.com/page")
 
 
 @pytest.mark.asyncio
@@ -105,15 +110,18 @@ async def test_fetch_public_url_text_rejects_non_text_content_type() -> None:
         ]
     )
 
-    with patch(
-        "app.ai.rag.url_fetcher.UrlValidator.validate",
-        new=AsyncMock(return_value=None),
-    ), patch(
-        "app.ai.rag.url_fetcher.httpx.AsyncClient",
-        new=lambda **_kwargs: fake_client,
+    with (
+        patch(
+            "app.ai.rag.url_fetcher.UrlValidator.validate",
+            new=AsyncMock(return_value=None),
+        ),
+        patch(
+            "app.ai.rag.url_fetcher.httpx.AsyncClient",
+            new=lambda **_kwargs: fake_client,
+        ),
+        pytest.raises(BusinessException),
     ):
-        with pytest.raises(BusinessException):
-            await fetch_public_url_text("https://example.com/file.bin")
+        await fetch_public_url_text("https://example.com/file.bin")
 
 
 @pytest.mark.asyncio
@@ -133,12 +141,15 @@ async def test_fetch_public_url_text_follows_safe_redirects() -> None:
         ]
     )
 
-    with patch(
-        "app.ai.rag.url_fetcher.UrlValidator.validate",
-        new=AsyncMock(return_value=None),
-    ) as validate, patch(
-        "app.ai.rag.url_fetcher.httpx.AsyncClient",
-        new=lambda **_kwargs: fake_client,
+    with (
+        patch(
+            "app.ai.rag.url_fetcher.UrlValidator.validate",
+            new=AsyncMock(return_value=None),
+        ) as validate,
+        patch(
+            "app.ai.rag.url_fetcher.httpx.AsyncClient",
+            new=lambda **_kwargs: fake_client,
+        ),
     ):
         text = await fetch_public_url_text("https://example.com")
 

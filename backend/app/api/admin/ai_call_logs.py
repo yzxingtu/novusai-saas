@@ -6,9 +6,8 @@ Provides platform AI call log query and analysis endpoints (platform admin only)
 """
 
 import importlib
-from typing import Any
-
 from datetime import date
+from typing import Any
 
 from fastapi import Query, Request
 

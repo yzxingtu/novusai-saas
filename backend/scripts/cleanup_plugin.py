@@ -23,6 +23,7 @@
 
 示例: novusai plugin cleanup -p novus-crud-code -r ncc_001
 """
+
 import argparse
 import subprocess
 import sys
@@ -30,7 +31,7 @@ import sys
 # 不用 pathlib——与插件安全扫描保持一致
 _this_file: str = __file__
 _base_dir = _this_file.replace("\\", "/").rsplit("/", 1)[0]  # scripts/
-PROJECT_ROOT_STR = _base_dir.rsplit("/", 1)[0]              # backend/
+PROJECT_ROOT_STR = _base_dir.rsplit("/", 1)[0]  # backend/
 
 
 def parse_args() -> argparse.Namespace:
@@ -52,12 +53,15 @@ def parse_args() -> argparse.Namespace:
 def get_db_url() -> str:
     sys.path.insert(0, PROJECT_ROOT_STR)
     from app.core.config import settings
+
     return settings.DATABASE_URL_SYNC
 
 
 def run_alembic_downgrade(plugin_name: str, plugin_safe: str) -> None:
     """降级插件分支，删除插件迁移创建的表。"""
-    migrations_path = PROJECT_ROOT_STR + "/plugins/" + plugin_name + "/backend/migrations/versions"
+    migrations_path = (
+        PROJECT_ROOT_STR + "/plugins/" + plugin_name + "/backend/migrations/versions"
+    )
     branch_label = f"plugin_{plugin_safe}"
     script = (
         "from alembic.config import Config; from alembic import command; "
@@ -86,6 +90,7 @@ def run_alembic_downgrade(plugin_name: str, plugin_safe: str) -> None:
 def connect():
     """返回 psycopg2 同步连接（避免使用 asyncpg）"""
     import psycopg2
+
     url = get_db_url()  # postgresql://user:pass@host:port/dbname
     url = url.replace("postgresql://", "")
     user_pass, rest = url.split("@", 1)
@@ -93,7 +98,11 @@ def connect():
     user, password = user_pass.split(":", 1)
     host, port = (host_port.split(":", 1) + ["5432"])[:2]
     return psycopg2.connect(
-        host=host, port=int(port), dbname=dbname, user=user, password=password,
+        host=host,
+        port=int(port),
+        dbname=dbname,
+        user=user,
+        password=password,
     )
 
 
@@ -112,41 +121,55 @@ def execute_step(cur, conn, sql: str, label: str) -> None:
             print(f"  [WARN]  {label}: {exc}")
 
 
-def clean_db(plugin_name: str, plugin_safe: str, revision_ids: list[str] | None) -> None:
+def clean_db(
+    plugin_name: str, plugin_safe: str, revision_ids: list[str] | None
+) -> None:
     conn = connect()
     cur = conn.cursor()
 
     # ── 按依赖顺序清理 ──────────────────────────────────────────────
 
-    execute_step(cur, conn,
+    execute_step(
+        cur,
+        conn,
         f"DELETE FROM periodic_tasks WHERE name LIKE 'plugin.{plugin_name}.%'",
         "periodic_tasks",
     )
 
-    execute_step(cur, conn,
+    execute_step(
+        cur,
+        conn,
         f"DELETE FROM notification_templates WHERE code LIKE 'plugin.{plugin_name}.%'",
         "notification_templates",
     )
 
-    execute_step(cur, conn,
+    execute_step(
+        cur,
+        conn,
         f"DELETE FROM system_agent_assignments "
         f"WHERE feature_code LIKE 'plugin.{plugin_name}.%'",
         "system_agent_assignments",
     )
 
-    execute_step(cur, conn,
+    execute_step(
+        cur,
+        conn,
         f"DELETE FROM skills WHERE package_id IN ("
         f"  SELECT id FROM skill_packages WHERE source_plugin = '{plugin_name}'"
         f")",
         "skills",
     )
 
-    execute_step(cur, conn,
+    execute_step(
+        cur,
+        conn,
         f"DELETE FROM skill_packages WHERE source_plugin = '{plugin_name}'",
         "skill_packages",
     )
 
-    execute_step(cur, conn,
+    execute_step(
+        cur,
+        conn,
         f"DELETE FROM permissions "
         f"WHERE code LIKE 'menu:%.plugin_{plugin_safe}_%' "
         f"   OR code LIKE 'plugin.{plugin_name}.%' "
@@ -154,7 +177,9 @@ def clean_db(plugin_name: str, plugin_safe: str, revision_ids: list[str] | None)
         "permissions",
     )
 
-    execute_step(cur, conn,
+    execute_step(
+        cur,
+        conn,
         f"DELETE FROM resource_tenant_assignments "
         f"WHERE resource_type = 'plugin' AND resource_id IN ("
         f"  SELECT id FROM plugins WHERE name = '{plugin_name}'"
@@ -162,21 +187,27 @@ def clean_db(plugin_name: str, plugin_safe: str, revision_ids: list[str] | None)
         "resource_tenant_assignments",
     )
 
-    execute_step(cur, conn,
+    execute_step(
+        cur,
+        conn,
         f"DELETE FROM plugin_versions WHERE plugin_id IN ("
         f"  SELECT id FROM plugins WHERE name = '{plugin_name}'"
         f")",
         "plugin_versions",
     )
 
-    execute_step(cur, conn,
+    execute_step(
+        cur,
+        conn,
         f"DELETE FROM plugins WHERE name = '{plugin_name}'",
         "plugins",
     )
 
     if revision_ids:
         for rev in revision_ids:
-            execute_step(cur, conn,
+            execute_step(
+                cur,
+                conn,
                 f"DELETE FROM alembic_version WHERE version_num = '{rev.strip()}'",
                 f"alembic_version ({rev})",
             )
@@ -185,7 +216,9 @@ def clean_db(plugin_name: str, plugin_safe: str, revision_ids: list[str] | None)
     conn.close()
 
 
-def build_manual_sql(plugin_name: str, plugin_safe: str, revision_ids: list[str]) -> str:
+def build_manual_sql(
+    plugin_name: str, plugin_safe: str, revision_ids: list[str]
+) -> str:
     rev_sql = ""
     if revision_ids:
         for r in revision_ids:
@@ -214,8 +247,8 @@ def clean_filesystem(plugin_name: str) -> None:
     frontend_dir = plugin_root + "/frontend"
 
     targets = [
-        (frontend_dir + "/node_modules",    "frontend/node_modules"),
-        (frontend_dir + "/dist",            "frontend/dist"),
+        (frontend_dir + "/node_modules", "frontend/node_modules"),
+        (frontend_dir + "/dist", "frontend/dist"),
         (frontend_dir + "/package-lock.json", "frontend/package-lock.json"),
     ]
 
@@ -223,10 +256,12 @@ def clean_filesystem(plugin_name: str) -> None:
         for dirpath, dirnames, _ in os.walk(plugin_root):
             for d in dirnames:
                 if d == "__pycache__":
-                    targets.append((
-                        dirpath.replace("\\", "/") + "/" + d,
-                        ".../__pycache__",
-                    ))
+                    targets.append(
+                        (
+                            dirpath.replace("\\", "/") + "/" + d,
+                            ".../__pycache__",
+                        )
+                    )
             dirnames[:] = [d for d in dirnames if d not in ("node_modules", ".git")]
 
     for path, label in targets:
@@ -245,7 +280,9 @@ if __name__ == "__main__":
     args = parse_args()
     plugin_name = args.plugin
     plugin_safe = plugin_name.replace("-", "_")
-    revision_ids = [r.strip() for r in args.revision.split(",")] if args.revision else []
+    revision_ids = (
+        [r.strip() for r in args.revision.split(",")] if args.revision else []
+    )
 
     print(f"\n{'=' * 50}")
     print(f"  {plugin_name} 插件完整清理")
@@ -263,6 +300,7 @@ if __name__ == "__main__":
     except Exception as exc:
         print(f"  [ERROR] DB cleanup error: {exc}")
         import traceback
+
         traceback.print_exc()
 
     print("\n步骤 3 — 清理文件系统产物 (node_modules / dist / __pycache__)...")

@@ -126,9 +126,7 @@ def _write_preview_plugin(
             "plugins": plugin_dependencies or [],
         },
         "pricing": pricing or {"type": "free"},
-        "extensions": {
-            "frontend": frontend_extensions
-        },
+        "extensions": {"frontend": frontend_extensions},
     }
     (plugin_dir / "plugin.yaml").write_text(
         yaml.safe_dump(manifest, sort_keys=False, allow_unicode=True),
@@ -193,17 +191,14 @@ async def test_generate_preview_warns_when_page_and_menu_title_locales_missing(
         loader=PluginLoader(plugins_dir=plugin_dir.parent),
     )
 
-    assert (
-        "前端页面标题多语言不完整：pages[0].title 缺少 en" in preview.warnings
-    )
-    assert (
-        "前端菜单标题多语言不完整：pages[0].menu.title 缺少 en"
-        in preview.warnings
-    )
+    assert "前端页面标题多语言不完整：pages[0].title 缺少 en" in preview.warnings
+    assert "前端菜单标题多语言不完整：pages[0].menu.title 缺少 en" in preview.warnings
 
 
 @pytest.mark.asyncio
-async def test_generate_preview_includes_frontend_slot_summaries(tmp_path: Path) -> None:
+async def test_generate_preview_includes_frontend_slot_summaries(
+    tmp_path: Path,
+) -> None:
     plugin_dir = _write_preview_plugin(tmp_path, include_frontend_slots=True)
     set_locale("en")
 
@@ -221,17 +216,11 @@ async def test_generate_preview_includes_frontend_slot_summaries(tmp_path: Path)
     assert preview.install_manifest["floating_panels"] == 1
     assert preview.install_manifest["floating_panels_details"] == ["ops-panel"]
     assert preview.install_manifest["notification_ui"] == 1
-    assert preview.install_manifest["notification_ui_details"] == [
-        "plugin.demo.notice"
-    ]
+    assert preview.install_manifest["notification_ui_details"] == ["plugin.demo.notice"]
     assert preview.install_manifest["dashboard_widgets"] == 1
-    assert preview.install_manifest["dashboard_widgets_details"] == [
-        "Weather Overview"
-    ]
+    assert preview.install_manifest["dashboard_widgets_details"] == ["Weather Overview"]
     assert preview.install_manifest["settings_tabs"] == 1
-    assert preview.install_manifest["settings_tabs_details"] == [
-        "Plugin Settings"
-    ]
+    assert preview.install_manifest["settings_tabs_details"] == ["Plugin Settings"]
 
 
 @pytest.mark.asyncio
@@ -291,19 +280,13 @@ async def test_generate_preview_localizes_diagnostics_in_chinese(
             "reason": "适配器 'weather-provider' 已被插件 'installed-plugin' 注册",
         }
     ]
-    assert (
-        preview.dependencies["plugins"][0]["message"]
-        == "插件依赖 dep-plugin 未安装"
-    )
+    assert preview.dependencies["plugins"][0]["message"] == "插件依赖 dep-plugin 未安装"
     assert (
         preview.dependencies["python"][0]["message"]
         == "Python 依赖 preview-missing-demo-package 缺失或版本不匹配"
     )
     assert "前端页面标题多语言不完整：pages[0].title 缺少 en" in preview.warnings
-    assert (
-        "前端菜单标题多语言不完整：pages[0].menu.title 缺少 en"
-        in preview.warnings
-    )
+    assert "前端菜单标题多语言不完整：pages[0].menu.title 缺少 en" in preview.warnings
     assert "检测到 1 个与现有扩展冲突的项目" in preview.warnings
     assert (
         "Python 依赖需要安装或升级：preview-missing-demo-package>=1.0"
@@ -415,7 +398,9 @@ async def test_generate_preview_localizes_diagnostics_in_english(
     assert any("dangerous call 'os.system'" in warning for warning in preview.warnings)
 
 
-def test_detect_direct_python_dependency_conflicts_localizes_reason_in_chinese() -> None:
+def test_detect_direct_python_dependency_conflicts_localizes_reason_in_chinese() -> (
+    None
+):
     conflicts = detect_direct_python_dependency_conflicts(
         {
             "shared-demo": [
@@ -428,7 +413,9 @@ def test_detect_direct_python_dependency_conflicts_localizes_reason_in_chinese()
     assert conflicts[0].reason == "声明了多个不兼容的精确版本：1.0.0, 2.0.0"
 
 
-def test_detect_direct_python_dependency_conflicts_localizes_reason_in_english() -> None:
+def test_detect_direct_python_dependency_conflicts_localizes_reason_in_english() -> (
+    None
+):
     set_locale("en")
 
     conflicts = detect_direct_python_dependency_conflicts(

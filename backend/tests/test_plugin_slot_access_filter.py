@@ -131,17 +131,13 @@ async def test_tenant_plugin_slots_hide_pages_without_current_permission(
             "plugin_name": "alpha-plugin",
             "name": "alpha-home",
             "path": "/tenant/plugins/alpha-plugin",
-            "access_codes": [
-                "menu:tenant.plugin_alpha_plugin_alpha-home"
-            ],
+            "access_codes": ["menu:tenant.plugin_alpha_plugin_alpha-home"],
         },
         {
             "plugin_name": "beta-plugin",
             "name": "beta-home",
             "path": "/tenant/plugins/beta-plugin",
-            "access_codes": [
-                "menu:tenant.plugin_beta_plugin_beta-home"
-            ],
+            "access_codes": ["menu:tenant.plugin_beta_plugin_beta-home"],
         },
     ]
 
@@ -185,9 +181,7 @@ async def test_tenant_plugin_slots_hide_pages_without_current_permission(
             "plugin_name": "alpha-plugin",
             "name": "alpha-home",
             "path": "/tenant/plugins/alpha-plugin",
-            "access_codes": [
-                "menu:tenant.plugin_alpha_plugin_alpha-home"
-            ],
+            "access_codes": ["menu:tenant.plugin_alpha_plugin_alpha-home"],
         }
     ]
 
@@ -204,17 +198,13 @@ async def test_tenant_plugin_list_hides_plugins_without_current_permission(
             "plugin_name": "alpha-plugin",
             "name": "alpha-home",
             "path": "/tenant/plugins/alpha-plugin",
-            "access_codes": [
-                "menu:tenant.plugin_alpha_plugin_alpha-home"
-            ],
+            "access_codes": ["menu:tenant.plugin_alpha_plugin_alpha-home"],
         },
         {
             "plugin_name": "beta-plugin",
             "name": "beta-home",
             "path": "/tenant/plugins/beta-plugin",
-            "access_codes": [
-                "menu:tenant.plugin_beta_plugin_beta-home"
-            ],
+            "access_codes": ["menu:tenant.plugin_beta_plugin_beta-home"],
         },
     ]
 
@@ -279,17 +269,13 @@ async def test_admin_plugin_slots_hide_pages_without_current_permission(
             "plugin_name": "alpha-plugin",
             "name": "alpha-admin-home",
             "path": "/admin/plugins/alpha-plugin",
-            "access_codes": [
-                "menu:admin.plugin_alpha_plugin_alpha-admin-home"
-            ],
+            "access_codes": ["menu:admin.plugin_alpha_plugin_alpha-admin-home"],
         },
         {
             "plugin_name": "beta-plugin",
             "name": "beta-admin-home",
             "path": "/admin/plugins/beta-plugin",
-            "access_codes": [
-                "menu:admin.plugin_beta_plugin_beta-admin-home"
-            ],
+            "access_codes": ["menu:admin.plugin_beta_plugin_beta-admin-home"],
         },
     ]
 
@@ -327,8 +313,6 @@ async def test_admin_plugin_slots_hide_pages_without_current_permission(
             "plugin_name": "alpha-plugin",
             "name": "alpha-admin-home",
             "path": "/admin/plugins/alpha-plugin",
-            "access_codes": [
-                "menu:admin.plugin_alpha_plugin_alpha-admin-home"
-            ],
+            "access_codes": ["menu:admin.plugin_alpha_plugin_alpha-admin-home"],
         }
     ]

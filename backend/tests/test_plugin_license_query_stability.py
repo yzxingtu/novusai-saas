@@ -26,8 +26,7 @@ class _ScalarsResult:
 
 
 @pytest.mark.asyncio
-async def test_preferred_license_record_prefers_paid_active_over_trial(
-) -> None:
+async def test_preferred_license_record_prefers_paid_active_over_trial() -> None:
     now = utc_now()
     trial = SimpleNamespace(
         id=10,
@@ -59,8 +58,7 @@ async def test_preferred_license_record_prefers_paid_active_over_trial(
 
 
 @pytest.mark.asyncio
-async def test_preferred_license_record_prefers_active_over_newer_expired(
-) -> None:
+async def test_preferred_license_record_prefers_active_over_newer_expired() -> None:
     now = utc_now()
     expired_fixed = SimpleNamespace(
         id=20,
@@ -84,7 +82,9 @@ async def test_preferred_license_record_prefers_active_over_newer_expired(
     )
 
     db = AsyncMock()
-    db.execute = AsyncMock(return_value=_ScalarsResult([expired_fixed, active_perpetual]))
+    db.execute = AsyncMock(
+        return_value=_ScalarsResult([expired_fixed, active_perpetual])
+    )
 
     record = await get_preferred_license_record(1, db)
 

@@ -10,11 +10,8 @@ modified_file_warning, dry_run.
 import json
 from pathlib import Path
 
-import pytest
-
-from app.codegen.generator import GeneratedFile
 from app.codegen.manifest import ManifestManager
-from app.codegen.rollback import CodegenRollback, RollbackResult
+from app.codegen.rollback import CodegenRollback
 
 
 def _setup_manifest(tmp_path: Path, resource: str, files: list[dict]) -> None:
@@ -34,7 +31,9 @@ def _setup_manifest(tmp_path: Path, resource: str, files: list[dict]) -> None:
         ],
         "version": 1,
     }
-    manifest_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    manifest_path.write_text(
+        json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
 
 
 def test_rollback_created_deletes_file(tmp_path: Path) -> None:
@@ -43,7 +42,11 @@ def test_rollback_created_deletes_file(tmp_path: Path) -> None:
     created_file.parent.mkdir(parents=True, exist_ok=True)
     created_file.write_text("# generated\n")
 
-    _setup_manifest(tmp_path, "category", [{"path": "backend/app/models/system/category.py", "action": "create"}])
+    _setup_manifest(
+        tmp_path,
+        "category",
+        [{"path": "backend/app/models/system/category.py", "action": "create"}],
+    )
 
     rollback = CodegenRollback(project_root=tmp_path)
     result = rollback.rollback(resource="category")
@@ -58,7 +61,9 @@ def test_rollback_appended_removes_content(tmp_path: Path) -> None:
     target = tmp_path / "backend" / "app" / "api" / "admin" / "__init__.py"
     target.parent.mkdir(parents=True, exist_ok=True)
     appended = "router.include_router(category_router, prefix='/categories')"
-    target.write_text("from fastapi import APIRouter\n\nrouter = APIRouter()\n" + appended + "\n")
+    target.write_text(
+        "from fastapi import APIRouter\n\nrouter = APIRouter()\n" + appended + "\n"
+    )
 
     _setup_manifest(
         tmp_path,
@@ -123,7 +128,9 @@ def test_rollback_merged_nested_key_removes_subkey(tmp_path: Path) -> None:
             "other": {"not_found": "Other not found"},
         }
     }
-    target.write_text(json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
+    target.write_text(
+        json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
 
     _setup_manifest(
         tmp_path,
@@ -158,7 +165,9 @@ def test_rollback_merged_multiple_nested_keys(tmp_path: Path) -> None:
             "notice": {"list": "View Notice"},
         },
     }
-    target.write_text(json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
+    target.write_text(
+        json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
 
     _setup_manifest(
         tmp_path,
@@ -194,7 +203,11 @@ def test_rollback_modified_file_warning_skips_append(tmp_path: Path) -> None:
         tmp_path,
         "category",
         [
-            {"path": "routers.py", "action": "append", "appended_content": original_append}
+            {
+                "path": "routers.py",
+                "action": "append",
+                "appended_content": original_append,
+            }
         ],
     )
 
@@ -212,7 +225,9 @@ def test_rollback_dry_run_no_changes(tmp_path: Path) -> None:
     created_file = tmp_path / "generated.py"
     created_file.write_text("content")
 
-    _setup_manifest(tmp_path, "category", [{"path": "generated.py", "action": "create"}])
+    _setup_manifest(
+        tmp_path, "category", [{"path": "generated.py", "action": "create"}]
+    )
 
     rollback = CodegenRollback(project_root=tmp_path)
     result = rollback.rollback(resource="category", dry_run=True)
@@ -340,7 +355,9 @@ def test_rollback_shared_file_skip_blocks_create_delete(tmp_path: Path) -> None:
 
     router_init = tmp_path / "backend" / "app" / "api" / "admin" / "__init__.py"
     router_init.parent.mkdir(parents=True, exist_ok=True)
-    router_init.write_text("from fastapi import APIRouter\nadmin_router = APIRouter()\n", encoding="utf-8")
+    router_init.write_text(
+        "from fastapi import APIRouter\nadmin_router = APIRouter()\n", encoding="utf-8"
+    )
 
     _setup_manifest(
         tmp_path,
@@ -423,7 +440,9 @@ def test_rollback_register_route_ignores_legacy_hash_and_preserves_other_routes(
     assert "AdminNoticeController" in content
 
 
-def test_rollback_success_marks_manifest_pending_migration_cleanup(tmp_path: Path) -> None:
+def test_rollback_success_marks_manifest_pending_migration_cleanup(
+    tmp_path: Path,
+) -> None:
     """文件回滚成功后仅标记 file_rollback_completed，等待 migration cleanup 再删 manifest."""
     created_file = tmp_path / "backend" / "app" / "models" / "system" / "category.py"
     created_file.parent.mkdir(parents=True, exist_ok=True)

@@ -26,12 +26,16 @@ def _make_scalar_one_or_none_result(item):
 
 
 @pytest.mark.asyncio
-async def test_storage_billing_tenant_endpoints_delegate_to_service(monkeypatch) -> None:
+async def test_storage_billing_tenant_endpoints_delegate_to_service(
+    monkeypatch,
+) -> None:
     module = load_plugin_module("storage-billing", "api.tenant")
     assert module is not None
 
     overview_service = AsyncMock()
-    overview_service.build_tenant_statement = AsyncMock(return_value={"statement": {"id": 1}})
+    overview_service.build_tenant_statement = AsyncMock(
+        return_value={"statement": {"id": 1}}
+    )
     overview_service.list_tenant_statements = AsyncMock(
         return_value={"items": [{"id": 2}], "total": 1, "limit": 15}
     )
@@ -116,17 +120,28 @@ async def test_storage_billing_tenant_endpoints_delegate_to_service(monkeypatch)
 
     assert prereq_result["ok"] is True
     binding_service.get_tenant_prerequisites.assert_awaited_once_with(9)
-    assert prereq_result["provider_capabilities"]["tencent-cos"]["scheduled_daily_supported"] is True
-    assert prereq_result["provider_capabilities"]["tencent-cos"]["supported_period_types"] == ["daily"]
+    assert (
+        prereq_result["provider_capabilities"]["tencent-cos"][
+            "scheduled_daily_supported"
+        ]
+        is True
+    )
+    assert prereq_result["provider_capabilities"]["tencent-cos"][
+        "supported_period_types"
+    ] == ["daily"]
 
 
 @pytest.mark.asyncio
-async def test_storage_billing_tenant_endpoints_forward_period_type(monkeypatch) -> None:
+async def test_storage_billing_tenant_endpoints_forward_period_type(
+    monkeypatch,
+) -> None:
     module = load_plugin_module("storage-billing", "api.tenant")
     assert module is not None
 
     overview_service = AsyncMock()
-    overview_service.build_tenant_statement = AsyncMock(return_value={"statement": {"id": 1}})
+    overview_service.build_tenant_statement = AsyncMock(
+        return_value={"statement": {"id": 1}}
+    )
     overview_service.list_tenant_statement_charges = AsyncMock(
         return_value={"items": [{"id": 3}], "total": 1, "billing_date": "2026-03-22"}
     )
@@ -163,7 +178,10 @@ async def test_storage_billing_tenant_endpoints_forward_period_type(monkeypatch)
     )
 
     charges_request = MagicMock()
-    charges_request.query_params = {"billing_date": "2026-03-22", "period_type": "monthly"}
+    charges_request.query_params = {
+        "billing_date": "2026-03-22",
+        "period_type": "monthly",
+    }
     await module.list_statement_charges(charges_request, ctx)
     overview_service.list_tenant_statement_charges.assert_awaited_once_with(
         tenant_id=9,
@@ -172,7 +190,10 @@ async def test_storage_billing_tenant_endpoints_forward_period_type(monkeypatch)
     )
 
     export_request = MagicMock()
-    export_request.query_params = {"billing_date": "2026-03-22", "period_type": "monthly"}
+    export_request.query_params = {
+        "billing_date": "2026-03-22",
+        "period_type": "monthly",
+    }
     await module.export_statement_charges(export_request, ctx)
     overview_service.export_tenant_statement_charges_csv.assert_awaited_once_with(
         tenant_id=9,
@@ -183,7 +204,9 @@ async def test_storage_billing_tenant_endpoints_forward_period_type(monkeypatch)
 
 
 @pytest.mark.asyncio
-async def test_storage_billing_tenant_endpoints_block_when_prerequisites_not_ready(monkeypatch) -> None:
+async def test_storage_billing_tenant_endpoints_block_when_prerequisites_not_ready(
+    monkeypatch,
+) -> None:
     module = load_plugin_module("storage-billing", "api.tenant")
     assert module is not None
 
@@ -217,7 +240,9 @@ async def test_storage_billing_tenant_endpoints_block_when_prerequisites_not_rea
 
 
 @pytest.mark.asyncio
-async def test_storage_billing_tenant_endpoints_reject_invalid_billing_date(monkeypatch) -> None:
+async def test_storage_billing_tenant_endpoints_reject_invalid_billing_date(
+    monkeypatch,
+) -> None:
     module = load_plugin_module("storage-billing", "api.tenant")
     assert module is not None
 
@@ -235,7 +260,9 @@ async def test_storage_billing_tenant_endpoints_reject_invalid_billing_date(monk
 
 
 @pytest.mark.asyncio
-async def test_storage_billing_tenant_endpoints_reject_invalid_period_type(monkeypatch) -> None:
+async def test_storage_billing_tenant_endpoints_reject_invalid_period_type(
+    monkeypatch,
+) -> None:
     module = load_plugin_module("storage-billing", "api.tenant")
     assert module is not None
 
@@ -362,11 +389,15 @@ async def test_storage_billing_overview_service_lists_statement_charges() -> Non
     assert result["summary"]["amount_total"] == "1.500000"
     assert result["summary"]["total_usage_bytes"] == 2560
     assert result["summary"]["provider_totals"][0]["provider_code"] == "aliyun-oss"
-    assert result["summary"]["charge_basis_totals"][0]["charge_basis"] == "egress_traffic"
+    assert (
+        result["summary"]["charge_basis_totals"][0]["charge_basis"] == "egress_traffic"
+    )
 
 
 @pytest.mark.asyncio
-async def test_storage_billing_overview_service_returns_empty_statement_charges_without_statement() -> None:
+async def test_storage_billing_overview_service_returns_empty_statement_charges_without_statement() -> (
+    None
+):
     module = load_plugin_module("storage-billing", "services.reconciliation_service")
     assert module is not None
 
@@ -412,7 +443,11 @@ async def test_storage_billing_overview_service_exports_statement_charges_csv() 
         currency="CNY",
         source_id=17,
         statement_id=31,
-        details_json={"binding_ids": [9], "scope_values": ["tenant-66-bucket"], "item_count": 1},
+        details_json={
+            "binding_ids": [9],
+            "scope_values": ["tenant-66-bucket"],
+            "item_count": 1,
+        },
     )
     charge.id = 501
 

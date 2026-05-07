@@ -123,9 +123,7 @@ def safe_rename_unique_column_value(
     conn = op.get_bind()
 
     if unique_columns:
-        scope_match = " AND ".join(
-            f"p2.{c} = {table}.{c}" for c in unique_columns
-        )
+        scope_match = " AND ".join(f"p2.{c} = {table}.{c}" for c in unique_columns)
     else:
         scope_match = "1 = 1"
 

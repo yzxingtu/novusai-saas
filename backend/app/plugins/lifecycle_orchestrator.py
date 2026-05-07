@@ -432,9 +432,11 @@ class LifecycleOrchestrator(LifecycleOrchestratorMaintenanceMixin):
                 f"Checking {len(manifest.dependencies.python)} Python package(s)...",
             )
             try:
-                pip_installed = await lifecycle.dependencies.install_python_dependencies(
-                    plugin_name,
-                    manifest.dependencies.python,
+                pip_installed = (
+                    await lifecycle.dependencies.install_python_dependencies(
+                        plugin_name,
+                        manifest.dependencies.python,
+                    )
                 )
             except Exception as exc:
                 await emitter.emit_error(
@@ -697,9 +699,11 @@ class LifecycleOrchestrator(LifecycleOrchestratorMaintenanceMixin):
                     "running",
                     f"Checking {len(manifest.dependencies.python)} Python package(s)...",
                 )
-                pip_installed = await lifecycle.dependencies.install_python_dependencies(
-                    plugin_name,
-                    manifest.dependencies.python,
+                pip_installed = (
+                    await lifecycle.dependencies.install_python_dependencies(
+                        plugin_name,
+                        manifest.dependencies.python,
+                    )
                 )
                 if pip_installed:
                     await emitter.emit_step(

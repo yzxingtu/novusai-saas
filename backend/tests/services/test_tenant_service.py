@@ -26,7 +26,6 @@ def _make_tenant(**overrides):
 
 
 class TestTenantCreate:
-
     @pytest.mark.asyncio
     async def test_create_tenant_basic(self, mock_db):
         """Basic tenant creation — verify service can be instantiated / 服务"""
@@ -38,12 +37,11 @@ class TestTenantCreate:
         service.repo.get_by_id = AsyncMock(return_value=None)
 
         # Verify service has expected methods
-        assert hasattr(service, 'create_tenant')
-        assert hasattr(service, 'toggle_status')
+        assert hasattr(service, "create_tenant")
+        assert hasattr(service, "toggle_status")
 
 
 class TestTenantUpdate:
-
     @pytest.mark.asyncio
     async def test_update_returns_tenant(self, mock_db):
         from app.services.system.tenant_service import TenantService
@@ -60,7 +58,6 @@ class TestTenantUpdate:
 
 
 class TestTenantStatus:
-
     @pytest.mark.asyncio
     async def test_disable_tenant(self, mock_db):
         from app.services.system.tenant_service import TenantService
@@ -89,7 +86,6 @@ class TestTenantStatus:
 
 
 class TestTenantDelete:
-
     @pytest.mark.asyncio
     async def test_get_by_code_not_found(self, mock_db):
         from app.services.system.tenant_service import TenantService
@@ -104,7 +100,6 @@ class TestTenantDelete:
 
 
 class TestTenantQuery:
-
     @pytest.mark.asyncio
     async def test_get_by_slug(self, mock_db):
         from app.services.system.tenant_service import TenantService

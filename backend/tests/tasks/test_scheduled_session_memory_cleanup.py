@@ -15,9 +15,7 @@ def _make_sync_redis(
         (0, scan_keys),
     ]
     client.ttl.side_effect = lambda key: ttl_map[key]
-    client.delete.return_value = sum(
-        1 for key in scan_keys if ttl_map.get(key) == -1
-    )
+    client.delete.return_value = sum(1 for key in scan_keys if ttl_map.get(key) == -1)
     return client
 
 

@@ -13,7 +13,11 @@ from app.core.deps import get_current_active_admin, get_db
 
 def _load_admin_tenant_admins_module():
     module_path = (
-        Path(__file__).resolve().parent.parent / "app" / "api" / "admin" / "tenant_admins.py"
+        Path(__file__).resolve().parent.parent
+        / "app"
+        / "api"
+        / "admin"
+        / "tenant_admins.py"
     )
     spec = importlib.util.spec_from_file_location(
         "test_admin_tenant_admins_module",
@@ -87,18 +91,10 @@ def test_tenant_admin_routes_delegate_to_workflow(monkeypatch) -> None:
                 "user_type": "tenant_admin",
             }
         ),
-        create_tenant_admin=AsyncMock(
-            return_value={"id": 7, "username": "demo"}
-        ),
-        update_tenant_admin=AsyncMock(
-            return_value={"id": 7, "username": "demo"}
-        ),
-        toggle_admin_status=AsyncMock(
-            return_value={"id": 7, "is_active": True}
-        ),
-        force_logout_tenant_admin=AsyncMock(
-            return_value="ok"
-        ),
+        create_tenant_admin=AsyncMock(return_value={"id": 7, "username": "demo"}),
+        update_tenant_admin=AsyncMock(return_value={"id": 7, "username": "demo"}),
+        toggle_admin_status=AsyncMock(return_value={"id": 7, "is_active": True}),
+        force_logout_tenant_admin=AsyncMock(return_value="ok"),
     )
     monkeypatch.setattr(
         admin_module,

@@ -141,7 +141,9 @@ async def test_uninstall_impl_runs_guards_before_cleanup(monkeypatch):
     with pytest.raises(PluginError) as exc_info:
         await lifecycle._uninstall_impl(11, operator_id=None)
 
-    assert exc_info.value.data["reason_code"] == "storage_billing_has_unsettled_statement"
+    assert (
+        exc_info.value.data["reason_code"] == "storage_billing_has_unsettled_statement"
+    )
     lifecycle._disable_impl.assert_not_awaited()
     lifecycle._delete_plugin_permissions_from_db.assert_not_awaited()
 

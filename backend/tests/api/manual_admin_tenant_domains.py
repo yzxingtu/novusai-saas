@@ -2,11 +2,14 @@
 """企业域名管理 API 测试模块 / API.
 
 测试 /admin/tenants/{tenant_id}/domains/* 接口"""
+
 import os
 import sys
 import time
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+sys.path.insert(
+    0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+)
 
 import contextlib
 
@@ -91,7 +94,9 @@ class ManualTestAdminTenantDomains(BaseAPITest):
         self.run_test("设置主域名", self.test_set_primary_domain)
 
         # 11. 设置主域名 - 未验证域名应失败
-        self.run_test("设置未验证域名为主域名 - 应失败", self.test_set_primary_unverified_domain)
+        self.run_test(
+            "设置未验证域名为主域名 - 应失败", self.test_set_primary_unverified_domain
+        )
 
         # ========== 删除测试 ==========
 
@@ -138,7 +143,7 @@ class ManualTestAdminTenantDomains(BaseAPITest):
         tenant_id = self._test_data["created_tenant_id"]
         resp = self.client.get(
             f"/admin/tenants/{tenant_id}/domains",
-            params={"page[number]": 1, "page[size]": 5}
+            params={"page[number]": 1, "page[size]": 5},
         )
         data = assert_success(resp, "获取企业域名列表失败")
 
@@ -153,16 +158,28 @@ class ManualTestAdminTenantDomains(BaseAPITest):
         tenant_id = self._test_data["created_tenant_id"]
         custom_domain = self._test_data["custom_domain"]
 
-        resp = self.client.post(f"/admin/tenants/{tenant_id}/domains", data={
-            "domain": custom_domain,
-            "remark": "测试自定义域名",
-        })
+        resp = self.client.post(
+            f"/admin/tenants/{tenant_id}/domains",
+            data={
+                "domain": custom_domain,
+                "remark": "测试自定义域名",
+            },
+        )
         data = assert_success(resp, "添加自定义域名失败")
 
-        assert_has_keys(data["data"], [
-            "id", "tenant_id", "domain", "is_verified", "is_primary",
-            "ssl_status", "verification_token", "created_at"
-        ])
+        assert_has_keys(
+            data["data"],
+            [
+                "id",
+                "tenant_id",
+                "domain",
+                "is_verified",
+                "is_primary",
+                "ssl_status",
+                "verification_token",
+                "created_at",
+            ],
+        )
         assert_equals(data["data"]["domain"], custom_domain)
         assert_equals(data["data"]["is_verified"], False, "新域名应为未验证状态")
         assert_equals(data["data"]["is_primary"], False, "新域名应不是主域名")
@@ -176,13 +193,18 @@ class ManualTestAdminTenantDomains(BaseAPITest):
         tenant_id = self._test_data["created_tenant_id"]
         custom_domain = self._test_data["custom_domain"]  # 使用已存在的域名
 
-        resp = self.client.post(f"/admin/tenants/{tenant_id}/domains", data={
-            "domain": custom_domain,
-        })
+        resp = self.client.post(
+            f"/admin/tenants/{tenant_id}/domains",
+            data={
+                "domain": custom_domain,
+            },
+        )
 
         # 应返回业务错误
         data = resp.json()
-        assert_true(data.get("code") != 0, f"重复域名应返回错误，实际 code={data.get('code')}")
+        assert_true(
+            data.get("code") != 0, f"重复域名应返回错误，实际 code={data.get('code')}"
+        )
 
     # ========== 详情测试 ==========
 
@@ -196,10 +218,20 @@ class ManualTestAdminTenantDomains(BaseAPITest):
         resp = self.client.get(f"/admin/tenants/{tenant_id}/domains/{domain_id}")
         data = assert_success(resp, "获取域名详情失败")
 
-        assert_has_keys(data["data"], [
-            "id", "tenant_id", "domain", "is_verified", "is_primary",
-            "ssl_status", "verification_token", "created_at", "updated_at"
-        ])
+        assert_has_keys(
+            data["data"],
+            [
+                "id",
+                "tenant_id",
+                "domain",
+                "is_verified",
+                "is_primary",
+                "ssl_status",
+                "verification_token",
+                "created_at",
+                "updated_at",
+            ],
+        )
         assert_equals(data["data"]["id"], domain_id)
         assert_equals(data["data"]["tenant_id"], tenant_id)
 
@@ -219,9 +251,12 @@ class ManualTestAdminTenantDomains(BaseAPITest):
             raise AssertionError("没有可用的域名ID")
 
         new_remark = "更新后的备注"
-        resp = self.client.put(f"/admin/tenants/{tenant_id}/domains/{domain_id}", data={
-            "remark": new_remark,
-        })
+        resp = self.client.put(
+            f"/admin/tenants/{tenant_id}/domains/{domain_id}",
+            data={
+                "remark": new_remark,
+            },
+        )
         data = assert_success(resp, "更新域名信息失败")
 
         assert_equals(data["data"]["remark"], new_remark)
@@ -235,7 +270,9 @@ class ManualTestAdminTenantDomains(BaseAPITest):
         if not domain_id:
             raise AssertionError("没有可用的域名ID")
 
-        resp = self.client.post(f"/admin/tenants/{tenant_id}/domains/{domain_id}/verify")
+        resp = self.client.post(
+            f"/admin/tenants/{tenant_id}/domains/{domain_id}/verify"
+        )
         data = assert_success(resp, "验证域名失败")
 
         assert_equals(data["data"]["is_verified"], True, "域名应已验证")
@@ -248,11 +285,15 @@ class ManualTestAdminTenantDomains(BaseAPITest):
         if not domain_id:
             raise AssertionError("没有可用的域名ID")
 
-        resp = self.client.post(f"/admin/tenants/{tenant_id}/domains/{domain_id}/verify")
+        resp = self.client.post(
+            f"/admin/tenants/{tenant_id}/domains/{domain_id}/verify"
+        )
 
         # 应返回业务错误
         data = resp.json()
-        assert_true(data.get("code") != 0, f"重复验证应返回错误，实际 code={data.get('code')}")
+        assert_true(
+            data.get("code") != 0, f"重复验证应返回错误，实际 code={data.get('code')}"
+        )
 
     # ========== 主域名测试 ==========
 
@@ -263,7 +304,9 @@ class ManualTestAdminTenantDomains(BaseAPITest):
         if not domain_id:
             raise AssertionError("没有可用的域名ID")
 
-        resp = self.client.put(f"/admin/tenants/{tenant_id}/domains/{domain_id}/primary")
+        resp = self.client.put(
+            f"/admin/tenants/{tenant_id}/domains/{domain_id}/primary"
+        )
         data = assert_success(resp, "设置主域名失败")
 
         assert_equals(data["data"]["is_primary"], True, "域名应已设为主域名")
@@ -271,7 +314,9 @@ class ManualTestAdminTenantDomains(BaseAPITest):
         # 验证原主域名已不再是主域名
         default_domain_id = self._test_data.get("default_domain_id")
         if default_domain_id:
-            resp2 = self.client.get(f"/admin/tenants/{tenant_id}/domains/{default_domain_id}")
+            resp2 = self.client.get(
+                f"/admin/tenants/{tenant_id}/domains/{default_domain_id}"
+            )
             data2 = assert_success(resp2, "获取默认域名详情失败")
             assert_equals(data2["data"]["is_primary"], False, "原主域名应不再是主域名")
 
@@ -281,19 +326,27 @@ class ManualTestAdminTenantDomains(BaseAPITest):
         custom_domain_2 = self._test_data["custom_domain_2"]
 
         # 先添加一个新的未验证域名
-        resp = self.client.post(f"/admin/tenants/{tenant_id}/domains", data={
-            "domain": custom_domain_2,
-        })
+        resp = self.client.post(
+            f"/admin/tenants/{tenant_id}/domains",
+            data={
+                "domain": custom_domain_2,
+            },
+        )
         data = assert_success(resp, "添加第二个自定义域名失败")
         new_domain_id = data["data"]["id"]
         self._test_data["created_domain_id_2"] = new_domain_id
 
         # 尝试设置未验证域名为主域名
-        resp2 = self.client.put(f"/admin/tenants/{tenant_id}/domains/{new_domain_id}/primary")
+        resp2 = self.client.put(
+            f"/admin/tenants/{tenant_id}/domains/{new_domain_id}/primary"
+        )
 
         # 应返回业务错误
         data2 = resp2.json()
-        assert_true(data2.get("code") != 0, f"设置未验证域名为主域名应返回错误，实际 code={data2.get('code')}")
+        assert_true(
+            data2.get("code") != 0,
+            f"设置未验证域名为主域名应返回错误，实际 code={data2.get('code')}",
+        )
 
     # ========== 删除测试 ==========
 
@@ -308,7 +361,9 @@ class ManualTestAdminTenantDomains(BaseAPITest):
 
         # 应返回业务错误
         data = resp.json()
-        assert_true(data.get("code") != 0, f"删除主域名应返回错误，实际 code={data.get('code')}")
+        assert_true(
+            data.get("code") != 0, f"删除主域名应返回错误，实际 code={data.get('code')}"
+        )
 
     def test_delete_default_domain(self) -> None:
         """测试删除默认域名 / Test."""
@@ -317,11 +372,16 @@ class ManualTestAdminTenantDomains(BaseAPITest):
         if not default_domain_id:
             raise AssertionError("没有可用的默认域名ID")
 
-        resp = self.client.delete(f"/admin/tenants/{tenant_id}/domains/{default_domain_id}")
+        resp = self.client.delete(
+            f"/admin/tenants/{tenant_id}/domains/{default_domain_id}"
+        )
 
         # 应返回业务错误
         data = resp.json()
-        assert_true(data.get("code") != 0, f"删除默认域名应返回错误，实际 code={data.get('code')}")
+        assert_true(
+            data.get("code") != 0,
+            f"删除默认域名应返回错误，实际 code={data.get('code')}",
+        )
 
     def test_delete_custom_domain(self) -> None:
         """测试删除自定义域名 / Test."""
@@ -359,23 +419,29 @@ class ManualTestAdminTenantDomains(BaseAPITest):
 
     def _do_login(self) -> None:
         """执行登录 / Description."""
-        resp = self.client.post("/admin/auth/login", data={
-            "username": config.ADMIN_USERNAME,
-            "password": config.ADMIN_PASSWORD,
-        })
+        resp = self.client.post(
+            "/admin/auth/login",
+            data={
+                "username": config.ADMIN_USERNAME,
+                "password": config.ADMIN_PASSWORD,
+            },
+        )
         data = assert_success(resp, "平台管理员登录失败")
         self.client.set_token(data["data"]["access_token"])
 
     def _create_test_tenant(self) -> None:
         """创建测试企业 / Test."""
-        resp = self.client.post("/admin/tenants", data={
-            "name": self._test_data["tenant_name"],
-            "contact_name": "测试联系人",
-            "contact_phone": "13800138000",
-            "contact_email": "test@example.com",
-            "plan": "basic",
-            "quota": {"max_users": 100},
-        })
+        resp = self.client.post(
+            "/admin/tenants",
+            data={
+                "name": self._test_data["tenant_name"],
+                "contact_name": "测试联系人",
+                "contact_phone": "13800138000",
+                "contact_email": "test@example.com",
+                "plan": "basic",
+                "quota": {"max_users": 100},
+            },
+        )
         data = assert_success(resp, "创建测试企业失败")
 
         self._test_data["created_tenant_id"] = data["data"]["id"]
@@ -386,4 +452,3 @@ if __name__ == "__main__":
     test = ManualTestAdminTenantDomains()
     report = test.run_all()
     report.print_summary()
-

@@ -28,7 +28,7 @@ class CapturingStorageDriver(StorageDriver):
     """Storage driver stub to capture namespaced paths."""
 
     name = "storage-evidence"
-    instances: list["CapturingStorageDriver"] = []
+    instances: list[CapturingStorageDriver] = []
 
     def __init__(self, config):
         super().__init__(config)
@@ -41,6 +41,7 @@ class CapturingStorageDriver(StorageDriver):
         expires: int = 3600,
         visibility=None,
     ) -> str:
+        _ = expires, visibility
         self.accessed_paths.append(path)
         return f"url://{path}"
 

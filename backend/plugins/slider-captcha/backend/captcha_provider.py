@@ -208,7 +208,9 @@ class SliderCaptchaProvider(ICaptchaProvider):
             return raw
 
         if raw.startswith("/"):
-            return urljoin(f"{settings.APP_INTERNAL_BASE_URL.rstrip('/')}/", raw.lstrip("/"))
+            return urljoin(
+                f"{settings.APP_INTERNAL_BASE_URL.rstrip('/')}/", raw.lstrip("/")
+            )
         return None
 
     async def _load_attachment_bytes(self, attachment_id: int) -> bytes | None:
@@ -246,7 +248,9 @@ class SliderCaptchaProvider(ICaptchaProvider):
             response.raise_for_status()
             return response.content
 
-    async def _load_background_image(self, plugin_config: dict[str, Any]) -> Image.Image:
+    async def _load_background_image(
+        self, plugin_config: dict[str, Any]
+    ) -> Image.Image:
         background_index = random.randint(0, _BUNDLED_BACKGROUND_COUNT - 1)
         configured_value = plugin_config.get(f"background_{background_index + 1}")
         image_bytes: bytes | None = None
@@ -445,7 +449,9 @@ class SliderCaptchaProvider(ICaptchaProvider):
         current_binding = self._build_context_binding(ctx)
         if not isinstance(binding, dict) or binding != current_binding:
             await self._delete_stored_challenge(challenge_id)
-            return CaptchaVerificationResult(ok=False, reason="invalid_context", score=None)
+            return CaptchaVerificationResult(
+                ok=False, reason="invalid_context", score=None
+            )
 
         offset = self._parse_solution_offset(solution)
         if offset is None:
@@ -456,7 +462,9 @@ class SliderCaptchaProvider(ICaptchaProvider):
             else:
                 stored["attempts"] = attempts
                 await self._store_challenge(challenge_id, stored)
-            return CaptchaVerificationResult(ok=False, reason="invalid_solution", score=None)
+            return CaptchaVerificationResult(
+                ok=False, reason="invalid_solution", score=None
+            )
 
         expected = int(stored.get("expected_offset") or 0)
         tolerance_px = int(stored.get("tolerance_px") or 6)

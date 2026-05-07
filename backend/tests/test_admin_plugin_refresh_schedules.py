@@ -11,8 +11,8 @@ from app.api.admin.plugins import AdminPluginController
 def _get_endpoint(path: str, method: str):
     router = AdminPluginController.get_router()
     for route in router.routes:
-      if getattr(route, "path", None) == path and method in route.methods:
-          return route.endpoint
+        if getattr(route, "path", None) == path and method in route.methods:
+            return route.endpoint
     raise AssertionError(f"Route not found: {method} {path}")
 
 

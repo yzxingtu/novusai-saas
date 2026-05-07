@@ -54,7 +54,9 @@ def test_validate_runtime_frontend_contract_prefers_dev_source_in_debug(
         encoding="utf-8",
     )
 
-    monkeypatch.setattr("app.plugins.frontend_contract.settings.DEBUG", True, raising=False)
+    monkeypatch.setattr(
+        "app.plugins.frontend_contract.settings.DEBUG", True, raising=False
+    )
 
     result = validate_runtime_frontend_contract(plugin_root, _manifest_with_frontend())
 
@@ -68,9 +70,13 @@ def test_validate_runtime_frontend_contract_requires_release_manifest_in_prod(
 ) -> None:
     plugin_root = tmp_path / "demo-plugin"
     (plugin_root / "frontend" / "dist").mkdir(parents=True)
-    (plugin_root / "frontend" / "dist" / "index.js").write_text("window.demo = {};\n", encoding="utf-8")
+    (plugin_root / "frontend" / "dist" / "index.js").write_text(
+        "window.demo = {};\n", encoding="utf-8"
+    )
 
-    monkeypatch.setattr("app.plugins.frontend_contract.settings.DEBUG", False, raising=False)
+    monkeypatch.setattr(
+        "app.plugins.frontend_contract.settings.DEBUG", False, raising=False
+    )
 
     with pytest.raises(PluginManifestError, match="Frontend release manifest missing"):
         validate_runtime_frontend_contract(plugin_root, _manifest_with_frontend())
@@ -133,7 +139,9 @@ def test_validate_runtime_frontend_contract_rejects_missing_page_and_menu_locale
     page["title"] = {"zh-CN": "演示页面"}
     page["menu"]["title"] = {"en": "Demo"}
 
-    monkeypatch.setattr("app.plugins.frontend_contract.settings.DEBUG", True, raising=False)
+    monkeypatch.setattr(
+        "app.plugins.frontend_contract.settings.DEBUG", True, raising=False
+    )
 
     with pytest.raises(PluginManifestError) as exc:
         validate_runtime_frontend_contract(plugin_root, manifest)
@@ -165,9 +173,13 @@ export const DemoPage = {};
         encoding="utf-8",
     )
 
-    monkeypatch.setattr("app.plugins.frontend_contract.settings.DEBUG", True, raising=False)
+    monkeypatch.setattr(
+        "app.plugins.frontend_contract.settings.DEBUG", True, raising=False
+    )
 
-    with pytest.raises(PluginManifestError, match="canonical prefix 'plugin.demo-plugin'"):
+    with pytest.raises(
+        PluginManifestError, match="canonical prefix 'plugin.demo-plugin'"
+    ):
         validate_runtime_frontend_contract(plugin_root, _manifest_with_frontend())
 
 
@@ -199,7 +211,9 @@ export const DemoPage = {};
         encoding="utf-8",
     )
 
-    monkeypatch.setattr("app.plugins.frontend_contract.settings.DEBUG", True, raising=False)
+    monkeypatch.setattr(
+        "app.plugins.frontend_contract.settings.DEBUG", True, raising=False
+    )
 
     result = validate_runtime_frontend_contract(plugin_root, _manifest_with_frontend())
 
@@ -218,7 +232,12 @@ def test_validate_runtime_frontend_contract_rejects_missing_declared_component_e
         encoding="utf-8",
     )
 
-    monkeypatch.setattr("app.plugins.frontend_contract.settings.DEBUG", True, raising=False)
+    monkeypatch.setattr(
+        "app.plugins.frontend_contract.settings.DEBUG", True, raising=False
+    )
 
-    with pytest.raises(PluginManifestError, match="frontend dev entry does not export declared component 'DemoPage'"):
+    with pytest.raises(
+        PluginManifestError,
+        match="frontend dev entry does not export declared component 'DemoPage'",
+    ):
         validate_runtime_frontend_contract(plugin_root, _manifest_with_frontend())

@@ -11,7 +11,6 @@ from app.schemas.common.query import QuerySpec
 
 
 class TestSummary:
-
     @pytest.mark.asyncio
     async def test_get_summary_counts_active_warning_and_exceeded_rules(self, mock_db):
         from app.enums.ai import QuotaTypeEnum
@@ -22,9 +21,15 @@ class TestSummary:
         service.repo = AsyncMock()
         service.repo.list_all_quota_rules = AsyncMock(
             return_value=[
-                SimpleNamespace(tenant_id=1, is_active=True, quota_type=QuotaTypeEnum.HARD.value),
-                SimpleNamespace(tenant_id=2, is_active=False, quota_type=QuotaTypeEnum.SOFT.value),
-                SimpleNamespace(tenant_id=3, is_active=True, quota_type=QuotaTypeEnum.SOFT.value),
+                SimpleNamespace(
+                    tenant_id=1, is_active=True, quota_type=QuotaTypeEnum.HARD.value
+                ),
+                SimpleNamespace(
+                    tenant_id=2, is_active=False, quota_type=QuotaTypeEnum.SOFT.value
+                ),
+                SimpleNamespace(
+                    tenant_id=3, is_active=True, quota_type=QuotaTypeEnum.SOFT.value
+                ),
             ]
         )
         service.repo.list_all_rate_limit_rules = AsyncMock(
@@ -81,7 +86,6 @@ class TestSummary:
 
 
 class TestQuotaDiagnosticsList:
-
     @pytest.mark.asyncio
     async def test_list_quota_diagnostics_returns_paginated_items(self, mock_db):
         from app.services.ai.quota_diagnostics_service import AIQuotaDiagnosticsService
@@ -106,7 +110,9 @@ class TestQuotaDiagnosticsList:
         assert page.items[0].id == 11
 
     @pytest.mark.asyncio
-    async def test_list_quota_diagnostics_returns_empty_page_when_no_items(self, mock_db):
+    async def test_list_quota_diagnostics_returns_empty_page_when_no_items(
+        self, mock_db
+    ):
         from app.services.ai.quota_diagnostics_service import AIQuotaDiagnosticsService
 
         spec = QuerySpec()
@@ -124,7 +130,6 @@ class TestQuotaDiagnosticsList:
 
 
 class TestRateLimitDiagnosticsList:
-
     @pytest.mark.asyncio
     async def test_list_rate_limit_diagnostics_returns_paginated_items(self, mock_db):
         from app.services.ai.quota_diagnostics_service import AIQuotaDiagnosticsService

@@ -90,7 +90,9 @@ def _patch_model_repo(monkeypatch: pytest.MonkeyPatch, repo_mock: MagicMock) -> 
 
 
 @pytest.mark.asyncio
-async def test_route_raises_when_image_attachment_has_no_capable_model(mock_db, monkeypatch):
+async def test_route_raises_when_image_attachment_has_no_capable_model(
+    mock_db, monkeypatch
+):
     repo_mock = MagicMock()
     repo_mock.get_active_with_provider = AsyncMock(return_value=None)
     repo_mock.get_by_tier = AsyncMock(return_value=None)

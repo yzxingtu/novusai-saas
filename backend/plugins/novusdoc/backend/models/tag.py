@@ -18,10 +18,12 @@ class NovusdocTag(BaseModel):
         comment="0=platform/admin space, N=tenant N's space",
     )
     name: Mapped[str] = mapped_column(
-        String(100), nullable=False,
+        String(100),
+        nullable=False,
     )
     color: Mapped[str | None] = mapped_column(
-        String(20), nullable=True,
+        String(20),
+        nullable=True,
     )
     created_by: Mapped[int | None] = mapped_column(
         Integer,

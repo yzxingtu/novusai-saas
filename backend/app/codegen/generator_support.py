@@ -143,11 +143,15 @@ def singularize(table_name: str) -> str:
     t = str(table_name)
     if t.endswith("ies") and len(t) > 3 and t[-4] not in "aeiou":
         return t[:-3] + "y"
-    if t.endswith("es") and len(t) > 2 and (
-        t.endswith("ses")
-        or t.endswith("xes")
-        or t.endswith("ches")
-        or t.endswith("shes")
+    if (
+        t.endswith("es")
+        and len(t) > 2
+        and (
+            t.endswith("ses")
+            or t.endswith("xes")
+            or t.endswith("ches")
+            or t.endswith("shes")
+        )
     ):
         return t[:-2]
     if t.endswith("s") and not t.endswith("ss"):
@@ -182,7 +186,9 @@ def derive_workflow_states(workflow: dict | None) -> list[dict]:
             val = t.get(key)
             if val and val not in seen:
                 seen.add(val)
-                result.append({"name": val, "label": str(val).replace("_", " ").title()})
+                result.append(
+                    {"name": val, "label": str(val).replace("_", " ").title()}
+                )
     return result
 
 

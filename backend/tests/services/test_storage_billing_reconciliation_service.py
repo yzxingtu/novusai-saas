@@ -68,12 +68,14 @@ class _FakeTencentClient:
     async def __aexit__(self, exc_type, exc, tb):
         return None
 
-    async def post(self, *args, **kwargs):
+    async def post(self, *_args, **_kwargs):
         return _FakeTencentResponse(self._payload)
 
 
 @pytest.mark.asyncio
-async def test_tencent_official_bill_adapter_normalizes_bill_detail(monkeypatch) -> None:
+async def test_tencent_official_bill_adapter_normalizes_bill_detail(
+    monkeypatch,
+) -> None:
     module = load_plugin_module("storage-billing", "providers.tencent")
     assert module is not None
 
@@ -110,7 +112,7 @@ async def test_tencent_official_bill_adapter_normalizes_bill_detail(monkeypatch)
     monkeypatch.setattr(
         module.httpx,
         "AsyncClient",
-        lambda *args, **kwargs: _FakeTencentClient(payload),
+        lambda *_args, **_kwargs: _FakeTencentClient(payload),
     )
 
     adapter = module.TencentCosOfficialBillAdapter()
@@ -177,7 +179,9 @@ async def test_reconciliation_service_rebuilds_daily_charges_from_binding() -> N
         resource_id="tenant-a-bucket-1250000000",
         resource_name="tenant-a-bucket",
         bucket_name="tenant-a-bucket",
-        details_json={"bucket_aliases": ["tenant-a-bucket", "tenant-a-bucket-1250000000"]},
+        details_json={
+            "bucket_aliases": ["tenant-a-bucket", "tenant-a-bucket-1250000000"]
+        },
     )
 
     db = AsyncMock()
@@ -297,8 +301,9 @@ async def test_trigger_manual_run_without_billing_date_fans_out_provider_specifi
     monkeypatch.setattr(
         module,
         "_resolve_billing_date",
-        lambda raw_value, default_offset_days=1: date(2026, 3, 24)
-        - module.timedelta(days=default_offset_days),
+        lambda _raw_value, default_offset_days=1: (
+            date(2026, 3, 24) - module.timedelta(days=default_offset_days)
+        ),
     )
     service._execute_reconciliation = AsyncMock(
         side_effect=[
@@ -311,7 +316,9 @@ async def test_trigger_manual_run_without_billing_date_fans_out_provider_specifi
                     "summary": {
                         "statement_count": 1,
                         "source_status_counts": {"fetched": 1},
-                        "providers": [{"provider_code": "aliyun-oss", "source_status": "fetched"}],
+                        "providers": [
+                            {"provider_code": "aliyun-oss", "source_status": "fetched"}
+                        ],
                     },
                 },
                 "sources": [],
@@ -326,7 +333,9 @@ async def test_trigger_manual_run_without_billing_date_fans_out_provider_specifi
                     "summary": {
                         "statement_count": 1,
                         "source_status_counts": {"fetched": 1},
-                        "providers": [{"provider_code": "tencent-cos", "source_status": "fetched"}],
+                        "providers": [
+                            {"provider_code": "tencent-cos", "source_status": "fetched"}
+                        ],
                     },
                 },
                 "sources": [],
@@ -393,10 +402,13 @@ async def test_trigger_manual_run_without_billing_date_defaults_single_provider(
     monkeypatch.setattr(
         module,
         "_resolve_billing_date",
-        lambda raw_value, default_offset_days=1: date(2026, 3, 24)
-        - module.timedelta(days=default_offset_days),
+        lambda _raw_value, default_offset_days=1: (
+            date(2026, 3, 24) - module.timedelta(days=default_offset_days)
+        ),
     )
-    service._execute_reconciliation = AsyncMock(return_value={"run": {"id": 201, "status": "completed"}})
+    service._execute_reconciliation = AsyncMock(
+        return_value={"run": {"id": 201, "status": "completed"}}
+    )
 
     result = await service.trigger_manual_run({})
 
@@ -409,11 +421,15 @@ async def test_trigger_manual_run_without_billing_date_defaults_single_provider(
 
 
 @pytest.mark.asyncio
-async def test_run_daily_reconciliation_uses_provider_specific_lag_rules(monkeypatch) -> None:
+async def test_run_daily_reconciliation_uses_provider_specific_lag_rules(
+    monkeypatch,
+) -> None:
     module = load_plugin_module("storage-billing", "services.reconciliation_service")
     assert module is not None
 
-    service = module.StorageBillingReconciliationService(AsyncMock(), host_read=MagicMock())
+    service = module.StorageBillingReconciliationService(
+        AsyncMock(), host_read=MagicMock()
+    )
     monkeypatch.setattr(
         service,
         "_get_billable_drivers",
@@ -427,8 +443,9 @@ async def test_run_daily_reconciliation_uses_provider_specific_lag_rules(monkeyp
     monkeypatch.setattr(
         module,
         "_resolve_billing_date",
-        lambda raw_value, default_offset_days=1: date(2026, 3, 24)
-        - module.timedelta(days=default_offset_days),
+        lambda _raw_value, default_offset_days=1: (
+            date(2026, 3, 24) - module.timedelta(days=default_offset_days)
+        ),
     )
     service._execute_reconciliation = AsyncMock(
         side_effect=[
@@ -441,7 +458,9 @@ async def test_run_daily_reconciliation_uses_provider_specific_lag_rules(monkeyp
                     "summary": {
                         "statement_count": 1,
                         "source_status_counts": {"fetched": 1},
-                        "providers": [{"provider_code": "aliyun-oss", "source_status": "fetched"}],
+                        "providers": [
+                            {"provider_code": "aliyun-oss", "source_status": "fetched"}
+                        ],
                     },
                 },
                 "sources": [],
@@ -456,7 +475,9 @@ async def test_run_daily_reconciliation_uses_provider_specific_lag_rules(monkeyp
                     "summary": {
                         "statement_count": 2,
                         "source_status_counts": {"fetched": 1},
-                        "providers": [{"provider_code": "tencent-cos", "source_status": "fetched"}],
+                        "providers": [
+                            {"provider_code": "tencent-cos", "source_status": "fetched"}
+                        ],
                     },
                 },
                 "sources": [],
@@ -560,7 +581,9 @@ async def test_reconciliation_service_prefers_bucket_scope_over_account_scope() 
         resource_name="tenant-a-bucket",
         bucket_name="tenant-a-bucket",
         account_identifier="acct-123",
-        details_json={"bucket_aliases": ["tenant-a-bucket", "tenant-a-bucket-1250000000"]},
+        details_json={
+            "bucket_aliases": ["tenant-a-bucket", "tenant-a-bucket-1250000000"]
+        },
     )
 
     db = AsyncMock()
@@ -677,7 +700,10 @@ async def test_reconciliation_service_returns_allocation_audit_samples() -> None
     assert summary["ambiguous_items"] == 1
     assert summary["written_charge_rows"] == 0
     assert summary["unmatched_item_samples"][0]["bucket_name"] == "unbound-bucket"
-    assert summary["ambiguous_item_samples"][0]["matched_bindings"][0]["scope_value"] == "shared-bucket"
+    assert (
+        summary["ambiguous_item_samples"][0]["matched_bindings"][0]["scope_value"]
+        == "shared-bucket"
+    )
 
 
 @pytest.mark.asyncio
@@ -740,7 +766,9 @@ async def test_reconciliation_run_includes_allocation_summary(monkeypatch) -> No
     result = await service.run_daily_reconciliation(date(2026, 3, 25))
 
     assert result["run"]["status"] == "completed_with_gaps"
-    assert result["run"]["summary"]["source_status_counts"] == {"completed_with_gaps": 1}
+    assert result["run"]["summary"]["source_status_counts"] == {
+        "completed_with_gaps": 1
+    }
     provider_summary = result["run"]["summary"]["providers"][0]
     assert provider_summary["source_status"] == "completed_with_gaps"
     assert provider_summary["matched_items"] == 2
@@ -761,7 +789,9 @@ async def test_reconciliation_run_includes_allocation_summary(monkeypatch) -> No
 
 
 @pytest.mark.asyncio
-async def test_replace_daily_charges_filters_bindings_for_tenants_no_longer_eligible() -> None:
+async def test_replace_daily_charges_filters_bindings_for_tenants_no_longer_eligible() -> (
+    None
+):
     module = load_plugin_module("storage-billing", "services.reconciliation_service")
     model_module = load_plugin_module("storage-billing", "models")
     provider_base = load_plugin_module("storage-billing", "providers.base")
@@ -817,7 +847,10 @@ async def test_replace_daily_charges_filters_bindings_for_tenants_no_longer_elig
 
     host = MagicMock()
     host.get_platform_storage_context = AsyncMock(
-        return_value={"storage_mode": "platform", "storage_config": {"driver": "tencent-cos"}}
+        return_value={
+            "storage_mode": "platform",
+            "storage_config": {"driver": "tencent-cos"},
+        }
     )
     host.get_tenant_plan_snapshot = AsyncMock(
         return_value={
@@ -826,7 +859,10 @@ async def test_replace_daily_charges_filters_bindings_for_tenants_no_longer_elig
         }
     )
     host.get_tenant_storage_context = AsyncMock(
-        return_value={"storage_mode": "platform", "storage_config": {"driver": "tencent-cos"}}
+        return_value={
+            "storage_mode": "platform",
+            "storage_config": {"driver": "tencent-cos"},
+        }
     )
 
     service = module.StorageBillingReconciliationService(db, host_read=host)
@@ -841,7 +877,9 @@ async def test_replace_daily_charges_filters_bindings_for_tenants_no_longer_elig
 
 
 @pytest.mark.asyncio
-async def test_reconciliation_service_rebuilds_live_charges_from_run_source_snapshots() -> None:
+async def test_reconciliation_service_rebuilds_live_charges_from_run_source_snapshots() -> (
+    None
+):
     module = load_plugin_module("storage-billing", "services.reconciliation_service")
     models = load_plugin_module("storage-billing", "models")
     assert module is not None
@@ -897,7 +935,10 @@ async def test_reconciliation_service_rebuilds_live_charges_from_run_source_snap
                         "binding_ids": [12],
                         "scope_values": ["bucket-b"],
                         "item_count": 2,
-                        "items": [{"bucket_name": "bucket-b"}, {"bucket_name": "bucket-b-2"}],
+                        "items": [
+                            {"bucket_name": "bucket-b"},
+                            {"bucket_name": "bucket-b-2"},
+                        ],
                     },
                 }
             ]
@@ -954,7 +995,9 @@ async def test_reconciliation_service_rebuilds_live_charges_from_run_source_snap
 
 
 @pytest.mark.asyncio
-async def test_list_run_charges_uses_source_snapshots_when_live_rows_are_missing() -> None:
+async def test_list_run_charges_uses_source_snapshots_when_live_rows_are_missing() -> (
+    None
+):
     module = load_plugin_module("storage-billing", "services.reconciliation_service")
     models = load_plugin_module("storage-billing", "models")
     assert module is not None
@@ -1044,8 +1087,9 @@ async def test_run_daily_reconciliation_uses_provider_specific_schedule_by_defau
     monkeypatch.setattr(
         module,
         "_resolve_billing_date",
-        lambda raw_value, default_offset_days=1: date(2026, 3, 24)
-        - module.timedelta(days=default_offset_days),
+        lambda _raw_value, default_offset_days=1: (
+            date(2026, 3, 24) - module.timedelta(days=default_offset_days)
+        ),
     )
 
     execute_mock = AsyncMock(
@@ -1161,7 +1205,11 @@ async def test_reconciliation_service_lists_run_charges() -> None:
         currency="CNY",
         source_id=27,
         statement_id=91,
-        details_json={"binding_ids": [4], "scope_values": ["bucket-a"], "item_count": 1},
+        details_json={
+            "binding_ids": [4],
+            "scope_values": ["bucket-a"],
+            "item_count": 1,
+        },
     )
     charge.id = 101
 
@@ -1222,7 +1270,11 @@ async def test_reconciliation_service_exports_run_charges_csv_with_headers() -> 
         currency="CNY",
         source_id=28,
         statement_id=92,
-        details_json={"binding_ids": [7], "scope_values": ["cdn.example.com"], "item_count": 2},
+        details_json={
+            "binding_ids": [7],
+            "scope_values": ["cdn.example.com"],
+            "item_count": 2,
+        },
     )
     charge.id = 102
 
@@ -1239,10 +1291,18 @@ async def test_reconciliation_service_exports_run_charges_csv_with_headers() -> 
     response = await service.export_run_charges_csv(run_id=18)
 
     assert response.media_type == "text/csv; charset=utf-8"
-    assert "storage_billing_run_18_2026-03-23_charges.csv" in response.headers["content-disposition"]
+    assert (
+        "storage_billing_run_18_2026-03-23_charges.csv"
+        in response.headers["content-disposition"]
+    )
     body = response.body.decode("utf-8-sig")
-    assert "run_id,period_type,billing_date,period_start,period_end,period_label,tenant_id,provider_code" in body
-    assert ",18,daily,2026-03-23,2026-03-23,2026-03-23,2026-03-23,99,tencent-cos," in body
+    assert (
+        "run_id,period_type,billing_date,period_start,period_end,period_label,tenant_id,provider_code"
+        in body
+    )
+    assert (
+        ",18,daily,2026-03-23,2026-03-23,2026-03-23,2026-03-23,99,tencent-cos," in body
+    )
     assert "cdn.example.com" in body
 
 
@@ -1275,7 +1335,11 @@ async def test_overview_service_exports_tenant_statement_charges_csv() -> None:
         currency="CNY",
         source_id=71,
         statement_id=31,
-        details_json={"binding_ids": [3], "scope_values": ["tenant-bucket"], "item_count": 1},
+        details_json={
+            "binding_ids": [3],
+            "scope_values": ["tenant-bucket"],
+            "item_count": 1,
+        },
     )
     charge.id = 201
 
@@ -1295,7 +1359,10 @@ async def test_overview_service_exports_tenant_statement_charges_csv() -> None:
     )
 
     assert response.media_type == "text/csv; charset=utf-8"
-    assert "storage_billing_tenant_66_2026-03-22_charges.csv" in response.headers["content-disposition"]
+    assert (
+        "storage_billing_tenant_66_2026-03-22_charges.csv"
+        in response.headers["content-disposition"]
+    )
     body = response.body.decode("utf-8-sig")
     assert "statement_status,provider_code,driver_code" in body
     assert "generated,aliyun-oss,aliyun-oss" in body
@@ -1337,7 +1404,11 @@ async def test_reconciliation_service_lists_run_charges_with_source_context() ->
         currency="CNY",
         source_id=701,
         statement_id=88,
-        details_json={"binding_ids": [11], "scope_values": ["tenant-901-bucket"], "item_count": 1},
+        details_json={
+            "binding_ids": [11],
+            "scope_values": ["tenant-901-bucket"],
+            "item_count": 1,
+        },
     )
     charge.id = 801
 
@@ -1361,7 +1432,9 @@ async def test_reconciliation_service_lists_run_charges_with_source_context() ->
 
 
 @pytest.mark.asyncio
-async def test_reconciliation_service_exports_run_charges_csv_with_body_fields() -> None:
+async def test_reconciliation_service_exports_run_charges_csv_with_body_fields() -> (
+    None
+):
     module = load_plugin_module("storage-billing", "services.reconciliation_service")
     models = load_plugin_module("storage-billing", "models")
     assert module is not None
@@ -1396,7 +1469,11 @@ async def test_reconciliation_service_exports_run_charges_csv_with_body_fields()
         currency="CNY",
         source_id=702,
         statement_id=89,
-        details_json={"binding_ids": [12], "scope_values": ["cdn.example.com"], "item_count": 1},
+        details_json={
+            "binding_ids": [12],
+            "scope_values": ["cdn.example.com"],
+            "item_count": 1,
+        },
     )
     charge.id = 802
 

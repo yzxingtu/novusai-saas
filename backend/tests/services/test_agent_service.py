@@ -33,7 +33,6 @@ def _make_agent(**overrides):
 
 
 class TestBeforeCreate:
-
     @pytest.mark.asyncio
     async def test_duplicate_name_raises(self, mock_db):
         from app.exceptions import BusinessException
@@ -58,10 +57,10 @@ class TestBeforeCreate:
         service.tenant_id = 1
         service.repo = AsyncMock()
 
-        assert hasattr(service, 'create')
-        assert hasattr(service, 'publish_agent')
-        assert hasattr(service, 'rollback_agent')
-        assert hasattr(service, 'get_agent_detail')
+        assert hasattr(service, "create")
+        assert hasattr(service, "publish_agent")
+        assert hasattr(service, "rollback_agent")
+        assert hasattr(service, "get_agent_detail")
 
     @pytest.mark.asyncio
     async def test_validate_agent_max_tokens_against_model_limit(self, mock_db):
@@ -79,10 +78,13 @@ class TestBeforeCreate:
             ),
         )
 
-        with patch(
-            "app.services.ai.agent_service.AIModelRepository",
-            return_value=model_repo,
-        ), pytest.raises(BusinessException) as exc_info:
+        with (
+            patch(
+                "app.services.ai.agent_service.AIModelRepository",
+                return_value=model_repo,
+            ),
+            pytest.raises(BusinessException) as exc_info,
+        ):
             await _validate_agent_max_tokens_against_model(
                 mock_db,
                 model_id=7,
@@ -93,7 +95,6 @@ class TestBeforeCreate:
 
 
 class TestAgentQuery:
-
     @pytest.mark.asyncio
     async def test_get_by_id_found(self, mock_db):
         from app.services.ai.agent_service import AgentService
@@ -147,9 +148,9 @@ class TestPublishAgent:
         service.tenant_id = 1
         service.repo = AsyncMock()
 
-        assert hasattr(service, 'publish_agent')
-        assert hasattr(service, 'rollback_agent')
-        assert hasattr(service, 'get_versions')
+        assert hasattr(service, "publish_agent")
+        assert hasattr(service, "rollback_agent")
+        assert hasattr(service, "get_versions")
 
     @pytest.mark.asyncio
     async def test_publish_agent_snapshots_rag_config(self, mock_db):
@@ -240,9 +241,10 @@ class TestPublishAgent:
 
 
 class TestCascadeConversationMemoryCleanup:
-
     @pytest.mark.asyncio
-    async def test_tenant_before_delete_clears_cascaded_conversation_memory(self, mock_db):
+    async def test_tenant_before_delete_clears_cascaded_conversation_memory(
+        self, mock_db
+    ):
         from app.services.ai.agent_service import AgentService
 
         service = AgentService.__new__(AgentService)
@@ -277,7 +279,9 @@ class TestCascadeConversationMemoryCleanup:
         )
 
     @pytest.mark.asyncio
-    async def test_admin_before_delete_clears_multi_tenant_conversation_memory(self, mock_db):
+    async def test_admin_before_delete_clears_multi_tenant_conversation_memory(
+        self, mock_db
+    ):
         from app.services.ai.agent_service import AdminAgentService
 
         service = AdminAgentService.__new__(AdminAgentService)
@@ -305,12 +309,15 @@ class TestCascadeConversationMemoryCleanup:
         assignment_repo = AsyncMock()
         assignment_repo.delete_all_for_resource = AsyncMock()
 
-        with patch(
-            "app.services.ai.session_memory_service.SessionMemoryService",
-            side_effect=_memory_factory,
-        ), patch(
-            "app.repositories.system.resource_tenant_assignment_repository.ResourceTenantAssignmentRepository",
-            return_value=assignment_repo,
+        with (
+            patch(
+                "app.services.ai.session_memory_service.SessionMemoryService",
+                side_effect=_memory_factory,
+            ),
+            patch(
+                "app.repositories.system.resource_tenant_assignment_repository.ResourceTenantAssignmentRepository",
+                return_value=assignment_repo,
+            ),
         ):
             await service._before_delete(11)
 
@@ -319,12 +326,13 @@ class TestCascadeConversationMemoryCleanup:
             "admin",
         )
         memory_services[0].clear_conversation_memories.assert_awaited_once_with([201])
-        memory_services[7].clear_conversation_memories.assert_awaited_once_with([301, 302])
+        memory_services[7].clear_conversation_memories.assert_awaited_once_with(
+            [301, 302]
+        )
         assignment_repo.delete_all_for_resource.assert_awaited_once_with("agent", 11)
 
 
 class TestRollbackBindings:
-
     @pytest.mark.asyncio
     async def test_restore_skill_grants_rebuilds_snapshot_via_batch_bind(self, mock_db):
         from app.services.ai.agent_service import AgentService
@@ -345,10 +353,12 @@ class TestRollbackBindings:
         )
 
         grant_service = AsyncMock()
-        grant_service.batch_bind = AsyncMock(return_value=[
-            make_mock_model(id=101, skill_id=11),
-            make_mock_model(id=102, skill_id=22),
-        ])
+        grant_service.batch_bind = AsyncMock(
+            return_value=[
+                make_mock_model(id=101, skill_id=11),
+                make_mock_model(id=102, skill_id=22),
+            ]
+        )
         grant_service.update_grant = AsyncMock()
         grant_service.delete_all_for_agent = AsyncMock()
 
@@ -401,7 +411,6 @@ class TestRollbackBindings:
 
 
 class TestVersionRagConfig:
-
     @pytest.mark.asyncio
     async def test_rollback_agent_restores_rag_config(self, mock_db):
         from app.services.ai.agent_service import AgentService
@@ -536,14 +545,16 @@ class TestVersionRagConfig:
     def test_normalize_agent_rag_config_accepts_supported_fields(self):
         from app.services.ai.agent_service import _normalize_agent_rag_config
 
-        result = _normalize_agent_rag_config({
-            "search_mode": "hybrid",
-            "top_k": 6,
-            "score_threshold": 0.66,
-            "rewrite_strategy": "multi",
-            "reranker_enabled": True,
-            "context_token_ratio": 0.45,
-        })
+        result = _normalize_agent_rag_config(
+            {
+                "search_mode": "hybrid",
+                "top_k": 6,
+                "score_threshold": 0.66,
+                "rewrite_strategy": "multi",
+                "reranker_enabled": True,
+                "context_token_ratio": 0.45,
+            }
+        )
 
         assert result == {
             "search_mode": "hybrid",
@@ -556,7 +567,6 @@ class TestVersionRagConfig:
 
 
 class TestGetAgentDetail:
-
     @pytest.mark.asyncio
     async def test_detail_not_found(self, mock_db):
         from app.exceptions import NotFoundException

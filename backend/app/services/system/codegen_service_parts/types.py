@@ -35,4 +35,3 @@ class CodegenWorkbenchEntry:
     config: CodegenConfig
     manifest_present: bool
     delete_guard: CodegenDeleteGuard
-

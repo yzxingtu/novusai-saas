@@ -191,7 +191,9 @@ class AuthService(AuthCaptchaVerificationMixin):
         username: str,
         client_ip: str | None,
     ) -> None:
-        await self._login_security_domain.record_admin_login_failure(username, client_ip)
+        await self._login_security_domain.record_admin_login_failure(
+            username, client_ip
+        )
 
     async def _is_account_locked(
         self,

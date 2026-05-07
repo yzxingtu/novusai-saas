@@ -26,7 +26,6 @@ def _make_admin(**overrides):
 
 
 class TestAdminCreate:
-
     @pytest.mark.asyncio
     async def test_service_has_create_method(self, mock_db):
         from app.services.system.admin_service import AdminService
@@ -35,9 +34,9 @@ class TestAdminCreate:
         service.db = mock_db
         service.repo = AsyncMock()
 
-        assert hasattr(service, 'create')
-        assert hasattr(service, 'get_by_username')
-        assert hasattr(service, 'get_by_email')
+        assert hasattr(service, "create")
+        assert hasattr(service, "get_by_username")
+        assert hasattr(service, "get_by_email")
 
     @pytest.mark.asyncio
     async def test_get_by_username(self, mock_db):
@@ -54,7 +53,6 @@ class TestAdminCreate:
 
 
 class TestAdminDelete:
-
     @pytest.mark.asyncio
     async def test_get_by_id_returns_admin(self, mock_db):
         from app.services.system.admin_service import AdminService
@@ -82,7 +80,6 @@ class TestAdminDelete:
 
 
 class TestAdminStatus:
-
     @pytest.mark.asyncio
     async def test_toggle_status_disable(self, mock_db):
         from app.services.system.admin_service import AdminService
@@ -111,7 +108,6 @@ class TestAdminStatus:
 
 
 class TestAdminUpdate:
-
     @pytest.mark.asyncio
     async def test_get_by_email(self, mock_db):
         from app.services.system.admin_service import AdminService
@@ -127,7 +123,6 @@ class TestAdminUpdate:
 
 
 class TestAdminQuery:
-
     @pytest.mark.asyncio
     async def test_get_by_id_not_found(self, mock_db):
         from app.services.system.admin_service import AdminService

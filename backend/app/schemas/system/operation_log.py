@@ -68,9 +68,8 @@ def _resolve_identity_fields(
     elif snapshot_has_key(snapshot, "role_name"):
         role_name = snapshot.get("role_name")
     else:
-        role_name = (
-            identity_meta.get("display_role_name")
-            or identity_meta.get("role_name")
+        role_name = identity_meta.get("display_role_name") or identity_meta.get(
+            "role_name"
         )
     return {
         "username": username,

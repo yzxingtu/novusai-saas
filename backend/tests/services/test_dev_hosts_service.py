@@ -30,6 +30,7 @@ from tests.services.conftest import make_mock_model
 # Fixtures / 测试夹具
 # ──────────────────────────────────────────────
 
+
 @pytest.fixture()
 def service(mock_db):
     """构造 TenantDomainService 实例（跳过 __init__，手动注入 DB 和 repo） / TenantDomainService （ _...
@@ -139,6 +140,7 @@ def entry_missing():
 # ──────────────────────────────────────────────
 # Tests / 测试用例
 # ──────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_get_dev_hosts_status_normal(
@@ -298,9 +300,7 @@ async def test_remove_dev_host_calls_remove_entry(
 
 
 @pytest.mark.asyncio
-async def test_get_owned_domain_cross_tenant_raises_not_found(
-    service, verified_domain
-):
+async def test_get_owned_domain_cross_tenant_raises_not_found(service, verified_domain):
     """场景7：跨企业访问域名抛出 NotFoundException / 7： NotFoundExceptio...
     Scenario 7: Cross-tenant domain access raises NotFoundException"""
     # domain.tenant_id=1 but we request with tenant_id=999

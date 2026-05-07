@@ -32,7 +32,9 @@ def test_resolve_plugin_asset_file_rejects_plugin_root_fallback(tmp_path: Path) 
 def test_resolve_plugin_asset_file_rejects_path_traversal(tmp_path: Path) -> None:
     plugins_root = tmp_path / "plugins"
 
-    resolved = resolve_plugin_asset_file(plugins_root, "demo-plugin", "../backend/main.py")
+    resolved = resolve_plugin_asset_file(
+        plugins_root, "demo-plugin", "../backend/main.py"
+    )
 
     assert resolved is None
 
@@ -88,6 +90,8 @@ def test_resolve_plugin_asset_file_rejects_subdirectory_icon(tmp_path: Path) -> 
     nested_icon.parent.mkdir(parents=True)
     nested_icon.write_bytes(b"\x89PNG")
 
-    resolved = resolve_plugin_asset_file(plugins_root, "demo-plugin", "backend/icon.png")
+    resolved = resolve_plugin_asset_file(
+        plugins_root, "demo-plugin", "backend/icon.png"
+    )
 
     assert resolved is None

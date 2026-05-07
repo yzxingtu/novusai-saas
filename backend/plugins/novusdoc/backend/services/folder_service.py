@@ -14,15 +14,18 @@ from app.core.data_permission import (
 
 
 async def list_folders(
-    db: AsyncSession, tenant_id: int,
+    db: AsyncSession,
+    tenant_id: int,
 ) -> list[dict[str, Any]]:
     from ..models.folder import NovusdocFolder
 
     stmt = apply_data_permission_if_needed(
-        select(NovusdocFolder).where(
+        select(NovusdocFolder)
+        .where(
             NovusdocFolder.tenant_id == tenant_id,
             NovusdocFolder.is_deleted.is_(False),
-        ).order_by(NovusdocFolder.sort_order, NovusdocFolder.name),
+        )
+        .order_by(NovusdocFolder.sort_order, NovusdocFolder.name),
         NovusdocFolder,
     )
     result = await db.execute(stmt)
@@ -39,7 +42,9 @@ async def list_folders(
 
 
 async def create_folder(
-    db: AsyncSession, tenant_id: int, data: dict[str, Any],
+    db: AsyncSession,
+    tenant_id: int,
+    data: dict[str, Any],
 ) -> dict[str, Any]:
     from ..models.folder import NovusdocFolder
 
@@ -64,7 +69,10 @@ async def create_folder(
 
 
 async def update_folder(
-    db: AsyncSession, tenant_id: int, folder_id: int, data: dict[str, Any],
+    db: AsyncSession,
+    tenant_id: int,
+    folder_id: int,
+    data: dict[str, Any],
 ) -> dict[str, Any] | None:
     from ..models.folder import NovusdocFolder
 
@@ -93,7 +101,9 @@ async def update_folder(
 
 
 async def delete_folder(
-    db: AsyncSession, tenant_id: int, folder_id: int,
+    db: AsyncSession,
+    tenant_id: int,
+    folder_id: int,
 ) -> bool:
     from ..models.folder import NovusdocFolder
 

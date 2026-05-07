@@ -16,8 +16,12 @@ if "app.ai.engine" not in sys.modules:
 
 stream_output_projection = import_module("app.ai.engine.stream_output_projection")
 assistant_message_has_content = stream_output_projection.assistant_message_has_content
-build_budget_exit_fallback_output = stream_output_projection.build_budget_exit_fallback_output
-current_turn_has_finalized_output = stream_output_projection.current_turn_has_finalized_output
+build_budget_exit_fallback_output = (
+    stream_output_projection.build_budget_exit_fallback_output
+)
+current_turn_has_finalized_output = (
+    stream_output_projection.current_turn_has_finalized_output
+)
 is_streamed_prefix_expansion = stream_output_projection.is_streamed_prefix_expansion
 should_preserve_streamed_assistant_output = (
     stream_output_projection.should_preserve_streamed_assistant_output
@@ -41,40 +45,57 @@ def test_current_turn_has_finalized_output_accepts_matching_assistant_message() 
         ChatMessage(role="assistant", content="final answer"),
     ]
 
-    assert current_turn_has_finalized_output(
-        messages=messages,
-        streamed_output="stream preview",
-        finalized_output="final answer",
-    ) is True
+    assert (
+        current_turn_has_finalized_output(
+            messages=messages,
+            streamed_output="stream preview",
+            finalized_output="final answer",
+        )
+        is True
+    )
 
 
-def test_current_turn_has_finalized_output_requires_persisted_assistant_message() -> None:
+def test_current_turn_has_finalized_output_requires_persisted_assistant_message() -> (
+    None
+):
     messages = [
         ChatMessage(role="assistant", content="stream preview"),
     ]
 
-    assert current_turn_has_finalized_output(
-        messages=messages,
-        streamed_output="final answer",
-        finalized_output="final answer",
-    ) is False
+    assert (
+        current_turn_has_finalized_output(
+            messages=messages,
+            streamed_output="final answer",
+            finalized_output="final answer",
+        )
+        is False
+    )
 
 
 def test_should_preserve_streamed_assistant_output_only_for_prefix_expansion() -> None:
-    assert is_streamed_prefix_expansion(
-        streamed_output="final answer with more detail",
-        finalized_output="final answer",
-    ) is True
-    assert should_preserve_streamed_assistant_output(
-        final_output_source="assistant",
-        streamed_output="final answer with more detail",
-        finalized_output="final answer",
-    ) is True
-    assert should_preserve_streamed_assistant_output(
-        final_output_source="tool_evidence_completed",
-        streamed_output="final answer with more detail",
-        finalized_output="final answer",
-    ) is False
+    assert (
+        is_streamed_prefix_expansion(
+            streamed_output="final answer with more detail",
+            finalized_output="final answer",
+        )
+        is True
+    )
+    assert (
+        should_preserve_streamed_assistant_output(
+            final_output_source="assistant",
+            streamed_output="final answer with more detail",
+            finalized_output="final answer",
+        )
+        is True
+    )
+    assert (
+        should_preserve_streamed_assistant_output(
+            final_output_source="tool_evidence_completed",
+            streamed_output="final answer with more detail",
+            finalized_output="final answer",
+        )
+        is False
+    )
 
 
 def test_build_budget_exit_fallback_output_uses_resolved_locale(

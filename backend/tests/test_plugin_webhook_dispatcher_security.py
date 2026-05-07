@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import pytest
 from starlette.requests import Request
@@ -75,7 +75,10 @@ async def test_verify_webhook_token_auth_supports_encrypted_secret(
     request = _build_request(headers={"Authorization": "Bearer secret-token"})
     ok = await _verify_webhook_auth(
         auth_type="token",
-        auth_config={"secret_config_key": "webhook_token", "header_name": "Authorization"},
+        auth_config={
+            "secret_config_key": "webhook_token",
+            "header_name": "Authorization",
+        },
         plugin_config={"webhook_token": encrypted_token},
         request=request,
         body=b"{}",
@@ -100,7 +103,9 @@ async def test_webhook_dispatcher_redacts_internal_error_in_production(
             _ = (exc_type, exc, tb)
             return False
 
-    monkeypatch.setattr("app.core.database.async_session_factory", lambda: _SessionContext())
+    monkeypatch.setattr(
+        "app.core.database.async_session_factory", lambda: _SessionContext()
+    )
     monkeypatch.setattr(
         "app.plugins.webhook_dispatcher.evaluate_plugin_runtime_gate",
         AsyncMock(
@@ -162,10 +167,14 @@ async def test_webhook_dispatcher_returns_404_when_runtime_gate_denies_license(
             _ = (exc_type, exc, tb)
             return False
 
-    monkeypatch.setattr("app.core.database.async_session_factory", lambda: _SessionContext())
+    monkeypatch.setattr(
+        "app.core.database.async_session_factory", lambda: _SessionContext()
+    )
     monkeypatch.setattr(
         "app.plugins.webhook_dispatcher.evaluate_plugin_runtime_gate",
-        AsyncMock(return_value=_gate_result({}, allowed=False, reason_code="license_inactive")),
+        AsyncMock(
+            return_value=_gate_result({}, allowed=False, reason_code="license_inactive")
+        ),
     )
 
     response = await webhook_dispatcher("demo", "test", request)

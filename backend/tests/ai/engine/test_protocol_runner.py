@@ -40,9 +40,7 @@ async def test_protocol_runner_chat_passes_strict_protocol_overrides() -> None:
     kwargs = adapter.execute_protocol_chat.await_args.kwargs
     assert kwargs["wire_api"] == "responses"
     assert kwargs["_runtime_force_wire_api"] == "responses"
-    assert (
-        kwargs[ProtocolGuardContract.RUNTIME_DISABLE_CROSS_PROTOCOL_FALLBACK] is True
-    )
+    assert kwargs[ProtocolGuardContract.RUNTIME_DISABLE_CROSS_PROTOCOL_FALLBACK] is True
     assert kwargs[ProtocolGuardContract.RUNTIME_DISABLE_SYNC_RESCUE] is True
     assert kwargs["tenant_id"] == 1
 
@@ -77,9 +75,7 @@ async def test_protocol_runner_stream_passes_strict_protocol_overrides() -> None
     kwargs = adapter.execute_protocol_stream.call_args.kwargs
     assert kwargs["wire_api"] == "chat_completions"
     assert kwargs["_runtime_force_wire_api"] == "chat_completions"
-    assert (
-        kwargs[ProtocolGuardContract.RUNTIME_DISABLE_CROSS_PROTOCOL_FALLBACK] is True
-    )
+    assert kwargs[ProtocolGuardContract.RUNTIME_DISABLE_CROSS_PROTOCOL_FALLBACK] is True
     assert kwargs[ProtocolGuardContract.RUNTIME_DISABLE_SYNC_RESCUE] is True
 
 

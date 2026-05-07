@@ -73,9 +73,7 @@ def test_form_schema_rejects_duplicate_keys_and_missing_options() -> None:
             ]
         )
 
-    assert exc_info.value.data == {
-        "errors": ["1.key_duplicate", "1.options_required"]
-    }
+    assert exc_info.value.data == {"errors": ["1.key_duplicate", "1.options_required"]}
 
 
 def test_answer_validation_accepts_consent_text_radio_and_checkbox() -> None:

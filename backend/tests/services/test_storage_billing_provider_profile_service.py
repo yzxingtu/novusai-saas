@@ -67,7 +67,9 @@ async def test_list_provider_profiles_uses_platform_storage_context_and_masks_se
         host=host,
     )
 
-    payload = await module.StorageBillingProviderProfileService.from_context(ctx).list_provider_profiles()
+    payload = await module.StorageBillingProviderProfileService.from_context(
+        ctx
+    ).list_provider_profiles()
 
     qiniu = payload["providers"]["qiniu-kodo"]
     assert qiniu["enabled"] is True
@@ -189,9 +191,9 @@ async def test_validate_provider_profile_reads_required_fields_from_platform_sto
         host=host,
     )
 
-    result = await module.StorageBillingProviderProfileService.from_context(ctx).validate_provider_profile(
-        "tencent-cos"
-    )
+    result = await module.StorageBillingProviderProfileService.from_context(
+        ctx
+    ).validate_provider_profile("tencent-cos")
 
     assert result["status"] == "invalid"
     assert "Missing required field: secret_id" in result["errors"]
@@ -236,9 +238,9 @@ async def test_validate_provider_profile_returns_invalid_when_driver_plugin_disa
         host=host,
     )
 
-    result = await module.StorageBillingProviderProfileService.from_context(ctx).validate_provider_profile(
-        "tencent-cos"
-    )
+    result = await module.StorageBillingProviderProfileService.from_context(
+        ctx
+    ).validate_provider_profile("tencent-cos")
 
     assert result["status"] == "invalid"
     assert (

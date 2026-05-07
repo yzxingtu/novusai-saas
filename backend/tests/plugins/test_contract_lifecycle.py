@@ -82,8 +82,16 @@ class TestRegistryLifecycle:
         """确保 _DISPATCH 包含所有已知扩展类型 / _DISPATCH"""
         reg = ExtensionRegistry.get_instance()
         core_types = {
-            "adapter", "hook", "storage", "skill", "event",
-            "webhook", "task", "notification", "permission", "socketio",
+            "adapter",
+            "hook",
+            "storage",
+            "skill",
+            "event",
+            "webhook",
+            "task",
+            "notification",
+            "permission",
+            "socketio",
         }
         actual = set(reg._DISPATCH.keys())
         # 允许新增扩展类型，但核心生命周期类型必须始终覆盖。
@@ -157,7 +165,10 @@ class TestPluginMenuI18n:
             )
 
             set_locale("zh_CN")
-            assert PermissionService._translate_name("demo_plugin.docs_list.title") == "文档管理"
+            assert (
+                PermissionService._translate_name("demo_plugin.docs_list.title")
+                == "文档管理"
+            )
         finally:
             reg.unregister_all("demo-plugin")
             set_locale("zh_CN")
@@ -165,7 +176,10 @@ class TestPluginMenuI18n:
     def test_menu_title_fallback_never_returns_literal_title(self):
         from app.rbac.services.permission_service import PermissionService
 
-        assert PermissionService._translate_name("demo_plugin.missing_entry.title") == "missing entry"
+        assert (
+            PermissionService._translate_name("demo_plugin.missing_entry.title")
+            == "missing entry"
+        )
 
     def test_build_menu_tree_hides_plugin_component_from_menu_response(self):
         from app.models.auth.permission import Permission
@@ -377,7 +391,9 @@ class TestTenantMenuRuntimeVisibility:
             hidden_op,
         ]
 
-        service.get_enabled_permissions_by_scope = AsyncMock(return_value=all_permissions)
+        service.get_enabled_permissions_by_scope = AsyncMock(
+            return_value=all_permissions
+        )
         service.get_tenant_admin_effective_permission_ids = AsyncMock(
             return_value={11, 12, 13, 14}
         )
@@ -588,6 +604,7 @@ class TestSSEResponse:
         sse_module._HEARTBEAT_INTERVAL = 0.1
 
         try:
+
             async def slow_gen():
                 yield "first"
                 await asyncio.sleep(0.3)  # 超过 0.1s 心跳间隔
@@ -843,7 +860,9 @@ class TestPluginContextAIStream:
             _FakeAgentChatService,
         )
 
-        async def fake_call_ai_feature(_feature_code: str, _messages: list[dict]) -> str:
+        async def fake_call_ai_feature(
+            _feature_code: str, _messages: list[dict]
+        ) -> str:
             return "fallback"
 
         # 让 fallback 分支不依赖真实 AgentChatService.chat

@@ -138,4 +138,3 @@ __all__ = [
     "GeneratedFile",
     "GenerateResult",
 ]
-

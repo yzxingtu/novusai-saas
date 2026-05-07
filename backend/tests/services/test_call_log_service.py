@@ -407,9 +407,15 @@ class TestCallLogCreate:
         assert mock_db.add.called
         saved_log = mock_db.add.call_args.args[0]
         assert saved_log is call_log
-        assert saved_log.request_metadata["request"]["pricing"]["unit_cost"] == "0.125000"
-        assert saved_log.request_metadata["response"]["usage"]["total_cost"] == "1.500000"
-        assert saved_log.request_metadata["response"]["budget"]["remaining"] == "2.750000"
+        assert (
+            saved_log.request_metadata["request"]["pricing"]["unit_cost"] == "0.125000"
+        )
+        assert (
+            saved_log.request_metadata["response"]["usage"]["total_cost"] == "1.500000"
+        )
+        assert (
+            saved_log.request_metadata["response"]["budget"]["remaining"] == "2.750000"
+        )
 
     @pytest.mark.asyncio
     async def test_log_call_persists_caller_snapshot_metadata(self, mock_db):
@@ -458,8 +464,13 @@ class TestCallLogCreate:
 
         saved_log = mock_db.add.call_args.args[0]
         assert saved_log is call_log
-        assert saved_log.request_metadata["caller_snapshot"]["display_name"] == "企业管理员A"
-        assert saved_log.request_metadata["caller_snapshot"]["org_node_name"] == "华东一区"
+        assert (
+            saved_log.request_metadata["caller_snapshot"]["display_name"]
+            == "企业管理员A"
+        )
+        assert (
+            saved_log.request_metadata["caller_snapshot"]["org_node_name"] == "华东一区"
+        )
 
     def test_generate_request_hash_accepts_decimal_payloads(self):
         from app.services.ai.call_log_service import CallLogService

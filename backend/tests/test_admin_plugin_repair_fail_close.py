@@ -91,7 +91,9 @@ async def test_lifecycle_repair_extension_load_failure_disables_permissions_and_
     )
     registry = MagicMock()
 
-    monkeypatch.setattr("app.plugins.registry.ExtensionRegistry.get_instance", lambda: registry)
+    monkeypatch.setattr(
+        "app.plugins.registry.ExtensionRegistry.get_instance", lambda: registry
+    )
     monkeypatch.setattr(
         "app.plugins.progress.PluginProgressEmitter",
         lambda *_args, **_kwargs: emitter,
@@ -112,10 +114,14 @@ async def test_lifecycle_repair_extension_load_failure_disables_permissions_and_
     with pytest.raises(BusinessException) as exc:
         await lifecycle._repair_impl(plugin.id, operator_id=1)
 
-    assert exc.value.message == _("plugin.error.repair_extensions_failed").format(count=1)
+    assert exc.value.message == _("plugin.error.repair_extensions_failed").format(
+        count=1
+    )
     registry.unregister_all.assert_called_once_with(plugin.name)
     lifecycle._deactivate_plugin_skill_records.assert_awaited_once_with(plugin.name)
-    lifecycle._set_plugin_permissions_enabled.assert_awaited_once_with(plugin.name, False)
+    lifecycle._set_plugin_permissions_enabled.assert_awaited_once_with(
+        plugin.name, False
+    )
     db.flush.assert_awaited_once()
     emitter.emit_error.assert_awaited_once()
     emitter.emit_done.assert_not_awaited()
@@ -160,7 +166,9 @@ async def test_lifecycle_repair_unexpected_failure_still_fail_closes_runtime(
     )
     registry = MagicMock()
 
-    monkeypatch.setattr("app.plugins.registry.ExtensionRegistry.get_instance", lambda: registry)
+    monkeypatch.setattr(
+        "app.plugins.registry.ExtensionRegistry.get_instance", lambda: registry
+    )
     monkeypatch.setattr(
         "app.plugins.progress.PluginProgressEmitter",
         lambda *_args, **_kwargs: emitter,
@@ -189,7 +197,9 @@ async def test_lifecycle_repair_unexpected_failure_still_fail_closes_runtime(
     assert exc.value.message == _("plugin.error.repair_failed")
     registry.unregister_all.assert_called_once_with(plugin.name)
     lifecycle._deactivate_plugin_skill_records.assert_awaited_once_with(plugin.name)
-    lifecycle._set_plugin_permissions_enabled.assert_awaited_once_with(plugin.name, False)
+    lifecycle._set_plugin_permissions_enabled.assert_awaited_once_with(
+        plugin.name, False
+    )
     db.flush.assert_awaited_once()
     emitter.emit_error.assert_awaited_once()
     emitter.emit_done.assert_not_awaited()

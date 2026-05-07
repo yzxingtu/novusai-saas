@@ -142,7 +142,15 @@ WMO_CODES: dict[int, dict[str, str]] = {
 
 _DEFAULT_WMO = {"icon": "cloud", "zh": "未知", "en": "Unknown"}
 
-_CITY_FIELDS = ("city", "town", "village", "county", "suburb", "state_district", "state")
+_CITY_FIELDS = (
+    "city",
+    "town",
+    "village",
+    "county",
+    "suburb",
+    "state_district",
+    "state",
+)
 
 
 def configure(config: Mapping[str, Any] | None) -> None:
@@ -246,7 +254,9 @@ def _expand_city_queries(name: str) -> list[str]:
 
     expanded: list[str] = [query]
     lowered = query.lower()
-    for alias in _CITY_QUERY_ALIASES.get(lowered, ()) + _CITY_QUERY_ALIASES.get(query, ()):
+    for alias in _CITY_QUERY_ALIASES.get(lowered, ()) + _CITY_QUERY_ALIASES.get(
+        query, ()
+    ):
         text = str(alias or "").strip()
         if text and text not in expanded:
             expanded.append(text)
@@ -461,7 +471,9 @@ def _symbol_to_weather(symbol_code: str | None) -> dict[str, Any]:
     return {"wmo": wmo, "zh": zh, "en": en}
 
 
-def _symbol_is_day(symbol_code: str | None, *, local_dt: datetime | None = None) -> bool:
+def _symbol_is_day(
+    symbol_code: str | None, *, local_dt: datetime | None = None
+) -> bool:
     period = _symbol_period(symbol_code)
     if period == "night":
         return False
@@ -482,12 +494,16 @@ def _extract_symbol(entry: dict[str, Any]) -> str | None:
     return None
 
 
-def _to_local_entry(entry: dict[str, Any], *, tz: timezone) -> tuple[datetime, dict[str, Any]]:
+def _to_local_entry(
+    entry: dict[str, Any], *, tz: timezone
+) -> tuple[datetime, dict[str, Any]]:
     local_dt = _parse_iso_datetime(str(entry.get("time") or ""), target_tz=tz)
     return local_dt, entry
 
 
-async def _fetch_met_timeseries(latitude: float, longitude: float) -> list[dict[str, Any]]:
+async def _fetch_met_timeseries(
+    latitude: float, longitude: float
+) -> list[dict[str, Any]]:
     cache_key = f"met:{latitude:.2f}:{longitude:.2f}"
     cached = _cache_get(cache_key)
     if cached is not None:
@@ -501,7 +517,7 @@ async def _fetch_met_timeseries(latitude: float, longitude: float) -> list[dict[
         resp.raise_for_status()
         payload = resp.json()
 
-    timeseries = ((payload.get("properties") or {}).get("timeseries") or [])
+    timeseries = (payload.get("properties") or {}).get("timeseries") or []
     if not isinstance(timeseries, list) or not timeseries:
         raise RuntimeError("MET Norway weather payload is empty")
 
@@ -524,8 +540,12 @@ async def get_weather_all(
     tz = _approx_timezone(longitude)
 
     current_entry = timeseries[0]
-    current_local_dt = _parse_iso_datetime(str(current_entry.get("time") or ""), target_tz=tz)
-    current_details = (((current_entry.get("data") or {}).get("instant") or {}).get("details") or {})
+    current_local_dt = _parse_iso_datetime(
+        str(current_entry.get("time") or ""), target_tz=tz
+    )
+    current_details = ((current_entry.get("data") or {}).get("instant") or {}).get(
+        "details"
+    ) or {}
     current_symbol = _extract_symbol(current_entry)
     current_condition = _symbol_to_weather(current_symbol)
     current_wmo = get_wmo_info(int(current_condition["wmo"]))
@@ -550,7 +570,7 @@ async def get_weather_all(
     hourly_out: list[dict[str, Any]] = []
     for index, entry in enumerate(timeseries[:24]):
         local_dt = _parse_iso_datetime(str(entry.get("time") or ""), target_tz=tz)
-        details = (((entry.get("data") or {}).get("instant") or {}).get("details") or {})
+        details = ((entry.get("data") or {}).get("instant") or {}).get("details") or {}
         symbol = _extract_symbol(entry)
         condition = _symbol_to_weather(symbol)
         wmo_info = get_wmo_info(int(condition["wmo"]))
@@ -567,7 +587,7 @@ async def get_weather_all(
         )
 
     grouped: dict[str, dict[str, Any]] = {}
-    for entry in timeseries[:24 * 8]:
+    for entry in timeseries[: 24 * 8]:
         local_dt = _parse_iso_datetime(str(entry.get("time") or ""), target_tz=tz)
         local_date = local_dt.date().isoformat()
         bucket = grouped.setdefault(
@@ -580,11 +600,15 @@ async def get_weather_all(
                 "best_distance": 999,
             },
         )
-        details = (((entry.get("data") or {}).get("instant") or {}).get("details") or {})
+        details = ((entry.get("data") or {}).get("instant") or {}).get("details") or {}
         temp = _coerce_float(details.get("air_temperature"))
         if temp is not None:
-            bucket["temp_max"] = temp if bucket["temp_max"] is None else max(bucket["temp_max"], temp)
-            bucket["temp_min"] = temp if bucket["temp_min"] is None else min(bucket["temp_min"], temp)
+            bucket["temp_max"] = (
+                temp if bucket["temp_max"] is None else max(bucket["temp_max"], temp)
+            )
+            bucket["temp_min"] = (
+                temp if bucket["temp_min"] is None else min(bucket["temp_min"], temp)
+            )
 
         symbol = _extract_symbol(entry)
         if symbol:
@@ -626,7 +650,9 @@ async def get_current_weather(latitude: float, longitude: float) -> dict[str, An
     return all_data["current"]
 
 
-async def get_forecast(latitude: float, longitude: float, days: int = 3) -> list[dict[str, Any]]:
+async def get_forecast(
+    latitude: float, longitude: float, days: int = 3
+) -> list[dict[str, Any]]:
     all_data = await get_weather_all(latitude, longitude, days)
     return all_data["daily"]
 
@@ -659,7 +685,9 @@ async def _search_city_nominatim(
             resp.raise_for_status()
             data = resp.json()
     except httpx.TimeoutException:
-        logger.warning("Nominatim search timeout for query='{}' timeout={}s", name, timeout)
+        logger.warning(
+            "Nominatim search timeout for query='{}' timeout={}s", name, timeout
+        )
         return []
     except Exception as exc:
         logger.warning(
@@ -746,7 +774,9 @@ async def search_city(name: str, count: int = 5) -> list[dict[str, Any]]:
     return merged_results
 
 
-async def _reverse_nominatim(latitude: float, longitude: float) -> dict[str, Any] | None:
+async def _reverse_nominatim(
+    latitude: float, longitude: float
+) -> dict[str, Any] | None:
     try:
         await _nominatim_throttle()
         async with _make_client(_NOMINATIM_TIMEOUT) as client:

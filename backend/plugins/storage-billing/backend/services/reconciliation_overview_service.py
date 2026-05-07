@@ -28,6 +28,7 @@ from .reconciliation_shared import (
     DAILY_RECONCILIATION_CRON,
     PLUGIN_NAME,
     QINIU_MONTHLY_SETTLEMENT_CRON,
+    _build_csv_response,
     _ConfigContext,
     _get_plugin_db,
     _normalize_host_storage_context,
@@ -38,7 +39,6 @@ from .reconciliation_shared import (
     _serialize_statement,
     _stringify,
     _summarize_daily_charges,
-    _build_csv_response,
     parse_optional_period_type,
 )
 
@@ -84,7 +84,9 @@ class StorageBillingOverviewService:
         if billing_date is not None:
             stmt = stmt.where(StorageTenantStatement.billing_date == billing_date)
         if normalized_period_type:
-            stmt = stmt.where(StorageTenantStatement.period_type == normalized_period_type)
+            stmt = stmt.where(
+                StorageTenantStatement.period_type == normalized_period_type
+            )
         stmt = stmt.order_by(
             desc(StorageTenantStatement.period_end),
             desc(StorageTenantStatement.billing_date),
@@ -103,26 +105,31 @@ class StorageBillingOverviewService:
             return []
         normalized_period_type = parse_optional_period_type(period_type)
         return (
-            await self._db.execute(
-                select(StorageTenantDailyCharge)
-                .where(
-                    StorageTenantDailyCharge.tenant_id == tenant_id,
-                    StorageTenantDailyCharge.billing_date == billing_date,
-                    StorageTenantDailyCharge.period_type
-                    == (
-                        normalized_period_type or StorageBillingPeriodTypeEnum.DAILY.value
-                    ),
-                    StorageTenantDailyCharge.is_deleted.is_(False),
-                )
-                .order_by(
-                    desc(StorageTenantDailyCharge.amount_total),
-                    desc(StorageTenantDailyCharge.usage_bytes),
-                    StorageTenantDailyCharge.provider_code,
-                    StorageTenantDailyCharge.charge_basis,
-                    StorageTenantDailyCharge.id,
+            (
+                await self._db.execute(
+                    select(StorageTenantDailyCharge)
+                    .where(
+                        StorageTenantDailyCharge.tenant_id == tenant_id,
+                        StorageTenantDailyCharge.billing_date == billing_date,
+                        StorageTenantDailyCharge.period_type
+                        == (
+                            normalized_period_type
+                            or StorageBillingPeriodTypeEnum.DAILY.value
+                        ),
+                        StorageTenantDailyCharge.is_deleted.is_(False),
+                    )
+                    .order_by(
+                        desc(StorageTenantDailyCharge.amount_total),
+                        desc(StorageTenantDailyCharge.usage_bytes),
+                        StorageTenantDailyCharge.provider_code,
+                        StorageTenantDailyCharge.charge_basis,
+                        StorageTenantDailyCharge.id,
+                    )
                 )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
 
     async def _load_plugin_config(self) -> dict[str, Any]:
         if self._db is None:
@@ -139,7 +146,9 @@ class StorageBillingOverviewService:
 
         config = row[0] or {}
         manifest = row[1] or {}
-        config_schema = manifest.get("config_schema") if isinstance(manifest, dict) else None
+        config_schema = (
+            manifest.get("config_schema") if isinstance(manifest, dict) else None
+        )
         if config_schema:
             config = decrypt_plugin_config(config, config_schema)
         return dict(config or {})
@@ -153,10 +162,13 @@ class StorageBillingOverviewService:
             related_plugins = await self._host_read.get_plugin_runtime_summary(
                 ["storage-billing", "qiniu-kodo", "aliyun-oss", "tencent-cos"]
             )
-            platform_storage_context = await _read_platform_storage_context(self._host_read)
+            platform_storage_context = await _read_platform_storage_context(
+                self._host_read
+            )
 
         active_storage_driver = str(
-            dict(platform_storage_context.get("storage_config") or {}).get("driver") or ""
+            dict(platform_storage_context.get("storage_config") or {}).get("driver")
+            or ""
         ).strip()
 
         latest_runs: list[dict[str, Any]] = []
@@ -175,7 +187,9 @@ class StorageBillingOverviewService:
                 )
                 .limit(10)
             )
-            latest_runs = [_serialize_run(item) for item in latest_runs_result.scalars().all()]
+            latest_runs = [
+                _serialize_run(item) for item in latest_runs_result.scalars().all()
+            ]
             statement_total = int(
                 (
                     await self._db.execute(
@@ -223,15 +237,21 @@ class StorageBillingOverviewService:
                     "strict_reconciliation_supported"
                 ),
                 "manual_pull_supported": dict(profile).get("manual_pull_supported"),
-                "scheduled_daily_supported": dict(profile).get("scheduled_daily_supported"),
+                "scheduled_daily_supported": dict(profile).get(
+                    "scheduled_daily_supported"
+                ),
                 "supported_period_types": list(
                     dict(profile).get("supported_period_types") or []
                 ),
-                "official_billing_lag_days": dict(profile).get("official_billing_lag_days"),
+                "official_billing_lag_days": dict(profile).get(
+                    "official_billing_lag_days"
+                ),
                 "official_target_rule": dict(profile).get("official_target_rule"),
                 "capability_message": dict(profile).get("capability_message"),
             }
-            for provider, profile in dict(provider_profiles.get("providers") or {}).items()
+            for provider, profile in dict(
+                provider_profiles.get("providers") or {}
+            ).items()
         }
         daily_provider_rules = {
             provider: {
@@ -304,7 +324,9 @@ class StorageBillingOverviewService:
             "excluded_drivers": EXCLUDED_DRIVERS,
             "charge_local_storage": False,
             "statement": _serialize_statement(statement) if statement else None,
-            "statement_status": statement.status if statement else "pending_provider_ingestion",
+            "statement_status": statement.status
+            if statement
+            else "pending_provider_ingestion",
             "message": (
                 "No settled tenant statement is available yet."
                 if statement is None
@@ -328,20 +350,24 @@ class StorageBillingOverviewService:
             }
 
         rows = (
-            await self._db.execute(
-                select(StorageTenantStatement)
-                .where(
-                    StorageTenantStatement.tenant_id == tenant_id,
-                    StorageTenantStatement.is_deleted.is_(False),
+            (
+                await self._db.execute(
+                    select(StorageTenantStatement)
+                    .where(
+                        StorageTenantStatement.tenant_id == tenant_id,
+                        StorageTenantStatement.is_deleted.is_(False),
+                    )
+                    .order_by(
+                        desc(StorageTenantStatement.period_end),
+                        desc(StorageTenantStatement.billing_date),
+                        desc(StorageTenantStatement.id),
+                    )
+                    .limit(safe_limit)
                 )
-                .order_by(
-                    desc(StorageTenantStatement.period_end),
-                    desc(StorageTenantStatement.billing_date),
-                    desc(StorageTenantStatement.id),
-                )
-                .limit(safe_limit)
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         return {
             "tenant_id": tenant_id,
             "items": [_serialize_statement(item) for item in rows],
@@ -389,7 +415,9 @@ class StorageBillingOverviewService:
         )
         return {
             "tenant_id": tenant_id,
-            "period_type": statement.period_type if statement is not None else normalized_period_type,
+            "period_type": statement.period_type
+            if statement is not None
+            else normalized_period_type,
             "billing_date": resolved_billing_date.isoformat(),
             "statement": _serialize_statement(statement) if statement else None,
             "items": [_serialize_daily_charge(item) for item in rows],
@@ -418,7 +446,8 @@ class StorageBillingOverviewService:
         resolved_billing_date = result.get("billing_date") or "latest"
         parsed_billing_date = (
             date.fromisoformat(resolved_billing_date)
-            if isinstance(resolved_billing_date, str) and resolved_billing_date != "latest"
+            if isinstance(resolved_billing_date, str)
+            and resolved_billing_date != "latest"
             else None
         )
         charge_rows = await self._load_tenant_daily_charge_rows(

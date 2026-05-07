@@ -69,7 +69,9 @@ def test_marketplace_package_identity_rejects_manifest_version_mismatch() -> Non
         )
 
 
-def test_install_preview_token_round_trip_accepts_matching_marketplace_context() -> None:
+def test_install_preview_token_round_trip_accepts_matching_marketplace_context() -> (
+    None
+):
     token = create_install_preview_token(
         source="marketplace",
         plugin_name="weather-widget",

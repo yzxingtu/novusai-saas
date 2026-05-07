@@ -28,7 +28,6 @@ class BatchRun(TenantModel):
     __data_permission__ = True
     __data_permission_creator_scope__ = "tenant_admin"
 
-
     # 允许前端筛选的字段 / Fields exposed for list filtering
     __filterable__ = {
         "id": "id",

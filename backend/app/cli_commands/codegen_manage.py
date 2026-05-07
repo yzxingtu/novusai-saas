@@ -22,6 +22,7 @@ _load_config_stdin = S._load_config_stdin
 _run_async = S._run_async
 _run_quietly = S._run_quietly
 
+
 @codegen_cmd.command("versions")
 @click.option("--id", "config_id", required=True, type=int)
 @click.option("--limit", "-n", type=int, default=50)

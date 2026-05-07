@@ -2,12 +2,15 @@
 """平台定时任务 API 测试模块 / API.
 
 测试 /admin/periodic-tasks/* 接口"""
+
 import contextlib
 import os
 import sys
 import time
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+sys.path.insert(
+    0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+)
 
 from sqlalchemy import text
 
@@ -53,12 +56,29 @@ class ManualTestAdminPeriodicTasks(BaseAPITest):
 
     def _run_tests(self) -> None:
         self.run_test("获取定时任务列表", self.test_list_periodic_tasks)
-        self.run_test("配置 selected_tenants 待绑定任务", self.test_create_selected_pending_task)
-        self.run_test("待绑定 selected_tenants 手动触发报错", self.test_trigger_selected_pending_task)
-        self.run_test("省略 scope 更新 bindings 保留显式作用域", self.test_bindings_update_without_scope_preserves_scope)
-        self.run_test("切换为 all_tenants 时清空显式 bindings", self.test_update_scope_to_all_tenants_clears_explicit_bindings)
-        self.run_test("非 tenant-aware 处理器禁止写入 tenant 分发作用域", self.test_reject_non_tenant_handler_for_selected_scope)
-        self.run_test("禁用插件任务触发返回明确错误", self.test_trigger_disabled_plugin_task_returns_clear_error)
+        self.run_test(
+            "配置 selected_tenants 待绑定任务", self.test_create_selected_pending_task
+        )
+        self.run_test(
+            "待绑定 selected_tenants 手动触发报错",
+            self.test_trigger_selected_pending_task,
+        )
+        self.run_test(
+            "省略 scope 更新 bindings 保留显式作用域",
+            self.test_bindings_update_without_scope_preserves_scope,
+        )
+        self.run_test(
+            "切换为 all_tenants 时清空显式 bindings",
+            self.test_update_scope_to_all_tenants_clears_explicit_bindings,
+        )
+        self.run_test(
+            "非 tenant-aware 处理器禁止写入 tenant 分发作用域",
+            self.test_reject_non_tenant_handler_for_selected_scope,
+        )
+        self.run_test(
+            "禁用插件任务触发返回明确错误",
+            self.test_trigger_disabled_plugin_task_returns_clear_error,
+        )
 
     def test_list_periodic_tasks(self) -> None:
         resp = self.client.get("/admin/periodic-tasks")
@@ -141,7 +161,9 @@ class ManualTestAdminPeriodicTasks(BaseAPITest):
         data = assert_success(resp, "切换为 all_tenants 失败")
         assert_equals(data["data"]["scope"], "all_tenants")
         assert_equals(data["data"]["binding_count"], 0)
-        assert_true(data["data"]["binding_required"] is False, "all_tenants 不要求显式绑定")
+        assert_true(
+            data["data"]["binding_required"] is False, "all_tenants 不要求显式绑定"
+        )
         assert_true(data["data"]["binding_configured"], "all_tenants 应视为已配置")
 
         bindings = assert_success(
@@ -186,12 +208,15 @@ class ManualTestAdminPeriodicTasks(BaseAPITest):
             return
 
         error = assert_error(
-            self.client.post(f"/admin/periodic-tasks/{disabled_plugin_task['id']}/trigger"),
+            self.client.post(
+                f"/admin/periodic-tasks/{disabled_plugin_task['id']}/trigger"
+            ),
             422,
             "禁用插件任务触发应返回 422",
         )
         assert_true(
-            "未启用" in str(error.get("message", "")) or "disabled" in str(error.get("message", "")).lower(),
+            "未启用" in str(error.get("message", ""))
+            or "disabled" in str(error.get("message", "")).lower(),
             "错误提示应明确说明插件未启用",
         )
 
@@ -216,7 +241,9 @@ class ManualTestAdminPeriodicTasks(BaseAPITest):
             self._test_data["tenant_aware_original_scope"] = existing["scope"]
             self._test_data["tenant_aware_original_name"] = existing["name"]
             self._test_data["tenant_aware_original_is_active"] = existing["is_active"]
-            self._test_data["tenant_aware_original_tenant_ids"] = existing["assigned_tenant_ids"]
+            self._test_data["tenant_aware_original_tenant_ids"] = existing[
+                "assigned_tenant_ids"
+            ]
             return
 
         suffix = self._test_data["timestamp"]
@@ -253,11 +280,7 @@ class ManualTestAdminPeriodicTasks(BaseAPITest):
             if not rows:
                 return
 
-            deleted_ids = [
-                int(row[0])
-                for row in rows
-                if bool(row[1])
-            ]
+            deleted_ids = [int(row[0]) for row in rows if bool(row[1])]
             if not deleted_ids:
                 return
 
@@ -332,8 +355,12 @@ class ManualTestAdminPeriodicTasks(BaseAPITest):
             return
 
         original_scope = self._test_data.get("tenant_aware_original_scope")
-        original_tenant_ids = self._test_data.get("tenant_aware_original_tenant_ids", [])
-        original_is_active = self._test_data.get("tenant_aware_original_is_active", False)
+        original_tenant_ids = self._test_data.get(
+            "tenant_aware_original_tenant_ids", []
+        )
+        original_is_active = self._test_data.get(
+            "tenant_aware_original_is_active", False
+        )
 
         with contextlib.suppress(Exception):
             self.client.put(

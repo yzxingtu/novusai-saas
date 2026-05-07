@@ -40,13 +40,17 @@ def test_resolve_conversation_usage_prefers_available_call_log_cost() -> None:
     assert cost == 0.42
 
 
-def test_build_admin_conversation_item_uses_call_log_aggregate_when_stats_missing() -> None:
+def test_build_admin_conversation_item_uses_call_log_aggregate_when_stats_missing() -> (
+    None
+):
     conversation = _make_conversation(token_count=0, cost=0)
 
     item = _build_admin_conversation_item(
         conversation,
         tenant_map={0: {"name": "平台管理端", "code": "platform"}},
-        user_map={"0:1": {"username": "admin", "nickname": "超级管理员", "avatar": None}},
+        user_map={
+            "0:1": {"username": "admin", "nickname": "超级管理员", "avatar": None}
+        },
         usage_map={448: {"total_tokens": 200, "total_cost": 0.66}},
     )
 

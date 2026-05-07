@@ -75,7 +75,9 @@ class TenantStorageAdminService:
             "tenant_storage_self_config_enabled": bool(tenant_self_enabled),
         }
 
-    async def update_tenant_storage_config(self, *, data: dict[str, Any], tenant_id: int) -> None:
+    async def update_tenant_storage_config(
+        self, *, data: dict[str, Any], tenant_id: int
+    ) -> None:
         mode = data.get("tenant_storage_mode")
         if mode == "admin_override":
             driver = data.get("tenant_storage_driver")
@@ -112,7 +114,9 @@ class TenantStorageAdminService:
         from app.storage.base import StorageConfig
 
         if driver == "local":
-            return build_inline_error_result(_("config.storage.local_not_allowed_for_tenant"))
+            return build_inline_error_result(
+                _("config.storage.local_not_allowed_for_tenant")
+            )
 
         try:
             storage_config = StorageConfig(
@@ -127,7 +131,9 @@ class TenantStorageAdminService:
             await driver_instance.put(test_key, test_content, mime_type="text/plain")
             exists = await driver_instance.exists(test_key)
             if not exists:
-                return build_inline_error_result(_("config.storage.test_file_not_found"))
+                return build_inline_error_result(
+                    _("config.storage.test_file_not_found")
+                )
             await driver_instance.delete(test_key)
             return {"success": True}
         except Exception as exc:

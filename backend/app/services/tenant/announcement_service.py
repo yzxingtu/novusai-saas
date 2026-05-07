@@ -312,8 +312,8 @@ class AnnouncementBusinessMixin:
             delivery=delivery
         )
 
-        announcement.response_count = await self._response_repo().count_for_announcement(
-            announcement.id
+        announcement.response_count = (
+            await self._response_repo().count_for_announcement(announcement.id)
         )
         announcement.updated_at = utc_now()
         await self.db.flush()
@@ -455,7 +455,9 @@ class AnnouncementBusinessMixin:
                 data={"errors": ["answers_must_be_object"]},
             )
 
-        schema_by_key = {field["key"]: field for field in cls.validate_form_schema(form_schema)}
+        schema_by_key = {
+            field["key"]: field for field in cls.validate_form_schema(form_schema)
+        }
         unknown_keys = sorted(set(answers) - set(schema_by_key))
         errors = [f"{key}.unknown" for key in unknown_keys]
         sanitized: dict[str, Any] = {}

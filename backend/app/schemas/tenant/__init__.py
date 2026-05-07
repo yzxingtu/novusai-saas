@@ -13,7 +13,6 @@ from app.schemas.tenant.admin import (
     TenantAdminUpdateProfileRequest,
     TenantAdminUpdateRequest,
 )
-from app.schemas.tenant.attachment import AttachmentAccessUrlResponse
 from app.schemas.tenant.announcement import (
     AdminAnnouncementResponse,
     AnnouncementAnswerSubmit,
@@ -27,6 +26,7 @@ from app.schemas.tenant.announcement import (
     PendingAnnouncementResponse,
     TenantAnnouncementResponse,
 )
+from app.schemas.tenant.attachment import AttachmentAccessUrlResponse
 from app.schemas.tenant.domain import (
     DevHostDomainStatus,
     DevHostMutationResponse,

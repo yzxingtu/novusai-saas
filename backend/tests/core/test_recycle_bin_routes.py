@@ -15,7 +15,7 @@ from app.enums.common import DeleteLevelEnum, RecycleStageEnum
 
 
 class _RouteService:
-    instances: list["_RouteService"] = []
+    instances: list[_RouteService] = []
 
     def __init__(self, db, tenant_id: int | None = None):
         self.db = db
@@ -114,7 +114,9 @@ def test_admin_recycle_bin_static_batch_routes_precede_dynamic_item_routes() -> 
     )
 
 
-def test_admin_periodic_task_controller_registers_recycle_bin_before_task_id_routes() -> None:
+def test_admin_periodic_task_controller_registers_recycle_bin_before_task_id_routes() -> (
+    None
+):
     paths = [route.path for route in admin_periodic_tasks_router.routes]
 
     assert paths.index("/periodic-tasks/recycle-bin") < paths.index(

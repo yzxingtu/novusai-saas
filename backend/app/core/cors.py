@@ -61,9 +61,7 @@ def _is_local_debug_origin(host: str) -> bool:
 
 
 def _is_explicit_origin_allowed(origin: str) -> bool:
-    allowed_origins = {
-        _normalize_origin(item) for item in settings.cors_origins_list
-    }
+    allowed_origins = {_normalize_origin(item) for item in settings.cors_origins_list}
     return origin in allowed_origins
 
 

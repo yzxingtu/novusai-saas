@@ -67,8 +67,12 @@ def _return(value):
 
 def test_list_periodic_tasks_route_returns_paginated_payload(monkeypatch) -> None:
     periodic_tasks_module = _load_periodic_tasks_module()
-    monkeypatch.setattr(periodic_tasks_module.AdminPeriodicTaskController, "_instance", None)
-    monkeypatch.setattr(periodic_tasks_module.AdminPeriodicTaskController, "_router", None)
+    monkeypatch.setattr(
+        periodic_tasks_module.AdminPeriodicTaskController, "_instance", None
+    )
+    monkeypatch.setattr(
+        periodic_tasks_module.AdminPeriodicTaskController, "_router", None
+    )
 
     definition = SimpleNamespace(id=4)
     service = SimpleNamespace(query_list=AsyncMock(return_value=([definition], 1)))
@@ -156,8 +160,12 @@ def test_create_periodic_task_route_maps_request_fields_and_syncs_bindings(
     monkeypatch,
 ) -> None:
     periodic_tasks_module = _load_periodic_tasks_module()
-    monkeypatch.setattr(periodic_tasks_module.AdminPeriodicTaskController, "_instance", None)
-    monkeypatch.setattr(periodic_tasks_module.AdminPeriodicTaskController, "_router", None)
+    monkeypatch.setattr(
+        periodic_tasks_module.AdminPeriodicTaskController, "_instance", None
+    )
+    monkeypatch.setattr(
+        periodic_tasks_module.AdminPeriodicTaskController, "_router", None
+    )
 
     created_definition = SimpleNamespace(id=12)
     hydrated_definition = SimpleNamespace(id=12)
@@ -279,11 +287,17 @@ def test_sync_bindings_route_preserves_explicit_scope_when_request_omits_scope(
     monkeypatch,
 ) -> None:
     periodic_tasks_module = _load_periodic_tasks_module()
-    monkeypatch.setattr(periodic_tasks_module.AdminPeriodicTaskController, "_instance", None)
-    monkeypatch.setattr(periodic_tasks_module.AdminPeriodicTaskController, "_router", None)
+    monkeypatch.setattr(
+        periodic_tasks_module.AdminPeriodicTaskController, "_instance", None
+    )
+    monkeypatch.setattr(
+        periodic_tasks_module.AdminPeriodicTaskController, "_router", None
+    )
 
     service = SimpleNamespace(
-        get_by_id=AsyncMock(return_value=SimpleNamespace(id=18, scope="selected_tenants"))
+        get_by_id=AsyncMock(
+            return_value=SimpleNamespace(id=18, scope="selected_tenants")
+        )
     )
     binding_service = SimpleNamespace(
         resolve_target_tenant_ids=AsyncMock(return_value=[8, 9]),
@@ -349,8 +363,12 @@ def test_sync_bindings_route_preserves_explicit_scope_when_request_omits_scope(
 
 def test_trigger_periodic_task_route_returns_full_dispatch_payload(monkeypatch) -> None:
     periodic_tasks_module = _load_periodic_tasks_module()
-    monkeypatch.setattr(periodic_tasks_module.AdminPeriodicTaskController, "_instance", None)
-    monkeypatch.setattr(periodic_tasks_module.AdminPeriodicTaskController, "_router", None)
+    monkeypatch.setattr(
+        periodic_tasks_module.AdminPeriodicTaskController, "_instance", None
+    )
+    monkeypatch.setattr(
+        periodic_tasks_module.AdminPeriodicTaskController, "_router", None
+    )
 
     dispatch_payload = {
         "triggered_task_id": "binding-task-1",

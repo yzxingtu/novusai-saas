@@ -45,12 +45,15 @@ async def test_update_skill_binding_uses_grant_id_keyword() -> None:
     grant_service.update_grant = AsyncMock(return_value=updated)
     grant_service.serialize_grant_public = MagicMock(return_value={"id": 16})
 
-    with patch(
-        "app.api.admin.agents.AdminAgentService",
-        return_value=admin_agent_service,
-    ), patch(
-        "app.api.admin.agents.AgentSkillGrantService",
-        return_value=grant_service,
+    with (
+        patch(
+            "app.api.admin.agents.AdminAgentService",
+            return_value=admin_agent_service,
+        ),
+        patch(
+            "app.api.admin.agents.AgentSkillGrantService",
+            return_value=grant_service,
+        ),
     ):
         response = await endpoint(
             request,

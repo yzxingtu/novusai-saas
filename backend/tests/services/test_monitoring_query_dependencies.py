@@ -34,7 +34,9 @@ def test_resolve_monitoring_query_dependencies_prefers_owner_chain_overrides() -
         _MonitoringServiceOwner(),
     )
 
-    assert dependencies.tenant_conversation_service_factory is _CustomConversationService
+    assert (
+        dependencies.tenant_conversation_service_factory is _CustomConversationService
+    )
     assert dependencies.conversation_service_cls is _CustomConversationService
     assert (
         dependencies.admin_conversation_repo_factory
@@ -60,10 +62,7 @@ def test_resolve_monitoring_query_dependencies_ignores_module_shadow_symbols() -
         "AdminAgentConversationRepository": _CustomAdminConversationRepository,
         "AgentConversationRepository": _CustomTenantConversationRepository,
     }
-    previous_symbols = {
-        name: globals().get(name)
-        for name in shadowed_symbols
-    }
+    previous_symbols = {name: globals().get(name) for name in shadowed_symbols}
     globals().update(shadowed_symbols)
     try:
         dependencies = resolve_monitoring_conversation_query_dependencies(
@@ -79,10 +78,6 @@ def test_resolve_monitoring_query_dependencies_ignores_module_shadow_symbols() -
     assert dependencies.tenant_conversation_service_factory is ConversationService
     assert dependencies.conversation_service_cls is ConversationService
     assert (
-        dependencies.admin_conversation_repo_factory
-        is AdminAgentConversationRepository
+        dependencies.admin_conversation_repo_factory is AdminAgentConversationRepository
     )
-    assert (
-        dependencies.tenant_conversation_repo_factory
-        is AgentConversationRepository
-    )
+    assert dependencies.tenant_conversation_repo_factory is AgentConversationRepository

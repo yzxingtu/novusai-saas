@@ -178,7 +178,9 @@ async def test_registry_connection(
         if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
             from app.exceptions.base import ValidationException
 
-            raise ValidationException(message=_("plugin.error.invalid_registry_private_ip"))
+            raise ValidationException(
+                message=_("plugin.error.invalid_registry_private_ip")
+            )
     except ValueError as exc:
         if hostname not in allowed_hosts:
             from app.exceptions.base import ValidationException
@@ -402,7 +404,9 @@ class PluginInstallPreviewService:
                 slug,
                 manifest.name,
             )
-            plugin = await self._plugin_service.install_from_path(plugin_dir, body.config)
+            plugin = await self._plugin_service.install_from_path(
+                plugin_dir, body.config
+            )
             plugin.install_source = PluginInstallSourceEnum.MARKETPLACE.value
             plugin.marketplace_slug = slug
             await self._db.flush()

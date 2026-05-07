@@ -213,7 +213,9 @@ class AdminAnnouncementController(GlobalController):
             service = AdminAnnouncementService(db)
             deliveries = await service.list_responses(id)
             return success(
-                data=[AnnouncementDeliveryResponse.from_delivery(i) for i in deliveries],
+                data=[
+                    AnnouncementDeliveryResponse.from_delivery(i) for i in deliveries
+                ],
                 message=_("common.success"),
             )
 

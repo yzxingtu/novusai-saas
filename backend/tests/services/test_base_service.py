@@ -15,7 +15,6 @@ class _DummyService(BaseService[MagicMock, AsyncMock]):
 
 
 class TestBaseServiceDelete:
-
     @pytest.mark.asyncio
     async def test_delete_soft_missing_raises_not_found(self, mock_db):
         from app.exceptions import NotFoundException

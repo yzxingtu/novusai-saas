@@ -14,31 +14,40 @@ import pytest
 pytest.importorskip("redis", reason="redis package required for auth_service import")
 
 
-
 class TestAuthServiceForceLogout:
     """AuthService.force_logout 测试 / AuthService.force_logout tests."""
 
     @pytest.mark.asyncio
-    async def test_force_logout_revokes_tokens_and_emits_event(self, mock_db, mock_redis):
+    async def test_force_logout_revokes_tokens_and_emits_event(
+        self, mock_db, mock_redis
+    ):
         """强制下线应吊销 Redis 中所有 Token 并发送 force_logout 事件 / Force logout revokes tokens and emits event."""
         from app.services.common.auth_service import AuthService
 
-        mock_redis.hgetall = AsyncMock(return_value={
-            "access-jti-1": "refresh-jti-1",
-            "access-jti-2": "refresh-jti-2",
-        })
+        mock_redis.hgetall = AsyncMock(
+            return_value={
+                "access-jti-1": "refresh-jti-1",
+                "access-jti-2": "refresh-jti-2",
+            }
+        )
         mock_redis.delete = AsyncMock(return_value=1)
 
-        with patch(
-            "app.services.common.auth_domains.session_password.get_redis_client",
-            return_value=mock_redis,
-        ), \
-             patch(
-                 "app.services.common.auth_domains.session_password.revoke_token",
-                 new_callable=AsyncMock,
-             ) as mock_revoke, \
-             patch("app.sio.presence.PresenceManager.set_offline", new_callable=AsyncMock) as mock_offline, \
-             patch("app.core.sio_bridge.emit_force_logout", new_callable=AsyncMock) as mock_emit:
+        with (
+            patch(
+                "app.services.common.auth_domains.session_password.get_redis_client",
+                return_value=mock_redis,
+            ),
+            patch(
+                "app.services.common.auth_domains.session_password.revoke_token",
+                new_callable=AsyncMock,
+            ) as mock_revoke,
+            patch(
+                "app.sio.presence.PresenceManager.set_offline", new_callable=AsyncMock
+            ) as mock_offline,
+            patch(
+                "app.core.sio_bridge.emit_force_logout", new_callable=AsyncMock
+            ) as mock_emit,
+        ):
             service = AuthService(mock_db)
             await service.force_logout("tenant_admin", user_id=5, tenant_id=10)
 
@@ -72,21 +81,29 @@ class TestAuthServiceForceLogout:
             assert mock_sio2.emit.call_args[1]["namespace"] == NS_MAP["tenant_user"]
 
     @pytest.mark.asyncio
-    async def test_force_logout_empty_tokens_still_emits_and_clears_presence(self, mock_db, mock_redis):
+    async def test_force_logout_empty_tokens_still_emits_and_clears_presence(
+        self, mock_db, mock_redis
+    ):
         """无活跃 Token 时仍应清除 presence 并发送事件 / No tokens still clears presence and emits."""
         from app.services.common.auth_service import AuthService
 
         mock_redis.hgetall = AsyncMock(return_value={})
-        with patch(
-            "app.services.common.auth_domains.session_password.get_redis_client",
-            return_value=mock_redis,
-        ), \
-             patch(
-                 "app.services.common.auth_domains.session_password.revoke_token",
-                 new_callable=AsyncMock,
-             ) as mock_revoke, \
-             patch("app.sio.presence.PresenceManager.set_offline", new_callable=AsyncMock) as mock_offline, \
-             patch("app.core.sio_bridge.emit_force_logout", new_callable=AsyncMock) as mock_emit:
+        with (
+            patch(
+                "app.services.common.auth_domains.session_password.get_redis_client",
+                return_value=mock_redis,
+            ),
+            patch(
+                "app.services.common.auth_domains.session_password.revoke_token",
+                new_callable=AsyncMock,
+            ) as mock_revoke,
+            patch(
+                "app.sio.presence.PresenceManager.set_offline", new_callable=AsyncMock
+            ) as mock_offline,
+            patch(
+                "app.core.sio_bridge.emit_force_logout", new_callable=AsyncMock
+            ) as mock_emit,
+        ):
             service = AuthService(mock_db)
             await service.force_logout("admin", user_id=1, tenant_id=None)
 

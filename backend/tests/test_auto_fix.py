@@ -72,7 +72,11 @@ def _project_with_missing_ref() -> dict:
             _entity("order", "orders", "订单"),
         ],
         "cross_relations": [
-            {"source_entity": "order", "target_entity": "customer", "relation_type": "belongs_to"},
+            {
+                "source_entity": "order",
+                "target_entity": "customer",
+                "relation_type": "belongs_to",
+            },
         ],
     }
 
@@ -123,7 +127,11 @@ class TestBuildFixInstructions:
 
     def test_with_issues(self):
         issues = [
-            {"code": "cycle_detected", "message": "Cycle: a → b → a", "related_nodes": ["a", "b"]},
+            {
+                "code": "cycle_detected",
+                "message": "Cycle: a → b → a",
+                "related_nodes": ["a", "b"],
+            },
             {"code": "missing_entity", "message": "Entity 'customer' not found"},
         ]
         result = build_fix_instructions(issues)
@@ -141,7 +149,9 @@ class TestSuggestHumanSteps:
     """人工步骤建议 / Description."""
 
     def test_cycle_suggestion(self):
-        issues = [{"code": "cycle_detected", "message": "Cycle", "related_nodes": ["a", "b"]}]
+        issues = [
+            {"code": "cycle_detected", "message": "Cycle", "related_nodes": ["a", "b"]}
+        ]
         steps = suggest_human_steps(issues)
         assert len(steps) > 0
         assert any("circular" in s.lower() or "cycle" in s.lower() for s in steps)

@@ -61,9 +61,7 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
             self._identity_facade,
         )
         self._permission_facade = _OperationLogPermissionFacade(db, self.repo)
-        self._serializer_facade = _OperationLogSerializerFacade(
-            self._identity_facade
-        )
+        self._serializer_facade = _OperationLogSerializerFacade(self._identity_facade)
 
     def _get_identity_facade(self) -> _OperationLogIdentityFacade:
         facade = getattr(self, "_identity_facade", None)

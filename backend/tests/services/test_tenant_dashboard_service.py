@@ -16,7 +16,6 @@ from tests.services.conftest import (
 
 
 class TestTenantDashboardService:
-
     @pytest.mark.asyncio
     async def test_count_visible_agents_uses_owner_tenant_visibility(self, mock_db):
         from app.services.system.dashboard_service import TenantDashboardService
@@ -117,7 +116,9 @@ class TestTenantDashboardService:
         service.db = mock_db
         service.tenant_id = 7
         service.get_stats = AsyncMock(return_value={"total_users": 3})
-        service.get_ai_trend = AsyncMock(return_value=[{"date": "2026-03-22", "calls": 4, "tokens": 20}])
+        service.get_ai_trend = AsyncMock(
+            return_value=[{"date": "2026-03-22", "calls": 4, "tokens": 20}]
+        )
         service.get_storage_detail = AsyncMock(return_value={"total_files": 6})
         service.get_recent_activities = AsyncMock(return_value=[{"id": 9}])
 

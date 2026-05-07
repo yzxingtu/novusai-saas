@@ -17,7 +17,6 @@ from app.tasks.scheduled import (
     LITELLM_REGISTRY_URLS,
     _build_registry_from_litellm,
     _find_registry_key_for_model_id,
-    _is_valid_litellm_entry,
     _merge_entry_fill_empty,
     _merge_llmring_into_registry,
     _normalize_llmring_entry,
@@ -95,36 +94,28 @@ class TestFindRegistryKeyForModelId:
     def test_reg_key_exists_returns_it(self) -> None:
         registry = {"openai/gpt-4.1": {"max_input_tokens": 128}}
         assert (
-            _find_registry_key_for_model_id(
-                registry, "gpt-4.1", "openai/gpt-4.1"
-            )
+            _find_registry_key_for_model_id(registry, "gpt-4.1", "openai/gpt-4.1")
             == "openai/gpt-4.1"
         )
 
     def test_model_id_suffix_match(self) -> None:
         registry = {"openai/gpt-4.1": {}}
         assert (
-            _find_registry_key_for_model_id(
-                registry, "gpt-4.1", "other/key"
-            )
+            _find_registry_key_for_model_id(registry, "gpt-4.1", "other/key")
             == "openai/gpt-4.1"
         )
 
     def test_exact_model_id_match(self) -> None:
         registry = {"gpt-4.1": {}}
         assert (
-            _find_registry_key_for_model_id(
-                registry, "gpt-4.1", "openai/gpt-4.1"
-            )
+            _find_registry_key_for_model_id(registry, "gpt-4.1", "openai/gpt-4.1")
             == "gpt-4.1"
         )
 
     def test_not_found_returns_none(self) -> None:
         registry = {"other/model": {}}
         assert (
-            _find_registry_key_for_model_id(
-                registry, "gpt-4.1", "openai/gpt-4.1"
-            )
+            _find_registry_key_for_model_id(registry, "gpt-4.1", "openai/gpt-4.1")
             is None
         )
 
@@ -153,11 +144,7 @@ class TestMergeLlmringIntoRegistry:
 
     def test_new_key_added_when_not_found(self) -> None:
         registry = {}
-        payload = {
-            "models": {
-                "openai:gpt-4.1": {"max_input_tokens": 128}
-            }
-        }
+        payload = {"models": {"openai:gpt-4.1": {"max_input_tokens": 128}}}
         added = _merge_llmring_into_registry(registry, payload)
         assert added == 1
         assert "openai/gpt-4.1" in registry
@@ -166,11 +153,7 @@ class TestMergeLlmringIntoRegistry:
     def test_empty_normalized_skipped(self) -> None:
         """Empty normalized entry must not add key. / 空归一化条目不新增 key"""
         registry = {}
-        payload = {
-            "models": {
-                "openai:empty-model": {}
-            }
-        }
+        payload = {"models": {"openai:empty-model": {}}}
         added = _merge_llmring_into_registry(registry, payload)
         assert added == 0
         assert "openai/empty-model" not in registry
@@ -321,7 +304,9 @@ class TestSyncLitellmRegistryTask:
                 return litellm_resp
             r = MagicMock()
             r.raise_for_status = MagicMock()
-            r.json.return_value = {"models": {"openai:gpt-4": {"max_input_tokens": 128}}}
+            r.json.return_value = {
+                "models": {"openai:gpt-4": {"max_input_tokens": 128}}
+            }
             return r
 
         mock_get.side_effect = get_side_effect

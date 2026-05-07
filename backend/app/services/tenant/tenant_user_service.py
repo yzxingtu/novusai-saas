@@ -13,11 +13,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.core.base_service import TenantService
+from app.core.i18n import _
 from app.core.identity import (
     build_identity_select_extra,
     resolve_identity_display_name,
 )
-from app.core.i18n import _
 from app.core.security import get_password_hash
 from app.enums import ErrorCode
 from app.enums.common import ApprovalStatusEnum
@@ -494,5 +494,6 @@ class TenantUserService(TenantService[TenantUser, TenantUserRepository]):
             ),
             disabled=not user.is_active,
         )
+
 
 __all__ = ["TenantUserService"]

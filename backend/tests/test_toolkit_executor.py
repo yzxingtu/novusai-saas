@@ -118,7 +118,7 @@ async def test_sync_method_preserves_contextvars_in_threadpool(monkeypatch):
     module.Tools = Tools
     monkeypatch.setattr(
         "app.ai.tools.executors.toolkit_executor._load_toolkit_module",
-        lambda source: module,
+        lambda _source: module,
     )
 
     executor = ToolkitExecutor(sandbox_mode="inprocess")
@@ -138,7 +138,8 @@ async def test_sync_method_preserves_contextvars_in_threadpool(monkeypatch):
 async def test_valves_injection():
     executor = ToolkitExecutor()
     defn = _make_definition(
-        "greet", "greet",
+        "greet",
+        "greet",
         valves_config={"greeting": "Hi there"},
     )
     result = await executor.execute(defn, "call3", {"name": "Alice"})
@@ -269,7 +270,8 @@ class Tools:
 async def test_validate():
     executor = ToolkitExecutor()
     defn = _make_definition(
-        "greet", "greet",
+        "greet",
+        "greet",
         params=[ToolParameter(name="name", type="string", required=True)],
     )
     assert await executor.validate(defn, {"name": "test"}) is True

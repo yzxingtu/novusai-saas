@@ -28,7 +28,18 @@ SKIP_DIR_NAMES = {
 
 SKIP_DIR_PREFIXES = (".",)
 
-TEXT_EXT = {".py", ".ts", ".tsx", ".vue", ".js", ".mjs", ".cjs", ".css", ".scss", ".less"}
+TEXT_EXT = {
+    ".py",
+    ".ts",
+    ".tsx",
+    ".vue",
+    ".js",
+    ".mjs",
+    ".cjs",
+    ".css",
+    ".scss",
+    ".less",
+}
 
 
 def has_cjk(s: str) -> bool:
@@ -41,9 +52,7 @@ def has_latin_word(s: str) -> bool:
 
 def is_bilingual_comment(s: str) -> bool:
     s = s.strip()
-    if has_cjk(s) and has_latin_word(s):
-        return True
-    return False
+    return bool(has_cjk(s) and has_latin_word(s))
 
 
 def skip_comment_text(t: str) -> bool:
@@ -56,14 +65,22 @@ def skip_comment_text(t: str) -> bool:
         return True
     low = t.lower()
     if low.startswith(
-        ("eslint", "prettier", "stylelint", "noinspection", "type:", "vitest", "cspell", "volar", "ts-ignore")
+        (
+            "eslint",
+            "prettier",
+            "stylelint",
+            "noinspection",
+            "type:",
+            "vitest",
+            "cspell",
+            "volar",
+            "ts-ignore",
+        )
     ):
         return True
     if t in ("-", "*", "---", "...", "fmt:", "noqa", "noqa:"):
         return True
-    if re.fullmatch(r"[#=*\-]{2,}", t):
-        return True
-    return False
+    return bool(re.fullmatch(r"[#=*\-]{2,}", t))
 
 
 def py_inline_comment(line: str) -> str | None:
@@ -155,7 +172,9 @@ def scan_file(path: Path) -> list[dict]:
                 continue
             kind = classify_comment(c)
             if kind:
-                hits.append({"file": str(path), "line": no, "kind": kind, "text": c[:500]})
+                hits.append(
+                    {"file": str(path), "line": no, "kind": kind, "text": c[:500]}
+                )
         return hits
     if ext in {".ts", ".tsx", ".js", ".mjs", ".cjs"}:
         for no, line in enumerate(lines, 1):
@@ -164,7 +183,9 @@ def scan_file(path: Path) -> list[dict]:
                 continue
             kind = classify_comment(c)
             if kind:
-                hits.append({"file": str(path), "line": no, "kind": kind, "text": c[:500]})
+                hits.append(
+                    {"file": str(path), "line": no, "kind": kind, "text": c[:500]}
+                )
         return hits
     if ext == ".py":
         for no, line in enumerate(lines, 1):
@@ -173,7 +194,9 @@ def scan_file(path: Path) -> list[dict]:
                 continue
             kind = classify_comment(c)
             if kind:
-                hits.append({"file": str(path), "line": no, "kind": kind, "text": c[:500]})
+                hits.append(
+                    {"file": str(path), "line": no, "kind": kind, "text": c[:500]}
+                )
         return hits
     if ext in {".css", ".scss", ".less"}:
         for no, line in enumerate(lines, 1):
@@ -185,14 +208,23 @@ def scan_file(path: Path) -> list[dict]:
                     c = m.group(1)
                     kind = classify_comment(c)
                     if kind:
-                        hits.append({"file": str(path), "line": no, "kind": kind, "text": c[:500]})
+                        hits.append(
+                            {
+                                "file": str(path),
+                                "line": no,
+                                "kind": kind,
+                                "text": c[:500],
+                            }
+                        )
         return hits
     return hits
 
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("roots", nargs="*", default=["backend/app", "frontend", "backend/plugins"])
+    ap.add_argument(
+        "roots", nargs="*", default=["backend/app", "frontend", "backend/plugins"]
+    )
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args()
     all_hits: list[dict] = []

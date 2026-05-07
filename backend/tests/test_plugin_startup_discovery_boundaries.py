@@ -122,9 +122,15 @@ async def test_restore_refuses_disk_version_drift(
     )
 
     plugins_dir = tmp_path / "plugins"
-    (plugins_dir / "demo-plugin" / "frontend" / "dist").mkdir(parents=True, exist_ok=True)
-    (plugins_dir / "demo-plugin" / "frontend" / "dist" / "index.js").write_text("window.demo = {};\n", encoding="utf-8")
-    (plugins_dir / "demo-plugin" / "frontend" / "dist" / "plugin.manifest.json").write_text(
+    (plugins_dir / "demo-plugin" / "frontend" / "dist").mkdir(
+        parents=True, exist_ok=True
+    )
+    (plugins_dir / "demo-plugin" / "frontend" / "dist" / "index.js").write_text(
+        "window.demo = {};\n", encoding="utf-8"
+    )
+    (
+        plugins_dir / "demo-plugin" / "frontend" / "dist" / "plugin.manifest.json"
+    ).write_text(
         '{"format":"novus.plugin.release.v1","entry":"index.js","global_var":"NovusPlugin_demo_plugin","css":[]}',
         encoding="utf-8",
     )
@@ -176,13 +182,15 @@ async def test_discover_reconciles_stale_scope_error_when_manifest_is_now_canoni
 ) -> None:
     from app.plugins.manifest import PluginManifest
 
-    canonical_manifest = PluginManifest.model_validate({
-        "name": "weather-widget",
-        "version": "1.0.0",
-        "display_name": {"en": "Weather Widget"},
-        "scope": "admin_and_selected_tenants",
-        "capabilities": [],
-    }).model_dump()
+    canonical_manifest = PluginManifest.model_validate(
+        {
+            "name": "weather-widget",
+            "version": "1.0.0",
+            "display_name": {"en": "Weather Widget"},
+            "scope": "admin_and_selected_tenants",
+            "capabilities": [],
+        }
+    ).model_dump()
 
     existing_plugin = SimpleNamespace(
         name="weather-widget",

@@ -26,9 +26,7 @@ def build_generation_context(parsed: ParsedConfig) -> dict:
         if (e or {}).get("scope") in ("tenant", "tenant_only")
     ]
     admin_only_eps = [e for e in admin_eps if (e or {}).get("scope") == "admin_only"]
-    tenant_only_eps = [
-        e for e in tenant_eps if (e or {}).get("scope") == "tenant_only"
-    ]
+    tenant_only_eps = [e for e in tenant_eps if (e or {}).get("scope") == "tenant_only"]
     admin_ep = admin_eps[0] if admin_eps else {}
     tenant_ep = tenant_eps[0] if tenant_eps else {}
     toggle_field = ""
@@ -105,4 +103,3 @@ def build_generation_context(parsed: ParsedConfig) -> dict:
 
 
 __all__ = ["build_generation_context"]
-

@@ -39,7 +39,9 @@ def test_ready_ok_when_database_available(app) -> None:
     assert body.get("data", {}).get("database") == "ok"
 
 
-def test_ready_503_when_session_factory_raises(app, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_ready_503_when_session_factory_raises(
+    app, monkeypatch: pytest.MonkeyPatch
+) -> None:
     # Patch only after lifespan startup (real DB), so /ready sees a broken factory.
     # / 仅在启动完成后再替换工厂，避免 lifespan 阶段失败。
     with TestClient(app) as client:

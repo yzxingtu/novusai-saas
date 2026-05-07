@@ -249,7 +249,9 @@ async def test_require_admin_enabled_accepts_allowed_plain_input_action() -> Non
 
 
 @pytest.mark.asyncio
-async def test_tenant_policy_uses_platform_default_when_tenant_has_no_override() -> None:
+async def test_tenant_policy_uses_platform_default_when_tenant_has_no_override() -> (
+    None
+):
     config_service = AsyncMock()
     config_service.get_platform_config = AsyncMock(
         side_effect=[
@@ -280,7 +282,9 @@ async def test_tenant_policy_uses_platform_default_when_tenant_has_no_override()
 
 
 @pytest.mark.asyncio
-async def test_tenant_policy_requires_platform_allow_tenant_personal_and_account() -> None:
+async def test_tenant_policy_requires_platform_allow_tenant_personal_and_account() -> (
+    None
+):
     config_service = AsyncMock()
     config_service.get_platform_config = AsyncMock(
         side_effect=[

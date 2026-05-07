@@ -13,7 +13,9 @@ def _build_license_key(plugin_name: str) -> str:
         "buyer": "tester@example.com",
         "issued_at": 1700000000,
     }
-    payload_json = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    payload_json = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode(
+        "utf-8"
+    )
     payload_b64 = base64.urlsafe_b64encode(payload_json).decode("ascii")
     return f"NOVUS-{payload_b64}.signature-placeholder"
 
@@ -28,7 +30,9 @@ def test_verify_license_key_without_public_key_fails_in_production(monkeypatch) 
     assert verify_license_key(key, "demo-plugin") is None
 
 
-def test_verify_license_key_without_public_key_allows_debug_fallback(monkeypatch) -> None:
+def test_verify_license_key_without_public_key_allows_debug_fallback(
+    monkeypatch,
+) -> None:
     from app.plugins.license import verify_license_key
 
     monkeypatch.delenv("NOVUSAI_LICENSE_PUBLIC_KEY", raising=False)
@@ -41,7 +45,9 @@ def test_verify_license_key_without_public_key_allows_debug_fallback(monkeypatch
     assert parsed.get("plugin") == "demo-plugin"
 
 
-def test_verify_license_key_without_public_key_rejects_plugin_mismatch_in_debug(monkeypatch) -> None:
+def test_verify_license_key_without_public_key_rejects_plugin_mismatch_in_debug(
+    monkeypatch,
+) -> None:
     from app.plugins.license import verify_license_key
 
     monkeypatch.delenv("NOVUSAI_LICENSE_PUBLIC_KEY", raising=False)

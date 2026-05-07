@@ -27,9 +27,10 @@ def test_last_visible_assistant_content_ignores_previous_round_messages() -> Non
         ),
     ]
     start_index = 1
-    assert StreamExecutionHandler._last_visible_assistant_content(
-        messages[start_index:]
-    ) == ""
+    assert (
+        StreamExecutionHandler._last_visible_assistant_content(messages[start_index:])
+        == ""
+    )
 
 
 class _StubEngine:

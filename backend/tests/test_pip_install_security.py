@@ -19,23 +19,26 @@ from app.plugins.security import (
 class TestParsePackageName:
     """Test requirement line parsing. / 测试"""
 
-    @pytest.mark.parametrize("line, expected", [
-        ("requests", "requests"),
-        ("requests>=2.28.0", "requests"),
-        ("requests==2.28.0", "requests"),
-        ("requests~=2.28", "requests"),
-        ("requests<=3.0", "requests"),
-        ("requests!=2.25", "requests"),
-        ("requests>2.0", "requests"),
-        ("requests<3.0", "requests"),
-        ("pydantic[email]>=2.0", "pydantic"),
-        ("pydantic[email,dotenv]~=2.0", "pydantic"),
-        ("beautifulsoup4==4.12.2", "beautifulsoup4"),
-        ("  httpx  ", "httpx"),
-        ("numpy;python_version>='3.8'", "numpy"),
-        ("PyYAML>=6.0", "pyyaml"),
-        ("Pillow>=9.0", "pillow"),
-    ])
+    @pytest.mark.parametrize(
+        "line, expected",
+        [
+            ("requests", "requests"),
+            ("requests>=2.28.0", "requests"),
+            ("requests==2.28.0", "requests"),
+            ("requests~=2.28", "requests"),
+            ("requests<=3.0", "requests"),
+            ("requests!=2.25", "requests"),
+            ("requests>2.0", "requests"),
+            ("requests<3.0", "requests"),
+            ("pydantic[email]>=2.0", "pydantic"),
+            ("pydantic[email,dotenv]~=2.0", "pydantic"),
+            ("beautifulsoup4==4.12.2", "beautifulsoup4"),
+            ("  httpx  ", "httpx"),
+            ("numpy;python_version>='3.8'", "numpy"),
+            ("PyYAML>=6.0", "pyyaml"),
+            ("Pillow>=9.0", "pillow"),
+        ],
+    )
     def test_parse_valid(self, line: str, expected: str) -> None:
         assert _parse_package_name(line) == expected
 
@@ -102,23 +105,42 @@ class TestValidateRequirements:
 class TestAllowedPackages:
     """Test that common packages are in the whitelist. / 测试"""
 
-    @pytest.mark.parametrize("pkg", [
-        "requests", "httpx", "aiohttp",
-        "beautifulsoup4", "pydantic",
-        "numpy", "pandas",
-        "openai", "anthropic",
-        "redis", "boto3",
-        "pillow", "jinja2",
-        "cryptography", "pyjwt",
-        "tenacity", "click",
-    ])
+    @pytest.mark.parametrize(
+        "pkg",
+        [
+            "requests",
+            "httpx",
+            "aiohttp",
+            "beautifulsoup4",
+            "pydantic",
+            "numpy",
+            "pandas",
+            "openai",
+            "anthropic",
+            "redis",
+            "boto3",
+            "pillow",
+            "jinja2",
+            "cryptography",
+            "pyjwt",
+            "tenacity",
+            "click",
+        ],
+    )
     def test_common_packages_allowed(self, pkg: str) -> None:
         assert pkg in ALLOWED_PACKAGES
 
-    @pytest.mark.parametrize("pkg", [
-        "os", "sys", "subprocess",
-        "pickle", "marshal",
-        "ctypes", "socket",
-    ])
+    @pytest.mark.parametrize(
+        "pkg",
+        [
+            "os",
+            "sys",
+            "subprocess",
+            "pickle",
+            "marshal",
+            "ctypes",
+            "socket",
+        ],
+    )
     def test_dangerous_packages_not_allowed(self, pkg: str) -> None:
         assert pkg not in ALLOWED_PACKAGES

@@ -249,14 +249,15 @@ class _OperationLogOperatorFacade:
             )
         return items, total
 
-    async def _load_identity_meta_map(self, rows: list[Any]) -> dict[tuple[str, int], dict[str, Any]]:
+    async def _load_identity_meta_map(
+        self, rows: list[Any]
+    ) -> dict[tuple[str, int], dict[str, Any]]:
         return await self.identity.load_identity_meta_map(
             {
                 ref
                 for row in rows
-                if (
-                    ref := self.identity.identity_ref(row.user_type, row.user_id)
-                ) is not None
+                if (ref := self.identity.identity_ref(row.user_type, row.user_id))
+                is not None
             }
         )
 

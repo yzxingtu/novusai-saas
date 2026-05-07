@@ -45,7 +45,6 @@ class AdminRole(BaseModel):
 
     __tablename__ = "admin_roles"
 
-
     __delete_deps__ = [
         DeletionDep(
             "Admin",

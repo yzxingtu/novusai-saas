@@ -54,7 +54,6 @@ class TenantPlan(BaseModel):
 
     __tablename__ = "tenant_plans"
 
-
     __delete_deps__ = [
         DeletionDep(
             "Tenant",

@@ -20,7 +20,9 @@ async def run_daily_reconciliation() -> dict:
         )
         result = await service.run_daily_reconciliation()
         await db.commit()
-        logger.info("Storage billing daily reconciliation finished: {}", result.get("run", {}))
+        logger.info(
+            "Storage billing daily reconciliation finished: {}", result.get("run", {})
+        )
         return result
 
 

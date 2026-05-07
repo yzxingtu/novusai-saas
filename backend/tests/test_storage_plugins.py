@@ -18,6 +18,7 @@ import pytest
 # 1. StorageManager only registers local
 # ──────────────────────────────────────────────
 
+
 def test_storage_manager_only_local():
     """StorageManager should only register LocalStorageDriver by default. / 说明"""
     from app.storage.manager import StorageManager
@@ -211,13 +212,16 @@ def test_driver_class_attributes(plugin_name: str):
 # 4. Config definitions check
 # ──────────────────────────────────────────────
 
+
 def test_platform_storage_driver_has_all_options():
     """Platform storage driver select must include all 5 driver options. / 说明"""
     from app.configs.definitions.platform.storage import PLATFORM_STORAGE_DRIVER
 
     option_values = {opt.value for opt in PLATFORM_STORAGE_DRIVER.options}
     expected = {"local", "s3", "aliyun-oss", "qiniu-kodo", "tencent-cos"}
-    assert expected.issubset(option_values), f"Missing options: {expected - option_values}"
+    assert expected.issubset(option_values), (
+        f"Missing options: {expected - option_values}"
+    )
 
 
 def test_tenant_storage_driver_has_cloud_options():
@@ -226,7 +230,9 @@ def test_tenant_storage_driver_has_cloud_options():
 
     option_values = {opt.value for opt in TENANT_STORAGE_DRIVER.options}
     expected = {"s3", "aliyun-oss", "qiniu-kodo", "tencent-cos"}
-    assert expected.issubset(option_values), f"Missing options: {expected - option_values}"
+    assert expected.issubset(option_values), (
+        f"Missing options: {expected - option_values}"
+    )
     assert "local" not in option_values, "Tenant must not have local driver option"
 
 
@@ -249,10 +255,15 @@ def test_mode3_switches_exist():
         TENANT_STORAGE_SELF_CONFIG_ENABLED,
     )
 
-    assert PLATFORM_TENANT_STORAGE_SELF_CONFIG_ENABLED.key == "platform_tenant_storage_self_config_enabled"
+    assert (
+        PLATFORM_TENANT_STORAGE_SELF_CONFIG_ENABLED.key
+        == "platform_tenant_storage_self_config_enabled"
+    )
     assert PLATFORM_TENANT_STORAGE_SELF_CONFIG_ENABLED.default_value is False
 
-    assert TENANT_STORAGE_SELF_CONFIG_ENABLED.key == "tenant_storage_self_config_enabled"
+    assert (
+        TENANT_STORAGE_SELF_CONFIG_ENABLED.key == "tenant_storage_self_config_enabled"
+    )
     assert TENANT_STORAGE_SELF_CONFIG_ENABLED.default_value is False
 
 
@@ -578,7 +589,9 @@ async def test_attachment_download_resolution_uses_attachment_tenant_id():
         AttachmentDownloadService,
     )
 
-    attachment = SimpleNamespace(driver="s3", tenant_id=23, path="2026/03/demo.png", meta=None)
+    attachment = SimpleNamespace(
+        driver="s3", tenant_id=23, path="2026/03/demo.png", meta=None
+    )
     service = AttachmentDownloadService(AsyncMock(), tenant_id=None)
 
     with patch(
@@ -597,7 +610,9 @@ async def test_image_process_resolution_uses_attachment_tenant_id():
 
     from app.services.common.image_process_service import ImageProcessService
 
-    attachment = SimpleNamespace(driver="s3", tenant_id=31, path="2026/03/demo.png", meta=None)
+    attachment = SimpleNamespace(
+        driver="s3", tenant_id=31, path="2026/03/demo.png", meta=None
+    )
     service = ImageProcessService(AsyncMock(), tenant_id=None)
 
     with patch(
@@ -625,30 +640,34 @@ async def test_resolve_for_attachment_record_prefers_platform_for_shared_bucket_
         meta=None,
     )
 
-    with patch.object(
-        resolver,
-        "resolve_platform_config",
-        new=AsyncMock(
-            return_value=StorageConfig(
-                driver="s3",
-                root_path="platform-bucket",
-                base_url="https://platform.example.com",
-            )
+    with (
+        patch.object(
+            resolver,
+            "resolve_platform_config",
+            new=AsyncMock(
+                return_value=StorageConfig(
+                    driver="s3",
+                    root_path="platform-bucket",
+                    base_url="https://platform.example.com",
+                )
+            ),
+        ) as resolve_platform_mock,
+        patch.object(
+            resolver,
+            "resolve_tenant_config",
+            new=AsyncMock(
+                return_value=StorageConfig(
+                    driver="s3",
+                    root_path="tenant-bucket",
+                    base_url="https://tenant.example.com",
+                )
+            ),
+        ) as resolve_tenant_mock,
+        patch.object(
+            resolver,
+            "_check_driver_available",
+            return_value=None,
         ),
-    ) as resolve_platform_mock, patch.object(
-        resolver,
-        "resolve_tenant_config",
-        new=AsyncMock(
-            return_value=StorageConfig(
-                driver="s3",
-                root_path="tenant-bucket",
-                base_url="https://tenant.example.com",
-            )
-        ),
-    ) as resolve_tenant_mock, patch.object(
-        resolver,
-        "_check_driver_available",
-        return_value=None,
     ):
         config = await resolver.resolve_for_attachment_record(attachment)
 
@@ -680,22 +699,25 @@ async def test_resolve_for_attachment_record_raises_on_storage_snapshot_mismatch
         },
     )
 
-    with patch.object(
-        resolver,
-        "resolve_platform_config",
-        new=AsyncMock(
-            return_value=StorageConfig(
-                driver="s3",
-                root_path="bucket-new",
-                base_url="https://new.example.com",
-            )
+    with (
+        patch.object(
+            resolver,
+            "resolve_platform_config",
+            new=AsyncMock(
+                return_value=StorageConfig(
+                    driver="s3",
+                    root_path="bucket-new",
+                    base_url="https://new.example.com",
+                )
+            ),
         ),
-    ), patch.object(
-        resolver,
-        "_check_driver_available",
-        return_value=None,
+        patch.object(
+            resolver,
+            "_check_driver_available",
+            return_value=None,
+        ),
+        pytest.raises(BusinessException) as exc_info,
     ):
-        with pytest.raises(BusinessException) as exc_info:
-            await resolver.resolve_for_attachment_record(attachment)
+        await resolver.resolve_for_attachment_record(attachment)
 
     assert exc_info.value.code == ErrorCode.INVALID_PARAMETER

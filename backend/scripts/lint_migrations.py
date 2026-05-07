@@ -49,12 +49,14 @@ def _add_rule(
     trigger: str,
     suppress: str | None = None,
 ) -> None:
-    _RULES.append((
-        code,
-        message,
-        re.compile(trigger, re.IGNORECASE),
-        re.compile(suppress, re.IGNORECASE) if suppress else None,
-    ))
+    _RULES.append(
+        (
+            code,
+            message,
+            re.compile(trigger, re.IGNORECASE),
+            re.compile(suppress, re.IGNORECASE) if suppress else None,
+        )
+    )
 
 
 _add_rule(
@@ -202,15 +204,15 @@ def _contains_begin_nested(nodes: list[ast.stmt]) -> bool:
 
 
 def _contains_raise(nodes: list[ast.stmt]) -> bool:
-    return any(isinstance(inner, ast.Raise) for node in nodes for inner in ast.walk(node))
+    return any(
+        isinstance(inner, ast.Raise) for node in nodes for inner in ast.walk(node)
+    )
 
 
 def _is_broad_exception_handler(node: ast.ExceptHandler) -> bool:
     if node.type is None:
         return True
-    if isinstance(node.type, ast.Name) and node.type.id == "Exception":
-        return True
-    return False
+    return isinstance(node.type, ast.Name) and node.type.id == "Exception"
 
 
 def _collect_assignments(tree: ast.AST) -> dict[str, list[ast.Assign | ast.AnnAssign]]:
@@ -230,8 +232,10 @@ def _latest_assignment_before(
     lineno: int,
 ) -> ast.AST | None:
     candidates = [
-        node for node in assignments
-        if getattr(node, "lineno", 0) < lineno and getattr(node, "value", None) is not None
+        node
+        for node in assignments
+        if getattr(node, "lineno", 0) < lineno
+        and getattr(node, "value", None) is not None
     ]
     if not candidates:
         return None
@@ -294,9 +298,15 @@ def _lint_ast(path: Path, content: str) -> list[Warning]:
                     )
                 )
 
-        if isinstance(node, ast.Try) and _contains_execute(node.body) and not _contains_begin_nested(node.body):
+        if (
+            isinstance(node, ast.Try)
+            and _contains_execute(node.body)
+            and not _contains_begin_nested(node.body)
+        ):
             for handler in node.handlers:
-                if _is_broad_exception_handler(handler) and not _contains_raise(handler.body):
+                if _is_broad_exception_handler(handler) and not _contains_raise(
+                    handler.body
+                ):
                     warnings.append(
                         Warning(
                             path,
@@ -375,7 +385,9 @@ def main() -> None:
         all_warnings.extend(lint_file(f))
 
     if all_warnings:
-        print(f"[lint_migrations] {len(all_warnings)} warning(s) in {len(files)} file(s):\n")
+        print(
+            f"[lint_migrations] {len(all_warnings)} warning(s) in {len(files)} file(s):\n"
+        )
         for w in all_warnings:
             print(w)
         print(

@@ -63,12 +63,14 @@ async def test_cleanup_plugin_database_drops_only_safe_prefixed_tables(
         sql = str(statement)
         _ = params
         if "SELECT tablename FROM pg_tables" in sql:
-            return _RowsResult([
-                ("px_demo_plugin_orders",),
-                ("px_demo_plugin_%_wild",),
-                ('px_demo_plugin_bad"name',),
-                ("users",),
-            ])
+            return _RowsResult(
+                [
+                    ("px_demo_plugin_orders",),
+                    ("px_demo_plugin_%_wild",),
+                    ('px_demo_plugin_bad"name',),
+                    ("users",),
+                ]
+            )
         if sql.startswith('DROP TABLE IF EXISTS "'):
             dropped_sql.append(sql)
             return MagicMock()

@@ -35,16 +35,18 @@ async def test_slider_captcha_provider_roundtrip() -> None:
     provider._load_stored_challenge = _load_stored_challenge  # type: ignore[method-assign]
     provider._delete_stored_challenge = _delete_stored_challenge  # type: ignore[method-assign]
 
-    challenge = await provider.generate_challenge({
-        "plugin_config": {
-            "background_1": "11",
-            "background_2": "12",
-            "background_3": "13",
-            "background_4": "14",
-            "square_length": 40,
-            "tolerance_px": 5,
-        },
-    })
+    challenge = await provider.generate_challenge(
+        {
+            "plugin_config": {
+                "background_1": "11",
+                "background_2": "12",
+                "background_3": "13",
+                "background_4": "14",
+                "square_length": 40,
+                "tolerance_px": 5,
+            },
+        }
+    )
 
     assert challenge.type == "slider"
     assert str(challenge.payload["board_image"]).startswith("data:image/png;base64,")
@@ -85,12 +87,19 @@ def test_inject_captcha_provider_options_filters_by_endpoint() -> None:
     )
 
     try:
-        configs = [{
-            "key": "tenant_captcha_provider",
-            "options": [{"value": "image", "label_key": "config.tenant.captcha_provider.image"}],
-            "value": "image",
-            "value_type": "select",
-        }]
+        configs = [
+            {
+                "key": "tenant_captcha_provider",
+                "options": [
+                    {
+                        "value": "image",
+                        "label_key": "config.tenant.captcha_provider.image",
+                    }
+                ],
+                "value": "image",
+                "value_type": "select",
+            }
+        ]
 
         inject_captcha_provider_options(
             configs,

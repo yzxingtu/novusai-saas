@@ -20,35 +20,40 @@ async def test_quota_manager_uses_model_specific_and_global_buckets(mock_db):
     model_specific = SimpleNamespace(
         id=11,
         model_id=5,
-        period='daily',
-        quota_type='hard',
+        period="daily",
+        quota_type="hard",
         limit=1000,
         is_active=True,
     )
     global_rule = SimpleNamespace(
         id=12,
         model_id=None,
-        period='monthly',
-        quota_type='soft',
+        period="monthly",
+        quota_type="soft",
         limit=2000,
         is_active=True,
     )
 
-    with patch.object(
-        manager,
-        '_get_effective_quotas',
-        new=AsyncMock(return_value=[model_specific, global_rule]),
-    ), patch(
-        'app.ai.quota.UsageTracker.check_and_record_usage',
-        new=AsyncMock(return_value=-1),
-    ) as check_usage, patch(
-        'app.ai.quota.UsageTracker.get_usage',
-        new=AsyncMock(return_value=1950),
-    ) as get_usage, patch.object(
-        manager,
-        '_notify_soft_quota_exceeded',
-        new=AsyncMock(),
-    ) as notify_soft:
+    with (
+        patch.object(
+            manager,
+            "_get_effective_quotas",
+            new=AsyncMock(return_value=[model_specific, global_rule]),
+        ),
+        patch(
+            "app.ai.quota.UsageTracker.check_and_record_usage",
+            new=AsyncMock(return_value=-1),
+        ) as check_usage,
+        patch(
+            "app.ai.quota.UsageTracker.get_usage",
+            new=AsyncMock(return_value=1950),
+        ) as get_usage,
+        patch.object(
+            manager,
+            "_notify_soft_quota_exceeded",
+            new=AsyncMock(),
+        ) as notify_soft,
+    ):
         result = await manager.check_quota(
             tenant_id=9,
             model_id=5,
@@ -61,18 +66,18 @@ async def test_quota_manager_uses_model_specific_and_global_buckets(mock_db):
         model_id=5,
         estimated_tokens=100,
         limit=1000,
-        period='daily',
+        period="daily",
         stat_date=request_date,
     )
     get_usage.assert_awaited_once_with(
         tenant_id=9,
         model_id=0,
-        period='monthly',
+        period="monthly",
         stat_date=request_date,
     )
     notify_soft.assert_awaited_once()
     assert [item.tracking_model_id for item in result.items] == [5, 0]
-    assert [item.period for item in result.items] == ['daily', 'monthly']
+    assert [item.period for item in result.items] == ["daily", "monthly"]
 
 
 @pytest.mark.asyncio
@@ -84,26 +89,29 @@ async def test_quota_manager_finalize_usage_updates_hard_and_soft_periods(mock_d
         items=(
             QuotaMeteringItem(
                 quota_id=1,
-                period='daily',
-                quota_type='hard',
+                period="daily",
+                quota_type="hard",
                 tracking_model_id=7,
             ),
             QuotaMeteringItem(
                 quota_id=2,
-                period='monthly',
-                quota_type='soft',
+                period="monthly",
+                quota_type="soft",
                 tracking_model_id=0,
             ),
         )
     )
 
-    with patch(
-        'app.ai.quota.UsageTracker.adjust_usage_for_period',
-        new=AsyncMock(),
-    ) as adjust_period, patch(
-        'app.ai.quota.UsageTracker.record_usage_for_period',
-        new=AsyncMock(),
-    ) as record_period:
+    with (
+        patch(
+            "app.ai.quota.UsageTracker.adjust_usage_for_period",
+            new=AsyncMock(),
+        ) as adjust_period,
+        patch(
+            "app.ai.quota.UsageTracker.record_usage_for_period",
+            new=AsyncMock(),
+        ) as record_period,
+    ):
         await manager.adjust_usage(
             tenant_id=3,
             model_id=7,
@@ -118,65 +126,71 @@ async def test_quota_manager_finalize_usage_updates_hard_and_soft_periods(mock_d
         model_id=7,
         estimated_tokens=80,
         actual_tokens=120,
-        period='daily',
+        period="daily",
         stat_date=date(2026, 3, 23),
     )
     record_period.assert_awaited_once_with(
         tenant_id=3,
         model_id=0,
         tokens=120,
-        period='monthly',
+        period="monthly",
         stat_date=date(2026, 3, 23),
     )
 
 
 @pytest.mark.asyncio
-async def test_quota_manager_rolls_back_previous_hard_precharge_on_later_failure(mock_db):
+async def test_quota_manager_rolls_back_previous_hard_precharge_on_later_failure(
+    mock_db,
+):
     from app.ai.quota import QuotaExceeded, QuotaManager
 
     manager = QuotaManager(mock_db)
     daily_rule = SimpleNamespace(
         id=101,
         model_id=9,
-        period='daily',
-        quota_type='hard',
+        period="daily",
+        quota_type="hard",
         limit=500,
         is_active=True,
     )
     monthly_rule = SimpleNamespace(
         id=102,
         model_id=None,
-        period='monthly',
-        quota_type='hard',
+        period="monthly",
+        quota_type="hard",
         limit=1000,
         is_active=True,
     )
 
-    with patch.object(
-        manager,
-        '_get_effective_quotas',
-        new=AsyncMock(return_value=[daily_rule, monthly_rule]),
-    ), patch(
-        'app.ai.quota.UsageTracker.check_and_record_usage',
-        new=AsyncMock(side_effect=[-1, 900]),
-    ), patch(
-        'app.ai.quota.UsageTracker.adjust_usage_for_period',
-        new=AsyncMock(),
-    ) as rollback_usage:
-        with pytest.raises(QuotaExceeded):
-            await manager.check_quota(
-                tenant_id=4,
-                model_id=9,
-                estimated_tokens=120,
-                request_stat_date=date(2026, 3, 23),
-            )
+    with (
+        patch.object(
+            manager,
+            "_get_effective_quotas",
+            new=AsyncMock(return_value=[daily_rule, monthly_rule]),
+        ),
+        patch(
+            "app.ai.quota.UsageTracker.check_and_record_usage",
+            new=AsyncMock(side_effect=[-1, 900]),
+        ),
+        patch(
+            "app.ai.quota.UsageTracker.adjust_usage_for_period",
+            new=AsyncMock(),
+        ) as rollback_usage,
+        pytest.raises(QuotaExceeded),
+    ):
+        await manager.check_quota(
+            tenant_id=4,
+            model_id=9,
+            estimated_tokens=120,
+            request_stat_date=date(2026, 3, 23),
+        )
 
     rollback_usage.assert_awaited_once_with(
         tenant_id=4,
         model_id=9,
         estimated_tokens=120,
         actual_tokens=0,
-        period='daily',
+        period="daily",
         stat_date=date(2026, 3, 23),
     )
 
@@ -203,16 +217,16 @@ async def test_rate_limit_service_merges_blank_fields_with_model_defaults(mock_d
     model = make_mock_model(id=8, rpm_limit=60, tpm_limit=9000)
 
     with patch(
-        'app.services.ai.tenant_rate_limit_service.AIModelRepository.get_by_id',
+        "app.services.ai.tenant_rate_limit_service.AIModelRepository.get_by_id",
         new=AsyncMock(return_value=model),
     ):
         result = await service.get_effective_rate_limits(8)
 
-    assert result['rpm_limit'] == 60
-    assert result['tpm_limit'] == 3200
-    assert result['rpm_source'] == 'model'
-    assert result['tpm_source'] == 'tenant'
-    assert result['source'] == 'tenant'
+    assert result["rpm_limit"] == 60
+    assert result["tpm_limit"] == 3200
+    assert result["rpm_source"] == "model"
+    assert result["tpm_source"] == "tenant"
+    assert result["source"] == "tenant"
 
 
 @pytest.mark.asyncio
@@ -257,20 +271,23 @@ async def test_usage_recorder_rolls_back_rate_limit_precharge_when_quota_fails(
     reservation = SimpleNamespace(rpm_key="rpm", rpm_member="member", tpm_key="tpm")
     ai_model = make_mock_model(id=6, rpm_limit=60, tpm_limit=6000)
 
-    with patch(
-        "app.ai.usage_recorder.RateLimiter.check_and_record",
-        new=AsyncMock(return_value=reservation),
-    ) as check_and_record, patch(
-        "app.ai.usage_recorder.RateLimiter.rollback_precharge",
-        new=AsyncMock(),
-    ) as rollback:
-        with pytest.raises(QuotaExceeded):
-            await recorder.check_rate_and_quota(
-                tenant_id=0,
-                model_id=6,
-                ai_model=ai_model,
-                estimated_tokens=300,
-            )
+    with (
+        patch(
+            "app.ai.usage_recorder.RateLimiter.check_and_record",
+            new=AsyncMock(return_value=reservation),
+        ) as check_and_record,
+        patch(
+            "app.ai.usage_recorder.RateLimiter.rollback_precharge",
+            new=AsyncMock(),
+        ) as rollback,
+        pytest.raises(QuotaExceeded),
+    ):
+        await recorder.check_rate_and_quota(
+            tenant_id=0,
+            model_id=6,
+            ai_model=ai_model,
+            estimated_tokens=300,
+        )
 
     check_and_record.assert_awaited_once()
     rollback.assert_awaited_once_with(
@@ -318,7 +335,9 @@ async def test_usage_recorder_adjusts_tpm_when_estimate_is_zero(mock_db):
 
 
 @pytest.mark.asyncio
-async def test_agent_quota_adjust_usage_reseeds_ttl_for_daily_and_monthly_keys() -> None:
+async def test_agent_quota_adjust_usage_reseeds_ttl_for_daily_and_monthly_keys() -> (
+    None
+):
     from app.ai.agent_quota import AgentQuotaConfig, AgentQuotaManager
 
     fake_redis = AsyncMock()

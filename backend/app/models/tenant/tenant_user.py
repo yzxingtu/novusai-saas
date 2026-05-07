@@ -36,7 +36,6 @@ class TenantUser(TenantModel):
 
     __tablename__ = "tenant_users"
 
-
     __table_args__ = (
         UniqueConstraint(
             "tenant_id", "username", name="uq_tenant_user_tenant_username"

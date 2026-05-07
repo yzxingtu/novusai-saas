@@ -9,7 +9,6 @@ Coverage:
 - get_form_component, get_search_component
 """
 
-import pytest
 from sqlalchemy import Boolean, Column, Integer, String, Text
 
 from app.codegen.type_registry import type_registry
@@ -78,7 +77,14 @@ def test_foreign_key_type() -> None:
 
 def test_advanced_components() -> None:
     """6 种高级组件映射."""
-    components = ["ImageUpload", "RichText", "FilePicker", "CronPicker", "IconPicker", "CodeEditor"]
+    components = [
+        "ImageUpload",
+        "RichText",
+        "FilePicker",
+        "CronPicker",
+        "IconPicker",
+        "CodeEditor",
+    ]
     for comp in components:
         info = type_registry.get_type_info(comp)
         assert info["default_form_component"] == comp

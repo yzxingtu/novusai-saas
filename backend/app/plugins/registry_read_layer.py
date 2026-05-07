@@ -101,7 +101,9 @@ class RegistryReadLayer:
             FrontendSlotTypeEnum.NOTIFICATION_UI.value: "notification_ui",
         }
 
-        result: dict[str, list[dict[str, Any]]] = {key: [] for key in type_to_key.values()}
+        result: dict[str, list[dict[str, Any]]] = {
+            key: [] for key in type_to_key.values()
+        }
 
         for slot in self._registry.get_frontend_slots(scope=scope):
             key = type_to_key.get(slot.get("slot_type", ""))

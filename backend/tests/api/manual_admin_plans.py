@@ -2,11 +2,14 @@
 """套餐管理 API 测试模块 / API.
 
 测试 /admin/plans/* 接口"""
+
 import os
 import sys
 import time
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+sys.path.insert(
+    0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+)
 
 import contextlib
 
@@ -97,7 +100,9 @@ class ManualTestAdminPlans(BaseAPITest):
 
     def test_list_plans_pagination(self) -> None:
         """测试获取套餐列表 - 分页 / Test."""
-        resp = self.client.get("/admin/plans", params={"page[number]": 1, "page[size]": 5})
+        resp = self.client.get(
+            "/admin/plans", params={"page[number]": 1, "page[size]": 5}
+        )
         data = assert_success(resp, "获取套餐列表失败")
 
         assert_equals(data["data"]["page"], 1)
@@ -140,27 +145,32 @@ class ManualTestAdminPlans(BaseAPITest):
 
     def test_create_plan(self) -> None:
         """测试创建套餐（代码由后端自动生成） / Test."""
-        resp = self.client.post("/admin/plans", data={
-            "name": self._test_data["plan_name"],
-            "description": "测试套餐描述",
-            "price": "99.99",
-            "billing_cycle": "monthly",
-            "is_active": True,
-            "sort_order": 10,
-            "quota": {
-                "storage_limit_gb": 10,
-                "max_users": 50,
-                "max_admins": 5,
-                "max_custom_domains": 2,
+        resp = self.client.post(
+            "/admin/plans",
+            data={
+                "name": self._test_data["plan_name"],
+                "description": "测试套餐描述",
+                "price": "99.99",
+                "billing_cycle": "monthly",
+                "is_active": True,
+                "sort_order": 10,
+                "quota": {
+                    "storage_limit_gb": 10,
+                    "max_users": 50,
+                    "max_admins": 5,
+                    "max_custom_domains": 2,
+                },
+                "features": {
+                    "ai_enabled": True,
+                    "advanced_analytics": False,
+                },
             },
-            "features": {
-                "ai_enabled": True,
-                "advanced_analytics": False,
-            },
-        })
+        )
         data = assert_success(resp, "创建套餐失败")
 
-        assert_has_keys(data["data"], ["id", "code", "name", "price", "billing_cycle", "is_active"])
+        assert_has_keys(
+            data["data"], ["id", "code", "name", "price", "billing_cycle", "is_active"]
+        )
         # 验证代码是自动生成的格式: plan_ + 6位字符
         code = data["data"]["code"]
         assert_true(code.startswith("plan_"), "套餐代码应以 plan_ 开头")
@@ -184,15 +194,28 @@ class ManualTestAdminPlans(BaseAPITest):
         resp = self.client.get(f"/admin/plans/{plan_id}")
         data = assert_success(resp, "获取套餐详情失败")
 
-        assert_has_keys(data["data"], [
-            "id", "code", "name", "description", "price",
-            "billing_cycle", "is_active", "quota", "features", "permissions"
-        ])
+        assert_has_keys(
+            data["data"],
+            [
+                "id",
+                "code",
+                "name",
+                "description",
+                "price",
+                "billing_cycle",
+                "is_active",
+                "quota",
+                "features",
+                "permissions",
+            ],
+        )
         assert_equals(data["data"]["id"], plan_id)
         assert_equals(data["data"]["code"], self._test_data["created_plan_code"])
 
         # 验证 permissions 是列表
-        assert_true(isinstance(data["data"]["permissions"], list), "permissions 应为列表")
+        assert_true(
+            isinstance(data["data"]["permissions"], list), "permissions 应为列表"
+        )
 
     def test_get_plan_not_found(self) -> None:
         """测试获取不存在的套餐详情 / Test."""
@@ -210,21 +233,26 @@ class ManualTestAdminPlans(BaseAPITest):
         new_name = "更新后的套餐名称"
         new_price = "199.99"
 
-        resp = self.client.put(f"/admin/plans/{plan_id}", data={
-            "name": new_name,
-            "price": new_price,
-            "description": "更新后的描述",
-            "quota": {
-                "storage_limit_gb": 20,
-                "max_users": 100,
+        resp = self.client.put(
+            f"/admin/plans/{plan_id}",
+            data={
+                "name": new_name,
+                "price": new_price,
+                "description": "更新后的描述",
+                "quota": {
+                    "storage_limit_gb": 20,
+                    "max_users": 100,
+                },
             },
-        })
+        )
         data = assert_success(resp, "更新套餐失败")
 
         assert_equals(data["data"]["name"], new_name)
         # 价格可能是字符串或数字，做兼容处理
         actual_price = str(data["data"]["price"])
-        assert_true(actual_price.startswith("199"), f"价格应更新为 199.99，实际: {actual_price}")
+        assert_true(
+            actual_price.startswith("199"), f"价格应更新为 199.99，实际: {actual_price}"
+        )
 
     # ========== 权限管理测试 ==========
 
@@ -259,9 +287,12 @@ class ManualTestAdminPlans(BaseAPITest):
             # 如果没有可用权限，使用空列表测试
             permission_ids = []
 
-        resp = self.client.put(f"/admin/plans/{plan_id}/permissions", data={
-            "permission_ids": permission_ids,
-        })
+        resp = self.client.put(
+            f"/admin/plans/{plan_id}/permissions",
+            data={
+                "permission_ids": permission_ids,
+            },
+        )
         data = assert_success(resp, "设置套餐权限失败")
 
         assert_has_keys(data["data"], ["id", "permissions"])
@@ -270,8 +301,10 @@ class ManualTestAdminPlans(BaseAPITest):
         actual_count = len(data["data"]["permissions"])
         expected_count = len(permission_ids)
         # 由于只有 menu 类型权限可分配，实际数量可能小于等于请求数量
-        assert_true(actual_count <= expected_count or expected_count == 0,
-                   f"权限数量不匹配: 期望 <= {expected_count}，实际 {actual_count}")
+        assert_true(
+            actual_count <= expected_count or expected_count == 0,
+            f"权限数量不匹配: 期望 <= {expected_count}，实际 {actual_count}",
+        )
 
     # ========== 删除测试 ==========
 
@@ -300,10 +333,13 @@ class ManualTestAdminPlans(BaseAPITest):
 
     def _do_login(self) -> None:
         """执行登录 / Description."""
-        resp = self.client.post("/admin/auth/login", data={
-            "username": config.ADMIN_USERNAME,
-            "password": config.ADMIN_PASSWORD,
-        })
+        resp = self.client.post(
+            "/admin/auth/login",
+            data={
+                "username": config.ADMIN_USERNAME,
+                "password": config.ADMIN_PASSWORD,
+            },
+        )
         data = assert_success(resp, "平台管理员登录失败")
         self.client.set_token(data["data"]["access_token"])
 
@@ -312,4 +348,3 @@ if __name__ == "__main__":
     test = ManualTestAdminPlans()
     report = test.run_all()
     report.print_summary()
-

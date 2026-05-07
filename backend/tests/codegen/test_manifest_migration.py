@@ -5,8 +5,6 @@ Manifest migration_file 字段测试 / Manifest migration_file field tests.
 import json
 from pathlib import Path
 
-import pytest
-
 from app.codegen.manifest import ManifestManager
 
 
@@ -15,7 +13,9 @@ def _setup_manifest(tmp_path: Path, entries: list[dict]) -> None:
     manifest_path = tmp_path / "codegen_manifest.json"
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
     data = {"entries": entries, "version": 1}
-    manifest_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    manifest_path.write_text(
+        json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
 
 
 def test_manifest_update_migration_file(tmp_path: Path) -> None:
@@ -35,7 +35,9 @@ def test_manifest_update_migration_file(tmp_path: Path) -> None:
         ],
     )
     manifest = ManifestManager(tmp_path)
-    manifest.update_migration_file("article", "migrations/versions/20260319_xxx_codegen_auto.py")
+    manifest.update_migration_file(
+        "article", "migrations/versions/20260319_xxx_codegen_auto.py"
+    )
 
     entry = manifest.get_entry("article")
     assert entry is not None
@@ -100,7 +102,12 @@ def test_rollback_result_no_manual_steps(tmp_path: Path) -> None:
                 "generated_at": "2026-01-01T00:00:00Z",
                 "config_id": 1,
                 "config_hash": "abc",
-                "files": [{"path": "backend/app/models/system/test_res.py", "action": "create"}],
+                "files": [
+                    {
+                        "path": "backend/app/models/system/test_res.py",
+                        "action": "create",
+                    }
+                ],
                 "migration_file": None,
             }
         ],

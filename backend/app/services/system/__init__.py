@@ -35,25 +35,25 @@ if TYPE_CHECKING:
         test_registry_connection,
     )
     from app.services.system.system_log_service import (
+        LOG_SCOPE_CATEGORY,
+        LOG_SCOPE_CURRENT_FILE,
         LogCategoryInfo,
         LogContentLineItem,
         LogContentPage,
         LogFileInfo,
         LogSearchScope,
-        LOG_SCOPE_CATEGORY,
-        LOG_SCOPE_CURRENT_FILE,
         SystemLogService,
     )
     from app.services.system.task_binding_service import TaskBindingService
     from app.services.system.task_definition_service import TaskDefinitionService
+    from app.services.system.task_log_service import TaskLogService
+    from app.services.system.task_manager_service import TaskManagerService
+    from app.services.system.task_run_service import TaskRunService
     from app.services.system.task_tenant_eligibility_service import (
         TaskTenantEligibilityRequirements,
         TaskTenantEligibilityResult,
         TaskTenantEligibilityService,
     )
-    from app.services.system.task_log_service import TaskLogService
-    from app.services.system.task_manager_service import TaskManagerService
-    from app.services.system.task_run_service import TaskRunService
     from app.services.system.tenant_admin_workflow_service import (
         TenantAdminWorkflowService,
     )

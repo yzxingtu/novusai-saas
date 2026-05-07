@@ -168,7 +168,10 @@ class TestDataPermissionFilterSelfOnly:
             lambda: DataPermissionFilter.apply(q, _ChildInheritedModel, 9),
         )
         compiled = str(result.compile(compile_kwargs={"literal_binds": True}))
-        assert "_test_child_inherited.parent_id IN (SELECT _test_parent_scoped.id" in compiled
+        assert (
+            "_test_child_inherited.parent_id IN (SELECT _test_parent_scoped.id"
+            in compiled
+        )
         assert "_test_parent_scoped.created_by = 9" in compiled
         assert "_test_parent_scoped.tenant_id = 2" in compiled
 
@@ -258,7 +261,10 @@ class TestDataPermissionFilterDept:
             lambda: DataPermissionFilter.apply(q, _ChildInheritedModel, 1),
         )
         compiled = str(result.compile(compile_kwargs={"literal_binds": True}))
-        assert "_test_child_inherited.parent_id IN (SELECT _test_parent_scoped.id" in compiled
+        assert (
+            "_test_child_inherited.parent_id IN (SELECT _test_parent_scoped.id"
+            in compiled
+        )
         assert "tenant_admins.org_node_id IN (21)" in compiled
         assert "_test_parent_scoped.tenant_id = 7" in compiled
 
@@ -324,7 +330,9 @@ class TestDataPermissionScopeCompatibility:
         compiled = str(result.compile(compile_kwargs={"literal_binds": True}))
         assert compiled == str(q.compile(compile_kwargs={"literal_binds": True}))
 
-    def test_creator_scope_field_model_is_skipped_when_current_scope_not_supported(self):
+    def test_creator_scope_field_model_is_skipped_when_current_scope_not_supported(
+        self,
+    ):
         q = select(_ModelWithCreatorScopeField.id)
         ctx = {
             "max_data_scope": DataScope.DEPT_ONLY.value,
@@ -360,7 +368,9 @@ class TestCreateDataEnrichment:
         }
         enriched = _run_with_ctx(
             ctx,
-            lambda: enrich_create_data_with_data_permission(_ModelWithCreatorScopeField, {}),
+            lambda: enrich_create_data_with_data_permission(
+                _ModelWithCreatorScopeField, {}
+            ),
         )
         assert enriched["initiated_by"] == 23
         assert enriched["started_by_type"] == "tenant_admin"

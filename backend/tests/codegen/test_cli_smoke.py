@@ -482,7 +482,7 @@ def test_codegen_rollback_no_auto_migrate_returns_partial_json(
     monkeypatch.setattr("app.cli._CODEGEN_PROJECT_ROOT", tmp_path)
     monkeypatch.setattr(
         "app.codegen.rollback.CodegenRollback.rollback",
-        lambda self, **kwargs: SimpleNamespace(
+        lambda _self, **_kwargs: SimpleNamespace(
             success=True,
             files_deleted=["backend/app/models/system/demo.py"],
             files_modified=[],

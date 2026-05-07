@@ -19,7 +19,6 @@ class _FakeModel:
 
 
 class TestModelQueries:
-
     @pytest.mark.asyncio
     async def test_get_by_code_returns_model_from_repo(self, mock_db):
         from app.services.ai.model_service import AIModelService
@@ -27,7 +26,9 @@ class TestModelQueries:
         service = AIModelService.__new__(AIModelService)
         service.db = mock_db
         service.repo = AsyncMock()
-        service.repo.get_by_code = AsyncMock(return_value=SimpleNamespace(code="gpt-4o"))
+        service.repo.get_by_code = AsyncMock(
+            return_value=SimpleNamespace(code="gpt-4o")
+        )
 
         result = await service.get_by_code("gpt-4o")
 
@@ -59,7 +60,9 @@ class TestModelQueries:
         service.repo.get_by_provider.assert_awaited_once_with(3, include_deleted=True)
 
     @pytest.mark.asyncio
-    async def test_get_by_provider_returns_empty_list_when_repo_has_no_items(self, mock_db):
+    async def test_get_by_provider_returns_empty_list_when_repo_has_no_items(
+        self, mock_db
+    ):
         from app.services.ai.model_service import AIModelService
 
         service = AIModelService.__new__(AIModelService)
@@ -71,7 +74,6 @@ class TestModelQueries:
 
 
 class TestCreateModel:
-
     @pytest.mark.asyncio
     async def test_create_model_adds_new_model_when_code_is_unique(self, mock_db):
         from app.services.ai import model_service as module
@@ -118,7 +120,6 @@ class TestCreateModel:
 
 
 class TestUpdateModel:
-
     @pytest.mark.asyncio
     async def test_update_model_updates_fields_when_model_exists(self, mock_db):
         from app.services.ai.model_service import AIModelService
@@ -221,7 +222,6 @@ class TestUpdateModel:
 
 
 class TestDeleteModel:
-
     @pytest.mark.asyncio
     async def test_delete_model_calls_soft_delete_path(self, mock_db):
         from app.services.ai.model_service import AIModelService
@@ -248,7 +248,6 @@ class TestDeleteModel:
 
 
 class TestFetchRemoteModels:
-
     @pytest.mark.asyncio
     async def test_fetch_remote_models_merges_extra_models_and_enriches_capabilities(
         self, mock_db
@@ -277,24 +276,34 @@ class TestFetchRemoteModels:
         service = AIModelService.__new__(AIModelService)
         service.db = mock_db
 
-        with patch(
-            "app.repositories.ai.AIProviderRepository",
-            return_value=provider_repo,
-        ), patch(
-            "app.repositories.ai.ProviderApiKeyRepository",
-            return_value=api_key_repo,
-        ), patch(
-            "app.ai.adapters.AdapterRegistry.create_adapter",
-            return_value=adapter,
-        ), patch(
-            "app.services.ai.model_capability_lookup.enrich_remote_models",
-            new=AsyncMock(return_value=[{"id": "chat-model"}, {"id": "embedding-model"}]),
-        ) as enrich_remote_models:
+        with (
+            patch(
+                "app.repositories.ai.AIProviderRepository",
+                return_value=provider_repo,
+            ),
+            patch(
+                "app.repositories.ai.ProviderApiKeyRepository",
+                return_value=api_key_repo,
+            ),
+            patch(
+                "app.ai.adapters.AdapterRegistry.create_adapter",
+                return_value=adapter,
+            ),
+            patch(
+                "app.services.ai.model_capability_lookup.enrich_remote_models",
+                new=AsyncMock(
+                    return_value=[{"id": "chat-model"}, {"id": "embedding-model"}]
+                ),
+            ) as enrich_remote_models,
+        ):
             result = await service.fetch_remote_models(1)
 
         assert result == [{"id": "chat-model"}, {"id": "embedding-model"}]
         enriched_input = enrich_remote_models.await_args.args[0]
-        assert {item["id"] for item in enriched_input} == {"chat-model", "embedding-model"}
+        assert {item["id"] for item in enriched_input} == {
+            "chat-model",
+            "embedding-model",
+        }
 
     @pytest.mark.asyncio
     async def test_fetch_remote_models_raises_when_remote_adapter_fails(self, mock_db):
@@ -323,14 +332,19 @@ class TestFetchRemoteModels:
         service = AIModelService.__new__(AIModelService)
         service.db = mock_db
 
-        with patch(
-            "app.repositories.ai.AIProviderRepository",
-            return_value=provider_repo,
-        ), patch(
-            "app.repositories.ai.ProviderApiKeyRepository",
-            return_value=api_key_repo,
-        ), patch(
-            "app.ai.adapters.AdapterRegistry.create_adapter",
-            return_value=adapter,
-        ), pytest.raises(ExternalServiceException, match="boom"):
+        with (
+            patch(
+                "app.repositories.ai.AIProviderRepository",
+                return_value=provider_repo,
+            ),
+            patch(
+                "app.repositories.ai.ProviderApiKeyRepository",
+                return_value=api_key_repo,
+            ),
+            patch(
+                "app.ai.adapters.AdapterRegistry.create_adapter",
+                return_value=adapter,
+            ),
+            pytest.raises(ExternalServiceException, match="boom"),
+        ):
             await service.fetch_remote_models(1)

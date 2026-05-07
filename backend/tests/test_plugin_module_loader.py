@@ -63,7 +63,9 @@ def fake_plugins_dir(tmp_path: Path) -> Path:
 
 class TestLoadPluginModule:
     def test_load_submodule(self, fake_plugins_dir: Path):
-        with patch("app.plugins.module_loader._get_plugins_dir", return_value=fake_plugins_dir):
+        with patch(
+            "app.plugins.module_loader._get_plugins_dir", return_value=fake_plugins_dir
+        ):
             from app.plugins.module_loader import load_plugin_module
 
             mod = load_plugin_module("fake-plugin", "api.handlers")
@@ -72,7 +74,9 @@ class TestLoadPluginModule:
             assert mod.handle_current() == {"temp": 20}
 
     def test_load_main_module(self, fake_plugins_dir: Path):
-        with patch("app.plugins.module_loader._get_plugins_dir", return_value=fake_plugins_dir):
+        with patch(
+            "app.plugins.module_loader._get_plugins_dir", return_value=fake_plugins_dir
+        ):
             from app.plugins.module_loader import load_plugin_module
 
             mod = load_plugin_module("fake-plugin", "main")
@@ -80,14 +84,18 @@ class TestLoadPluginModule:
             assert hasattr(mod, "FakePlugin")
 
     def test_load_nonexistent_returns_none(self, fake_plugins_dir: Path):
-        with patch("app.plugins.module_loader._get_plugins_dir", return_value=fake_plugins_dir):
+        with patch(
+            "app.plugins.module_loader._get_plugins_dir", return_value=fake_plugins_dir
+        ):
             from app.plugins.module_loader import load_plugin_module
 
             mod = load_plugin_module("fake-plugin", "nonexistent.module")
             assert mod is None
 
     def test_cached_module(self, fake_plugins_dir: Path):
-        with patch("app.plugins.module_loader._get_plugins_dir", return_value=fake_plugins_dir):
+        with patch(
+            "app.plugins.module_loader._get_plugins_dir", return_value=fake_plugins_dir
+        ):
             from app.plugins.module_loader import load_plugin_module
 
             mod1 = load_plugin_module("fake-plugin", "api.handlers")
@@ -100,7 +108,9 @@ class TestLoadPluginModule:
 
 class TestLoadPluginHandler:
     def test_load_handler_from_submodule(self, fake_plugins_dir: Path):
-        with patch("app.plugins.module_loader._get_plugins_dir", return_value=fake_plugins_dir):
+        with patch(
+            "app.plugins.module_loader._get_plugins_dir", return_value=fake_plugins_dir
+        ):
             from app.plugins.module_loader import load_plugin_handler
 
             handler = load_plugin_handler("fake-plugin", "api.handlers.handle_current")
@@ -108,7 +118,9 @@ class TestLoadPluginHandler:
             assert handler() == {"temp": 20}
 
     def test_load_skill_resolver(self, fake_plugins_dir: Path):
-        with patch("app.plugins.module_loader._get_plugins_dir", return_value=fake_plugins_dir):
+        with patch(
+            "app.plugins.module_loader._get_plugins_dir", return_value=fake_plugins_dir
+        ):
             from app.plugins.module_loader import load_plugin_handler
 
             resolver = load_plugin_handler("fake-plugin", "skills.resolver.resolve")
@@ -116,7 +128,9 @@ class TestLoadPluginHandler:
             assert resolver(None, None) == []
 
     def test_load_handler_from_main_fallback(self, fake_plugins_dir: Path):
-        with patch("app.plugins.module_loader._get_plugins_dir", return_value=fake_plugins_dir):
+        with patch(
+            "app.plugins.module_loader._get_plugins_dir", return_value=fake_plugins_dir
+        ):
             from app.plugins.module_loader import load_plugin_handler
 
             handler = load_plugin_handler("fake-plugin", "main.main_func")
@@ -124,22 +138,30 @@ class TestLoadPluginHandler:
             assert handler() == "from_main"
 
     def test_empty_path_returns_none(self, fake_plugins_dir: Path):
-        with patch("app.plugins.module_loader._get_plugins_dir", return_value=fake_plugins_dir):
+        with patch(
+            "app.plugins.module_loader._get_plugins_dir", return_value=fake_plugins_dir
+        ):
             from app.plugins.module_loader import load_plugin_handler
 
             assert load_plugin_handler("fake-plugin", "") is None
 
     def test_single_part_path_returns_none(self, fake_plugins_dir: Path):
-        with patch("app.plugins.module_loader._get_plugins_dir", return_value=fake_plugins_dir):
+        with patch(
+            "app.plugins.module_loader._get_plugins_dir", return_value=fake_plugins_dir
+        ):
             from app.plugins.module_loader import load_plugin_handler
 
             assert load_plugin_handler("fake-plugin", "just_one_part") is None
 
     def test_nonexistent_attr_returns_none(self, fake_plugins_dir: Path):
-        with patch("app.plugins.module_loader._get_plugins_dir", return_value=fake_plugins_dir):
+        with patch(
+            "app.plugins.module_loader._get_plugins_dir", return_value=fake_plugins_dir
+        ):
             from app.plugins.module_loader import load_plugin_handler
 
-            handler = load_plugin_handler("fake-plugin", "api.handlers.nonexistent_func")
+            handler = load_plugin_handler(
+                "fake-plugin", "api.handlers.nonexistent_func"
+            )
             assert handler is None
 
 
@@ -148,7 +170,9 @@ class TestLoadPluginHandler:
 
 class TestUnloadPluginModules:
     def test_unload_removes_all_plugin_modules(self, fake_plugins_dir: Path):
-        with patch("app.plugins.module_loader._get_plugins_dir", return_value=fake_plugins_dir):
+        with patch(
+            "app.plugins.module_loader._get_plugins_dir", return_value=fake_plugins_dir
+        ):
             from app.plugins.module_loader import (
                 load_plugin_module,
                 unload_plugin_modules,

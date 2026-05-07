@@ -81,7 +81,9 @@ class TestPluginManagedAgentSyncService:
         assert result == [9, 11]
 
     @pytest.mark.asyncio
-    async def test_sync_agents_for_plugin_mirrors_assignments_to_all_source_agents(self) -> None:
+    async def test_sync_agents_for_plugin_mirrors_assignments_to_all_source_agents(
+        self,
+    ) -> None:
         from app.services.system.plugin_managed_agent_sync_service import (
             PluginManagedAgentSyncService,
         )

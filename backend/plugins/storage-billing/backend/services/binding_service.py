@@ -56,47 +56,75 @@ class StorageBillingBindingService:
     def __init__(self, ctx, *, host_read=None) -> None:
         self._ctx = ctx
         self._db = _get_plugin_db(ctx)
-        self._host_read = host_read if host_read is not None else getattr(ctx, "host", None)
+        self._host_read = (
+            host_read if host_read is not None else getattr(ctx, "host", None)
+        )
         self._profile_service = StorageBillingProviderProfileService(
             ctx,
             host_read=self._host_read,
         )
 
     @classmethod
-    def from_context(cls, ctx) -> "StorageBillingBindingService":
+    def from_context(cls, ctx) -> StorageBillingBindingService:
         return cls(ctx, host_read=getattr(ctx, "host", None))
 
     async def list_bindings(self, request) -> dict[str, Any]:
         page = max(1, int(request.query_params.get("page[number]", "1")))
         size = min(100, max(1, int(request.query_params.get("page[size]", "20"))))
-        tenant_id = request.query_params.get("filter[tenant_id][eq]") or request.query_params.get("tenant_id")
-        provider_code = request.query_params.get("filter[provider_code][eq]") or request.query_params.get("provider_code")
-        validation_status = request.query_params.get("filter[validation_status][eq]") or request.query_params.get("validation_status")
-        is_active = request.query_params.get("filter[is_active][eq]") or request.query_params.get("is_active")
+        tenant_id = request.query_params.get(
+            "filter[tenant_id][eq]"
+        ) or request.query_params.get("tenant_id")
+        provider_code = request.query_params.get(
+            "filter[provider_code][eq]"
+        ) or request.query_params.get("provider_code")
+        validation_status = request.query_params.get(
+            "filter[validation_status][eq]"
+        ) or request.query_params.get("validation_status")
+        is_active = request.query_params.get(
+            "filter[is_active][eq]"
+        ) or request.query_params.get("is_active")
 
-        query = select(StorageTenantBinding).where(StorageTenantBinding.is_deleted.is_(False))
-        count_query = select(func.count(StorageTenantBinding.id)).where(StorageTenantBinding.is_deleted.is_(False))
+        query = select(StorageTenantBinding).where(
+            StorageTenantBinding.is_deleted.is_(False)
+        )
+        count_query = select(func.count(StorageTenantBinding.id)).where(
+            StorageTenantBinding.is_deleted.is_(False)
+        )
 
         if tenant_id:
             tenant_id_int = int(tenant_id)
             query = query.where(StorageTenantBinding.tenant_id == tenant_id_int)
-            count_query = count_query.where(StorageTenantBinding.tenant_id == tenant_id_int)
+            count_query = count_query.where(
+                StorageTenantBinding.tenant_id == tenant_id_int
+            )
         if provider_code:
             normalized_provider = _stringify(provider_code)
-            query = query.where(StorageTenantBinding.provider_code == normalized_provider)
-            count_query = count_query.where(StorageTenantBinding.provider_code == normalized_provider)
+            query = query.where(
+                StorageTenantBinding.provider_code == normalized_provider
+            )
+            count_query = count_query.where(
+                StorageTenantBinding.provider_code == normalized_provider
+            )
         if validation_status:
             normalized_status = _stringify(validation_status)
-            query = query.where(StorageTenantBinding.validation_status == normalized_status)
-            count_query = count_query.where(StorageTenantBinding.validation_status == normalized_status)
+            query = query.where(
+                StorageTenantBinding.validation_status == normalized_status
+            )
+            count_query = count_query.where(
+                StorageTenantBinding.validation_status == normalized_status
+            )
         if is_active is not None and _stringify(is_active):
             active_value = _to_bool(is_active)
             query = query.where(StorageTenantBinding.is_active.is_(active_value))
-            count_query = count_query.where(StorageTenantBinding.is_active.is_(active_value))
+            count_query = count_query.where(
+                StorageTenantBinding.is_active.is_(active_value)
+            )
 
         total = int((await self._db.execute(count_query)).scalar_one() or 0)
         result = await self._db.execute(
-            query.order_by(desc(StorageTenantBinding.updated_at), desc(StorageTenantBinding.id))
+            query.order_by(
+                desc(StorageTenantBinding.updated_at), desc(StorageTenantBinding.id)
+            )
             .offset((page - 1) * size)
             .limit(size)
         )
@@ -118,7 +146,9 @@ class StorageBillingBindingService:
         )
 
         tenant_snapshot = await self._get_tenant_snapshot(data["tenant_id"])
-        validation = await self._validate_binding_data(data, tenant_snapshot=tenant_snapshot)
+        validation = await self._validate_binding_data(
+            data, tenant_snapshot=tenant_snapshot
+        )
 
         instance = StorageTenantBinding(
             tenant_id=data["tenant_id"],
@@ -145,7 +175,9 @@ class StorageBillingBindingService:
         await self._maybe_refresh(instance)
         return self._build_mutation_result(instance, validation)
 
-    async def update_binding(self, binding_id: int, payload: dict[str, Any]) -> dict[str, Any]:
+    async def update_binding(
+        self, binding_id: int, payload: dict[str, Any]
+    ) -> dict[str, Any]:
         instance = await self._get_binding(binding_id)
         data = self._normalize_binding_payload(payload, current=instance)
 
@@ -156,10 +188,16 @@ class StorageBillingBindingService:
             scope_value=data["scope_value"],
         )
         if duplicate is not None and duplicate.id != instance.id:
-            raise BusinessException(message=_("A binding with the same tenant/provider/scope already exists."))
+            raise BusinessException(
+                message=_(
+                    "A binding with the same tenant/provider/scope already exists."
+                )
+            )
 
         tenant_snapshot = await self._get_tenant_snapshot(data["tenant_id"])
-        validation = await self._validate_binding_data(data, tenant_snapshot=tenant_snapshot)
+        validation = await self._validate_binding_data(
+            data, tenant_snapshot=tenant_snapshot
+        )
 
         instance.tenant_id = data["tenant_id"]
         instance.provider_code = data["provider_code"]
@@ -175,7 +213,9 @@ class StorageBillingBindingService:
         instance.tag_value = data["tag_value"]
         instance.validation_status = validation["validation_status"]
         instance.validation_message = validation["validation_message"]
-        instance.entitlement_snapshot_json = self._build_entitlement_snapshot(tenant_snapshot)
+        instance.entitlement_snapshot_json = self._build_entitlement_snapshot(
+            tenant_snapshot
+        )
         instance.metadata_json = dict(data.get("metadata_json") or {})
         instance.is_active = data["is_active"]
         instance.validated_at = validation["validated_at"]
@@ -204,10 +244,14 @@ class StorageBillingBindingService:
                 "is_active": instance.is_active,
             }
         )
-        validation = await self._validate_binding_data(data, tenant_snapshot=tenant_snapshot)
+        validation = await self._validate_binding_data(
+            data, tenant_snapshot=tenant_snapshot
+        )
         instance.validation_status = validation["validation_status"]
         instance.validation_message = validation["validation_message"]
-        instance.entitlement_snapshot_json = self._build_entitlement_snapshot(tenant_snapshot)
+        instance.entitlement_snapshot_json = self._build_entitlement_snapshot(
+            tenant_snapshot
+        )
         instance.validated_at = validation["validated_at"]
         await self._db.flush()
         await self._maybe_refresh(instance)
@@ -224,10 +268,12 @@ class StorageBillingBindingService:
         provider_profiles = await self._profile_service.list_provider_profiles()
 
         result = await self._db.execute(
-            select(StorageTenantBinding).where(
+            select(StorageTenantBinding)
+            .where(
                 StorageTenantBinding.tenant_id == tenant_id,
                 StorageTenantBinding.is_deleted.is_(False),
-            ).order_by(
+            )
+            .order_by(
                 desc(StorageTenantBinding.is_active),
                 desc(StorageTenantBinding.updated_at),
                 desc(StorageTenantBinding.id),
@@ -237,10 +283,14 @@ class StorageBillingBindingService:
 
         plan = dict(tenant_snapshot.get("plan") or {})
         features = dict(plan.get("features") or {})
-        tenant_storage_mode = _stringify(storage_context.get("storage_mode")) or "platform"
+        tenant_storage_mode = (
+            _stringify(storage_context.get("storage_mode")) or "platform"
+        )
         tenant_storage_config = dict(storage_context.get("storage_config") or {})
         tenant_effective_driver = _stringify(tenant_storage_config.get("driver"))
-        billing_storage_config = dict(billing_storage_context.get("storage_config") or {})
+        billing_storage_config = dict(
+            billing_storage_context.get("storage_config") or {}
+        )
         current_driver = _stringify(billing_storage_config.get("driver"))
         feature_enabled = _to_bool(features.get("storage_billing_enabled"))
         provider_map = dict(provider_profiles.get("providers") or {})
@@ -251,7 +301,8 @@ class StorageBillingBindingService:
         valid_active_bindings = [
             item
             for item in active_bindings
-            if item["validation_status"] == StorageBillingValidationStatusEnum.VALID.value
+            if item["validation_status"]
+            == StorageBillingValidationStatusEnum.VALID.value
         ]
         matching_active_bindings = [
             item for item in active_bindings if item["provider_code"] == current_driver
@@ -259,7 +310,8 @@ class StorageBillingBindingService:
         valid_matching_bindings = [
             item
             for item in matching_active_bindings
-            if item["validation_status"] == StorageBillingValidationStatusEnum.VALID.value
+            if item["validation_status"]
+            == StorageBillingValidationStatusEnum.VALID.value
         ]
 
         missing_reasons: list[str] = []
@@ -315,7 +367,9 @@ class StorageBillingBindingService:
                     dict(profile).get("recommended_scope_types") or []
                 ),
             }
-            for provider, profile in dict(provider_profiles.get("providers") or {}).items()
+            for provider, profile in dict(
+                provider_profiles.get("providers") or {}
+            ).items()
             if current_driver and provider == current_driver
         }
 
@@ -404,7 +458,11 @@ class StorageBillingBindingService:
             scope_value=scope_value,
         )
         if existing is not None:
-            raise BusinessException(message=_("A binding with the same tenant/provider/scope already exists."))
+            raise BusinessException(
+                message=_(
+                    "A binding with the same tenant/provider/scope already exists."
+                )
+            )
 
     async def _find_existing_binding(
         self,
@@ -427,7 +485,9 @@ class StorageBillingBindingService:
 
     async def _get_tenant_snapshot(self, tenant_id: int) -> dict[str, Any]:
         if self._host_read is None:
-            raise BusinessException(message=_("Storage billing host facade is unavailable."))
+            raise BusinessException(
+                message=_("Storage billing host facade is unavailable.")
+            )
         snapshot = await self._host_read.get_tenant_plan_snapshot(tenant_id)
         if snapshot is None:
             raise BusinessException(message=_("Tenant does not exist."))
@@ -484,20 +544,32 @@ class StorageBillingBindingService:
         if not _to_bool(features.get("storage_billing_enabled")):
             errors.append(_("Tenant plan does not enable storage billing."))
 
-        provider_profile = await self._profile_service.get_provider_runtime_profile(data["provider_code"])
+        provider_profile = await self._profile_service.get_provider_runtime_profile(
+            data["provider_code"]
+        )
         if not _to_bool(provider_profile.get("enabled")):
             errors.append(_("Provider profile is not enabled."))
-        if data["provider_profile_code"] != _stringify(provider_profile.get("profile_code")):
-            errors.append(_("Provider profile code does not match the active configured profile."))
+        if data["provider_profile_code"] != _stringify(
+            provider_profile.get("profile_code")
+        ):
+            errors.append(
+                _("Provider profile code does not match the active configured profile.")
+            )
         if provider_profile.get("driver_enabled") is False:
             errors.append(_("The corresponding storage driver plugin is not enabled."))
 
-        profile_validation = await self._profile_service.validate_provider_profile(data["provider_code"])
+        profile_validation = await self._profile_service.validate_provider_profile(
+            data["provider_code"]
+        )
         errors.extend(profile_validation["errors"])
         warnings.extend(profile_validation["warnings"])
 
-        tenant_storage_context = await self._get_tenant_storage_context(data["tenant_id"])
-        tenant_storage_mode = _stringify(tenant_storage_context.get("storage_mode")) or "platform"
+        tenant_storage_context = await self._get_tenant_storage_context(
+            data["tenant_id"]
+        )
+        tenant_storage_mode = (
+            _stringify(tenant_storage_context.get("storage_mode")) or "platform"
+        )
         platform_storage_context = await self._get_platform_storage_context()
         billing_storage_context = self._resolve_billing_storage_context(
             tenant_storage_context,
@@ -515,26 +587,38 @@ class StorageBillingBindingService:
         elif current_driver and current_driver not in SUPPORTED_CLOUD_DRIVERS:
             errors.append(_("Current platform storage driver is unsupported."))
         elif current_driver and current_driver != data["provider_code"]:
-            errors.append(_("Tenant current storage driver does not match the billing binding provider."))
+            errors.append(
+                _(
+                    "Tenant current storage driver does not match the billing binding provider."
+                )
+            )
 
         if (
             data["provider_code"] == StorageProviderCodeEnum.QINIU_KODO.value
             and data["scope_type"] != StorageBillingScopeTypeEnum.ACCOUNT.value
         ):
-            errors.append(_("Qiniu monthly settled billing currently requires account scope."))
+            errors.append(
+                _("Qiniu monthly settled billing currently requires account scope.")
+            )
 
         if (
             data["provider_code"] == StorageProviderCodeEnum.QINIU_KODO.value
-            and data["billing_mode"] == StorageBillingModeEnum.OFFICIAL_PASS_THROUGH.value
+            and data["billing_mode"]
+            == StorageBillingModeEnum.OFFICIAL_PASS_THROUGH.value
         ):
             errors.append(_("Qiniu official_pass_through is not supported in phase 1."))
 
         if (
             data["provider_code"] == StorageProviderCodeEnum.TENCENT_COS.value
-            and data["billing_mode"] == StorageBillingModeEnum.OFFICIAL_PASS_THROUGH.value
+            and data["billing_mode"]
+            == StorageBillingModeEnum.OFFICIAL_PASS_THROUGH.value
             and data["scope_type"] != StorageBillingScopeTypeEnum.BUCKET.value
         ):
-            errors.append(_("Tencent COS official_pass_through mode currently requires bucket scope."))
+            errors.append(
+                _(
+                    "Tencent COS official_pass_through mode currently requires bucket scope."
+                )
+            )
 
         message = "; ".join(errors or warnings) or _("Binding validation is pending.")
         status = (
@@ -577,7 +661,11 @@ class StorageBillingBindingService:
         billing_mode = _stringify(
             payload.get("billing_mode")
             if payload.get("billing_mode") is not None
-            else getattr(current, "billing_mode", StorageBillingModeEnum.OFFICIAL_RECONCILED.value)
+            else getattr(
+                current,
+                "billing_mode",
+                StorageBillingModeEnum.OFFICIAL_RECONCILED.value,
+            )
         )
         if billing_mode not in _SUPPORTED_MODES:
             raise BusinessException(message=_("Unsupported billing mode."))
@@ -597,7 +685,9 @@ class StorageBillingBindingService:
         )
         bucket_name = self._coalesce_scope_value(payload, current, "bucket_name")
         domain_name = self._coalesce_scope_value(payload, current, "domain_name")
-        account_identifier = self._coalesce_scope_value(payload, current, "account_identifier")
+        account_identifier = self._coalesce_scope_value(
+            payload, current, "account_identifier"
+        )
         tag_key = self._coalesce_scope_value(payload, current, "tag_key")
         tag_value = self._coalesce_scope_value(payload, current, "tag_value")
 
@@ -605,7 +695,9 @@ class StorageBillingBindingService:
             scope_value = bucket_name or scope_value
             bucket_name = scope_value
             if not scope_value:
-                raise BusinessException(message=_("bucket_name is required for bucket scope."))
+                raise BusinessException(
+                    message=_("bucket_name is required for bucket scope.")
+                )
             domain_name = ""
             account_identifier = ""
             tag_key = ""
@@ -614,7 +706,9 @@ class StorageBillingBindingService:
             scope_value = domain_name or scope_value
             domain_name = scope_value
             if not scope_value:
-                raise BusinessException(message=_("domain_name is required for domain scope."))
+                raise BusinessException(
+                    message=_("domain_name is required for domain scope.")
+                )
             bucket_name = ""
             account_identifier = ""
             tag_key = ""
@@ -623,26 +717,35 @@ class StorageBillingBindingService:
             scope_value = account_identifier or scope_value
             account_identifier = scope_value
             if not scope_value:
-                raise BusinessException(message=_("account_identifier is required for account scope."))
+                raise BusinessException(
+                    message=_("account_identifier is required for account scope.")
+                )
             bucket_name = ""
             domain_name = ""
             tag_key = ""
             tag_value = ""
         else:
             if not tag_key or not tag_value:
-                raise BusinessException(message=_("tag_key and tag_value are required for tag scope."))
+                raise BusinessException(
+                    message=_("tag_key and tag_value are required for tag scope.")
+                )
             scope_value = scope_value or f"{tag_key}:{tag_value}"
             bucket_name = ""
             domain_name = ""
             account_identifier = ""
 
-        driver_code = _stringify(
-            payload.get("driver_code")
-            if payload.get("driver_code") is not None
-            else getattr(current, "driver_code", provider_code)
-        ) or provider_code
+        driver_code = (
+            _stringify(
+                payload.get("driver_code")
+                if payload.get("driver_code") is not None
+                else getattr(current, "driver_code", provider_code)
+            )
+            or provider_code
+        )
         if driver_code != provider_code:
-            raise BusinessException(message=_("driver_code must match provider_code in phase one."))
+            raise BusinessException(
+                message=_("driver_code must match provider_code in phase one.")
+            )
 
         provider_profile_code = _stringify(
             payload.get("provider_profile_code")
@@ -697,7 +800,9 @@ class StorageBillingBindingService:
         }
         return prefix_map[provider_code]
 
-    def _build_entitlement_snapshot(self, tenant_snapshot: dict[str, Any]) -> dict[str, Any]:
+    def _build_entitlement_snapshot(
+        self, tenant_snapshot: dict[str, Any]
+    ) -> dict[str, Any]:
         plan = dict(tenant_snapshot.get("plan") or {})
         features = dict(plan.get("features") or {})
         return {
@@ -707,7 +812,9 @@ class StorageBillingBindingService:
             "plan_id": tenant_snapshot.get("plan_id"),
             "plan_code": plan.get("code"),
             "plan_name": plan.get("name"),
-            "storage_billing_enabled": _to_bool(features.get("storage_billing_enabled")),
+            "storage_billing_enabled": _to_bool(
+                features.get("storage_billing_enabled")
+            ),
         }
 
     def _build_mutation_result(

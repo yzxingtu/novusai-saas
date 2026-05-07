@@ -67,7 +67,8 @@ class TestTraceIdMiddleware:
         # so trace_id_var was set. main.py would add X-Trace-ID in production.
         assert resp.status_code == 500
 
-    def test_trace_id_var_set_during_request(self, app):
+    @pytest.mark.usefixtures("app")
+    def test_trace_id_var_set_during_request(self):
         """请求处理期间 trace_id_var 应被正确设置 / trace_id_var should be set during request."""
         received_tid = []
 
@@ -88,7 +89,8 @@ class TestTraceIdMiddleware:
         assert received_tid[0] == expected
         assert resp.json()["trace_id"] == expected
 
-    def test_long_request_trace_id_is_normalized_to_column_safe_length(self, app):
+    @pytest.mark.usefixtures("app")
+    def test_long_request_trace_id_is_normalized_to_column_safe_length(self):
         """超长请求头 trace_id 应统一归一化，避免 HTTP/Socket/DB 长度不一致。"""
         received_tid = []
 

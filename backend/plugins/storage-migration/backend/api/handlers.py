@@ -197,11 +197,13 @@ async def get_migration_task(request: Request, ctx: object) -> JSONResponse:
         return _bad_request(str(exc))
 
     log_page = _safe_int(
-        request.query_params.get("log_page[number]") or request.query_params.get("log_page"),
+        request.query_params.get("log_page[number]")
+        or request.query_params.get("log_page"),
         1,
     )
     log_page_size = _safe_int(
-        request.query_params.get("log_page[size]") or request.query_params.get("log_page_size"),
+        request.query_params.get("log_page[size]")
+        or request.query_params.get("log_page_size"),
         50,
     )
     log_page = max(log_page, 1)

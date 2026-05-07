@@ -20,8 +20,22 @@ def test_trace_show_json_success(monkeypatch) -> None:
             return TraceLookupResult(
                 trace_id=trace_id,
                 operation_logs=[],
-                log_matches=[{"file": "error.log", "line": 3, "start_line": 1, "end_line": 5, "block": ["x"]}],
-                primary_error={"file": "error.log", "line": 3, "start_line": 1, "end_line": 5, "block": ["x"]},
+                log_matches=[
+                    {
+                        "file": "error.log",
+                        "line": 3,
+                        "start_line": 1,
+                        "end_line": 5,
+                        "block": ["x"],
+                    }
+                ],
+                primary_error={
+                    "file": "error.log",
+                    "line": 3,
+                    "start_line": 1,
+                    "end_line": 5,
+                    "block": ["x"],
+                },
                 summary={
                     "operation_logs": 0,
                     "log_matches": 1,
@@ -79,8 +93,22 @@ def test_trace_show_auto_falls_back_to_logs_when_db_lookup_fails(monkeypatch) ->
             return TraceLookupResult(
                 trace_id=trace_id,
                 operation_logs=[],
-                log_matches=[{"file": "error.log", "line": 3, "start_line": 1, "end_line": 5, "block": ["x"]}],
-                primary_error={"file": "error.log", "line": 3, "start_line": 1, "end_line": 5, "block": ["x"]},
+                log_matches=[
+                    {
+                        "file": "error.log",
+                        "line": 3,
+                        "start_line": 1,
+                        "end_line": 5,
+                        "block": ["x"],
+                    }
+                ],
+                primary_error={
+                    "file": "error.log",
+                    "line": 3,
+                    "start_line": 1,
+                    "end_line": 5,
+                    "block": ["x"],
+                },
                 summary={
                     "operation_logs": 0,
                     "log_matches": 1,

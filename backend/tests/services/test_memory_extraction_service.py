@@ -36,18 +36,22 @@ def _fake_response(content: str, *, reasoning_content: str | None = None):
 async def test_extract_turn_memory_uses_configured_model(mock_db):
     from app.services.ai.memory_extraction_service import MemoryExtractionService
 
-    with patch(
-        "app.services.ai.memory_extraction_service.async_session_factory",
-        return_value=_SessionManager(mock_db),
-    ), patch(
-        "app.services.ai.memory_extraction_service.ConfigService",
-    ) as mock_config_service, patch(
-        "app.services.ai.memory_extraction_service.InternalAIService.chat",
-        new_callable=AsyncMock,
-        return_value=_fake_response(
-            '{"preferences":["formal tone"],"constraints":[],"task_states":[],"verified_facts":[]}',
+    with (
+        patch(
+            "app.services.ai.memory_extraction_service.async_session_factory",
+            return_value=_SessionManager(mock_db),
         ),
-    ) as mock_chat:
+        patch(
+            "app.services.ai.memory_extraction_service.ConfigService",
+        ) as mock_config_service,
+        patch(
+            "app.services.ai.memory_extraction_service.InternalAIService.chat",
+            new_callable=AsyncMock,
+            return_value=_fake_response(
+                '{"preferences":["formal tone"],"constraints":[],"task_states":[],"verified_facts":[]}',
+            ),
+        ) as mock_chat,
+    ):
         mock_config_service.return_value.get_platform_config = AsyncMock(
             side_effect=["openai_compatible", "gpt-4o-mini"],
         )
@@ -74,22 +78,27 @@ async def test_extract_turn_memory_falls_back_to_agent_model(mock_db):
     model = make_mock_model(code="fallback-model", provider=provider)
     agent = make_mock_model(model=model)
 
-    with patch(
-        "app.services.ai.memory_extraction_service.async_session_factory",
-        return_value=_SessionManager(mock_db),
-    ), patch(
-        "app.services.ai.memory_extraction_service.ConfigService",
-    ) as mock_config_service, patch(
-        "app.services.ai.memory_extraction_service.AgentRepository.get_by_id",
-        new_callable=AsyncMock,
-        return_value=agent,
-    ), patch(
-        "app.services.ai.memory_extraction_service.InternalAIService.chat",
-        new_callable=AsyncMock,
-        return_value=_fake_response(
-            '{"preferences":[],"constraints":["avoid slang"],"task_states":[],"verified_facts":[]}',
+    with (
+        patch(
+            "app.services.ai.memory_extraction_service.async_session_factory",
+            return_value=_SessionManager(mock_db),
         ),
-    ) as mock_chat:
+        patch(
+            "app.services.ai.memory_extraction_service.ConfigService",
+        ) as mock_config_service,
+        patch(
+            "app.services.ai.memory_extraction_service.AgentRepository.get_by_id",
+            new_callable=AsyncMock,
+            return_value=agent,
+        ),
+        patch(
+            "app.services.ai.memory_extraction_service.InternalAIService.chat",
+            new_callable=AsyncMock,
+            return_value=_fake_response(
+                '{"preferences":[],"constraints":["avoid slang"],"task_states":[],"verified_facts":[]}',
+            ),
+        ) as mock_chat,
+    ):
         mock_config_service.return_value.get_platform_config = AsyncMock(
             side_effect=["", ""],
         )
@@ -110,15 +119,19 @@ async def test_extract_turn_memory_falls_back_to_agent_model(mock_db):
 async def test_extract_turn_memory_returns_empty_on_invalid_json(mock_db):
     from app.services.ai.memory_extraction_service import MemoryExtractionService
 
-    with patch(
-        "app.services.ai.memory_extraction_service.async_session_factory",
-        return_value=_SessionManager(mock_db),
-    ), patch(
-        "app.services.ai.memory_extraction_service.ConfigService",
-    ) as mock_config_service, patch(
-        "app.services.ai.memory_extraction_service.InternalAIService.chat",
-        new_callable=AsyncMock,
-        return_value=_fake_response("not-json"),
+    with (
+        patch(
+            "app.services.ai.memory_extraction_service.async_session_factory",
+            return_value=_SessionManager(mock_db),
+        ),
+        patch(
+            "app.services.ai.memory_extraction_service.ConfigService",
+        ) as mock_config_service,
+        patch(
+            "app.services.ai.memory_extraction_service.InternalAIService.chat",
+            new_callable=AsyncMock,
+            return_value=_fake_response("not-json"),
+        ),
     ):
         mock_config_service.return_value.get_platform_config = AsyncMock(
             side_effect=["openai_compatible", "gpt-4o-mini"],
@@ -139,17 +152,21 @@ async def test_extract_turn_memory_uses_reasoning_content_when_primary_content_i
 ):
     from app.services.ai.memory_extraction_service import MemoryExtractionService
 
-    with patch(
-        "app.services.ai.memory_extraction_service.async_session_factory",
-        return_value=_SessionManager(mock_db),
-    ), patch(
-        "app.services.ai.memory_extraction_service.ConfigService",
-    ) as mock_config_service, patch(
-        "app.services.ai.memory_extraction_service.InternalAIService.chat",
-        new_callable=AsyncMock,
-        return_value=_fake_response(
-            "not-json",
-            reasoning_content='{"preferences":[],"constraints":[],"task_states":[],"verified_facts":["preferred locale: zh-CN"]}',
+    with (
+        patch(
+            "app.services.ai.memory_extraction_service.async_session_factory",
+            return_value=_SessionManager(mock_db),
+        ),
+        patch(
+            "app.services.ai.memory_extraction_service.ConfigService",
+        ) as mock_config_service,
+        patch(
+            "app.services.ai.memory_extraction_service.InternalAIService.chat",
+            new_callable=AsyncMock,
+            return_value=_fake_response(
+                "not-json",
+                reasoning_content='{"preferences":[],"constraints":[],"task_states":[],"verified_facts":["preferred locale: zh-CN"]}',
+            ),
         ),
     ):
         mock_config_service.return_value.get_platform_config = AsyncMock(
@@ -176,15 +193,19 @@ async def test_extract_turn_memory_falls_back_to_explicit_name_fact_on_empty_con
 ):
     from app.services.ai.memory_extraction_service import MemoryExtractionService
 
-    with patch(
-        "app.services.ai.memory_extraction_service.async_session_factory",
-        return_value=_SessionManager(mock_db),
-    ), patch(
-        "app.services.ai.memory_extraction_service.ConfigService",
-    ) as mock_config_service, patch(
-        "app.services.ai.memory_extraction_service.InternalAIService.chat",
-        new_callable=AsyncMock,
-        return_value=_fake_response(""),
+    with (
+        patch(
+            "app.services.ai.memory_extraction_service.async_session_factory",
+            return_value=_SessionManager(mock_db),
+        ),
+        patch(
+            "app.services.ai.memory_extraction_service.ConfigService",
+        ) as mock_config_service,
+        patch(
+            "app.services.ai.memory_extraction_service.InternalAIService.chat",
+            new_callable=AsyncMock,
+            return_value=_fake_response(""),
+        ),
     ):
         mock_config_service.return_value.get_platform_config = AsyncMock(
             side_effect=["openai_compatible", "gpt-4o-mini"],
@@ -210,15 +231,19 @@ async def test_extract_turn_memory_falls_back_to_explicit_memory_fact_on_empty_c
 ):
     from app.services.ai.memory_extraction_service import MemoryExtractionService
 
-    with patch(
-        "app.services.ai.memory_extraction_service.async_session_factory",
-        return_value=_SessionManager(mock_db),
-    ), patch(
-        "app.services.ai.memory_extraction_service.ConfigService",
-    ) as mock_config_service, patch(
-        "app.services.ai.memory_extraction_service.InternalAIService.chat",
-        new_callable=AsyncMock,
-        return_value=_fake_response(""),
+    with (
+        patch(
+            "app.services.ai.memory_extraction_service.async_session_factory",
+            return_value=_SessionManager(mock_db),
+        ),
+        patch(
+            "app.services.ai.memory_extraction_service.ConfigService",
+        ) as mock_config_service,
+        patch(
+            "app.services.ai.memory_extraction_service.InternalAIService.chat",
+            new_callable=AsyncMock,
+            return_value=_fake_response(""),
+        ),
     ):
         mock_config_service.return_value.get_platform_config = AsyncMock(
             side_effect=["openai_compatible", "gpt-4o-mini"],
@@ -251,19 +276,24 @@ async def test_extract_turn_memory_falls_back_to_explicit_fact_when_model_missin
     """
     from app.services.ai.memory_extraction_service import MemoryExtractionService
 
-    with patch(
-        "app.services.ai.memory_extraction_service.async_session_factory",
-        return_value=_SessionManager(mock_db),
-    ), patch(
-        "app.services.ai.memory_extraction_service.ConfigService",
-    ) as mock_config_service, patch(
-        "app.services.ai.memory_extraction_service.AgentRepository.get_by_id",
-        new_callable=AsyncMock,
-        return_value=None,
-    ), patch(
-        "app.services.ai.memory_extraction_service.InternalAIService.chat",
-        new_callable=AsyncMock,
-    ) as mock_chat:
+    with (
+        patch(
+            "app.services.ai.memory_extraction_service.async_session_factory",
+            return_value=_SessionManager(mock_db),
+        ),
+        patch(
+            "app.services.ai.memory_extraction_service.ConfigService",
+        ) as mock_config_service,
+        patch(
+            "app.services.ai.memory_extraction_service.AgentRepository.get_by_id",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            "app.services.ai.memory_extraction_service.InternalAIService.chat",
+            new_callable=AsyncMock,
+        ) as mock_chat,
+    ):
         mock_config_service.return_value.get_platform_config = AsyncMock(
             side_effect=["", ""],
         )
@@ -293,15 +323,19 @@ async def test_extract_turn_memory_falls_back_to_explicit_fact_on_internal_error
     """
     from app.services.ai.memory_extraction_service import MemoryExtractionService
 
-    with patch(
-        "app.services.ai.memory_extraction_service.async_session_factory",
-        return_value=_SessionManager(mock_db),
-    ), patch(
-        "app.services.ai.memory_extraction_service.ConfigService",
-    ) as mock_config_service, patch(
-        "app.services.ai.memory_extraction_service.InternalAIService.chat",
-        new_callable=AsyncMock,
-        side_effect=RuntimeError("provider unavailable"),
+    with (
+        patch(
+            "app.services.ai.memory_extraction_service.async_session_factory",
+            return_value=_SessionManager(mock_db),
+        ),
+        patch(
+            "app.services.ai.memory_extraction_service.ConfigService",
+        ) as mock_config_service,
+        patch(
+            "app.services.ai.memory_extraction_service.InternalAIService.chat",
+            new_callable=AsyncMock,
+            side_effect=RuntimeError("provider unavailable"),
+        ),
     ):
         mock_config_service.return_value.get_platform_config = AsyncMock(
             side_effect=["openai_compatible", "gpt-4o-mini"],
@@ -341,15 +375,19 @@ async def test_extract_turn_memory_fallback_accepts_plain_remember_phrasing(
     """
     from app.services.ai.memory_extraction_service import MemoryExtractionService
 
-    with patch(
-        "app.services.ai.memory_extraction_service.async_session_factory",
-        return_value=_SessionManager(mock_db),
-    ), patch(
-        "app.services.ai.memory_extraction_service.ConfigService",
-    ) as mock_config_service, patch(
-        "app.services.ai.memory_extraction_service.AgentRepository.get_by_id",
-        new_callable=AsyncMock,
-        return_value=None,
+    with (
+        patch(
+            "app.services.ai.memory_extraction_service.async_session_factory",
+            return_value=_SessionManager(mock_db),
+        ),
+        patch(
+            "app.services.ai.memory_extraction_service.ConfigService",
+        ) as mock_config_service,
+        patch(
+            "app.services.ai.memory_extraction_service.AgentRepository.get_by_id",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
     ):
         mock_config_service.return_value.get_platform_config = AsyncMock(
             side_effect=["", ""],
@@ -379,15 +417,19 @@ async def test_extract_turn_memory_fallback_keeps_spaced_display_name(
     """
     from app.services.ai.memory_extraction_service import MemoryExtractionService
 
-    with patch(
-        "app.services.ai.memory_extraction_service.async_session_factory",
-        return_value=_SessionManager(mock_db),
-    ), patch(
-        "app.services.ai.memory_extraction_service.ConfigService",
-    ) as mock_config_service, patch(
-        "app.services.ai.memory_extraction_service.AgentRepository.get_by_id",
-        new_callable=AsyncMock,
-        return_value=None,
+    with (
+        patch(
+            "app.services.ai.memory_extraction_service.async_session_factory",
+            return_value=_SessionManager(mock_db),
+        ),
+        patch(
+            "app.services.ai.memory_extraction_service.ConfigService",
+        ) as mock_config_service,
+        patch(
+            "app.services.ai.memory_extraction_service.AgentRepository.get_by_id",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
     ):
         mock_config_service.return_value.get_platform_config = AsyncMock(
             side_effect=["", ""],
@@ -417,18 +459,22 @@ async def test_extract_turn_memory_uses_local_explicit_fact_before_model_call(
     """
     from app.services.ai.memory_extraction_service import MemoryExtractionService
 
-    with patch(
-        "app.services.ai.memory_extraction_service.async_session_factory",
-        return_value=_SessionManager(mock_db),
-    ), patch(
-        "app.services.ai.memory_extraction_service.ConfigService",
-    ) as mock_config_service, patch(
-        "app.services.ai.memory_extraction_service.InternalAIService.chat",
-        new_callable=AsyncMock,
-        return_value=_fake_response(
-            '{"preferences":[],"constraints":[],"task_states":[],"verified_facts":["wrong"]}',
+    with (
+        patch(
+            "app.services.ai.memory_extraction_service.async_session_factory",
+            return_value=_SessionManager(mock_db),
         ),
-    ) as mock_chat:
+        patch(
+            "app.services.ai.memory_extraction_service.ConfigService",
+        ) as mock_config_service,
+        patch(
+            "app.services.ai.memory_extraction_service.InternalAIService.chat",
+            new_callable=AsyncMock,
+            return_value=_fake_response(
+                '{"preferences":[],"constraints":[],"task_states":[],"verified_facts":["wrong"]}',
+            ),
+        ) as mock_chat,
+    ):
         mock_config_service.return_value.get_platform_config = AsyncMock(
             side_effect=["openai_compatible", "gpt-4o-mini"],
         )
@@ -458,15 +504,19 @@ async def test_extract_turn_memory_normalizes_prefixed_name_memory_save(
     """
     from app.services.ai.memory_extraction_service import MemoryExtractionService
 
-    with patch(
-        "app.services.ai.memory_extraction_service.async_session_factory",
-        return_value=_SessionManager(mock_db),
-    ), patch(
-        "app.services.ai.memory_extraction_service.ConfigService",
-    ) as mock_config_service, patch(
-        "app.services.ai.memory_extraction_service.InternalAIService.chat",
-        new_callable=AsyncMock,
-    ) as mock_chat:
+    with (
+        patch(
+            "app.services.ai.memory_extraction_service.async_session_factory",
+            return_value=_SessionManager(mock_db),
+        ),
+        patch(
+            "app.services.ai.memory_extraction_service.ConfigService",
+        ) as mock_config_service,
+        patch(
+            "app.services.ai.memory_extraction_service.InternalAIService.chat",
+            new_callable=AsyncMock,
+        ) as mock_chat,
+    ):
         mock_config_service.return_value.get_platform_config = AsyncMock(
             side_effect=["openai_compatible", "gpt-4o-mini"],
         )
@@ -496,15 +546,19 @@ async def test_extract_turn_memory_fallback_strips_trailing_memory_instruction(
     """
     from app.services.ai.memory_extraction_service import MemoryExtractionService
 
-    with patch(
-        "app.services.ai.memory_extraction_service.async_session_factory",
-        return_value=_SessionManager(mock_db),
-    ), patch(
-        "app.services.ai.memory_extraction_service.ConfigService",
-    ) as mock_config_service, patch(
-        "app.services.ai.memory_extraction_service.AgentRepository.get_by_id",
-        new_callable=AsyncMock,
-        return_value=None,
+    with (
+        patch(
+            "app.services.ai.memory_extraction_service.async_session_factory",
+            return_value=_SessionManager(mock_db),
+        ),
+        patch(
+            "app.services.ai.memory_extraction_service.ConfigService",
+        ) as mock_config_service,
+        patch(
+            "app.services.ai.memory_extraction_service.AgentRepository.get_by_id",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
     ):
         mock_config_service.return_value.get_platform_config = AsyncMock(
             side_effect=["", ""],

@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
-from datetime import date, datetime, timezone
-from decimal import Decimal, InvalidOperation
 import hashlib
 import hmac
 import json
 import time
+from collections.abc import Iterable, Mapping
+from datetime import date, datetime, timezone
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 import httpx
@@ -66,7 +66,10 @@ def _normalize_tags(value: Any) -> dict[str, str]:
         if not isinstance(item, Mapping):
             continue
         key = _stringify(
-            item.get("TagKey") or item.get("Key") or item.get("Name") or item.get("tagKey")
+            item.get("TagKey")
+            or item.get("Key")
+            or item.get("Name")
+            or item.get("tagKey")
         )
         if not key:
             continue
@@ -203,7 +206,9 @@ class TencentCosOfficialBillAdapter:
             source_status=source_status,
             source_ref=f"describe_bill_detail:{request.billing_date.strftime('%Y-%m')}",
             currency="CNY",
-            amount_total=sum((item.amount_total for item in charge_items), Decimal("0")),
+            amount_total=sum(
+                (item.amount_total for item in charge_items), Decimal("0")
+            ),
             usage_bytes=sum(item.usage_bytes for item in charge_items),
             charge_items=charge_items,
             raw_payload_json={
@@ -304,7 +309,7 @@ class TencentCosOfficialBillAdapter:
         )
 
         secret_date = hmac.new(
-            f"TC3{secret_key}".encode("utf-8"),
+            f"TC3{secret_key}".encode(),
             date_stamp.encode("utf-8"),
             hashlib.sha256,
         ).digest()
@@ -349,7 +354,9 @@ class TencentCosOfficialBillAdapter:
             response.raise_for_status()
             payload_json = response.json()
 
-        body = payload_json.get("Response") if isinstance(payload_json, Mapping) else None
+        body = (
+            payload_json.get("Response") if isinstance(payload_json, Mapping) else None
+        )
         if not isinstance(body, Mapping):
             raise RuntimeError("Tencent billing API returned invalid payload.")
 
@@ -357,7 +364,9 @@ class TencentCosOfficialBillAdapter:
         if isinstance(error_data, Mapping):
             code = _stringify(error_data.get("Code"))
             message = _stringify(error_data.get("Message"))
-            raise RuntimeError(f"Tencent billing API error: {code or 'Unknown'} {message}".strip())
+            raise RuntimeError(
+                f"Tencent billing API error: {code or 'Unknown'} {message}".strip()
+            )
 
         return dict(body)
 
@@ -397,7 +406,9 @@ class TencentCosOfficialBillAdapter:
                 or component.get("Cost")
                 or component.get("CashPayAmount")
             )
-            usage_value = component.get("UsedAmount") or component.get("RealTotalMeasure")
+            usage_value = component.get("UsedAmount") or component.get(
+                "RealTotalMeasure"
+            )
             usage_unit = component.get("UsedAmountUnit")
             usage_bytes = _bytes_from_usage(usage_value, usage_unit)
 
@@ -424,14 +435,20 @@ class TencentCosOfficialBillAdapter:
                         "bill_id": _stringify(detail.get("BillId")),
                         "order_id": _stringify(detail.get("OrderId")),
                         "business_code": _stringify(detail.get("BusinessCode")),
-                        "business_code_name": _stringify(detail.get("BusinessCodeName")),
+                        "business_code_name": _stringify(
+                            detail.get("BusinessCodeName")
+                        ),
                         "product_code": _stringify(detail.get("ProductCode")),
                         "product_code_name": _stringify(detail.get("ProductCodeName")),
-                        "action_type": _stringify(detail.get("ActionTypeName") or detail.get("ActionType")),
+                        "action_type": _stringify(
+                            detail.get("ActionTypeName") or detail.get("ActionType")
+                        ),
                         "region_name": _stringify(detail.get("RegionName")),
                         "zone_name": _stringify(detail.get("ZoneName")),
                         "component_code": _stringify(component.get("ComponentCode")),
-                        "component_code_name": _stringify(component.get("ComponentCodeName")),
+                        "component_code_name": _stringify(
+                            component.get("ComponentCodeName")
+                        ),
                         "item_code": _stringify(component.get("ItemCode")),
                         "item_code_name": _stringify(component.get("ItemCodeName")),
                         "used_amount": _stringify(usage_value),
@@ -452,7 +469,9 @@ class TencentCosOfficialBillAdapter:
         texts = [
             _stringify(detail.get("BusinessCodeName")).lower(),
             _stringify(detail.get("ProductCodeName")).lower(),
-            _stringify(detail.get("ActionTypeName") or detail.get("ActionType")).lower(),
+            _stringify(
+                detail.get("ActionTypeName") or detail.get("ActionType")
+            ).lower(),
             _stringify(component.get("ComponentCodeName")).lower(),
             _stringify(component.get("ItemCodeName")).lower(),
             _stringify(component.get("ComponentCode")).lower(),

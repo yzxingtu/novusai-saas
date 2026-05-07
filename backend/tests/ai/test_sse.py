@@ -53,8 +53,7 @@ def test_sse_chunk_encoder_normalizes_nested_runtime_values():
     assert decoded["turn_record"]["status"] == "ok"
     assert decoded["turn_record"]["payload"]["amount"] == 3
     assert (
-        decoded["turn_record"]["payload"]["created_at"]
-        == "2026-04-07T13:47:25+00:00"
+        decoded["turn_record"]["payload"]["created_at"] == "2026-04-07T13:47:25+00:00"
     )
     assert decoded["turn_record"]["uuid"] == "12345678-1234-5678-1234-567812345678"
     assert sorted(decoded["turn_record"]["tags"]) == ["alpha", "beta"]

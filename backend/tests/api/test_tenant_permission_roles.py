@@ -3,6 +3,7 @@
 
 测试 /tenant/permission-roles/* 接口
 """
+
 import contextlib
 import os
 import sys
@@ -15,19 +16,19 @@ try:
         assert_equals,
         assert_has_keys,
         assert_success,
-        assert_tenant_login_success,
         assert_true,
         config,
     )
 except ModuleNotFoundError:
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+    sys.path.insert(
+        0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    )
     from tests.api.base import (  # noqa: I001
         BaseAPITest,
         assert_error,
         assert_equals,
         assert_has_keys,
         assert_success,
-        assert_tenant_login_success,
         assert_true,
         config,
     )
@@ -60,7 +61,9 @@ class ManualTestTenantPermissionRoles(BaseAPITest):
 
         self.run_test("获取权限角色列表", self.test_list_permission_roles, skip_reason)
         self.run_test("创建权限角色", self.test_create_permission_role, skip_reason)
-        self.run_test("获取权限角色详情", self.test_get_permission_role_detail, skip_reason)
+        self.run_test(
+            "获取权限角色详情", self.test_get_permission_role_detail, skip_reason
+        )
         self.run_test("更新权限角色", self.test_update_permission_role, skip_reason)
         self.run_test("分配权限", self.test_assign_permissions, skip_reason)
         self.run_test("删除权限角色", self.test_delete_permission_role, skip_reason)
@@ -110,7 +113,10 @@ class ManualTestTenantPermissionRoles(BaseAPITest):
         )
         data = assert_success(resp, "创建权限角色失败")
 
-        assert_has_keys(data["data"], ["id", "tenant_id", "name", "permission_ids", "permission_codes"])
+        assert_has_keys(
+            data["data"],
+            ["id", "tenant_id", "name", "permission_ids", "permission_codes"],
+        )
         assert_equals(data["data"]["name"], self._test_data["role_name"])
         self._test_data["created_role_id"] = data["data"]["id"]
 
@@ -123,7 +129,10 @@ class ManualTestTenantPermissionRoles(BaseAPITest):
         resp = self.client.get(f"/tenant/permission-roles/{role_id}")
         data = assert_success(resp, "获取权限角色详情失败")
 
-        assert_has_keys(data["data"], ["id", "tenant_id", "name", "permission_ids", "permission_codes"])
+        assert_has_keys(
+            data["data"],
+            ["id", "tenant_id", "name", "permission_ids", "permission_codes"],
+        )
         assert_equals(data["data"]["id"], role_id)
 
     def test_update_permission_role(self) -> None:

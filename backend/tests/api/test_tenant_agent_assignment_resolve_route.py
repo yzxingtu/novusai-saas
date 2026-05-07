@@ -53,7 +53,9 @@ async def test_tenant_resolve_assignment_returns_agent_payload() -> None:
 
 
 @pytest.mark.asyncio
-async def test_tenant_resolve_assignment_returns_empty_payload_when_unassigned() -> None:
+async def test_tenant_resolve_assignment_returns_empty_payload_when_unassigned() -> (
+    None
+):
     endpoint = _get_endpoint("/ai/agent-assignments/resolve/{feature_code}", "GET")
 
     db = AsyncMock()

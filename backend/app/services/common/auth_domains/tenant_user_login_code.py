@@ -162,7 +162,9 @@ class TenantUserLoginCodeDomain:
             identifier=identifier,
             client_ip=client_ip,
         )
-        await self.ensure_login_code_channel_enabled(tenant_id=tenant_id, channel=channel)
+        await self.ensure_login_code_channel_enabled(
+            tenant_id=tenant_id, channel=channel
+        )
 
         if channel == "email":
             if not normalized_email:
@@ -289,7 +291,9 @@ class TenantUserLoginCodeDomain:
             identifier=identifier,
             client_ip=client_ip,
         )
-        await self.ensure_login_code_channel_enabled(tenant_id=tenant_id, channel=channel)
+        await self.ensure_login_code_channel_enabled(
+            tenant_id=tenant_id, channel=channel
+        )
 
         if channel == "email":
             if not normalized_email:

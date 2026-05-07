@@ -103,7 +103,9 @@ async def test_explicit_ai_enabled_false_is_preserved_with_permission() -> None:
 
 
 @pytest.mark.asyncio
-async def test_raw_json_ai_enabled_false_requires_permission_when_schema_omits_field() -> None:
+async def test_raw_json_ai_enabled_false_requires_permission_when_schema_omits_field() -> (
+    None
+):
     request = _FakeRequest(body={"ai_enabled": False}, permissions={"*"})
     data = _NicknamePayload(nickname="schema without switch")
 
@@ -117,7 +119,9 @@ async def test_raw_json_ai_enabled_false_requires_permission_when_schema_omits_f
 
 
 @pytest.mark.asyncio
-async def test_explicit_tenant_admin_ai_enabled_false_requires_manage_ai_permission() -> None:
+async def test_explicit_tenant_admin_ai_enabled_false_requires_manage_ai_permission() -> (
+    None
+):
     request = _FakeRequest(body={"ai_enabled": False}, permissions=set())
     data = _AIEnabledPayload(ai_enabled=False)
 

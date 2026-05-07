@@ -41,7 +41,6 @@ class Agent(BaseModel):
 
     __tablename__ = "agents"
 
-
     __delete_deps__ = [
         DeletionDep(
             "AgentAccess",

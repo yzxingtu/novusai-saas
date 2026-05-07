@@ -14,7 +14,11 @@ from sqlalchemy import select
 from app.core.base_model import utc_now
 from app.core.logging import get_logger
 
-from ..constants import EXCLUDED_DRIVERS, SUPPORTED_CLOUD_DRIVERS, get_provider_implemented_bill_sources
+from ..constants import (
+    EXCLUDED_DRIVERS,
+    SUPPORTED_CLOUD_DRIVERS,
+    get_provider_implemented_bill_sources,
+)
 from ..models import (
     StorageBillingRun,
     StorageBillingRunStatusEnum,
@@ -26,12 +30,17 @@ from ..models import (
     StorageTenantDailyCharge,
     StorageTenantStatement,
 )
-from ..providers import BillingChargeItem, BillingFetchRequest, BillingFetchResult, get_provider_adapter
+from ..providers import (
+    BillingChargeItem,
+    BillingFetchRequest,
+    BillingFetchResult,
+    get_provider_adapter,
+)
 from .reconciliation_shared import (
+    _SCOPE_MATCH_PRIORITY,
     DAILY_RECONCILIATION_CRON,
     OFFICIAL_BILLING_LAG_DAYS,
     QINIU_MONTHLY_SETTLEMENT_CRON,
-    _SCOPE_MATCH_PRIORITY,
     _normalize_period_fields,
     _period_label,
     _read_platform_storage_context,
@@ -61,13 +70,16 @@ class StorageBillingReconciliationExecutionMixin:
         requested_scope: dict[str, Any],
         provider_codes: list[str] | None = None,
     ) -> dict[str, Any]:
-        normalized_period_type, normalized_billing_date, normalized_period_start, normalized_period_end = (
-            _normalize_period_fields(
-                billing_date=billing_date,
-                period_type=period_type,
-                period_start=period_start,
-                period_end=period_end,
-            )
+        (
+            normalized_period_type,
+            normalized_billing_date,
+            normalized_period_start,
+            normalized_period_end,
+        ) = _normalize_period_fields(
+            billing_date=billing_date,
+            period_type=period_type,
+            period_start=period_start,
+            period_end=period_end,
         )
         run = StorageBillingRun(
             period_type=normalized_period_type,
@@ -105,13 +117,16 @@ class StorageBillingReconciliationExecutionMixin:
                 requested_scope=requested_scope,
             )
 
-            result_period_type, result_billing_date, result_period_start, result_period_end = (
-                _normalize_period_fields(
-                    billing_date=result.billing_date,
-                    period_type=result.period_type,
-                    period_start=result.period_start,
-                    period_end=result.period_end,
-                )
+            (
+                result_period_type,
+                result_billing_date,
+                result_period_start,
+                result_period_end,
+            ) = _normalize_period_fields(
+                billing_date=result.billing_date,
+                period_type=result.period_type,
+                period_start=result.period_start,
+                period_end=result.period_end,
             )
 
             source_row = StorageProviderBillSource(
@@ -158,7 +173,8 @@ class StorageBillingReconciliationExecutionMixin:
                     "written_charge_rows": allocation_result["written_charge_rows"],
                 }
                 if (
-                    source_row.source_status == StorageBillingSourceStatusEnum.FETCHED.value
+                    source_row.source_status
+                    == StorageBillingSourceStatusEnum.FETCHED.value
                     and (
                         allocation_result["unmatched_items"] > 0
                         or allocation_result["ambiguous_items"] > 0
@@ -221,7 +237,9 @@ class StorageBillingReconciliationExecutionMixin:
             run.status = StorageBillingRunStatusEnum.SKIPPED.value
         elif status_counter.get(StorageBillingSourceStatusEnum.FAILED.value, 0):
             run.status = StorageBillingRunStatusEnum.FAILED.value
-        elif status_counter.get(StorageBillingSourceStatusEnum.NOT_IMPLEMENTED.value, 0) or status_counter.get(
+        elif status_counter.get(
+            StorageBillingSourceStatusEnum.NOT_IMPLEMENTED.value, 0
+        ) or status_counter.get(
             StorageBillingSourceStatusEnum.COMPLETED_WITH_GAPS.value,
             0,
         ):
@@ -277,24 +295,32 @@ class StorageBillingReconciliationExecutionMixin:
         period_end: date,
     ) -> int:
         rows = (
-            await self._db.execute(
-                select(StorageTenantDailyCharge).where(
-                    StorageTenantDailyCharge.period_type == period_type,
-                    StorageTenantDailyCharge.billing_date == billing_date,
-                    StorageTenantDailyCharge.is_deleted.is_(False),
+            (
+                await self._db.execute(
+                    select(StorageTenantDailyCharge).where(
+                        StorageTenantDailyCharge.period_type == period_type,
+                        StorageTenantDailyCharge.billing_date == billing_date,
+                        StorageTenantDailyCharge.is_deleted.is_(False),
+                    )
                 )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
 
         existing_statements = (
-            await self._db.execute(
-                select(StorageTenantStatement).where(
-                    StorageTenantStatement.period_type == period_type,
-                    StorageTenantStatement.billing_date == billing_date,
-                    StorageTenantStatement.is_deleted.is_(False),
+            (
+                await self._db.execute(
+                    select(StorageTenantStatement).where(
+                        StorageTenantStatement.period_type == period_type,
+                        StorageTenantStatement.billing_date == billing_date,
+                        StorageTenantStatement.is_deleted.is_(False),
+                    )
                 )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
 
         if not rows:
             for statement in existing_statements:
@@ -346,7 +372,9 @@ class StorageBillingReconciliationExecutionMixin:
         await self._db.flush()
         return len(grouped)
 
-    async def rebuild_tenant_statements_for_billing_date(self, billing_date: date) -> int:
+    async def rebuild_tenant_statements_for_billing_date(
+        self, billing_date: date
+    ) -> int:
         return await self.rebuild_tenant_statements_for_period(
             period_type="daily",
             billing_date=billing_date,
@@ -396,7 +424,10 @@ class StorageBillingReconciliationExecutionMixin:
                 period_end=period_end,
                 source_status=StorageBillingSourceStatusEnum.SKIPPED.value,
                 error_message="Provider profile is disabled.",
-                raw_payload_json={"provider_profile": profile, "validation": validation},
+                raw_payload_json={
+                    "provider_profile": profile,
+                    "validation": validation,
+                },
             )
 
         if _stringify(period_type) not in supported_period_types:
@@ -411,14 +442,17 @@ class StorageBillingReconciliationExecutionMixin:
                 error_message=(
                     f"Provider '{driver_code}' does not support period type '{period_type}'."
                 ),
-                raw_payload_json={"provider_profile": profile, "validation": validation},
+                raw_payload_json={
+                    "provider_profile": profile,
+                    "validation": validation,
+                },
             )
 
         if validation["errors"]:
             source_status = StorageBillingSourceStatusEnum.FAILED.value
-            if _stringify(profile.get("bill_source")) not in get_provider_implemented_bill_sources(
-                driver_code
-            ):
+            if _stringify(
+                profile.get("bill_source")
+            ) not in get_provider_implemented_bill_sources(driver_code):
                 source_status = StorageBillingSourceStatusEnum.NOT_IMPLEMENTED.value
             return BillingFetchResult(
                 provider_code=driver_code,
@@ -429,7 +463,10 @@ class StorageBillingReconciliationExecutionMixin:
                 period_end=period_end,
                 source_status=source_status,
                 error_message="; ".join(validation["errors"]),
-                raw_payload_json={"provider_profile": profile, "validation": validation},
+                raw_payload_json={
+                    "provider_profile": profile,
+                    "validation": validation,
+                },
             )
 
         return await adapter.fetch_official_bill(
@@ -450,24 +487,32 @@ class StorageBillingReconciliationExecutionMixin:
         source_row: StorageProviderBillSource,
         charge_items: list[BillingChargeItem],
     ) -> dict[str, Any]:
-        source_period_type, source_billing_date, source_period_start, source_period_end = (
-            _normalize_period_fields(
-                billing_date=source_row.billing_date,
-                period_type=getattr(source_row, "period_type", None),
-                period_start=getattr(source_row, "period_start", None),
-                period_end=getattr(source_row, "period_end", None),
-            )
+        (
+            source_period_type,
+            source_billing_date,
+            source_period_start,
+            source_period_end,
+        ) = _normalize_period_fields(
+            billing_date=source_row.billing_date,
+            period_type=getattr(source_row, "period_type", None),
+            period_start=getattr(source_row, "period_start", None),
+            period_end=getattr(source_row, "period_end", None),
         )
         existing_rows = (
-            await self._db.execute(
-                select(StorageTenantDailyCharge).where(
-                    StorageTenantDailyCharge.provider_code == source_row.provider_code,
-                    StorageTenantDailyCharge.period_type == source_period_type,
-                    StorageTenantDailyCharge.billing_date == source_billing_date,
-                    StorageTenantDailyCharge.is_deleted.is_(False),
+            (
+                await self._db.execute(
+                    select(StorageTenantDailyCharge).where(
+                        StorageTenantDailyCharge.provider_code
+                        == source_row.provider_code,
+                        StorageTenantDailyCharge.period_type == source_period_type,
+                        StorageTenantDailyCharge.billing_date == source_billing_date,
+                        StorageTenantDailyCharge.is_deleted.is_(False),
+                    )
                 )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         for row in existing_rows:
             await self._db.delete(row)
 
@@ -483,16 +528,20 @@ class StorageBillingReconciliationExecutionMixin:
             }
 
         bindings = (
-            await self._db.execute(
-                select(StorageTenantBinding).where(
-                    StorageTenantBinding.provider_code == source_row.provider_code,
-                    StorageTenantBinding.is_active.is_(True),
-                    StorageTenantBinding.validation_status
-                    == StorageBillingValidationStatusEnum.VALID.value,
-                    StorageTenantBinding.is_deleted.is_(False),
+            (
+                await self._db.execute(
+                    select(StorageTenantBinding).where(
+                        StorageTenantBinding.provider_code == source_row.provider_code,
+                        StorageTenantBinding.is_active.is_(True),
+                        StorageTenantBinding.validation_status
+                        == StorageBillingValidationStatusEnum.VALID.value,
+                        StorageTenantBinding.is_deleted.is_(False),
+                    )
                 )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         bindings = await self._filter_live_eligible_bindings(
             bindings,
             provider_code=source_row.provider_code,
@@ -606,27 +655,37 @@ class StorageBillingReconciliationExecutionMixin:
         period_end: date,
     ) -> None:
         sources = (
-            await self._db.execute(
-                select(StorageProviderBillSource).where(
-                    StorageProviderBillSource.run_id == run_id,
-                    StorageProviderBillSource.provider_code == provider_code,
-                    StorageProviderBillSource.period_type == period_type,
-                    StorageProviderBillSource.billing_date == billing_date,
-                    StorageProviderBillSource.is_deleted.is_(False),
-                ).order_by(StorageProviderBillSource.id)
-            )
-        ).scalars().all()
-
-        existing_rows = (
-            await self._db.execute(
-                select(StorageTenantDailyCharge).where(
-                    StorageTenantDailyCharge.provider_code == provider_code,
-                    StorageTenantDailyCharge.period_type == period_type,
-                    StorageTenantDailyCharge.billing_date == billing_date,
-                    StorageTenantDailyCharge.is_deleted.is_(False),
+            (
+                await self._db.execute(
+                    select(StorageProviderBillSource)
+                    .where(
+                        StorageProviderBillSource.run_id == run_id,
+                        StorageProviderBillSource.provider_code == provider_code,
+                        StorageProviderBillSource.period_type == period_type,
+                        StorageProviderBillSource.billing_date == billing_date,
+                        StorageProviderBillSource.is_deleted.is_(False),
+                    )
+                    .order_by(StorageProviderBillSource.id)
                 )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
+
+        existing_rows = (
+            (
+                await self._db.execute(
+                    select(StorageTenantDailyCharge).where(
+                        StorageTenantDailyCharge.provider_code == provider_code,
+                        StorageTenantDailyCharge.period_type == period_type,
+                        StorageTenantDailyCharge.billing_date == billing_date,
+                        StorageTenantDailyCharge.is_deleted.is_(False),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
         for row in existing_rows:
             await self._db.delete(row)
 
@@ -734,7 +793,9 @@ class StorageBillingReconciliationExecutionMixin:
                 if inspect.isawaitable(tenant_snapshot):
                     tenant_snapshot = await tenant_snapshot
                 tenant_snapshot_cache[tenant_id] = (
-                    dict(tenant_snapshot) if isinstance(tenant_snapshot, Mapping) else {}
+                    dict(tenant_snapshot)
+                    if isinstance(tenant_snapshot, Mapping)
+                    else {}
                 )
 
             snapshot = tenant_snapshot_cache[tenant_id]
@@ -780,7 +841,11 @@ class StorageBillingReconciliationExecutionMixin:
 
         for binding in bindings:
             scope_value = _stringify(binding.scope_value)
-            if binding.scope_type == "bucket" and scope_value and scope_value in bucket_aliases:
+            if (
+                binding.scope_type == "bucket"
+                and scope_value
+                and scope_value in bucket_aliases
+            ):
                 matched_by_scope.setdefault("bucket", []).append(binding)
                 continue
             if (
@@ -790,7 +855,11 @@ class StorageBillingReconciliationExecutionMixin:
             ):
                 matched_by_scope.setdefault("domain", []).append(binding)
                 continue
-            if binding.scope_type == "account" and scope_value and scope_value in account_aliases:
+            if (
+                binding.scope_type == "account"
+                and scope_value
+                and scope_value in account_aliases
+            ):
                 matched_by_scope.setdefault("account", []).append(binding)
                 continue
             if (

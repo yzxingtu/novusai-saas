@@ -110,7 +110,10 @@ def test_storage_routes_delegate_to_service(monkeypatch) -> None:
         get_response = client.get("/tenants/7/storage-config")
         update_response = client.put(
             "/tenants/7/storage-config",
-            json={"tenant_storage_driver": "s3", "tenant_storage_mode": "admin_override"},
+            json={
+                "tenant_storage_driver": "s3",
+                "tenant_storage_mode": "admin_override",
+            },
         )
         test_response = client.post(
             "/tenants/7/storage-config/test",

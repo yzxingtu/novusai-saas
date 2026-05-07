@@ -53,7 +53,9 @@ class WeatherWidgetExecutor(BaseToolExecutor):
         return max(3.0, min(8.0, tool_timeout - 5.0))
 
     @staticmethod
-    def _remaining_timeout(deadline: float | None, *, minimum: float = 0.5) -> float | None:
+    def _remaining_timeout(
+        deadline: float | None, *, minimum: float = 0.5
+    ) -> float | None:
         if deadline is None:
             return None
         remaining = deadline - time.perf_counter()
@@ -234,9 +236,7 @@ class WeatherWidgetExecutor(BaseToolExecutor):
 
         if attempted_timeout:
             timeout_value = max(1, int(total_timeout or 1))
-            raise TimeoutError(
-                _("tool.error.execution_timeout", timeout=timeout_value)
-            )
+            raise TimeoutError(_("tool.error.execution_timeout", timeout=timeout_value))
 
         raise ValueError(
             _("plugin.weather-widget.error.city_not_found_with_name").format(

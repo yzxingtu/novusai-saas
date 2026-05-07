@@ -5,9 +5,8 @@ Revises: sb_002_bindings
 Create Date: 2026-03-24
 """
 
-from alembic import op
 import sqlalchemy as sa
-
+from alembic import op
 
 revision = "sb_003_period_fields"
 down_revision = "sb_002_bindings"

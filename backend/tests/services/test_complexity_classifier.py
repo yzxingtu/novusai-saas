@@ -35,12 +35,14 @@ def _assistant(content: str) -> _Msg:
 @pytest.fixture
 def classifier():
     from app.ai.routing.complexity_classifier import ComplexityClassifier
+
     return ComplexityClassifier()
 
 
 @pytest.fixture
 def ComplexityLevel():
     from app.ai.routing.complexity_classifier import ComplexityLevel as _CL
+
     return _CL
 
 
@@ -68,7 +70,9 @@ class TestComplexityClassifierBasic:
         result = classifier.classify(messages)
         assert result == ComplexityLevel.MEDIUM
 
-    def test_simple_single_message_no_structure_boost(self, classifier, ComplexityLevel):
+    def test_simple_single_message_no_structure_boost(
+        self, classifier, ComplexityLevel
+    ):
         """单条消息无轮次/长度/工具加成 → SIMPLE"""
         messages = [_user("Can you analyze this SQL query for me?")]
         result = classifier.classify(messages)
@@ -80,7 +84,9 @@ class TestComplexityClassifierBasic:
         result = classifier.classify(messages, has_attachments=True)
         assert result == ComplexityLevel.MEDIUM
 
-    def test_medium_attachment_does_not_lower_complex(self, classifier, ComplexityLevel):
+    def test_medium_attachment_does_not_lower_complex(
+        self, classifier, ComplexityLevel
+    ):
         """有附件时 COMPLEX 不会被降级 / COMPLEX"""
         # 11 user turns (+2) + 6 tools (+2) + long last user msg (+1) = 5 → COMPLEX
         msgs = [_user("你好"), _assistant("好的")] * 10
@@ -119,7 +125,9 @@ class TestComplexityClassifierBasic:
         result = classifier.classify(msgs)
         assert result == ComplexityLevel.SIMPLE
 
-    def test_complex_very_long_multi_turn_and_keywords(self, classifier, ComplexityLevel):
+    def test_complex_very_long_multi_turn_and_keywords(
+        self, classifier, ComplexityLevel
+    ):
         """>20 轮用户 + 超额轮次加分 → COMPLEX"""
         msgs = []
         for _ in range(21):
@@ -163,7 +171,9 @@ class TestComplexityClassifierEdgeCases:
         result = classifier.classify(msgs)
         assert result == ComplexityLevel.SIMPLE
 
-    def test_non_user_messages_do_not_inflate_turn_count(self, classifier, ComplexityLevel):
+    def test_non_user_messages_do_not_inflate_turn_count(
+        self, classifier, ComplexityLevel
+    ):
         """system/tool/assistant 不应抬高轮次评分 / system/tool/assistant must not inflate turn scoring."""
         msgs = [
             _Msg(role="system", content="你是助手"),

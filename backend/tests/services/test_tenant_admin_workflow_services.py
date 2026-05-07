@@ -29,13 +29,13 @@ from app.services.tenant.tenant_config_workflow_service import (
 async def test_tenant_admin_workflow_rejects_owner_disable(monkeypatch) -> None:
     service = TenantAdminWorkflowService.__new__(TenantAdminWorkflowService)
     service._db = SimpleNamespace(flush=AsyncMock())
-    service._tenant_service = SimpleNamespace(get_by_id=AsyncMock(return_value=object()))
+    service._tenant_service = SimpleNamespace(
+        get_by_id=AsyncMock(return_value=object())
+    )
     service._auth_service = SimpleNamespace()
 
     tenant_admin_service = SimpleNamespace(
-        get_identity_detail=AsyncMock(
-            return_value=SimpleNamespace(is_owner=True)
-        )
+        get_identity_detail=AsyncMock(return_value=SimpleNamespace(is_owner=True))
     )
     service._get_tenant_admin_service = lambda _tenant_id: tenant_admin_service
 
@@ -57,7 +57,9 @@ async def test_tenant_admin_workflow_rejects_owner_disable(monkeypatch) -> None:
 async def test_tenant_admin_workflow_rejects_empty_update(monkeypatch) -> None:
     service = TenantAdminWorkflowService.__new__(TenantAdminWorkflowService)
     service._db = SimpleNamespace(flush=AsyncMock())
-    service._tenant_service = SimpleNamespace(get_by_id=AsyncMock(return_value=object()))
+    service._tenant_service = SimpleNamespace(
+        get_by_id=AsyncMock(return_value=object())
+    )
     service._auth_service = SimpleNamespace()
 
     tenant_admin_service = SimpleNamespace(
@@ -87,15 +89,15 @@ async def test_tenant_admin_workflow_rejects_empty_update(monkeypatch) -> None:
 async def test_tenant_admin_workflow_force_logout_delegates(monkeypatch) -> None:
     service = TenantAdminWorkflowService.__new__(TenantAdminWorkflowService)
     service._db = SimpleNamespace()
-    service._tenant_service = SimpleNamespace(get_by_id=AsyncMock(return_value=object()))
+    service._tenant_service = SimpleNamespace(
+        get_by_id=AsyncMock(return_value=object())
+    )
     service._auth_service = SimpleNamespace(
         token_sessions=SimpleNamespace(force_logout=AsyncMock())
     )
 
     tenant_admin_service = SimpleNamespace(
-        get_identity_detail=AsyncMock(
-            return_value=SimpleNamespace(username="alice")
-        )
+        get_identity_detail=AsyncMock(return_value=SimpleNamespace(username="alice"))
     )
     service._get_tenant_admin_service = lambda _tenant_id: tenant_admin_service
 

@@ -6,7 +6,9 @@ from app.ai.adapters.openai_compatible.capabilities import OpenAIProtocolCapabil
 from app.ai.exceptions import ProviderError
 
 
-def test_invalid_configured_wire_api_raises_provider_error_with_nested_contract() -> None:
+def test_invalid_configured_wire_api_raises_provider_error_with_nested_contract() -> (
+    None
+):
     with pytest.raises(ProviderError, match="Invalid provider wire API in wire_api"):
         OpenAIProtocolCapabilities.from_provider_config(
             provider_config={
@@ -64,9 +66,7 @@ def test_top_level_wire_api_does_not_relax_nested_contract() -> None:
     assert capabilities.supports_wire_api("responses") is False
 
 
-def test_allowed_wire_apis_does_not_auto_generate_cross_protocol_fallbacks() -> (
-    None
-):
+def test_allowed_wire_apis_does_not_auto_generate_cross_protocol_fallbacks() -> None:
     capabilities = OpenAIProtocolCapabilities.from_provider_config(
         provider_config={
             "protocol_capabilities": {

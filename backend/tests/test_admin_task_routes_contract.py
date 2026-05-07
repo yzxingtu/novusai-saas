@@ -206,7 +206,9 @@ def test_active_tasks_route_wraps_manager_payload(monkeypatch) -> None:
             }
         ]
     )
-    monkeypatch.setattr(tasks_module.TaskManagerService, "get_active_tasks", active_tasks)
+    monkeypatch.setattr(
+        tasks_module.TaskManagerService, "get_active_tasks", active_tasks
+    )
 
     app = _build_test_app(SimpleNamespace(), tasks_module)
 

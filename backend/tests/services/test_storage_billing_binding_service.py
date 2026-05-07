@@ -48,10 +48,16 @@ async def test_create_binding_sets_invalid_status_for_qiniu_pass_through(monkeyp
         }
     )
     ctx.host.get_tenant_storage_context = AsyncMock(
-        return_value={"storage_mode": "platform", "storage_config": {"driver": "qiniu-kodo"}}
+        return_value={
+            "storage_mode": "platform",
+            "storage_config": {"driver": "qiniu-kodo"},
+        }
     )
     ctx.host.get_platform_storage_context = AsyncMock(
-        return_value={"storage_mode": "platform", "storage_config": {"driver": "qiniu-kodo"}}
+        return_value={
+            "storage_mode": "platform",
+            "storage_config": {"driver": "qiniu-kodo"},
+        }
     )
 
     service = module.StorageBillingBindingService.from_context(ctx)
@@ -129,10 +135,16 @@ async def test_validate_binding_refreshes_existing_binding(monkeypatch):
         }
     )
     ctx.host.get_tenant_storage_context = AsyncMock(
-        return_value={"storage_mode": "platform", "storage_config": {"driver": "tencent-cos"}}
+        return_value={
+            "storage_mode": "platform",
+            "storage_config": {"driver": "tencent-cos"},
+        }
     )
     ctx.host.get_platform_storage_context = AsyncMock(
-        return_value={"storage_mode": "platform", "storage_config": {"driver": "tencent-cos"}}
+        return_value={
+            "storage_mode": "platform",
+            "storage_config": {"driver": "tencent-cos"},
+        }
     )
 
     service = module.StorageBillingBindingService.from_context(ctx)
@@ -244,10 +256,16 @@ async def test_get_tenant_prerequisites_reports_binding_provider_mismatch():
         }
     )
     host.get_tenant_storage_context = AsyncMock(
-        return_value={"storage_mode": "platform", "storage_config": {"driver": "aliyun-oss"}}
+        return_value={
+            "storage_mode": "platform",
+            "storage_config": {"driver": "aliyun-oss"},
+        }
     )
     host.get_platform_storage_context = AsyncMock(
-        return_value={"storage_mode": "platform", "storage_config": {"driver": "aliyun-oss"}}
+        return_value={
+            "storage_mode": "platform",
+            "storage_config": {"driver": "aliyun-oss"},
+        }
     )
     host.get_plugin_runtime_summary = AsyncMock(return_value=[])
 
@@ -320,10 +338,16 @@ async def test_get_tenant_prerequisites_reports_invalid_binding_for_current_driv
         }
     )
     host.get_tenant_storage_context = AsyncMock(
-        return_value={"storage_mode": "platform", "storage_config": {"driver": "aliyun-oss"}}
+        return_value={
+            "storage_mode": "platform",
+            "storage_config": {"driver": "aliyun-oss"},
+        }
     )
     host.get_platform_storage_context = AsyncMock(
-        return_value={"storage_mode": "platform", "storage_config": {"driver": "aliyun-oss"}}
+        return_value={
+            "storage_mode": "platform",
+            "storage_config": {"driver": "aliyun-oss"},
+        }
     )
     host.get_plugin_runtime_summary = AsyncMock(return_value=[])
 
@@ -411,10 +435,16 @@ async def test_get_tenant_prerequisites_is_ready_with_valid_matching_binding():
         }
     )
     host.get_tenant_storage_context = AsyncMock(
-        return_value={"storage_mode": "platform", "storage_config": {"driver": "tencent-cos"}}
+        return_value={
+            "storage_mode": "platform",
+            "storage_config": {"driver": "tencent-cos"},
+        }
     )
     host.get_platform_storage_context = AsyncMock(
-        return_value={"storage_mode": "platform", "storage_config": {"driver": "tencent-cos"}}
+        return_value={
+            "storage_mode": "platform",
+            "storage_config": {"driver": "tencent-cos"},
+        }
     )
     host.get_plugin_runtime_summary = AsyncMock(return_value=[])
 
@@ -471,10 +501,16 @@ async def test_get_tenant_prerequisites_reports_provider_profile_disabled():
         }
     )
     host.get_tenant_storage_context = AsyncMock(
-        return_value={"storage_mode": "platform", "storage_config": {"driver": "tencent-cos"}}
+        return_value={
+            "storage_mode": "platform",
+            "storage_config": {"driver": "tencent-cos"},
+        }
     )
     host.get_platform_storage_context = AsyncMock(
-        return_value={"storage_mode": "platform", "storage_config": {"driver": "tencent-cos"}}
+        return_value={
+            "storage_mode": "platform",
+            "storage_config": {"driver": "tencent-cos"},
+        }
     )
     host.get_plugin_runtime_summary = AsyncMock(return_value=[])
 
@@ -528,7 +564,10 @@ async def test_get_tenant_prerequisites_does_not_fallback_to_tenant_driver_when_
         }
     )
     host.get_tenant_storage_context = AsyncMock(
-        return_value={"storage_mode": "platform", "storage_config": {"driver": "tencent-cos"}}
+        return_value={
+            "storage_mode": "platform",
+            "storage_config": {"driver": "tencent-cos"},
+        }
     )
     host.get_platform_storage_context = AsyncMock(
         return_value={"storage_mode": "platform", "storage_config": {}}
@@ -589,7 +628,10 @@ async def test_create_binding_is_invalid_when_platform_driver_is_missing(monkeyp
         }
     )
     ctx.host.get_tenant_storage_context = AsyncMock(
-        return_value={"storage_mode": "platform", "storage_config": {"driver": "tencent-cos"}}
+        return_value={
+            "storage_mode": "platform",
+            "storage_config": {"driver": "tencent-cos"},
+        }
     )
     ctx.host.get_platform_storage_context = AsyncMock(
         return_value={"storage_mode": "platform", "storage_config": {}}
@@ -654,10 +696,16 @@ async def test_get_tenant_prerequisites_reports_tenant_not_using_platform_storag
         }
     )
     host.get_tenant_storage_context = AsyncMock(
-        return_value={"storage_mode": "custom", "storage_config": {"driver": "aliyun-oss"}}
+        return_value={
+            "storage_mode": "custom",
+            "storage_config": {"driver": "aliyun-oss"},
+        }
     )
     host.get_platform_storage_context = AsyncMock(
-        return_value={"storage_mode": "platform", "storage_config": {"driver": "tencent-cos"}}
+        return_value={
+            "storage_mode": "platform",
+            "storage_config": {"driver": "tencent-cos"},
+        }
     )
     host.get_plugin_runtime_summary = AsyncMock(return_value=[])
 
@@ -671,4 +719,7 @@ async def test_get_tenant_prerequisites_reports_tenant_not_using_platform_storag
     assert result["prerequisites"]["ready"] is False
     assert result["prerequisites"]["tenant_storage_mode"] == "custom"
     assert result["prerequisites"]["tenant_effective_driver"] == "aliyun-oss"
-    assert "tenant_not_using_platform_storage" in result["prerequisites"]["missing_reasons"]
+    assert (
+        "tenant_not_using_platform_storage"
+        in result["prerequisites"]["missing_reasons"]
+    )

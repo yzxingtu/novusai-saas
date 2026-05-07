@@ -133,7 +133,9 @@ async def _load_model_map(db, model_ids: set[int]) -> dict[int, str]:
     if not model_ids:
         return {}
     rows = (
-        await db.execute(select(AIModel.id, AIModel.name).where(AIModel.id.in_(model_ids)))
+        await db.execute(
+            select(AIModel.id, AIModel.name).where(AIModel.id.in_(model_ids))
+        )
     ).all()
     return {
         int(row_id): str(row_name)
@@ -143,7 +145,9 @@ async def _load_model_map(db, model_ids: set[int]) -> dict[int, str]:
     }
 
 
-async def _load_agent_meta_map(db, agent_ids: set[int]) -> dict[int, dict[str, str | None]]:
+async def _load_agent_meta_map(
+    db, agent_ids: set[int]
+) -> dict[int, dict[str, str | None]]:
     if not agent_ids:
         return {}
     rows = (
@@ -194,7 +198,9 @@ async def _load_tenant_map(db, tenant_ids: set[int]) -> dict[int, str]:
     if not tenant_ids:
         return {}
     rows = (
-        await db.execute(select(Tenant.id, Tenant.name).where(Tenant.id.in_(tenant_ids)))
+        await db.execute(
+            select(Tenant.id, Tenant.name).where(Tenant.id.in_(tenant_ids))
+        )
     ).all()
     return {
         int(row_id): str(row_name)
@@ -441,11 +447,15 @@ async def enrich_logs_to_dicts(
         snap_model = getattr(item, "model_name_snapshot", None)
         snap_provider = getattr(item, "provider_name_snapshot", None)
         snap_agent = getattr(item, "agent_name_snapshot", None)
-        resolved_agent_id = int(item.agent_id or getattr(item, "agent_id_snapshot", None) or 0)
+        resolved_agent_id = int(
+            item.agent_id or getattr(item, "agent_id_snapshot", None) or 0
+        )
         agent_meta = agent_meta_map.get(resolved_agent_id, {})
 
         payload["model_name"] = snap_model or model_map.get(item.model_id, "-")
-        payload["provider_name"] = snap_provider or provider_map.get(item.provider_id, "-")
+        payload["provider_name"] = snap_provider or provider_map.get(
+            item.provider_id, "-"
+        )
         payload["provider_icon"] = provider_icon_map.get(item.provider_id)
         payload["routed_model_name"] = model_map.get(item.routed_model_id, "-")
         payload["agent_name"] = snap_agent or agent_meta.get("name") or "-"
@@ -492,7 +502,9 @@ async def enrich_logs_to_dicts(
                     )
                     or actor_id
                 )
-                actor_type = str(caller_snapshot.get("user_type") or "").strip() or actor_type
+                actor_type = (
+                    str(caller_snapshot.get("user_type") or "").strip() or actor_type
+                )
             elif actor_id and actor_type:
                 caller_identity = caller_identity_map.get((actor_type, int(actor_id)))
                 if caller_identity:

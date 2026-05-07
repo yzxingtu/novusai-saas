@@ -172,7 +172,7 @@ known-first-party = ["app"]
 quote-style = "double"
 indent-style = "space"
 skip-magic-trailing-comma = false
-line-ending = "auto"
+line-ending = "lf"
 
 # ============================================
 # MyPy Configuration
@@ -204,6 +204,7 @@ addopts = [
     "--strict-markers",
     "--tb=short",
     "-ra",
+    "--basetemp=.pytest-tmp",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning",

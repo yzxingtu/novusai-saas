@@ -31,6 +31,7 @@ _json_success = S._json_success
 _run_async = S._run_async
 _run_quietly = S._run_quietly
 
+
 @click.group("ai", help="AI diagnostics / AI 对话排查")
 def ai_cmd() -> None:
     pass
@@ -138,7 +139,9 @@ def ai_smoke(
 @click.option("--trace-id", default=None, help="Trace ID")
 @click.option("--call-log-id", type=int, default=None, help="Call log ID")
 @click.option("--conversation-id", type=int, default=None, help="Conversation ID")
-@click.option("--turn", type=int, default=None, help="Turn number (with --conversation-id)")
+@click.option(
+    "--turn", type=int, default=None, help="Turn number (with --conversation-id)"
+)
 @click.option("--json", "output_json", is_flag=True, help="Output JSON")
 def ai_root_cause(
     trace_id: str | None,

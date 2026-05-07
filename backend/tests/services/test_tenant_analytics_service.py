@@ -15,16 +15,19 @@ def _result_with_all(rows):
 
 
 class TestTenantAnalyticsDelegation:
-
     @pytest.mark.asyncio
-    async def test_get_call_trend_delegates_to_admin_service_with_tenant_id(self, mock_db):
+    async def test_get_call_trend_delegates_to_admin_service_with_tenant_id(
+        self, mock_db
+    ):
         from app.services.ai.tenant_analytics_service import TenantAnalyticsService
 
         service = TenantAnalyticsService.__new__(TenantAnalyticsService)
         service.db = mock_db
         service.tenant_id = 9
         service._admin_svc = MagicMock()
-        service._admin_svc.get_call_trend = AsyncMock(return_value=[{"date": "2026-04-01"}])
+        service._admin_svc.get_call_trend = AsyncMock(
+            return_value=[{"date": "2026-04-01"}]
+        )
 
         result = await service.get_call_trend()
 
@@ -46,11 +49,12 @@ class TestTenantAnalyticsDelegation:
         result = await service.get_model_distribution()
 
         assert result == []
-        service._admin_svc.get_model_distribution.assert_awaited_once_with(None, None, 9)
+        service._admin_svc.get_model_distribution.assert_awaited_once_with(
+            None, None, 9
+        )
 
 
 class TestTenantAnalyticsTransforms:
-
     @pytest.mark.asyncio
     async def test_get_cost_trend_projects_date_cost_and_calls(self, mock_db):
         from app.services.ai.tenant_analytics_service import TenantAnalyticsService
@@ -83,7 +87,6 @@ class TestTenantAnalyticsTransforms:
 
 
 class TestTenantAgentRanking:
-
     @pytest.mark.asyncio
     async def test_get_agent_ranking_joins_agent_names(self, mock_db):
         from app.services.ai.tenant_analytics_service import TenantAnalyticsService

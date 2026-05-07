@@ -6,8 +6,8 @@ import httpx
 import pytest
 
 from app.core.config import settings
-from app.plugins.marketplace import MarketplaceClient
 from app.plugins.exceptions import PluginError
+from app.plugins.marketplace import MarketplaceClient
 
 
 class _Resp404:
@@ -31,7 +31,9 @@ class _Always404AsyncClient:
 
 
 @pytest.mark.asyncio
-async def test_fetch_plugin_detail_fallback_to_registry(monkeypatch: pytest.MonkeyPatch):
+async def test_fetch_plugin_detail_fallback_to_registry(
+    monkeypatch: pytest.MonkeyPatch,
+):
     client = MarketplaceClient(db=None)
     client._get_cached = AsyncMock(return_value=None)  # type: ignore[attr-defined]
     client._set_cached = AsyncMock()  # type: ignore[attr-defined]
@@ -59,7 +61,9 @@ async def test_fetch_plugin_detail_fallback_to_registry(monkeypatch: pytest.Monk
 
 
 @pytest.mark.asyncio
-async def test_fetch_plugin_detail_returns_none_when_not_found(monkeypatch: pytest.MonkeyPatch):
+async def test_fetch_plugin_detail_returns_none_when_not_found(
+    monkeypatch: pytest.MonkeyPatch,
+):
     client = MarketplaceClient(db=None)
     client._get_cached = AsyncMock(return_value=None)  # type: ignore[attr-defined]
     client._set_cached = AsyncMock()  # type: ignore[attr-defined]

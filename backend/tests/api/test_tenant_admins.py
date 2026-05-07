@@ -4,11 +4,14 @@
 测试 /tenant/admins/* 接口
 
 注意：需要先配置企业管理员（所有者）账号才能运行此测试"""
+
 import os
 import sys
 import time
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+sys.path.insert(
+    0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+)
 
 import contextlib
 
@@ -18,7 +21,6 @@ from tests.api.base import (
     assert_error,
     assert_has_keys,
     assert_success,
-    assert_tenant_login_success,
     assert_true,
     config,
 )
@@ -55,7 +57,9 @@ class ManualTestTenantAdmins(BaseAPITest):
         self.run_test("获取管理员列表", self.test_list_admins, skip_reason)
 
         # 2. 获取管理员列表 - 分页
-        self.run_test("获取管理员列表 - 分页", self.test_list_admins_pagination, skip_reason)
+        self.run_test(
+            "获取管理员列表 - 分页", self.test_list_admins_pagination, skip_reason
+        )
 
         # 3. 创建管理员
         self.run_test("创建管理员", self.test_create_admin, skip_reason)
@@ -96,17 +100,22 @@ class ManualTestTenantAdmins(BaseAPITest):
 
     def test_create_admin(self) -> None:
         """测试创建管理员 / Test."""
-        resp = self.client.post("/tenant/admins", data={
-            "username": self._test_data["test_username"],
-            "email": self._test_data["test_email"],
-            "password": "test123456",
-            "nickname": "企业测试管理员",
-            "is_active": True,
-            "is_owner": False,
-        })
+        resp = self.client.post(
+            "/tenant/admins",
+            data={
+                "username": self._test_data["test_username"],
+                "email": self._test_data["test_email"],
+                "password": "test123456",
+                "nickname": "企业测试管理员",
+                "is_active": True,
+                "is_owner": False,
+            },
+        )
         data = assert_success(resp, "创建管理员失败")
 
-        assert_has_keys(data["data"], ["id", "username", "email", "is_active", "tenant_id"])
+        assert_has_keys(
+            data["data"], ["id", "username", "email", "is_active", "tenant_id"]
+        )
         assert_equals(data["data"]["username"], self._test_data["test_username"])
 
         self._test_data["created_admin_id"] = data["data"]["id"]
@@ -120,7 +129,9 @@ class ManualTestTenantAdmins(BaseAPITest):
         resp = self.client.get(f"/tenant/admins/{admin_id}")
         data = assert_success(resp, "获取管理员详情失败")
 
-        assert_has_keys(data["data"], ["id", "username", "email", "is_active", "is_owner"])
+        assert_has_keys(
+            data["data"], ["id", "username", "email", "is_active", "is_owner"]
+        )
 
     def test_update_admin(self) -> None:
         """测试更新管理员 / Test."""
@@ -129,9 +140,12 @@ class ManualTestTenantAdmins(BaseAPITest):
             raise AssertionError("没有可用的管理员ID")
 
         new_nickname = "更新后的昵称"
-        resp = self.client.put(f"/tenant/admins/{admin_id}", data={
-            "nickname": new_nickname,
-        })
+        resp = self.client.put(
+            f"/tenant/admins/{admin_id}",
+            data={
+                "nickname": new_nickname,
+            },
+        )
         data = assert_success(resp, "更新管理员失败")
         assert_equals(data["data"]["nickname"], new_nickname)
 
@@ -142,12 +156,16 @@ class ManualTestTenantAdmins(BaseAPITest):
             raise AssertionError("没有可用的管理员ID")
 
         # 禁用
-        resp = self.client.put(f"/tenant/admins/{admin_id}/status", params={"is_active": False})
+        resp = self.client.put(
+            f"/tenant/admins/{admin_id}/status", params={"is_active": False}
+        )
         data = assert_success(resp, "禁用管理员失败")
         assert_equals(data["data"]["is_active"], False)
 
         # 启用
-        resp = self.client.put(f"/tenant/admins/{admin_id}/status", params={"is_active": True})
+        resp = self.client.put(
+            f"/tenant/admins/{admin_id}/status", params={"is_active": True}
+        )
         data = assert_success(resp, "启用管理员失败")
         assert_equals(data["data"]["is_active"], True)
 
@@ -158,13 +176,18 @@ class ManualTestTenantAdmins(BaseAPITest):
             raise AssertionError("没有可用的管理员ID")
 
         new_password = "new_password_123"
-        resp = self.client.put(f"/tenant/admins/{admin_id}/reset-password", data={
-            "new_password": new_password,
-        })
+        resp = self.client.put(
+            f"/tenant/admins/{admin_id}/reset-password",
+            data={
+                "new_password": new_password,
+            },
+        )
         assert_success(resp, "重置密码失败")
 
         # 验证新密码可以登录
-        login_resp = self.post_tenant_login_request(self._test_data["test_username"], new_password)
+        login_resp = self.post_tenant_login_request(
+            self._test_data["test_username"], new_password
+        )
         assert_success(login_resp, "使用新密码登录失败")
 
     def test_delete_admin(self) -> None:
@@ -202,4 +225,3 @@ if __name__ == "__main__":
     test = ManualTestTenantAdmins()
     report = test.run_all()
     report.print_summary()
-

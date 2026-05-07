@@ -70,9 +70,7 @@ def test_build_turn_flow_view_model_contains_required_contract() -> None:
     assert turn_flow["completion_reason"] == "completed"
 
 
-def test_build_turn_flow_view_model_uses_rag_sources_not_context_diagnostics() -> (
-    None
-):
+def test_build_turn_flow_view_model_uses_rag_sources_not_context_diagnostics() -> None:
     turn_flow = build_turn_flow_view_model(
         diagnostics_payload={
             "context_sources": [

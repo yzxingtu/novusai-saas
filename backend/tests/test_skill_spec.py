@@ -47,6 +47,8 @@ Body
         ),
     ],
 )
-def test_parse_skill_markdown_rejects_invalid_agentscope_docs(markdown: str, expected: str):
+def test_parse_skill_markdown_rejects_invalid_agentscope_docs(
+    markdown: str, expected: str
+):
     with pytest.raises(SkillSpecError, match=expected):
         parse_skill_markdown(markdown)

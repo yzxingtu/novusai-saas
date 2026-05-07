@@ -22,7 +22,6 @@ from app.schemas.tenant.plan import TenantPlanCreateRequest, TenantPlanUpdateReq
 
 
 class TestTenantPlanPreflightRegistry:
-
     @pytest.mark.asyncio
     async def test_registry_stops_on_first_denial_by_priority(self):
         registry = get_tenant_plan_preflight_registry()
@@ -112,7 +111,9 @@ class TestTenantPlanPreflightRegistry:
         assert result["reason_code"] == "storage_billing_platform_driver_not_billable"
 
     @pytest.mark.asyncio
-    async def test_runner_allows_billable_platform_driver_when_plugin_and_driver_exist(self, monkeypatch):
+    async def test_runner_allows_billable_platform_driver_when_plugin_and_driver_exist(
+        self, monkeypatch
+    ):
         from app.plugins import feature_entitlement_guards as guard_module
 
         TenantPlanPreflightRegistry.reset()
@@ -148,7 +149,9 @@ class TestTenantPlanPreflightRegistry:
         assert result["allowed"] is True
 
     @pytest.mark.asyncio
-    async def test_runner_blocks_when_current_platform_driver_plugin_is_disabled(self, monkeypatch):
+    async def test_runner_blocks_when_current_platform_driver_plugin_is_disabled(
+        self, monkeypatch
+    ):
         from app.plugins import feature_entitlement_guards as guard_module
 
         TenantPlanPreflightRegistry.reset()
@@ -183,10 +186,15 @@ class TestTenantPlanPreflightRegistry:
         )
 
         assert result["allowed"] is False
-        assert result["reason_code"] == "storage_billing_platform_driver_plugin_unavailable"
+        assert (
+            result["reason_code"]
+            == "storage_billing_platform_driver_plugin_unavailable"
+        )
 
     @pytest.mark.asyncio
-    async def test_lifecycle_guard_blocks_disabling_active_platform_driver(self, monkeypatch):
+    async def test_lifecycle_guard_blocks_disabling_active_platform_driver(
+        self, monkeypatch
+    ):
         from app.plugins import feature_entitlement_guards as guard_module
 
         monkeypatch.setattr(
@@ -227,7 +235,9 @@ class TestTenantPlanPreflightRegistry:
         assert result["reason_code"] == "storage_billing_active_platform_driver_blocked"
 
     @pytest.mark.asyncio
-    async def test_runner_blocks_when_platform_driver_plugin_is_not_enabled(self, monkeypatch):
+    async def test_runner_blocks_when_platform_driver_plugin_is_not_enabled(
+        self, monkeypatch
+    ):
         from app.plugins import feature_entitlement_guards as guard_module
 
         TenantPlanPreflightRegistry.reset()
@@ -262,10 +272,13 @@ class TestTenantPlanPreflightRegistry:
         )
 
         assert result["allowed"] is False
-        assert result["reason_code"] == "storage_billing_platform_driver_plugin_unavailable"
+        assert (
+            result["reason_code"]
+            == "storage_billing_platform_driver_plugin_unavailable"
+        )
+
 
 class TestTenantPlanServicePreflight:
-
     @pytest.mark.asyncio
     async def test_create_plan_runs_preflight_with_effective_snapshot(self, mock_db):
         from app.services.tenant.tenant_plan_service import TenantPlanService
@@ -299,7 +312,9 @@ class TestTenantPlanServicePreflight:
         )
 
     @pytest.mark.asyncio
-    async def test_run_plan_preflight_raises_business_exception_on_denial(self, mock_db, monkeypatch):
+    async def test_run_plan_preflight_raises_business_exception_on_denial(
+        self, mock_db, monkeypatch
+    ):
         from app.services.tenant import tenant_plan_service as service_module
         from app.services.tenant.tenant_plan_service import TenantPlanService
 
@@ -333,7 +348,9 @@ class TestTenantPlanServicePreflight:
         assert exc_info.value.data["plan_id"] == 12
 
     @pytest.mark.asyncio
-    async def test_update_plan_uses_existing_snapshot_when_request_omits_features(self, mock_db):
+    async def test_update_plan_uses_existing_snapshot_when_request_omits_features(
+        self, mock_db
+    ):
         from app.services.tenant.tenant_plan_service import TenantPlanService
 
         plan = type(
@@ -372,7 +389,9 @@ class TestTenantPlanServicePreflight:
         )
 
     @pytest.mark.asyncio
-    async def test_assign_permissions_reapplies_feature_managed_entitlements(self, mock_db):
+    async def test_assign_permissions_reapplies_feature_managed_entitlements(
+        self, mock_db
+    ):
         from app.services.tenant.tenant_plan_service import TenantPlanService
 
         plan = type(
@@ -403,7 +422,6 @@ class TestTenantPlanServicePreflight:
 
 
 class TestTenantServicePreflight:
-
     @pytest.mark.asyncio
     async def test_create_tenant_runs_preflight_when_plan_id_present(self, mock_db):
         from app.services.system.tenant_service import TenantService

@@ -33,7 +33,9 @@ def _check_celery() -> bool:
     return runtime_helpers.check_celery(logger)
 
 
-@click.group("check", help="Environment connectivity check", invoke_without_command=True)
+@click.group(
+    "check", help="Environment connectivity check", invoke_without_command=True
+)
 @click.pass_context
 def check_cmd(ctx: click.Context) -> None:
     if ctx.invoked_subcommand is None:

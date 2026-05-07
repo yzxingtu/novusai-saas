@@ -100,7 +100,10 @@ class TestSearchCity:
 
     @pytest.mark.asyncio
     async def test_search_cached(self):
-        _cache_set("geo:Shanghai:5", [{"name": "Shanghai", "latitude": 31.23, "longitude": 121.47}])
+        _cache_set(
+            "geo:Shanghai:5",
+            [{"name": "Shanghai", "latitude": 31.23, "longitude": 121.47}],
+        )
         result = await search_city("Shanghai")
         assert len(result) == 1
         assert result[0]["name"] == "Shanghai"
@@ -237,7 +240,9 @@ class TestWeatherAggregation:
                                     "wind_speed": 4.2,
                                 }
                             },
-                            "next_1_hours": {"summary": {"symbol_code": "clearsky_day"}},
+                            "next_1_hours": {
+                                "summary": {"symbol_code": "clearsky_day"}
+                            },
                         },
                     },
                     {
@@ -250,7 +255,9 @@ class TestWeatherAggregation:
                                     "wind_speed": 4.0,
                                 }
                             },
-                            "next_1_hours": {"summary": {"symbol_code": "partlycloudy_day"}},
+                            "next_1_hours": {
+                                "summary": {"symbol_code": "partlycloudy_day"}
+                            },
                         },
                     },
                     {
@@ -263,7 +270,9 @@ class TestWeatherAggregation:
                                     "wind_speed": 5.0,
                                 }
                             },
-                            "next_1_hours": {"summary": {"symbol_code": "lightrainshowers_day"}},
+                            "next_1_hours": {
+                                "summary": {"symbol_code": "lightrainshowers_day"}
+                            },
                         },
                     },
                     {

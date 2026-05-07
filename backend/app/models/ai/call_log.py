@@ -28,7 +28,6 @@ class AICallLog(TenantModel):
 
     __tablename__ = "ai_call_logs"
 
-
     # 允许前端筛选的字段 / Fields exposed for list filtering
     __filterable__ = {
         "id": "id",

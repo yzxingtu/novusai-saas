@@ -58,14 +58,23 @@ class _ConfigContext:
         return await self._config_loader()
 
 
-def _normalize_host_storage_context(payload: Mapping[str, Any] | None) -> dict[str, Any]:
+def _normalize_host_storage_context(
+    payload: Mapping[str, Any] | None,
+) -> dict[str, Any]:
     raw = dict(payload or {})
     raw_storage_config = raw.get("storage_config")
-    storage_config = dict(raw_storage_config or {}) if isinstance(raw_storage_config, Mapping) else {}
+    storage_config = (
+        dict(raw_storage_config or {})
+        if isinstance(raw_storage_config, Mapping)
+        else {}
+    )
     options = storage_config.get("options")
-    storage_config["options"] = dict(options or {}) if isinstance(options, Mapping) else {}
+    storage_config["options"] = (
+        dict(options or {}) if isinstance(options, Mapping) else {}
+    )
     return {
-        "storage_mode": str(raw.get("storage_mode") or "platform").strip() or "platform",
+        "storage_mode": str(raw.get("storage_mode") or "platform").strip()
+        or "platform",
         "apply_quota": bool(raw.get("apply_quota", True)),
         "storage_config": {
             "driver": str(storage_config.get("driver") or "").strip(),
@@ -114,9 +123,9 @@ def _month_start(value: date) -> date:
 
 
 def _month_end(value: date) -> date:
-    return (_month_start(value).replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(
-        days=1
-    )
+    return (_month_start(value).replace(day=28) + timedelta(days=4)).replace(
+        day=1
+    ) - timedelta(days=1)
 
 
 def _normalize_period_fields(
@@ -126,7 +135,9 @@ def _normalize_period_fields(
     period_start: date | None = None,
     period_end: date | None = None,
 ) -> tuple[str, date, date, date]:
-    normalized_type = _stringify(period_type) or StorageBillingPeriodTypeEnum.DAILY.value
+    normalized_type = (
+        _stringify(period_type) or StorageBillingPeriodTypeEnum.DAILY.value
+    )
     if normalized_type == StorageBillingPeriodTypeEnum.MONTHLY.value:
         normalized_start = _month_start(period_start or billing_date)
         normalized_end = _month_end(period_end or normalized_start)
@@ -245,8 +256,12 @@ def _serialize_source(row: StorageProviderBillSource) -> dict[str, Any]:
         period_start=getattr(row, "period_start", None),
         period_end=getattr(row, "period_end", None),
     )
-    allocation_summary = dict(dict(row.raw_payload_json or {}).get("allocation_summary") or {})
-    allocation_audit = dict(dict(row.raw_payload_json or {}).get("allocation_audit") or {})
+    allocation_summary = dict(
+        dict(row.raw_payload_json or {}).get("allocation_summary") or {}
+    )
+    allocation_audit = dict(
+        dict(row.raw_payload_json or {}).get("allocation_audit") or {}
+    )
     return {
         "id": row.id,
         "run_id": row.run_id,
@@ -447,12 +462,7 @@ def _build_csv_response(
     writer = csv.DictWriter(buffer, fieldnames=fieldnames)
     writer.writeheader()
     for row in rows:
-        writer.writerow(
-            {
-                field: _csv_value(row.get(field))
-                for field in fieldnames
-            }
-        )
+        writer.writerow({field: _csv_value(row.get(field)) for field in fieldnames})
     content = buffer.getvalue()
     return Response(
         content=content,
@@ -550,7 +560,9 @@ def _hydrate_snapshot_charge_row(
     )
 
 
-def _sort_charge_rows(rows: list[StorageTenantDailyCharge]) -> list[StorageTenantDailyCharge]:
+def _sort_charge_rows(
+    rows: list[StorageTenantDailyCharge],
+) -> list[StorageTenantDailyCharge]:
     return sorted(
         rows,
         key=lambda item: (

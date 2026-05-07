@@ -208,7 +208,9 @@ class TenantConfigWorkflowService:
                 {
                     "type": rule["type"],
                     "value": rule["value"],
-                    "message": _(rule["message_key"]) if rule.get("message_key") else "",
+                    "message": _(rule["message_key"])
+                    if rule.get("message_key")
+                    else "",
                 }
             )
 
@@ -221,7 +223,9 @@ class TenantConfigWorkflowService:
             )
             for rule in config.get("display_rules", [])
         ]
-        children = [self._translate_config_item(child) for child in config.get("children", [])]
+        children = [
+            self._translate_config_item(child) for child in config.get("children", [])
+        ]
 
         return ConfigItemResponse(
             key=config["key"],
@@ -244,8 +248,12 @@ class TenantConfigWorkflowService:
             file_accept=config.get("file_accept", ""),
         )
 
-    def _build_group_response(self, target_group: dict[str, Any]) -> ConfigGroupResponse:
-        configs = [self._translate_config_item(config) for config in target_group["configs"]]
+    def _build_group_response(
+        self, target_group: dict[str, Any]
+    ) -> ConfigGroupResponse:
+        configs = [
+            self._translate_config_item(config) for config in target_group["configs"]
+        ]
         return ConfigGroupResponse(
             code=target_group["code"],
             name=_(target_group["name_key"]),
@@ -264,7 +272,9 @@ class TenantConfigWorkflowService:
         tenant_id: int,
     ) -> ConfigGroupResponse:
         self._get_group_or_raise(group_code)
-        target_group = await self._load_group_with_runtime_options(tenant_id, group_code)
+        target_group = await self._load_group_with_runtime_options(
+            tenant_id, group_code
+        )
         if not target_group:
             raise NotFoundException(
                 message=_("config.group_not_found"),
@@ -366,7 +376,9 @@ class TenantConfigWorkflowService:
 
         return response_data
 
-    async def save_storage_config(self, *, data: dict[str, Any], tenant_id: int) -> None:
+    async def save_storage_config(
+        self, *, data: dict[str, Any], tenant_id: int
+    ) -> None:
         tenant_enabled = await self._config_service.get_tenant_config(
             tenant_id,
             "tenant_storage_self_config_enabled",
@@ -474,7 +486,9 @@ class TenantConfigWorkflowService:
             await driver_instance.put(test_key, test_content, mime_type="text/plain")
             exists = await driver_instance.exists(test_key)
             if not exists:
-                return build_inline_error_result(_("config.storage.test_file_not_found"))
+                return build_inline_error_result(
+                    _("config.storage.test_file_not_found")
+                )
             await driver_instance.delete(test_key)
             return {"success": True}
         except BusinessException:

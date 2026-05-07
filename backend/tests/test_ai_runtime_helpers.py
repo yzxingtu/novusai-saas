@@ -4,16 +4,16 @@ from __future__ import annotations
 
 import pytest
 
-from app.ai.tools.sql_analysis import (
-    extract_group_by_expressions,
-    extract_select_aggregates,
-    extract_table_name_list,
-)
 from app.ai.rag.text_cleaner import clean_for_embedding
 from app.ai.tools.security import (
     OutputSanitizer,
     SqlInjectionBlockedError,
     SqlValidator,
+)
+from app.ai.tools.sql_analysis import (
+    extract_group_by_expressions,
+    extract_select_aggregates,
+    extract_table_name_list,
 )
 
 
@@ -67,7 +67,10 @@ def test_sql_validator_blocks_write_keywords_and_injects_limit() -> None:
     SqlValidator.validate("SELECT * FROM users")
     with pytest.raises(SqlInjectionBlockedError):
         SqlValidator.validate("UPDATE users SET name = 'x'")
-    assert SqlValidator.inject_limit("SELECT * FROM users;", 50) == "SELECT * FROM users LIMIT 50;"
+    assert (
+        SqlValidator.inject_limit("SELECT * FROM users;", 50)
+        == "SELECT * FROM users LIMIT 50;"
+    )
 
 
 def test_clean_for_embedding_removes_urls_tags_emoji_and_noise() -> None:
@@ -79,4 +82,3 @@ def test_clean_for_embedding_removes_urls_tags_emoji_and_noise() -> None:
     assert "😊" not in cleaned
     assert "继续" in cleaned
     assert "\n\n\n" not in cleaned
-

@@ -3,11 +3,14 @@
 
 测试 /tenant/organization/* 接口
 """
+
 import os
 import sys
 import time
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+sys.path.insert(
+    0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+)
 
 import contextlib
 
@@ -16,7 +19,6 @@ from tests.api.base import (
     assert_equals,
     assert_has_keys,
     assert_success,
-    assert_tenant_login_success,
     assert_true,
     config,
 )
@@ -60,20 +62,28 @@ class ManualTestTenantOrganization(BaseAPITest):
         if not config.TENANT_ADMIN_USERNAME or not config.TENANT_ADMIN_PASSWORD:
             skip_reason = "未配置企业管理员账号"
 
-        self.run_test("获取组织根节点和组织树", self.test_list_organization, skip_reason)
+        self.run_test(
+            "获取组织根节点和组织树", self.test_list_organization, skip_reason
+        )
         self.run_test("创建主组织节点", self.test_create_primary_org_node, skip_reason)
-        self.run_test("创建目标组织节点", self.test_create_secondary_org_node, skip_reason)
+        self.run_test(
+            "创建目标组织节点", self.test_create_secondary_org_node, skip_reason
+        )
         self.run_test("获取组织节点详情", self.test_get_org_node_detail, skip_reason)
         self.run_test("更新组织节点", self.test_update_org_node, skip_reason)
         self.run_test("更新组织权限范围", self.test_update_org_authority, skip_reason)
         self.run_test("在组织节点下创建成员", self.test_create_member, skip_reason)
         self.run_test("获取组织节点成员列表", self.test_get_org_members, skip_reason)
-        self.run_test("更新成员组织归属", self.test_update_member_org_assignment, skip_reason)
+        self.run_test(
+            "更新成员组织归属", self.test_update_member_org_assignment, skip_reason
+        )
         self.run_test("设置负责人", self.test_set_leader, skip_reason)
         self.run_test("清空负责人", self.test_clear_leader, skip_reason)
         self.run_test("移除成员", self.test_remove_member, skip_reason)
         self.run_test("删除主组织节点", self.test_delete_primary_org_node, skip_reason)
-        self.run_test("删除目标组织节点", self.test_delete_secondary_org_node, skip_reason)
+        self.run_test(
+            "删除目标组织节点", self.test_delete_secondary_org_node, skip_reason
+        )
 
     def _get_any_permission_role_id(self) -> int | None:
         resp = self.client.get(
@@ -84,12 +94,16 @@ class ManualTestTenantOrganization(BaseAPITest):
         items = data["data"]["items"]
         return items[0]["id"] if items else None
 
-    def _assert_member_mapping(self, member: dict, expected_org_node_id: int | None) -> None:
+    def _assert_member_mapping(
+        self, member: dict, expected_org_node_id: int | None
+    ) -> None:
         assert_equals(member["org_node_id"], expected_org_node_id)
         expected_role_id = self._test_data.get("permission_role_id")
         assert_equals(member.get("permission_role_id"), expected_role_id)
         if expected_role_id is not None:
-            assert_true(member.get("permission_role_name") is not None, "权限角色名称不应为空")
+            assert_true(
+                member.get("permission_role_name") is not None, "权限角色名称不应为空"
+            )
 
     def test_list_organization(self) -> None:
         """测试获取组织根节点和组织树 / Test get organization roots and tree."""
@@ -117,7 +131,10 @@ class ManualTestTenantOrganization(BaseAPITest):
         )
         data = assert_success(resp, "创建主组织节点失败")
 
-        assert_has_keys(data["data"], ["id", "name", "tenant_id", "type", "allow_members", "data_scope"])
+        assert_has_keys(
+            data["data"],
+            ["id", "name", "tenant_id", "type", "allow_members", "data_scope"],
+        )
         assert_equals(data["data"]["name"], self._test_data["primary_name"])
         self._test_data["primary_org_node_id"] = data["data"]["id"]
 
@@ -151,7 +168,16 @@ class ManualTestTenantOrganization(BaseAPITest):
 
         assert_has_keys(
             data["data"],
-            ["id", "tenant_id", "name", "type", "allow_members", "data_scope", "children_count", "member_count"],
+            [
+                "id",
+                "tenant_id",
+                "name",
+                "type",
+                "allow_members",
+                "data_scope",
+                "children_count",
+                "member_count",
+            ],
         )
         assert_equals(data["data"]["id"], org_node_id)
 
@@ -207,10 +233,14 @@ class ManualTestTenantOrganization(BaseAPITest):
         if permission_role_id is not None:
             payload["role_id"] = permission_role_id
 
-        resp = self.client.post(f"/tenant/organization/{org_node_id}/members/create", data=payload)
+        resp = self.client.post(
+            f"/tenant/organization/{org_node_id}/members/create", data=payload
+        )
         data = assert_success(resp, "创建组织成员失败")
 
-        assert_has_keys(data["data"], ["id", "username", "org_node_id", "permission_role_id"])
+        assert_has_keys(
+            data["data"], ["id", "username", "org_node_id", "permission_role_id"]
+        )
         assert_equals(data["data"]["username"], self._test_data["member_username"])
         self._assert_member_mapping(data["data"], org_node_id)
         self._test_data["created_admin_id"] = data["data"]["id"]
@@ -229,7 +259,9 @@ class ManualTestTenantOrganization(BaseAPITest):
         data = assert_success(resp, "获取组织节点成员列表失败")
 
         assert_has_keys(data["data"], ["items", "total", "page", "page_size", "pages"])
-        member = next((item for item in data["data"]["items"] if item["id"] == admin_id), None)
+        member = next(
+            (item for item in data["data"]["items"] if item["id"] == admin_id), None
+        )
         assert_true(member is not None, "创建的成员未出现在组织节点成员列表中")
         self._assert_member_mapping(member, org_node_id)
 
@@ -294,7 +326,9 @@ class ManualTestTenantOrganization(BaseAPITest):
         if not org_node_id or not admin_id:
             raise AssertionError("没有可用的组织节点 ID 或成员 ID")
 
-        resp = self.client.delete(f"/tenant/organization/{org_node_id}/members/{admin_id}")
+        resp = self.client.delete(
+            f"/tenant/organization/{org_node_id}/members/{admin_id}"
+        )
         data = assert_success(resp, "移除成员失败")
         self._assert_member_mapping(data["data"], None)
 

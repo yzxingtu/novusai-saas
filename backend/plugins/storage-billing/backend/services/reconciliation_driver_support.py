@@ -33,7 +33,9 @@ class StorageBillingReconciliationDriverSupportMixin:
 
         config = row[0] or {}
         manifest = row[1] or {}
-        config_schema = manifest.get("config_schema") if isinstance(manifest, dict) else None
+        config_schema = (
+            manifest.get("config_schema") if isinstance(manifest, dict) else None
+        )
         if config_schema:
             config = decrypt_plugin_config(config, config_schema)
         return dict(config or {})
@@ -53,9 +55,7 @@ class StorageBillingReconciliationDriverSupportMixin:
             else list(provider_codes or [])
         )
         requested_codes = {
-            _stringify(item)
-            for item in raw_provider_codes
-            if _stringify(item)
+            _stringify(item) for item in raw_provider_codes if _stringify(item)
         }
         platform_storage_context = await _read_platform_storage_context(self._host_read)
         active_storage_driver = _stringify(
@@ -65,7 +65,10 @@ class StorageBillingReconciliationDriverSupportMixin:
             return []
         if active_storage_driver in EXCLUDED_DRIVERS:
             return []
-        if active_storage_driver and active_storage_driver not in SUPPORTED_CLOUD_DRIVERS:
+        if (
+            active_storage_driver
+            and active_storage_driver not in SUPPORTED_CLOUD_DRIVERS
+        ):
             return []
 
         drivers = await self._host_read.get_enabled_storage_drivers()

@@ -35,7 +35,9 @@ class _FakeConfigService:
 
 
 @pytest.mark.asyncio
-async def test_audit_dns_provider_config_ready_for_cloudflare(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_audit_dns_provider_config_ready_for_cloudflare(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Cloudflare 配置完整时应判定为 ready / Cloudflare with full credentials should be ready."""
     monkeypatch.setattr(
         "app.services.system.dns_provider.ConfigService",
@@ -62,7 +64,9 @@ async def test_audit_dns_provider_config_ready_for_cloudflare(monkeypatch: pytes
 
 
 @pytest.mark.asyncio
-async def test_audit_dns_provider_config_marks_legacy_provider(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_audit_dns_provider_config_marks_legacy_provider(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """legacy provider 应被识别为不可用 / Legacy provider should be marked unsupported."""
     monkeypatch.setattr(
         "app.services.system.dns_provider.ConfigService",
@@ -82,7 +86,9 @@ async def test_audit_dns_provider_config_marks_legacy_provider(monkeypatch: pyte
 
 
 @pytest.mark.asyncio
-async def test_ensure_dns_provider_ready_rejects_manual(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_ensure_dns_provider_ready_rejects_manual(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """manual 模式不可用于自动化签发 / Manual mode must be rejected for automated issuance."""
     monkeypatch.setattr(
         "app.services.system.dns_provider.ConfigService",
@@ -101,7 +107,9 @@ async def test_ensure_dns_provider_ready_rejects_manual(monkeypatch: pytest.Monk
 
 
 @pytest.mark.asyncio
-async def test_get_dns_provider_returns_cloudflare_provider(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_get_dns_provider_returns_cloudflare_provider(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """仅在 ready 时返回 Cloudflare provider / Return Cloudflare provider only when config is ready."""
     monkeypatch.setattr(
         "app.services.system.dns_provider.ConfigService",
@@ -136,7 +144,9 @@ async def test_validate_platform_ssl_config_patch_rejects_legacy_provider() -> N
 
 
 @pytest.mark.asyncio
-async def test_validate_platform_ssl_config_patch_allows_manual_in_debug(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_validate_platform_ssl_config_patch_allows_manual_in_debug(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """DEBUG 环境下允许保存 manual 以兼容开发调试 / Allow manual in DEBUG for local debugging."""
     configs = {"dns_provider": " Manual "}
     monkeypatch.setattr(

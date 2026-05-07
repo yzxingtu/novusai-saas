@@ -153,9 +153,7 @@ class PromptContractVisitor(ast.NodeVisitor):
         literal = _literal_info(node.value)
         if literal and not literal.uses_prompt_contract:
             target_names = [
-                target.id
-                for target in node.targets
-                if isinstance(target, ast.Name)
+                target.id for target in node.targets if isinstance(target, ast.Name)
             ]
             if any(
                 any(marker in name.lower() for marker in PROMPT_NAME_MARKERS)
@@ -180,7 +178,9 @@ class PromptContractVisitor(ast.NodeVisitor):
             and not literal.uses_prompt_contract
             and target_name
             and any(marker in target_name.lower() for marker in PROMPT_NAME_MARKERS)
-            and _looks_like_prompt_text(literal.text, min_chars=24, require_signal=False)
+            and _looks_like_prompt_text(
+                literal.text, min_chars=24, require_signal=False
+            )
         ):
             self._add_violation(
                 node,
@@ -197,7 +197,9 @@ class PromptContractVisitor(ast.NodeVisitor):
             and not literal.uses_prompt_contract
             and fn_name
             and any(marker in fn_name.lower() for marker in PROMPT_NAME_MARKERS)
-            and _looks_like_prompt_text(literal.text, min_chars=48, require_signal=False)
+            and _looks_like_prompt_text(
+                literal.text, min_chars=48, require_signal=False
+            )
         ):
             self._add_violation(
                 node,
@@ -276,7 +278,9 @@ def scan_python_file(path: Path) -> list[PromptContractViolation]:
     return visitor.violations
 
 
-def scan_paths(root: Path, relative_dirs: list[str] | None = None) -> list[PromptContractViolation]:
+def scan_paths(
+    root: Path, relative_dirs: list[str] | None = None
+) -> list[PromptContractViolation]:
     violations: list[PromptContractViolation] = []
     scan_dirs = relative_dirs or list(DEFAULT_SCAN_DIRS)
     for relative_dir in scan_dirs:
@@ -325,7 +329,9 @@ def main() -> int:
         print("Prompt contract check passed.")
         return 0
 
-    print("Prompt contract check failed. Move fixed model-facing prompt text into backend/app/ai/prompt_contracts/resources/.")
+    print(
+        "Prompt contract check failed. Move fixed model-facing prompt text into backend/app/ai/prompt_contracts/resources/."
+    )
     for violation in violations:
         print(
             f"- {violation.path.relative_to(root)}:{violation.line}:{violation.column} "

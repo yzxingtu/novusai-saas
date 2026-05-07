@@ -63,6 +63,8 @@ class PlatformPublicConfig(BaseSchema):
 
     # 存储配置 / Storage
     storage: StoragePublicConfig | None = Field(None, description="存储配置")
+
+
 __all__ = [
     "CaptchaPluginFrontendRuntimePublicConfig",
     "PlatformPublicConfig",

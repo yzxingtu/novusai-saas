@@ -5,12 +5,9 @@ DB 反射器测试 / DB Introspector tests.
 Tests get_table_names, get_columns, base_field_exclusion, fk_detection.
 """
 
-from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-import pytest
-
-from app.codegen.db_introspector import ColumnInfo, DbIntrospector, FKInfo
+from app.codegen.db_introspector import DbIntrospector, FKInfo
 
 
 @patch("app.codegen.db_introspector.inspect")
@@ -33,7 +30,13 @@ def test_get_columns_base_field_exclusion(mock_inspect: MagicMock) -> None:
     mock_inspector.get_columns.return_value = [
         {"name": "id", "type": MagicMock(), "nullable": False, "default": None},
         {"name": "created_at", "type": MagicMock(), "nullable": True, "default": None},
-        {"name": "name", "type": MagicMock(), "nullable": False, "default": None, "comment": None},
+        {
+            "name": "name",
+            "type": MagicMock(),
+            "nullable": False,
+            "default": None,
+            "comment": None,
+        },
     ]
     mock_inspector.get_pk_constraint.return_value = {"constrained_columns": ["id"]}
     mock_inspector.get_unique_constraints.return_value = []
@@ -55,7 +58,13 @@ def test_get_columns_tenant_field_exclusion(mock_inspect: MagicMock) -> None:
     mock_inspector = MagicMock()
     mock_inspector.get_columns.return_value = [
         {"name": "tenant_id", "type": MagicMock(), "nullable": True, "default": None},
-        {"name": "title", "type": MagicMock(), "nullable": False, "default": None, "comment": None},
+        {
+            "name": "title",
+            "type": MagicMock(),
+            "nullable": False,
+            "default": None,
+            "comment": None,
+        },
     ]
     mock_inspector.get_pk_constraint.return_value = {}
     mock_inspector.get_unique_constraints.return_value = []
@@ -79,7 +88,13 @@ def test_get_columns_fk_detection(mock_tr: MagicMock, mock_inspect: MagicMock) -
     mock_inspector = MagicMock()
     mock_inspector.get_columns.return_value = [
         {"name": "tenant_id", "type": MagicMock(), "nullable": True, "default": None},
-        {"name": "category_id", "type": MagicMock(), "nullable": True, "default": None, "comment": None},
+        {
+            "name": "category_id",
+            "type": MagicMock(),
+            "nullable": True,
+            "default": None,
+            "comment": None,
+        },
     ]
     mock_inspector.get_pk_constraint.return_value = {}
     mock_inspector.get_unique_constraints.return_value = []
@@ -106,7 +121,13 @@ def test_get_columns_unique_constraint(mock_inspect: MagicMock) -> None:
     """唯一约束列得到 unique: true."""
     mock_inspector = MagicMock()
     mock_inspector.get_columns.return_value = [
-        {"name": "code", "type": MagicMock(), "nullable": False, "default": None, "comment": None},
+        {
+            "name": "code",
+            "type": MagicMock(),
+            "nullable": False,
+            "default": None,
+            "comment": None,
+        },
     ]
     mock_inspector.get_pk_constraint.return_value = {}
     mock_inspector.get_unique_constraints.return_value = [

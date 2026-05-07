@@ -24,7 +24,6 @@ from app.services.system.cache_management_service import (
 
 
 class TestFormatSize:
-
     def test_bytes(self):
         assert _format_size(0) == "0 B"
         assert _format_size(512) == "512 B"
@@ -46,7 +45,6 @@ class TestFormatSize:
 
 
 class TestCacheCategoryEnum:
-
     def test_all_values_present(self):
         expected = {
             "ai_response",
@@ -83,7 +81,6 @@ class TestCacheCategoryEnum:
 
 
 class TestCacheClearRequestValidation:
-
     def test_valid_categories(self):
         req = CacheClearRequest(categories=["ai_response", "image_cache"])
         assert len(req.categories) == 2
@@ -102,7 +99,6 @@ class TestCacheClearRequestValidation:
 
 
 class TestCacheSummaryResponse:
-
     def test_defaults(self):
         resp = CacheSummaryResponse()
         assert resp.categories == []
@@ -111,7 +107,6 @@ class TestCacheSummaryResponse:
 
 
 class TestCacheClearResponse:
-
     def test_defaults(self):
         resp = CacheClearResponse()
         assert resp.cleared_categories == []
@@ -124,7 +119,6 @@ class TestCacheClearResponse:
 
 
 class TestGetCacheSummary:
-
     @pytest.mark.asyncio
     async def test_returns_all_categories(self):
         mock_redis = AsyncMock()
@@ -179,7 +173,6 @@ class TestGetCacheSummary:
 
 
 class TestClearCache:
-
     @pytest.mark.asyncio
     async def test_clear_single_redis_category(self):
         mock_redis = AsyncMock()
@@ -218,9 +211,7 @@ class TestClearCache:
     @pytest.mark.asyncio
     async def test_clear_multiple_categories(self):
         mock_redis = AsyncMock()
-        mock_redis.scan_iter = AsyncMock(
-            return_value=AsyncIterator(["key1"])
-        )
+        mock_redis.scan_iter = AsyncMock(return_value=AsyncIterator(["key1"]))
         mock_redis.memory_usage = AsyncMock(return_value=50)
         mock_redis.delete = AsyncMock(return_value=1)
 

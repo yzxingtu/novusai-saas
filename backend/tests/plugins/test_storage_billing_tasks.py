@@ -19,7 +19,9 @@ class _FakeAsyncSession:
 
 
 @pytest.mark.asyncio
-async def test_storage_billing_daily_task_commits_after_reconciliation(monkeypatch) -> None:
+async def test_storage_billing_daily_task_commits_after_reconciliation(
+    monkeypatch,
+) -> None:
     module = load_plugin_module("storage-billing", "tasks")
     assert module is not None
 
@@ -47,7 +49,9 @@ async def test_storage_billing_daily_task_commits_after_reconciliation(monkeypat
 
 
 @pytest.mark.asyncio
-async def test_storage_billing_qiniu_monthly_task_commits_after_reconciliation(monkeypatch) -> None:
+async def test_storage_billing_qiniu_monthly_task_commits_after_reconciliation(
+    monkeypatch,
+) -> None:
     module = load_plugin_module("storage-billing", "tasks")
     assert module is not None
 

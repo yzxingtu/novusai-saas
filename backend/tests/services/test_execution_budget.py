@@ -57,14 +57,19 @@ def test_execution_budget_reports_elapsed_budget_exit() -> None:
 
     assert budget.first_exceeded_reason() == "elapsed_budget_exceeded"
     assert BudgetGuard.pre_model_reason(budget) == "elapsed_budget_exceeded"
-    assert BudgetGuard.completion_reason(
-        budget,
-        completion_tokens=10,
-        total_tokens=10,
-    ) == "elapsed_budget_exceeded"
+    assert (
+        BudgetGuard.completion_reason(
+            budget,
+            completion_tokens=10,
+            total_tokens=10,
+        )
+        == "elapsed_budget_exceeded"
+    )
 
 
-def test_execution_budget_elapsed_grace_applies_only_when_explicitly_requested() -> None:
+def test_execution_budget_elapsed_grace_applies_only_when_explicitly_requested() -> (
+    None
+):
     budget = _budget(elapsed_ms_used=1100)
 
     assert budget.first_exceeded_reason() == "elapsed_budget_exceeded"

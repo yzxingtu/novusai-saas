@@ -26,7 +26,6 @@ class ConversationMessage(TenantModel):
 
     __tablename__ = "conversation_messages"
 
-
     # 允许前端筛选的字段 / Fields exposed for list filtering
     __filterable__ = {
         "id": "id",

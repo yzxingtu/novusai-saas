@@ -39,7 +39,7 @@ class _FakeHttpxClient:
     async def __aexit__(self, exc_type, exc, tb):
         return None
 
-    async def get(self, *args, **kwargs):
+    async def get(self, *_args, **_kwargs):
         return _FakeHttpxResponse(self._payload)
 
 
@@ -69,7 +69,7 @@ async def test_qiniu_adapter_normalizes_monthly_finance_bill(monkeypatch) -> Non
     monkeypatch.setattr(
         module.httpx,
         "AsyncClient",
-        lambda *args, **kwargs: _FakeHttpxClient(payload),
+        lambda *_args, **_kwargs: _FakeHttpxClient(payload),
     )
 
     adapter = module.QiniuKodoOfficialBillAdapter()
@@ -101,7 +101,9 @@ async def test_qiniu_adapter_normalizes_monthly_finance_bill(monkeypatch) -> Non
 
 
 @pytest.mark.asyncio
-async def test_aliyun_adapter_reports_not_implemented_for_unsupported_bill_source() -> None:
+async def test_aliyun_adapter_reports_not_implemented_for_unsupported_bill_source() -> (
+    None
+):
     module = importlib.import_module("plugins.storage-billing.backend.providers.aliyun")
 
     adapter = module.AliyunOssOfficialBillAdapter()
@@ -109,7 +111,11 @@ async def test_aliyun_adapter_reports_not_implemented_for_unsupported_bill_sourc
         module.BillingFetchRequest(
             billing_date=date(2026, 3, 21),
             driver_code="aliyun-oss",
-            profile={"bill_source": "legacy_source", "access_key_id": "id", "access_key_secret": "secret"},
+            profile={
+                "bill_source": "legacy_source",
+                "access_key_id": "id",
+                "access_key_secret": "secret",
+            },
         )
     )
 
@@ -161,7 +167,7 @@ async def test_aliyun_adapter_normalizes_bss_openapi_split_items(monkeypatch) ->
     monkeypatch.setattr(
         module,
         "AcsClient",
-        lambda *args, **kwargs: _FakeAliyunClient(calls, payload),
+        lambda *_args, **_kwargs: _FakeAliyunClient(calls, payload),
     )
 
     adapter = module.AliyunOssOfficialBillAdapter()

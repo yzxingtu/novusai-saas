@@ -58,7 +58,9 @@ def test_resolve_visible_reply_locale_prefers_latest_user_language_signal() -> N
     assert (
         resolve_visible_reply_locale(
             [
-                ChatMessage(role="user", content="How is the weather in Shanghai today?"),
+                ChatMessage(
+                    role="user", content="How is the weather in Shanghai today?"
+                ),
             ],
             {"locale": "zh-CN"},
         )
@@ -66,7 +68,9 @@ def test_resolve_visible_reply_locale_prefers_latest_user_language_signal() -> N
     )
 
 
-def test_resolve_visible_reply_locale_skips_ambiguous_confirmation_and_uses_prior_user_language() -> None:
+def test_resolve_visible_reply_locale_skips_ambiguous_confirmation_and_uses_prior_user_language() -> (
+    None
+):
     assert (
         resolve_visible_reply_locale(
             [

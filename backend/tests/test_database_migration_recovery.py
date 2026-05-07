@@ -27,7 +27,9 @@ def _coverage(
     )
 
 
-def test_should_auto_recover_missing_main_branch_stamp_accepts_plugin_only_stamps() -> None:
+def test_should_auto_recover_missing_main_branch_stamp_accepts_plugin_only_stamps() -> (
+    None
+):
     ok, reason = should_auto_recover_missing_main_branch_stamp(
         current_stamps=["novusdoc_002_tid_nullable", "sm_001_init"],
         main_revision_ids={"0001", "20260325_skill_arch_foundation"},
@@ -40,7 +42,9 @@ def test_should_auto_recover_missing_main_branch_stamp_accepts_plugin_only_stamp
     assert "main branch stamp missing" in reason
 
 
-def test_should_auto_recover_missing_main_branch_stamp_rejects_when_main_stamp_exists() -> None:
+def test_should_auto_recover_missing_main_branch_stamp_rejects_when_main_stamp_exists() -> (
+    None
+):
     ok, reason = should_auto_recover_missing_main_branch_stamp(
         current_stamps=["20260325_skill_arch_foundation", "sm_001_init"],
         main_revision_ids={"0001", "20260325_skill_arch_foundation"},
@@ -62,7 +66,9 @@ def test_should_auto_recover_missing_main_branch_stamp_rejects_missing_tables() 
     assert reason.startswith("missing main tables:")
 
 
-def test_should_auto_recover_missing_main_branch_stamp_rejects_large_column_gap() -> None:
+def test_should_auto_recover_missing_main_branch_stamp_rejects_large_column_gap() -> (
+    None
+):
     ok, reason = should_auto_recover_missing_main_branch_stamp(
         current_stamps=["sm_001_init"],
         main_revision_ids={"0001", "20260325_skill_arch_foundation"},
@@ -83,21 +89,21 @@ def test_maybe_recover_missing_main_branch_stamp_stamps_resolved_main_head(
 ) -> None:
     monkeypatch.setattr(
         "app.core.database._collect_revision_ids_from_dir",
-        lambda directory: {"0001", "20260325_skill_arch_foundation"},
+        lambda _directory: {"0001", "20260325_skill_arch_foundation"},
     )
     monkeypatch.setattr(
         "app.core.database._read_alembic_version_rows",
-        lambda db_url: ["novusdoc_002_tid_nullable", "sm_001_init"],
+        lambda _db_url: ["novusdoc_002_tid_nullable", "sm_001_init"],
     )
     monkeypatch.setattr(
         "app.core.database._inspect_main_schema_coverage",
-        lambda db_url: _coverage(
+        lambda _db_url: _coverage(
             missing_columns_by_table={"skill_packages": ("bind_mode",)},
         ),
     )
     monkeypatch.setattr(
         "app.core.database._resolve_main_head_revision",
-        lambda cfg, main_revision_ids: "20260325_skill_arch_foundation",
+        lambda _cfg, _main_revision_ids: "20260325_skill_arch_foundation",
     )
 
     stamped: list[str] = []

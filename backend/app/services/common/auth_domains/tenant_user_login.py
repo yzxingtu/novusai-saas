@@ -724,9 +724,7 @@ class TenantUserAccountDomain:
         )
         user = result.scalar_one_or_none()
         if user is None:
-            logger.warning(
-                f"Password reset requested for non-existent email: {email}"
-            )
+            logger.warning(f"Password reset requested for non-existent email: {email}")
             return {"message": _("auth.reset_code_sent")}
 
         code = "".join(secrets.choice(string.digits) for _ in range(6))
@@ -834,6 +832,4 @@ class TenantUserAccountDomain:
         user.password_hash = self._service._get_password_hash(new_password)
         await self._service._cache_delete(code_key)
 
-        logger.info(
-            f"Password reset completed for user {user.id} (tenant={tenant_id})"
-        )
+        logger.info(f"Password reset completed for user {user.id} (tenant={tenant_id})")

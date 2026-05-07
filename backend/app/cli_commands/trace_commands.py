@@ -15,6 +15,7 @@ _echo_json = S._echo_json
 _json_error = S._json_error
 settings = S.settings
 
+
 def _render_trace_text(payload: dict) -> str:
     lines: list[str] = []
     summary = payload.get("summary") or {}

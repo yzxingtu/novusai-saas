@@ -549,7 +549,9 @@ class PluginService(BaseService[Plugin, PluginRepository]):
             if scope not in {"tenant", "both"}:
                 continue
             code = str(getattr(permission, "code", "") or "").strip()
-            if code in full_codes or any(code.startswith(prefix) for prefix in prefixes):
+            if code in full_codes or any(
+                code.startswith(prefix) for prefix in prefixes
+            ):
                 return True
         return False
 
@@ -571,7 +573,9 @@ class PluginService(BaseService[Plugin, PluginRepository]):
         result = await self.db.execute(
             select(Tenant)
             .where(Tenant.id.in_(normalized_ids), Tenant.is_deleted.is_(False))
-            .options(selectinload(Tenant.tenant_plan).selectinload(TenantPlan.permissions))
+            .options(
+                selectinload(Tenant.tenant_plan).selectinload(TenantPlan.permissions)
+            )
         )
         tenants = {int(tenant.id): tenant for tenant in result.scalars().all()}
 
@@ -617,9 +621,7 @@ class PluginService(BaseService[Plugin, PluginRepository]):
                     message=_(
                         "plugin.error.tenant_assignment_missing_entitlement"
                     ).format(
-                        tenant_ids=", ".join(
-                            str(item) for item in missing_entitlement
-                        ),
+                        tenant_ids=", ".join(str(item) for item in missing_entitlement),
                     )
                 )
 

@@ -52,12 +52,16 @@ def _extract_agent_relations(
         grants = getattr(agent, "skill_grants", None)
         if grants is not None:
             for grant in grants:
-                if getattr(grant, "is_deleted", False) or not getattr(grant, "enabled", True):
+                if getattr(grant, "is_deleted", False) or not getattr(
+                    grant, "enabled", True
+                ):
                     continue
                 skill = getattr(grant, "skill", None)
                 if not skill:
                     continue
-                if getattr(skill, "is_deleted", False) or not getattr(skill, "is_active", True):
+                if getattr(skill, "is_deleted", False) or not getattr(
+                    skill, "is_active", True
+                ):
                     continue
                 skill_item = {"id": skill.id, "name": skill.name}
                 package = getattr(skill, "package", None)

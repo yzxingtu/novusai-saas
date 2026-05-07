@@ -42,7 +42,9 @@ def _make_agent() -> SimpleNamespace:
     )
 
 
-def _build_prepared_execution(pending_payload: dict[str, object]) -> tuple[PreparedExecution, list[ChatMessage]]:
+def _build_prepared_execution(
+    pending_payload: dict[str, object],
+) -> tuple[PreparedExecution, list[ChatMessage]]:
     messages = [
         ChatMessage(role="user", content="Please delete this item."),
         ChatMessage(
@@ -77,6 +79,7 @@ def _build_prepared_execution(pending_payload: dict[str, object]) -> tuple[Prepa
 async def _drain_async_generator(generator):
     async for _ in generator:
         pass
+
 
 def test_conversation_pauses_for_consent(monkeypatch):
     agent = _make_agent()
@@ -252,9 +255,7 @@ def test_sync_respects_skip_final_assistant(monkeypatch):
 
     assert result.output == "Hidden"
     assistant_contents = [
-        msg.get("content")
-        for msg in result.messages
-        if msg.get("role") == "assistant"
+        msg.get("content") for msg in result.messages if msg.get("role") == "assistant"
     ]
     assert "Hidden" not in assistant_contents
 

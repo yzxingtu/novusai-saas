@@ -28,7 +28,6 @@ class SkillPackage(TenantModel):
 
     __tablename__ = "skill_packages"
 
-
     __delete_deps__ = [
         DeletionDep(
             "Skill",

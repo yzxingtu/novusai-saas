@@ -116,7 +116,7 @@ async def test_get_agent_skills_filters_inactive_package_grants(
 
     monkeypatch.setattr(
         "app.services.ai.agent_skill_grant_service.AgentSkillGrantRepository",
-        lambda db, tenant_id: repo_stub,
+        lambda _db, _tenant_id: repo_stub,
     )
 
     service = AgentSkillGrantService.__new__(AgentSkillGrantService)
@@ -208,11 +208,11 @@ async def test_get_agent_skills_filters_tenant_invisible_grants(
 
     monkeypatch.setattr(
         "app.services.ai.agent_skill_grant_service.AgentSkillGrantRepository",
-        lambda db, tenant_id: repo_stub,
+        lambda _db, _tenant_id: repo_stub,
     )
     monkeypatch.setattr(
         "app.services.ai.agent_skill_grant_service.SkillRepository",
-        lambda db, tenant_id: visible_skill_repo,
+        lambda _db, _tenant_id: visible_skill_repo,
     )
 
     service = AgentSkillGrantService.__new__(AgentSkillGrantService)

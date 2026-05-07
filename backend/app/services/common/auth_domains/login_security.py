@@ -116,7 +116,9 @@ class AuthLoginSecurityDomain:
         locked_until = result.scalar_one_or_none()
         if locked_until is None:
             return False
-        return self._service._normalize_utc(locked_until) > self._service._utc_now_aware()
+        return (
+            self._service._normalize_utc(locked_until) > self._service._utc_now_aware()
+        )
 
     async def reset_login_failures(
         self,

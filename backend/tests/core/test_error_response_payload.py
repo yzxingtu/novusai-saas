@@ -60,7 +60,9 @@ def test_socket_connect_error_carries_structured_payload() -> None:
             "token_expired",
             code=4011,
             message="Token has expired",
-            debug=build_exception_debug(RuntimeError("expired"), include_traceback=False),
+            debug=build_exception_debug(
+                RuntimeError("expired"), include_traceback=False
+            ),
         )
     finally:
         settings.DEBUG = original_debug

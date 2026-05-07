@@ -39,7 +39,6 @@ def _make_rate_limit(**overrides):
 
 
 class TestQuotaCreate:
-
     @pytest.mark.asyncio
     async def test_create_quota(self, mock_db):
         from app.services.ai.tenant_quota_service import TenantQuotaService
@@ -56,7 +55,6 @@ class TestQuotaCreate:
 
 
 class TestQuotaQuery:
-
     @pytest.mark.asyncio
     async def test_get_active_quotas(self, mock_db):
         from app.services.ai.tenant_quota_service import TenantQuotaService
@@ -95,7 +93,7 @@ class TestQuotaQuery:
             id=11,
             tenant_id=1,
             model_id=None,
-            period='monthly',
+            period="monthly",
             limit=1000,
             warning_threshold=80,
         )
@@ -103,7 +101,7 @@ class TestQuotaQuery:
             id=12,
             tenant_id=1,
             model_id=9,
-            period='daily',
+            period="daily",
             limit=600,
             warning_threshold=60,
         )
@@ -117,9 +115,9 @@ class TestQuotaQuery:
         class _FakeTracker:
             @staticmethod
             async def get_usage(*, tenant_id, model_id, period):
-                if tenant_id == 1 and model_id == 0 and period == 'monthly':
+                if tenant_id == 1 and model_id == 0 and period == "monthly":
                     return 250
-                if tenant_id == 1 and model_id == 9 and period == 'daily':
+                if tenant_id == 1 and model_id == 9 and period == "daily":
                     return 480
                 return 0
 
@@ -129,13 +127,12 @@ class TestQuotaQuery:
         finally:
             service_module.UsageTracker = original_tracker
 
-        assert [item['quota'].id for item in result] == [11, 12]
-        assert result[0]['remaining'] == 750
-        assert result[1]['is_warning'] is True
+        assert [item["quota"].id for item in result] == [11, 12]
+        assert result[0]["remaining"] == 750
+        assert result[1]["is_warning"] is True
 
 
 class TestRateLimitCheck:
-
     @pytest.mark.asyncio
     async def test_rate_limit_config_exists(self, mock_db):
         from app.services.ai.tenant_rate_limit_service import TenantRateLimitService
@@ -183,7 +180,6 @@ class TestRateLimitCheck:
 
 
 class TestQuotaServiceMethods:
-
     @pytest.mark.asyncio
     async def test_service_has_quota_methods(self, mock_db):
         from app.services.ai.tenant_quota_service import TenantQuotaService
@@ -193,7 +189,7 @@ class TestQuotaServiceMethods:
         service.tenant_id = 1
         service.repo = AsyncMock()
 
-        assert hasattr(service, 'create_quota')
-        assert hasattr(service, 'get_active_quotas')
-        assert hasattr(service, 'check_quota_warning')
-        assert hasattr(service, 'get_all_quotas_with_usage')
+        assert hasattr(service, "create_quota")
+        assert hasattr(service, "get_active_quotas")
+        assert hasattr(service, "check_quota_warning")
+        assert hasattr(service, "get_all_quotas_with_usage")

@@ -55,7 +55,10 @@ def _parse_coords(request) -> tuple[float, float] | dict:
     lat = request.query_params.get("lat")
     lon = request.query_params.get("lon")
     if not lat or not lon:
-        return {"error": _("plugin.weather-widget.error.lat_lon_required"), "code": 4001}
+        return {
+            "error": _("plugin.weather-widget.error.lat_lon_required"),
+            "code": 4001,
+        }
     try:
         return float(lat), float(lon)
     except (ValueError, TypeError):
@@ -232,7 +235,14 @@ async def get_air_quality(request, ctx) -> dict:
             longitude,
             _describe_exception(exc),
         )
-        return {"air_quality": {"aqi": None, "pm2_5": None, "pm10": None, "european_aqi": None}}
+        return {
+            "air_quality": {
+                "aqi": None,
+                "pm2_5": None,
+                "pm10": None,
+                "european_aqi": None,
+            }
+        }
 
 
 async def search_city(request, ctx) -> dict:
@@ -249,7 +259,10 @@ async def search_city(request, ctx) -> dict:
             latitude = float(lat)
             longitude = float(lon)
         except (ValueError, TypeError):
-            return {"error": _("plugin.weather-widget.error.lat_lon_invalid"), "code": 4001}
+            return {
+                "error": _("plugin.weather-widget.error.lat_lon_invalid"),
+                "code": 4001,
+            }
         try:
             city = await provider.reverse_geocode(latitude, longitude)
             return {"cities": [city] if city else []}
@@ -263,7 +276,10 @@ async def search_city(request, ctx) -> dict:
             return {"cities": []}
 
     if not name.strip():
-        return {"error": _("plugin.weather-widget.error.name_or_coords_required"), "code": 4001}
+        return {
+            "error": _("plugin.weather-widget.error.name_or_coords_required"),
+            "code": 4001,
+        }
 
     try:
         count = int(count_str)

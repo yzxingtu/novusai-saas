@@ -13,7 +13,9 @@ def test_resolve_binding_target_scope_preserves_explicit_current_scope() -> None
     assert result == "selected_tenants"
 
 
-def test_resolve_binding_target_scope_infers_admin_selected_when_scope_omitted() -> None:
+def test_resolve_binding_target_scope_infers_admin_selected_when_scope_omitted() -> (
+    None
+):
     result = AdminPeriodicTaskController._resolve_binding_target_scope(
         current_scope="admin_only",
         requested_scope=None,

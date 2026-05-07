@@ -1,6 +1,7 @@
 """API 测试基础工具模块 / API.
 
 提供 HTTP 客户端封装、断言辅助函数、测试报告等功能"""
+
 import json
 import sys
 import time
@@ -15,6 +16,7 @@ from tests.api.config import config
 
 class TestStatus(Enum):
     """测试状态 / Test."""
+
     PASSED = "[PASS]"
     FAILED = "[FAIL]"
     SKIPPED = "[SKIP]"
@@ -23,6 +25,7 @@ class TestStatus(Enum):
 @dataclass
 class TestResult:
     """测试结果 / Test."""
+
     name: str
     status: TestStatus
     message: str = ""
@@ -34,6 +37,7 @@ class TestResult:
 @dataclass
 class TestReport:
     """测试报告 / Test."""
+
     module: str
     results: list[TestResult] = field(default_factory=list)
     start_time: float = 0.0
@@ -75,7 +79,9 @@ class TestReport:
                 print(f"   -> {result.message}")
 
         print("-" * 70)
-        print(f"TOTAL: {self.total} | PASSED: {self.passed} | FAILED: {self.failed} | SKIPPED: {self.skipped}")
+        print(
+            f"TOTAL: {self.total} | PASSED: {self.passed} | FAILED: {self.failed} | SKIPPED: {self.skipped}"
+        )
         print(f"DURATION: {self.duration:.2f}s")
         print("=" * 70)
 
@@ -278,7 +284,9 @@ class BaseAPITest:
 
     def login_admin(self) -> dict[str, Any]:
         """执行平台管理员登录 / Log in as platform admin."""
-        resp = self.post_admin_login_request(config.ADMIN_USERNAME, config.ADMIN_PASSWORD)
+        resp = self.post_admin_login_request(
+            config.ADMIN_USERNAME, config.ADMIN_PASSWORD
+        )
         data = assert_success(resp, "平台管理员登录失败")
         self._test_data["access_token"] = data["data"]["access_token"]
         refresh_token = data["data"].get("refresh_token")
@@ -307,6 +315,7 @@ class BaseAPITest:
 
 # ========== 断言辅助函数 ==========
 
+
 def assert_status(response: httpx.Response, expected: int, msg: str = None) -> None:
     """断言 HTTP 状态码 / HTTP"""
     actual = response.status_code
@@ -316,7 +325,9 @@ def assert_status(response: httpx.Response, expected: int, msg: str = None) -> N
         except Exception:
             body = response.text
         error_msg = msg or f"期望状态码 {expected}，实际 {actual}"
-        raise AssertionError(f"{error_msg}\n响应: {json.dumps(body, ensure_ascii=False, indent=2)}")
+        raise AssertionError(
+            f"{error_msg}\n响应: {json.dumps(body, ensure_ascii=False, indent=2)}"
+        )
 
 
 def assert_success(response: httpx.Response, msg: str = None) -> dict:
@@ -355,7 +366,9 @@ def assert_tenant_login_success(response: httpx.Response, msg: str = None) -> di
         raise
 
 
-def assert_error(response: httpx.Response, expected_status: int = None, msg: str = None) -> dict:
+def assert_error(
+    response: httpx.Response, expected_status: int = None, msg: str = None
+) -> dict:
     """断言请求失败 / Description."""
     if expected_status:
         assert_status(response, expected_status, msg)
@@ -404,11 +417,11 @@ def assert_false(condition: bool, msg: str = None) -> None:
 
 def print_response(response: httpx.Response, title: str = "Response") -> None:
     """打印响应内容（调试用） / （ ）"""
-    print(f"\n{'='*50}")
+    print(f"\n{'=' * 50}")
     print(f"{title}")
     print(f"Status: {response.status_code}")
     try:
         print(f"Body: {json.dumps(response.json(), ensure_ascii=False, indent=2)}")
     except Exception:
         print(f"Body: {response.text}")
-    print(f"{'='*50}\n")
+    print(f"{'=' * 50}\n")

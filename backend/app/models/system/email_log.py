@@ -22,7 +22,6 @@ class EmailLog(BaseModel):
 
     __tablename__ = "email_logs"
 
-
     __filterable__ = {
         "id": "id",
         "to_address": "to_address",

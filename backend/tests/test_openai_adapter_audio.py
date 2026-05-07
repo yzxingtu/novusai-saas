@@ -61,7 +61,9 @@ async def test_convert_messages_audio_http_url_yields_input_audio(
             "app.ai.adapters.openai_compatible.support.multimodal_attachment_runtime.httpx.AsyncClient",
             lambda *_args, **_kwargs: mock_cm,
         )
-        messages = [_make_audio_message("https://example.com/audio.wav", mime_type="audio/wav")]
+        messages = [
+            _make_audio_message("https://example.com/audio.wav", mime_type="audio/wav")
+        ]
         result = await adapter._convert_messages(
             messages,
             supports_vision=True,
@@ -103,7 +105,9 @@ async def test_convert_messages_audio_http_url_mp3_format(
             "app.ai.adapters.openai_compatible.support.multimodal_attachment_runtime.httpx.AsyncClient",
             lambda *_args, **_kwargs: mock_cm,
         )
-        messages = [_make_audio_message("https://example.com/a.mp3", mime_type="audio/mpeg")]
+        messages = [
+            _make_audio_message("https://example.com/a.mp3", mime_type="audio/mpeg")
+        ]
         result = await adapter._convert_messages(
             messages,
             supports_vision=True,
@@ -141,6 +145,7 @@ async def test_convert_messages_audio_fetch_failure_fallback_to_text(
     adapter: OpenAIAdapter,
 ) -> None:
     """When _fetch_audio_bytes fails (e.g. HTTP error), fallback to text hint. / 说明"""
+
     async def fake_get(_url: str):
         raise Exception("network error")
 
@@ -162,7 +167,9 @@ async def test_convert_messages_audio_fetch_failure_fallback_to_text(
             supports_video=False,
         )
     content = result[0]["content"]
-    text_parts = [p for p in content if p.get("type") == "text" and "[Audio:" in p.get("text", "")]
+    text_parts = [
+        p for p in content if p.get("type") == "text" and "[Audio:" in p.get("text", "")
+    ]
     assert len(text_parts) == 1
     input_audio_parts = [p for p in content if p.get("type") == "input_audio"]
     assert len(input_audio_parts) == 0
@@ -176,7 +183,9 @@ async def test_convert_messages_audio_no_url_fallback_to_text(
     msg = ChatMessage(
         role="user",
         content="",
-        attachments=[{"type": "audio", "url": "", "mime_type": "audio/wav", "name": "x.wav"}],
+        attachments=[
+            {"type": "audio", "url": "", "mime_type": "audio/wav", "name": "x.wav"}
+        ],
     )
     result = await adapter._convert_messages(
         [msg],
@@ -185,7 +194,9 @@ async def test_convert_messages_audio_no_url_fallback_to_text(
         supports_video=False,
     )
     content = result[0]["content"]
-    text_parts = [p for p in content if p.get("type") == "text" and "[Audio:" in p.get("text", "")]
+    text_parts = [
+        p for p in content if p.get("type") == "text" and "[Audio:" in p.get("text", "")
+    ]
     assert len(text_parts) == 1
     assert "x.wav" in text_parts[0]["text"] or "uploaded audio" in text_parts[0]["text"]
 
@@ -198,7 +209,9 @@ async def test_convert_messages_audio_url_null_fallback_to_text(
     msg = ChatMessage(
         role="user",
         content="",
-        attachments=[{"type": "audio", "url": None, "mime_type": "audio/wav", "name": "a.wav"}],
+        attachments=[
+            {"type": "audio", "url": None, "mime_type": "audio/wav", "name": "a.wav"}
+        ],
     )
     result = await adapter._convert_messages(
         [msg],
@@ -207,7 +220,9 @@ async def test_convert_messages_audio_url_null_fallback_to_text(
         supports_video=False,
     )
     content = result[0]["content"]
-    text_parts = [p for p in content if p.get("type") == "text" and "[Audio:" in p.get("text", "")]
+    text_parts = [
+        p for p in content if p.get("type") == "text" and "[Audio:" in p.get("text", "")
+    ]
     assert len(text_parts) == 1
     input_audio_parts = [p for p in content if p.get("type") == "input_audio"]
     assert len(input_audio_parts) == 0
@@ -230,7 +245,9 @@ async def test_convert_messages_audio_url_key_missing_fallback_to_text(
         supports_video=False,
     )
     content = result[0]["content"]
-    text_parts = [p for p in content if p.get("type") == "text" and "[Audio:" in p.get("text", "")]
+    text_parts = [
+        p for p in content if p.get("type") == "text" and "[Audio:" in p.get("text", "")
+    ]
     assert len(text_parts) == 1
     input_audio_parts = [p for p in content if p.get("type") == "input_audio"]
     assert len(input_audio_parts) == 0
@@ -270,7 +287,9 @@ async def test_convert_messages_audio_supports_audio_false_yields_text(
     content = result[0]["content"]
     input_audio_parts = [p for p in content if p.get("type") == "input_audio"]
     assert len(input_audio_parts) == 0
-    text_parts = [p for p in content if p.get("type") == "text" and "[Audio:" in p.get("text", "")]
+    text_parts = [
+        p for p in content if p.get("type") == "text" and "[Audio:" in p.get("text", "")
+    ]
     assert len(text_parts) == 1
 
 
@@ -296,13 +315,17 @@ async def test_convert_messages_audio_uses_payload_helper(
         called["mapping"] = dict(audio_mime_to_openai_format or {})
         return {"type": "input_audio", "input_audio": {"data": "YWJj", "format": "wav"}}
 
-    monkeypatch.setattr(adapter, "_fetch_audio_bytes", AsyncMock(side_effect=_fake_fetch_audio_bytes))
+    monkeypatch.setattr(
+        adapter, "_fetch_audio_bytes", AsyncMock(side_effect=_fake_fetch_audio_bytes)
+    )
     monkeypatch.setattr(
         "app.ai.adapters.openai_compatible.support.chat_multimodal_messages.build_input_audio_part",
         _fake_build_input_audio_part,
     )
 
-    messages = [_make_audio_message("https://example.com/audio.wav", mime_type="audio/wav")]
+    messages = [
+        _make_audio_message("https://example.com/audio.wav", mime_type="audio/wav")
+    ]
     result = await adapter._convert_messages(
         messages,
         supports_vision=True,

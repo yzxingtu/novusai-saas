@@ -55,10 +55,14 @@ async def list_documents(
         count_query = count_query.where(NovusdocDocument.status == status)
 
     total = (await db.execute(count_query)).scalar() or 0
-    query = query.order_by(
-        NovusdocDocument.is_pinned.desc(),
-        NovusdocDocument.updated_at.desc(),
-    ).offset((page - 1) * size).limit(size)
+    query = (
+        query.order_by(
+            NovusdocDocument.is_pinned.desc(),
+            NovusdocDocument.updated_at.desc(),
+        )
+        .offset((page - 1) * size)
+        .limit(size)
+    )
 
     result = await db.execute(query)
     docs = result.scalars().all()
@@ -72,7 +76,9 @@ async def list_documents(
 
 
 async def get_document(
-    db: AsyncSession, tenant_id: int, doc_id: int,
+    db: AsyncSession,
+    tenant_id: int,
+    doc_id: int,
 ) -> dict[str, Any] | None:
     from ..models.document import NovusdocDocument
 
@@ -90,7 +96,9 @@ async def get_document(
 
 
 async def create_document(
-    db: AsyncSession, tenant_id: int, data: dict[str, Any],
+    db: AsyncSession,
+    tenant_id: int,
+    data: dict[str, Any],
 ) -> dict[str, Any]:
     from ..models.document import NovusdocDocument
 
@@ -118,7 +126,10 @@ async def create_document(
 
 
 async def update_document(
-    db: AsyncSession, tenant_id: int, doc_id: int, data: dict[str, Any],
+    db: AsyncSession,
+    tenant_id: int,
+    doc_id: int,
+    data: dict[str, Any],
 ) -> dict[str, Any] | None:
     from ..models.document import NovusdocDocument
 
@@ -135,8 +146,17 @@ async def update_document(
     if not doc:
         return None
 
-    for key in ("title", "content", "content_text", "content_html",
-                "word_count", "folder_id", "status", "is_pinned", "cover_image"):
+    for key in (
+        "title",
+        "content",
+        "content_text",
+        "content_html",
+        "word_count",
+        "folder_id",
+        "status",
+        "is_pinned",
+        "cover_image",
+    ):
         if key in data:
             setattr(doc, key, data[key])
 
@@ -146,7 +166,9 @@ async def update_document(
 
 
 async def delete_document(
-    db: AsyncSession, tenant_id: int, doc_id: int,
+    db: AsyncSession,
+    tenant_id: int,
+    doc_id: int,
 ) -> bool:
     from ..models.document import NovusdocDocument
 

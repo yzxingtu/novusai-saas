@@ -16,7 +16,13 @@ from app.codegen.generator import CodeGenerator, GeneratedFile
 
 def _load_preset(name: str) -> dict:
     """加载预设配置 / Load preset config."""
-    presets_dir = Path(__file__).resolve().parent.parent.parent / "app" / "codegen" / "templates" / "presets"
+    presets_dir = (
+        Path(__file__).resolve().parent.parent.parent
+        / "app"
+        / "codegen"
+        / "templates"
+        / "presets"
+    )
     path = presets_dir / f"{name}.yaml"
     if not path.exists():
         pytest.skip(f"Preset {name} not found")
@@ -46,7 +52,9 @@ def test_simple_generates_model_schema_repo() -> None:
     paths = [f.path for f in files]
     assert any("models" in p and "category" in p and p.endswith(".py") for p in paths)
     assert any("schemas" in p and "category" in p and p.endswith(".py") for p in paths)
-    assert any("repositories" in p and "category" in p and p.endswith(".py") for p in paths)
+    assert any(
+        "repositories" in p and "category" in p and p.endswith(".py") for p in paths
+    )
 
 
 def test_simple_generates_controller() -> None:
@@ -62,15 +70,24 @@ def test_simple_generates_frontend() -> None:
     files = _generate("simple")
 
     paths = [f.path for f in files]
-    assert any("frontend" in p and "api" in p and "category" in p and p.endswith(".ts") for p in paths)
-    assert any("frontend" in p and "views" in p and "category" in p and "data.ts" in p for p in paths)
+    assert any(
+        "frontend" in p and "api" in p and "category" in p and p.endswith(".ts")
+        for p in paths
+    )
+    assert any(
+        "frontend" in p and "views" in p and "category" in p and "data.ts" in p
+        for p in paths
+    )
     assert any("frontend" in p and "category" in p and "index.vue" in p for p in paths)
 
 
 def test_simple_files_have_content() -> None:
     """生成文件包含非空内容."""
     files = _generate("simple")
-    skip_actions = {"register_model", "register_route"}  # 元动作，内容由 FileWriter 写入
+    skip_actions = {
+        "register_model",
+        "register_route",
+    }  # 元动作，内容由 FileWriter 写入
     for f in files:
         if f.action in skip_actions:
             continue
@@ -154,7 +171,14 @@ def test_generate_step_model_only() -> None:
         # model 步骤包含 models/schemas/repositories/services、migrations、locales（后端 i18n）
         assert any(
             x in p
-            for x in ("models", "schemas", "repositories", "services", "migrations", "locales")
+            for x in (
+                "models",
+                "schemas",
+                "repositories",
+                "services",
+                "migrations",
+                "locales",
+            )
         )
 
 
@@ -228,7 +252,9 @@ def test_card_mode_template_includes_permissions_and_recycle_bin() -> None:
     index_file = next(
         f
         for f in result.files
-        if f.path.endswith("frontend/apps/web-antd/src/views/admin/system/library/index.vue")
+        if f.path.endswith(
+            "frontend/apps/web-antd/src/views/admin/system/library/index.vue"
+        )
     )
 
     assert "RecycleBinDrawer" in index_file.content
@@ -337,5 +363,8 @@ def test_card_template_supports_configured_quick_search_fields() -> None:
     )
 
     assert "resolvedQuickSearchOptions.length > 1" in index_file.content
-    assert "rawQuickSearch.default_field || rawQuickSearch.defaultField" in index_file.content
+    assert (
+        "rawQuickSearch.default_field || rawQuickSearch.defaultField"
+        in index_file.content
+    )
     assert "override?.placeholder ?? option.placeholder" in index_file.content

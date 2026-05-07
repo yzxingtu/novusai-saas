@@ -61,7 +61,9 @@ async def test_skill_registry_list_packages_marks_installed_state(mock_db) -> No
 
 
 @pytest.mark.asyncio
-async def test_skill_registry_fetch_registry_falls_back_to_local_registry(mock_db) -> None:
+async def test_skill_registry_fetch_registry_falls_back_to_local_registry(
+    mock_db,
+) -> None:
     service = SkillRegistryService(mock_db)
     service._get_cached = AsyncMock(return_value=None)
     service._set_cached = AsyncMock()
@@ -85,7 +87,9 @@ async def test_skill_registry_fetch_registry_falls_back_to_local_registry(mock_d
 
 
 @pytest.mark.asyncio
-async def test_skill_registry_install_preview_includes_installed_version(mock_db) -> None:
+async def test_skill_registry_install_preview_includes_installed_version(
+    mock_db,
+) -> None:
     service = SkillRegistryService(mock_db)
     service.fetch_package_detail = AsyncMock(
         return_value={
@@ -116,7 +120,9 @@ async def test_skill_registry_install_preview_includes_installed_version(mock_db
 
 
 @pytest.mark.asyncio
-async def test_skill_registry_install_package_rejects_non_github_download_url(mock_db) -> None:
+async def test_skill_registry_install_package_rejects_non_github_download_url(
+    mock_db,
+) -> None:
     service = SkillRegistryService(mock_db)
     service.fetch_package_detail = AsyncMock(
         return_value={
@@ -132,7 +138,9 @@ async def test_skill_registry_install_package_rejects_non_github_download_url(mo
 
 
 @pytest.mark.asyncio
-async def test_skill_registry_list_installed_updates_uses_locked_source(mock_db) -> None:
+async def test_skill_registry_list_installed_updates_uses_locked_source(
+    mock_db,
+) -> None:
     service = SkillRegistryService(mock_db)
     service._build_installed_map = AsyncMock(
         return_value={
@@ -222,8 +230,14 @@ async def test_skill_registry_upgrade_package_respects_source_lock(mock_db) -> N
     skill_service.update = AsyncMock(return_value=existing_skill)
 
     with (
-        patch("app.services.ai.skill_package_service.AdminSkillPackageService", return_value=package_service),
-        patch("app.services.ai.skill_service.AdminSkillService", return_value=skill_service),
+        patch(
+            "app.services.ai.skill_package_service.AdminSkillPackageService",
+            return_value=package_service,
+        ),
+        patch(
+            "app.services.ai.skill_service.AdminSkillService",
+            return_value=skill_service,
+        ),
         patch("app.services.ai.skill_registry_service.shutil.copytree"),
         patch("app.services.ai.skill_registry_service.shutil.rmtree"),
     ):
@@ -272,7 +286,9 @@ async def test_skill_registry_upgrade_preview_uses_locked_source(mock_db) -> Non
 
 
 @pytest.mark.asyncio
-async def test_skill_registry_upgrade_package_rejects_non_github_download_url(mock_db) -> None:
+async def test_skill_registry_upgrade_package_rejects_non_github_download_url(
+    mock_db,
+) -> None:
     service = SkillRegistryService(mock_db)
     service._build_installed_map = AsyncMock(
         return_value={
@@ -298,7 +314,9 @@ async def test_skill_registry_upgrade_package_rejects_non_github_download_url(mo
 
 
 @pytest.mark.asyncio
-async def test_skill_registry_batch_upgrade_aggregates_success_and_failures(mock_db) -> None:
+async def test_skill_registry_batch_upgrade_aggregates_success_and_failures(
+    mock_db,
+) -> None:
     service = SkillRegistryService(mock_db)
     service.list_installed_updates = AsyncMock(
         return_value=[
@@ -320,9 +338,7 @@ async def test_skill_registry_batch_upgrade_aggregates_success_and_failures(mock
     assert result["upgraded"] == [
         {"registry_slug": "workflow-tools", "status": "upgraded"}
     ]
-    assert result["failed"] == [
-        {"slug": "mail-tools", "error": "boom"}
-    ]
+    assert result["failed"] == [{"slug": "mail-tools", "error": "boom"}]
 
 
 @pytest.mark.asyncio
@@ -431,4 +447,8 @@ async def test_skill_registry_sync_official_starter_packs_installs_and_upgrades(
     assert result["upgraded"] == [
         {"registry_slug": "novusai-root-cause", "status": "upgraded"}
     ]
-    assert {"pack_key": "novusai-runtime-ops", "reason": "missing_in_catalog", "slug": "novusai-plugin-audit"} in result["skipped"]
+    assert {
+        "pack_key": "novusai-runtime-ops",
+        "reason": "missing_in_catalog",
+        "slug": "novusai-plugin-audit",
+    } in result["skipped"]

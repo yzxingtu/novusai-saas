@@ -10,9 +10,10 @@ from tests.services.conftest import make_scalar_result
 
 
 class TestOwnerTenantScopeCompatibility:
-
     @pytest.mark.asyncio
-    async def test_count_deleted_uses_owner_tenant_id_for_agent_repository(self, mock_db):
+    async def test_count_deleted_uses_owner_tenant_id_for_agent_repository(
+        self, mock_db
+    ):
         from app.repositories.ai.agent_repository import AgentRepository
 
         repo = AgentRepository(mock_db, tenant_id=1)
@@ -26,7 +27,9 @@ class TestOwnerTenantScopeCompatibility:
         assert "agents.tenant_id" not in stmt_text
 
     @pytest.mark.asyncio
-    async def test_query_deleted_injects_owner_tenant_id_filter_for_agent_repository(self, mock_db):
+    async def test_query_deleted_injects_owner_tenant_id_filter_for_agent_repository(
+        self, mock_db
+    ):
         from app.core.base_repository import BaseRepository
         from app.repositories.ai.agent_repository import AgentRepository
         from app.schemas.common.query import QuerySpec

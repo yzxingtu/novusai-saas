@@ -44,7 +44,8 @@ def test_base_engine_facade_does_not_override_support_mixins() -> None:
         is base_execution_support.BaseEngineExecutionSupport._prepare_execution
     )
     assert (
-        BaseEngine._call_llm is base_execution_support.BaseEngineExecutionSupport._call_llm
+        BaseEngine._call_llm
+        is base_execution_support.BaseEngineExecutionSupport._call_llm
     )
     assert (
         BaseEngine._handle_tool_calls
@@ -66,7 +67,9 @@ async def test_base_engine_call_llm_facade_delegates_with_runtime_callables(
         captured.update(kwargs)
         return ChatResponse(message=ChatMessage(role="assistant", content="ok"))
 
-    monkeypatch.setattr(base_execution_support, "execute_llm_call", _fake_execute_llm_call)
+    monkeypatch.setattr(
+        base_execution_support, "execute_llm_call", _fake_execute_llm_call
+    )
     monkeypatch.setattr(
         engine,
         "_prepare_llm_gateway_call",

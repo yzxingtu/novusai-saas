@@ -135,9 +135,9 @@ class PluginRuntimeAuditService:
     async def _build_assignment_summary(self, plugin_id: int) -> dict[str, Any]:
         stmt = select(
             func.count(ResourceTenantAssignment.id).label("total"),
-            func.count(
-                ResourceTenantAssignment.id
-            ).filter(ResourceTenantAssignment.is_active.is_(True)).label("active"),
+            func.count(ResourceTenantAssignment.id)
+            .filter(ResourceTenantAssignment.is_active.is_(True))
+            .label("active"),
         ).where(
             ResourceTenantAssignment.resource_type == "plugin",
             ResourceTenantAssignment.resource_id == plugin_id,
@@ -208,7 +208,9 @@ class PluginRuntimeAuditService:
                     isinstance(manifest, dict) and bool(manifest),
                     degraded=not bool(extensions),
                 ),
-                reason=None if bool(extensions) else "extensions_block_missing_or_empty",
+                reason=None
+                if bool(extensions)
+                else "extensions_block_missing_or_empty",
                 metadata={"manifest_keys": sorted(manifest.keys())},
             ),
             ExtensionLifecycleAuditStageResult(
@@ -226,7 +228,9 @@ class PluginRuntimeAuditService:
             ),
             ExtensionLifecycleAuditStageResult(
                 stage="enable_gate",
-                status=self._stage_status(gate_result.allowed, degraded=not gate_result.allowed),
+                status=self._stage_status(
+                    gate_result.allowed, degraded=not gate_result.allowed
+                ),
                 reason=None if gate_result.allowed else gate_result.reason_code,
                 metadata={
                     "gate_reason_code": gate_result.reason_code,
@@ -371,9 +375,7 @@ class PluginRuntimeAuditService:
                 ExtensionLifecycleExposedCapability(
                     name=name,
                     kind="granted_capability",
-                    status="available"
-                    if gate_reason == "allowed"
-                    else "degraded",
+                    status="available" if gate_reason == "allowed" else "degraded",
                     reason=None if gate_reason == "allowed" else gate_reason,
                     source="plugin.granted_capabilities",
                 )

@@ -19,9 +19,13 @@ from app.services.common.email_service import (
 
 def _smtp_config(**overrides) -> SmtpConfig:
     defaults = {
-        "host": "smtp.example.com", "port": 587, "encryption": "tls",
-        "username": "user", "password": "pass",
-        "from_address": "noreply@example.com", "from_name": "Test",
+        "host": "smtp.example.com",
+        "port": 587,
+        "encryption": "tls",
+        "username": "user",
+        "password": "pass",
+        "from_address": "noreply@example.com",
+        "from_name": "Test",
         "enabled": True,
     }
     defaults.update(overrides)
@@ -38,8 +42,8 @@ def _service(mock_db, config: SmtpConfig | None = None) -> EmailService:
 
 # ── 邮箱格式校验（纯函数，无 mock）──
 
-class TestEmailValidation:
 
+class TestEmailValidation:
     def test_valid_email(self):
         assert _is_valid_email("user@example.com") is True
 
@@ -58,8 +62,8 @@ class TestEmailValidation:
 
 # ── send() 验证逻辑（真实业务分支）──
 
-class TestSendDisabled:
 
+class TestSendDisabled:
     @pytest.mark.asyncio
     async def test_email_disabled_returns_failure(self, mock_db):
         svc = _service(mock_db, _smtp_config(enabled=False))
@@ -72,7 +76,6 @@ class TestSendDisabled:
 
 
 class TestSendMissingConfig:
-
     @pytest.mark.asyncio
     async def test_missing_host_returns_config_incomplete(self, mock_db):
         svc = _service(mock_db, _smtp_config(host=""))
@@ -96,7 +99,6 @@ class TestSendMissingConfig:
 
 
 class TestSendRecipientValidation:
-
     @pytest.mark.asyncio
     async def test_no_recipients(self, mock_db):
         svc = _service(mock_db)
@@ -112,7 +114,8 @@ class TestSendRecipientValidation:
         svc = _service(mock_db)
         msg = EmailMessage(
             to=[f"user{i}@example.com" for i in range(60)],
-            subject="Hi", html_body="<p>Hi</p>",
+            subject="Hi",
+            html_body="<p>Hi</p>",
         )
 
         result = await svc.send(msg)
@@ -132,13 +135,14 @@ class TestSendRecipientValidation:
 
 
 class TestSendAttachment:
-
     @pytest.mark.asyncio
     async def test_attachment_too_large(self, mock_db):
         svc = _service(mock_db)
         huge = EmailAttachment(filename="big.zip", content=b"x" * (11 * 1024 * 1024))
         msg = EmailMessage(
-            to=["a@b.com"], subject="Hi", html_body="<p>Hi</p>",
+            to=["a@b.com"],
+            subject="Hi",
+            html_body="<p>Hi</p>",
             attachments=[huge],
         )
 
@@ -149,7 +153,6 @@ class TestSendAttachment:
 
 
 class TestSendSuccess:
-
     @pytest.mark.asyncio
     async def test_successful_send(self, mock_db):
         svc = _service(mock_db)

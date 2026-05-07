@@ -41,7 +41,9 @@ async def _return_none(*_args, **_kwargs):
 
 
 @pytest.mark.asyncio
-async def test_platform_public_config_reads_domain_group(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_platform_public_config_reads_domain_group(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr(
         "app.api.public.platform.ConfigService",
         lambda _db: _FakePlatformConfigService(
@@ -76,7 +78,9 @@ async def test_platform_public_config_reads_domain_group(monkeypatch: pytest.Mon
 
 
 @pytest.mark.asyncio
-async def test_tenant_public_config_reads_registration_group(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_tenant_public_config_reads_registration_group(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     tenant = SimpleNamespace(code="acme", id=1, name="Acme")
     request = SimpleNamespace(url=SimpleNamespace(scheme="https"))
 
@@ -133,7 +137,9 @@ async def test_tenant_public_config_reads_registration_group(monkeypatch: pytest
 
 
 @pytest.mark.asyncio
-async def test_tenant_legal_documents_read_registration_group(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_tenant_legal_documents_read_registration_group(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     tenant = SimpleNamespace(code="acme", id=1, name="Acme")
     request = SimpleNamespace(url=SimpleNamespace(scheme="https"))
 

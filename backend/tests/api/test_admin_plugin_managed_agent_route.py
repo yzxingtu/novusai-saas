@@ -69,12 +69,15 @@ async def test_list_agents_includes_source_plugin_metadata() -> None:
         }
     )
 
-    with patch(
-        "app.api.admin.agents.AdminAgentService",
-        return_value=admin_service,
-    ), patch(
-        "app.api.admin.agents.PluginManagedAgentSyncService",
-        return_value=sync_service,
+    with (
+        patch(
+            "app.api.admin.agents.AdminAgentService",
+            return_value=admin_service,
+        ),
+        patch(
+            "app.api.admin.agents.PluginManagedAgentSyncService",
+            return_value=sync_service,
+        ),
     ):
         response = await endpoint(request, db, admin, query)
 
@@ -86,7 +89,9 @@ async def test_list_agents_includes_source_plugin_metadata() -> None:
 
 
 @pytest.mark.asyncio
-async def test_get_agent_detail_uses_plugin_assignments_for_plugin_managed_agent() -> None:
+async def test_get_agent_detail_uses_plugin_assignments_for_plugin_managed_agent() -> (
+    None
+):
     endpoint = _get_endpoint("/ai/agents/{agent_id}", "GET")
 
     db = AsyncMock()
@@ -117,12 +122,15 @@ async def test_get_agent_detail_uses_plugin_assignments_for_plugin_managed_agent
     )
     sync_service.get_effective_agent_assignment_ids = AsyncMock(return_value=[1, 2])
 
-    with patch(
-        "app.api.admin.agents.AdminAgentService",
-        return_value=admin_service,
-    ), patch(
-        "app.api.admin.agents.PluginManagedAgentSyncService",
-        return_value=sync_service,
+    with (
+        patch(
+            "app.api.admin.agents.AdminAgentService",
+            return_value=admin_service,
+        ),
+        patch(
+            "app.api.admin.agents.PluginManagedAgentSyncService",
+            return_value=sync_service,
+        ),
     ):
         response = await endpoint(request, db, 55, admin)
 
@@ -131,7 +139,9 @@ async def test_get_agent_detail_uses_plugin_assignments_for_plugin_managed_agent
 
 
 @pytest.mark.asyncio
-async def test_update_agent_rejects_scope_override_for_plugin_managed_system_agent() -> None:
+async def test_update_agent_rejects_scope_override_for_plugin_managed_system_agent() -> (
+    None
+):
     from app.exceptions import BusinessException
     from app.schemas.ai.agent import AdminAgentUpdate
 
@@ -155,13 +165,17 @@ async def test_update_agent_rejects_scope_override_for_plugin_managed_system_age
         }
     )
 
-    with patch(
-        "app.api.admin.agents.AdminAgentService",
-        return_value=admin_service,
-    ), patch(
-        "app.api.admin.agents.PluginManagedAgentSyncService",
-        return_value=sync_service,
-    ), pytest.raises(BusinessException):
+    with (
+        patch(
+            "app.api.admin.agents.AdminAgentService",
+            return_value=admin_service,
+        ),
+        patch(
+            "app.api.admin.agents.PluginManagedAgentSyncService",
+            return_value=sync_service,
+        ),
+        pytest.raises(BusinessException),
+    ):
         await endpoint(
             request,
             db,
@@ -200,12 +214,15 @@ async def test_update_agent_syncs_plugin_assignments_from_tenant_ids() -> None:
     )
     sync_service.sync_from_agent_update = AsyncMock(return_value=[1])
 
-    with patch(
-        "app.api.admin.agents.AdminAgentService",
-        return_value=admin_service,
-    ), patch(
-        "app.api.admin.agents.PluginManagedAgentSyncService",
-        return_value=sync_service,
+    with (
+        patch(
+            "app.api.admin.agents.AdminAgentService",
+            return_value=admin_service,
+        ),
+        patch(
+            "app.api.admin.agents.PluginManagedAgentSyncService",
+            return_value=sync_service,
+        ),
     ):
         response = await endpoint(
             request,

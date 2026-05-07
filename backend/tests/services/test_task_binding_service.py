@@ -109,12 +109,15 @@ async def test_sync_definition_bindings_adds_reenables_and_removes(mock_db) -> N
     service.repo.create = AsyncMock()
     service.repo.update = AsyncMock()
 
-    with patch(
-        "app.services.system.task_binding_service.handler_supports_tenant_dispatch",
-        return_value=True,
-    ), patch(
-        "app.services.system.task_binding_service.TaskTenantEligibilityService.resolve_tenant_eligibility",
-        return_value=SimpleNamespace(is_eligible=True, reason=None),
+    with (
+        patch(
+            "app.services.system.task_binding_service.handler_supports_tenant_dispatch",
+            return_value=True,
+        ),
+        patch(
+            "app.services.system.task_binding_service.TaskTenantEligibilityService.resolve_tenant_eligibility",
+            return_value=SimpleNamespace(is_eligible=True, reason=None),
+        ),
     ):
         stats = await service.sync_definition_bindings(
             99,
@@ -178,12 +181,15 @@ async def test_sync_definition_bindings_keeps_explicit_scope_pending_when_empty(
     service.repo.create = AsyncMock()
     service.repo.update = AsyncMock()
 
-    with patch(
-        "app.services.system.task_binding_service.handler_supports_tenant_dispatch",
-        return_value=True,
-    ), patch(
-        "app.services.system.task_binding_service.TaskTenantEligibilityService.resolve_tenant_eligibility",
-        return_value=SimpleNamespace(is_eligible=True, reason=None),
+    with (
+        patch(
+            "app.services.system.task_binding_service.handler_supports_tenant_dispatch",
+            return_value=True,
+        ),
+        patch(
+            "app.services.system.task_binding_service.TaskTenantEligibilityService.resolve_tenant_eligibility",
+            return_value=SimpleNamespace(is_eligible=True, reason=None),
+        ),
     ):
         stats = await service.sync_definition_bindings(
             99,
@@ -216,12 +222,15 @@ async def test_sync_definition_bindings_clears_explicit_bindings_for_all_tenants
     service.repo.create = AsyncMock()
     service.repo.update = AsyncMock()
 
-    with patch(
-        "app.services.system.task_binding_service.handler_supports_tenant_dispatch",
-        return_value=True,
-    ), patch(
-        "app.services.system.task_binding_service.TaskTenantEligibilityService.resolve_tenant_eligibility",
-        return_value=SimpleNamespace(is_eligible=True, reason=None),
+    with (
+        patch(
+            "app.services.system.task_binding_service.handler_supports_tenant_dispatch",
+            return_value=True,
+        ),
+        patch(
+            "app.services.system.task_binding_service.TaskTenantEligibilityService.resolve_tenant_eligibility",
+            return_value=SimpleNamespace(is_eligible=True, reason=None),
+        ),
     ):
         stats = await service.sync_definition_bindings(
             99,
@@ -374,7 +383,9 @@ async def test_upsert_tenant_binding_rejects_all_tenants_enabled_overrides(
             {"is_enabled": True, "kwargs_override": {"mode": "quiet"}},
         )
 
-    assert exc_info.value.message == _("periodic_task.error.all_tenants_binding_deny_only")
+    assert exc_info.value.message == _(
+        "periodic_task.error.all_tenants_binding_deny_only"
+    )
 
 
 @pytest.mark.asyncio

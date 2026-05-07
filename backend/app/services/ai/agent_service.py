@@ -27,10 +27,13 @@ from app.services.ai import agent_service_access as access_part
 from app.services.ai import agent_service_admin as admin_part
 from app.services.ai import agent_service_lifecycle as lifecycle_part
 from app.services.ai import agent_service_memory as memory_part
+from app.services.ai import agent_service_support as support_part
 from app.services.ai import agent_service_versioning as versioning_part
 
 if TYPE_CHECKING:
     from app.schemas.common.query import QuerySpec
+
+_normalize_agent_rag_config = support_part.normalize_agent_rag_config
 
 
 async def _validate_agent_max_tokens_against_model(

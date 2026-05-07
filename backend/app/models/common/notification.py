@@ -33,7 +33,6 @@ class Notification(BaseModel):
 
     __tablename__ = "notifications"
 
-
     __table_args__ = (
         Index(
             "idx_notifications_recipient", "recipient_type", "recipient_id", "is_read"

@@ -8,9 +8,7 @@ Coverage:
 - enum_values, workflow, relations
 """
 
-import pytest
-
-from app.codegen.config_parser import ConfigParser, ParsedConfig, ValidationError
+from app.codegen.config_parser import ConfigParser
 
 # ============================================================
 # test_parse_simple_yaml
@@ -229,7 +227,13 @@ def test_validation_errors_invalid_sub_table_mode() -> None:
         "resource": "r",
         "display_name": "D",
         "fields": [{"name": "f1", "type": "String"}],
-        "sub_tables": [{"resource": "line", "mode": "invalid_mode", "fields": [{"name": "x", "type": "String"}]}],
+        "sub_tables": [
+            {
+                "resource": "line",
+                "mode": "invalid_mode",
+                "fields": [{"name": "x", "type": "String"}],
+            }
+        ],
     }
     parser = ConfigParser()
     errors = parser.validate(config)
@@ -253,8 +257,18 @@ def test_enum_values_parsing() -> None:
                 "name": "status",
                 "type": "Enum",
                 "enum_values": [
-                    {"value": "draft", "label_zh": "草稿", "label_en": "Draft", "color": "default"},
-                    {"value": "active", "label_zh": "启用", "label_en": "Active", "color": "success"},
+                    {
+                        "value": "draft",
+                        "label_zh": "草稿",
+                        "label_en": "Draft",
+                        "color": "default",
+                    },
+                    {
+                        "value": "active",
+                        "label_zh": "启用",
+                        "label_en": "Active",
+                        "color": "success",
+                    },
                 ],
             },
         ],
@@ -282,7 +296,11 @@ def test_workflow_parsing() -> None:
         "display_name": "审批",
         "model": {"base_class": "TenantModel"},
         "fields": [
-            {"name": "status", "type": "Enum", "enum_values": [{"value": "draft"}, {"value": "approved"}]},
+            {
+                "name": "status",
+                "type": "Enum",
+                "enum_values": [{"value": "draft"}, {"value": "approved"}],
+            },
         ],
         "workflow": {
             "status_field": "status",
@@ -321,7 +339,10 @@ def test_parse_with_all_v2_nodes() -> None:
             {"name": "parent_id", "type": "Integer", "nullable": True},
         ],
         "endpoints": [{"scope": "admin", "route_prefix": "/departments"}],
-        "detail": {"enabled": True, "groups": [{"title_zh": "基本信息", "fields": ["name"]}]},
+        "detail": {
+            "enabled": True,
+            "groups": [{"title_zh": "基本信息", "fields": ["name"]}],
+        },
         "clone": {"enabled": True},
     }
     parser = ConfigParser()

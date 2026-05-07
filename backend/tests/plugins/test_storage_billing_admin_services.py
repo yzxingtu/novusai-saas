@@ -86,7 +86,9 @@ async def test_storage_billing_provider_profiles_persist_only_billing_fields() -
 
 
 @pytest.mark.asyncio
-async def test_storage_billing_provider_profiles_read_legacy_flat_billing_config_only() -> None:
+async def test_storage_billing_provider_profiles_read_legacy_flat_billing_config_only() -> (
+    None
+):
     module = load_plugin_module("storage-billing", "services.profile_service")
     assert module is not None
 
@@ -273,25 +275,36 @@ async def test_storage_billing_binding_rejects_qiniu_pass_through() -> None:
 
     assert result["ok"] is True
     assert result["validation"]["status"] == "invalid"
-    assert "Qiniu official_pass_through is not supported in phase 1." in result["validation"]["errors"]
+    assert (
+        "Qiniu official_pass_through is not supported in phase 1."
+        in result["validation"]["errors"]
+    )
 
 
 @pytest.mark.asyncio
-async def test_storage_billing_admin_run_endpoints_delegate_to_service(monkeypatch) -> None:
+async def test_storage_billing_admin_run_endpoints_delegate_to_service(
+    monkeypatch,
+) -> None:
     module = load_plugin_module("storage-billing", "api.admin")
     assert module is not None
 
     service = AsyncMock()
-    service.list_runs = AsyncMock(return_value={"items": [{"id": 11}], "limit": 10, "total": 1})
+    service.list_runs = AsyncMock(
+        return_value={"items": [{"id": 11}], "limit": 10, "total": 1}
+    )
     service.get_run_detail = AsyncMock(return_value={"run": {"id": 11}, "sources": []})
-    service.list_run_charges = AsyncMock(return_value={"items": [{"id": 21}], "total": 1})
+    service.list_run_charges = AsyncMock(
+        return_value={"items": [{"id": 21}], "total": 1}
+    )
     service.export_run_charges_csv = AsyncMock(
         return_value=Response(content=b"id\n21\n", media_type="text/csv")
     )
 
     reconciliation_service = MagicMock()
     reconciliation_service.from_context.return_value = service
-    monkeypatch.setattr(module, "StorageBillingReconciliationService", reconciliation_service)
+    monkeypatch.setattr(
+        module, "StorageBillingReconciliationService", reconciliation_service
+    )
 
     list_request = MagicMock()
     list_request.query_params = {"limit": "10"}
@@ -308,7 +321,9 @@ async def test_storage_billing_admin_run_endpoints_delegate_to_service(monkeypat
         "source_id": "31",
         "tenant_id": "9",
     }
-    charges_result = await module.list_reconciliation_run_charges(charges_request, MagicMock())
+    charges_result = await module.list_reconciliation_run_charges(
+        charges_request, MagicMock()
+    )
 
     export_request = MagicMock()
     export_request.path_params = {"run_id": "11"}
@@ -317,7 +332,9 @@ async def test_storage_billing_admin_run_endpoints_delegate_to_service(monkeypat
         "source_id": "31",
         "tenant_id": "9",
     }
-    export_result = await module.export_reconciliation_run_charges(export_request, MagicMock())
+    export_result = await module.export_reconciliation_run_charges(
+        export_request, MagicMock()
+    )
 
     assert list_result["items"][0]["id"] == 11
     service.list_runs.assert_awaited_once_with(limit=10)
@@ -340,18 +357,20 @@ async def test_storage_billing_admin_run_endpoints_delegate_to_service(monkeypat
 
 
 @pytest.mark.asyncio
-async def test_storage_billing_run_qiniu_monthly_settlement_endpoint(monkeypatch) -> None:
+async def test_storage_billing_run_qiniu_monthly_settlement_endpoint(
+    monkeypatch,
+) -> None:
     module = load_plugin_module("storage-billing", "api.admin")
     assert module is not None
 
     service = AsyncMock()
-    service.trigger_qiniu_monthly_settlement = AsyncMock(
-        return_value={"status": "ok"}
-    )
+    service.trigger_qiniu_monthly_settlement = AsyncMock(return_value={"status": "ok"})
 
     reconciliation_service = MagicMock()
     reconciliation_service.from_context.return_value = service
-    monkeypatch.setattr(module, "StorageBillingReconciliationService", reconciliation_service)
+    monkeypatch.setattr(
+        module, "StorageBillingReconciliationService", reconciliation_service
+    )
 
     request = MagicMock()
     request.headers = {"content-type": "application/json"}
@@ -360,20 +379,28 @@ async def test_storage_billing_run_qiniu_monthly_settlement_endpoint(monkeypatch
     result = await module.run_qiniu_monthly_settlement(request, MagicMock())
 
     assert result["status"] == "ok"
-    service.trigger_qiniu_monthly_settlement.assert_awaited_once_with({"billing_month": "2026-03"})
+    service.trigger_qiniu_monthly_settlement.assert_awaited_once_with(
+        {"billing_month": "2026-03"}
+    )
 
 
 @pytest.mark.asyncio
-async def test_storage_billing_run_reconciliation_endpoint_forwards_payload(monkeypatch) -> None:
+async def test_storage_billing_run_reconciliation_endpoint_forwards_payload(
+    monkeypatch,
+) -> None:
     module = load_plugin_module("storage-billing", "api.admin")
     assert module is not None
 
     service = AsyncMock()
-    service.trigger_manual_run = AsyncMock(return_value={"status": "ok", "run": {"id": 17}})
+    service.trigger_manual_run = AsyncMock(
+        return_value={"status": "ok", "run": {"id": 17}}
+    )
 
     reconciliation_service = MagicMock()
     reconciliation_service.from_context.return_value = service
-    monkeypatch.setattr(module, "StorageBillingReconciliationService", reconciliation_service)
+    monkeypatch.setattr(
+        module, "StorageBillingReconciliationService", reconciliation_service
+    )
 
     request = MagicMock()
     request.headers = {"content-type": "application/json"}
@@ -506,6 +533,18 @@ async def test_admin_overview_includes_provider_metadata(monkeypatch) -> None:
     assert capabilities["manual_pull_supported"] is True
     assert capabilities["settlement_mode"] == "monthly_settled"
     assert overview["reconciliation_schedule"]["official_billing_lag_days"] is None
-    assert overview["provider_schedules"]["daily"]["provider_rules"]["aliyun-oss"]["official_target_rule"] == "D-3"
-    assert overview["provider_schedules"]["daily"]["provider_rules"]["tencent-cos"]["official_target_rule"] == "D-2"
-    assert overview["provider_schedules"]["qiniu_monthly"]["provider_codes"] == ["qiniu-kodo"]
+    assert (
+        overview["provider_schedules"]["daily"]["provider_rules"]["aliyun-oss"][
+            "official_target_rule"
+        ]
+        == "D-3"
+    )
+    assert (
+        overview["provider_schedules"]["daily"]["provider_rules"]["tencent-cos"][
+            "official_target_rule"
+        ]
+        == "D-2"
+    )
+    assert overview["provider_schedules"]["qiniu_monthly"]["provider_codes"] == [
+        "qiniu-kodo"
+    ]

@@ -66,6 +66,7 @@ def _log_lifecycle_action(
     else:
         logger.error(msg)
 
+
 # Plugin-level distributed lock (prevent concurrent enable/disable/uninstall) / 插件级分布式锁（防止并发 enable/disable/uninstall）
 _LOCK_PREFIX = "plugin:lifecycle:lock:"
 _LOCK_TTL = 900  # seconds, covers long pip/migration flows to prevent premature lock expiry / 秒，覆盖 pip/迁移等长流程，避免锁提前过期导致并发操作
@@ -101,7 +102,6 @@ async def _plugin_lock(plugin_id: int):
             await client.eval(_UNLOCK_IF_OWNER_LUA, 1, key, owner_token)
         except Exception as exc:
             logger.warning("Failed to release plugin lock {} safely: {}", key, exc)
-
 
 
 # Late imports keep lifecycle helper symbols initialized before mixin modules

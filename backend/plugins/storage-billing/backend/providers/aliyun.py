@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import re
 from collections.abc import Iterable, Mapping
 from datetime import date
 from decimal import Decimal, InvalidOperation
-import json
-import re
 from typing import Any
 
 from aliyunsdkcore.client import AcsClient
@@ -173,7 +173,9 @@ class AliyunOssOfficialBillAdapter:
             source_status=source_status,
             source_ref=f"describe_split_item_bill:{request.billing_date.isoformat()}",
             currency="CNY",
-            amount_total=sum((item.amount_total for item in charge_items), Decimal("0")),
+            amount_total=sum(
+                (item.amount_total for item in charge_items), Decimal("0")
+            ),
             usage_bytes=sum(item.usage_bytes for item in charge_items),
             charge_items=charge_items,
             raw_payload_json={
@@ -220,7 +222,9 @@ class AliyunOssOfficialBillAdapter:
             if next_token:
                 request.add_query_param("NextToken", next_token)
             if configured_account_identifier.isdigit():
-                request.add_query_param("BillOwnerId", int(configured_account_identifier))
+                request.add_query_param(
+                    "BillOwnerId", int(configured_account_identifier)
+                )
 
             raw_payload = client.do_action_with_exception(request)
             payload = json.loads(
@@ -232,8 +236,13 @@ class AliyunOssOfficialBillAdapter:
                 raise RuntimeError("Aliyun BSS OpenAPI returned invalid payload.")
             if _stringify(payload.get("Success")).lower() not in {"true", "1"}:
                 code = _stringify(payload.get("Code"))
-                message = _stringify(payload.get("Message")) or "Aliyun BSS OpenAPI request failed."
-                raise RuntimeError(f"Aliyun BSS OpenAPI error: {code or 'Unknown'} {message}".strip())
+                message = (
+                    _stringify(payload.get("Message"))
+                    or "Aliyun BSS OpenAPI request failed."
+                )
+                raise RuntimeError(
+                    f"Aliyun BSS OpenAPI error: {code or 'Unknown'} {message}".strip()
+                )
 
             data = payload.get("Data")
             if not isinstance(data, Mapping):
@@ -315,7 +324,9 @@ class AliyunOssOfficialBillAdapter:
                         "billing_item_code": _stringify(item.get("BillingItemCode")),
                         "product_name": _stringify(item.get("ProductName")),
                         "product_detail": _stringify(item.get("ProductDetail")),
-                        "split_product_detail": _stringify(item.get("SplitProductDetail")),
+                        "split_product_detail": _stringify(
+                            item.get("SplitProductDetail")
+                        ),
                         "subscription_type": _stringify(item.get("SubscriptionType")),
                         "billing_date": _stringify(item.get("BillingDate")),
                         "split_billing_date": _stringify(item.get("SplitBillingDate")),
@@ -363,7 +374,9 @@ class AliyunOssOfficialBillAdapter:
         ]
         joined = " ".join(text for text in texts if text)
 
-        if any(keyword in joined for keyword in ("传输加速", "accelerate", "acceleration")):
+        if any(
+            keyword in joined for keyword in ("传输加速", "accelerate", "acceleration")
+        ):
             return StorageBillingChargeBasisEnum.TRANSFER_ACCELERATION_EGRESS.value
         if any(keyword in joined for keyword in ("回源", "origin")):
             return StorageBillingChargeBasisEnum.CDN_ORIGIN_EGRESS.value
@@ -392,7 +405,9 @@ class AliyunOssOfficialBillAdapter:
             return {}
 
         result: dict[str, str] = {}
-        for key, tag_value in re.findall(r"key:(.*?)\s+value:(.*?)(?:;|$)", text, flags=re.IGNORECASE):
+        for key, tag_value in re.findall(
+            r"key:(.*?)\s+value:(.*?)(?:;|$)", text, flags=re.IGNORECASE
+        ):
             normalized_key = key.strip()
             if not normalized_key:
                 continue

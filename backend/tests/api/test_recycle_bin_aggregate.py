@@ -28,7 +28,7 @@ async def test_admin_global_recycle_bin_list_queries_global_stage_without_level_
     monkeypatch.setattr(
         admin_recycle_bin,
         "get_service",
-        lambda module, side, db: service,
+        lambda _module, _side, _db: service,
     )
     monkeypatch.setattr(
         admin_recycle_bin,
@@ -72,7 +72,7 @@ async def test_admin_global_recycle_bin_restore_and_clear_cover_all_delete_level
     monkeypatch.setattr(
         admin_recycle_bin,
         "get_service",
-        lambda module, side, db: service,
+        lambda _module, _side, _db: service,
     )
     monkeypatch.setattr(
         admin_recycle_bin,

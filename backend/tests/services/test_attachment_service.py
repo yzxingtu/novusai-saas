@@ -31,7 +31,6 @@ def _make_attachment(**overrides):
 
 
 class TestAttachmentUpload:
-
     @pytest.mark.asyncio
     async def test_file_too_large_raises(self, mock_db):
         from app.exceptions import BusinessException
@@ -50,7 +49,6 @@ class TestAttachmentUpload:
 
 
 class TestAttachmentDedupVisibility:
-
     @pytest.mark.asyncio
     async def test_tenant_preflight_hash_lookup_scopes_by_visibility(self, mock_db):
         from app.enums.attachment import AttachmentVisibility
@@ -69,7 +67,11 @@ class TestAttachmentDedupVisibility:
         )
         service._ensure_upload_enabled = AsyncMock()
         service._resolve_storage_context = AsyncMock(
-            return_value=("platform", StorageConfig(driver="s3", root_path="bucket"), False)
+            return_value=(
+                "platform",
+                StorageConfig(driver="s3", root_path="bucket"),
+                False,
+            )
         )
         service._check_quota = AsyncMock()
 
@@ -106,7 +108,11 @@ class TestAttachmentDedupVisibility:
         )
         service._ensure_upload_enabled = AsyncMock()
         service._resolve_storage_context = AsyncMock(
-            return_value=("platform", StorageConfig(driver="s3", root_path="bucket"), False)
+            return_value=(
+                "platform",
+                StorageConfig(driver="s3", root_path="bucket"),
+                False,
+            )
         )
         service._save_to_temp = AsyncMock(return_value=("tmp/file", 256, "abc123"))
         service._check_quota = AsyncMock()
@@ -145,7 +151,11 @@ class TestAttachmentDedupVisibility:
         )
         service._ensure_upload_enabled = AsyncMock()
         service._resolve_storage_context = AsyncMock(
-            return_value=("platform", StorageConfig(driver="s3", root_path="bucket"), False)
+            return_value=(
+                "platform",
+                StorageConfig(driver="s3", root_path="bucket"),
+                False,
+            )
         )
         service._save_to_temp = AsyncMock(return_value=("tmp/file", 256, "abc123"))
         service._check_quota = AsyncMock()
@@ -267,7 +277,6 @@ class TestAttachmentDedupVisibility:
 
 
 class TestAttachmentStorageSnapshot:
-
     @pytest.mark.asyncio
     async def test_tenant_create_attachment_persists_storage_snapshot(self, mock_db):
         from unittest.mock import patch
@@ -322,7 +331,6 @@ class TestAttachmentStorageSnapshot:
 
 
 class TestAttachmentDelete:
-
     @pytest.mark.asyncio
     async def test_delete_not_found_raises(self, mock_db):
         from app.exceptions import NotFoundException
@@ -358,7 +366,6 @@ class TestAttachmentDelete:
 
 
 class TestAttachmentQuery:
-
     @pytest.mark.asyncio
     async def test_get_by_id_found(self, mock_db):
         from app.services.tenant.attachment_service import AttachmentService
@@ -388,7 +395,6 @@ class TestAttachmentQuery:
 
 
 class TestStorageStats:
-
     @pytest.mark.asyncio
     async def test_get_storage_stats(self, mock_db):
         from app.services.tenant.attachment_service import AttachmentService
@@ -406,7 +412,6 @@ class TestStorageStats:
 
 
 class TestAttachmentMimeType:
-
     @pytest.mark.asyncio
     async def test_attachment_has_correct_mime(self, mock_db):
         _ = mock_db

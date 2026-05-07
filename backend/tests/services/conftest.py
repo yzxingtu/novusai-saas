@@ -12,6 +12,7 @@ import pytest
 
 # ── Mock DB Session ──
 
+
 @pytest.fixture()
 def mock_db():
     """
@@ -32,6 +33,7 @@ def mock_db():
 
 # ── Mock Redis ──
 
+
 @pytest.fixture()
 def mock_redis():
     """Mock Redis client with common operations. / 说明"""
@@ -48,16 +50,20 @@ def mock_redis():
 
 # ── Mock Celery ──
 
+
 @pytest.fixture()
 def mock_celery():
     """Mock Celery app with inspect and send_task. / 说明"""
     celery = MagicMock()
     celery.send_task = MagicMock()
-    celery.control.inspect.return_value.ping.return_value = {"worker@host": {"ok": "pong"}}
+    celery.control.inspect.return_value.ping.return_value = {
+        "worker@host": {"ok": "pong"}
+    }
     return celery
 
 
 # ── Mock Model Factory ──
+
 
 def make_mock_model(**kwargs: Any) -> MagicMock:
     """创建 mock ORM model 对象。 / Create.
@@ -74,6 +80,7 @@ def make_mock_model(**kwargs: Any) -> MagicMock:
 
 
 # ── Mock Query Result ──
+
 
 def make_scalar_result(value: Any) -> AsyncMock:
     """创建 mock db.execute() 返回值，使 .scalar() 返回指定值。 / Create.
