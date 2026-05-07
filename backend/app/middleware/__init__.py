@@ -10,6 +10,7 @@ _LAZY_EXPORTS = {
     "I18nMiddleware": "app.middleware.i18n",
     "MaintenanceMiddleware": "app.middleware.maintenance",
     "PermissionMiddleware": "app.middleware.permission",
+    "PrometheusMetricsMiddleware": "app.middleware.prometheus_metrics",
 }
 
 __all__ = list(_LAZY_EXPORTS)

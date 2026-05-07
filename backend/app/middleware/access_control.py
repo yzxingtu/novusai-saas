@@ -24,6 +24,7 @@ EXEMPT_PATH_PREFIXES = (
     "/openapi.json",
     "/health",
     "/ready",
+    "/metrics",
     "/plugin-public-assets",
     "/plugin-assets",
     "/plugin-icons",
@@ -103,7 +104,7 @@ class AccessControlMiddleware:
             return True
         # Prefix match / 前缀匹配
         for prefix in EXEMPT_PATH_PREFIXES:
-            if prefix != "/" and path.startswith(prefix):
+            if prefix != "/" and (path == prefix or path.startswith(prefix + "/")):
                 return True
         return False
 

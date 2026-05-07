@@ -83,6 +83,7 @@ dependencies = [
 
     # Logging
     "loguru>=0.7.2",
+    "prometheus-client>=0.20.0",
 
     # SSL / ACME
     "acme>=2.0.0",

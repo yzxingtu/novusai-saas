@@ -12,7 +12,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core.config import settings
@@ -35,8 +35,14 @@ from app.middleware.audit_log import AuditLogMiddleware
 from app.middleware.dynamic_cors import DynamicCORSMiddleware
 from app.middleware.i18n import I18nMiddleware
 from app.middleware.permission import PermissionMiddleware
+from app.middleware.prometheus_metrics import (
+    PrometheusMetricsMiddleware,
+    metrics_response,
+    set_component_health,
+)
 from app.middleware.tenant import TenantMiddleware
 from app.middleware.trace import TraceIdMiddleware
+from app.rbac.decorators import public
 
 # Suppress noisy version compatibility warnings from requests lib (urllib3/charset_normalizer versions exceed preset test ranges but are actually compatible)
 # 抑制 requests 库的版本兼容性噪音警告（urllib3/charset_normalizer 版本超出其预设测试范围，但实际兼容）
@@ -494,6 +500,7 @@ async def readiness_check():
         async with async_session_factory() as db:
             await db.execute(text("SELECT 1"))
     except Exception as exc:
+        set_component_health("database", False)
         logger = get_logger(__name__)
         logger.warning("Readiness check failed (database): {}", exc)
         return JSONResponse(
@@ -504,6 +511,7 @@ async def readiness_check():
                 "data": {"database": "unavailable"},
             },
         )
+    set_component_health("database", True)
     return {
         "code": 0,
         "message": _("common.success"),
@@ -571,6 +579,9 @@ def create_application() -> FastAPI:
     # Dynamic CORS middleware — validates allowed origins and reflects the exact Origin.
     # / 动态 CORS 中间件：校验允许的 Origin，并精确回写请求来源。
     app.add_middleware(DynamicCORSMiddleware)
+
+    # Prometheus metrics middleware / Prometheus 指标中间件
+    app.add_middleware(PrometheusMetricsMiddleware)
 
     # Trace ID middleware (outermost = runs first; propagates X-Trace-ID for request correlation)
     # 追踪 ID 中间件（最外层 = 最先执行；传播 X-Trace-ID 用于请求关联）
@@ -696,6 +707,7 @@ def create_application() -> FastAPI:
         from app.core.redis import RedisManager
 
         redis_ok = await RedisManager.health_check()
+        set_component_health("redis", redis_ok)
         return {
             "code": 0,
             "message": _("common.success"),
@@ -707,6 +719,12 @@ def create_application() -> FastAPI:
         }
 
     app.get("/ready", tags=["Health"], response_model=None)(readiness_check)
+
+    @app.get("/metrics", tags=["Health"])
+    @public
+    async def prometheus_metrics() -> Response:
+        """Prometheus metrics endpoint / Prometheus 指标端点。"""
+        return metrics_response()
 
     # Register directory menus (must be before controller imports to ensure parent menus are registered first)
     # 注册目录型菜单（必须在控制器导入之前，确保父菜单先注册）

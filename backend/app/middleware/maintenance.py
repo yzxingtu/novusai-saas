@@ -28,6 +28,7 @@ _EXEMPT_PREFIXES = (
     "/openapi.json",
     "/health",  # Health check / 健康检查
     "/ready",  # Readiness (DB) / 就绪探针
+    "/metrics",  # Prometheus metrics / Prometheus 指标
     "/sio",  # Socket.IO (admin connections) / Socket.IO（管理员连接）
     "/files",  # Static files / 静态文件
 )

@@ -1,0 +1,60 @@
+groups:
+  - name: novusai-local-acceptance
+    rules:
+      - alert: NovusAIBackendMetricsDown
+        expr: up{job="novusai-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: NovusAI backend metrics scrape is down
+          description: Prometheus cannot scrape the NovusAI backend /metrics endpoint.
+
+      - alert: NovusAIBackendHigh5xxRate
+        expr: |
+          (
+            sum(increase(novusai_http_requests_total{job="novusai-api",status_code=~"5.."}[5m]))
+            /
+            clamp_min(sum(increase(novusai_http_requests_total{job="novusai-api"}[5m])), 1)
+          ) > 0.05
+          and
+          sum(increase(novusai_http_requests_total{job="novusai-api"}[5m])) >= 20
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: NovusAI backend 5xx rate is above 5%
+          description: Backend HTTP 5xx responses exceeded the local acceptance threshold.
+
+      - alert: NovusAIBackendP95LatencyHigh
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le) (
+              rate(novusai_http_request_duration_seconds_bucket{job="novusai-api"}[5m])
+            )
+          ) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: NovusAI backend P95 latency is above 1 second
+          description: Backend HTTP P95 latency exceeded the local acceptance threshold.
+
+      - alert: NovusAIDatabaseReadinessDown
+        expr: novusai_component_health{job="novusai-api",component="database"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: NovusAI database readiness is unhealthy
+          description: The /ready probe reported database connectivity unavailable.
+
+      - alert: NovusAIRedisHealthDown
+        expr: novusai_component_health{job="novusai-api",component="redis"} == 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: NovusAI Redis health is degraded
+          description: The /health probe reported Redis disconnected.

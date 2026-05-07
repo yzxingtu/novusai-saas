@@ -1,7 +1,8 @@
-"""
-GET /ready 就绪探针测试 / Readiness probe tests.
+"""GET /ready 就绪探针测试 / Readiness probe tests.
 
 验证：数据库可用时 200；session 工厂失败时 503（不依赖真实停库）。
+
+Test type: structural
 """
 
 from __future__ import annotations

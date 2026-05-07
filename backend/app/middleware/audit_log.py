@@ -26,6 +26,7 @@ from app.enums.log import UserTypeEnum
 EXCLUDED_PATHS = [
     "/health",
     "/ready",
+    "/metrics",
     "/docs",
     "/redoc",
     "/openapi.json",
@@ -92,7 +93,7 @@ def should_log_request(path: str, method: str) -> bool:
 
     # Excluded path prefixes / 排除的路径前缀
     for excluded in EXCLUDED_PATHS:
-        if path.startswith(excluded):
+        if path == excluded or path.startswith(excluded + "/"):
             return False
 
     # Excluded path patterns / 排除的路径正则

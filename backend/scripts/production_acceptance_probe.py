@@ -105,6 +105,25 @@ def _request_status(url: str, *, timeout: float) -> dict[str, Any]:
         }
 
 
+def _request_text(
+    url: str, *, timeout: float, limit: int = 512 * 1024
+) -> dict[str, Any]:
+    _validate_probe_url(url)
+    request = urllib.request.Request(url, headers={"Accept": "*/*"})
+    started_at = time.perf_counter()
+    # 中文: _validate_probe_url 已限制 http/https；Bandit 不能跨函数识别这个守卫。
+    # EN: _validate_probe_url restricts http/https; Bandit cannot infer that guard.
+    with urllib.request.urlopen(request, timeout=timeout) as response:  # nosec B310
+        elapsed_ms = round((time.perf_counter() - started_at) * 1000, 2)
+        body = response.read(limit).decode("utf-8", errors="replace")
+        return {
+            "status_code": response.status,
+            "elapsed_ms": elapsed_ms,
+            "content_type": response.headers.get("Content-Type", ""),
+            "body": body,
+        }
+
+
 def _http_error_result(
     *,
     area: str,
@@ -190,14 +209,46 @@ def probe_api(api_base_url: str, *, timeout: float) -> list[ProbeResult]:
 
     metrics_url = f"{base}/metrics"
     try:
-        metrics = _request_status(metrics_url, timeout=timeout)
+        metrics = _request_text(metrics_url, timeout=timeout)
+        body = str(metrics.pop("body", ""))
+        content_type = str(metrics.get("content_type", "")).lower()
+        required_markers = (
+            "# HELP novusai_app_info",
+            "# TYPE novusai_app_info",
+            "novusai_app_info",
+            "# HELP novusai_http_requests_total",
+            "# TYPE novusai_http_requests_total",
+            "novusai_http_requests_total",
+            "# HELP novusai_http_request_duration_seconds",
+            "# TYPE novusai_http_request_duration_seconds",
+            "novusai_http_request_duration_seconds_bucket",
+            "# HELP novusai_http_requests_in_progress",
+            "# TYPE novusai_http_requests_in_progress",
+            "novusai_http_requests_in_progress",
+            "# HELP novusai_component_health",
+            "# TYPE novusai_component_health",
+            "novusai_component_health",
+        )
+        missing_markers = [marker for marker in required_markers if marker not in body]
+        passed = (
+            metrics["status_code"] == 200
+            and "text/plain" in content_type
+            and not missing_markers
+        )
         results.append(
             ProbeResult(
                 area="monitoring",
                 name="prometheus_metrics_endpoint",
-                status=STATUS_PASSED,
-                summary="/metrics endpoint is reachable",
-                details={"url": metrics_url, **metrics},
+                status=STATUS_PASSED if passed else STATUS_FAILED,
+                summary="/metrics returned Prometheus exposition"
+                if passed
+                else "/metrics did not return the expected Prometheus exposition",
+                details={
+                    "url": metrics_url,
+                    **metrics,
+                    "missing_markers": missing_markers,
+                    "body_sample": body[:500],
+                },
             )
         )
     except Exception as exc:

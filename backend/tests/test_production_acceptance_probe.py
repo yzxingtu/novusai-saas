@@ -1,15 +1,38 @@
 """中文: 生产验收探针结构测试。
 
 EN: Structural tests for the production acceptance probe.
+
+Test type: structural
 """
 
 from __future__ import annotations
 
+import urllib.error
 from pathlib import Path
 
 import pytest
 
 from scripts import production_acceptance_probe as probe
+
+
+def _valid_metrics_body() -> str:
+    return (
+        "# HELP novusai_app_info Application info\n"
+        "# TYPE novusai_app_info gauge\n"
+        "novusai_app_info 1\n"
+        "# HELP novusai_http_requests_total HTTP requests\n"
+        "# TYPE novusai_http_requests_total counter\n"
+        "novusai_http_requests_total 1\n"
+        "# HELP novusai_http_request_duration_seconds HTTP duration\n"
+        "# TYPE novusai_http_request_duration_seconds histogram\n"
+        'novusai_http_request_duration_seconds_bucket{le="+Inf"} 1\n'
+        "# HELP novusai_http_requests_in_progress In-progress HTTP requests\n"
+        "# TYPE novusai_http_requests_in_progress gauge\n"
+        "novusai_http_requests_in_progress 0\n"
+        "# HELP novusai_component_health Component health\n"
+        "# TYPE novusai_component_health gauge\n"
+        'novusai_component_health{component="database"} 1\n'
+    )
 
 
 def test_request_helpers_reject_non_http_urls() -> None:
@@ -31,6 +54,208 @@ def test_tool_result_blocks_when_required_tool_is_missing(monkeypatch) -> None:
 
     assert result.status == probe.STATUS_BLOCKED
     assert result.details["missing"] == ["pg_dump", "pg_restore", "psql"]
+
+
+def test_probe_api_passes_metrics_when_prometheus_exposition_is_valid(
+    monkeypatch,
+) -> None:
+    def fake_request_json(url: str, *, timeout: float):
+        if url.endswith("/ready"):
+            return {
+                "status_code": 200,
+                "elapsed_ms": 1,
+                "payload": {"data": {"ready": True}},
+            }
+        if url.endswith("/health"):
+            return {
+                "status_code": 200,
+                "elapsed_ms": 1,
+                "payload": {"data": {"status": "healthy"}},
+            }
+        raise AssertionError(f"unexpected JSON probe URL: {url}")
+
+    def fake_request_text(url: str, *, timeout: float, limit: int = 512 * 1024):
+        assert url == "http://localhost:8000/metrics"
+        assert limit == 512 * 1024
+        return {
+            "status_code": 200,
+            "elapsed_ms": 1,
+            "content_type": "text/plain; version=0.0.4; charset=utf-8",
+            "body": _valid_metrics_body(),
+        }
+
+    monkeypatch.setattr(probe, "_request_json", fake_request_json)
+    monkeypatch.setattr(probe, "_request_text", fake_request_text)
+
+    results = {
+        result.name: result
+        for result in probe.probe_api("http://localhost:8000", timeout=1)
+    }
+
+    assert results["api_ready"].status == probe.STATUS_PASSED
+    assert results["api_health"].status == probe.STATUS_PASSED
+    assert results["prometheus_metrics_endpoint"].status == probe.STATUS_PASSED
+    assert results["prometheus_metrics_endpoint"].details["missing_markers"] == []
+
+
+def test_probe_api_blocks_metrics_when_endpoint_is_missing(monkeypatch) -> None:
+    def fake_request_json(url: str, *, timeout: float):
+        if url.endswith("/ready"):
+            return {
+                "status_code": 200,
+                "elapsed_ms": 1,
+                "payload": {"data": {"ready": True}},
+            }
+        return {
+            "status_code": 200,
+            "elapsed_ms": 1,
+            "payload": {"data": {"status": "healthy"}},
+        }
+
+    def fake_request_text(url: str, *, timeout: float, limit: int = 512 * 1024):
+        raise urllib.error.HTTPError(url, 404, "Not Found", {}, None)
+
+    monkeypatch.setattr(probe, "_request_json", fake_request_json)
+    monkeypatch.setattr(probe, "_request_text", fake_request_text)
+
+    results = {
+        result.name: result
+        for result in probe.probe_api("http://localhost:8000", timeout=1)
+    }
+
+    metrics = results["prometheus_metrics_endpoint"]
+    assert metrics.status == probe.STATUS_BLOCKED
+    assert metrics.details["url"] == "http://localhost:8000/metrics"
+
+
+def test_probe_api_fails_metrics_when_exposition_is_invalid(monkeypatch) -> None:
+    def fake_request_json(url: str, *, timeout: float):
+        if url.endswith("/ready"):
+            return {
+                "status_code": 200,
+                "elapsed_ms": 1,
+                "payload": {"data": {"ready": True}},
+            }
+        return {
+            "status_code": 200,
+            "elapsed_ms": 1,
+            "payload": {"data": {"status": "healthy"}},
+        }
+
+    def fake_request_text(url: str, *, timeout: float, limit: int = 512 * 1024):
+        return {
+            "status_code": 200,
+            "elapsed_ms": 1,
+            "content_type": "application/json",
+            "body": '{"code":0,"data":{}}',
+        }
+
+    monkeypatch.setattr(probe, "_request_json", fake_request_json)
+    monkeypatch.setattr(probe, "_request_text", fake_request_text)
+
+    results = {
+        result.name: result
+        for result in probe.probe_api("http://localhost:8000", timeout=1)
+    }
+
+    metrics = results["prometheus_metrics_endpoint"]
+    assert metrics.status == probe.STATUS_FAILED
+    assert metrics.details["missing_markers"] == [
+        "# HELP novusai_app_info",
+        "# TYPE novusai_app_info",
+        "novusai_app_info",
+        "# HELP novusai_http_requests_total",
+        "# TYPE novusai_http_requests_total",
+        "novusai_http_requests_total",
+        "# HELP novusai_http_request_duration_seconds",
+        "# TYPE novusai_http_request_duration_seconds",
+        "novusai_http_request_duration_seconds_bucket",
+        "# HELP novusai_http_requests_in_progress",
+        "# TYPE novusai_http_requests_in_progress",
+        "novusai_http_requests_in_progress",
+        "# HELP novusai_component_health",
+        "# TYPE novusai_component_health",
+        "novusai_component_health",
+    ]
+
+
+def test_probe_api_fails_metrics_when_content_type_is_not_text(monkeypatch) -> None:
+    def fake_request_json(url: str, *, timeout: float):
+        if url.endswith("/ready"):
+            return {
+                "status_code": 200,
+                "elapsed_ms": 1,
+                "payload": {"data": {"ready": True}},
+            }
+        return {
+            "status_code": 200,
+            "elapsed_ms": 1,
+            "payload": {"data": {"status": "healthy"}},
+        }
+
+    def fake_request_text(url: str, *, timeout: float, limit: int = 512 * 1024):
+        return {
+            "status_code": 200,
+            "elapsed_ms": 1,
+            "content_type": "application/json",
+            "body": _valid_metrics_body(),
+        }
+
+    monkeypatch.setattr(probe, "_request_json", fake_request_json)
+    monkeypatch.setattr(probe, "_request_text", fake_request_text)
+
+    results = {
+        result.name: result
+        for result in probe.probe_api("http://localhost:8000", timeout=1)
+    }
+
+    metrics = results["prometheus_metrics_endpoint"]
+    assert metrics.status == probe.STATUS_FAILED
+    assert metrics.details["missing_markers"] == []
+
+
+def test_probe_api_fails_metrics_when_required_family_is_missing(monkeypatch) -> None:
+    def fake_request_json(url: str, *, timeout: float):
+        if url.endswith("/ready"):
+            return {
+                "status_code": 200,
+                "elapsed_ms": 1,
+                "payload": {"data": {"ready": True}},
+            }
+        return {
+            "status_code": 200,
+            "elapsed_ms": 1,
+            "payload": {"data": {"status": "healthy"}},
+        }
+
+    def fake_request_text(url: str, *, timeout: float, limit: int = 512 * 1024):
+        return {
+            "status_code": 200,
+            "elapsed_ms": 1,
+            "content_type": "text/plain; version=0.0.4; charset=utf-8",
+            "body": _valid_metrics_body().replace(
+                "# HELP novusai_component_health Component health\n"
+                "# TYPE novusai_component_health gauge\n"
+                'novusai_component_health{component="database"} 1\n',
+                "",
+            ),
+        }
+
+    monkeypatch.setattr(probe, "_request_json", fake_request_json)
+    monkeypatch.setattr(probe, "_request_text", fake_request_text)
+
+    results = {
+        result.name: result
+        for result in probe.probe_api("http://localhost:8000", timeout=1)
+    }
+
+    metrics = results["prometheus_metrics_endpoint"]
+    assert metrics.status == probe.STATUS_FAILED
+    assert metrics.details["missing_markers"] == [
+        "# HELP novusai_component_health",
+        "# TYPE novusai_component_health",
+        "novusai_component_health",
+    ]
 
 
 def test_ai_smoke_readiness_reports_missing_scenarios_and_agent_selector(
