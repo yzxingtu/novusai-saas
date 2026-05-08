@@ -89,14 +89,17 @@ passed without real external evidence. To clear the remaining blocked gates:
 Example:
 
 ```powershell
+$smokeDir = "..\.trellis\tasks\05-08-production-acceptance-gates\smoke-runs\<milestone>"
+New-Item -ItemType Directory -Force -Path $smokeDir | Out-Null
+
 .\.venv\Scripts\python.exe -m app.cli ai real-dialogue-smoke --agent-id <id> --raw-json `
-  > ..\ops\acceptance-artifacts\ai-real-dialogue-smoke.json
+  > "$smokeDir\report.json"
 
 .\.venv\Scripts\python.exe scripts\production_acceptance_probe.py `
   --api-base-url http://localhost:8000 `
   --frontend-base-url http://localhost:5666 `
   --ai-smoke-agent-id <id> `
-  --ai-smoke-report ..\ops\acceptance-artifacts\ai-real-dialogue-smoke.json `
+  --ai-smoke-report "$smokeDir\report.json" `
   --allow-blocked
 ```
 
@@ -108,4 +111,7 @@ not send a prompt through `AgentChatService` or prove a live provider call.
 
 Generated local artifacts live under `ops/acceptance-artifacts/` and are ignored
 by Git. Regenerate them during release verification instead of treating one
-developer machine's scan output as source.
+developer machine's scan output as source. AI real-dialogue smoke raw reports
+should be archived with the owning Trellis task under `smoke-runs/<milestone>/`
+or uploaded as CI/release artifacts; do not use `ops/acceptance-artifacts/` as
+the authoritative acceptance archive.

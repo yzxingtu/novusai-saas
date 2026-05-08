@@ -379,7 +379,7 @@ def test_ai_smoke_minimal_passed_json_is_not_execution_evidence(
     )
 
 
-def test_ai_smoke_strict_report_can_satisfy_execution_evidence(
+def test_ai_smoke_strict_report_can_satisfy_credential_and_execution_evidence(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -409,10 +409,14 @@ def test_ai_smoke_strict_report_can_satisfy_execution_evidence(
     }
 
     assert results["ai_real_dialogue_smoke_scenarios"].status == probe.STATUS_PASSED
-    assert results["ai_provider_credentials"].status == probe.STATUS_BLOCKED
+    assert results["ai_provider_credentials"].status == probe.STATUS_PASSED
     assert results["ai_provider_credentials"].details[
         "strict_smoke_report_provider_evidence"
     ]
+    assert (
+        "strict_real_dialogue_smoke_report"
+        in results["ai_provider_credentials"].details["credential_evidence_sources"]
+    )
     assert results["ai_smoke_agent_selector"].status == probe.STATUS_PASSED
     assert results["ai_real_dialogue_smoke_execution"].status == probe.STATUS_PASSED
 

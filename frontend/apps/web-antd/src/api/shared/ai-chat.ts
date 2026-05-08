@@ -393,8 +393,6 @@ export interface AgentChatRequestBody {
   }>;
   knowledge_base_ids?: number[];
   message?: string;
-  /** 批量消息（800ms 内多条合并为一次请求） */
-  messages?: string[];
   trust_policy_ref?: TrustPolicyRef;
   variables?: Record<string, string>;
 }

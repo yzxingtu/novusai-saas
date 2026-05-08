@@ -392,7 +392,6 @@ class AgentChatCommandService:
         service: AgentChatService,
         agent_id: int,
         message: str = "",
-        messages: list[str] | None = None,
         conversation_id: int | None = None,
         variables: dict[str, Any] | None = None,
         user_id: int | None = None,
@@ -425,7 +424,7 @@ class AgentChatCommandService:
             knowledge_base_ids,
         )
 
-        batch = messages if messages else ([message] if message else [])
+        batch = [message] if message else []
         first_message = batch[0] if batch else ""
 
         prepared_turn = await service.turn_orchestrator.prepare_conversation_turn(

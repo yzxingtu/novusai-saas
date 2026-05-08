@@ -8,6 +8,7 @@ diagnostic hydration and turn-flow projection logic runs real code.
 
 from __future__ import annotations
 
+import asyncio
 import json
 from datetime import datetime, timezone
 
@@ -538,6 +539,131 @@ def test_ai_real_dialogue_smoke_raw_json_outputs_archivable_report(monkeypatch) 
     payload = json.loads(result.output)
     assert payload["schema_version"] == "ai-real-dialogue-smoke/v1"
     assert "success" not in payload
+
+
+def test_ai_real_dialogue_smoke_cli_operation_initializes_redis_when_cold(
+    monkeypatch,
+) -> None:
+    # 中文: 该用例验证 CLI 冷启动基础设施生命周期，不 mock 或声明真实 LLM smoke 成功。
+    # EN: This case verifies cold-start CLI infrastructure lifecycle, not a real LLM smoke pass.
+    from app.cli_commands.ai_render import _run_ai_runtime_cli_operation
+    from app.core.redis import RedisManager
+
+    events: list[str] = []
+
+    class _DummyDbContext:
+        async def __aenter__(self):
+            events.append("db:enter")
+            return object()
+
+        async def __aexit__(self, exc_type, exc, tb):
+            events.append("db:exit")
+            return False
+
+    class _DummyBridge:
+        def __init__(self, _db):
+            events.append("bridge:init")
+
+        async def run_real_dialogue_smoke(self, scope, payload):
+            events.append("bridge:real-dialogue-smoke")
+            assert scope.agent_id == 59
+            assert payload["scenario_ids"] == ["CLI-001"]
+            return {"overall_status": "blocked", "agent_id": scope.agent_id}
+
+    async def _fake_init() -> None:
+        events.append("redis:init")
+        RedisManager._pool = object()  # type: ignore[assignment]
+
+    async def _fake_close() -> None:
+        events.append("redis:close")
+        RedisManager._pool = None
+
+    monkeypatch.setattr(RedisManager, "_pool", None)
+    monkeypatch.setattr(RedisManager, "init", _fake_init)
+    monkeypatch.setattr(RedisManager, "close", _fake_close)
+    monkeypatch.setattr("app.core.database.get_db_context", lambda: _DummyDbContext())
+    monkeypatch.setattr(
+        "app.services.ai.runtime_cli_bridge.AIRuntimeCliBridge", _DummyBridge
+    )
+
+    payload = asyncio.run(
+        _run_ai_runtime_cli_operation(
+            "real-dialogue-smoke",
+            agent_id=59,
+            scenario_ids=["CLI-001"],
+        )
+    )
+
+    assert payload == {"overall_status": "blocked", "agent_id": 59}
+    assert events == [
+        "redis:init",
+        "db:enter",
+        "bridge:init",
+        "bridge:real-dialogue-smoke",
+        "db:exit",
+        "redis:close",
+    ]
+
+
+def test_ai_real_dialogue_smoke_cli_operation_preserves_existing_redis(
+    monkeypatch,
+) -> None:
+    # 中文: 外层已经初始化 Redis 时，CLI 只能借用，不能关闭调用方连接池。
+    # EN: When Redis is initialized by the caller, CLI may reuse it but must not close it.
+    from app.cli_commands.ai_render import _run_ai_runtime_cli_operation
+    from app.core.redis import RedisManager
+
+    events: list[str] = []
+    existing_pool = object()
+
+    class _DummyDbContext:
+        async def __aenter__(self):
+            events.append("db:enter")
+            return object()
+
+        async def __aexit__(self, exc_type, exc, tb):
+            events.append("db:exit")
+            return False
+
+    class _DummyBridge:
+        def __init__(self, _db):
+            events.append("bridge:init")
+
+        async def run_real_dialogue_smoke(self, scope, payload):
+            events.append("bridge:real-dialogue-smoke")
+            assert payload["scenario_ids"] == ["CLI-001"]
+            return {"overall_status": "blocked", "agent_id": scope.agent_id}
+
+    async def _unexpected_init() -> None:
+        raise AssertionError("RedisManager.init should not run for an existing pool")
+
+    async def _unexpected_close() -> None:
+        raise AssertionError("RedisManager.close should not close an existing pool")
+
+    monkeypatch.setattr(RedisManager, "_pool", existing_pool)
+    monkeypatch.setattr(RedisManager, "init", _unexpected_init)
+    monkeypatch.setattr(RedisManager, "close", _unexpected_close)
+    monkeypatch.setattr("app.core.database.get_db_context", lambda: _DummyDbContext())
+    monkeypatch.setattr(
+        "app.services.ai.runtime_cli_bridge.AIRuntimeCliBridge", _DummyBridge
+    )
+
+    payload = asyncio.run(
+        _run_ai_runtime_cli_operation(
+            "real-dialogue-smoke",
+            agent_id=59,
+            scenario_ids=["CLI-001"],
+        )
+    )
+
+    assert payload == {"overall_status": "blocked", "agent_id": 59}
+    assert RedisManager._pool is existing_pool
+    assert events == [
+        "db:enter",
+        "bridge:init",
+        "bridge:real-dialogue-smoke",
+        "db:exit",
+    ]
 
 
 def test_ai_conversation_show_json_suppresses_runtime_logs(monkeypatch) -> None:

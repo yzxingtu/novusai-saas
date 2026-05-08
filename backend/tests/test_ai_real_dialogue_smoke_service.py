@@ -39,6 +39,49 @@ def _write_ledger(path: Path) -> None:
     )
 
 
+def _write_capability_ledger(path: Path) -> None:
+    path.write_text(
+        "\n".join(
+            [
+                "# AI Real-Dialogue Smoke Scenarios",
+                "scenario_id: `SCENARIO-001-runtime-capability-smoke`",
+                "priority: `must-pass`",
+                "user_input: `说明一下这个系统的核心能力，并保持回答简洁。`",
+                "required_capabilities: runtime smoke",
+                "expected_observable_outcome: no blocking checks",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+
+def _manifest_without_optional_skills_or_kb() -> dict[str, Any]:
+    return {
+        "summary": {
+            "agent_name": "Smoke Agent",
+            "tool_count": 1,
+            "inventory_tool_count": 1,
+            "skill_count": 0,
+            "inventory_skill_count": 0,
+            "selection_live": False,
+        },
+        "provider": {
+            "id": 10,
+            "code": "provider",
+            "status": "available",
+            "reason": None,
+        },
+        "model": {
+            "id": 20,
+            "code": "model",
+            "status": "available",
+            "reason": None,
+        },
+        "knowledge_bases": [],
+        "memory": [{"name": "memory", "status": "available", "reason": None}],
+    }
+
+
 @pytest.mark.asyncio
 async def test_real_dialogue_smoke_service_calls_agent_chat_with_smoke_metadata(
     tmp_path: Path,
@@ -126,6 +169,95 @@ async def test_real_dialogue_smoke_service_calls_agent_chat_with_smoke_metadata(
     assert report["scenario_results"][0]["observable_checks"][
         "answer_enterprise_saas_relevant"
     ]
+
+
+@pytest.mark.asyncio
+async def test_real_dialogue_smoke_accepts_nonblocking_capability_degradation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fake_resolve_agent(
+        self,
+        *,
+        tenant_id: int | None,
+        agent_id: int | None,
+        agent_code: str | None,
+    ):
+        del self, tenant_id, agent_code
+        return SimpleNamespace(id=agent_id, name="Smoke Agent")
+
+    async def fake_get_manifest(self, **kwargs: Any):
+        del self, kwargs
+        return _manifest_without_optional_skills_or_kb()
+
+    class FakeAgentChatService:
+        def __init__(self, db: Any, tenant_id: int) -> None:
+            _ = db, tenant_id
+
+        async def chat(self, **kwargs: Any):
+            _ = kwargs
+            return SimpleNamespace(
+                conversation_id=101,
+                message="系统核心能力包括企业级 AI 对话、权限治理和运行监控。",
+                context_diagnostics={
+                    "selected_tool_names": [],
+                    "selected_skill_names": [],
+                },
+                total_tokens=12,
+                duration_ms=34,
+                last_run_summary={"finish": "ok"},
+            )
+
+    async def fake_latest_call_log(self, **kwargs: Any):
+        _ = self, kwargs
+        return SimpleNamespace(
+            id=202,
+            status="success",
+            provider_name_snapshot="provider",
+            model_name_snapshot="model",
+            request_type="chat",
+            call_type="main_chat",
+        )
+
+    monkeypatch.setattr(RuntimeInventoryService, "_resolve_agent", fake_resolve_agent)
+    monkeypatch.setattr(RuntimeInventoryService, "get_manifest", fake_get_manifest)
+    monkeypatch.setattr(smoke_module, "AgentChatService", FakeAgentChatService)
+    monkeypatch.setattr(
+        RuntimeRealDialogueSmokeService,
+        "_latest_call_log",
+        fake_latest_call_log,
+    )
+
+    ledger = tmp_path / "smoke-scenarios.md"
+    _write_capability_ledger(ledger)
+    service = RuntimeRealDialogueSmokeService(db=object())
+
+    report = await service.run(
+        tenant_id=7,
+        agent_id=59,
+        agent_code=None,
+        ledger_path=str(ledger),
+        scenario_ids=["SCENARIO-001-runtime-capability-smoke"],
+        message=None,
+        user_id=3,
+        user_role="platform_admin",
+        user_role_id=None,
+        repo_root=None,
+    )
+
+    result = report["scenario_results"][0]
+    assert report["overall_status"] == "passed"
+    assert result["status"] == "passed"
+    assert result["capability_smoke"]["overall_status"] == "yellow"
+    assert result["capability_smoke"]["passed"] is True
+    assert result["observable_checks"]["capability_smoke_green_or_passed"] is True
+    nonblocking_reasons = {
+        check["reason"]
+        for check in result["capability_smoke"]["checks"]
+        if not check["blocking"]
+    }
+    assert "no_runtime_skills_selected" in nonblocking_reasons
+    assert "no_effective_knowledge_base_binding" in nonblocking_reasons
 
 
 @pytest.mark.asyncio

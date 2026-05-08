@@ -27,3 +27,22 @@ def test_agent_chat_api_does_not_forward_retired_messages_batch_input() -> None:
         source = api_file.read_text(encoding="utf-8")
         assert "messages=data.messages" not in source
         assert "data.messages" not in source
+
+
+def test_agent_chat_services_do_not_keep_retired_messages_batch_branch() -> None:
+    """中文: 测试类型 structural；服务层不再保留退役 messages 批量分支。
+
+    EN: Test type structural; service layer no longer keeps the retired
+    messages batch branch.
+    """
+    backend_root = Path(__file__).resolve().parents[2]
+    service_files = [
+        backend_root / "app/services/ai/agent_chat_service.py",
+        backend_root / "app/services/ai/agent_chat_command_service.py",
+    ]
+
+    for service_file in service_files:
+        source = service_file.read_text(encoding="utf-8")
+        assert "messages: list[str]" not in source
+        assert "messages=messages" not in source
+        assert "batch = messages" not in source

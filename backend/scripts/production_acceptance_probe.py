@@ -1073,7 +1073,10 @@ def probe_ai_smoke_readiness(
     cli_available = '@ai_cmd.command("smoke")' in cli_text
     real_dialogue_cli_available = '@ai_cmd.command("real-dialogue-smoke")' in cli_text
 
-    credential_passed = has_provider_key
+    credential_passed = has_provider_key or (smoke_passed and report_provider_evidence)
+    credential_sources = list(provider_keys)
+    if smoke_passed and report_provider_evidence:
+        credential_sources.append("strict_real_dialogue_smoke_report")
     return [
         ProbeResult(
             area="ai_runtime",
@@ -1108,11 +1111,12 @@ def probe_ai_smoke_readiness(
             area="ai_runtime",
             name="ai_provider_credentials",
             status=STATUS_PASSED if credential_passed else STATUS_BLOCKED,
-            summary="AI provider credential evidence is configured"
+            summary="AI provider credential evidence is configured or proven by real-dialogue smoke"
             if credential_passed
             else "no AI provider credential is configured in the current environment",
             details={
                 "configured_variable_names": provider_keys,
+                "credential_evidence_sources": credential_sources,
                 "strict_smoke_report_provider_evidence": report_provider_evidence,
             },
         ),

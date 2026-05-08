@@ -90,7 +90,7 @@ export interface StreamRequestParams {
     | Pick<ChatAttachment, 'mime_type' | 'name' | 'type' | 'url'>[]
     | undefined;
   targetAgentId: number;
-  texts: string[];
+  text: string;
 }
 
 export async function runStreamRequest(
@@ -107,7 +107,7 @@ export async function runStreamRequest(
     uiPanelStore,
     imageParams,
   } = deps;
-  const { texts, apiAttachments, targetAgentId } = params;
+  const { text, apiAttachments, targetAgentId } = params;
 
   const lifecycle = createStreamRequestLifecycle(deps, targetAgentId);
   const sseBuffer = { value: '' };
@@ -118,7 +118,6 @@ export async function runStreamRequest(
 
   try {
     const prefix = unref(options.apiPrefix) as string;
-    const singleText = texts.length === 1 ? (texts[0] ?? '') : null;
     panelInteractionUpdates = uiPanelStore.consumeInteractionUpdates();
     localInteractionUpdates = [...pendingInteractionUpdates.value];
     const mergedInteractionUpdates = [
@@ -128,7 +127,7 @@ export async function runStreamRequest(
     deps.interactionModeEffective.value = interactionMode.value;
 
     const requestBody = {
-      ...(singleText === null ? { messages: texts } : { message: singleText }),
+      message: text,
       conversation_id: lifecycle.streamConversationId,
       ...(mergedInteractionUpdates.length > 0
         ? { interaction_updates: mergedInteractionUpdates }

@@ -14,10 +14,7 @@ import type {
 } from './use-ai-chat-streaming-request';
 import type { PendingInteractionUpdate } from './use-ai-chat-streaming-types';
 
-import type {
-  ChatKBBindingInfo,
-  MemoryState,
-} from '#/api/shared/ai-chat';
+import type { ChatKBBindingInfo, MemoryState } from '#/api/shared/ai-chat';
 import type { AIInteractionUpdate } from '#/store/shared/ai-panel';
 
 import { nextTick, ref } from 'vue';
@@ -123,11 +120,6 @@ export function useAIChatStreaming(deps: UseAIChatStreamingDeps) {
   const sending = ref(false);
   const streaming = ref(false);
 
-  /** 发送前 800ms 防抖：多条消息合并为一次请求 */
-  const SEND_DEBOUNCE_MS = 800;
-  const pendingMessages = ref<{ text: string }[]>([]);
-  let debounceTimerId: null | ReturnType<typeof setTimeout> = null;
-
   const streamControl: StreamControl = {
     abortController: null,
     lifecycle: null,
@@ -171,11 +163,8 @@ export function useAIChatStreaming(deps: UseAIChatStreamingDeps) {
   }
 
   function resetPendingMessages() {
-    if (debounceTimerId) {
-      clearTimeout(debounceTimerId);
-      debounceTimerId = null;
-    }
-    pendingMessages.value = [];
+    // 中文: 会话切换仍调用这个稳定清理钩子，但客户端不再维护批量发送队列。
+    // EN: Conversation switches still call this stable cleanup hook, but the client no longer keeps a batch-send queue.
   }
 
   function buildStreamRequestDeps(): StreamRequestDeps {
@@ -329,39 +318,6 @@ export function useAIChatStreaming(deps: UseAIChatStreamingDeps) {
           )
         : undefined;
 
-    const useDebounce =
-      !silent &&
-      !hasAttachments &&
-      msgAttachments.length === 0 &&
-      !hasInteractionUpdates &&
-      selectedKBIds.value.length === 0 &&
-      userMsg.length > 0;
-
-    if (useDebounce) {
-      if (!silent) {
-        chatMessages.value.push({
-          clientKey: nextClientKey('user'),
-          role: 'user',
-          content: userMsg,
-          created_at: new Date().toISOString(),
-        });
-      }
-      pendingMessages.value.push({ text: userMsg });
-      inputMessage.value = '';
-      clearPendingAttachments();
-      userScrolledUp.value = false;
-      scrollToBottom(true);
-
-      if (debounceTimerId) clearTimeout(debounceTimerId);
-      debounceTimerId = setTimeout(() => {
-        debounceTimerId = null;
-        flushPendingAndSend({
-          targetAgentId,
-        });
-      }, SEND_DEBOUNCE_MS);
-      return true;
-    }
-
     if (!silent) {
       chatMessages.value.push({
         clientKey: nextClientKey('user'),
@@ -392,7 +348,7 @@ export function useAIChatStreaming(deps: UseAIChatStreamingDeps) {
     await nextTick();
 
     await runStreamRequest(buildStreamRequestDeps(), {
-      texts: [userMsg],
+      text: userMsg,
       apiAttachments:
         msgAttachments.length > 0
           ? msgAttachments.map(
@@ -408,39 +364,6 @@ export function useAIChatStreaming(deps: UseAIChatStreamingDeps) {
       targetAgentId,
     });
     return true;
-  }
-
-  async function flushPendingAndSend(opts: {
-    targetAgentId: number;
-  }) {
-    const msgs = [...pendingMessages.value];
-    pendingMessages.value = [];
-    if (msgs.length === 0) return;
-    if (sending.value) return;
-
-    const { targetAgentId } = opts;
-    const targetAgent = agents.value.find((a) => a.id === targetAgentId);
-    chatMessages.value.push({
-      clientKey: nextClientKey('assistant'),
-      role: 'assistant',
-      content: '',
-      streaming: true,
-      agent_id: targetAgentId,
-      agent_name: targetAgent?.name ?? null,
-      agent_avatar: targetAgent?.avatar ?? null,
-      agent_description: targetAgent?.description ?? null,
-      model_name: targetAgent?.model_name ?? null,
-      created_at: new Date().toISOString(),
-    });
-    userScrolledUp.value = false;
-    scrollToBottom(true);
-    await nextTick();
-
-    await runStreamRequest(buildStreamRequestDeps(), {
-      texts: msgs.map((m) => m.text),
-      apiAttachments: undefined,
-      targetAgentId,
-    });
   }
 
   return {

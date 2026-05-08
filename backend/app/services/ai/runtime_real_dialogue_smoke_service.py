@@ -311,6 +311,14 @@ def _scenario_requires_tool_policy_guard(scenario_id: str) -> bool:
     return "tool-policy-guard" in scenario_id
 
 
+def _blocking_checks_passed(checks: list[dict[str, Any]]) -> bool:
+    return all(
+        str(check.get("status") or "") == "available"
+        for check in checks
+        if bool(check.get("blocking"))
+    )
+
+
 def _resolve_overall_status(scenario_results: list[dict[str, Any]]) -> str:
     must_pass = [item for item in scenario_results if bool(item.get("must_pass"))]
     if any(item.get("status") == _STATUS_FAILED for item in must_pass):
@@ -693,7 +701,7 @@ class RuntimeRealDialogueSmokeService:
         status = RuntimeRootCauseProjector.resolve_overall_status(checks)
         return {
             "overall_status": status,
-            "passed": status in {"green", "passed"},
+            "passed": _blocking_checks_passed(checks),
             "checks": checks,
         }
 

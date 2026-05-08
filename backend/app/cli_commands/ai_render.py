@@ -597,6 +597,7 @@ async def _run_ai_runtime_cli_operation(
     turn: int | None = None,
 ) -> dict:
     from app.core.database import get_db_context
+    from app.core.redis import RedisManager
     from app.services.ai.runtime_cli_bridge import AIRuntimeCliBridge, RuntimeCliScope
 
     scope = RuntimeCliScope(
@@ -604,34 +605,50 @@ async def _run_ai_runtime_cli_operation(
         agent_id=agent_id,
         agent_code=agent_code,
     )
-    async with get_db_context() as db:
-        bridge = AIRuntimeCliBridge(db)
-        if operation == "capabilities":
-            return await bridge.get_capabilities(scope)
-        if operation == "doctor":
-            return await bridge.run_doctor(scope)
-        if operation == "smoke":
-            return await bridge.run_smoke(scope)
-        if operation == "real-dialogue-smoke":
-            return await bridge.run_real_dialogue_smoke(
-                scope,
-                {
-                    "ledger_path": ledger_path,
-                    "scenario_ids": list(scenario_ids or []),
-                    "message": message,
-                    "user_id": user_id,
-                    "user_role": user_role or "platform_admin",
-                    "user_role_id": user_role_id,
-                    "repo_root": repo_root,
-                },
-            )
-        if operation == "root-cause":
-            return await bridge.run_root_cause(
-                trace_id=trace_id,
-                call_log_id=call_log_id,
-                conversation_id=conversation_id,
-                turn=turn,
-            )
-        if operation == "starter-pack-sync":
-            return await bridge.sync_starter_pack()
+
+    # 中文: real-dialogue smoke 走真实 runtime，但 CLI 不经过 FastAPI lifespan，
+    # 因此这里补齐 Redis 生命周期；只关闭本次 CLI 自己打开的连接池。
+    # EN: Real-dialogue smoke uses the live runtime, while CLI bypasses the
+    # FastAPI lifespan, so initialize Redis here and close only pools opened here.
+    redis_was_initialized = RedisManager._pool is not None
+    should_manage_redis = (
+        operation == "real-dialogue-smoke" and not redis_was_initialized
+    )
+    if should_manage_redis:
+        await RedisManager.init()
+
+    try:
+        async with get_db_context() as db:
+            bridge = AIRuntimeCliBridge(db)
+            if operation == "capabilities":
+                return await bridge.get_capabilities(scope)
+            if operation == "doctor":
+                return await bridge.run_doctor(scope)
+            if operation == "smoke":
+                return await bridge.run_smoke(scope)
+            if operation == "real-dialogue-smoke":
+                return await bridge.run_real_dialogue_smoke(
+                    scope,
+                    {
+                        "ledger_path": ledger_path,
+                        "scenario_ids": list(scenario_ids or []),
+                        "message": message,
+                        "user_id": user_id,
+                        "user_role": user_role or "platform_admin",
+                        "user_role_id": user_role_id,
+                        "repo_root": repo_root,
+                    },
+                )
+            if operation == "root-cause":
+                return await bridge.run_root_cause(
+                    trace_id=trace_id,
+                    call_log_id=call_log_id,
+                    conversation_id=conversation_id,
+                    turn=turn,
+                )
+            if operation == "starter-pack-sync":
+                return await bridge.sync_starter_pack()
+    finally:
+        if should_manage_redis:
+            await RedisManager.close()
     raise click.ClickException(f"Unsupported AI runtime CLI operation: {operation}")
