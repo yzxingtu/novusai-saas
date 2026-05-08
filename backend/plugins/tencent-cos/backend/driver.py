@@ -265,8 +265,6 @@ class CosStorageDriver(StorageDriver):
                 lk = k.lower()
                 if lk.startswith("x-cos-meta-"):
                     meta_key = lk[len("x-cos-meta-") :]
-                    while meta_key.startswith("x-cos-meta-"):
-                        meta_key = meta_key[len("x-cos-meta-") :]
                     metadata[meta_key] = v
             visibility_value = metadata.get("visibility", "private")
             last_modified = datetime.now(timezone.utc)

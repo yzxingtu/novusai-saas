@@ -14,8 +14,6 @@ from app.api.admin.agent_assignments import AdminAgentAssignmentController
 from app.api.admin.agent_assignments import router as agent_assignments_router
 from app.api.admin.agents import AdminAgentController
 from app.api.admin.agents import router as ai_agents_router
-from app.api.admin.ai_action_logs import AdminAIActionLogController
-from app.api.admin.ai_action_logs import router as ai_action_logs_router
 from app.api.admin.ai_agent_chat import AdminAgentChatController
 from app.api.admin.ai_agent_chat import router as ai_agent_chat_router
 from app.api.admin.ai_api_keys import AdminAIApiKeyController
@@ -146,8 +144,6 @@ admin_router.include_router(ai_conversations_router)
 admin_router.include_router(execution_decisions_router)
 # 智能体引擎 / Agent engine
 admin_router.include_router(ai_agents_router)
-# AI 操作审计 / AI action audit
-admin_router.include_router(ai_action_logs_router)
 # AI 对话 / AI chat
 admin_router.include_router(ai_agent_chat_router)
 # 富文本 AI 操作流 / Rich-text AI operation stream
@@ -220,8 +216,6 @@ __all__ = [
     "AdminAIConversationController",
     # 智能体引擎 / Agent engine
     "AdminAgentController",
-    # AI 操作审计 / AI action audit
-    "AdminAIActionLogController",
     # AI 对话 / AI chat
     "AdminAgentChatController",
     # 知识库监控 / Knowledge base monitoring

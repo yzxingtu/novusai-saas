@@ -20,11 +20,28 @@ from app.ai.exceptions import (
 )
 from app.ai.types import ChatChunk, ChatMessage
 from app.core.logging import LogManager
+from app.schemas.ai.invalid_ai_runtime_input import is_invalid_ai_runtime_reference
 
 logger = LogManager.get_logger("ai")
 _DEFAULT_RESPONSES_STREAM_CREATE_TIMEOUT_SECONDS = 20.0
 _TIMEOUT_MARKERS = ("timeout", "timed_out", "time_out", "deadline")
 _CONNECTION_MARKERS = ("connection", "connect", "network", "socket")
+_PROVIDER_STRUCTURAL_REFERENCE_FIELDS = frozenset(
+    {
+        "event",
+        "kind",
+        "name",
+        "provider",
+        "provider_tool",
+        "source",
+        "tool",
+        "tool_name",
+        "type",
+    }
+)
+_PROVIDER_TEXT_PAYLOAD_FIELDS = frozenset(
+    {"content", "message", "output_text", "reasoning", "summary", "text"}
+)
 
 
 class ResponsesStreamAdapterProtocol(Protocol):
@@ -184,6 +201,62 @@ def _responses_stream_event_error(
         error_obj or {"message": fallback, "code": event_type},
         model=model,
         fallback=fallback,
+    )
+
+
+def _retired_provider_payload_marker(value: Any) -> str | None:
+    if isinstance(value, dict):
+        for key, nested in value.items():
+            key_text = str(key or "").strip()
+            if is_invalid_ai_runtime_reference(key_text):
+                return key_text
+            if (
+                key_text in _PROVIDER_STRUCTURAL_REFERENCE_FIELDS
+                and isinstance(nested, str)
+                and is_invalid_ai_runtime_reference(nested)
+            ):
+                return nested
+            if key_text in _PROVIDER_TEXT_PAYLOAD_FIELDS:
+                continue
+            marker = _retired_provider_payload_marker(nested)
+            if marker:
+                return marker
+        return None
+    if isinstance(value, list | tuple):
+        for item in value:
+            marker = _retired_provider_payload_marker(item)
+            if marker:
+                return marker
+        return None
+    for field_name in _PROVIDER_STRUCTURAL_REFERENCE_FIELDS:
+        nested = getattr(value, field_name, None)
+        if isinstance(nested, str) and is_invalid_ai_runtime_reference(nested):
+            return nested
+    item = getattr(value, "item", None)
+    if item is not None:
+        marker = _retired_provider_payload_marker(item)
+        if marker:
+            return marker
+    response = getattr(value, "response", None)
+    if response is not None:
+        marker = _retired_provider_payload_marker(response)
+        if marker:
+            return marker
+    output = getattr(value, "output", None)
+    if output is not None:
+        marker = _retired_provider_payload_marker(output)
+        if marker:
+            return marker
+    return None
+
+
+def _retired_stream_event_error(*, marker: str, model: str) -> ProviderError:
+    return ProviderError(
+        f"Responses stream returned a retired online-search provider capability: {marker}",
+        provider_code="openai",
+        model_code=model,
+        error_code="retired_online_search_provider_event",
+        status_code=400,
     )
 
 
@@ -390,6 +463,12 @@ async def execute_stream_chat_via_responses(
             except StopAsyncIteration:
                 break
             event_type = getattr(event, "type", "")
+            retired_marker = _retired_provider_payload_marker(event)
+            if retired_marker:
+                raise _retired_stream_event_error(
+                    marker=retired_marker,
+                    model=effective_model,
+                )
 
             if event_type == "response.created":
                 response_obj = getattr(event, "response", None)

@@ -1,6 +1,13 @@
-"""天气技能包单元测试 / Test.
+"""中文: 天气技能包 resolver 与 executor 行为测试。
 
-测试 Skill Resolver 和 Executor。"""
+EN: Weather skill resolver and executor behavioral tests.
+
+测试 Skill Resolver 和 Executor。
+
+Test type: behavioral
+Mock strategy: Provider network calls are mocked; resolver metadata, executor
+validation, city resolution control flow, and tool output formatting run real.
+"""
 
 from __future__ import annotations
 
@@ -38,6 +45,8 @@ executor_mod = _load_module(
     "executors/weather_widget_executor.py", "test_weather_widget_executor"
 )
 WeatherWidgetExecutor = executor_mod.WeatherWidgetExecutor
+provider_mod = _load_module("open_meteo.py", "test_weather_widget_provider")
+validate_forecast_days = provider_mod.validate_forecast_days
 
 
 # ── Resolver 测试 ──
@@ -224,22 +233,11 @@ class TestWeatherWidgetExecutor:
         mock_open_meteo.search_city.assert_called_once_with("凤凰县", count=1)
 
     @pytest.mark.asyncio
-    async def test_execute_current_weather_falls_back_to_direct_trimmed_lookup_after_exact_timeout(
+    async def test_execute_current_weather_timeout_fails_closed_without_internal_lookup(
         self,
     ):
         mock_open_meteo = MagicMock()
-
-        async def _search_city(name: str, count: int = 1):
-            _ = count
-            if name == "凤凰县":
-                raise asyncio.TimeoutError
-            return []
-
-        mock_open_meteo.search_city = AsyncMock(side_effect=_search_city)
-        mock_open_meteo._trim_city_label_suffix = MagicMock(return_value="凤凰")
-        mock_open_meteo._search_city_open_meteo = AsyncMock(
-            return_value=[{"name": "凤凰", "latitude": 27.9483, "longitude": 109.5996}]
-        )
+        mock_open_meteo.search_city = AsyncMock(side_effect=asyncio.TimeoutError)
         mock_open_meteo.get_current_weather = AsyncMock(
             return_value={
                 "temperature": 7.5,
@@ -262,10 +260,11 @@ class TestWeatherWidgetExecutor:
                 definition, "call-county-timeout", {"city": "凤凰县"}
             )
 
-        assert result.success is True
-        assert "凤凰" in result.output
+        assert result.success is False
+        assert result.error == result.output
+        assert "timeout" in result.output.lower() or "超时" in result.output
         mock_open_meteo.search_city.assert_awaited_once_with("凤凰县", count=1)
-        mock_open_meteo._search_city_open_meteo.assert_awaited_once_with("凤凰", 1)
+        mock_open_meteo.get_current_weather.assert_not_called()
 
     # ── execute: get_weather_forecast / 执行：天气预报 ──
 
@@ -275,6 +274,7 @@ class TestWeatherWidgetExecutor:
         mock_open_meteo.search_city = AsyncMock(
             return_value=[{"name": "Beijing", "latitude": 39.91, "longitude": 116.40}]
         )
+        mock_open_meteo.validate_forecast_days = validate_forecast_days
         mock_open_meteo.get_forecast = AsyncMock(
             return_value=[
                 {
@@ -315,6 +315,7 @@ class TestWeatherWidgetExecutor:
         mock_open_meteo.search_city = AsyncMock(
             return_value=[{"name": "Tokyo", "latitude": 35.68, "longitude": 139.69}]
         )
+        mock_open_meteo.validate_forecast_days = validate_forecast_days
         mock_open_meteo.get_forecast = AsyncMock(return_value=[])
 
         definition = MagicMock(spec=ToolDefinition)
@@ -333,6 +334,7 @@ class TestWeatherWidgetExecutor:
         mock_open_meteo.search_city = AsyncMock(
             return_value=[{"name": "London", "latitude": 51.51, "longitude": -0.13}]
         )
+        mock_open_meteo.validate_forecast_days = validate_forecast_days
         mock_open_meteo.get_forecast = AsyncMock(return_value=[])
 
         definition = MagicMock(spec=ToolDefinition)
@@ -341,12 +343,14 @@ class TestWeatherWidgetExecutor:
         with patch.object(
             executor_mod, "_get_open_meteo", return_value=mock_open_meteo
         ):
-            await self.executor.execute(
+            result = await self.executor.execute(
                 definition, "call-4", {"city": "London", "days": "abc"}
             )
 
-        # Invalid days falls back to 3 / 非法 days 回退为 3
-        mock_open_meteo.get_forecast.assert_called_once_with(51.51, -0.13, 3)
+        assert result.success is False
+        assert "天数" in result.output or "days" in result.output.lower()
+        mock_open_meteo.search_city.assert_not_called()
+        mock_open_meteo.get_forecast.assert_not_called()
 
     # ── execute: city not found / 执行：城市未找到 ──
 

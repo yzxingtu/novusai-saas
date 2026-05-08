@@ -13,7 +13,7 @@ from tests.services.conftest import make_mock_model
 
 @pytest.mark.asyncio
 async def test_quota_manager_uses_model_specific_and_global_buckets(mock_db):
-    from app.ai.quota import QuotaManager
+    from app.ai.quota_manager import QuotaManager
 
     manager = QuotaManager(mock_db)
     request_date = date(2026, 3, 23)
@@ -41,11 +41,11 @@ async def test_quota_manager_uses_model_specific_and_global_buckets(mock_db):
             new=AsyncMock(return_value=[model_specific, global_rule]),
         ),
         patch(
-            "app.ai.quota.UsageTracker.check_and_record_usage",
+            "app.ai.quota_manager.UsageTracker.check_and_record_usage",
             new=AsyncMock(return_value=-1),
         ) as check_usage,
         patch(
-            "app.ai.quota.UsageTracker.get_usage",
+            "app.ai.quota_manager.UsageTracker.get_usage",
             new=AsyncMock(return_value=1950),
         ) as get_usage,
         patch.object(
@@ -82,7 +82,8 @@ async def test_quota_manager_uses_model_specific_and_global_buckets(mock_db):
 
 @pytest.mark.asyncio
 async def test_quota_manager_finalize_usage_updates_hard_and_soft_periods(mock_db):
-    from app.ai.quota import QuotaCheckResult, QuotaManager, QuotaMeteringItem
+    from app.ai.quota_manager import QuotaManager
+    from app.ai.quota_models import QuotaCheckResult, QuotaMeteringItem
 
     manager = QuotaManager(mock_db)
     quota_result = QuotaCheckResult(
@@ -104,11 +105,11 @@ async def test_quota_manager_finalize_usage_updates_hard_and_soft_periods(mock_d
 
     with (
         patch(
-            "app.ai.quota.UsageTracker.adjust_usage_for_period",
+            "app.ai.quota_manager.UsageTracker.adjust_usage_for_period",
             new=AsyncMock(),
         ) as adjust_period,
         patch(
-            "app.ai.quota.UsageTracker.record_usage_for_period",
+            "app.ai.quota_manager.UsageTracker.record_usage_for_period",
             new=AsyncMock(),
         ) as record_period,
     ):
@@ -142,7 +143,8 @@ async def test_quota_manager_finalize_usage_updates_hard_and_soft_periods(mock_d
 async def test_quota_manager_rolls_back_previous_hard_precharge_on_later_failure(
     mock_db,
 ):
-    from app.ai.quota import QuotaExceeded, QuotaManager
+    from app.ai.quota_exceptions import QuotaExceeded
+    from app.ai.quota_manager import QuotaManager
 
     manager = QuotaManager(mock_db)
     daily_rule = SimpleNamespace(
@@ -169,11 +171,11 @@ async def test_quota_manager_rolls_back_previous_hard_precharge_on_later_failure
             new=AsyncMock(return_value=[daily_rule, monthly_rule]),
         ),
         patch(
-            "app.ai.quota.UsageTracker.check_and_record_usage",
+            "app.ai.quota_manager.UsageTracker.check_and_record_usage",
             new=AsyncMock(side_effect=[-1, 900]),
         ),
         patch(
-            "app.ai.quota.UsageTracker.adjust_usage_for_period",
+            "app.ai.quota_manager.UsageTracker.adjust_usage_for_period",
             new=AsyncMock(),
         ) as rollback_usage,
         pytest.raises(QuotaExceeded),
@@ -231,12 +233,12 @@ async def test_rate_limit_service_merges_blank_fields_with_model_defaults(mock_d
 
 @pytest.mark.asyncio
 async def test_usage_tracker_adjust_usage_for_period_preserves_or_reseeds_ttl() -> None:
-    from app.ai.quota import UsageTracker
+    from app.ai.quota_usage_tracker import UsageTracker
 
     fake_redis = AsyncMock()
 
     with patch(
-        "app.ai.quota.get_redis",
+        "app.ai.quota_usage_tracker.get_redis",
         new=AsyncMock(return_value=fake_redis),
     ):
         await UsageTracker.adjust_usage_for_period(
@@ -261,8 +263,8 @@ async def test_usage_tracker_adjust_usage_for_period_preserves_or_reseeds_ttl() 
 async def test_usage_recorder_rolls_back_rate_limit_precharge_when_quota_fails(
     mock_db,
 ):
-    from app.ai.quota import QuotaExceeded
-    from app.ai.usage_recorder import UsageRecorder
+    from app.ai.quota_exceptions import QuotaExceeded
+    from app.ai.usage_recorder_core import UsageRecorder
 
     recorder = UsageRecorder(mock_db)
     recorder.quota_manager.check_quota = AsyncMock(
@@ -273,11 +275,11 @@ async def test_usage_recorder_rolls_back_rate_limit_precharge_when_quota_fails(
 
     with (
         patch(
-            "app.ai.usage_recorder.RateLimiter.check_and_record",
+            "app.ai.usage_recorder_core.RateLimiter.check_and_record",
             new=AsyncMock(return_value=reservation),
         ) as check_and_record,
         patch(
-            "app.ai.usage_recorder.RateLimiter.rollback_precharge",
+            "app.ai.usage_recorder_core.RateLimiter.rollback_precharge",
             new=AsyncMock(),
         ) as rollback,
         pytest.raises(QuotaExceeded),
@@ -298,14 +300,15 @@ async def test_usage_recorder_rolls_back_rate_limit_precharge_when_quota_fails(
 
 @pytest.mark.asyncio
 async def test_usage_recorder_adjusts_tpm_when_estimate_is_zero(mock_db):
-    from app.ai.quota import QuotaCheckResult
-    from app.ai.usage_recorder import UsageMeteringContext, UsageRecorder
+    from app.ai.quota_models import QuotaCheckResult
+    from app.ai.usage_recorder_context import UsageMeteringContext
+    from app.ai.usage_recorder_core import UsageRecorder
 
     recorder = UsageRecorder(mock_db)
     recorder.quota_manager.adjust_usage = AsyncMock()
 
     with patch(
-        "app.ai.usage_recorder.RateLimiter.adjust_tpm_after_response",
+        "app.ai.usage_recorder_core.RateLimiter.adjust_tpm_after_response",
         new=AsyncMock(),
     ) as adjust_tpm:
         await recorder.record_usage_and_adjust(
@@ -338,13 +341,14 @@ async def test_usage_recorder_adjusts_tpm_when_estimate_is_zero(mock_db):
 async def test_agent_quota_adjust_usage_reseeds_ttl_for_daily_and_monthly_keys() -> (
     None
 ):
-    from app.ai.agent_quota import AgentQuotaConfig, AgentQuotaManager
+    from app.ai.agent_quota_config import AgentQuotaConfig
+    from app.ai.agent_quota_manager import AgentQuotaManager
 
     fake_redis = AsyncMock()
     fake_redis.eval = AsyncMock(return_value=10)
 
     with patch(
-        "app.ai.agent_quota.get_redis",
+        "app.ai.agent_quota_manager.get_redis",
         new=AsyncMock(return_value=fake_redis),
     ):
         await AgentQuotaManager.adjust_usage(

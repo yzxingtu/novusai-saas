@@ -23,7 +23,12 @@ from app.repositories.system.tenant_task_binding_repository import (
 from app.services.system.task_tenant_eligibility_service import (
     TaskTenantEligibilityService,
 )
-from app.tasks.task_scheduling import handler_supports_tenant_dispatch
+from app.tasks.task_scheduling import (
+    find_invalid_handler_kwargs,
+    handler_supports_tenant_dispatch,
+    is_handler_registered,
+    resolve_handler_kwargs,
+)
 
 
 class TaskBindingService(GlobalService[TenantTaskBinding, TenantTaskBindingRepository]):
@@ -65,6 +70,46 @@ class TaskBindingService(GlobalService[TenantTaskBinding, TenantTaskBindingRepos
             message=_(
                 "periodic_task.error.tenant_dispatch_requires_tenant_handler",
                 handler=handler_path or _("common.unknown"),
+            )
+        )
+
+    @staticmethod
+    def validate_handler_registered(*, handler_path: str | None) -> None:
+        if handler_path and is_handler_registered(handler_path):
+            return
+        raise BusinessException(
+            message=_(
+                "periodic_task.error.handler_not_registered",
+                handler=handler_path or _("common.unknown"),
+            )
+        )
+
+    @staticmethod
+    def _validate_handler_kwargs_override(
+        *,
+        definition: TaskDefinition | None,
+        kwargs_override: dict[str, Any] | None,
+    ) -> None:
+        if definition is None or not getattr(definition, "handler_path", None):
+            return
+        override_kwargs = kwargs_override if isinstance(kwargs_override, dict) else None
+        merged_kwargs = resolve_handler_kwargs(
+            definition.handler_path,
+            getattr(definition, "default_kwargs", None),
+            override_kwargs,
+            tenant_id=1,
+        )
+        invalid_kwargs = find_invalid_handler_kwargs(
+            definition.handler_path,
+            merged_kwargs,
+        )
+        if not invalid_kwargs:
+            return
+        raise BusinessException(
+            message=_(
+                "periodic_task.error.handler_kwargs_invalid",
+                handler=definition.handler_path,
+                fields=", ".join(invalid_kwargs),
             )
         )
 
@@ -271,6 +316,9 @@ class TaskBindingService(GlobalService[TenantTaskBinding, TenantTaskBindingRepos
                     scope=definition.scope or _("common.unknown"),
                 )
             )
+        self.validate_handler_registered(
+            handler_path=getattr(definition, "handler_path", None),
+        )
         self.validate_tenant_dispatch_scope(
             handler_path=getattr(definition, "handler_path", None),
             scope=getattr(definition, "scope", None),
@@ -279,6 +327,10 @@ class TaskBindingService(GlobalService[TenantTaskBinding, TenantTaskBindingRepos
         payload = self._normalize_binding_payload_for_scope(
             definition=definition,
             data=data,
+        )
+        self._validate_handler_kwargs_override(
+            definition=definition,
+            kwargs_override=payload.get("kwargs_override"),
         )
         result = await self.db.execute(
             select(TenantTaskBinding).where(
@@ -329,6 +381,10 @@ class TaskBindingService(GlobalService[TenantTaskBinding, TenantTaskBindingRepos
             else None,
             scope=effective_scope,
         )
+        if definition is not None and effective_scope in self.TENANT_DISPATCH_SCOPES:
+            self.validate_handler_registered(
+                handler_path=getattr(definition, "handler_path", None),
+            )
 
         payloads_by_tenant: dict[int, dict[str, Any]] = {}
         for item in binding_payloads or []:
@@ -370,6 +426,10 @@ class TaskBindingService(GlobalService[TenantTaskBinding, TenantTaskBindingRepos
                     definition=definition,
                     data=payload,
                 )
+                self._validate_handler_kwargs_override(
+                    definition=definition,
+                    kwargs_override=payload.get("kwargs_override"),
+                )
             await self.repo.create(
                 {
                     **payload,
@@ -389,6 +449,10 @@ class TaskBindingService(GlobalService[TenantTaskBinding, TenantTaskBindingRepos
                 payload = self._normalize_binding_payload_for_scope(
                     definition=definition,
                     data=payload,
+                )
+                self._validate_handler_kwargs_override(
+                    definition=definition,
+                    kwargs_override=payload.get("kwargs_override"),
                 )
             if not binding.is_enabled and payload.get("is_enabled") is True:
                 reenabled += 1

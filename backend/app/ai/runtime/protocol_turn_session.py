@@ -78,6 +78,7 @@ class ProtocolTurnSession:
             plan.protocol_chain = ProtocolPlanner.build_protocol_chain(
                 requested_protocol,
                 adapter=planner.adapter,
+                guard_contract=resolved_guards,
             )
         plan.protocol_guards = resolved_guards
         turn_record = TurnRecord(

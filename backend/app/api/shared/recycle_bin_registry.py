@@ -139,7 +139,7 @@ RECYCLABLE_MODULES: dict[str, dict[str, Any]] = {
         "i18n_key": "deletion.model.admin_role",
         "columns": ["name", "code"],
         "services": {
-            "admin": "app.services.system.admin_role_service.AdminRoleService",
+            "admin": "app.services.system.admin_permission_role_service.AdminPermissionRoleService",
         },
     },
     "tenants": {

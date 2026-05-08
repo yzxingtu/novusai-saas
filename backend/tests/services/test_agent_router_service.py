@@ -105,7 +105,7 @@ def test_agent_supports_families_treats_time_as_runtime_baseline() -> None:
     agent.skill_grants = [
         _make_descriptor_grant(
             skill_name="weather-runtime",
-            skill_config={"tools": [{"name": "get_current_weather"}]},
+            skill_config={"preview_semantic_families": ["weather"]},
         ),
     ]
 
@@ -113,6 +113,12 @@ def test_agent_supports_families_treats_time_as_runtime_baseline() -> None:
         agent,
         ["weather", "time_ops"],
     )
+
+
+def test_requested_tool_families_does_not_hardcode_weather_plugin() -> None:
+    families = requested_tool_families("帮我查一下北京天气")
+
+    assert families == []
 
 
 def test_requested_tool_families_leaves_colloquial_here_question_unrouted() -> None:
@@ -701,7 +707,7 @@ async def test_route_keeps_full_candidate_pool_for_mixed_web_and_local_request(
 
 
 @pytest.mark.asyncio
-async def test_route_prefers_candidate_covering_weather_and_time_for_mixed_turn(
+async def test_route_does_not_direct_select_plugin_weather_without_router_judgment(
     mock_db,
 ):
     service = AgentRouterService(mock_db)
@@ -720,7 +726,12 @@ async def test_route_prefers_candidate_covering_weather_and_time_for_mixed_turn(
     service._list_available_agents = AsyncMock(
         return_value=[general_agent, weather_agent],
     )
-    service._get_router_agent = AsyncMock()
+    router_agent = MagicMock()
+    router_agent.model_id = 101
+    service._get_router_agent = AsyncMock(return_value=router_agent)
+    service._call_router = AsyncMock(
+        return_value={"agent_id": 15, "confidence": 0.88},
+    )
     service._fallback_to_default = AsyncMock()
 
     result = await service.route(
@@ -731,8 +742,9 @@ async def test_route_prefers_candidate_covering_weather_and_time_for_mixed_turn(
         user_id=10,
     )
 
-    assert result.agent_id == 62
-    service._get_router_agent.assert_not_awaited()
+    assert result.agent_id == 15
+    service._get_router_agent.assert_awaited_once()
+    service._call_router.assert_awaited_once()
     service._fallback_to_default.assert_not_awaited()
 
 

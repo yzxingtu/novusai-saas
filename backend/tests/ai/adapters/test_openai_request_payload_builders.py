@@ -30,11 +30,6 @@ class _BuilderAdapterStub:
         wire_api: str | None = None,
     ) -> dict:
         _ = model_config, wire_api
-        if model == "gpt-5.4-xhigh":
-            return {
-                "upstream_model": "gpt-5.4",
-                "effective_params": {"reasoning": {"effort": "xhigh"}},
-            }
         return {"upstream_model": model, "effective_params": {}}
 
     async def _convert_messages_to_responses_input(
@@ -138,7 +133,7 @@ async def test_build_responses_request_hoists_system_messages_into_instructions(
             ChatMessage(role="user", content="hello"),
             ChatMessage(role="system", content="Only use tools when needed."),
         ],
-        model="gpt-5.4-xhigh",
+        model="gpt-5.4",
         tools=None,
         tool_choice=None,
         kwargs={},
@@ -187,7 +182,7 @@ async def test_build_responses_request_uses_previous_response_id_for_pure_tool_f
             ),
             ChatMessage(role="tool", content='{"ok":true}', tool_call_id="call_1"),
         ],
-        model="gpt-5.4-xhigh",
+        model="gpt-5.4",
         tools=[
             {
                 "type": "function",
@@ -246,7 +241,7 @@ async def test_build_responses_stream_request_omits_previous_response_id_for_too
                 tool_call_id="call_weather_1",
             ),
         ],
-        model="gpt-5.4-xhigh",
+        model="gpt-5.4",
         tools=[
             {
                 "type": "function",
@@ -325,7 +320,7 @@ async def test_build_responses_stream_request_strips_runtime_previous_response_i
                 tool_call_id="call_weather_1",
             ),
         ],
-        model="gpt-5.4-xhigh",
+        model="gpt-5.4",
         tools=[
             {
                 "type": "function",
@@ -385,7 +380,7 @@ async def test_build_responses_stream_follow_up_round_without_tools_keeps_struct
                 tool_call_id="call_crm_lookup_1",
             ),
         ],
-        model="gpt-5.4-xhigh",
+        model="gpt-5.4",
         tools=None,
         tool_choice=None,
         stream=True,
@@ -452,7 +447,7 @@ async def test_build_responses_stream_follow_up_preserves_fc_item_id_when_availa
             ),
             ChatMessage(role="tool", content='{"ok":true}', tool_call_id="call_form_1"),
         ],
-        model="gpt-5.4-xhigh",
+        model="gpt-5.4",
         tools=[
             {
                 "type": "function",
@@ -514,7 +509,7 @@ async def test_build_responses_request_drops_previous_response_id_after_tool_rou
                 role="system", content="Only continue the unfinished page intent."
             ),
         ],
-        model="gpt-5.4-xhigh",
+        model="gpt-5.4",
         tools=[
             {
                 "type": "function",

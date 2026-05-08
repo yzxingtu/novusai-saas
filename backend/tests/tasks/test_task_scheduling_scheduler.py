@@ -1,9 +1,16 @@
 """Task scheduling scheduler tests."""
 
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
+from app.celery_app import celery_app
 from app.enums.common import ResourceScopeEnum
+from app.exceptions import BusinessException
+from app.services.system.task_binding_service import TaskBindingService
+from app.services.system.task_definition_service import TaskDefinitionService
+from app.tasks.base import TenantTask, register_task
 from app.tasks.scheduler import (
     PLATFORM_SCHEDULE_SCOPES,
     _build_all_tenants_task_definition_schedule,
@@ -15,7 +22,18 @@ from app.tasks.task_scheduling import (
     ALL_TENANTS_TASK_DEFINITION_WRAPPER,
     TASK_DEFINITION_WRAPPER,
     TENANT_BINDING_WRAPPER,
+    find_invalid_handler_kwargs,
+    run_task_definition,
 )
+
+_TEST_TENANT_HANDLER = "tests.tasks.accepts_tenant_only"
+
+if _TEST_TENANT_HANDLER not in celery_app.tasks:
+
+    @register_task(name=_TEST_TENANT_HANDLER, base=TenantTask)
+    def _accepts_tenant_only(self, tenant_id: int) -> dict[str, int]:
+        _ = self
+        return {"tenant_id": tenant_id}
 
 
 def test_build_task_definition_schedule_uses_wrapper_task() -> None:
@@ -201,3 +219,224 @@ def test_platform_schedule_scopes_match_current_platform_scopes() -> None:
         ResourceScopeEnum.GLOBAL_SHARED.value,
         ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
     )
+
+
+def test_registered_handler_kwargs_contract_rejects_unknown_kwargs() -> None:
+    invalid_kwargs = find_invalid_handler_kwargs(
+        "app.tasks.recycle_bin.cleanup_recycle_bin",
+        {"retention_days": 30, "module_retention_days": 30},
+    )
+
+    assert invalid_kwargs == ["retention_days"]
+
+
+def test_handler_kwargs_contract_imports_registered_task_before_validation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _LazyTask:
+        def run(self, module_retention_days: int | None = None) -> None:
+            _ = module_retention_days
+
+    task = _LazyTask()
+    imported: list[str] = []
+
+    def _import_module(module_path: str):
+        imported.append(module_path)
+        return object()
+
+    get_task = MagicMock(side_effect=[None, task])
+    monkeypatch.setattr(
+        "app.tasks.task_scheduling.importlib.import_module",
+        _import_module,
+    )
+    monkeypatch.setattr(celery_app.tasks, "get", get_task)
+
+    invalid_kwargs = find_invalid_handler_kwargs(
+        "app.tasks.recycle_bin.cleanup_recycle_bin",
+        {"retention_days": 30, "module_retention_days": 30},
+    )
+
+    assert imported == ["app.tasks.recycle_bin"]
+    assert invalid_kwargs == ["retention_days"]
+
+
+def test_registered_handler_kwargs_contract_accepts_stage_kwargs() -> None:
+    invalid_kwargs = find_invalid_handler_kwargs(
+        "app.tasks.recycle_bin.cleanup_recycle_bin",
+        {"module_retention_days": 30, "global_retention_days": 30},
+    )
+
+    assert invalid_kwargs == []
+
+
+def test_run_task_definition_rejects_invalid_kwargs_before_handler_dispatch() -> None:
+    definition_query = MagicMock()
+    definition_query.filter.return_value = definition_query
+    definition_query.first.return_value = SimpleNamespace(
+        id=44,
+        handler_path="app.tasks.recycle_bin.cleanup_recycle_bin",
+        default_args=None,
+        default_kwargs={"retention_days": 30},
+        is_enabled=True,
+    )
+    session = MagicMock()
+    session.query.return_value = definition_query
+    send_task = MagicMock()
+
+    with (
+        patch("app.tasks.task_scheduling.sync_session_factory", return_value=session),
+        patch("app.tasks.task_scheduling.celery_app.send_task", send_task),
+    ):
+        result = run_task_definition.run(44)
+
+    assert result == {
+        "dispatched": False,
+        "reason": "handler_kwargs_invalid",
+        "task_definition_id": 44,
+        "handler_path": "app.tasks.recycle_bin.cleanup_recycle_bin",
+        "invalid_kwargs": ["retention_days"],
+    }
+    send_task.assert_not_called()
+
+
+def test_run_task_definition_rejects_unregistered_handler_before_dispatch() -> None:
+    definition_query = MagicMock()
+    definition_query.filter.return_value = definition_query
+    definition_query.first.return_value = SimpleNamespace(
+        id=47,
+        handler_path="app.tasks.scheduled.clean_expired_task_logs",
+        default_args=None,
+        default_kwargs={},
+        is_enabled=True,
+    )
+    session = MagicMock()
+    session.query.return_value = definition_query
+    send_task = MagicMock()
+
+    with (
+        patch("app.tasks.task_scheduling.sync_session_factory", return_value=session),
+        patch("app.tasks.task_scheduling.celery_app.send_task", send_task),
+    ):
+        result = run_task_definition.run(47)
+
+    assert result == {
+        "dispatched": False,
+        "reason": "handler_not_registered",
+        "task_definition_id": 47,
+        "handler_path": "app.tasks.scheduled.clean_expired_task_logs",
+    }
+    send_task.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_trigger_now_rejects_invalid_kwargs_before_wrapper_dispatch() -> None:
+    service = TaskDefinitionService(MagicMock())
+    definition = SimpleNamespace(
+        id=45,
+        code="task.cleanup_recycle_bin.09fba947",
+        handler_path="app.tasks.recycle_bin.cleanup_recycle_bin",
+        owner_tenant_id=None,
+        scope=ResourceScopeEnum.ADMIN_ONLY.value,
+        default_kwargs={"retention_days": 30},
+        default_schedule_type="interval",
+        default_cron_expression=None,
+        default_interval_seconds=300,
+    )
+    service.get_by_id = AsyncMock(return_value=definition)
+
+    with (
+        pytest.raises(BusinessException) as exc_info,
+        patch(
+            "app.services.system.task_definition_service.celery_app.send_task",
+        ) as send_task,
+    ):
+        await service.trigger_now(45)
+
+    assert "retention_days" in exc_info.value.message
+    send_task.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_trigger_now_rejects_unregistered_handler_before_wrapper_dispatch() -> (
+    None
+):
+    service = TaskDefinitionService(MagicMock())
+    definition = SimpleNamespace(
+        id=48,
+        code="task.clean_expired_task_logs.81d841c7",
+        handler_path="app.tasks.scheduled.clean_expired_task_logs",
+        owner_tenant_id=None,
+        scope=ResourceScopeEnum.ADMIN_ONLY.value,
+        default_kwargs={},
+        default_schedule_type="interval",
+        default_cron_expression=None,
+        default_interval_seconds=300,
+    )
+    service.get_by_id = AsyncMock(return_value=definition)
+
+    with pytest.raises(BusinessException) as exc_info:
+        await service.trigger_now(48)
+
+    assert "clean_expired_task_logs" in exc_info.value.message
+
+
+@pytest.mark.asyncio
+async def test_task_binding_rejects_invalid_effective_kwargs_before_write() -> None:
+    db = MagicMock()
+    service = TaskBindingService(db)
+    definition = SimpleNamespace(
+        id=46,
+        scope=ResourceScopeEnum.SELECTED_TENANTS.value,
+        handler_path=_TEST_TENANT_HANDLER,
+        default_kwargs={"retention_days": 30},
+        is_deleted=False,
+    )
+    db.get = AsyncMock(return_value=definition)
+    service.repo.create = AsyncMock()
+
+    with (
+        patch(
+            "app.services.system.task_binding_service.TaskTenantEligibilityService.resolve_tenant_eligibility",
+            return_value=SimpleNamespace(is_eligible=True, reason=None),
+        ),
+        pytest.raises(BusinessException) as exc_info,
+    ):
+        await service.upsert_tenant_binding(
+            46,
+            7,
+            {"is_enabled": True},
+        )
+
+    assert "retention_days" in exc_info.value.message
+    service.repo.create.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_task_binding_rejects_unregistered_handler_before_write() -> None:
+    db = MagicMock()
+    service = TaskBindingService(db)
+    definition = SimpleNamespace(
+        id=49,
+        scope=ResourceScopeEnum.SELECTED_TENANTS.value,
+        handler_path="app.tasks.scheduled.clean_expired_task_logs",
+        default_kwargs={},
+        is_deleted=False,
+    )
+    db.get = AsyncMock(return_value=definition)
+    service.repo.create = AsyncMock()
+
+    with (
+        patch(
+            "app.services.system.task_binding_service.TaskTenantEligibilityService.resolve_tenant_eligibility",
+            return_value=SimpleNamespace(is_eligible=True, reason=None),
+        ),
+        pytest.raises(BusinessException) as exc_info,
+    ):
+        await service.upsert_tenant_binding(
+            49,
+            7,
+            {"is_enabled": True},
+        )
+
+    assert "clean_expired_task_logs" in exc_info.value.message
+    service.repo.create.assert_not_awaited()

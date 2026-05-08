@@ -5,6 +5,11 @@ from __future__ import annotations
 from typing import Any, Protocol
 
 from app.ai.types import ChatMessage
+from app.schemas.ai.invalid_ai_runtime_input import (
+    INVALID_AI_PROVIDER_CONFIG_KEYS,
+    is_invalid_ai_runtime_reference,
+    normalize_ai_runtime_token,
+)
 
 
 class RequestPayloadBuilderAdapterProtocol(Protocol):
@@ -89,7 +94,12 @@ def _is_safe_responses_tool_followup(
 
 def _drop_runtime_private_kwargs(runtime_kwargs: dict[str, Any]) -> None:
     for key in tuple(runtime_kwargs):
-        if str(key).startswith("_runtime_"):
+        normalized = normalize_ai_runtime_token(key)
+        if (
+            str(key).startswith("_runtime_")
+            or normalized in INVALID_AI_PROVIDER_CONFIG_KEYS
+            or is_invalid_ai_runtime_reference(key)
+        ):
             runtime_kwargs.pop(key, None)
 
 

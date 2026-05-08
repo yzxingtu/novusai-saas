@@ -21,7 +21,7 @@ from app.services.ai.long_term_memory_debug_service import (
     resource="ai_long_term_memory_debug",
     name="menu.admin.ai_long_term_memory_debug",
     scope=PermissionScope.ADMIN,
-    parent_resource="ai_action_log",
+    parent_resource="ai_call_log",
     menu=MenuConfig(
         icon="lucide:brain-circuit",
         path="/ai/debug/memory",
@@ -33,7 +33,7 @@ from app.services.ai.long_term_memory_debug_service import (
 )
 class AdminLongTermMemoryDebugController(GlobalController):
     prefix = "/ai/long-term-memory"
-    tags = [_("menu.tags.admin_ai_action_audit")]
+    tags = [_("menu.tags.admin_ai_call_log")]
 
     def _register_routes(self) -> None:
         router = self.router

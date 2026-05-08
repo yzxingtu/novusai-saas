@@ -14,16 +14,9 @@ from __future__ import annotations
 
 from typing import Any
 
-# Per-family short phrases used for tool optimization and capability-term expansion.
-# 按族的短语文本，用于工具优化与能力词扩展。
+# Per-family short phrases used for platform-owned tool optimization and capability-term expansion.
+# 按平台自有工具族的短语文本，用于工具优化与能力词扩展。
 FAMILY_HINT_TAGS: dict[str, tuple[str, ...]] = {
-    "weather": (
-        "天气查询",
-        "天气预报",
-        "当前天气",
-        "实时天气",
-        "weather forecast",
-    ),
     "time_ops": (
         "当前时间",
         "现在几点",
@@ -78,8 +71,6 @@ def tool_family_from_name(
         return "none"
     if normalized == "get_current_time":
         return "time_ops"
-    if normalized in {"get_current_weather", "get_weather_forecast"}:
-        return "weather"
     return "none"
 
 

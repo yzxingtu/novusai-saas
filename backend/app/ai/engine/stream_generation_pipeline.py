@@ -25,7 +25,7 @@ from .stream_finalization_pipeline import (
     build_done_event_payload,
     build_result_turn_record,
 )
-from .stream_generation_view import ensure_stream_generation_view
+from .stream_generation_view import build_stream_generation_view
 from .stream_replay_events import (
     build_immediate_turn_events,
     build_replay_events,
@@ -60,7 +60,7 @@ def _resolve_generation_view(handler: Any) -> Any:
     explicit = getattr(handler, "_stream_generation_view", None)
     if callable(explicit):
         return explicit()
-    return ensure_stream_generation_view(handler)
+    return build_stream_generation_view(handler)
 
 
 def reset_stream_state(handler: Any) -> None:

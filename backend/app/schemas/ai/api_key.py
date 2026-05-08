@@ -6,8 +6,9 @@ Defines API key request and response data structures.
 """
 
 from datetime import datetime
+from typing import Any
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from app.core.base_schema import (
     BaseCreateSchema,
@@ -26,9 +27,9 @@ class ProviderApiKeyCreate(BaseCreateSchema):
         ResourceScopeEnum.GLOBAL_SHARED.value,
         description=_("enum.ai_api_key.scope"),
     )
-    tenant_id: int | None = Field(
+    owner_tenant_id: int | None = Field(
         None,
-        description="owner_tenant_id（JSON 兼容字段）/ Owner tenant id (API compat)",
+        description="归属企业 ID / Owner tenant id",
     )
     name: str = Field(..., max_length=100, description=_("enum.ai_api_key.name"))
     api_key: str = Field(..., min_length=1, description=_("enum.ai_api_key.api_key"))
@@ -39,6 +40,17 @@ class ProviderApiKeyCreate(BaseCreateSchema):
     expires_at: datetime | None = Field(
         None, description=_("enum.ai_api_key.expires_at")
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_legacy_tenant_id(cls, data: Any) -> Any:
+        """中文: AI API Key 公共契约只接受 owner_tenant_id。
+
+        EN: The public AI API key contract only accepts owner_tenant_id.
+        """
+        if isinstance(data, dict) and "tenant_id" in data:
+            raise ValueError("tenant_id is retired; use owner_tenant_id")
+        return data
 
 
 class ProviderApiKeyUpdate(BaseUpdateSchema):
@@ -61,10 +73,9 @@ class ProviderApiKeyResponse(BaseResponseSchema):
 
     provider_id: int = Field(..., description=_("enum.ai_api_key.provider_id"))
     scope: str = Field(..., description=_("enum.ai_api_key.scope"))
-    tenant_id: int | None = Field(None, description=_("enum.ai_api_key.tenant_id"))
     owner_tenant_id: int | None = Field(
         None,
-        description="同 tenant_id，归属企业 / Same as tenant_id",
+        description=_("enum.ai_api_key.tenant_id"),
     )
     name: str = Field(..., description=_("enum.ai_api_key.name"))
     is_active: bool = Field(..., description=_("enum.ai_api_key.is_active"))

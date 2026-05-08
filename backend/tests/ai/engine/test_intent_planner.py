@@ -46,11 +46,11 @@ def _invalid_runtime_context() -> dict:
     }
 
 
-def test_intent_planner_routes_weather_when_user_explicitly_disables_network() -> None:
+def test_intent_planner_does_not_route_plugin_weather_when_network_disabled() -> None:
     intents = _plan("不要联网，帮我搜一下北京天气")
 
-    assert [intent.family for intent in intents] == ["weather"]
-    assert intents[0].kind == "weather_query"
+    assert [intent.family for intent in intents] == ["none"]
+    assert intents[0].kind == "direct_reply"
     assert intents[0].shortcircuit is True
 
 
@@ -87,14 +87,14 @@ def test_intent_planner_ignores_invalid_runtime_context_for_page_click_request()
     assert intents[0].requires_tools is False
 
 
-def test_intent_planner_keeps_weather_without_synthesizing_data_workflow() -> None:
+def test_intent_planner_does_not_synthesize_plugin_weather_or_data_workflow() -> None:
     intents = _plan(
         "帮我查一下北京天气，然后在当前数据集创建一条测试记录",
         input_variables={"page_context": _invalid_runtime_context()},
     )
 
-    assert [intent.kind for intent in intents] == ["weather_query"]
-    assert all(intent.family != "data_ops" for intent in intents)
+    assert [intent.kind for intent in intents] == ["direct_reply"]
+    assert [intent.family for intent in intents] == ["none"]
 
 
 def test_intent_planner_invalid_runtime_continuation_does_not_rehydrate_data_ops() -> (

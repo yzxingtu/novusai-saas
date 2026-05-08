@@ -77,6 +77,66 @@ class TestTenantPlanPreflightRegistry:
         assert calls == ["deny"]
 
     @pytest.mark.asyncio
+    async def test_registry_fails_closed_on_malformed_result(self):
+        registry = get_tenant_plan_preflight_registry()
+        registry.reset()
+        registry = get_tenant_plan_preflight_registry()
+
+        async def malformed_handler(_payload):
+            return {
+                "reason_code": "bad_contract",
+                "message": "allowed flag is required",
+                "details": {"owner": "storage-billing"},
+            }
+
+        registry.register("malformed", malformed_handler, priority=10)
+
+        result = await registry.run(
+            {
+                "operation": "plan_create",
+                "plan_id": None,
+                "tenant_id": None,
+                "features": {"storage_billing_enabled": True},
+                "quota": {},
+                "context": {},
+            }
+        )
+
+        assert result["allowed"] is False
+        assert result["reason_code"] == "bad_contract"
+        assert result["details"] == {"owner": "storage-billing"}
+
+    @pytest.mark.asyncio
+    async def test_registry_rejects_string_allowed_value(self):
+        registry = get_tenant_plan_preflight_registry()
+        registry.reset()
+        registry = get_tenant_plan_preflight_registry()
+
+        async def malformed_handler(_payload):
+            return {
+                "allowed": "true",
+                "reason_code": "bad_allowed_type",
+                "message": "allowed must be boolean true",
+                "details": {},
+            }
+
+        registry.register("malformed", malformed_handler, priority=10)
+
+        result = await registry.run(
+            {
+                "operation": "tenant_plan_switch",
+                "plan_id": 12,
+                "tenant_id": 34,
+                "features": {},
+                "quota": {},
+                "context": {},
+            }
+        )
+
+        assert result["allowed"] is False
+        assert result["reason_code"] == "bad_allowed_type"
+
+    @pytest.mark.asyncio
     async def test_runner_bootstraps_storage_billing_host_rules(self, monkeypatch):
         from app.plugins import feature_entitlement_guards as guard_module
 
@@ -346,6 +406,41 @@ class TestTenantPlanServicePreflight:
 
         assert exc_info.value.data["reason_code"] == "storage_billing_plugin_disabled"
         assert exc_info.value.data["plan_id"] == 12
+
+    @pytest.mark.asyncio
+    async def test_run_plan_preflight_raises_on_malformed_allow_result(
+        self, mock_db, monkeypatch
+    ):
+        from app.services.tenant import tenant_plan_service as service_module
+        from app.services.tenant.tenant_plan_service import TenantPlanService
+
+        service = TenantPlanService.__new__(TenantPlanService)
+        service.db = mock_db
+        service.repo = AsyncMock()
+
+        monkeypatch.setattr(
+            service_module,
+            "run_tenant_plan_preflight",
+            AsyncMock(
+                return_value={
+                    "reason_code": "bad_contract",
+                    "message": "blocked by malformed preflight",
+                    "details": {"plugin": "storage-billing"},
+                }
+            ),
+        )
+
+        with pytest.raises(BusinessException) as exc_info:
+            await service._run_plan_preflight(
+                operation="plan_update",
+                plan_id=12,
+                features={"storage_billing_enabled": True},
+                quota={},
+                context={"name": "Plan A"},
+            )
+
+        assert exc_info.value.data["reason_code"] == "bad_contract"
+        assert exc_info.value.data["details"] == {"plugin": "storage-billing"}
 
     @pytest.mark.asyncio
     async def test_update_plan_uses_existing_snapshot_when_request_omits_features(

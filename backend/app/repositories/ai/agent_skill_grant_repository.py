@@ -8,6 +8,11 @@ from sqlalchemy.orm import selectinload
 from app.core.base_repository import TenantRepository
 from app.models.ai.agent_skill_grant import AgentSkillGrant
 from app.models.ai.skill import Skill
+from app.models.ai.skill_package import SkillPackage
+from app.repositories.ai.retired_skill_catalog_filters import (
+    not_retired_skill_condition,
+    not_retired_skill_package_condition,
+)
 
 
 class AgentSkillGrantRepository(TenantRepository[AgentSkillGrant]):
@@ -29,6 +34,42 @@ class AgentSkillGrantRepository(TenantRepository[AgentSkillGrant]):
             return AgentSkillGrant.tenant_id.is_(None)
         return AgentSkillGrant.tenant_id == self.tenant_id
 
+    def _with_available_skill_filters(self, stmt):
+        return (
+            stmt.join(Skill, AgentSkillGrant.skill_id == Skill.id)
+            .join(SkillPackage, Skill.package_id == SkillPackage.id)
+            .where(
+                Skill.is_deleted.is_(False),
+                SkillPackage.is_deleted.is_(False),
+                not_retired_skill_condition(Skill),
+                not_retired_skill_package_condition(SkillPackage),
+            )
+        )
+
+    async def get_by_id(
+        self,
+        id: int,
+        include_deleted: bool = False,
+    ) -> AgentSkillGrant | None:
+        """Get grant by id without surfacing retired skill/package grants."""
+        stmt = (
+            select(AgentSkillGrant)
+            .options(
+                selectinload(AgentSkillGrant.skill).selectinload(Skill.package),
+            )
+            .where(
+                and_(
+                    AgentSkillGrant.id == id,
+                    self._tenant_filter(),
+                )
+            )
+        )
+        if not include_deleted:
+            stmt = stmt.where(AgentSkillGrant.is_deleted.is_(False))
+        stmt = self._with_available_skill_filters(stmt)
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
     async def get_by_agent_id(self, agent_id: int) -> list[AgentSkillGrant]:
         """Get all grants for an agent ordered by sort_order."""
         stmt = (
@@ -43,7 +84,9 @@ class AgentSkillGrantRepository(TenantRepository[AgentSkillGrant]):
                     AgentSkillGrant.is_deleted.is_(False),
                 )
             )
-            .order_by(AgentSkillGrant.sort_order)
+        )
+        stmt = self._with_available_skill_filters(stmt).order_by(
+            AgentSkillGrant.sort_order
         )
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
@@ -63,7 +106,9 @@ class AgentSkillGrantRepository(TenantRepository[AgentSkillGrant]):
                     AgentSkillGrant.is_deleted.is_(False),
                 )
             )
-            .order_by(AgentSkillGrant.sort_order)
+        )
+        stmt = self._with_available_skill_filters(stmt).order_by(
+            AgentSkillGrant.sort_order
         )
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
@@ -88,6 +133,7 @@ class AgentSkillGrantRepository(TenantRepository[AgentSkillGrant]):
                 )
             )
         )
+        stmt = self._with_available_skill_filters(stmt)
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
 

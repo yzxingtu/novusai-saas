@@ -26,7 +26,7 @@ class _FakeProviderApiKey:
 
 class TestCreateKey:
     @pytest.mark.asyncio
-    async def test_create_key_normalizes_scope_and_syncs_assignments(self, mock_db):
+    async def test_create_key_syncs_owner_assignment(self, mock_db):
         from app.services.ai.api_key_service import ProviderApiKeyService
 
         rta_repo = MagicMock()
@@ -49,8 +49,8 @@ class TestCreateKey:
             key = await service.create_key(
                 ProviderApiKeyCreate(
                     provider_id=1,
-                    scope=ResourceScopeEnum.ALL_TENANTS.value,
-                    tenant_id=5,
+                    scope=ResourceScopeEnum.SELECTED_TENANTS.value,
+                    owner_tenant_id=5,
                     name="Primary",
                     api_key="secret",
                 )
@@ -62,6 +62,25 @@ class TestCreateKey:
         mock_db.add.assert_called_once_with(key)
         mock_db.flush.assert_awaited_once()
         rta_repo.sync_assignments.assert_awaited_once_with("ai_api_key", 101, [5])
+
+    @pytest.mark.asyncio
+    async def test_create_key_rejects_retired_all_tenants_scope(self, mock_db):
+        from app.exceptions import ValidationException
+        from app.services.ai.api_key_service import ProviderApiKeyService
+
+        service = ProviderApiKeyService.__new__(ProviderApiKeyService)
+        service.db = mock_db
+        service.repo = AsyncMock()
+
+        with pytest.raises(ValidationException):
+            await service.create_key(
+                ProviderApiKeyCreate(
+                    provider_id=1,
+                    scope=ResourceScopeEnum.ALL_TENANTS.value,
+                    name="Retired",
+                    api_key="secret",
+                )
+            )
 
     @pytest.mark.asyncio
     async def test_create_key_raises_when_selected_scope_has_no_owner(self, mock_db):

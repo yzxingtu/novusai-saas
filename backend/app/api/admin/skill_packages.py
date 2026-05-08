@@ -92,10 +92,10 @@ class AdminSkillPackageController(GlobalController):
                 False, description=_("api.param.include_system")
             ),
             page: int = Query(
-                0, ge=0, description="0=legacy single page (limit), >=1=paginated"
+                1, ge=1, description="Page number for paginated select options"
             ),
             page_size: int = Query(
-                20, ge=1, le=100, description="Page size when page>=1"
+                20, ge=1, le=100, description="Page size for select options"
             ),
         ):
             """

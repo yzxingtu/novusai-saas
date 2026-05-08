@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
+import inspect
 import sys
 import tempfile
 import types
@@ -20,6 +21,35 @@ logger = LogManager.get_logger("ai.tool.toolkit")
 
 _MODULE_CACHE: dict[str, types.ModuleType] = {}
 _CACHE_MAX_SIZE = 128
+
+
+def _validate_valves_config_keys(
+    valves_cls: type,
+    valves_config: dict[str, Any],
+) -> None:
+    model_fields = getattr(valves_cls, "model_fields", None) or getattr(
+        valves_cls,
+        "__fields__",
+        None,
+    )
+    if isinstance(model_fields, dict):
+        allowed = {str(key) for key in model_fields}
+    else:
+        signature = inspect.signature(valves_cls)
+        parameters = list(signature.parameters.values())
+        if any(param.kind == inspect.Parameter.VAR_KEYWORD for param in parameters):
+            return
+        allowed = {
+            param.name
+            for param in parameters
+            if param.name != "self"
+            and param.kind
+            in {inspect.Parameter.KEYWORD_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD}
+        }
+
+    unknown = sorted(str(key) for key in valves_config if str(key) not in allowed)
+    if unknown:
+        raise ValueError(f"Unknown Valves config keys: {', '.join(unknown)}")
 
 
 def load_toolkit_module(source: str) -> types.ModuleType:
@@ -91,7 +121,7 @@ def inject_valves(
     tools_instance: Any,
     module: types.ModuleType,
     valves_config: dict[str, Any],
-) -> str | None:
+) -> None:
     """
     向 Tools 实例注入 Valves 配置 / Inject Valves configuration into the Tools instance.
 
@@ -100,35 +130,33 @@ def inject_valves(
     查找模块中的 Valves 类，用 valves_config 创建实例，
     赋值给 tools_instance.valves。
 
-    Returns:
-        None means success (or no injection needed), str means error description of failed injection.
-        None 表示成功（或无需注入），str 表示注入失败的错误描述。
+    Raises:
+        RuntimeError when Valves config cannot be injected. / Valves 配置无法注入时抛出 RuntimeError。
     """
     if not valves_config:
-        return None
+        return
 
     valves_cls = getattr(module, "Valves", None)
     if valves_cls is None:
-        return None
+        return
 
     try:
-        # Valves inherits from BaseModel, construct with dict args
-        # Normalize to lowercase: compatible with old UPPERCASE key valves_config
-        # Valves 继承自 BaseModel，用 dict 参数构造
-        # 统一 lowercase：兼容旧版 UPPERCASE key 的 valves_config
-        normalized = {k.lower(): v for k, v in valves_config.items()}
-        valves_instance = valves_cls(**normalized)
+        # 中文: Valves 配置只接受 canonical 字段名，避免旧 key 大小写兼容继续改写运行时契约。
+        # EN: Valves config accepts only canonical field names so legacy key casing cannot rewrite the runtime contract.
+        _validate_valves_config_keys(valves_cls, valves_config)
+        valves_instance = valves_cls(**valves_config)
         tools_instance.valves = valves_instance
-        return None
     except Exception as exc:  # noqa: BLE001
         logger.warning(
-            "Failed to inject Valves config: {}. Using defaults.",
+            "Failed to inject Valves config: {}",
             str(exc),
         )
-        return build_public_error_text(
-            message="Valves config injection failed",
-            exc=exc,
-        )
+        raise RuntimeError(
+            build_public_error_text(
+                message="Valves config injection failed",
+                exc=exc,
+            )
+        ) from exc
 
 
 def format_toolkit_output(value: Any) -> str:

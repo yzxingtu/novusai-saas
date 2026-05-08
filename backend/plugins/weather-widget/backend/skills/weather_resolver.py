@@ -1,6 +1,6 @@
-"""实时天气技能解析器 / Parse.
+"""实时天气技能解析器 / Real-time weather skill resolver.
 
-将 weather_widget 类型的 Skill 解析为 ToolDefinition。
+将插件 Skill 解析为 ToolDefinition。
 提供两个工具：get_current_weather（当前天气）+ get_weather_forecast（多日预报）。"""
 
 from app.ai.tools.types import ToolDefinition, ToolParameter
@@ -42,6 +42,14 @@ def resolve(skill, config: dict) -> list[ToolDefinition]:
             config=config,
             enabled=True,
             timeout=timeout,
+            semantic_family="weather",
+            semantic_tags=[
+                "天气查询",
+                "当前天气",
+                "实时天气",
+                "weather",
+                "current weather",
+            ],
         ),
         ToolDefinition(
             name="get_weather_forecast",
@@ -72,5 +80,13 @@ def resolve(skill, config: dict) -> list[ToolDefinition]:
             config=config,
             enabled=True,
             timeout=timeout,
+            semantic_family="weather",
+            semantic_tags=[
+                "天气预报",
+                "未来天气",
+                "weather",
+                "weather forecast",
+                "forecast",
+            ],
         ),
     ]

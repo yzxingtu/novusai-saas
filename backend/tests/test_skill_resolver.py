@@ -246,7 +246,7 @@ async def test_plugin_skill_without_stable_identity_does_not_use_plugin_fallback
     assert "stable source_ref/key identity" in result.warnings[0]
 
 
-def test_selected_skill_names_merges_descriptor_and_tool_sources() -> None:
+def test_inventory_skill_names_merges_descriptor_and_tool_sources() -> None:
     result = SkillResolveResult(
         tools=[
             SimpleNamespace(source_skill_name="Weather Tool Skill"),
@@ -266,7 +266,7 @@ def test_selected_skill_names_merges_descriptor_and_tool_sources() -> None:
         ],
     )
 
-    assert result.selected_skill_names == [
+    assert result.inventory_selected_skill_names == [
         "Workflow Skill",
         "Knowledge Skill",
         "Weather Tool Skill",
@@ -293,10 +293,12 @@ def test_enrich_skill_capability_descriptors_with_tools_attaches_tool_metadata()
     tools = [
         SimpleNamespace(
             name="get_current_weather",
+            source_skill_id=1,
             source_skill_name="Weather Skill",
         ),
         SimpleNamespace(
             name="get_weather_forecast",
+            source_skill_id=1,
             source_skill_name="Weather Skill",
         ),
     ]
@@ -320,7 +322,33 @@ def test_enrich_skill_capability_descriptors_with_tools_attaches_tool_metadata()
     assert kb["has_execution_tools"] is False
 
 
-def test_selected_skill_names_skips_descriptor_only_skills_without_execution_tools() -> (
+def test_enrich_skill_capability_descriptors_requires_stable_binding_key() -> None:
+    descriptors = [
+        CapabilityDescriptor(
+            name="Weather Skill",
+            kind="capability_pack",
+            source="skill_package:weather",
+            metadata={"skill_id": 1},
+        )
+    ]
+    tools = [
+        SimpleNamespace(
+            name="get_current_weather",
+            source_skill_name="Weather Skill",
+        )
+    ]
+
+    enrich_skill_capability_descriptors_with_tools(
+        descriptors=descriptors,
+        tools=tools,  # type: ignore[arg-type]
+    )
+
+    assert descriptors[0].metadata["resolved_tool_names"] == []
+    assert descriptors[0].metadata["resolved_tool_count"] == 0
+    assert descriptors[0].metadata["has_execution_tools"] is False
+
+
+def test_inventory_skill_names_skips_descriptor_only_skills_without_execution_tools() -> (
     None
 ):
     result = SkillResolveResult(
@@ -341,7 +369,7 @@ def test_selected_skill_names_skips_descriptor_only_skills_without_execution_too
         ],
     )
 
-    assert result.selected_skill_names == ["Executable Skill"]
+    assert result.inventory_selected_skill_names == ["Executable Skill"]
 
 
 def test_enrich_skill_capability_descriptors_keeps_same_name_skills_isolated() -> None:
@@ -441,6 +469,8 @@ def _make_runtime_skill(
     package_name: str,
     source_plugin: str | None = None,
     config: dict | None = None,
+    status: str = "active",
+    is_active: bool = True,
 ) -> SimpleNamespace:
     package = SimpleNamespace(
         id=skill_id + 1000,
@@ -459,7 +489,8 @@ def _make_runtime_skill(
         source_ref=f"{source_plugin}:{name}" if source_plugin else None,
         config=config,
         timeout=30,
-        is_active=True,
+        status=status,
+        is_active=is_active,
         is_deleted=False,
         package=package,
     )
@@ -487,17 +518,17 @@ async def test_resolve_for_agent_prefilters_explicit_skill_mentions_before_resol
         package_name="plugin.workflow",
         source_plugin="plugin.workflow",
     )
-    weather_skill = _make_runtime_skill(
+    reporting_skill = _make_runtime_skill(
         skill_id=202,
-        name="Weather Skill",
+        name="Reporting Skill",
         skill_type="builtin",
-        package_name="weather.tools",
-        config={"tools": [{"name": "get_current_weather"}]},
+        package_name="reporting.tools",
+        config={"tools": [{"name": "report_summary"}]},
     )
     result = MagicMock()
     result.scalars.return_value.all.return_value = [
         _make_grant(plugin_workflow_skill),
-        _make_grant(weather_skill),
+        _make_grant(reporting_skill),
     ]
     db = MagicMock()
     db.execute = AsyncMock(return_value=result)
@@ -528,12 +559,12 @@ async def test_resolve_for_agent_prefilters_explicit_skill_mentions_before_resol
 async def test_resolve_for_agent_prefilters_explicit_tool_mentions_before_resolve(
     monkeypatch,
 ) -> None:
-    weather_skill = _make_runtime_skill(
+    reporting_skill = _make_runtime_skill(
         skill_id=301,
-        name="Weather Skill",
+        name="Reporting Skill",
         skill_type="builtin",
-        package_name="weather.tools",
-        config={"tools": [{"name": "get_current_weather"}]},
+        package_name="reporting.tools",
+        config={"tools": [{"name": "report_summary"}]},
     )
     time_skill = _make_runtime_skill(
         skill_id=302,
@@ -544,7 +575,7 @@ async def test_resolve_for_agent_prefilters_explicit_tool_mentions_before_resolv
     )
     result = MagicMock()
     result.scalars.return_value.all.return_value = [
-        _make_grant(weather_skill),
+        _make_grant(reporting_skill),
         _make_grant(time_skill),
     ]
     db = MagicMock()
@@ -554,7 +585,7 @@ async def test_resolve_for_agent_prefilters_explicit_tool_mentions_before_resolv
         messages=[
             SimpleNamespace(
                 role="user",
-                content="call get_current_weather before you answer",
+                content="call report_summary before you answer",
             )
         ]
     )
@@ -569,19 +600,19 @@ async def test_resolve_for_agent_prefilters_explicit_tool_mentions_before_resolv
 
     await resolve_for_agent(db, agent, tenant_id=9, request=request)
 
-    assert [skill.name for skill in captured["skills"]] == ["Weather Skill"]
+    assert [skill.name for skill in captured["skills"]] == ["Reporting Skill"]
 
 
 @pytest.mark.asyncio
 async def test_resolve_for_agent_keeps_full_inventory_for_capability_reporting_query(
     monkeypatch,
 ) -> None:
-    weather_skill = _make_runtime_skill(
+    reporting_skill = _make_runtime_skill(
         skill_id=401,
-        name="Weather Skill",
+        name="Reporting Skill",
         skill_type="builtin",
-        package_name="weather.tools",
-        config={"tools": [{"name": "get_current_weather"}]},
+        package_name="reporting.tools",
+        config={"tools": [{"name": "report_summary"}]},
     )
     workflow_skill = _make_runtime_skill(
         skill_id=402,
@@ -592,7 +623,7 @@ async def test_resolve_for_agent_keeps_full_inventory_for_capability_reporting_q
     )
     result = MagicMock()
     result.scalars.return_value.all.return_value = [
-        _make_grant(weather_skill),
+        _make_grant(reporting_skill),
         _make_grant(workflow_skill),
     ]
     db = MagicMock()
@@ -613,30 +644,29 @@ async def test_resolve_for_agent_keeps_full_inventory_for_capability_reporting_q
     await resolve_for_agent(db, agent, tenant_id=9, request=request)
 
     assert [skill.name for skill in captured["skills"]] == [
-        "Weather Skill",
+        "Reporting Skill",
         "Plugin Workflow Skill",
     ]
 
 
 @pytest.mark.asyncio
-async def test_resolve_for_agent_ignores_unbound_selected_skill_package(
+async def test_resolve_for_agent_ignores_client_side_skill_selection_fields(
     monkeypatch,
 ) -> None:
-    weather_skill = _make_runtime_skill(
+    reporting_skill = _make_runtime_skill(
         skill_id=621,
-        name="Weather Skill",
+        name="Reporting Skill",
         skill_type="builtin",
-        package_name="weather.tools",
-        config={"tools": [{"name": "get_current_weather"}]},
+        package_name="reporting.tools",
+        config={"tools": [{"name": "report_summary"}]},
     )
     result = MagicMock()
-    result.scalars.return_value.all.return_value = [_make_grant(weather_skill)]
+    result.scalars.return_value.all.return_value = [_make_grant(reporting_skill)]
     db = MagicMock()
     db.execute = AsyncMock(return_value=result)
     agent = SimpleNamespace(id=1, owner_tenant_id=9)
     request = SimpleNamespace(
         messages=[SimpleNamespace(role="user", content="查一下今天新闻")],
-        selected_skill_names=["百度公开搜索"],
     )
     captured: dict[str, object] = {}
 
@@ -649,7 +679,81 @@ async def test_resolve_for_agent_ignores_unbound_selected_skill_package(
 
     await resolve_for_agent(db, agent, tenant_id=9, request=request)
 
-    assert [skill.name for skill in captured["skills"]] == ["Weather Skill"]
+    assert [skill.name for skill in captured["skills"]] == ["Reporting Skill"]
+
+
+@pytest.mark.asyncio
+async def test_resolve_for_agent_filters_retired_online_search_grants(
+    monkeypatch,
+) -> None:
+    retired_skill = _make_runtime_skill(
+        skill_id=631,
+        name="联网搜索",
+        skill_type="toolkit",
+        package_name="百度公开搜索",
+        source_plugin="baidu_public_search",
+        config={"preview_tool_names": ["crm_lookup"]},
+    )
+    active_skill = _make_runtime_skill(
+        skill_id=632,
+        name="CRM Lookup",
+        skill_type="builtin",
+        package_name="crm.tools",
+        config={"tools": [{"name": "crm_lookup"}]},
+    )
+    result = MagicMock()
+    result.scalars.return_value.all.return_value = [
+        _make_grant(retired_skill),
+        _make_grant(active_skill),
+    ]
+    db = MagicMock()
+    db.execute = AsyncMock(return_value=result)
+    agent = SimpleNamespace(id=1, owner_tenant_id=9)
+    request = SimpleNamespace(
+        messages=[SimpleNamespace(role="user", content="查询客户资料")],
+    )
+    captured: dict[str, object] = {}
+
+    async def _capture_resolve(self, skills, config_overrides=None):
+        captured["skills"] = skills
+        captured["config_overrides"] = config_overrides
+        return SkillResolveResult(
+            tools=[
+                ToolDefinition(
+                    name="crm_lookup",
+                    source_skill_id=active_skill.id,
+                    source_skill_name=active_skill.name,
+                    source_package_name=active_skill.package.name,
+                )
+            ]
+        )
+
+    monkeypatch.setattr(SkillResolver, "resolve", _capture_resolve)
+
+    resolved = await resolve_for_agent(db, agent, tenant_id=9, request=request)
+
+    assert [skill.name for skill in captured["skills"]] == ["CRM Lookup"]
+    assert [tool.name for tool in resolved.tools] == ["crm_lookup", "get_current_time"]
+    assert "联网搜索" not in resolved.selected_skill_names
+    assert "百度公开搜索" not in resolved.selected_skill_names
+
+
+@pytest.mark.asyncio
+async def test_resolve_skips_status_disabled_skill_even_when_active_flag_true() -> None:
+    disabled_skill = _make_runtime_skill(
+        skill_id=641,
+        name="Disabled CRM Lookup",
+        skill_type="builtin",
+        package_name="crm.tools",
+        config={"tools": [{"name": "crm_lookup"}]},
+        status="disabled",
+        is_active=True,
+    )
+    resolver = SkillResolver(db=None)
+
+    result = await resolver.resolve([disabled_skill])
+
+    assert result.tools == []
 
 
 @pytest.mark.asyncio
@@ -663,17 +767,17 @@ async def test_resolve_for_agent_prefilters_plugin_tool_mentions_from_manifest_p
         package_name="neutral.package",
         source_plugin="neutral-plugin",
     )
-    weather_skill = _make_runtime_skill(
+    time_skill = _make_runtime_skill(
         skill_id=702,
-        name="Weather Skill",
+        name="Time Skill",
         skill_type="builtin",
-        package_name="weather.tools",
-        config={"tools": [{"name": "get_current_weather"}]},
+        package_name="time.tools",
+        config={"tools": [{"name": "get_current_time"}]},
     )
     grant_result = MagicMock()
     grant_result.scalars.return_value.all.return_value = [
         _make_grant(neutral_plugin_skill),
-        _make_grant(weather_skill),
+        _make_grant(time_skill),
     ]
     plugin_preview_result = MagicMock()
     plugin_preview_result.all.return_value = [

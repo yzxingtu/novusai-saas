@@ -7,10 +7,10 @@ Mock strategy: service collaborators use fakes; projection helpers run real logi
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from importlib import import_module
 
 import pytest
 
+import app.ai.engine.conversation_result_projector as conversation_result_projector_module
 from app.ai.engine.conversation_result_projector import (
     build_execution_result,
     build_turn_projection,
@@ -19,13 +19,6 @@ from app.ai.engine.conversation_result_projector import (
 from app.ai.engine.final_output_policy import (
     build_untrusted_final_output_fallback,
     is_trusted_assistant_final_output_source,
-)
-
-conversation_entrypoints_module = import_module(
-    "app.ai.engine.conversation_entrypoints"
-)
-conversation_result_projector_module = import_module(
-    "app.ai.engine.conversation_result_projector"
 )
 
 

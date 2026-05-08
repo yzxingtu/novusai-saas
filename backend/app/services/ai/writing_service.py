@@ -20,7 +20,6 @@ from app.ai.skills.rich_text_actions import (
     RICH_TEXT_AI_FEATURE_CODE,
     VALID_RICH_TEXT_FEATURES,
     RichTextAIActionError,
-    build_default_rich_text_skill_package_definition,
     build_rich_text_action_catalog,
     build_rich_text_ai_messages,
     build_rich_text_ai_request_message,
@@ -165,11 +164,6 @@ def build_rich_text_agent_chat_message(feature: str, body: dict[str, Any]) -> st
     )
 
 
-def build_agent_chat_message(feature: str, body: dict[str, Any]) -> str:
-    """Compatibility alias for the global AgentChat message builder."""
-    return build_rich_text_agent_chat_message(feature, body)
-
-
 __all__ = [
     "FEATURE_CODE",
     "MAX_AFTER_TEXT",
@@ -177,9 +171,7 @@ __all__ = [
     "MAX_INSTRUCTION",
     "MAX_SELECTED_TEXT",
     "VALID_FEATURES",
-    "build_agent_chat_message",
     "build_ai_messages",
-    "build_default_rich_text_skill_package_definition",
     "build_rich_text_action_catalog",
     "build_rich_text_agent_chat_message",
     "get_rich_text_action_template",

@@ -2,13 +2,20 @@
 技能包 Repository / Skill Package Repository
 """
 
-from sqlalchemy import and_, func, or_, select, update
+from typing import Any
+
+from sqlalchemy import and_, asc, func, or_, select, update
 
 from app.core.base_model import utc_now
 from app.core.base_repository import BaseRepository, TenantRepository
 from app.enums.common import RecycleStageEnum
 from app.models.ai.skill import Skill
 from app.models.ai.skill_package import SkillPackage
+from app.repositories.ai.retired_skill_catalog_filters import (
+    is_retired_package_instance,
+    not_retired_skill_condition,
+    not_retired_skill_package_condition,
+)
 from app.schemas.common.query import FilterRule, QuerySpec
 
 
@@ -85,6 +92,7 @@ class _SkillPackageCascadeMixin:
         count_stmt = select(func.count()).where(
             Skill.package_id == package_id,
             Skill.is_deleted.is_(False),
+            not_retired_skill_condition(Skill),
         )
         count_result = await self.db.execute(count_stmt)
         skill_count = count_result.scalar() or 0
@@ -114,6 +122,7 @@ class _SkillPackageCascadeMixin:
             .where(
                 Skill.package_id.in_(package_ids),
                 Skill.is_deleted.is_(False),
+                not_retired_skill_condition(Skill),
             )
             .group_by(Skill.package_id)
         )
@@ -134,6 +143,8 @@ class SkillPackageRepository(_SkillPackageCascadeMixin, TenantRepository[SkillPa
     @staticmethod
     def _is_tenant_accessible(instance: SkillPackage, tenant_id: int | None) -> bool:
         """Tenant can access own packages and shared platform packages."""
+        if is_retired_package_instance(instance):
+            return False
         if instance.tenant_id == tenant_id:
             return True
         return instance.tenant_id is None
@@ -185,10 +196,11 @@ class SkillPackageRepository(_SkillPackageCascadeMixin, TenantRepository[SkillPa
             query = query.where(self.model.is_deleted.is_(False))
 
         query = query.where(
+            not_retired_skill_package_condition(self.model),
             or_(
                 self.model.tenant_id == self.tenant_id,
                 self.model.tenant_id.is_(None),
-            )
+            ),
         )
 
         if not include_system:
@@ -245,6 +257,7 @@ class SkillPackageRepository(_SkillPackageCascadeMixin, TenantRepository[SkillPa
                     SkillPackage.is_active.is_(True),
                     SkillPackage.is_deleted.is_(False),
                     SkillPackage.is_system.is_(False),
+                    not_retired_skill_package_condition(SkillPackage),
                     or_(
                         SkillPackage.tenant_id == self.tenant_id,
                         SkillPackage.tenant_id.is_(None),
@@ -272,6 +285,7 @@ class SkillPackageRepository(_SkillPackageCascadeMixin, TenantRepository[SkillPa
                     SkillPackage.is_active.is_(True),
                     SkillPackage.is_deleted.is_(False),
                     SkillPackage.is_system.is_(False),
+                    not_retired_skill_package_condition(SkillPackage),
                     or_(
                         SkillPackage.tenant_id == self.tenant_id,
                         SkillPackage.tenant_id.is_(None),
@@ -294,6 +308,119 @@ class AdminSkillPackageRepository(
     """
 
     model = SkillPackage
+
+    async def get_by_id(
+        self,
+        id: int,
+        include_deleted: bool = False,
+    ) -> SkillPackage | None:
+        instance = await super().get_by_id(id, include_deleted)
+        if instance and is_retired_package_instance(instance):
+            return None
+        return instance
+
+    async def get_by_ids(
+        self,
+        ids: list[int],
+        include_deleted: bool = False,
+    ) -> list[SkillPackage]:
+        instances = await super().get_by_ids(ids, include_deleted)
+        return [item for item in instances if not is_retired_package_instance(item)]
+
+    async def query_list(
+        self,
+        spec: QuerySpec,
+        scope: str | None = None,
+        forced_filters: list[FilterRule] | None = None,
+        include_deleted: bool = False,
+    ) -> tuple[list[SkillPackage], int]:
+        allowed_fields = self.get_allowed_fields(scope)
+        all_fields = self.get_allowed_fields(None)
+        query = select(self.model).where(
+            not_retired_skill_package_condition(self.model)
+        )
+        if not include_deleted:
+            query = query.where(self.model.is_deleted.is_(False))
+        if forced_filters:
+            query = self._apply_filters(query, forced_filters, all_fields)
+        if spec.filters:
+            query = self._apply_filters(query, spec.filters, allowed_fields)
+        count_query = select(func.count()).select_from(query.subquery())
+        count_result = await self.db.execute(count_query)
+        total = count_result.scalar() or 0
+        query = self._apply_sort(query, spec.sort, self.get_sortable_fields())
+        query = query.offset(spec.offset).limit(spec.limit)
+        result = await self.db.execute(query)
+        return list(result.scalars().all()), total
+
+    async def get_select_options(
+        self,
+        search: str = "",
+        limit: int = 50,
+        filters: dict[str, Any] | None = None,
+        tree: bool = False,
+        parent_id: int | None = None,
+        page: int = 0,
+        page_size: int = 20,
+    ) -> tuple[list[Any], int]:
+        if tree:
+            return await super().get_select_options(
+                search=search,
+                limit=limit,
+                filters=filters,
+                tree=tree,
+                parent_id=parent_id,
+                page=page,
+                page_size=page_size,
+            )
+
+        selectable = getattr(self.model, "__selectable__", None)
+        if not selectable:
+            raise ValueError(
+                f"Model {self.model.__name__} does not have __selectable__ configuration"
+            )
+
+        label_field = selectable.get("label", "name")
+        search_fields = selectable.get("search", [label_field])
+        query = select(self.model).where(
+            self.model.is_deleted.is_(False),
+            not_retired_skill_package_condition(self.model),
+        )
+        query = self._apply_data_permission_if_needed(query)
+
+        if filters:
+            for key, value in filters.items():
+                if hasattr(self.model, key) and value is not None:
+                    query = query.where(getattr(self.model, key) == value)
+
+        if search:
+            escaped_search = str(search).replace("%", r"\%").replace("_", r"\_")
+            search_predicates = []
+            for field_name in search_fields:
+                if hasattr(self.model, field_name):
+                    col = getattr(self.model, field_name)
+                    search_predicates.append(
+                        col.ilike(f"%{escaped_search}%", escape="\\")
+                    )
+            if search_predicates:
+                query = query.where(or_(*search_predicates))
+
+        count_query = select(func.count()).select_from(query.subquery())
+        count_result = await self.db.execute(count_query)
+        total = count_result.scalar() or 0
+
+        if hasattr(self.model, label_field):
+            query = query.order_by(asc(getattr(self.model, label_field)))
+
+        if page >= 1:
+            offset = (page - 1) * page_size
+            query = query.offset(offset).limit(page_size)
+        else:
+            query = query.limit(limit)
+
+        result = await self.db.execute(query)
+        items = list(result.scalars().all())
+        return self._build_select_options(items, selectable), total
 
     async def cascade_update_skill_tenant_id(
         self,
@@ -321,7 +448,10 @@ class AdminSkillPackageRepository(
             SkillPackage.source_plugin == plugin_name,
         )
         result = await self.db.execute(stmt)
-        return result.scalar_one_or_none()
+        package = result.scalar_one_or_none()
+        if package and is_retired_package_instance(package):
+            return None
+        return package
 
     async def get_by_name_global(
         self,
@@ -353,6 +483,7 @@ class AdminSkillPackageRepository(
                     SkillPackage.is_recommended.is_(True),
                     SkillPackage.is_active.is_(True),
                     SkillPackage.is_deleted.is_(False),
+                    not_retired_skill_package_condition(SkillPackage),
                 )
             )
             .order_by(SkillPackage.sort_order)

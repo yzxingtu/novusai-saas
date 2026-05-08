@@ -421,7 +421,7 @@ class ToolkitExecutor(BaseToolExecutor):
         tools_instance = tools_cls()
 
         # 3. Inject Valves configuration / 注入 Valves 配置
-        valves_error = _inject_valves(tools_instance, module, valves_config)
+        _inject_valves(tools_instance, module, valves_config)
 
         # 4. Find target method / 查找目标方法
         method = getattr(tools_instance, method_name, None)
@@ -443,14 +443,6 @@ class ToolkitExecutor(BaseToolExecutor):
 
         # 6. Convert to string / 转为字符串
         output = _to_string(result_value)
-
-        # If Valves injection failed, prepend warning to output
-        # 如果 Valves 注入失败，在输出前附加警告
-        if valves_error:
-            output = (
-                f"[WARNING] Valves config injection failed: {valves_error}. "
-                f"Tool ran with default values.\n\n{output}"
-            )
 
         return output
 

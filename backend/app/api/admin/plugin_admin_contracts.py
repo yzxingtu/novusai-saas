@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-import importlib
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel as PydanticBaseModel
 from pydantic import ConfigDict, Field
@@ -11,38 +10,40 @@ from pydantic import ConfigDict, Field
 from app.core.deps import ActiveAdmin, DbSession, QueryParams
 from app.core.i18n import _
 from app.core.response import paginated, success
-from app.exceptions import ServiceUnavailableException
+from app.exceptions import NotFoundException
 from app.rbac.decorators import action_read
 from app.services.system.plugin_read_model_service import PluginReadModelService
+from app.services.system.plugin_runtime_audit_service import PluginRuntimeAuditService
 
 if TYPE_CHECKING:
     from app.core.base_controller import GlobalController
 
 
-def _is_missing_module(exc: ModuleNotFoundError, module_path: str) -> bool:
-    return bool(exc.name) and (
-        exc.name == module_path or exc.name.startswith(f"{module_path}.")
-    )
+def resolve_plugin_audit_service(db: DbSession) -> PluginRuntimeAuditService:
+    return PluginRuntimeAuditService(db)
 
 
-def resolve_plugin_audit_service(db: DbSession) -> Any:
-    candidates = [
-        ("app.services.system.plugin_audit_service", "PluginAuditService"),
-        ("app.services.system.extension_audit_service", "PluginAuditService"),
-    ]
-    for module_path, class_name in candidates:
-        try:
-            module = importlib.import_module(module_path)
-        except ModuleNotFoundError as exc:
-            if _is_missing_module(exc, module_path):
-                continue
-            raise
-        service_cls = getattr(module, class_name, None)
-        if service_cls is not None:
-            return service_cls(db)
-    raise ServiceUnavailableException(
-        message=_("plugin.error.audit_service_unavailable")
+async def build_plugin_runtime_audit_payload(
+    service: PluginRuntimeAuditService,
+    *,
+    plugin_id: int | None = None,
+    tenant_id: int | None = None,
+) -> dict:
+    reports = await service.list_plugin_audit_reports(
+        plugin_id=plugin_id,
+        tenant_id=tenant_id,
+        limit=1 if plugin_id is not None else 50,
     )
+    if plugin_id is not None:
+        if not reports:
+            raise NotFoundException(
+                message=_("plugin.error.not_found_by_id").format(plugin_id=plugin_id)
+            )
+        return reports[0].model_dump()
+    return {
+        "items": [report.model_dump() for report in reports],
+        "total": len(reports),
+    }
 
 
 class PluginConfigBody(PydanticBaseModel):
@@ -163,8 +164,8 @@ def register_plugin_admin_read_routes(controller: GlobalController) -> None:
     ):
         _ = admin
         service = resolve_plugin_audit_service(db)
-        report = await service.build_audit_report(
-            scope="admin",
+        report = await build_plugin_runtime_audit_payload(
+            service,
             plugin_id=plugin_id,
             tenant_id=tenant_id,
         )
@@ -272,6 +273,7 @@ __all__ = [
     "PluginInstallConfirmBody",
     "PluginMenuConfigBody",
     "PluginRollbackBody",
+    "build_plugin_runtime_audit_payload",
     "build_menu_overrides_payload",
     "register_plugin_admin_read_routes",
     "resolve_plugin_audit_service",

@@ -22,7 +22,7 @@ _TEMPLATES_DIR = Path(__file__).parent / "templates"
 
 
 class CodegenGeneratorFacade:
-    """Compatibility facade for generation flows / 代码生成流程兼容门面."""
+    """Stable segmented facade for generation flows / 代码生成流程稳定分段门面."""
 
     def __init__(self, generator: CodeGenerator):
         self._generator = generator
@@ -46,11 +46,6 @@ class CodegenGeneratorFacade:
         return self._generator.generate(parsed, step="test")
 
 
-def _detect_scenario(parsed: ParsedConfig) -> str:
-    """Backward-compatible scenario detection alias."""
-    return support.detect_scenario(parsed)
-
-
 class CodeGenerator:
     """
     代码生成器 / Code generator.
@@ -67,7 +62,7 @@ class CodeGenerator:
         self.env = support.create_template_environment(tmpl)
 
     def as_facade(self) -> CodegenGeneratorFacade:
-        """Return a compatibility facade for segmented generation operations."""
+        """Return a stable facade for segmented generation operations."""
         return CodegenGeneratorFacade(self)
 
     @staticmethod

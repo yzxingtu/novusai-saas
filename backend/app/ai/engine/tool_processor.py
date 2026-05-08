@@ -92,11 +92,7 @@ def is_trusted_auto_read_only_tool_call(
     name = (func_name or "").strip()
     if not name:
         return False
-    return name in {
-        "get_current_weather",
-        "get_weather_forecast",
-        "get_current_time",
-    }
+    return name == "get_current_time"
 
 
 @dataclass

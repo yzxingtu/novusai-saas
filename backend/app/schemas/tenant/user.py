@@ -8,9 +8,34 @@ Defines tenant user (end-user) API request and response data structures.
 from datetime import datetime
 from typing import Literal
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from app.core.base_schema import BaseSchema
+
+
+def _validate_writable_avatar_value(value: object) -> str | None:
+    """中文: 写入边界只接受附件 ID，历史 URL 仅允许响应只读展示。
+
+    EN: Write boundaries accept attachment IDs only; legacy URLs are read-only
+    response display values.
+    """
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        raise ValueError("avatar must be a positive attachment ID")
+    if isinstance(value, int):
+        if value > 0:
+            return str(value)
+        raise ValueError("avatar must be a positive attachment ID")
+    if not isinstance(value, str):
+        raise ValueError("avatar must be a positive attachment ID")
+
+    normalized = value.strip()
+    if normalized == "":
+        return ""
+    if normalized.isdecimal() and not normalized.startswith("0"):
+        return normalized
+    raise ValueError("avatar must be a positive attachment ID")
 
 
 class TenantUserLoginRequest(BaseSchema):
@@ -83,7 +108,7 @@ class TenantUserResponse(BaseSchema):
     email: str = Field(..., description="邮箱")
     phone: str | None = Field(None, description="手机号")
     nickname: str | None = Field(None, description="昵称")
-    avatar: str | None = Field(None, description="头像附件 ID（兼容旧 URL 值）")
+    avatar: str | None = Field(None, description="头像附件 ID（历史 URL 仅只读展示）")
     gender: int = Field(0, description="性别: 0未知 1男 2女")
     is_active: bool = Field(..., description="是否激活")
     approval_status: str = Field("approved", description="审批状态")
@@ -115,11 +140,16 @@ class TenantUserUpdateRequest(BaseSchema):
     email: str | None = Field(None, description="邮箱")
     phone: str | None = Field(None, description="手机号")
     nickname: str | None = Field(None, description="昵称")
-    avatar: str | None = Field(None, description="头像附件 ID（兼容旧 URL 值）")
+    avatar: str | None = Field(None, description="头像附件 ID")
     is_active: bool | None = Field(None, description="是否激活")
     role_id: int | None = Field(None, description="权限角色 ID")
     org_node_id: int | None = Field(None, description="组织归属节点 ID")
     gender: int | None = Field(None, ge=0, le=2, description="性别: 0未知 1男 2女")
+
+    @field_validator("avatar", mode="before")
+    @classmethod
+    def validate_avatar(cls, value: object) -> str | None:
+        return _validate_writable_avatar_value(value)
 
 
 class TenantUserChangePasswordRequest(BaseSchema):
@@ -156,12 +186,15 @@ class TenantUserProfileUpdateRequest(BaseSchema):
     """企业用户资料更新请求 / Tenant user profile update request."""
 
     nickname: str | None = Field(None, max_length=100, description="昵称")
-    avatar: str | None = Field(
-        None, max_length=500, description="头像附件 ID（兼容旧 URL 值）"
-    )
+    avatar: str | None = Field(None, max_length=500, description="头像附件 ID")
     gender: int | None = Field(None, ge=0, le=2, description="性别: 0未知 1男 2女")
     phone: str | None = Field(None, max_length=20, description="手机号")
     email: str | None = Field(None, max_length=255, description="邮箱")
+
+    @field_validator("avatar", mode="before")
+    @classmethod
+    def validate_avatar(cls, value: object) -> str | None:
+        return _validate_writable_avatar_value(value)
 
 
 class ForgotPasswordRequest(BaseSchema):

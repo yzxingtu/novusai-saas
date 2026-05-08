@@ -61,6 +61,30 @@ def _return(value):
     return lambda *_args, **_kwargs: value
 
 
+def _make_template(**overrides):
+    defaults = {
+        "id": 9,
+        "code": "task.failed",
+        "category": "task",
+        "title_template": "Task failed",
+        "body_template": None,
+        "channels": ["inbox"],
+        "priority": "high",
+        "scope": "tenant",
+        "source": "plugin",
+        "plugin_name": "scheduler",
+        "is_enabled": True,
+        "is_system": False,
+        "tenant_id": None,
+        "override_of": None,
+        "locked_fields": [],
+        "created_at": "2026-05-01T00:00:00Z",
+        "updated_at": "2026-05-02T00:00:00Z",
+    }
+    defaults.update(overrides)
+    return SimpleNamespace(**defaults)
+
+
 def test_list_notification_templates_route_returns_tenant_and_override_metadata(
     monkeypatch,
 ) -> None:
@@ -133,7 +157,6 @@ def test_list_notification_templates_route_returns_tenant_and_override_metadata(
             "source": "plugin",
             "plugin_name": "scheduler",
             "is_enabled": True,
-            "enabled": True,
             "is_system": False,
             "tenant_id": 22,
             "tenant_name": "Tenant A",
@@ -160,3 +183,57 @@ def test_list_notification_templates_route_returns_tenant_and_override_metadata(
     )
     repo.get_tenant_name_map.assert_awaited_once_with({22})
     repo.resolve_effective_template.assert_awaited_once_with("task.failed", 22)
+
+
+def test_update_notification_template_accepts_canonical_is_enabled_only(
+    monkeypatch,
+) -> None:
+    module = _load_notification_templates_module()
+    monkeypatch.setattr(module.AdminNotificationTemplateController, "_instance", None)
+    monkeypatch.setattr(module.AdminNotificationTemplateController, "_router", None)
+
+    template = _make_template(is_enabled=True)
+    repo = SimpleNamespace(
+        get_by_id=AsyncMock(return_value=template),
+        get_tenant_name_map=AsyncMock(return_value={}),
+        resolve_effective_template=AsyncMock(return_value=None),
+    )
+    monkeypatch.setattr(module, "NotificationTemplateRepository", _return(repo))
+    mock_db = SimpleNamespace(commit=AsyncMock(), refresh=AsyncMock())
+    app = _build_test_app(mock_db, module)
+
+    with TestClient(app) as client:
+        response = client.put(
+            "/notification-templates/9",
+            json={"is_enabled": False},
+        )
+
+    assert response.status_code == 200
+    assert template.is_enabled is False
+    payload = response.json()["data"]
+    assert payload["is_enabled"] is False
+    assert "enabled" not in payload
+    mock_db.commit.assert_awaited_once()
+    mock_db.refresh.assert_awaited_once_with(template)
+
+
+def test_update_notification_template_rejects_enabled_alias(monkeypatch) -> None:
+    module = _load_notification_templates_module()
+    monkeypatch.setattr(module.AdminNotificationTemplateController, "_instance", None)
+    monkeypatch.setattr(module.AdminNotificationTemplateController, "_router", None)
+
+    repo = SimpleNamespace(get_by_id=AsyncMock())
+    monkeypatch.setattr(module, "NotificationTemplateRepository", _return(repo))
+    mock_db = SimpleNamespace(commit=AsyncMock(), refresh=AsyncMock())
+    app = _build_test_app(mock_db, module)
+
+    with TestClient(app) as client:
+        response = client.put(
+            "/notification-templates/9",
+            json={"enabled": False},
+        )
+
+    assert response.status_code == 422
+    assert "enabled" in response.text
+    repo.get_by_id.assert_not_awaited()
+    mock_db.commit.assert_not_awaited()

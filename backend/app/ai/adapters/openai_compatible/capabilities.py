@@ -7,28 +7,33 @@ from typing import Any
 
 from app.ai.exceptions import ProviderError
 
-_WIRE_API_ALIASES: dict[str, str] = {
-    "responses": "responses",
-    "response": "responses",
-    "responses_api": "responses",
-    "chat_completions": "chat_completions",
-    "chat-completions": "chat_completions",
-    "chat/completions": "chat_completions",
-    "chatcompletion": "chat_completions",
-    "chatcompletion_api": "chat_completions",
-}
-
 _VALID_WIRE_APIS: tuple[str, str] = ("responses", "chat_completions")
 _MISSING = object()
 
 
+def _normalize_wire_api_token(value: Any) -> str:
+    return str(value or "").strip().lower()
+
+
+def _reject_retired_wire_api_field(value: Any, *, field_name: str) -> None:
+    if not _normalize_wire_api_token(value):
+        return
+    raise ProviderError(
+        message=(
+            f"Retired provider protocol field {field_name} is no longer supported; "
+            "use protocol_capabilities.primary_wire_api"
+        ),
+        provider_code="openai_compatible",
+        error_code="invalid_protocol_contract",
+    )
+
+
 def normalize_wire_api(value: Any) -> str:
-    normalized = str(value or "").strip().lower().replace("-", "_")
+    normalized = _normalize_wire_api_token(value)
     if not normalized:
         return "chat_completions"
-    mapped = _WIRE_API_ALIASES.get(normalized)
-    if mapped in _VALID_WIRE_APIS:
-        return mapped
+    if normalized in _VALID_WIRE_APIS:
+        return normalized
     raise ProviderError(
         message=f"Invalid provider wire API token: {value}",
         provider_code="openai_compatible",
@@ -36,27 +41,12 @@ def normalize_wire_api(value: Any) -> str:
     )
 
 
-def _normalize_configured_wire_api(value: Any) -> str | None:
-    normalized = str(value or "").strip().lower().replace("-", "_")
-    if not normalized:
-        return None
-    mapped = _WIRE_API_ALIASES.get(normalized)
-    if mapped in _VALID_WIRE_APIS:
-        return mapped
-    raise ProviderError(
-        message=f"Invalid provider wire API in wire_api: {value}",
-        provider_code="openai_compatible",
-        error_code="invalid_protocol_contract",
-    )
-
-
 def _normalize_contract_wire_api(value: Any, *, field_name: str) -> str | None:
-    normalized = str(value or "").strip().lower().replace("-", "_")
+    normalized = _normalize_wire_api_token(value)
     if not normalized:
         return None
-    mapped = _WIRE_API_ALIASES.get(normalized)
-    if mapped in _VALID_WIRE_APIS:
-        return mapped
+    if normalized in _VALID_WIRE_APIS:
+        return normalized
     raise ProviderError(
         message=(
             f"Invalid provider protocol contract wire API in {field_name}: {value}"
@@ -174,10 +164,8 @@ def _merge_wire_api_sets(*groups: tuple[str, ...]) -> tuple[str, ...]:
 
 def _resolve_primary_wire_api(
     *,
-    configured_wire_api: Any,
     contract_payload: dict[str, Any],
     explicit_allowed_wire_apis: tuple[str, ...],
-    allowed_cross_protocol_fallbacks: dict[str, tuple[str, ...]],
 ) -> tuple[str, bool]:
     contract_primary = _normalize_contract_wire_api(
         contract_payload.get("primary_wire_api"),
@@ -185,33 +173,9 @@ def _resolve_primary_wire_api(
     )
     if contract_primary is not None:
         return contract_primary, True
-    contract_primary = _normalize_contract_wire_api(
-        contract_payload.get("wire_api"),
-        field_name="wire_api",
-    )
-    if contract_primary is not None:
-        return contract_primary, True
-
-    configured = _normalize_configured_wire_api(configured_wire_api)
-    contract_wire_apis = _merge_wire_api_sets(
-        explicit_allowed_wire_apis,
-        tuple(
-            wire_api
-            for from_wire_api, targets in allowed_cross_protocol_fallbacks.items()
-            for wire_api in (from_wire_api, *targets)
-        ),
-    )
-    if configured is not None and configured in contract_wire_apis:
-        return configured, False
 
     if explicit_allowed_wire_apis:
         return explicit_allowed_wire_apis[0], False
-
-    if allowed_cross_protocol_fallbacks:
-        return next(iter(allowed_cross_protocol_fallbacks)), False
-
-    if configured is not None:
-        return configured, False
 
     return "chat_completions", False
 
@@ -233,6 +197,17 @@ class OpenAIProtocolCapabilities:
         configured_wire_api: Any,
     ) -> OpenAIProtocolCapabilities:
         config = provider_config if isinstance(provider_config, dict) else {}
+        _reject_retired_wire_api_field(config.get("wire_api"), field_name="wire_api")
+        _reject_retired_wire_api_field(configured_wire_api, field_name="wire_api")
+        if bool(config.get("allow_adapter_cross_protocol_fallback")):
+            raise ProviderError(
+                message=(
+                    "Adapter-level cross-protocol fallback is retired; "
+                    "allow_adapter_cross_protocol_fallback must be false"
+                ),
+                provider_code="openai_compatible",
+                error_code="invalid_protocol_contract",
+            )
         contract = config.get("protocol_capabilities")
         if contract is None:
             contract_payload: dict[str, Any] = {}
@@ -244,6 +219,10 @@ class OpenAIProtocolCapabilities:
             )
         else:
             contract_payload = contract
+        _reject_retired_wire_api_field(
+            contract_payload.get("wire_api"),
+            field_name="protocol_capabilities.wire_api",
+        )
         raw_allowed_wire_apis = contract_payload.get("allowed_wire_apis", _MISSING)
         explicit_allowed_wire_apis = (
             ()
@@ -259,20 +238,15 @@ class OpenAIProtocolCapabilities:
             else _normalize_fallback_map(raw_cross_fallbacks)
         )
         primary_wire_api, primary_is_explicit = _resolve_primary_wire_api(
-            configured_wire_api=configured_wire_api,
             contract_payload=contract_payload,
             explicit_allowed_wire_apis=explicit_allowed_wire_apis,
-            allowed_cross_protocol_fallbacks=allowed_cross_protocol_fallbacks,
         )
-        fallback_wire_apis = tuple(
+        fallback_wire_apis = {
             wire_api
             for from_wire_api, targets in allowed_cross_protocol_fallbacks.items()
             for wire_api in (from_wire_api, *targets)
-        )
-        allowed_wire_apis = _merge_wire_api_sets(
-            explicit_allowed_wire_apis,
-            fallback_wire_apis,
-        )
+        }
+        allowed_wire_apis = _merge_wire_api_sets(explicit_allowed_wire_apis)
         if (
             primary_is_explicit
             and raw_allowed_wire_apis is not _MISSING
@@ -302,15 +276,34 @@ class OpenAIProtocolCapabilities:
 
         raw_allow_cross = contract_payload.get("allow_adapter_cross_protocol_fallback")
         if raw_allow_cross is None:
-            raw_allow_cross = config.get("allow_adapter_cross_protocol_fallback")
-        if raw_allow_cross is None:
             allow_adapter_cross_protocol_fallback = bool(
                 allowed_cross_protocol_fallbacks,
             )
         else:
             allow_adapter_cross_protocol_fallback = bool(raw_allow_cross)
-        if len(allowed_wire_apis) <= 1 and not allowed_cross_protocol_fallbacks:
-            allow_adapter_cross_protocol_fallback = False
+        if allow_adapter_cross_protocol_fallback:
+            raise ProviderError(
+                message=(
+                    "Adapter-level cross-protocol fallback is retired; "
+                    "allow_adapter_cross_protocol_fallback must be false"
+                ),
+                provider_code="openai_compatible",
+                error_code="invalid_protocol_contract",
+            )
+        unsupported_fallback_protocols = fallback_wire_apis.difference(
+            allowed_wire_apis
+        )
+        if unsupported_fallback_protocols:
+            raise ProviderError(
+                message=(
+                    "Provider protocol contract fallback protocols must be present "
+                    "in allowed_wire_apis"
+                ),
+                provider_code="openai_compatible",
+                error_code="invalid_protocol_contract",
+            )
+        allow_adapter_cross_protocol_fallback = False
+        allowed_cross_protocol_fallbacks = {}
 
         return cls(
             primary_wire_api=primary_wire_api,
@@ -328,24 +321,12 @@ class OpenAIProtocolCapabilities:
         from_wire_api: str,
         to_wire_api: str,
     ) -> bool:
-        if not self.allow_adapter_cross_protocol_fallback:
-            return False
         normalized_from = normalize_wire_api(from_wire_api)
         normalized_to = normalize_wire_api(to_wire_api)
-        if normalized_from == normalized_to:
-            return True
-        explicit_targets = self.allowed_cross_protocol_fallbacks.get(
-            normalized_from,
-            (),
+        return (
+            normalized_from == normalized_to
+            and normalized_from in self.allowed_wire_apis
         )
-        if explicit_targets:
-            return normalized_to in explicit_targets
-        if not self.allowed_cross_protocol_fallbacks:
-            return (
-                normalized_from in self.allowed_wire_apis
-                and normalized_to in self.allowed_wire_apis
-            )
-        return False
 
     def resolve_runtime_wire_api(self, runtime_force_wire_api: Any) -> str:
         if runtime_force_wire_api is None:

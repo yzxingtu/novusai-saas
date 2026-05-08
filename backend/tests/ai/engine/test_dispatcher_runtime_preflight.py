@@ -87,11 +87,11 @@ async def test_dispatcher_marks_api_mode_requests_before_preflight(
         publish_completed,
     )
     monkeypatch.setattr(
-        "app.ai.agent_quota.AgentConcurrencyLimiter.acquire",
+        "app.ai.agent_quota_concurrency.AgentConcurrencyLimiter.acquire",
         AsyncMock(return_value="lock-1"),
     )
     monkeypatch.setattr(
-        "app.ai.agent_quota.AgentConcurrencyLimiter.release",
+        "app.ai.agent_quota_concurrency.AgentConcurrencyLimiter.release",
         AsyncMock(),
     )
 
@@ -178,7 +178,7 @@ async def test_dispatcher_rolls_back_preflight_usage_when_engine_raises(
         release_concurrency,
     )
     monkeypatch.setattr(
-        "app.ai.agent_quota.AgentConcurrencyLimiter.acquire",
+        "app.ai.agent_quota_concurrency.AgentConcurrencyLimiter.acquire",
         AsyncMock(return_value="lock-9"),
     )
 

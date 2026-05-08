@@ -62,10 +62,8 @@ def tool_risk_level(
     tool_family: str | None,
 ) -> str:
     normalized_name = str(tool_name or "").strip().lower()
-    normalized_family = str(tool_family or "").strip().lower()
+    _ = tool_family
 
-    if normalized_family == "weather":
-        return ActionLevelEnum.READ.value
     if normalized_name.startswith(("http", "email", "code_", "toolkit")):
         return ActionLevelEnum.DANGEROUS.value
     return ActionLevelEnum.SAFE_WRITE.value

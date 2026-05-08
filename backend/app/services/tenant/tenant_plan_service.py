@@ -62,7 +62,7 @@ class TenantPlanService(GlobalService[TenantPlan, TenantPlanRepository]):
                 "context": dict(context or {}),
             }
         )
-        if result.get("allowed", True):
+        if result.get("allowed") is True:
             return
 
         raise BusinessException(

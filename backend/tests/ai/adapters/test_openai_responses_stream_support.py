@@ -28,7 +28,7 @@ from app.ai.engine.stream_tool_call_helpers import (
     finalize_stream_tool_calls,
     merge_stream_tool_calls,
 )
-from app.ai.exceptions import ProviderAuthError, ProviderTimeoutError
+from app.ai.exceptions import ProviderAuthError, ProviderError, ProviderTimeoutError
 from app.ai.types import ChatChunk, ChatMessage
 
 
@@ -513,6 +513,32 @@ async def test_execute_stream_chat_via_responses_raises_typed_timeout_from_error
         ):
             pass
 
+    assert stream.aclose_called is True
+
+
+@pytest.mark.asyncio
+async def test_execute_stream_chat_via_responses_rejects_retired_search_event() -> None:
+    stream = _FakeResponsesStream(
+        [
+            SimpleNamespace(
+                type="response.web_search_call.completed",
+                item=SimpleNamespace(type="web_search_call", status="completed"),
+            ),
+        ]
+    )
+    adapter = _FakeAdapter(stream)
+
+    with pytest.raises(ProviderError) as exc:
+        async for _chunk in execute_stream_chat_via_responses(
+            adapter=adapter,
+            messages=[ChatMessage(role="user", content="hello")],
+            model="gpt-5.4",
+            request_params={"model": "gpt-5.4"},
+            aclose_stream=lambda s: s.aclose(),
+        ):
+            pass
+
+    assert exc.value.error_code == "retired_online_search_provider_event"
     assert stream.aclose_called is True
 
 

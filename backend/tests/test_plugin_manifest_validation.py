@@ -267,6 +267,60 @@ def test_manifest_rejects_legacy_top_level_plugin_fields() -> None:
         PluginManifest.model_validate(payload)
 
 
+@pytest.mark.parametrize(
+    "compatibility_payload",
+    [
+        {"editions": ["single-management"]},
+        {"surfaces": ["platform-admin"]},
+        {"tenant_exposure": "tenant-scoped"},
+    ],
+)
+def test_manifest_rejects_compatibility_aliases(
+    compatibility_payload: dict[str, object],
+) -> None:
+    payload = _base_manifest()
+    payload["compatibility"] = compatibility_payload
+
+    with pytest.raises(ValidationError, match="Invalid compatibility"):
+        PluginManifest.model_validate(payload)
+
+
+@pytest.mark.parametrize(
+    "section,payload",
+    [
+        (
+            "features",
+            [
+                {
+                    "code": "feature-demo",
+                    "legacy_runtime_feature_code": "old.feature",
+                }
+            ],
+        ),
+        (
+            "ai_requirements",
+            {
+                "features": [
+                    {
+                        "feature_code": "ai-demo",
+                        "fallback_policy": "legacy-default",
+                    }
+                ]
+            },
+        ),
+    ],
+)
+def test_manifest_rejects_legacy_feature_fields(
+    section: str,
+    payload: object,
+) -> None:
+    manifest_payload = _base_manifest()
+    manifest_payload[section] = payload
+
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        PluginManifest.model_validate(manifest_payload)
+
+
 def test_manifest_accepts_empty_plugin_metadata_icon() -> None:
     payload = _base_manifest()
     payload["icon"] = ""
@@ -292,6 +346,7 @@ def test_manifest_skill_extensions_accept_startup_preview_metadata() -> None:
                 "name": "neutral-skill",
                 "type": "toolkit",
                 "entry_point": "skills.neutral",
+                "executor_entry_point": "executors.neutral.NeutralExecutor",
                 "display_name": {"en": "Neutral Skill"},
                 "preview_tool_names": [" crm_lookup ", "crm_lookup", ""],
                 "preview_semantic_families": [" data_ops ", "data_ops", ""],
@@ -302,6 +357,7 @@ def test_manifest_skill_extensions_accept_startup_preview_metadata() -> None:
     manifest = PluginManifest.model_validate(payload)
 
     skill = manifest.extensions.skills[0]
+    assert skill.executor_entry_point == "executors.neutral.NeutralExecutor"
     assert skill.preview_tool_names == ["crm_lookup"]
     assert skill.preview_semantic_families == ["data_ops"]
 
@@ -318,6 +374,23 @@ def test_manifest_skill_extensions_require_entry_point() -> None:
     }
 
     with pytest.raises(ValidationError, match="entry_point"):
+        PluginManifest.model_validate(payload)
+
+
+def test_manifest_skill_extensions_reject_invalid_executor_entry_point() -> None:
+    payload = _base_manifest()
+    payload["extensions"] = {
+        "skills": [
+            {
+                "name": "neutral-skill",
+                "type": "toolkit",
+                "entry_point": "skills.neutral",
+                "executor_entry_point": "../executors.neutral.Executor",
+            }
+        ]
+    }
+
+    with pytest.raises(ValidationError, match="executor_entry_point"):
         PluginManifest.model_validate(payload)
 
 

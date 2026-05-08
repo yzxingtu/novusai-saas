@@ -13,7 +13,6 @@ from .tool_policy_helpers import (
     extract_textual_tool_call_names,
     response_denies_family_capability,
     tool_family_for_name,
-    tool_semantic_family,
 )
 from .types import ToolUsePolicy
 
@@ -31,17 +30,6 @@ def build_post_tool_retry_policy(
 
     for tool_name in leaked_tool_names or []:
         family = tool_family_for_name(tool_name, input_variables)
-        if family != "none" and family not in families:
-            families.append(family)
-
-    for intent in unfinished_intents or []:
-        normalized_intent = str(intent or "").strip()
-        if normalized_intent == "weather" and any(
-            tool_semantic_family(tool, input_variables) == "weather" for tool in tools
-        ):
-            family = "weather"
-        else:
-            family = "none"
         if family != "none" and family not in families:
             families.append(family)
 
@@ -110,7 +98,13 @@ def resolve_breach_retry_policy(
             reason=f"capability_denial:{current_policy.family}",
         )
 
-    for family in ("weather", "time_ops"):
+    families_to_check = ["time_ops"]
+    if (
+        current_policy.family != "none"
+        and current_policy.family not in families_to_check
+    ):
+        families_to_check.append(current_policy.family)
+    for family in families_to_check:
         if not response_denies_family_capability(
             normalized_text=normalized,
             family=family,

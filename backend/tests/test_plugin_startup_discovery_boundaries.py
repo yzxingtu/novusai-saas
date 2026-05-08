@@ -177,7 +177,7 @@ async def test_restore_refuses_disk_version_drift(
 
 
 @pytest.mark.asyncio
-async def test_discover_reconciles_stale_scope_error_when_manifest_is_now_canonical(
+async def test_discover_does_not_reconcile_retired_scope_error_at_startup(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from app.plugins.manifest import PluginManifest
@@ -232,10 +232,12 @@ async def test_discover_reconciles_stale_scope_error_when_manifest_is_now_canoni
         "missing": 0,
         "failed": 0,
     }
-    assert existing_plugin.status == PluginStatusEnum.INSTALLED.value
-    assert existing_plugin.error_message is None
-    assert existing_plugin.error_count == 0
-    db.flush.assert_awaited_once()
+    assert existing_plugin.status == PluginStatusEnum.ERROR.value
+    assert existing_plugin.error_message == (
+        "Startup restore failed: invalid scope admin_and_assigned"
+    )
+    assert existing_plugin.error_count == 3
+    db.flush.assert_not_awaited()
 
 
 @pytest.mark.asyncio

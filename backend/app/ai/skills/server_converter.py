@@ -12,8 +12,9 @@ Handles the common pattern / 处理常见模式：
     xxx_api.py       → async def methods in class Tools / Tools 类的异步方法
     main.py          → skipped (app entry point) / 跳过（应用入口）
 
-Falls back to a combined-source template if auto-conversion fails.
-自动转换失败时回退到合并源码模板。
+Conversion failures propagate to the upload/import caller instead of generating
+non-executable placeholder tools.
+转换失败会直接抛给上传/导入调用方，不生成不可执行的占位工具。
 """
 
 from __future__ import annotations

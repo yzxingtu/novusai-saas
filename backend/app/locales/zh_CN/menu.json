@@ -37,7 +37,6 @@
       "ai_conversation": "对话管理",
       "ai_agent": "智能体管理",
       "ai_tool": "工具管理",
-      "ai_action_log": "操作审计",
       "ai_long_term_memory_debug": "记忆调试",
       "execution_decision": "执行决策",
       "admin_agent_chat": "AI 对话",
@@ -56,7 +55,6 @@
     },
     "tags": {
       "admin_agent_mgmt": "智能体管理（平台）",
-      "admin_ai_action_audit": "AI 操作审计管理",
       "admin_agent_chat": "AI 对话（平台）",
       "admin_ai_api_key": "AI API Key 管理",
       "admin_ai_call_log": "AI 调用日志",

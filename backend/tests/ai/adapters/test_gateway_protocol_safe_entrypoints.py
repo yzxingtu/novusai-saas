@@ -6,7 +6,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.ai.adapters.openai_compatible.support.gateway_entrypoints import (
+    OpenAIAdapterGatewayEntrypointsMixin,
+)
+from app.ai.exceptions import ProviderError
 from app.ai.gateway import AIGateway
+from app.ai.gateway_support.protocol_adapter_bridge import (
+    resolve_adapter_protocol_wire_api,
+)
 from app.ai.types import ChatChunk, ChatMessage, ChatResponse
 
 
@@ -58,12 +65,34 @@ class _LegacyOnlyAdapterStub:
         )
 
 
+class _MissingProtocolCapabilitiesAdapter(OpenAIAdapterGatewayEntrypointsMixin):
+    pass
+
+
+def _responses_provider_config() -> dict[str, object]:
+    return {
+        "protocol_capabilities": {
+            "primary_wire_api": "responses",
+            "allowed_wire_apis": ["responses"],
+        },
+    }
+
+
+def _chat_provider_config() -> dict[str, object]:
+    return {
+        "protocol_capabilities": {
+            "primary_wire_api": "chat_completions",
+            "allowed_wire_apis": ["chat_completions"],
+        },
+    }
+
+
 @pytest.mark.asyncio
 async def test_gateway_call_chat_adapter_prefers_protocol_safe_openai_facade() -> None:
     gateway = AIGateway.__new__(AIGateway)
     adapter = _OpenAIProtocolSafeAdapterStub()
     provider = SimpleNamespace(
-        type="openai_compatible", config={"wire_api": "responses"}
+        type="openai_compatible", config=_responses_provider_config()
     )
 
     response = await gateway._call_chat_adapter(
@@ -81,7 +110,7 @@ async def test_gateway_call_chat_adapter_prefers_protocol_safe_openai_facade() -
 
     assert response.message.content == "ok"
     assert adapter.chat_calls
-    assert adapter.chat_calls[0]["wire_api"] == "responses"
+    assert adapter.chat_calls[0]["wire_api"] is None
 
 
 @pytest.mark.asyncio
@@ -91,7 +120,7 @@ async def test_gateway_stream_chat_adapter_prefers_protocol_safe_openai_facade()
     gateway = AIGateway.__new__(AIGateway)
     adapter = _OpenAIProtocolSafeAdapterStub()
     provider = SimpleNamespace(
-        type="openai_compatible", config={"wire_api": "responses"}
+        type="openai_compatible", config=_responses_provider_config()
     )
 
     chunks = [
@@ -111,7 +140,7 @@ async def test_gateway_stream_chat_adapter_prefers_protocol_safe_openai_facade()
 
     assert [chunk.delta for chunk in chunks] == ["chunk"]
     assert adapter.stream_calls
-    assert adapter.stream_calls[0]["wire_api"] == "responses"
+    assert adapter.stream_calls[0]["wire_api"] is None
 
 
 @pytest.mark.asyncio
@@ -153,7 +182,7 @@ async def test_gateway_test_model_prefers_protocol_safe_openai_facade() -> None:
         code="provider_1",
         type="openai_compatible",
         base_url="https://example.com/v1",
-        config={"wire_api": "responses"},
+        config=_responses_provider_config(),
         is_active=True,
     )
     api_key = SimpleNamespace(
@@ -178,8 +207,9 @@ async def test_gateway_test_model_prefers_protocol_safe_openai_facade() -> None:
 
     assert result.connected is True
     assert result.response_text == "ok"
+    assert result.wire_api == "responses"
     assert adapter.chat_calls
-    assert adapter.chat_calls[0]["wire_api"] == "responses"
+    assert adapter.chat_calls[0]["wire_api"] is None
 
 
 @pytest.mark.asyncio
@@ -190,7 +220,7 @@ async def test_gateway_protocol_safe_bridge_preserves_runtime_force_wire_api_wit
     adapter = _OpenAIProtocolSafeAdapterStub()
     provider = SimpleNamespace(
         type="openai_compatible",
-        config={"wire_api": "chat_completions"},
+        config=_chat_provider_config(),
     )
 
     response = await gateway._call_chat_adapter(
@@ -220,3 +250,21 @@ async def test_gateway_protocol_safe_bridge_preserves_runtime_force_wire_api_wit
     assert "fallback_to_responses" not in call
     assert "use_responses_api" not in call
     assert "fallback_switch_enabled" not in call
+
+
+def test_protocol_safe_openai_facade_requires_capabilities_contract() -> None:
+    adapter = _MissingProtocolCapabilitiesAdapter()
+
+    with pytest.raises(ProviderError) as exc:
+        adapter.resolve_protocol_safe_wire_api(wire_api="responses")
+
+    assert exc.value.error_code == "invalid_protocol_contract"
+
+
+def test_gateway_protocol_bridge_requires_capabilities_contract() -> None:
+    adapter = SimpleNamespace(wire_api="responses")
+
+    with pytest.raises(ProviderError) as exc:
+        resolve_adapter_protocol_wire_api(adapter, wire_api="responses")
+
+    assert exc.value.error_code == "invalid_protocol_contract"

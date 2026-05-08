@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import sys
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from app.core.logging import get_logger
@@ -27,79 +26,6 @@ logger = get_logger(__name__)
 class LifecycleMigrationMixin:
     """Alembic/database cleanup helpers extracted from PluginLifecycle."""
 
-    async def _purge_orphaned_alembic_stamps(self) -> None:
-        """Purge orphaned version stamps in alembic_version that no longer have corresponding migration files.
-        / 升级前清除 alembic_version 中已无对应迁移文件的孤立版本戳。
-
-        Background: if downgrade fails during plugin uninstall, or revision ID prefix doesn't
-        match plugin name (e.g. some plugins use custom prefix like ncc_001),
-        the version stamp remains in alembic_version, causing subsequent upgrades to fail:
-          "Can't locate revision identified by 'xxx'"
-        This method scans all currently installed migration files to get valid revision IDs,
-        then deletes stamps that don't belong to any known migration.
-        / 背景：插件卸载时若 downgrade 失败或 revision ID 前缀与插件名不一致，
-        其版本戳会残留在 alembic_version，导致后续任何 upgrade 均报错。
-        此方法通过扫描所有当前安装的迁移文件获取合法 revision ID，
-        然后删除不属于任何已知迁移的孤立戳。
-        """
-        import re as _re
-
-        from sqlalchemy import text
-
-        # 1. Collect valid revision IDs from main project + DB-registered plugins
-        # / 1. 收集主项目 + 数据库已注册插件的合法 revision ID
-        known_revisions: set[str] = set()
-        dirs_to_scan = [
-            Path(path)
-            for path in build_migration_version_locations(
-                backend_dir=PLUGINS_DIR.parent,
-            )
-        ]
-
-        for vdir in dirs_to_scan:
-            if not vdir.is_dir():
-                continue
-            for f in vdir.iterdir():
-                if f.suffix == ".py" and f.name != "__init__.py":
-                    try:
-                        source = f.read_text(encoding="utf-8")
-                        m = _re.search(
-                            r'^revision\s*(?::[^=]*)?=\s*["\']([^"\']+)["\']',
-                            source,
-                            _re.MULTILINE,
-                        )
-                        if m:
-                            known_revisions.add(m.group(1))
-                    except Exception:
-                        pass
-
-        # 2. Query all version stamps in alembic_version / 查询 alembic_version 中的全部版本戳
-        try:
-            result = await self._db.execute(
-                text("SELECT version_num FROM alembic_version")
-            )
-            all_stamps = [row[0] for row in result.fetchall()]
-        except Exception:
-            return
-
-        # 3. Delete orphaned stamps (not in any known migration file)
-        # / 3. 删除孤立戳（不在任何已知迁移文件中）
-        orphaned = [s for s in all_stamps if s not in known_revisions]
-        for stamp in orphaned:
-            logger.warning(
-                "Purging orphaned alembic stamp '{}' (no migration file found for it)",
-                stamp,
-            )
-            await self._db.execute(
-                text("DELETE FROM alembic_version WHERE version_num = :vid"),
-                {"vid": stamp},
-            )
-        if orphaned:
-            await self._db.flush()
-            logger.info(
-                "Purged {} orphaned alembic stamp(s): {}", len(orphaned), orphaned
-            )
-
     async def run_alembic_upgrade(self, plugin_name: str) -> None:
         """Run plugin Alembic migration (public interface, called by version_manager etc.).
         / 执行插件 Alembic 迁移（公共接口，供 version_manager 等调用）
@@ -116,10 +42,6 @@ class LifecycleMigrationMixin:
         / 重要：必须把所有已安装插件的迁移路径都加入 version_locations。
         """
 
-        # Purge orphaned version stamps before upgrade (prevent uninstalled plugins' stamps from blocking upgrade)
-        # / 升级前清除孤立版本戳（防止已卸载插件的 stamp 阻断升级）
-        await self._purge_orphaned_alembic_stamps()
-
         branch_label = f"plugin_{plugin_name.replace('-', '_')}"
 
         version_locations = build_migration_version_locations(
@@ -130,12 +52,6 @@ class LifecycleMigrationMixin:
         # Run via sys.executable -c to use Alembic Python API in a subprocess,
         # keeping sync Alembic isolated from the async event loop.
         # alembic.ini only has 'migrations/versions' (main app); plugin paths are injected here.
-        #
-        # Compat scenario: plugin tables exist but version stamp is missing (common in historical data/manual fixes);
-        # upgrade may fail with DuplicateTable. In that case stamp the plugin branch to head
-        # to clear duplicate warnings and restore migration state consistency.
-        # / 兼容场景：插件表已存在但版本戳缺失时，
-        # upgrade 可能因 DuplicateTable 失败。此时对插件分支执行 stamp 到 head。
         script = f"""
 from alembic.config import Config
 from alembic import command
@@ -146,15 +62,7 @@ version_locations = {version_locations!r}
 target = {f"{branch_label}@head"!r}
 
 cfg.set_main_option('version_locations', '\\n'.join(version_locations))
-
-try:
-    command.upgrade(cfg, target)
-except Exception as exc:
-    err = str(exc)
-    if 'already exists' in err or 'DuplicateTable' in type(exc).__name__:
-        command.stamp(cfg, target)
-    else:
-        raise
+command.upgrade(cfg, target)
 """
         result = await run_subprocess_async(
             sys.executable,

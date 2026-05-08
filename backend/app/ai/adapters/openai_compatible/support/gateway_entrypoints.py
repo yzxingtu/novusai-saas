@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from typing import Any
 
+from app.ai.exceptions import ProviderError
 from app.ai.types import ChatChunk, ChatMessage, ChatResponse
 
 
@@ -15,9 +16,14 @@ class OpenAIAdapterGatewayEntrypointsMixin:
         capabilities = getattr(self, "protocol_capabilities", None)
         if capabilities is not None:
             return capabilities.resolve_runtime_wire_api(wire_api)
-        if wire_api is not None:
-            return str(wire_api)
-        return str(getattr(self, "wire_api", "chat_completions"))
+        raise ProviderError(
+            message=(
+                "OpenAI-compatible adapter is missing protocol_capabilities; "
+                "runtime protocol selection cannot proceed"
+            ),
+            provider_code="openai_compatible",
+            error_code="invalid_protocol_contract",
+        )
 
     async def chat_protocol_safe(
         self,

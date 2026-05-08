@@ -1,7 +1,12 @@
-"""
-天气 API 代理路由单元测试
+"""中文: 天气 API 代理路由行为测试。
+
+EN: Weather API proxy handler behavioral tests.
 
 测试 3 个 API handler：current / forecast / geocoding。
+
+Test type: behavioral
+Mock strategy: Provider network calls are mocked; handler validation and error
+mapping run real.
 """
 
 from __future__ import annotations
@@ -19,6 +24,8 @@ import pytest
 
 _MODULE_FILE = Path(__file__).parent.parent / "api" / "handlers.py"
 _MODULE_NAME = "test_weather_api_handlers"
+_PROVIDER_FILE = Path(__file__).parent.parent / "open_meteo.py"
+_PROVIDER_NAME = "test_weather_api_provider"
 
 spec = importlib.util.spec_from_file_location(_MODULE_NAME, _MODULE_FILE)
 assert spec and spec.loader
@@ -26,9 +33,16 @@ mod = importlib.util.module_from_spec(spec)
 sys.modules[_MODULE_NAME] = mod
 spec.loader.exec_module(mod)
 
+provider_spec = importlib.util.spec_from_file_location(_PROVIDER_NAME, _PROVIDER_FILE)
+assert provider_spec and provider_spec.loader
+provider_mod = importlib.util.module_from_spec(provider_spec)
+sys.modules[_PROVIDER_NAME] = provider_mod
+provider_spec.loader.exec_module(provider_mod)
+
 get_current_weather = mod.get_current_weather
 get_forecast = mod.get_forecast
 search_city = mod.search_city
+validate_forecast_days = provider_mod.validate_forecast_days
 
 
 def _make_request(params: dict) -> SimpleNamespace:
@@ -164,6 +178,7 @@ class TestGetForecast:
     @pytest.mark.asyncio
     async def test_default_days(self):
         mock_open_meteo = MagicMock()
+        mock_open_meteo.validate_forecast_days = validate_forecast_days
         mock_open_meteo.get_weather_all = AsyncMock(return_value={"daily": []})
 
         req = _make_request({"lat": "31.23", "lon": "121.47"})
@@ -176,6 +191,7 @@ class TestGetForecast:
     @pytest.mark.asyncio
     async def test_custom_days(self):
         mock_open_meteo = MagicMock()
+        mock_open_meteo.validate_forecast_days = validate_forecast_days
         mock_open_meteo.get_weather_all = AsyncMock(return_value={"daily": []})
 
         req = _make_request({"lat": "31.23", "lon": "121.47", "days": "5"})
@@ -186,20 +202,24 @@ class TestGetForecast:
         mock_open_meteo.get_weather_all.assert_called_once_with(31.23, 121.47, 5)
 
     @pytest.mark.asyncio
-    async def test_invalid_days_fallback(self):
+    async def test_invalid_days_fail_closed(self):
         mock_open_meteo = MagicMock()
+        mock_open_meteo.validate_forecast_days = validate_forecast_days
         mock_open_meteo.get_weather_all = AsyncMock(return_value={"daily": []})
 
         req = _make_request({"lat": "31.23", "lon": "121.47", "days": "abc"})
 
         with patch.object(mod, "_get_open_meteo", return_value=mock_open_meteo):
-            await get_forecast(req, ctx=_make_ctx())
+            result = await get_forecast(req, ctx=_make_ctx())
 
-        mock_open_meteo.get_weather_all.assert_called_once_with(31.23, 121.47, 3)
+        assert result.get("code") == 4001
+        assert "天数" in result["error"] or "days" in result["error"].lower()
+        mock_open_meteo.get_weather_all.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_success(self):
         mock_open_meteo = MagicMock()
+        mock_open_meteo.validate_forecast_days = validate_forecast_days
         mock_open_meteo.get_weather_all = AsyncMock(
             return_value={
                 "daily": [
@@ -219,6 +239,7 @@ class TestGetForecast:
     @pytest.mark.asyncio
     async def test_api_error(self):
         mock_open_meteo = MagicMock()
+        mock_open_meteo.validate_forecast_days = validate_forecast_days
         mock_open_meteo.get_weather_all = AsyncMock(
             side_effect=Exception("network error")
         )

@@ -149,7 +149,7 @@ async def test_chat_no_key_increment_when_metering_fails(mock_db):
 
 @pytest.mark.asyncio
 async def test_on_stream_complete_logs_platform_admin_calls_without_metering(mock_db):
-    from app.ai.usage_recorder import UsageRecorder
+    from app.ai.usage_recorder_core import UsageRecorder
 
     recorder = UsageRecorder.__new__(UsageRecorder)
     recorder.db = mock_db
@@ -186,7 +186,7 @@ async def test_on_stream_complete_logs_platform_admin_calls_without_metering(moc
 @pytest.mark.asyncio
 async def test_on_stream_complete_no_key_increment_when_metering_fails(mock_db):
     """租户计量失败时不应增加 Key、不应 commit（与 gateway.chat 一致）。"""
-    from app.ai.usage_recorder import UsageRecorder
+    from app.ai.usage_recorder_core import UsageRecorder
 
     tenant_id = PLATFORM_TENANT_ID + 1
 
@@ -223,7 +223,7 @@ async def test_on_stream_complete_no_key_increment_when_metering_fails(mock_db):
 
 @pytest.mark.asyncio
 async def test_log_call_failure_logs_platform_admin_calls(mock_db):
-    from app.ai.usage_recorder import UsageRecorder
+    from app.ai.usage_recorder_core import UsageRecorder
 
     recorder = UsageRecorder.__new__(UsageRecorder)
     recorder.db = mock_db
@@ -256,7 +256,7 @@ async def test_log_call_failure_logs_platform_admin_calls(mock_db):
 
 
 def test_usage_recorder_should_record_call_log_for_platform_tenant() -> None:
-    from app.ai.usage_recorder import UsageRecorder
+    from app.ai.usage_recorder_core import UsageRecorder
 
     assert UsageRecorder._should_record_call_log(PLATFORM_TENANT_ID) is True
     assert UsageRecorder._should_record_call_log(PLATFORM_TENANT_ID + 1) is True
@@ -313,7 +313,7 @@ async def test_call_log_service_log_call_async_normalizes_provider_connection_fa
 
 @pytest.mark.asyncio
 async def test_log_call_failure_accepts_perf_counter_start_time(mock_db):
-    from app.ai.usage_recorder import UsageRecorder
+    from app.ai.usage_recorder_core import UsageRecorder
 
     recorder = UsageRecorder.__new__(UsageRecorder)
     recorder.db = mock_db
@@ -399,14 +399,14 @@ async def test_conversation_engine_stream_logs_platform_admin_calls_without_mete
 
     with (
         patch(
-            "app.ai.engine.conversation.AdapterRegistry.create_adapter",
+            "app.ai.adapters.AdapterRegistry.create_adapter",
             return_value=SimpleNamespace(
                 stream_chat=fake_stream_chat,
                 chat=AsyncMock(side_effect=RuntimeError("upstream boom")),
             ),
         ),
         patch(
-            "app.ai.engine.conversation.CostCalculator.calculate_cost",
+            "app.ai.runtime.usage_metrics.CostCalculator.calculate_cost",
             return_value=0.123,
         ),
     ):
@@ -497,7 +497,7 @@ async def test_conversation_engine_stream_estimates_usage_when_provider_omits_to
     engine = ConversationEngine(db=mock_db, gateway=gateway, sandbox=MagicMock())
 
     with patch(
-        "app.ai.engine.conversation.AdapterRegistry.create_adapter",
+        "app.ai.adapters.AdapterRegistry.create_adapter",
         return_value=SimpleNamespace(stream_chat=fake_stream_chat),
     ):
         chunks = [

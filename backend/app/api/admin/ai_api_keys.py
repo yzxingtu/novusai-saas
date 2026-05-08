@@ -58,7 +58,7 @@ def _build_api_key_response(key, model_count_map: dict[int, int] | None = None) 
     provider_name = None
     tenant_name = None
 
-    if key.tenant_id is not None:
+    if key.owner_tenant_id is not None:
         try:
             tenant = getattr(key, "tenant", None)
             if tenant is not None:
@@ -84,7 +84,6 @@ def _build_api_key_response(key, model_count_map: dict[int, int] | None = None) 
         "id": key.id,
         "provider_id": key.provider_id,
         "scope": key.scope,
-        "tenant_id": _otid,
         "owner_tenant_id": _otid,
         "name": key.name,
         "is_active": key.is_active,
@@ -189,7 +188,7 @@ class AdminAIApiKeyController(GlobalController):
             db: DbSession,
             provider_id: int,
             admin: ActiveAdmin,
-            tenant_id: int | None = Query(
+            owner_tenant_id: int | None = Query(
                 None, description=_("api.param.tenant_id_filter")
             ),
         ):
@@ -201,7 +200,7 @@ class AdminAIApiKeyController(GlobalController):
             service = ProviderApiKeyService(db)
             keys = await service.get_keys_by_provider(
                 provider_id=provider_id,
-                tenant_id=tenant_id,
+                tenant_id=owner_tenant_id,
             )
 
             return success(

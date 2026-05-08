@@ -5,7 +5,10 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-from app.cli import _BACKEND_DIR, _discover_plugin_migration_paths
+from app.cli_commands.core_commands import (
+    _BACKEND_DIR,
+    _discover_plugin_migration_paths,
+)
 
 _ALEMBIC_VERSION_NUM_MAX_LENGTH = 32
 

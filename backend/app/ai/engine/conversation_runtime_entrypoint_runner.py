@@ -49,39 +49,18 @@ async def run_runtime_query_entrypoint(
     )
 
 
-async def _iterate_legacy_runtime_chunks(
-    *,
-    plan: ConversationRuntimeEntrypointPlan,
-    agent: Any,
-    selected_skill_names: list[str] | None,
-) -> AsyncIterator[ChatChunk]:
-    runtime_chunks = await plan.query_engine.run_stream_turn(
-        **_build_query_engine_call_kwargs(
-            plan=plan,
-            agent=agent,
-            selected_skill_names=selected_skill_names,
-        )
-    )
-    for runtime_chunk in runtime_chunks:
-        yield runtime_chunk
-
-
 async def iterate_runtime_stream_entrypoint(
     *,
     plan: ConversationRuntimeEntrypointPlan,
     agent: Any,
     selected_skill_names: list[str] | None = None,
 ) -> AsyncIterator[ChatChunk]:
-    runtime_chunk_iter = (
-        plan.query_engine.iter_stream_turn(
-            **_build_query_engine_call_kwargs(
-                plan=plan,
-                agent=agent,
-                selected_skill_names=selected_skill_names,
-            )
-        )
-        if hasattr(plan.query_engine, "iter_stream_turn")
-        else _iterate_legacy_runtime_chunks(
+    iter_stream_turn = getattr(plan.query_engine, "iter_stream_turn", None)
+    if not callable(iter_stream_turn):
+        raise RuntimeError("Runtime query engine must implement iter_stream_turn.")
+
+    runtime_chunk_iter = iter_stream_turn(
+        **_build_query_engine_call_kwargs(
             plan=plan,
             agent=agent,
             selected_skill_names=selected_skill_names,

@@ -21,42 +21,6 @@ from ..constants import (
     get_provider_required_fields,
 )
 
-_LEGACY_FLAT_FIELD_MAP: dict[str, dict[str, str]] = {
-    "qiniu-kodo": {
-        "enabled": "qiniu_enabled",
-        "profile_code": "qiniu_profile_code",
-        "bill_source": "qiniu_bill_source",
-        "account_identifier": "qiniu_account_identifier",
-    },
-    "aliyun-oss": {
-        "enabled": "aliyun_enabled",
-        "profile_code": "aliyun_profile_code",
-        "bill_source": "aliyun_bill_source",
-        "account_identifier": "aliyun_account_identifier",
-    },
-    "tencent-cos": {
-        "enabled": "tencent_enabled",
-        "profile_code": "tencent_profile_code",
-        "bill_source": "tencent_bill_source",
-        "account_identifier": "tencent_account_identifier",
-    },
-}
-
-_LEGACY_DEPRECATED_FLAT_KEYS = {
-    "qiniu_access_key",
-    "qiniu_secret_key",
-    "aliyun_region",
-    "aliyun_access_key_id",
-    "aliyun_access_key_secret",
-    "aliyun_bill_bucket",
-    "aliyun_bill_prefix",
-    "tencent_region",
-    "tencent_secret_id",
-    "tencent_secret_key",
-    "tencent_bill_bucket",
-    "tencent_bill_prefix",
-}
-
 _PROVIDER_HOST_FIELD_MAP: dict[str, list[str]] = {
     "qiniu-kodo": ["access_key", "secret_key"],
     "aliyun-oss": ["region", "access_key_id", "access_key_secret"],
@@ -143,14 +107,6 @@ def _normalize_provider_profiles(
             for field in allowed_fields:
                 if field in nested_profile:
                     current[field] = nested_profile.get(field)
-
-        for field, legacy_key in (_LEGACY_FLAT_FIELD_MAP.get(provider) or {}).items():
-            if field not in allowed_fields:
-                continue
-            if isinstance(nested_profile, Mapping) and field in nested_profile:
-                continue
-            if legacy_key in raw:
-                current[field] = raw.get(legacy_key)
 
         profiles[provider] = _sanitize_plugin_profile(provider, current)
 
@@ -581,15 +537,8 @@ class StorageBillingProviderProfileService:
                 incoming if isinstance(incoming, dict) else None,
             )
 
-        legacy_keys = {
-            legacy_key
-            for mapping in _LEGACY_FLAT_FIELD_MAP.values()
-            for legacy_key in mapping.values()
-        } | set(_LEGACY_DEPRECATED_FLAT_KEYS)
         next_config = {
-            key: value
-            for key, value in current_config.items()
-            if key != "providers" and key not in legacy_keys
+            key: value for key, value in current_config.items() if key != "providers"
         }
         next_config["providers"] = merged_profiles
 

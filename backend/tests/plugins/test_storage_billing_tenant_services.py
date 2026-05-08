@@ -281,7 +281,9 @@ async def test_storage_billing_tenant_endpoints_reject_invalid_period_type(
 
 @pytest.mark.asyncio
 async def test_storage_billing_overview_service_lists_recent_statements() -> None:
-    module = load_plugin_module("storage-billing", "services.reconciliation_service")
+    module = load_plugin_module(
+        "storage-billing", "services.reconciliation_overview_service"
+    )
     models = load_plugin_module("storage-billing", "models")
     assert module is not None
     assert models is not None
@@ -323,7 +325,9 @@ async def test_storage_billing_overview_service_lists_recent_statements() -> Non
 
 @pytest.mark.asyncio
 async def test_storage_billing_overview_service_lists_statement_charges() -> None:
-    module = load_plugin_module("storage-billing", "services.reconciliation_service")
+    module = load_plugin_module(
+        "storage-billing", "services.reconciliation_overview_service"
+    )
     models = load_plugin_module("storage-billing", "models")
     assert module is not None
     assert models is not None
@@ -398,7 +402,9 @@ async def test_storage_billing_overview_service_lists_statement_charges() -> Non
 async def test_storage_billing_overview_service_returns_empty_statement_charges_without_statement() -> (
     None
 ):
-    module = load_plugin_module("storage-billing", "services.reconciliation_service")
+    module = load_plugin_module(
+        "storage-billing", "services.reconciliation_overview_service"
+    )
     assert module is not None
 
     db = AsyncMock()
@@ -416,7 +422,9 @@ async def test_storage_billing_overview_service_returns_empty_statement_charges_
 
 @pytest.mark.asyncio
 async def test_storage_billing_overview_service_exports_statement_charges_csv() -> None:
-    module = load_plugin_module("storage-billing", "services.reconciliation_service")
+    module = load_plugin_module(
+        "storage-billing", "services.reconciliation_overview_service"
+    )
     models = load_plugin_module("storage-billing", "models")
     assert module is not None
     assert models is not None

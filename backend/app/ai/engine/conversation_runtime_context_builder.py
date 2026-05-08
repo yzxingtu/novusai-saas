@@ -5,24 +5,25 @@ from __future__ import annotations
 import inspect
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from app.ai.adapters import AdapterRegistry
-from app.ai.runtime import ConversationQueryEngine
 from app.ai.tools.types import ToolDefinition, to_openai_tools
 from app.ai.types import ChatMessage, messages_to_dicts
-
-from .conversation_helpers import (
-    serialize_context_sources as _serialize_context_sources,
-)
-from .conversation_runtime_accounting import (
+from app.services.ai.conversation_runtime_accounting import (
     ConversationRuntimeAccounting,
     ConversationRuntimeAuditContext,
     ConversationRuntimeRequestContext,
 )
+
+from .conversation_helpers import (
+    serialize_context_sources as _serialize_context_sources,
+)
 from .conversation_runtime_preflight import ConversationRuntimeContext
 from .model_policy import build_model_request_overrides
 from .types import ToolUsePolicy
+
+if TYPE_CHECKING:
+    from app.ai.runtime.query_engine import ConversationQueryEngine
 
 
 @dataclass(frozen=True)
@@ -40,6 +41,18 @@ class ConversationRuntimeEntrypointPlan:
     effective_policy: ToolUsePolicy
     effective_tool_choice: str | None
     request_extra_kwargs: dict[str, Any]
+
+
+def _default_adapter_registry() -> Any:
+    from app.ai.adapters import AdapterRegistry
+
+    return AdapterRegistry
+
+
+def _default_query_engine_cls() -> Any:
+    from app.ai.runtime.query_engine import ConversationQueryEngine
+
+    return ConversationQueryEngine
 
 
 def _build_request_context(
@@ -316,8 +329,8 @@ async def build_runtime_query_entrypoint_plan(
     runtime_context: ConversationRuntimeContext | None = None,
     runtime_preparer: Callable[..., Awaitable[ConversationRuntimeContext]],
     skip_metering_preflight: bool = False,
-    adapter_registry: Any = AdapterRegistry,
-    query_engine_cls: Any = ConversationQueryEngine,
+    adapter_registry: Any | None = None,
+    query_engine_cls: Any | None = None,
     model_request_override_builder: Any = build_model_request_overrides,
     accounting_builder: Callable[[Any], ConversationRuntimeAccounting] | None = None,
 ) -> ConversationRuntimeEntrypointPlan:
@@ -360,8 +373,8 @@ async def build_runtime_query_entrypoint_plan(
         runtime_context=runtime_context,
         db=engine.db,
         tenant_id=tenant_id,
-        adapter_registry=adapter_registry,
-        query_engine_cls=query_engine_cls,
+        adapter_registry=adapter_registry or _default_adapter_registry(),
+        query_engine_cls=query_engine_cls or _default_query_engine_cls(),
         effective_tool_choice=effective_tool_choice,
     )
     accounting = _build_accounting(
@@ -434,8 +447,8 @@ async def build_runtime_stream_entrypoint_plan(
     skip_metering_preflight: bool = False,
     runtime_preparer: Callable[..., Awaitable[ConversationRuntimeContext]]
     | None = None,
-    adapter_registry: Any = AdapterRegistry,
-    query_engine_cls: Any = ConversationQueryEngine,
+    adapter_registry: Any | None = None,
+    query_engine_cls: Any | None = None,
     model_request_override_builder: Any = build_model_request_overrides,
     accounting_builder: Callable[[Any], ConversationRuntimeAccounting] | None = None,
     engine_logger: Any = None,
@@ -485,8 +498,8 @@ async def build_runtime_stream_entrypoint_plan(
         runtime_context=runtime_context,
         db=engine.db,
         tenant_id=tenant_id,
-        adapter_registry=adapter_registry,
-        query_engine_cls=query_engine_cls,
+        adapter_registry=adapter_registry or _default_adapter_registry(),
+        query_engine_cls=query_engine_cls or _default_query_engine_cls(),
         effective_tool_choice=effective_tool_choice,
     )
     accounting = _build_accounting(

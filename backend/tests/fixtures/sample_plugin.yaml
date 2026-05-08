@@ -141,7 +141,6 @@ dependencies:
   python:
     - "phonenumbers>=8.0"
   plugins: []
-  system: []
 
 pricing:
   type: free
@@ -170,4 +169,3 @@ compatibility:
       reason:
         zh-CN: "与旧版 CRM 插件冲突"
         en: "Conflicts with legacy CRM plugin"
-  requires: []

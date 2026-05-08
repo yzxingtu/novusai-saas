@@ -105,6 +105,9 @@ async def load_plugin_skill_startup_previews(
                     "candidate_names": _manifest_skill_candidate_names(item),
                     "type": str(item.get("type") or "").strip(),
                     "entry_point": str(item.get("entry_point") or "").strip(),
+                    "executor_entry_point": str(
+                        item.get("executor_entry_point") or ""
+                    ).strip(),
                     "description": resolve_i18n(item.get("description") or {}),
                     "preview_tool_names": _normalize_preview_names(
                         list(item.get("preview_tool_names") or [])
@@ -537,8 +540,6 @@ async def resolve_one_skill(
     if config.get("internal"):
         return
     normalized_source_plugin = str(source_plugin or "").strip()
-    fallback_start_index = len(result.tools)
-
     if normalized_source_plugin:
         plugin_owned = await resolve_plugin(
             skill=skill,
@@ -566,9 +567,3 @@ async def resolve_one_skill(
             skill_type,
             skill.id,
         )
-        return
-
-    if normalized_source_plugin:
-        for tool in result.tools[fallback_start_index:]:
-            if not getattr(tool, "source_plugin", None):
-                tool.source_plugin = normalized_source_plugin

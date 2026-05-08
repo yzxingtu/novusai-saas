@@ -1,8 +1,8 @@
 """
 MET Norway + Nominatim weather client.
 
-The historical module name is retained for compatibility with the existing
-plugin loader and executor import path.
+中文: 天气插件自己的 provider，负责天气数据与城市地理编码。
+EN: Plugin-owned provider for weather data and city geocoding.
 """
 
 from __future__ import annotations
@@ -52,6 +52,8 @@ _WEATHER_TIMEOUT = 6.0
 _GEOCODING_TIMEOUT = 4.0
 _NOMINATIM_TIMEOUT = 4.0
 _CITY_LOOKUP_TOTAL_TIMEOUT = 8.0
+_FORECAST_DAYS_MIN = 1
+_FORECAST_DAYS_MAX = 7
 
 _DEFAULT_CACHE_TTL = 600
 _CACHE_TTL = _DEFAULT_CACHE_TTL
@@ -176,6 +178,33 @@ def _clamp_int(
     except (TypeError, ValueError):
         return default
     return max(minimum, min(maximum, parsed))
+
+
+def validate_forecast_days(value: Any, *, default: int | None = None) -> int:
+    """中文: 解析并校验预报天数，非法值必须失败关闭。
+
+    EN: Parse and validate forecast days; invalid values fail closed.
+    """
+    raw = default if value is None else value
+    if raw is None or isinstance(raw, bool):
+        raise ValueError("forecast days must be an integer from 1 to 7")
+
+    if isinstance(raw, int):
+        parsed = raw
+    elif isinstance(raw, str):
+        text = raw.strip()
+        if not text:
+            raise ValueError("forecast days must be an integer from 1 to 7")
+        try:
+            parsed = int(text)
+        except ValueError as exc:
+            raise ValueError("forecast days must be an integer from 1 to 7") from exc
+    else:
+        raise ValueError("forecast days must be an integer from 1 to 7")
+
+    if not _FORECAST_DAYS_MIN <= parsed <= _FORECAST_DAYS_MAX:
+        raise ValueError("forecast days must be an integer from 1 to 7")
+    return parsed
 
 
 def _cache_get(key: str) -> Any | None:
@@ -530,7 +559,7 @@ async def get_weather_all(
     longitude: float,
     days: int = 3,
 ) -> dict[str, Any]:
-    days = max(1, min(days, 7))
+    days = validate_forecast_days(days)
     cache_key = f"all:{latitude:.2f}:{longitude:.2f}:{days}"
     cached = _cache_get(cache_key)
     if cached is not None:
@@ -653,6 +682,7 @@ async def get_current_weather(latitude: float, longitude: float) -> dict[str, An
 async def get_forecast(
     latitude: float, longitude: float, days: int = 3
 ) -> list[dict[str, Any]]:
+    days = validate_forecast_days(days)
     all_data = await get_weather_all(latitude, longitude, days)
     return all_data["daily"]
 
@@ -686,12 +716,14 @@ async def _search_city_nominatim(
             data = resp.json()
     except httpx.TimeoutException:
         logger.warning(
-            "Nominatim search timeout for query='{}' timeout={}s", name, timeout
+            "Nominatim city lookup timeout for query='{}' timeout={}s",
+            name,
+            timeout,
         )
         return []
     except Exception as exc:
         logger.warning(
-            "Nominatim search error for query='{}': {}",
+            "Nominatim city lookup error for query='{}': {}",
             name,
             _describe_exception(exc),
         )
@@ -725,16 +757,6 @@ async def _search_city_nominatim(
             }
         )
     return results[:count]
-
-
-async def _search_city_open_meteo(
-    name: str,
-    count: int,
-    *,
-    timeout: float = _NOMINATIM_TIMEOUT,
-) -> list[dict[str, Any]]:
-    """Compatibility alias retained for the executor fallback path."""
-    return await _search_city_nominatim(name, count, timeout=timeout)
 
 
 async def search_city(name: str, count: int = 5) -> list[dict[str, Any]]:

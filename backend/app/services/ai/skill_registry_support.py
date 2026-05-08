@@ -18,6 +18,11 @@ from app.core.github_source_policy import (
 )
 from app.core.logging import get_logger
 from app.models.ai.skill import Skill
+from app.models.ai.skill_package import SkillPackage
+from app.repositories.ai.retired_skill_catalog_filters import (
+    not_retired_skill_condition,
+    not_retired_skill_package_condition,
+)
 
 logger = get_logger("app.services.ai.skill_registry_service")
 
@@ -148,9 +153,14 @@ class SkillRegistrySupport:
                 Skill.version,
                 Skill.source_ref,
                 Skill.config,
-            ).where(
+            )
+            .join(SkillPackage, Skill.package_id == SkillPackage.id)
+            .where(
                 Skill.is_deleted.is_(False),
+                SkillPackage.is_deleted.is_(False),
                 Skill.type == "toolkit",
+                not_retired_skill_condition(Skill),
+                not_retired_skill_package_condition(SkillPackage),
             )
         )
         installed: dict[str, dict[str, str | int | None]] = {}

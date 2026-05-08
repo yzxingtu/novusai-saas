@@ -18,7 +18,6 @@ class PathSelector:
             first = actionable[0] if actionable else intents[0]
             if first.kind in {
                 "direct_reply",
-                "weather_query",
                 "time_query",
             }:
                 return "fast"

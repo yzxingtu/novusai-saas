@@ -48,6 +48,7 @@ def test_run_all_tenants_task_definition_dispatches_each_eligible_tenant() -> No
             "app.tasks.task_scheduling.handler_supports_tenant_dispatch",
             return_value=True,
         ),
+        patch("app.tasks.task_scheduling.is_handler_registered", return_value=True),
         patch(
             "app.tasks.task_scheduling._resolve_all_tenant_ids",
             return_value=[7, 11],
@@ -146,6 +147,7 @@ def test_run_tenant_task_binding_overwrites_payload_tenant_id() -> None:
             return_value=True,
         ),
         patch("app.tasks.task_scheduling._handler_requires_tenant", return_value=True),
+        patch("app.tasks.task_scheduling.is_handler_registered", return_value=True),
         patch(
             "app.tasks.task_scheduling.celery_app.send_task",
             send_task,

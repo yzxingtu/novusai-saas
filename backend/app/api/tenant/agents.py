@@ -7,7 +7,8 @@ Provides agent CRUD, publishing endpoints
 
 from fastapi import Request
 
-from app.ai.agent_quota import AgentQuotaConfig, AgentQuotaManager
+from app.ai.agent_quota_config import AgentQuotaConfig
+from app.ai.agent_quota_manager import AgentQuotaManager
 from app.ai.agent_stats import AgentStatsManager
 from app.core.base_controller import TenantController
 from app.core.deps import ActiveTenantAdmin, DbSession, QueryParams

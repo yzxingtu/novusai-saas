@@ -14,7 +14,7 @@ from app.ai.engine.types import ToolUsePolicy
 from app.ai.runtime.usage_metrics import CostCalculator
 from app.ai.types import ChatMessage
 from app.ai.usage_mode import resolve_chat_usage
-from app.ai.usage_recorder import UsageRecorder
+from app.ai.usage_recorder_core import UsageRecorder
 from app.core.logging import LogManager
 from app.enums.ai import CallStatusEnum, RequestTypeEnum
 

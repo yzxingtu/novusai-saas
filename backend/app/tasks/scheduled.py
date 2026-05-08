@@ -186,13 +186,13 @@ def check_plugin_trial_expirations(self: BaseTask) -> dict:
             try:
                 await RedisManager.init()
             except Exception as redis_err:
-                # Redis unavailable: downgrade — license will still be marked invalid, but disable() may fail
-                # Redis 不可用时降级：license 仍会标记为 invalid，但 disable() 可能失败
                 logger.warning(
-                    "Plugin trial check: Redis unavailable ({}), "
-                    "plugin disable may fail (license will still be invalidated)",
+                    "Plugin trial check: Redis unavailable ({}), aborting fail-closed",
                     redis_err,
                 )
+                raise RuntimeError(
+                    "Redis is required before plugin license expiration checks"
+                ) from redis_err
 
         try:
             async with task_async_session() as db:

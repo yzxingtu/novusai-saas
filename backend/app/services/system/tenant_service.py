@@ -145,7 +145,6 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
         contact_phone: str | None = None,
         contact_email: str | None = None,
         plan_id: int | None = None,
-        plan: str | None = None,
         quota: dict | None = None,
         expires_at: datetime | None = None,
         remark: str | None = None,
@@ -162,7 +161,6 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
             contact_phone: 联系人电话
             contact_email: 联系人邮箱
             plan_id: 套餐 ID（新版）
-            plan: 套餐类型（已废弃，保留向后兼容）
             quota: 配额配置（可覆盖套餐默认值）
             expires_at: 到期时间
             remark: 备注
@@ -192,7 +190,6 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
             "contact_phone": contact_phone,
             "contact_email": contact_email,
             "plan_id": plan_id,
-            "plan": plan,
             "quota": quota,
             "expires_at": expires_at,
             "remark": remark,

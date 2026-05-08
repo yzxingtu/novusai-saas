@@ -159,13 +159,13 @@ async def is_token_revoked(jti: str | None) -> bool:
     检查 Token 是否已被吊销 / Check if token is revoked.
 
     Args:
-        jti: JWT ID，None 或空则视为未吊销（兼容旧 Token）/ None or empty => not revoked (legacy tokens)
+        jti: JWT ID，None 或空则视为已失效 / None or empty => invalidated
 
     Returns:
         True 表示已吊销 / True if revoked
     """
     if not jti:
-        return False
+        return True
     try:
         from app.core.redis import get_redis_client
 
@@ -199,9 +199,10 @@ async def decode_token(
         payload = jwt.decode(
             token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
         )
-        # 旧 Token 无 jti，跳过黑名单检查 / Legacy tokens without jti skip blacklist check
         jti = payload.get("jti")
-        if jti and await is_token_revoked(jti):
+        if not jti:
+            return None
+        if await is_token_revoked(jti):
             return None
         return payload
     except ExpiredSignatureError as exc:
@@ -379,6 +380,7 @@ def create_impersonate_token(
         编码后的 JWT Token / Encoded JWT token
     """
     expire = utc_now() + timedelta(seconds=expires_seconds)
+    jti = str(uuid.uuid4())
 
     to_encode = {
         "sub": str(admin_id),  # 发起者 ID / Initiator ID
@@ -387,6 +389,7 @@ def create_impersonate_token(
         "target_tenant_id": target_tenant_id,
         "exp": expire,
         "iat": utc_now(),
+        "jti": jti,
     }
 
     if target_role_id is not None:

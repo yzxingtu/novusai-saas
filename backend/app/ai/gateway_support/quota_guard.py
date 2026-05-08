@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from app.ai.usage_recorder import UsageMeteringContext, UsageRecorder
+from app.ai.usage_recorder_context import UsageMeteringContext
+from app.ai.usage_recorder_core import UsageRecorder
 from app.models.ai import AIModel
 
 

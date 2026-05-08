@@ -22,6 +22,8 @@ _ALL_QUEUES = S._ALL_QUEUES
 _STATUS_OK = S._STATUS_OK
 _STATUS_FAIL = S._STATUS_FAIL
 _run_async = S._run_async
+_CELERY_BEAT_STATE_DIR = _BACKEND_DIR / "var" / "celerybeat"
+_CELERY_BEAT_SCHEDULE = _CELERY_BEAT_STATE_DIR / "celerybeat-schedule"
 
 
 def _celery_broker_hint() -> str:
@@ -101,6 +103,11 @@ def _run_celery(args: list[str]) -> None:
     runtime_helpers.run_celery(_BACKEND_DIR, _CELERY_APP, args)
 
 
+def _beat_schedule_args() -> list[str]:
+    _CELERY_BEAT_STATE_DIR.mkdir(parents=True, exist_ok=True)
+    return [f"--schedule={_CELERY_BEAT_SCHEDULE}"]
+
+
 @celery_cmd.command()
 @click.option(
     "-Q", "--queues", default=None, help="Comma-separated queues (default: all)"
@@ -121,7 +128,7 @@ def worker(queues: str | None, concurrency: int | None, loglevel: str) -> None:
 @click.option("-l", "--loglevel", default="info")
 def beat(loglevel: str) -> None:
     """Start Celery Beat scheduler / 启动 Celery Beat 定时调度器"""
-    _run_celery(["beat", f"--loglevel={loglevel}"])
+    _run_celery(["beat", f"--loglevel={loglevel}", *_beat_schedule_args()])
 
 
 @celery_cmd.command()
@@ -160,6 +167,7 @@ def dev(loglevel: str) -> None:
                     _CELERY_APP,
                     "beat",
                     f"--loglevel={loglevel}",
+                    *_beat_schedule_args(),
                 ],
                 cwd=str(_BACKEND_DIR),
             )
@@ -178,6 +186,7 @@ def dev(loglevel: str) -> None:
             [
                 "worker",
                 "--beat",
+                *_beat_schedule_args(),
                 "-Q",
                 _ALL_QUEUES,
                 f"--loglevel={loglevel}",
@@ -334,8 +343,8 @@ def plugin_cmd() -> None:
     pass
 
 
-def _load_plugin_cli() -> None:
-    """Ensure scripts dir on path and load plugin_cli module / 确保 scripts 在路径中并加载 plugin_cli。"""
+def _load_plugin_cli_scripts() -> None:
+    """Ensure scripts dir can import split plugin CLI command modules / 确保 scripts 可导入拆分后的插件 CLI 命令模块。"""
     runtime_helpers.load_plugin_cli(_BACKEND_DIR)
 
 
@@ -350,8 +359,8 @@ def _load_plugin_cli() -> None:
 def plugin_create(name: str, template: str, output: str | None) -> None:
     """Create plugin skeleton / 创建插件骨架"""
     os.chdir(_BACKEND_DIR)
-    _load_plugin_cli()
-    import plugin_cli as pc
+    _load_plugin_cli_scripts()
+    from plugin_cli_create import cmd_create
 
     class Args:
         pass
@@ -360,7 +369,7 @@ def plugin_create(name: str, template: str, output: str | None) -> None:
     args.name = name
     args.template = template
     args.output = output
-    pc.cmd_create(args)
+    cmd_create(args)
 
 
 @plugin_cmd.command("validate")
@@ -368,15 +377,15 @@ def plugin_create(name: str, template: str, output: str | None) -> None:
 def plugin_validate(path: str) -> None:
     """Validate plugin directory / 校验插件目录"""
     os.chdir(_BACKEND_DIR)
-    _load_plugin_cli()
-    import plugin_cli as pc
+    _load_plugin_cli_scripts()
+    from plugin_cli_validate import cmd_validate
 
     class Args:
         pass
 
     args = Args()
     args.dir = path
-    pc.cmd_validate(args)
+    cmd_validate(args)
 
 
 @plugin_cmd.command("build")
@@ -384,15 +393,15 @@ def plugin_validate(path: str) -> None:
 def plugin_build(path: str) -> None:
     """Build plugin frontend release assets / 构建插件前端发布产物"""
     os.chdir(_BACKEND_DIR)
-    _load_plugin_cli()
-    import plugin_cli as pc
+    _load_plugin_cli_scripts()
+    from plugin_cli_build import cmd_build
 
     class Args:
         pass
 
     args = Args()
     args.dir = path
-    pc.cmd_build(args)
+    cmd_build(args)
 
 
 @plugin_cmd.command("pack")
@@ -408,8 +417,8 @@ def plugin_pack(
 ) -> None:
     """Pack plugin to .zip / 打包插件为 zip"""
     os.chdir(_BACKEND_DIR)
-    _load_plugin_cli()
-    import plugin_cli as pc
+    _load_plugin_cli_scripts()
+    from plugin_cli_pack import cmd_pack
 
     class Args:
         pass
@@ -419,7 +428,7 @@ def plugin_pack(
     args.output = output
     args.release = release
     args.source = source
-    pc.cmd_pack(args)
+    cmd_pack(args)
 
 
 @plugin_cmd.command("list")

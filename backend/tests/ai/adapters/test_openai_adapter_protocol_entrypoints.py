@@ -36,6 +36,15 @@ def _make_adapter(*, provider_config: dict | None = None) -> OpenAIAdapter:
     )
 
 
+def _responses_provider_config() -> dict:
+    return {
+        "protocol_capabilities": {
+            "primary_wire_api": "responses",
+            "allowed_wire_apis": ["responses"],
+        },
+    }
+
+
 @pytest.mark.asyncio
 async def test_execute_protocol_chat_chat_completions_plan_never_routes_back_to_responses() -> (
     None
@@ -62,8 +71,8 @@ async def test_execute_protocol_chat_chat_completions_plan_never_routes_back_to_
 
     adapter._chat_via_chat_completions.assert_awaited_once()
     assert (
-        adapter._chat_via_chat_completions.await_args.kwargs["fallback_to_responses"]
-        is False
+        "fallback_to_responses"
+        not in adapter._chat_via_chat_completions.await_args.kwargs
     )
     request_params = adapter._chat_via_chat_completions.await_args.kwargs[
         "request_params"
@@ -86,7 +95,7 @@ async def test_execute_protocol_stream_chat_completions_plan_never_routes_back_t
     adapter._chat_via_chat_completions = AsyncMock()  # type: ignore[method-assign]
 
     async def _fake_stream_chat_completions(**kwargs):
-        assert kwargs["fallback_to_responses"] is False
+        assert "fallback_to_responses" not in kwargs
         assert (
             "_runtime_disable_cross_protocol_fallback" not in kwargs["request_params"]
         )
@@ -123,9 +132,9 @@ async def test_execute_protocol_chat_responses_strips_runtime_protocol_guard_fla
 ):
     adapter = _make_adapter(
         provider_config={
-            "wire_api": "responses",
             "protocol_capabilities": {
-                "allowed_wire_apis": ["responses", "chat_completions"]
+                "primary_wire_api": "responses",
+                "allowed_wire_apis": ["responses", "chat_completions"],
             },
         }
     )
@@ -159,12 +168,7 @@ async def test_execute_protocol_chat_responses_strips_runtime_protocol_guard_fla
 async def test_execute_protocol_chat_responses_only_provider_never_hits_chat_completions(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    adapter = _make_adapter(
-        provider_config={
-            "wire_api": "responses",
-            "protocol_capabilities": {"allowed_wire_apis": ["responses"]},
-        }
-    )
+    adapter = _make_adapter(provider_config=_responses_provider_config())
     adapter._chat_via_chat_completions = AsyncMock()  # type: ignore[method-assign]
 
     async def _failing_responses(**kwargs):
@@ -192,12 +196,7 @@ async def test_execute_protocol_chat_responses_only_provider_never_hits_chat_com
 async def test_execute_protocol_chat_logs_retryable_connection_error_as_warning_for_conversation_2345(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    adapter = _make_adapter(
-        provider_config={
-            "wire_api": "responses",
-            "protocol_capabilities": {"allowed_wire_apis": ["responses"]},
-        }
-    )
+    adapter = _make_adapter(provider_config=_responses_provider_config())
     captured_logs: dict[str, list[tuple[object, ...]]] = {
         "warning": [],
         "error": [],
@@ -254,12 +253,7 @@ async def test_execute_protocol_chat_logs_retryable_connection_error_as_warning_
 async def test_execute_protocol_stream_responses_only_provider_never_hits_chat_completions(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    adapter = _make_adapter(
-        provider_config={
-            "wire_api": "responses",
-            "protocol_capabilities": {"allowed_wire_apis": ["responses"]},
-        }
-    )
+    adapter = _make_adapter(provider_config=_responses_provider_config())
     adapter._stream_chat_via_chat_completions = AsyncMock()  # type: ignore[method-assign]
 
     async def _failing_stream(**kwargs):
@@ -287,12 +281,7 @@ async def test_execute_protocol_stream_responses_only_provider_never_hits_chat_c
 
 @pytest.mark.asyncio
 async def test_chat_protocol_safe_resolves_wire_api_before_delegating() -> None:
-    adapter = _make_adapter(
-        provider_config={
-            "wire_api": "responses",
-            "protocol_capabilities": {"allowed_wire_apis": ["responses"]},
-        }
-    )
+    adapter = _make_adapter(provider_config=_responses_provider_config())
     adapter.execute_protocol_chat = AsyncMock(  # type: ignore[method-assign]
         return_value=ChatResponse(
             message=ChatMessage(role="assistant", content="ok"),
@@ -313,12 +302,7 @@ async def test_chat_protocol_safe_resolves_wire_api_before_delegating() -> None:
 
 @pytest.mark.asyncio
 async def test_stream_chat_protocol_safe_resolves_wire_api_before_delegating() -> None:
-    adapter = _make_adapter(
-        provider_config={
-            "wire_api": "responses",
-            "protocol_capabilities": {"allowed_wire_apis": ["responses"]},
-        }
-    )
+    adapter = _make_adapter(provider_config=_responses_provider_config())
     seen: list[dict[str, object]] = []
 
     async def _fake_protocol_stream(**kwargs):

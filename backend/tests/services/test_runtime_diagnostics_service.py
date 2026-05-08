@@ -111,6 +111,64 @@ def test_classify_root_cause_scrubs_invalid_ai_runtime_input_diagnostics(mock_db
     assert confidence == 0.6
 
 
+def test_diagnostics_sanitizer_drops_retired_online_search_provider_events() -> None:
+    from app.services.ai.conversation_diagnostics_projector_support import (
+        normalize_provider_events,
+    )
+    from app.services.ai.conversation_diagnostics_projector_support_diagnostics import (
+        sanitize_diagnostics_payload,
+    )
+
+    payload = sanitize_diagnostics_payload(
+        {
+            "selected_tool_names": ["crm_lookup", "web_search"],
+            "selected_skill_names": ["CRM Lookup", "百度公开搜索"],
+            "provider_events": [
+                {"kind": "response.web_search_call.completed"},
+                {"kind": "provider_http_5xx", "status_code": 503},
+            ],
+        }
+    )
+    events = normalize_provider_events(
+        [
+            {"kind": "response.web_search_call.completed"},
+            {"kind": "provider_http_5xx", "status_code": 503},
+        ]
+    )
+
+    assert payload == {
+        "selected_tool_names": ["crm_lookup"],
+        "selected_skill_names": ["CRM Lookup"],
+        "provider_events": [{"kind": "provider_http_5xx", "status_code": 503}],
+    }
+    assert events == [{"kind": "provider_http_5xx", "status_code": 503}]
+
+
+def test_root_cause_evidence_drops_retired_online_search_references() -> None:
+    from app.services.ai.runtime_root_cause_projector import RuntimeRootCauseProjector
+
+    evidence = RuntimeRootCauseProjector.build_root_cause_evidence(
+        _call_log(status=CallStatusEnum.FAILED.value),
+        {
+            "turn_outcome": "failed",
+            "selected_tool_names": ["kb_lookup", "web_search"],
+            "selected_skill_names": ["Knowledge Lookup", "百度公开搜索"],
+            "provider_events": [
+                {"kind": "response.web_search_call.completed"},
+                {"kind": "provider_http_5xx", "status_code": 503},
+            ],
+        },
+        conversation_turn={"message_id": 91},
+    )
+
+    evidence_by_label = {item["label"]: item["value"] for item in evidence}
+    assert evidence_by_label["selected_tool_names"] == ["kb_lookup"]
+    assert evidence_by_label["selected_skill_names"] == ["Knowledge Lookup"]
+    assert evidence_by_label["provider_events"] == [
+        {"kind": "provider_http_5xx", "status_code": 503}
+    ]
+
+
 def test_classify_root_cause_blocks_success_shortcut_on_budget_exit_reason(mock_db):
     from app.services.ai.runtime_diagnostics_service import RuntimeDiagnosticsService
 

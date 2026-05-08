@@ -48,14 +48,18 @@ class TestBuildAiMessages:
         assert "用户问题:" in messages[-1]["content"]
         assert "i" * MAX_INSTRUCTION in messages[-1]["content"]
 
-    def test_more_alias_maps_to_expand_contract(self):
+    def test_legacy_aliases_are_not_skill_activation_inputs(self):
+        from app.exceptions import ValidationException
         from app.services.ai.writing_service import (
             is_valid_writing_action,
             normalize_writing_action,
         )
 
-        assert is_valid_writing_action("more") is True
-        assert normalize_writing_action("more") == "expand"
+        assert is_valid_writing_action("more") is False
+        with pytest.raises(ValidationException) as exc_info:
+            normalize_writing_action("more")
+        assert exc_info.value.status_code == 422
+        assert "more" in exc_info.value.message
 
     def test_build_ai_messages_rejects_unknown_feature(self):
         from app.exceptions import ValidationException
@@ -146,7 +150,6 @@ class TestRichTextAgentChatMessage:
         request = AgentChatRequest.model_validate(
             {
                 "message": message,
-                "selected_skill_names": ["novusdoc.rich_text_ai.actions"],
             }
         )
 
@@ -214,5 +217,13 @@ class TestRichTextAgentChatMessage:
         import app.services.ai.writing_service as writing_service
 
         assert "stream_writing_feature" not in writing_service.__all__
+        assert (
+            "build_default_rich_text_skill_package_definition"
+            not in writing_service.__all__
+        )
         assert not hasattr(writing_service, "stream_writing_feature")
         assert not hasattr(writing_service, "_resolve_writing_agent")
+        assert not hasattr(
+            writing_service,
+            "build_default_rich_text_skill_package_definition",
+        )

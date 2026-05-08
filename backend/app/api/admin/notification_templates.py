@@ -8,7 +8,7 @@ System built-in templates cannot be deleted, only channels and priority can be e
 """
 
 from fastapi import Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.base_controller import GlobalController
 from app.core.deps import ActiveAdmin, DbSession, QueryParams
@@ -31,12 +31,13 @@ from app.repositories.common.notification_template_repository import (
 class UpdateTemplateRequest(BaseModel):
     """更新通知模板请求 / Update notification template request"""
 
+    model_config = ConfigDict(extra="forbid")
+
     channels: list[str] | None = Field(None, description=_("api.param.channels"))
     priority: str | None = Field(None, description=_("api.param.priority"))
     title_template: str | None = Field(None, description=_("api.param.title_template"))
     body_template: str | None = Field(None, description=_("api.param.body_template"))
     is_enabled: bool | None = Field(None, description=_("api.param.is_enabled"))
-    enabled: bool | None = Field(None, description=_("api.param.is_enabled"))
 
 
 @permission_resource(
@@ -105,7 +106,6 @@ class AdminNotificationTemplateController(GlobalController):
             "source": template.source,
             "plugin_name": template.plugin_name,
             "is_enabled": template.is_enabled,
-            "enabled": template.is_enabled,
             "is_system": template.is_system,
             "tenant_id": template.tenant_id,
             "tenant_name": tenant_name,
@@ -172,8 +172,6 @@ class AdminNotificationTemplateController(GlobalController):
                 raise NotFoundException(message=_("common.not_found"))
 
             update_fields = data.model_dump(exclude_unset=True)
-            if "enabled" in update_fields:
-                update_fields["is_enabled"] = update_fields.pop("enabled")
             if not update_fields:
                 return success(message=_("common.success"))
 

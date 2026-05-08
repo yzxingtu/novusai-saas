@@ -1,4 +1,4 @@
-"""Compatibility facades for AuthService responsibilities."""
+"""Stable facades for AuthService responsibilities."""
 
 from __future__ import annotations
 

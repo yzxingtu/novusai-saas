@@ -14,7 +14,6 @@ if TYPE_CHECKING:
     from app.services.system.admin_permission_role_service import (
         AdminPermissionRoleService,
     )
-    from app.services.system.admin_role_service import AdminRoleService
     from app.services.system.admin_service import AdminService
     from app.services.system.attachment_service import AdminAttachmentService
     from app.services.system.operation_log_service import (
@@ -71,7 +70,6 @@ __all__ = [
     "AdminOrgAuthorityService",
     "AdminOrgNodeService",
     "AdminPermissionRoleService",
-    "AdminRoleService",
     "AdminService",
     "AdminAttachmentService",
     "OperationLogService",
@@ -113,7 +111,6 @@ _LAZY_EXPORTS = {
     "AdminOrgAuthorityService": "app.services.system.admin_org_authority_service",
     "AdminOrgNodeService": "app.services.system.admin_org_node_service",
     "AdminPermissionRoleService": "app.services.system.admin_permission_role_service",
-    "AdminRoleService": "app.services.system.admin_role_service",
     "AdminService": "app.services.system.admin_service",
     "AdminAttachmentService": "app.services.system.attachment_service",
     "OperationLogService": "app.services.system.operation_log_service",

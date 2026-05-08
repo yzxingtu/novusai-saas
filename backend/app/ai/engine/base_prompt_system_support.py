@@ -29,9 +29,6 @@ from .system_prompt_helpers import (
     build_time_tools_hint as _build_time_tools_hint_impl,
 )
 from .system_prompt_helpers import (
-    build_weather_tools_hint as _build_weather_tools_hint_impl,
-)
-from .system_prompt_helpers import (
     deserialize_intent_plan as _deserialize_intent_plan_impl,
 )
 from .system_prompt_helpers import (
@@ -79,7 +76,6 @@ class BasePromptSystemSupportMixin:
     _intent_plan_gating_flags = staticmethod(_intent_plan_gating_flags_impl)
     _is_capability_reporting_query = staticmethod(_is_capability_reporting_query_impl)
     _intent_completion_signals = staticmethod(_intent_completion_signals_impl)
-    _build_weather_tools_hint = staticmethod(_build_weather_tools_hint_impl)
     _build_time_tools_hint = staticmethod(_build_time_tools_hint_impl)
     _build_capability_reporting_hint = staticmethod(
         _build_capability_reporting_hint_impl

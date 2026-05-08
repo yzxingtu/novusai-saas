@@ -81,7 +81,7 @@ class ToolSandbox:
 
     Usage / 使用示例:
         sandbox = ToolSandbox(tenant_id=1, agent_id=42)
-        result = await sandbox.execute("call_xxx", "weather_api", {"city": "Shanghai"})
+        result = await sandbox.execute("call_xxx", "query_record", {"record_id": "42"})
     """
 
     def __init__(

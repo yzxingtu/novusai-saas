@@ -143,8 +143,8 @@ def run_rollback_migration_cleanup(
     force_drop: bool = False,
 ) -> bool:
     """
-    回滚后清理迁移：purge 孤立 stamp、downgrade、删除迁移文件。
-    After rollback: purge orphaned stamps, downgrade, delete migration file.
+    回滚后清理迁移：downgrade 并删除迁移文件。
+    After rollback: downgrade and delete the migration file.
 
     Safety: only downgrades if the codegen migration is the current head.
     If later migrations exist on top, refuses to downgrade to prevent chain breakage.
@@ -158,10 +158,6 @@ def run_rollback_migration_cleanup(
         return False
 
     _mp = _locate_migration_file(migration_file, resource, _backend)
-
-    from app.core.database import purge_orphaned_alembic_stamps
-
-    purge_orphaned_alembic_stamps(_backend)
 
     if not _mp or not _mp.exists():
         logger.warning(
@@ -258,7 +254,7 @@ def _locate_migration_file(
     resource: str,
     backend_dir: Path,
 ) -> Path | None:
-    """Locate the migration file from manifest path, fallback to scan by table/codegen_resource."""
+    """Locate the migration file from manifest path or current codegen metadata."""
     _mp = None
     if migration_file:
         _mp = Path(migration_file)
@@ -285,22 +281,6 @@ def _locate_migration_file(
                     break
             except Exception:
                 pass
-        if not _mp or not _mp.exists():
-            for _f in _vers.glob("*.py"):
-                if _f.name.startswith(".") or _f.name == "__init__.py":
-                    continue
-                try:
-                    _t = _f.read_text(encoding="utf-8", errors="replace")
-                    if f"'{_table}'" in _t or f'"{_table}"' in _t:
-                        _mp = _f
-                        logger.info(
-                            "Located legacy codegen migration (no metadata) for {}: {}",
-                            resource,
-                            _f.name,
-                        )
-                        break
-                except Exception:
-                    pass
     return _mp
 
 

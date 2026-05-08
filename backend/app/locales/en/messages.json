@@ -359,7 +359,8 @@
             "restore_failed": "Restore failed",
             "already_deleted": "Record is already deleted",
             "batch_too_large": "Batch size exceeded",
-            "invalid_module": "Invalid module code"
+            "invalid_module": "Invalid module code",
+            "retired_retention_days": "The retired retention_days/retentionDays parameter is no longer supported; use module_retention_days and global_retention_days"
         },
         "cleanup_triggered": "Cleanup task submitted",
         "module_cleared": "Module recycle bin cleared",
@@ -520,6 +521,8 @@
             "no_valves_schema": "This skill package has no configurable options",
             "invalid_valves_config": "valves_config must be a JSON object",
             "invalid_export_format": "Invalid skill package export format or incompatible version",
+            "retired_online_search": "Online-search skill packages are retired and cannot be created, updated, or bound",
+            "platform_builtin_import_forbidden": "Platform built-in skill packages cannot be imported from exported packages",
             "scope_tenant_id_required": "Tenant must be specified when scope is 'Tenant'",
             "valves_missing_required": "Missing required configuration fields: {fields}"
         }
@@ -559,6 +562,7 @@
             "invalid_type": "Invalid skill type",
             "invalid_scope": "Invalid scope",
             "system_protected": "System skill cannot be deleted or have key properties modified",
+            "retired_online_search": "Online-search skills are retired and cannot be created, updated, or bound",
             "toolkit_parse_failed": "Toolkit source parsing failed: {error}",
             "toolkit_security_violation": "Toolkit security scan failed: {detail}"
         },
@@ -833,7 +837,9 @@
             "provider_code_exists": "Provider code already exists",
             "provider_base_url_invalid": "Provider API URL is invalid. Please use a full URL starting with http:// or https://",
             "provider_base_url_endpoint_not_allowed": "OpenAI-compatible provider API URL must not include /responses or /chat/completions. Enter the base URL only and choose the API protocol separately",
+            "provider_protocol_config_invalid": "Provider protocol config must be nested under protocol_capabilities. Top-level wire_api or protocol fallback switches are not supported",
             "api_key_not_found": "API Key not found",
+            "api_key_scope_invalid": "Invalid API key scope. Supported scopes: admin_only, global_shared, selected_tenants",
             "api_key_owner_required": "Owner tenant is required for selected_tenants scope / 部分企业作用域必须选择归属企业",
             "api_key_owner_forbidden": "Owner tenant must be empty for this scope / 当前作用域下归属企业必须为空",
             "fetch_remote_models_failed": "Failed to fetch models from provider",
@@ -2761,8 +2767,7 @@
                 "name": "DNS Provider",
                 "desc": "Production automation currently supports only Cloudflare DNS-01; manual mode is for development/debug only",
                 "manual": "Manual (development/debug only, no automated issuance)",
-                "cloudflare": "Cloudflare",
-                "legacy_option": "Current legacy value: {provider} (retired, must be changed)"
+                "cloudflare": "Cloudflare"
             },
             "dns_cloudflare_api_token": {
                 "name": "Cloudflare API Token",
@@ -3314,7 +3319,9 @@
             "binding_tenant_not_selected": "Binding override tenant must be included in the selected tenant list",
             "plugin_disabled": "Plugin '{plugin}' is disabled. Enable the plugin before enabling or triggering its scheduled task",
             "edit_locked": "This task is protected and only supports toggling active status",
-            "delete_locked": "Task '{name}' is protected and cannot be deleted"
+            "delete_locked": "Task '{name}' is protected and cannot be deleted",
+            "handler_not_registered": "Handler '{handler}' is not registered as a Celery task",
+            "handler_kwargs_invalid": "Handler '{handler}' does not accept parameters: {fields}"
         }
     },
     "task_log": {"error": {"not_found": "Task log not found"}},

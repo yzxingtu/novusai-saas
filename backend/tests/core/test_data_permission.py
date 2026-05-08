@@ -184,7 +184,9 @@ class TestDataPermissionFilterSelfOnly:
         )
         compiled = str(result.compile(compile_kwargs={"literal_binds": True}))
         assert compiled == str(q.compile(compile_kwargs={"literal_binds": True}))
-        assert DataPermissionFilter.is_enabled(_ModelWithoutFields) is False
+        from app.core.data_permission import is_data_permission_enabled
+
+        assert is_data_permission_enabled(_ModelWithoutFields) is False
 
 
 class TestDataPermissionFilterDept:
@@ -280,7 +282,9 @@ class TestDataPermissionFilterDept:
         )
         compiled = str(result.compile(compile_kwargs={"literal_binds": True}))
         assert compiled == str(q.compile(compile_kwargs={"literal_binds": True}))
-        assert DataPermissionFilter.is_enabled(_ModelWithoutFields) is False
+        from app.core.data_permission import is_data_permission_enabled
+
+        assert is_data_permission_enabled(_ModelWithoutFields) is False
 
 
 class TestDataPermissionFilterCustom:

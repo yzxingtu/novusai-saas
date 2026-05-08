@@ -8,12 +8,36 @@ from app.core.base_service import GlobalService, TenantService
 from app.core.i18n import _
 from app.core.logging import LogManager
 from app.enums.agent import SkillTypeEnum, get_all_skill_types
+from app.enums.skill import SkillStatusEnum
 from app.exceptions import BusinessException, NotFoundException
 from app.models.ai.skill import Skill
 from app.repositories.ai.agent_repository import AdminAgentRepository
 from app.repositories.ai.skill_repository import AdminSkillRepository, SkillRepository
+from app.services.ai.retired_skill_guard import (
+    ensure_not_retired_online_search_skill,
+)
 
 logger = LogManager.get_logger("ai")
+
+
+def _normalize_skill_status_value(value: Any) -> str:
+    status = getattr(value, "value", value)
+    return str(status or "").strip()
+
+
+def _sync_skill_status_flags(data: dict[str, Any]) -> None:
+    if "status" in data:
+        status = _normalize_skill_status_value(data.get("status"))
+        data["status"] = status
+        data["is_active"] = status == SkillStatusEnum.ACTIVE.value
+        return
+
+    if "is_active" in data:
+        data["status"] = (
+            SkillStatusEnum.ACTIVE.value
+            if bool(data.get("is_active"))
+            else SkillStatusEnum.DISABLED.value
+        )
 
 
 class SkillService(TenantService[Skill, SkillRepository]):
@@ -46,6 +70,7 @@ class SkillService(TenantService[Skill, SkillRepository]):
     async def _before_create(self, data: dict[str, Any]) -> None:
         """创建前校验：名称唯一性、类型合法性 + 插件钩子 / Before create: name uniqueness, type validity, plugin hooks."""
         await super()._before_create(data)
+        ensure_not_retired_online_search_skill(data)
 
         from app.ai.events.hooks import HookPoint, get_hook_registry
 
@@ -61,6 +86,9 @@ class SkillService(TenantService[Skill, SkillRepository]):
                     message=ctx.get("block_reason", _("skill.error.blocked_by_hook"))
                 )
             data.update(ctx.get("skill_data", data))
+
+        ensure_not_retired_online_search_skill(data)
+        _sync_skill_status_flags(data)
 
         name = data.get("name")
         if name:
@@ -93,6 +121,7 @@ class SkillService(TenantService[Skill, SkillRepository]):
     async def _before_update(self, id: int, data: dict[str, Any]) -> None:
         """更新前校验：名称唯一性、系统技能保护 + 插件钩子 / Before update: name uniqueness, system skill protection, plugin hooks."""
         await super()._before_update(id, data)
+        ensure_not_retired_online_search_skill(data)
 
         from app.ai.events.hooks import HookPoint, get_hook_registry
 
@@ -110,6 +139,9 @@ class SkillService(TenantService[Skill, SkillRepository]):
                 )
             data.update(ctx.get("updates", data))
 
+        ensure_not_retired_online_search_skill(data)
+        _sync_skill_status_flags(data)
+
         skill = await self.repo.get_by_id(id)
         if not skill:
             raise NotFoundException(message=_("skill.error.not_found"))
@@ -123,7 +155,7 @@ class SkillService(TenantService[Skill, SkillRepository]):
 
         # 系统技能不允许修改关键字段 / System skills cannot change critical fields
         if skill.is_system:
-            protected = {"type", "is_system", "is_active"}
+            protected = {"type", "is_system", "is_active", "status"}
             if protected & set(data.keys()):
                 raise BusinessException(message=_("skill.error.system_protected"))
 
@@ -287,6 +319,8 @@ class AdminSkillService(GlobalService[Skill, AdminSkillRepository]):
     async def _before_create(self, data: dict[str, Any]) -> None:
         """创建前校验：类型合法性、toolkit_meta 解析 / Before create: type validity, toolkit_meta parse."""
         await super()._before_create(data)
+        ensure_not_retired_online_search_skill(data)
+        _sync_skill_status_flags(data)
 
         skill_type = data.get("type", SkillTypeEnum.TOOLKIT.value)
         valid_types = get_all_skill_types()
@@ -299,15 +333,18 @@ class AdminSkillService(GlobalService[Skill, AdminSkillRepository]):
     async def _before_update(self, id: int, data: dict[str, Any]) -> None:
         """更新前校验：系统技能保护 / Before update: system skill protection."""
         await super()._before_update(id, data)
+        ensure_not_retired_online_search_skill(data)
 
         skill = await self.repo.get_by_id(id)
         if not skill:
             raise NotFoundException(message=_("skill.error.not_found"))
 
         if skill.is_system:
-            protected = {"type", "is_system", "is_active"}
+            protected = {"type", "is_system", "is_active", "status"}
             if protected & set(data.keys()):
                 raise BusinessException(message=_("skill.error.system_protected"))
+
+        _sync_skill_status_flags(data)
 
         name = data.get("name")
         if name:
@@ -343,7 +380,15 @@ class AdminSkillService(GlobalService[Skill, AdminSkillRepository]):
         if skill.is_system and not is_active:
             raise BusinessException(message=_("skill.error.system_protected"))
 
-        updated = await self.repo.update(id, {"is_active": is_active})
+        status = (
+            SkillStatusEnum.ACTIVE.value
+            if is_active
+            else SkillStatusEnum.DISABLED.value
+        )
+        updated = await self.repo.update(
+            id,
+            {"is_active": is_active, "status": status},
+        )
         return updated
 
     async def get_binding_select_options(
@@ -355,20 +400,15 @@ class AdminSkillService(GlobalService[Skill, AdminSkillRepository]):
         page: int = 1,
         page_size: int = 20,
         include_system: bool = True,
-        only_active: bool = True,
     ):
         """
         Admin agent skill binding picker: paginated skills + package metadata.
         管理端智能体技能绑定选择器分页数据。
 
         Binding picker candidates must remain bindable at save time, so this
-        API always returns active skills/packages even if a caller still passes
-        `only_active=False` for backward compatibility.
+        API always returns active skills/packages.
         """
-        _only_active = only_active
         from app.schemas.common.select import SelectOption, SelectResponse
-
-        effective_only_active = True
 
         if agent_id is not None:
             agent = await AdminAgentRepository(self.db).get_by_id(agent_id)
@@ -386,7 +426,7 @@ class AdminSkillService(GlobalService[Skill, AdminSkillRepository]):
                     page=page,
                     page_size=page_size,
                     include_system=include_system,
-                    only_active=effective_only_active,
+                    only_active=True,
                 )
             else:
                 rows, total = await self.repo.query_admin_binding_select(
@@ -395,7 +435,7 @@ class AdminSkillService(GlobalService[Skill, AdminSkillRepository]):
                     page=page,
                     page_size=page_size,
                     include_system=include_system,
-                    only_active=effective_only_active,
+                    only_active=True,
                 )
         else:
             rows, total = await self.repo.query_admin_binding_select(
@@ -404,7 +444,7 @@ class AdminSkillService(GlobalService[Skill, AdminSkillRepository]):
                 page=page,
                 page_size=page_size,
                 include_system=include_system,
-                only_active=effective_only_active,
+                only_active=True,
             )
         items: list[SelectOption] = []
         for skill, pack in rows:

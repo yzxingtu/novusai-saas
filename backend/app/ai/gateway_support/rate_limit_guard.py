@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.ai.usage_recorder import UsageMeteringContext, UsageRecorder
+from app.ai.usage_recorder_context import UsageMeteringContext
+from app.ai.usage_recorder_core import UsageRecorder
 from app.configs.service import PLATFORM_TENANT_ID
 
 

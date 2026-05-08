@@ -347,6 +347,63 @@ class TestUsageDashboard:
         assert dashboard.top_tenants[0].label == "平台管理端"
 
     @pytest.mark.asyncio
+    async def test_get_usage_dashboard_groups_model_usage_by_live_model_identity(
+        self,
+        mock_db,
+    ):
+        from app.services.ai.monitoring_service import MonitoringService
+
+        service = MonitoringService.__new__(MonitoringService)
+        service.db = mock_db
+        service._load_actor_map = AsyncMock(return_value={})
+        service._load_actor_snapshot_map = AsyncMock(return_value={})
+        service._load_tenant_names = AsyncMock(return_value={})
+
+        mock_db.execute = AsyncMock(
+            side_effect=[
+                _result_with_one(
+                    SimpleNamespace(
+                        total_calls=2,
+                        total_tokens=300,
+                        input_tokens=120,
+                        output_tokens=180,
+                        total_cost=0.3,
+                        success_calls=2,
+                        failed_calls=0,
+                    )
+                ),
+                _result_with_all([]),
+                _result_with_all(
+                    [
+                        SimpleNamespace(
+                            key=9,
+                            label="gpt-5.5-xhigh",
+                            call_count=2,
+                            total_tokens=300,
+                            total_cost=0.3,
+                            success_calls=2,
+                            failed_calls=0,
+                        )
+                    ]
+                ),
+                _result_with_all([]),
+                _result_with_all([]),
+                _result_with_all([]),
+                _result_with_all([]),
+            ]
+        )
+
+        dashboard = await service.get_usage_dashboard(MonitoringService.admin_scope())
+
+        assert dashboard.model_stats[0].key == "9:gpt-5.5-xhigh"
+        assert dashboard.model_stats[0].label == "gpt-5.5-xhigh"
+        model_stmt = mock_db.execute.await_args_list[2].args[0]
+        model_sql = str(model_stmt)
+        assert "ai_models.name" in model_sql
+        assert "ai_models.code" in model_sql
+        assert "ai_call_logs.model_name_snapshot" not in model_sql
+
+    @pytest.mark.asyncio
     async def test_get_usage_dashboard_loads_tenant_name_for_tenant_scope(
         self, mock_db
     ):

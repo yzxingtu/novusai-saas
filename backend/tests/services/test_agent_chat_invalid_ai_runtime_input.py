@@ -64,6 +64,15 @@ def test_agent_chat_request_rejects_invalid_runtime_fields() -> None:
         "pageop_click",
         "PageOp_Click",
         "replace_content",
+        "web_search",
+        "fetch_url",
+        "online_search",
+        "web_research",
+        "SearchProvider",
+        "search_provider",
+        "hosted_web_search",
+        "native_web_search_supported",
+        "联网搜索",
     ],
 )
 def test_agent_chat_request_rejects_invalid_runtime_variables(
@@ -102,13 +111,29 @@ def test_agent_chat_request_rejects_invalid_runtime_values(
 @pytest.mark.parametrize(
     "selected_skill_name",
     [
+        "天气组件",
+        "report_query",
         "page_awareness",
         "页面感知交互",
         "ui-click",
         "pageop-click",
+        "web_search",
+        "fetch_url",
+        "web_research",
+        "online_search",
+        "public_search",
+        "baidu_public_search",
+        "baidu_search",
+        "SearchProvider",
+        "search_provider",
+        "联网搜索",
+        "网页搜索",
+        "在线搜索",
+        "公开搜索",
+        "百度公开搜索",
     ],
 )
-def test_agent_chat_request_rejects_invalid_selected_skill_names(
+def test_agent_chat_request_rejects_client_selected_skill_names(
     selected_skill_name: str,
 ) -> None:
     with pytest.raises(ValidationError):
@@ -312,6 +337,13 @@ def test_openai_tool_schema_filters_invalid_runtime_tools() -> None:
                 name="custom_bridge",
                 description="invalid family",
                 semantic_family="page_ops",
+            ),
+            ToolDefinition(
+                name="crm_public_lookup",
+                description="invalid retired skill owner",
+                source_skill_name="联网搜索",
+                source_package_name="百度公开搜索",
+                source_plugin="baidu_public_search",
             ),
         ]
     )

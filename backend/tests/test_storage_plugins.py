@@ -6,7 +6,6 @@ Validates:
 - StorageManager only has local built-in
 - Plugin disable safety check logic"""
 
-import importlib.util
 import io
 from pathlib import Path
 from types import SimpleNamespace
@@ -95,25 +94,20 @@ PLUGINS_ROOT = Path(__file__).parent.parent / "plugins"
 
 
 def _load_plugin_driver_module(plugin_name: str):
-    driver_path = PLUGINS_ROOT / plugin_name / "backend" / "driver.py"
-    module_name = f"test_runtime_{plugin_name.replace('-', '_')}_driver"
-    spec = importlib.util.spec_from_file_location(module_name, driver_path)
-    module = importlib.util.module_from_spec(spec)
-    assert spec.loader is not None
-    spec.loader.exec_module(module)
-    return module
+    return _load_plugin_module(plugin_name, "backend/driver.py")
 
 
 def _load_plugin_module(plugin_name: str, relative_path: str):
-    module_path = PLUGINS_ROOT / plugin_name / relative_path
-    module_name = (
-        f"test_runtime_{plugin_name.replace('-', '_')}_"
-        f"{relative_path.replace('/', '_').replace('.', '_')}"
+    from app.plugins.module_loader import load_plugin_module
+
+    dotted_path = (
+        relative_path.replace("\\", "/")
+        .removeprefix("backend/")
+        .removesuffix(".py")
+        .replace("/", ".")
     )
-    spec = importlib.util.spec_from_file_location(module_name, module_path)
-    module = importlib.util.module_from_spec(spec)
-    assert spec.loader is not None
-    spec.loader.exec_module(module)
+    module = load_plugin_module(plugin_name, dotted_path)
+    assert module is not None
     return module
 
 
@@ -177,16 +171,11 @@ EXPECTED_DRIVER_NAMES = {
 @pytest.mark.parametrize("plugin_name", PLUGIN_DIRS)
 def test_driver_class_attributes(plugin_name: str):
     """Each driver class must have correct name, display_name, config_schema. / 说明"""
-    import importlib.util
     import inspect
 
     from app.storage.base import StorageDriver
 
-    driver_path = PLUGINS_ROOT / plugin_name / "backend" / "driver.py"
-    module_name = f"test_plugins_{plugin_name.replace('-', '_')}_driver"
-    spec = importlib.util.spec_from_file_location(module_name, driver_path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = _load_plugin_driver_module(plugin_name)
 
     # Find StorageDriver subclass
     driver_cls = None
@@ -443,8 +432,8 @@ async def test_cos_put_uses_raw_metadata_keys():
 
 
 @pytest.mark.asyncio
-async def test_cos_get_info_normalizes_legacy_prefixed_metadata_keys():
-    """COS metadata reader must tolerate legacy double-prefixed keys. / COS 读取元数据时必须兼容历史双前缀错误对象。"""
+async def test_cos_get_info_does_not_treat_double_prefixed_metadata_as_canonical():
+    """COS metadata reader strips only the SDK prefix. / COS 元数据读取只剥离 SDK 当前前缀。"""
     from app.storage.base import StorageVisibility
 
     CosStorageDriver = _load_plugin_driver_module("tencent-cos").CosStorageDriver
@@ -464,10 +453,10 @@ async def test_cos_get_info_normalizes_legacy_prefixed_metadata_keys():
     info = await CosStorageDriver.get_info(driver, "images/demo.png")
 
     assert info is not None
-    assert info.visibility == StorageVisibility.PUBLIC
+    assert info.visibility == StorageVisibility.PRIVATE
     assert info.metadata == {
         "biz": "avatar",
-        "visibility": "public",
+        "x-cos-meta-visibility": "public",
     }
 
 

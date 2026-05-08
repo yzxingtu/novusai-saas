@@ -30,6 +30,7 @@ from app.ai.skills.resolution_contracts import SkillResolveIssue, issue_matches_
 from app.ai.tools.semantic_defaults import tool_family_from_name
 from app.ai.tools.types import ToolDefinition, ToolParameter
 from app.core.logging import LogManager
+from app.repositories.ai.retired_skill_catalog_filters import is_retired_skill_instance
 from app.schemas.ai.invalid_ai_runtime_input import (
     filter_invalid_ai_runtime_references,
     filter_invalid_ai_runtime_tools,
@@ -177,7 +178,7 @@ class SkillResolveResult:
             return _live_runtime_references(
                 list(activation.activated_skill_names or [])
             )
-        return self.inventory_selected_skill_names
+        return []
 
     @property
     def selected_tool_names(self) -> list[str]:
@@ -242,7 +243,9 @@ def enrich_skill_capability_descriptors_with_tools(
 
 
 def _is_runtime_eligible_skill(skill: Any) -> bool:
-    return parts.is_runtime_eligible_skill(skill)
+    return parts.is_runtime_eligible_skill(skill) and not is_retired_skill_instance(
+        skill
+    )
 
 
 def _build_time_only_runtime_result() -> SkillResolveResult:
@@ -891,8 +894,9 @@ async def resolve_for_agent(
         agent: Agent model instance / Agent 模型实例
         tenant_id: Tenant ID (can be None for admin-level Agent) /
                    企业 ID（admin 级 Agent 可为 None）
-        user_role: Reserved caller role context (kept for compatibility).
-                   预留的调用方角色上下文（为兼容性保留）。
+        user_role: Caller role context retained for stable call signatures, not
+                   skill activation.
+                   调用方角色上下文仅用于稳定签名，不参与技能激活。
 
     Returns:
         SkillResolveResult or None (when bindings are filtered out as ineligible) /
@@ -950,6 +954,11 @@ async def resolve_for_agent(
         )
         raise
 
+    grants = [
+        grant
+        for grant in grants
+        if not is_retired_skill_instance(getattr(grant, "skill", None))
+    ]
     if not grants:
         return _build_time_only_runtime_result()
 

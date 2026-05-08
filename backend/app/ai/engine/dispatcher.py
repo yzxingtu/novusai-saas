@@ -10,12 +10,12 @@ import time
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.ai.agent_quota import (
+from app.ai.agent_quota_config import AgentQuotaConfig
+from app.ai.agent_quota_exceptions import (
     AgentConcurrencyExceeded,
-    AgentQuotaConfig,
     AgentQuotaExceeded,
-    AgentQuotaManager,
 )
+from app.ai.agent_quota_manager import AgentQuotaManager
 from app.ai.tools.sandbox import SandboxConfig
 from app.configs.service import PLATFORM_TENANT_ID
 from app.core.i18n import _

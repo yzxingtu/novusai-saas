@@ -17,7 +17,7 @@ from app.core.i18n import _
 from app.core.logging import LogManager
 from app.core.response import deleted, paginated, success
 from app.enums.common import RecycleStageEnum
-from app.exceptions import NotFoundException
+from app.exceptions import NotFoundException, ValidationException
 from app.rbac.decorators import (
     MenuConfig,
     PermissionScope,
@@ -31,6 +31,7 @@ logger = LogManager.get_logger("db")
 router = APIRouter(prefix="/recycle-bin", tags=["admin-recycle-bin"])
 
 _SIDE = "admin"
+_RETIRED_CLEANUP_QUERY_PARAMS = {"retentionDays", "retention_days"}
 
 
 @permission_resource(
@@ -188,16 +189,16 @@ async def recycle_bin_cleanup(
     request: Request,
     db: DbSession,
     admin: ActiveAdmin,
-    retention_days: int | None = Query(default=None, ge=1, le=365),
     module_retention_days: int | None = Query(default=None, ge=1, le=365),
     global_retention_days: int | None = Query(default=None, ge=1, le=365),
 ):
     _ctx = (request, db, admin)
+    if _RETIRED_CLEANUP_QUERY_PARAMS.intersection(request.query_params):
+        raise ValidationException(message=_("recycle_bin.error.retired_retention_days"))
+
     from app.tasks.recycle_bin import cleanup_recycle_bin
 
     kwargs: dict[str, int] = {}
-    if retention_days is not None:
-        kwargs["retention_days"] = retention_days
     if module_retention_days is not None:
         kwargs["module_retention_days"] = module_retention_days
     if global_retention_days is not None:

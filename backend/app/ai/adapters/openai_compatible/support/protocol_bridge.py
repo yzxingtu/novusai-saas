@@ -17,9 +17,6 @@ from app.ai.adapters.openai_compatible.protocol_chat_completions import (
     execute_chat_via_chat_completions,
     execute_stream_chat_via_chat_completions,
 )
-from app.ai.adapters.openai_compatible.protocol_chat_completions import (
-    is_salvageable_raw_text_chat_response as is_salvageable_chat_completions_raw_text,
-)
 from app.ai.adapters.openai_compatible.protocol_responses import (
     convert_responses_chat_response as convert_responses_chat_response_impl,
 )
@@ -120,16 +117,12 @@ class OpenAIAdapterProtocolBridgeMixin:
         request_params: dict[str, Any],
         messages: list[ChatMessage],
         model: str,
-        fallback_to_responses: bool = True,
-        responses_kwargs: dict[str, Any] | None = None,
     ) -> ChatResponse:
         return await execute_chat_via_chat_completions(
             adapter=self,
             request_params=request_params,
             messages=messages,
             model=model,
-            fallback_to_responses=fallback_to_responses,
-            responses_kwargs=responses_kwargs,
         )
 
     async def _stream_chat_via_chat_completions(
@@ -137,15 +130,11 @@ class OpenAIAdapterProtocolBridgeMixin:
         *,
         request_params: dict[str, Any],
         model: str,
-        fallback_to_responses: bool = True,
-        responses_kwargs: dict[str, Any] | None = None,
     ) -> AsyncIterator[ChatChunk]:
         async for chunk in execute_stream_chat_via_chat_completions(
             adapter=self,
             request_params=request_params,
             model=model,
-            fallback_to_responses=fallback_to_responses,
-            responses_kwargs=responses_kwargs,
             aclose_stream=aclose_openai_stream,
             normalize_timeout=self._normalize_timeout_seconds,
         ):
@@ -161,12 +150,6 @@ class OpenAIAdapterProtocolBridgeMixin:
         if str(getattr(chunk, "delta", "") or "").strip():
             return True
         return bool(getattr(chunk, "tool_calls", None))
-
-    def _use_responses_api(self) -> bool:
-        return self.wire_api == "responses"
-
-    def _is_salvageable_raw_text_chat_response(self, payload: Any) -> bool:
-        return is_salvageable_chat_completions_raw_text(payload)
 
     async def _chat_via_responses(
         self,

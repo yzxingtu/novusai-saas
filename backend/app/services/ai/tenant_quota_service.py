@@ -4,7 +4,7 @@
 
 from typing import Any
 
-from app.ai.quota import UsageTracker
+from app.ai.quota_usage_tracker import UsageTracker
 from app.core.base_service import TenantService
 from app.core.i18n import _
 from app.core.logging import LogManager

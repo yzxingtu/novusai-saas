@@ -8,6 +8,16 @@ from __future__ import annotations
 from typing import Any
 
 from app.ai.runtime.types import TurnRecord
+from app.schemas.ai.invalid_ai_runtime_input import normalize_ai_runtime_token
+
+_NO_TOOL_SENTINEL_NAMES = frozenset(
+    {
+        "__no_tool__",
+        "no_tool",
+        "no_tool_available",
+        "notool",
+    }
+)
 
 
 class ToolExecutor:
@@ -19,7 +29,11 @@ class ToolExecutor:
     REQUIRED_EMPTY_FAILURE = "required_tool_round_empty_no_tool_calls"
 
     @staticmethod
-    def has_tool_calls(tool_calls: list[dict[str, Any]] | None) -> bool:
+    def is_no_tool_sentinel(name: Any) -> bool:
+        return normalize_ai_runtime_token(name) in _NO_TOOL_SENTINEL_NAMES
+
+    @classmethod
+    def has_tool_calls(cls, tool_calls: list[dict[str, Any]] | None) -> bool:
         if not tool_calls:
             return False
         for tool_call in tool_calls:
@@ -29,7 +43,7 @@ class ToolExecutor:
             name = str(
                 function_block.get("name") or tool_call.get("name") or ""
             ).strip()
-            if name:
+            if name and not cls.is_no_tool_sentinel(name):
                 return True
         return False
 

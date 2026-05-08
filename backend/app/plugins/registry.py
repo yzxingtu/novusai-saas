@@ -25,6 +25,16 @@ logger = get_logger(__name__)
 _PLUGIN_MENU_ACTION_MAX_LEN = 50
 
 
+def _build_plugin_menu_id(safe_name: str, name: str) -> str:
+    """Build plugin menu id without the scope/code prefix. / 构造不含端别/code 前缀的插件菜单 ID。"""
+    return f"plugin_{safe_name}_{name}"
+
+
+def _build_plugin_menu_code(scope_prefix: str, safe_name: str, name: str) -> str:
+    """Build full plugin menu permission code. / 构造完整插件菜单权限码。"""
+    return f"menu:{scope_prefix}.{_build_plugin_menu_id(safe_name, name)}"
+
+
 class _RegistryRuntimeBridge:
     """Runtime-only bridge: async consumer execution + middleware projection."""
 
@@ -120,7 +130,7 @@ class _RegistryRuntimeBridge:
 def _build_plugin_menu_action(scope_prefix: str, safe_name: str, name: str) -> str:
     """Build a menu action string that stays within Permission.action limits.
     / 构造满足 Permission.action 长度限制的插件菜单 action。"""
-    raw_action = f"{scope_prefix}.plugin_{safe_name}_{name}"
+    raw_action = f"{scope_prefix}.{_build_plugin_menu_id(safe_name, name)}"
     if len(raw_action) <= _PLUGIN_MENU_ACTION_MAX_LEN:
         return raw_action
 
@@ -194,9 +204,7 @@ class ExtensionRegistry(RegistryRuntimeExtensionsMixin):
 
     def __init__(self) -> None:
         self._registry: dict[str, list[RegisteredExtension]] = {}
-        self._plugin_skill_resolvers: dict[str, Callable] = {}
         self._plugin_skill_resolvers_by_key: dict[tuple[str, str], Callable] = {}
-        self._plugin_executors: dict[str, Callable] = {}
         self._plugin_executors_by_key: dict[tuple[str, str], Callable] = {}
         self._plugin_webhooks: dict[str, dict[str, Any]] = {}
         self._plugin_notifications: dict[str, dict[str, Any]] = {}
@@ -257,8 +265,6 @@ class ExtensionRegistry(RegistryRuntimeExtensionsMixin):
         self._plugin_menus.pop(plugin_name, None)
         self._plugin_menu_titles.pop(plugin_name, None)
         self._plugin_permission_titles.pop(plugin_name, None)
-        self._plugin_skill_resolvers.pop(plugin_name, None)
-        self._plugin_executors.pop(plugin_name, None)
         self._plugin_skill_resolvers_by_key = {
             key: value
             for key, value in self._plugin_skill_resolvers_by_key.items()
@@ -382,11 +388,14 @@ class ExtensionRegistry(RegistryRuntimeExtensionsMixin):
                       / 工具执行器类或实例
         """
         normalized_skill_name = str(skill_name or "").strip()
-        if normalized_skill_name:
-            self._plugin_skill_resolvers_by_key[
-                (plugin_name, normalized_skill_name)
-            ] = resolver
-        self._plugin_skill_resolvers.setdefault(plugin_name, resolver)
+        if not normalized_skill_name:
+            raise ValueError(
+                f"Plugin skill registration for '{plugin_name}' requires skill_name"
+            )
+
+        self._plugin_skill_resolvers_by_key[(plugin_name, normalized_skill_name)] = (
+            resolver
+        )
         if executor:
             # Class → instantiate and cache, avoid creating new instance on every tool call / 类→实例化并缓存，避免每次调用新建
             # / 类 → 实例化后缓存
@@ -401,16 +410,10 @@ class ExtensionRegistry(RegistryRuntimeExtensionsMixin):
                     )
                     executor = None
             if executor:
-                if normalized_skill_name:
-                    self._plugin_executors_by_key[
-                        (plugin_name, normalized_skill_name)
-                    ] = executor
-                self._plugin_executors.setdefault(plugin_name, executor)
-        track_key = (
-            f"{plugin_name}:{normalized_skill_name}"
-            if normalized_skill_name
-            else plugin_name
-        )
+                self._plugin_executors_by_key[(plugin_name, normalized_skill_name)] = (
+                    executor
+                )
+        track_key = f"{plugin_name}:{normalized_skill_name}"
         self._track(plugin_name, "skill", track_key)
         logger.info(
             "Plugin {} registered skill resolver (skill={}, type={})",
@@ -437,8 +440,6 @@ class ExtensionRegistry(RegistryRuntimeExtensionsMixin):
                 removed_executor=removed_executor,
             )
             return
-        self._plugin_skill_resolvers.pop(key, None)
-        self._plugin_executors.pop(key, None)
 
     def _refresh_plugin_skill_facade(
         self,
@@ -447,28 +448,7 @@ class ExtensionRegistry(RegistryRuntimeExtensionsMixin):
         removed_resolver: Callable | None,
         removed_executor: Any | None,
     ) -> None:
-        if self._plugin_skill_resolvers.get(plugin_name) is removed_resolver:
-            self._plugin_skill_resolvers.pop(plugin_name, None)
-            for (
-                candidate_plugin,
-                _skill_name,
-            ), resolver in self._plugin_skill_resolvers_by_key.items():
-                if candidate_plugin == plugin_name:
-                    self._plugin_skill_resolvers[plugin_name] = resolver
-                    break
-
-        if (
-            removed_executor
-            and self._plugin_executors.get(plugin_name) is removed_executor
-        ):
-            self._plugin_executors.pop(plugin_name, None)
-            for (
-                candidate_plugin,
-                _skill_name,
-            ), executor in self._plugin_executors_by_key.items():
-                if candidate_plugin == plugin_name:
-                    self._plugin_executors[plugin_name] = executor
-                    break
+        del plugin_name, removed_resolver, removed_executor
 
     def get_plugin_skill_resolver(
         self,
@@ -481,7 +461,7 @@ class ExtensionRegistry(RegistryRuntimeExtensionsMixin):
             return self._plugin_skill_resolvers_by_key.get(
                 (plugin_name, normalized_skill_name)
             )
-        return self._plugin_skill_resolvers.get(plugin_name)
+        return None
 
     def get_plugin_executor(
         self,
@@ -494,7 +474,7 @@ class ExtensionRegistry(RegistryRuntimeExtensionsMixin):
             return self._plugin_executors_by_key.get(
                 (plugin_name, normalized_skill_name)
             )
-        return self._plugin_executors.get(plugin_name)
+        return None
 
     # ── 5. Event / 事件 ──
 

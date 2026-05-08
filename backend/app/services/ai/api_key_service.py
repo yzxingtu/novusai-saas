@@ -42,15 +42,15 @@ class ProviderApiKeyService(BaseService[ProviderApiKey, ProviderApiKeyRepository
         """
         # Schema dump excluding api_key (persisted as encrypted_key on model) / 排除 api_key（模型用 encrypted_key 存储）
         create_data = data.model_dump(exclude={"api_key"})
-        owner_tid = create_data.pop("tenant_id", None)
+        owner_tid = create_data.pop("owner_tenant_id", None)
         scope = str(create_data.get("scope") or "")
-
-        if scope == ResourceScopeEnum.ALL_TENANTS.value:
-            if owner_tid is None:
-                create_data["scope"] = ResourceScopeEnum.GLOBAL_SHARED.value
-            else:
-                create_data["scope"] = ResourceScopeEnum.SELECTED_TENANTS.value
-            scope = create_data["scope"]
+        allowed_scopes = {
+            ResourceScopeEnum.ADMIN_ONLY.value,
+            ResourceScopeEnum.GLOBAL_SHARED.value,
+            ResourceScopeEnum.SELECTED_TENANTS.value,
+        }
+        if scope not in allowed_scopes:
+            raise ValidationException(message=_("ai.error.api_key_scope_invalid"))
 
         if scope == ResourceScopeEnum.SELECTED_TENANTS.value and owner_tid is None:
             raise ValidationException(

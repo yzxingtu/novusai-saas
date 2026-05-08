@@ -47,7 +47,6 @@ async def resolve_skill_result(
             db,
             agent,
             tenant_id=request.tenant_id,
-            user_role=request.user_role,
             request=request,
         )
     except Exception as exc:  # noqa: BLE001

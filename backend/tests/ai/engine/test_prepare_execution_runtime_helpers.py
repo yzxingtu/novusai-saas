@@ -1,43 +1,26 @@
+"""
+Test type: structural
+中文: 覆盖 AI runtime helper 所有权与退役 import 面哨兵。
+EN: Covers AI runtime helper ownership and retired import-surface sentinels.
+Mock strategy: no runtime decision mocks; tests inspect import surfaces and pure
+helpers.
+"""
+
 from __future__ import annotations
 
-from contextlib import ExitStack, contextmanager
 from importlib import import_module
 from importlib.util import find_spec
 from types import SimpleNamespace
-from unittest.mock import patch
 
 from app.ai.engine.prepare_execution_runtime_helpers import (
     apply_runtime_capability_injection,
 )
-
-_USAGE_METRICS_MODULES = (
-    "app.ai.runtime.usage_metrics",
-    "app.services.ai.usage_metrics",
+from app.ai.engine.tool_policy_selection_helpers import (
+    allowed_tool_names_for_family,
+    filter_tools_for_policy,
+    restrict_tools_to_names,
 )
-
-
-def _resolve_usage_metrics_modules() -> dict[str, object]:
-    modules: dict[str, object] = {}
-    for module_path in _USAGE_METRICS_MODULES:
-        if find_spec(module_path) is None:
-            continue
-        modules[module_path] = import_module(module_path)
-    return modules
-
-
-@contextmanager
-def _patch_usage_metrics_attr(attr_path: str, **kwargs):
-    module_paths = [
-        module_path
-        for module_path in _USAGE_METRICS_MODULES
-        if find_spec(module_path) is not None
-    ]
-    if not module_paths:
-        raise AssertionError("usage_metrics module not found at expected import paths")
-    with ExitStack() as stack:
-        for module_path in module_paths:
-            stack.enter_context(patch(f"{module_path}.{attr_path}", **kwargs))
-        yield
+from app.ai.tools.types import ToolDefinition
 
 
 def test_apply_runtime_capability_injection_updates_diagnostics() -> None:
@@ -77,14 +60,60 @@ def test_apply_runtime_capability_injection_updates_diagnostics() -> None:
     assert "include_memory_hint" not in injected_calls[0]
 
 
-def test_usage_metrics_import_paths_are_compatible() -> None:
-    modules = _resolve_usage_metrics_modules()
-    legacy_module = modules.get("app.services.ai.usage_metrics")
-    runtime_module = modules.get("app.ai.runtime.usage_metrics")
+def test_tool_policy_family_selection_fails_closed_on_unknown_family() -> None:
+    """Test type: behavioral; unknown skill family must not widen to all tools."""
+    tools = [
+        ToolDefinition(name="clock_now", description="Current time"),
+        ToolDefinition(name="weather_lookup", description="Plugin weather"),
+    ]
 
-    assert legacy_module is not None
-    if runtime_module is None:
-        return
+    assert allowed_tool_names_for_family("missing_family", tools) == []
+    assert restrict_tools_to_names(tools, []) == []
+    assert restrict_tools_to_names(tools, None) == tools
+    assert (
+        filter_tools_for_policy(
+            tools,
+            SimpleNamespace(
+                family="weather",
+                mode="required",
+                allowed_tool_names=[],
+            ),
+        )
+        == []
+    )
 
-    assert runtime_module.TokenCounter is legacy_module.TokenCounter
-    assert runtime_module.CostCalculator is legacy_module.CostCalculator
+
+def test_usage_metrics_uses_runtime_owner_module_only() -> None:
+    runtime_module = import_module("app.ai.runtime.usage_metrics")
+
+    assert find_spec("app.services.ai.usage_metrics") is None
+    assert runtime_module.TokenCounter.__module__ == "app.ai.runtime.usage_metrics"
+    assert runtime_module.CostCalculator.__module__ == "app.ai.runtime.usage_metrics"
+
+
+def test_retired_ai_legacy_import_surfaces_are_not_resolvable() -> None:
+    retired_modules = [
+        "app.ai.agent_quota",
+        "app.ai.engine.conversation_runtime_accounting",
+        "app.ai.quota",
+        "app.ai.usage_recorder",
+        "app.ai.adapters.openai_compatible.usage_parser",
+        "app.ai.adapters.openai_compatible.support.multimodal_runtime",
+        "app.ai.adapters.openai_compatible.support.usage_parser",
+        "app.cli_commands.legacy",
+        "app.services.ai.recovery_evidence_read_model",
+        "app.services.ai.usage_metrics",
+    ]
+
+    assert {module: find_spec(module) for module in retired_modules} == dict.fromkeys(
+        retired_modules,
+        None,
+    )
+
+
+def test_ai_service_package_does_not_export_retired_metrics_facade() -> None:
+    services_ai = import_module("app.services.ai")
+
+    assert "UsageMetrics" not in services_ai.__all__
+    assert "TokenCounter" not in services_ai.__all__
+    assert "CostCalculator" not in services_ai.__all__

@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from unittest.mock import Mock
 
+import pytest
+
 import app.plugins._extension_registrar as registrar
 from app.plugins.manifest import PluginManifest
 
@@ -52,6 +54,7 @@ def _build_runtime_bridge_manifest() -> PluginManifest:
 class _FakeRegistry:
     def __init__(self, registered_count: int) -> None:
         self._registered_count = registered_count
+        self.register_skill = Mock()
         self.register_consumer = Mock()
         self.register_middleware = Mock()
         self.register_socketio = Mock()
@@ -134,6 +137,126 @@ def test_register_all_extensions_records_runtime_extension_failures(
     ]
 
 
+def _build_skill_manifest(
+    *,
+    executor_entry_point: str = "",
+) -> PluginManifest:
+    skill_payload = {
+        "name": "weather-resolver",
+        "type": "toolkit",
+        "entry_point": "skills.weather_resolver",
+    }
+    if executor_entry_point:
+        skill_payload["executor_entry_point"] = executor_entry_point
+    return PluginManifest.model_validate(
+        {
+            "name": "demo-plugin",
+            "version": "1.0.0",
+            "display_name": {"en": "Demo Plugin"},
+            "scope": "admin_only",
+            "extensions": {"skills": [skill_payload]},
+        }
+    )
+
+
+def test_skill_executor_registration_requires_explicit_executor_entry_point(
+    monkeypatch,
+) -> None:
+    manifest = _build_skill_manifest(
+        executor_entry_point="executors.weather.WeatherExecutor"
+    )
+    registry = _FakeRegistry(registered_count=1)
+    resolver = object()
+    executor = type("WeatherExecutor", (), {})
+    loaded_paths: list[str] = []
+
+    def _load_handler(_plugin_name: str, handler_path: str):
+        loaded_paths.append(handler_path)
+        return {
+            "skills.weather_resolver.resolve": resolver,
+            "executors.weather.WeatherExecutor": executor,
+        }.get(handler_path)
+
+    monkeypatch.setattr(registrar, "_load_handler", _load_handler)
+    registrar._failed_extensions.pop("demo-plugin", None)
+
+    registrar.register_all_extensions(registry, manifest, "demo-plugin")
+
+    assert loaded_paths == [
+        "skills.weather_resolver.resolve",
+        "executors.weather.WeatherExecutor",
+    ]
+    registry.register_skill.assert_called_once_with(
+        "demo-plugin",
+        "toolkit",
+        resolver,
+        executor,
+        skill_name="weather-resolver",
+    )
+
+
+def test_missing_explicit_skill_executor_records_extension_failure(
+    monkeypatch,
+) -> None:
+    manifest = _build_skill_manifest(
+        executor_entry_point="executors.weather.MissingExecutor"
+    )
+    registry = _FakeRegistry(registered_count=1)
+    resolver = object()
+
+    monkeypatch.setattr(
+        registrar,
+        "_load_handler",
+        lambda _plugin_name, handler_path: (
+            resolver if handler_path == "skills.weather_resolver.resolve" else None
+        ),
+    )
+    registrar._failed_extensions.pop("demo-plugin", None)
+
+    registrar.register_all_extensions(registry, manifest, "demo-plugin")
+
+    registry.register_skill.assert_called_once_with(
+        "demo-plugin",
+        "toolkit",
+        resolver,
+        None,
+        skill_name="weather-resolver",
+    )
+    assert registrar.get_failed_extensions("demo-plugin") == [
+        {
+            "type": "skill_executor",
+            "entry_point": "executors.weather.MissingExecutor",
+        }
+    ]
+
+
+def test_skill_registration_does_not_guess_executor_from_skill_type(
+    monkeypatch,
+) -> None:
+    manifest = _build_skill_manifest()
+    registry = _FakeRegistry(registered_count=1)
+    resolver = object()
+    loaded_paths: list[str] = []
+
+    def _load_handler(_plugin_name: str, handler_path: str):
+        loaded_paths.append(handler_path)
+        return resolver if handler_path == "skills.weather_resolver.resolve" else None
+
+    monkeypatch.setattr(registrar, "_load_handler", _load_handler)
+    registrar._failed_extensions.pop("demo-plugin", None)
+
+    registrar.register_all_extensions(registry, manifest, "demo-plugin")
+
+    assert loaded_paths == ["skills.weather_resolver.resolve"]
+    registry.register_skill.assert_called_once_with(
+        "demo-plugin",
+        "toolkit",
+        resolver,
+        None,
+        skill_name="weather-resolver",
+    )
+
+
 def test_registry_keeps_plugin_skill_resolvers_by_skill_name() -> None:
     from app.plugins.registry import ExtensionRegistry
 
@@ -166,13 +289,27 @@ def test_registry_keeps_plugin_skill_resolvers_by_skill_name() -> None:
         beta_resolver
     )
     assert registry.get_plugin_skill_resolver("demo-plugin", "missing-skill") is None
-    assert registry.get_plugin_skill_resolver("demo-plugin") is alpha_resolver
+    assert registry.get_plugin_skill_resolver("demo-plugin") is None
 
     registry.unregister_all("demo-plugin")
 
     assert registry.get_plugin_skill_resolver("demo-plugin", "alpha-skill") is None
     assert registry.get_plugin_skill_resolver("demo-plugin", "beta-skill") is None
     assert registry.get_plugin_skill_resolver("demo-plugin") is None
+
+
+def test_registry_rejects_plugin_skill_registration_without_skill_name() -> None:
+    from app.plugins.registry import ExtensionRegistry
+
+    ExtensionRegistry.reset()
+    registry = ExtensionRegistry.get_instance()
+
+    with pytest.raises(ValueError, match="requires skill_name"):
+        registry.register_skill(
+            "demo-plugin",
+            "toolkit",
+            lambda *_args, **_kwargs: [],
+        )
 
 
 def test_registry_unregister_by_type_clears_plugin_skill_facade() -> None:

@@ -917,7 +917,7 @@ class TurnExecutor:
 
         scoped_tools = list(io.restrict_tools_to_names(list(tools), allowed_tool_names))
         if not scoped_tools:
-            return list(tools), policy, intent
+            return [], policy, intent
 
         scoped_tool_names = [tool.name for tool in scoped_tools]
         if scoped_tool_names == list(policy.allowed_tool_names or []):

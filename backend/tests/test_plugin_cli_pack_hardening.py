@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import importlib
 import json
 import sys
 from pathlib import Path
@@ -16,7 +15,8 @@ _SCRIPTS_DIR = Path(__file__).resolve().parents[1] / "scripts"
 if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
-pc = importlib.import_module("plugin_cli")
+from plugin_cli_pack import cmd_pack  # noqa: E402
+from plugin_cli_release import _generate_release_manifest  # noqa: E402
 
 
 def _write_plugin(
@@ -111,7 +111,7 @@ def test_generate_release_manifest_rejects_path_traversal(tmp_path: Path) -> Non
     plugin_dir = _write_plugin(tmp_path)
 
     with pytest.raises(Exception) as exc_info:
-        pc._generate_release_manifest(plugin_dir, "../plugin.manifest.json")
+        _generate_release_manifest(plugin_dir, "../plugin.manifest.json")
 
     assert "path traversal" in str(exc_info.value)
 
@@ -124,7 +124,7 @@ def test_cmd_pack_release_rejects_missing_release_asset(
     (plugin_dir / "frontend" / "dist" / "assets" / "chunk.js").unlink()
 
     with pytest.raises(SystemExit) as exc:
-        pc.cmd_pack(
+        cmd_pack(
             SimpleNamespace(
                 dir=str(plugin_dir),
                 output=str(tmp_path / "demo-plugin.zip"),
@@ -154,7 +154,7 @@ def test_cmd_pack_rejects_security_scan_warnings(
     )
 
     with pytest.raises(SystemExit) as exc:
-        pc.cmd_pack(
+        cmd_pack(
             SimpleNamespace(
                 dir=str(plugin_dir),
                 output=str(tmp_path / "demo-plugin-source.zip"),
@@ -176,7 +176,7 @@ def test_cmd_pack_rejects_invalid_plugin_name_in_manifest(
     plugin_dir = _write_plugin(tmp_path, manifest_plugin_name="Demo-Plugin")
 
     with pytest.raises(SystemExit) as exc:
-        pc.cmd_pack(
+        cmd_pack(
             SimpleNamespace(
                 dir=str(plugin_dir),
                 output=str(tmp_path / "demo-plugin-source.zip"),

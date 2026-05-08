@@ -5,7 +5,7 @@ Usage metering context / 用量计量上下文
 import dataclasses
 from datetime import date
 
-from app.ai.quota import QuotaCheckResult
+from app.ai.quota_models import QuotaCheckResult
 from app.ai.rate_limiter import RateLimitReservation
 
 

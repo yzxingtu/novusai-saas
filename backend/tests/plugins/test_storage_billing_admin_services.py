@@ -86,7 +86,7 @@ async def test_storage_billing_provider_profiles_persist_only_billing_fields() -
 
 
 @pytest.mark.asyncio
-async def test_storage_billing_provider_profiles_read_legacy_flat_billing_config_only() -> (
+async def test_storage_billing_provider_profiles_ignore_legacy_flat_billing_config() -> (
     None
 ):
     module = load_plugin_module("storage-billing", "services.profile_service")
@@ -127,10 +127,10 @@ async def test_storage_billing_provider_profiles_read_legacy_flat_billing_config
     result = await service.list_provider_profiles()
 
     profile = result["providers"]["tencent-cos"]
-    assert profile["enabled"] is True
-    assert profile["profile_code"] == "legacy-profile"
+    assert profile["enabled"] is False
+    assert profile["profile_code"] == "tencent-default"
     assert "bill_bucket" not in profile
-    assert profile["account_identifier"] == "acct-legacy"
+    assert profile["account_identifier"] == ""
     assert profile["region"] == "ap-guangzhou"
     assert profile["configured_secret_fields"]["secret_id"] is True
     assert "secret_id" not in profile
@@ -423,8 +423,10 @@ async def test_storage_billing_run_reconciliation_endpoint_forwards_payload(
 
 
 @pytest.mark.asyncio
-async def test_admin_overview_includes_latest_runs_and_counts(monkeypatch) -> None:
-    module = load_plugin_module("storage-billing", "services.reconciliation_service")
+async def test_admin_overview_includes_latest_runs_and_counts() -> None:
+    module = load_plugin_module(
+        "storage-billing", "services.reconciliation_overview_service"
+    )
     models = load_plugin_module("storage-billing", "models")
     assert module is not None
     assert models is not None
@@ -471,8 +473,10 @@ async def test_admin_overview_includes_latest_runs_and_counts(monkeypatch) -> No
 
 
 @pytest.mark.asyncio
-async def test_admin_overview_includes_provider_metadata(monkeypatch) -> None:
-    module = load_plugin_module("storage-billing", "services.reconciliation_service")
+async def test_admin_overview_includes_provider_metadata() -> None:
+    module = load_plugin_module(
+        "storage-billing", "services.reconciliation_overview_service"
+    )
     models = load_plugin_module("storage-billing", "models")
     assert module is not None
     assert models is not None
@@ -520,13 +524,11 @@ async def test_admin_overview_includes_provider_metadata(monkeypatch) -> None:
             }
         }
     )
-    monkeypatch.setattr(
-        module,
-        "StorageBillingProviderProfileService",
-        MagicMock(return_value=stub_profile_service),
+    service = module.StorageBillingOverviewService(
+        db,
+        host_read=host,
+        provider_profile_service_factory=MagicMock(return_value=stub_profile_service),
     )
-
-    service = module.StorageBillingOverviewService(db, host_read=host)
     overview = await service.build_admin_overview()
 
     capabilities = overview["provider_capabilities"].get("qiniu-kodo", {})

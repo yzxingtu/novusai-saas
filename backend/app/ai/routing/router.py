@@ -435,7 +435,7 @@ class ModelRouter:
         )
 
     async def _is_provider_healthy(self, provider_id: int | None) -> bool:
-        """Check provider health status (defaults to healthy on failure to avoid false blocking). / 检查供应商健康状态（失败时默认健康，避免误屏蔽）。"""
+        """Check provider health status; fail closed on health lookup errors. / 检查供应商健康状态；健康查询失败时 fail closed。"""
         if not provider_id:
             return True
         try:
@@ -445,7 +445,7 @@ class ModelRouter:
             return await failover.is_provider_healthy(provider_id)
         except Exception as exc:
             logger.warning("ModelRouter health check failed: {}", str(exc))
-            return True
+            return False
 
 
 __all__ = ["ModelRouter", "RouteResult"]

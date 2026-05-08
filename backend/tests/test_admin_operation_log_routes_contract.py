@@ -211,6 +211,81 @@ def test_list_operators_route_returns_paged_payload(monkeypatch) -> None:
     )
 
 
+def test_list_operators_route_defaults_to_paged_payload(monkeypatch) -> None:
+    from app.services.system.operation_log_service import OperationLogService
+
+    operation_logs_module = _load_operation_logs_module()
+    monkeypatch.setattr(
+        operation_logs_module.AdminOperationLogController,
+        "_instance",
+        None,
+    )
+    monkeypatch.setattr(
+        operation_logs_module.AdminOperationLogController,
+        "_router",
+        None,
+    )
+
+    def fake_init(self, db) -> None:
+        self.db = db
+        self.repo = OperationLogRepository(db)
+
+    get_admin_operators_select = AsyncMock(
+        return_value=(
+            [
+                {
+                    "label": "Alice",
+                    "value": "alice",
+                    "extra": {"user_id": 7},
+                    "disabled": False,
+                }
+            ],
+            1,
+        )
+    )
+    get_admin_operators = AsyncMock()
+
+    monkeypatch.setattr(OperationLogService, "__init__", fake_init)
+    monkeypatch.setattr(
+        OperationLogService,
+        "get_admin_operators_select",
+        get_admin_operators_select,
+    )
+    monkeypatch.setattr(
+        OperationLogService,
+        "get_admin_operators",
+        get_admin_operators,
+    )
+
+    app = _build_test_app(AsyncMock(), operation_logs_module)
+
+    with TestClient(app) as client:
+        response = client.get("/operation-logs/operators")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["code"] == 0
+    assert payload["data"] == {
+        "items": [
+            {
+                "label": "Alice",
+                "value": "alice",
+                "extra": {"user_id": 7},
+                "disabled": False,
+            }
+        ],
+        "total": 1,
+        "page": 1,
+        "page_size": 10,
+    }
+    get_admin_operators_select.assert_awaited_once_with(
+        search=None,
+        page=1,
+        page_size=10,
+    )
+    get_admin_operators.assert_not_awaited()
+
+
 def test_export_logs_route_uses_serialized_labels(monkeypatch) -> None:
     from app.services.system.operation_log_service import OperationLogService
 

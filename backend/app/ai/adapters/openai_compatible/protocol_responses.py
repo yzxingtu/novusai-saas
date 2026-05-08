@@ -22,6 +22,7 @@ from app.ai.exceptions import (
 )
 from app.ai.types import ChatMessage, ChatResponse
 from app.core.logging import LogManager
+from app.schemas.ai.invalid_ai_runtime_input import is_invalid_ai_runtime_reference
 
 logger = LogManager.get_logger("ai")
 _RESPONSES_RESPONSE_ID_METADATA_KEY = "responses_response_id"
@@ -30,6 +31,22 @@ _RESPONSES_FAILURE_STATUSES = frozenset(
 )
 _TIMEOUT_MARKERS = ("timeout", "timed_out", "time_out", "deadline")
 _CONNECTION_MARKERS = ("connection", "connect", "network", "socket")
+_PROVIDER_STRUCTURAL_REFERENCE_FIELDS = frozenset(
+    {
+        "event",
+        "kind",
+        "name",
+        "provider",
+        "provider_tool",
+        "source",
+        "tool",
+        "tool_name",
+        "type",
+    }
+)
+_PROVIDER_TEXT_PAYLOAD_FIELDS = frozenset(
+    {"content", "message", "output_text", "reasoning", "summary", "text"}
+)
 
 
 class ResponsesAdapterProtocol(Protocol):
@@ -157,6 +174,52 @@ def _responses_provider_error(
     return ProviderError(message, **kwargs)
 
 
+def _retired_provider_payload_marker(value: Any) -> str | None:
+    if isinstance(value, dict):
+        for key, nested in value.items():
+            key_text = str(key or "").strip()
+            if is_invalid_ai_runtime_reference(key_text):
+                return key_text
+            if (
+                key_text in _PROVIDER_STRUCTURAL_REFERENCE_FIELDS
+                and isinstance(nested, str)
+                and is_invalid_ai_runtime_reference(nested)
+            ):
+                return nested
+            if key_text in _PROVIDER_TEXT_PAYLOAD_FIELDS:
+                continue
+            marker = _retired_provider_payload_marker(nested)
+            if marker:
+                return marker
+        return None
+    if isinstance(value, list | tuple):
+        for item in value:
+            marker = _retired_provider_payload_marker(item)
+            if marker:
+                return marker
+        return None
+    for field_name in _PROVIDER_STRUCTURAL_REFERENCE_FIELDS:
+        nested = getattr(value, field_name, None)
+        if isinstance(nested, str) and is_invalid_ai_runtime_reference(nested):
+            return nested
+    output = getattr(value, "output", None)
+    if output is not None:
+        marker = _retired_provider_payload_marker(output)
+        if marker:
+            return marker
+    return None
+
+
+def _retired_provider_output_error(*, marker: str, model: str) -> ProviderError:
+    return ProviderError(
+        f"Responses API returned a retired online-search provider capability: {marker}",
+        provider_code="openai",
+        model_code=model,
+        error_code="retired_online_search_provider_output",
+        status_code=400,
+    )
+
+
 def _responses_failure_error(response: Any, *, model: str) -> AIGatewayError | None:
     status = str(_response_field(response, "status", "") or "").strip().lower()
     error_obj = _response_field(response, "error")
@@ -225,6 +288,10 @@ def convert_responses_chat_response(
     model: str,
 ) -> ChatResponse:
     from app.ai.types import ChatMessage  # local import keeps module lightweight
+
+    retired_marker = _retired_provider_payload_marker(response)
+    if retired_marker:
+        raise _retired_provider_output_error(marker=retired_marker, model=model)
 
     tool_calls = extract_responses_tool_calls(response)
     reasoning_content = extract_responses_reasoning_text(response)

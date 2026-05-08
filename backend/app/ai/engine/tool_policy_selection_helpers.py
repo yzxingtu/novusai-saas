@@ -48,7 +48,7 @@ def allowed_tool_names_for_family(
     for tool in tools:
         if tool_semantic_family(tool, input_variables) == normalized_family:
             allowed.append(tool.name)
-    return allowed or [tool.name for tool in tools]
+    return allowed
 
 
 def allowed_tool_names_for_families(
@@ -71,7 +71,11 @@ def filter_tools_for_policy(
     tools: list[ToolDefinition],
     policy: ToolUsePolicy,
 ) -> list[ToolDefinition]:
-    if not tools or not policy.allowed_tool_names:
+    if not tools:
+        return []
+    if not policy.allowed_tool_names:
+        if policy.family != "none" or policy.mode == "required":
+            return []
         return list(tools)
     allowed = {
         str(name).strip() for name in policy.allowed_tool_names if str(name).strip()
@@ -85,8 +89,10 @@ def restrict_tools_to_names(
     tools: list[ToolDefinition],
     allowed_names: list[str] | None,
 ) -> list[ToolDefinition]:
-    if not allowed_names:
+    if allowed_names is None:
         return list(tools)
+    if not allowed_names:
+        return []
     allowed = {str(name).strip() for name in allowed_names if str(name).strip()}
     if not allowed:
         return []

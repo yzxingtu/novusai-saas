@@ -74,10 +74,7 @@ async def query_usage_stats(repo, spec) -> tuple[list[dict], int]:
     查询按日期 + 计费企业 + 模型 + 请求类型聚合的计费用量统计。
     """
     stat_date_col = cast(AICallLog.created_at, Date)
-    model_name_expr = func.coalesce(
-        AICallLog.model_name_snapshot,
-        AIModel.name,
-    )
+    model_name_expr = func.coalesce(AIModel.name, AIModel.code)
 
     usage_base = (
         select(
@@ -471,7 +468,7 @@ async def get_billing_model_usage_summary(
     model_name = None
     model = await repo.db.get(AIModel, model_id)
     if model:
-        model_name = model.name
+        model_name = model.name or model.code
 
     return {
         "model_id": model_id,
@@ -537,7 +534,7 @@ async def get_billing_model_stats(
     stmt = (
         select(
             AICallLog.model_id,
-            AIModel.name.label("model_name"),
+            func.coalesce(AIModel.name, AIModel.code).label("model_name"),
             func.coalesce(func.sum(AICallLog.total_tokens), 0).label("total_tokens"),
             func.coalesce(func.sum(AICallLog.cost), 0).label("cost"),
             func.count(AICallLog.id).label("calls"),
@@ -551,6 +548,7 @@ async def get_billing_model_stats(
         .group_by(
             AICallLog.model_id,
             AIModel.name,
+            AIModel.code,
         )
         .order_by(
             func.coalesce(func.sum(AICallLog.total_tokens), 0).desc(),

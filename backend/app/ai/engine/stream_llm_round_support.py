@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 from app.ai.types import ChatMessage, ChatResponse
 
 from .budget_guard import BudgetGuard
-from .stream_generation_view import ensure_stream_generation_view
+from .stream_generation_view import build_stream_generation_view
 from .turn_executor import ModelRoundResult
 from .turn_flow_projector import (
     build_answer_assembly_turn_flow_event,
@@ -31,7 +31,7 @@ class StreamRoundState:
 
 
 def _resolve_generation_view(adapter: StreamIOAdapter) -> Any:
-    return ensure_stream_generation_view(adapter.handler)
+    return build_stream_generation_view(adapter.handler)
 
 
 async def prepare_stream_round(
@@ -131,6 +131,8 @@ def finalize_model_round(
     )
     view.total_tokens = int(state.total_tokens or 0)
     view.completion_tokens_used = int(state.completion_tokens_used or 0)
+    response_metadata = dict(state.metadata or {})
+    response_metadata.setdefault("protocol_path", "chat_completions")
 
     response = ChatResponse(
         message=ChatMessage(
@@ -145,7 +147,7 @@ def finalize_model_round(
             "tool_calls" if finalized_tool_calls else (state.finish_reason or "stop")
         ),
         tool_calls=finalized_tool_calls or None,
-        metadata=dict(state.metadata or {}),
+        metadata=response_metadata,
     )
     return ModelRoundResult(
         response=response,

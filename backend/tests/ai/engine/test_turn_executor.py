@@ -106,7 +106,7 @@ class _FakeIOAdapter:
 
     def restrict_tools_to_names(self, tools, allowed_tool_names):
         if not allowed_tool_names:
-            return list(tools)
+            return []
         allowed = set(allowed_tool_names)
         return [tool for tool in tools if tool.name in allowed]
 
@@ -177,6 +177,42 @@ def _assistant_response(
         total_tokens=total_tokens,
         completion_tokens_used=total_tokens,
     )
+
+
+def test_scope_tools_to_active_intent_fails_closed_when_allowlist_misses() -> None:
+    """Test type: behavioral; stale allowlists must not reopen the full tool set."""
+    tools = [
+        ToolDefinition(name="clock_now", description="Current time"),
+        ToolDefinition(name="weather_lookup", description="Plugin weather"),
+    ]
+    intent = _build_intent(
+        intent_id="intent-1",
+        kind="weather_query",
+        family="weather",
+        allowed_tool_names=["removed_weather_tool"],
+    )
+    state = ExecutionStateMachine(
+        intent_plan=[intent],
+        budget=BudgetGuard.build_default("normal", intent_count=1),
+        execution_path="normal",
+    )
+    policy = ToolUsePolicy(
+        family="weather",
+        mode="required",
+        allowed_tool_names=["removed_weather_tool"],
+    )
+    io = _FakeIOAdapter(model_rounds=[])
+
+    scoped_tools, scoped_policy, active = TurnExecutor._scope_tools_to_active_intent(
+        state=state,
+        tools=tools,
+        policy=policy,
+        io=io,
+    )
+
+    assert active is intent
+    assert scoped_tools == []
+    assert scoped_policy is policy
 
 
 @pytest.mark.asyncio

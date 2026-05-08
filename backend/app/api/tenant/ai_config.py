@@ -130,9 +130,9 @@ class TenantAIConfigController(TenantController):
 
             权限 / Permission: ai_config:create_key
             """
-            # 强制设置 scope 和 tenant_id，忽略前端传入值 / Force scope and tenant_id, ignore frontend values
-            data.scope = "all_tenants"
-            data.tenant_id = tenant_admin.tenant_id
+            # 强制设置 scope 和 owner_tenant_id，忽略前端传入值 / Force scope and owner_tenant_id, ignore frontend values
+            data.scope = "selected_tenants"
+            data.owner_tenant_id = tenant_admin.tenant_id
 
             service = ProviderApiKeyService(db)
             key = await service.create_key(data)
@@ -159,7 +159,7 @@ class TenantAIConfigController(TenantController):
             service = ProviderApiKeyService(db)
             key = await service.get_by_id(key_id)
 
-            if not key or key.tenant_id != tenant_admin.tenant_id:
+            if not key or key.owner_tenant_id != tenant_admin.tenant_id:
                 raise NotFoundException(message=_("ai.error.api_key_not_found"))
 
             await service.delete(key_id)

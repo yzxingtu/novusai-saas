@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.ai.adapters.openai_compatible.support.usage_parser import (
+from app.ai.adapters.openai_compatible.support.usage_estimation import (
     estimate_responses_stream_usage,
+)
+from app.ai.adapters.openai_compatible.support.usage_fields import (
     extract_usage_int,
     extract_usage_tokens,
 )

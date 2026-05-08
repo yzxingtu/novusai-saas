@@ -10,7 +10,6 @@ PluginContext 是插件与核心系统交互的唯一入口。
 
 from __future__ import annotations
 
-import inspect
 import json
 import logging
 import time
@@ -239,7 +238,7 @@ class PluginContext:
                     plugin_name=self.plugin_name,
                 ),
             )
-        from app.services.common.config_service import ConfigService
+        from app.configs.service import ConfigService
         from app.storage.base import StorageConfig
         from app.storage.manager import storage_manager
 
@@ -482,26 +481,6 @@ class PluginContext:
             return messages[-1].get("content", "")
         return ""
 
-    @staticmethod
-    def _filter_callable_kwargs(
-        callable_obj: Any, kwargs: dict[str, Any]
-    ) -> dict[str, Any]:
-        """
-        Filter kwargs based on callable signature, compatible with new params unsupported by old implementations.
-        / 根据可调用对象签名过滤 kwargs，兼容旧实现不支持的新参数。
-        """
-        try:
-            sig = inspect.signature(callable_obj)
-        except (TypeError, ValueError):
-            return kwargs
-
-        params = sig.parameters.values()
-        if any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params):
-            return kwargs
-
-        accepted = set(sig.parameters.keys())
-        return {k: v for k, v in kwargs.items() if k in accepted}
-
     async def call_ai_feature(self, feature_code: str, messages: list[dict]) -> str:
         """
         Call AI feature (non-streaming), requires ai:call capability.
@@ -535,7 +514,6 @@ class PluginContext:
             "memory_channel": MemoryChannelEnum.PLUGIN.value,
             "memory_source": f"plugin.{self.plugin_name}",
         }
-        chat_kwargs = self._filter_callable_kwargs(chat_service.chat, chat_kwargs)
         response = await chat_service.chat(**chat_kwargs)
         return response.message
 
@@ -593,9 +571,6 @@ class PluginContext:
                 "memory_channel": MemoryChannelEnum.PLUGIN.value,
                 "memory_source": f"plugin.{self.plugin_name}",
             }
-            stream_kwargs = self._filter_callable_kwargs(
-                chat_service.stream_chat, stream_kwargs
-            )
             sse_response = await chat_service.stream_chat(**stream_kwargs)
 
             async for raw_chunk in sse_response.body_iterator:
@@ -632,7 +607,7 @@ class PluginContext:
         except Exception as exc:
             from app.plugins.exceptions import PluginError
 
-            if isinstance(exc, PluginError):
+            if isinstance(exc, (PluginError, TypeError)):
                 raise
 
             logger.warning(

@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.repositories.ai.retired_skill_catalog_filters import is_retired_skill_instance
+
 
 def _normalize_input_variables(value: Any) -> list[Any]:
     """
@@ -58,6 +60,8 @@ def _extract_agent_relations(
                     continue
                 skill = getattr(grant, "skill", None)
                 if not skill:
+                    continue
+                if is_retired_skill_instance(skill):
                     continue
                 if getattr(skill, "is_deleted", False) or not getattr(
                     skill, "is_active", True

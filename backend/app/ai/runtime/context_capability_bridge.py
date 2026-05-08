@@ -175,7 +175,12 @@ class DefaultContextCapabilityBridge(ContextCapabilityBridge):
 
             if skill_result:
                 capability_descriptions.extend(
-                    capability_builder.build_skill_descriptions(skill_result)
+                    capability_builder.build_skill_descriptions(
+                        skill_result,
+                        selected_skill_names=list(
+                            getattr(request, "selected_skill_names", None) or []
+                        ),
+                    )
                 )
 
             include_kb_awareness = bool(

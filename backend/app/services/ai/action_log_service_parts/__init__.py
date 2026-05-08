@@ -1,8 +1,5 @@
 """AI action log service parts package."""
 
-from .admin_queries import load_agent_meta_map as load_admin_agent_meta_map
-from .admin_queries import load_operator_meta_map as load_admin_operator_meta_map
-from .admin_queries import load_tenant_meta_map
 from .normalization import (
     _normalize_audit_payload,
     _normalize_operator_type,
@@ -21,9 +18,6 @@ from .tenant_queries import load_operator_meta_map as load_tenant_operator_meta_
 from .write import write_ai_action_log
 
 __all__ = [
-    "load_admin_agent_meta_map",
-    "load_admin_operator_meta_map",
-    "load_tenant_meta_map",
     "load_tenant_agent_meta_map",
     "load_tenant_operator_meta_map",
     "_default_agent_meta",

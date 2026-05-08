@@ -6,11 +6,21 @@ Token 黑名单单元测试 / Token blacklist unit tests.
 
 from __future__ import annotations
 
+from datetime import timedelta
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from jose import jwt
 
-from app.core.security import TOKEN_BLACKLIST_PREFIX, is_token_revoked, revoke_token
+from app.core.base_model import utc_now
+from app.core.config import settings
+from app.core.security import (
+    TOKEN_BLACKLIST_PREFIX,
+    TOKEN_TYPE_ACCESS,
+    decode_token,
+    is_token_revoked,
+    revoke_token,
+)
 
 pytest.importorskip("redis", reason="redis required for token blacklist tests")
 
@@ -59,19 +69,19 @@ class TestIsTokenRevoked:
         assert result is True
 
     @pytest.mark.asyncio
-    async def test_none_jti_returns_false(self, mock_redis):
-        """jti 为 None 时返回 False（兼容旧 Token）/ None jti returns False."""
+    async def test_none_jti_returns_true(self, mock_redis):
+        """jti 为 None 时 fail closed / None jti fails closed."""
         with patch("app.core.redis.get_redis_client", return_value=mock_redis):
             result = await is_token_revoked(None)
-        assert result is False
+        assert result is True
         mock_redis.exists.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_empty_jti_returns_false(self, mock_redis):
-        """空字符串 jti 应视为未吊销 / Empty jti treated as not revoked."""
+    async def test_empty_jti_returns_true(self, mock_redis):
+        """空字符串 jti fail closed / Empty jti fails closed."""
         with patch("app.core.redis.get_redis_client", return_value=mock_redis):
             result = await is_token_revoked("")
-        assert result is False
+        assert result is True
 
     @pytest.mark.asyncio
     async def test_redis_failure_returns_false(self, mock_redis):
@@ -80,3 +90,23 @@ class TestIsTokenRevoked:
         with patch("app.core.redis.get_redis_client", return_value=mock_redis):
             result = await is_token_revoked("jti-any")
         assert result is False
+
+
+@pytest.mark.asyncio
+async def test_decode_token_rejects_payload_without_jti() -> None:
+    """Test type: behavioral. Token payloads without jti fail closed."""
+    token = jwt.encode(
+        {
+            "sub": "1",
+            "scope": "admin",
+            "exp": utc_now() + timedelta(minutes=5),
+            "iat": utc_now(),
+            "type": TOKEN_TYPE_ACCESS,
+        },
+        settings.SECRET_KEY,
+        algorithm=settings.ALGORITHM,
+    )
+
+    payload = await decode_token(token)
+
+    assert payload is None

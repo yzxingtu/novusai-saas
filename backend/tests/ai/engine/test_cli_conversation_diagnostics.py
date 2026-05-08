@@ -7,7 +7,7 @@ Mock strategy: no external services; CLI projection helpers run directly.
 
 from __future__ import annotations
 
-from app.cli import (
+from app.cli_commands.ai_render import (
     _build_ai_conversation_compact_diagnostics,
     _extract_turn_diagnostics_from_call_log_metadata,
     _render_ai_conversation_diagnostics_text,

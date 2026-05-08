@@ -21,6 +21,9 @@ from app.cli_commands.ai_norm import (
     _normalize_cli_tool_calls,
     _truncate_cli_block,
 )
+from app.cli_commands.ai_norm import (
+    _extract_turn_diagnostics_from_call_log_metadata as _extract_turn_diagnostics_from_call_log_metadata,
+)
 from app.cli_commands.ai_snapshot import _hydrate_ai_conversation_snapshot
 
 _BACKEND_DIR = S._BACKEND_DIR

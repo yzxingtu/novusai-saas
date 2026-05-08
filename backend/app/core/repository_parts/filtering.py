@@ -151,9 +151,9 @@ class RepositoryFilteringMixin(Generic[ModelType]):
         return query
 
     def _apply_data_permission_if_needed(self, query: Select) -> Select:
-        from app.core.data_permission import DataPermissionFilter
+        from app.core.data_permission import apply_data_permission_if_needed
 
-        return DataPermissionFilter.apply_for_current_context(query, self.model)
+        return apply_data_permission_if_needed(query, self.model)
 
     def _build_data_permission_condition(self):
         from app.core.data_permission import (
@@ -174,9 +174,12 @@ class RepositoryFilteringMixin(Generic[ModelType]):
         self,
         data: dict[str, Any],
     ) -> dict[str, Any]:
-        from app.core.data_permission import DataPermissionFilter, data_permission_ctx
+        from app.core.data_permission import (
+            data_permission_ctx,
+            is_data_permission_enabled,
+        )
 
-        if not DataPermissionFilter.is_enabled(self.model):
+        if not is_data_permission_enabled(self.model):
             return data
 
         ctx = data_permission_ctx.get()

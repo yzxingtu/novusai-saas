@@ -6,7 +6,6 @@ Configures application instance, middleware, routes, exception handlers, etc.
 """
 
 import asyncio
-import warnings
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
@@ -21,6 +20,7 @@ from app.core.cors import (
     refresh_verified_custom_domain_cache,
 )
 from app.core.database import (
+    check_database_connection,
     close_database,
     get_last_db_init_failure_reason,
     init_database,
@@ -49,18 +49,6 @@ _METRICS_COMPONENT_HEALTH_REFRESH_TIMEOUT_SECONDS = 2.0
 _metrics_component_health_last_refresh = 0.0
 _metrics_component_health_lock: asyncio.Lock | None = None
 
-# Suppress noisy version compatibility warnings from requests lib (urllib3/charset_normalizer versions exceed preset test ranges but are actually compatible)
-# 抑制 requests 库的版本兼容性噪音警告（urllib3/charset_normalizer 版本超出其预设测试范围，但实际兼容）
-warnings.filterwarnings(
-    "ignore", message=".*urllib3.*doesn't match a supported version.*"
-)
-warnings.filterwarnings(
-    "ignore", message=".*chardet.*doesn't match a supported version.*"
-)
-warnings.filterwarnings(
-    "ignore", message=".*charset_normalizer.*doesn't match a supported version.*"
-)
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
@@ -84,23 +72,38 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.info(f"Environment: {settings.APP_ENV}")
         logger.info(f"Debug mode: {settings.DEBUG}")
         logger.info("Runtime identity: {}", get_runtime_identity_tag())
-        if (
-            not settings.DEBUG
-            and settings.SECRET_KEY == "your-secret-key-change-in-production"
-        ):
-            logger.warning(
-                "SECURITY WARNING: SECRET_KEY is using the default value! Change it in production."
-            )
+        if settings.APP_ENV == "production":
+            weak_secret_prefixes = ("change-me", "please-replace")
+            secret_key = str(settings.SECRET_KEY or "").strip()
+            if (
+                not secret_key
+                or secret_key == "your-secret-key-change-in-production"
+                or secret_key.startswith(weak_secret_prefixes)
+            ):
+                raise RuntimeError(
+                    "Production SECRET_KEY must be replaced before startup"
+                )
 
-        # Initialize database (check/create database + run migrations) / 初始化数据库（检查/创建数据库 + 运行迁移）
-        if not await init_database():
-            detail = get_last_db_init_failure_reason()
-            raise RuntimeError(
-                "Database initialization failed"
-                + (f": {detail}" if detail else "")
-                + " — 亦可手动执行: cd backend && alembic upgrade heads",
-            )
-        logger.info("Database initialized")
+        if settings.RUN_MIGRATIONS_ON_STARTUP:
+            # Initialize database (check/create database + run migrations) / 初始化数据库（检查/创建数据库 + 运行迁移）
+            if not await init_database():
+                detail = get_last_db_init_failure_reason()
+                raise RuntimeError(
+                    "Database initialization failed"
+                    + (f": {detail}" if detail else "")
+                    + " — 亦可手动执行: cd backend && alembic upgrade heads",
+                )
+            logger.info("Database initialized")
+        else:
+            # 中文: 生产 compose 通过 backend-migrate 服务执行迁移，API 启动只验证连接。
+            # EN: Production compose runs migrations through backend-migrate; API startup only verifies connectivity.
+            if not await check_database_connection():
+                detail = get_last_db_init_failure_reason()
+                raise RuntimeError(
+                    "Database connectivity check failed"
+                    + (f": {detail}" if detail else "")
+                )
+            logger.info("Database connectivity verified; startup migrations disabled")
 
         # Early Redis initialization (subsequent startup steps depend on Redis for distributed locks) / 提前初始化 Redis（后续启动步骤的分布式锁依赖 Redis）
         from app.core.redis import RedisManager as _RedisManager
@@ -109,7 +112,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             await _RedisManager.init()
             logger.info("Redis initialized (early, for startup locks)")
         except Exception as _redis_early_err:
-            logger.warning(f"Redis early initialization failed: {_redis_early_err}")
+            logger.error(f"Redis early initialization failed: {_redis_early_err}")
+            raise RuntimeError(
+                "Redis initialization failed; startup distributed locks are required"
+            ) from _redis_early_err
 
         # Sync permissions to database (sync decorator-defined permissions to DB)
         # 同步权限到数据库（将装饰器定义的权限同步到 DB）
@@ -132,8 +138,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 nx=True,
                 ex=60,
             )
-        except Exception:
-            _perm_locked = True  # Degrade to lockless when Redis unavailable / Redis 不可用时降级为无锁
+        except Exception as lock_err:
+            raise RuntimeError("Permission sync startup lock unavailable") from lock_err
 
         if _perm_locked:
             try:
@@ -179,8 +185,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             _cfg_locked = await _cfg_redis.set(
                 "plugin:startup:config_sync_lock", _cfg_owner, nx=True, ex=60
             )
-        except Exception:
-            _cfg_locked = True
+        except Exception as lock_err:
+            raise RuntimeError("Config sync startup lock unavailable") from lock_err
 
         if _cfg_locked:
             try:
@@ -300,7 +306,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 logger.warning(
                     f"Plugin discover lock unavailable (Redis error): {_redis_err}"
                 )
-                _discover_locked = True  # Degrade to lockless when Redis unavailable (preserve original behavior) / Redis 不可用时降级为无锁（保持原有行为）
+                raise RuntimeError(
+                    "Plugin discovery startup lock unavailable"
+                ) from _redis_err
 
             if _discover_locked:
                 try:
@@ -361,7 +369,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 logger.warning(
                     f"Plugin restore lock unavailable (Redis error): {_redis_err}"
                 )
-                _restore_locked = True  # Degrade to old behavior when Redis unavailable (each worker does heavy restore) / Redis 不可用时降级为旧行为（每 worker 重恢复）
+                raise RuntimeError(
+                    "Plugin restore startup lock unavailable"
+                ) from _redis_err
 
             if _restore_locked:
                 try:
@@ -572,22 +582,40 @@ async def _refresh_metrics_component_health() -> None:
 
 async def readiness_check():
     """
-    Kubernetes readiness: verifies database connectivity.
-    / K8s 就绪探针：校验数据库可连（与 /health 区分，/health 可仅表示进程存活）。
+    Kubernetes readiness: verifies database and Redis connectivity.
+    / K8s 就绪探针：校验数据库与 Redis 可连（与 /health 区分，/health 可仅表示进程存活）。
     """
+    readiness = {
+        "ready": True,
+        "database": "ok",
+        "redis": "ok",
+    }
     if not await _check_database_component():
+        readiness["ready"] = False
+        readiness["database"] = "unavailable"
+    try:
+        from app.core.redis import RedisManager
+
+        if not await RedisManager.health_check():
+            readiness["ready"] = False
+            readiness["redis"] = "unavailable"
+    except Exception:
+        readiness["ready"] = False
+        readiness["redis"] = "unavailable"
+
+    if not readiness["ready"]:
         return JSONResponse(
             status_code=503,
             content={
                 "code": 5030,
                 "message": "not_ready",
-                "data": {"database": "unavailable"},
+                "data": readiness,
             },
         )
     return {
         "code": 0,
         "message": _("common.success"),
-        "data": {"ready": True, "database": "ok"},
+        "data": readiness,
     }
 
 

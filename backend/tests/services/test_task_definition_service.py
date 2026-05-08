@@ -18,6 +18,7 @@ async def test_trigger_now_dispatches_platform_wrapper(mock_db) -> None:
     definition = SimpleNamespace(
         id=3,
         code="system.health",
+        handler_path="app.tasks.scheduled.system_health_check",
         owner_tenant_id=None,
         scope=ResourceScopeEnum.ADMIN_ONLY.value,
         default_schedule_type="interval",

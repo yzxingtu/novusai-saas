@@ -1,3 +1,11 @@
+"""Test type: behavioral.
+
+Scope: runtime entrypoint helper contracts for protocol setup, streaming entry,
+and stream diagnostics defaults.
+Mocked dependencies: lightweight query-engine and adapter stubs only; no LLM
+response bodies are mocked.
+"""
+
 from __future__ import annotations
 
 from types import SimpleNamespace
@@ -14,6 +22,10 @@ from app.ai.engine.conversation_runtime_entrypoint_runner import (
 )
 from app.ai.engine.conversation_runtime_preflight import ConversationRuntimeContext
 from app.ai.engine.model_policy import build_model_request_overrides
+from app.ai.engine.stream_generation_view import build_stream_generation_view
+from app.ai.engine.stream_runtime_record_support import (
+    resolved_protocol_path as resolved_runtime_protocol_path,
+)
 from app.ai.types import ChatChunk, ChatMessage
 
 
@@ -47,7 +59,7 @@ class _StreamIterStub:
 
     async def run_stream_turn(self, **kwargs):
         self.run_calls.append(kwargs)
-        return [ChatChunk(delta="legacy-run-path")]
+        return [ChatChunk(delta="run-only-path")]
 
 
 class _StreamRunOnlyStub:
@@ -57,7 +69,7 @@ class _StreamRunOnlyStub:
 
     async def run_stream_turn(self, **kwargs):
         self.run_calls.append(kwargs)
-        return [ChatChunk(delta="legacy-run-path")]
+        return [ChatChunk(delta="run-only-path")]
 
 
 def _build_runtime_context() -> ConversationRuntimeContext:
@@ -422,9 +434,7 @@ async def test_iterate_runtime_stream_entrypoint_prefers_iter_stream_turn() -> N
 
 
 @pytest.mark.asyncio
-async def test_iterate_runtime_stream_entrypoint_falls_back_to_run_stream_turn() -> (
-    None
-):
+async def test_iterate_runtime_stream_entrypoint_requires_iter_stream_turn() -> None:
     query_engine = _StreamRunOnlyStub()
     plan = SimpleNamespace(
         query_engine=query_engine,
@@ -438,16 +448,59 @@ async def test_iterate_runtime_stream_entrypoint_falls_back_to_run_stream_turn()
         request_extra_kwargs={"execution_path": "deep"},
     )
 
-    chunks = [
-        chunk
+    chunks: list[ChatChunk] = []
+    with pytest.raises(RuntimeError, match="iter_stream_turn"):
         async for chunk in iterate_runtime_stream_entrypoint(
             plan=plan,  # type: ignore[arg-type]
             agent=_build_agent(),
             selected_skill_names=["skill.b"],
-        )
-    ]
+        ):
+            chunks.append(chunk)
 
-    assert [chunk.delta for chunk in chunks] == ["legacy-run-path"]
-    assert len(query_engine.run_calls) == 1
-    assert query_engine.run_calls[0]["extra_kwargs"] == {"execution_path": "deep"}
-    assert query_engine.run_calls[0]["selected_skill_names"] == ["skill.b"]
+    assert chunks == []
+    assert query_engine.run_calls == []
+
+
+def test_stream_protocol_path_defaults_to_unknown() -> None:
+    handler = SimpleNamespace(
+        _runtime_turn_record={},
+        _runtime_model_info={},
+    )
+    assert resolved_runtime_protocol_path(handler) == "unknown"
+
+    view = build_stream_generation_view(SimpleNamespace())
+    assert (
+        view.resolved_protocol_path(
+            diagnostics_payload={},
+            turn_record={},
+            response_metadata={},
+        )
+        == "unknown"
+    )
+
+
+def test_stream_protocol_path_prefers_explicit_sources() -> None:
+    handler = SimpleNamespace(
+        _runtime_turn_record={"protocol_path": "chat_completions"},
+        _runtime_model_info={"wire_api": "responses"},
+    )
+    assert (
+        resolved_runtime_protocol_path(
+            handler,
+            diagnostics_payload={"protocol_path": "responses"},
+        )
+        == "responses"
+    )
+
+    source = SimpleNamespace(
+        _runtime_turn_record={"protocol_path": "chat_completions"},
+        _runtime_model_info={"wire_api": "responses"},
+    )
+    view = build_stream_generation_view(source)
+    assert (
+        view.resolved_protocol_path(
+            turn_record={"protocol_path": "responses"},
+            response_metadata={"protocol_path": "chat_completions"},
+        )
+        == "responses"
+    )

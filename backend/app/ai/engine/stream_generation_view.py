@@ -373,7 +373,7 @@ def _message_to_dict(message: Any) -> dict[str, Any]:
     }
 
 
-def _messages_to_dicts_fallback(messages: list[ChatMessage]) -> list[dict[str, Any]]:
+def _messages_to_dicts_default(messages: list[ChatMessage]) -> list[dict[str, Any]]:
     return [_message_to_dict(message) for message in messages]
 
 
@@ -402,7 +402,7 @@ def _apply_runtime_turn_record_overlays(
     runtime.runtime_turn_record = record
 
 
-def _replace_runtime_turn_record_fallback(
+def _replace_runtime_turn_record_default(
     runtime: StreamGenerationRuntimeStateView,
     raw_turn_record: Any,
 ) -> None:
@@ -419,7 +419,7 @@ def _replace_runtime_turn_record_fallback(
     _apply_runtime_turn_record_overlays(runtime)
 
 
-def _refresh_runtime_turn_record_fallback(
+def _refresh_runtime_turn_record_default(
     runtime: StreamGenerationRuntimeStateView,
 ) -> None:
     source = runtime.runtime_turn_record_source
@@ -430,7 +430,7 @@ def _refresh_runtime_turn_record_fallback(
     _apply_runtime_turn_record_overlays(runtime)
 
 
-def _resolved_protocol_path_fallback(
+def _resolved_protocol_path_default(
     runtime: StreamGenerationRuntimeStateView,
     *,
     diagnostics_payload: dict[str, Any] | None = None,
@@ -452,7 +452,7 @@ def _resolved_protocol_path_fallback(
         value = str(candidate or "").strip()
         if value:
             return value
-    return "chat_completions"
+    return "unknown"
 
 
 def build_stream_generation_view(source: Any) -> StreamGenerationView:
@@ -513,7 +513,7 @@ def build_stream_generation_view(source: Any) -> StreamGenerationView:
         replace_runtime_turn_record=(
             replace_runtime_turn_record
             if callable(replace_runtime_turn_record)
-            else lambda raw_turn_record: _replace_runtime_turn_record_fallback(
+            else lambda raw_turn_record: _replace_runtime_turn_record_default(
                 runtime,
                 raw_turn_record,
             )
@@ -521,12 +521,12 @@ def build_stream_generation_view(source: Any) -> StreamGenerationView:
         refresh_runtime_turn_record=(
             refresh_runtime_turn_record
             if callable(refresh_runtime_turn_record)
-            else lambda: _refresh_runtime_turn_record_fallback(runtime)
+            else lambda: _refresh_runtime_turn_record_default(runtime)
         ),
         messages_to_dicts=(
             messages_to_dicts
             if callable(messages_to_dicts)
-            else _messages_to_dicts_fallback
+            else _messages_to_dicts_default
         ),
         extract_action_buttons=(
             extract_action_buttons
@@ -569,15 +569,9 @@ def build_stream_generation_view(source: Any) -> StreamGenerationView:
         resolved_protocol_path=(
             resolved_protocol_path
             if callable(resolved_protocol_path)
-            else lambda **kwargs: _resolved_protocol_path_fallback(runtime, **kwargs)
+            else lambda **kwargs: _resolved_protocol_path_default(runtime, **kwargs)
         ),
     )
-
-
-def ensure_stream_generation_view(source: Any) -> StreamGenerationView:
-    """Compat alias used by stream generation helpers."""
-
-    return build_stream_generation_view(source)
 
 
 __all__ = [

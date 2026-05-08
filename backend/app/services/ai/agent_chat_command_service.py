@@ -7,11 +7,9 @@ from typing import TYPE_CHECKING, Any
 
 from fastapi.responses import StreamingResponse
 
-from app.ai.agent_quota import (
-    AgentConcurrencyLimiter,
-    AgentQuotaConfig,
-    AgentQuotaManager,
-)
+from app.ai.agent_quota_concurrency import AgentConcurrencyLimiter
+from app.ai.agent_quota_config import AgentQuotaConfig
+from app.ai.agent_quota_manager import AgentQuotaManager
 from app.ai.agent_stats import AgentStatsManager
 from app.ai.constants import (
     DEFAULT_MEMORY_SCENE,
@@ -34,8 +32,6 @@ from app.schemas.ai.agent_chat import AgentChatResponse, InteractionMode
 from app.schemas.ai.invalid_ai_runtime_input import (
     disallowed_ai_runtime_input_keys,
     ensure_no_disallowed_ai_runtime_input,
-    filter_invalid_ai_runtime_references,
-    is_invalid_ai_runtime_reference,
 )
 from app.services.ai.agent_chat_command_ephemeral_support import (
     execute_ephemeral_stream_chat,
@@ -101,22 +97,6 @@ def _raise_invalid_runtime_input(error: ValueError) -> None:
     raise BusinessException(message=str(error)) from None
 
 
-def _normalize_selected_skill_names(
-    selected_skill_names: list[str] | None,
-) -> list[str] | None:
-    names = [str(name or "").strip() for name in list(selected_skill_names or [])]
-    invalid_names = [name for name in names if is_invalid_ai_runtime_reference(name)]
-    if invalid_names:
-        raise BusinessException(
-            message=_(
-                "agent_chat.error.invalid_ai_runtime_input_tool",
-                tool=", ".join(invalid_names),
-            )
-        )
-    filtered = filter_invalid_ai_runtime_references(names)
-    return filtered or None
-
-
 def _ensure_no_invalid_runtime_mapping(payload: dict[str, Any] | None) -> None:
     if payload is None:
         return
@@ -146,7 +126,6 @@ class AgentChatCommandService:
         memory_scene: str = DEFAULT_MEMORY_SCENE,
         memory_channel: str = MEMORY_CHANNEL_SYSTEM,
         memory_source: str = "",
-        selected_skill_names: list[str] | None = None,
         interaction_updates: list[dict[str, Any]] | None = None,
         trust_policy_ref: dict[str, Any] | None = None,
         interaction_mode: InteractionMode = "trusted_auto",
@@ -154,7 +133,6 @@ class AgentChatCommandService:
         """Non-streaming chat orchestration."""
         start = time.perf_counter()
         variables = _normalize_chat_variables(variables)
-        selected_skill_names = _normalize_selected_skill_names(selected_skill_names)
         _ensure_no_invalid_runtime_mapping(trust_policy_ref)
         for update in list(interaction_updates or []):
             _ensure_no_invalid_runtime_mapping(update)
@@ -238,7 +216,6 @@ class AgentChatCommandService:
             conversation_id=conversation.id,
             knowledge_base_ids=knowledge_base_ids,
             consented_actions=consented_actions,
-            selected_skill_names=selected_skill_names,
             user_role=user_role,
             user_role_id=user_role_id,
             permissions=permissions,
@@ -429,14 +406,12 @@ class AgentChatCommandService:
         memory_scene: str = DEFAULT_MEMORY_SCENE,
         memory_channel: str = MEMORY_CHANNEL_SYSTEM,
         memory_source: str = "",
-        selected_skill_names: list[str] | None = None,
         interaction_updates: list[dict[str, Any]] | None = None,
         trust_policy_ref: dict[str, Any] | None = None,
         interaction_mode: InteractionMode = "trusted_auto",
     ) -> StreamingResponse:
         """Streaming chat orchestration."""
         variables = _normalize_chat_variables(variables)
-        selected_skill_names = _normalize_selected_skill_names(selected_skill_names)
         _ensure_no_invalid_runtime_mapping(trust_policy_ref)
         for update in list(interaction_updates or []):
             _ensure_no_invalid_runtime_mapping(update)
@@ -522,7 +497,6 @@ class AgentChatCommandService:
                 knowledge_base_ids=knowledge_base_ids,
                 dropped_knowledge_base_ids=dropped_knowledge_base_ids,
                 consented_actions=consented_actions,
-                selected_skill_names=selected_skill_names,
                 user_role=user_role,
                 user_role_id=user_role_id,
                 permissions=permissions,

@@ -101,13 +101,6 @@ class _IntentPlannerOrchestrator:
             cached_result = None
             if signal.kind == "memory_save":
                 cached_result = "已记住。"
-            if (
-                signal.kind == "weather_query"
-                and not IntentDomainRules.weather_query_has_city(user_text.lower())
-            ):
-                allow_text_response = True
-                metadata = {**metadata, "missing_args": ["city"]}
-
             order = len(plans) + 1
             plans.append(
                 IntentPlan(

@@ -130,4 +130,4 @@ def resolved_protocol_path(
         value = str(candidate or "").strip()
         if value:
             return value
-    return "chat_completions"
+    return "unknown"

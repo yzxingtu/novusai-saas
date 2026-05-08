@@ -54,7 +54,6 @@ weather-widget/
 ├── backend/
 │   ├── main.py                  # WeatherWidgetPlugin entry
 │   ├── open_meteo.py            # Open-Meteo + Nominatim API client (with cache & rate-limit)
-│   ├── _loader.py               # Plugin loader
 │   ├── skills/
 │   │   └── weather_resolver.py  # Skill resolver (2 tools)
 │   ├── executors/

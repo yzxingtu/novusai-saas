@@ -15,7 +15,6 @@ from app.models.ai.api_key import aware_utc_now
 _TENANT_PLATFORM_KEY_SCOPES: frozenset[str] = frozenset(
     {
         ResourceScopeEnum.GLOBAL_SHARED.value,
-        ResourceScopeEnum.ALL_TENANTS.value,  # legacy DB rows / 历史数据
     }
 )
 

@@ -209,8 +209,9 @@ class FailoverService:
 
         except (RedisError, json.JSONDecodeError) as e:
             logger.error("Failover health check failed: {}", str(e))
-            # Don't block requests on query failure / 查询失败时不阻断请求
-            return True
+            # 中文: 健康状态无法读取时不能把未知状态当健康，否则会绕过 failover。
+            # EN: Do not treat unknown health as healthy, or failover can be bypassed.
+            return False
 
     async def get_fallback_model(
         self,

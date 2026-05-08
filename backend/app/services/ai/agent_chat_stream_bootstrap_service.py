@@ -6,12 +6,13 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-from app.ai.agent_quota import (
+from app.ai.agent_quota_concurrency import AgentConcurrencyLimiter
+from app.ai.agent_quota_config import AgentQuotaConfig
+from app.ai.agent_quota_exceptions import (
     AgentConcurrencyExceeded,
-    AgentQuotaConfig,
     AgentQuotaExceeded,
-    AgentQuotaManager,
 )
+from app.ai.agent_quota_manager import AgentQuotaManager
 from app.ai.constants import MEMORY_CHANNEL_SYSTEM
 from app.ai.engine.base import BaseEngine
 from app.ai.engine.engine_bootstrap_support import build_engine_bootstrap_bundle
@@ -99,7 +100,6 @@ class AgentChatStreamBootstrapService:
         knowledge_base_ids: list[int] | None,
         dropped_knowledge_base_ids: list[int],
         consented_actions: list[str] | None,
-        selected_skill_names: list[str] | None,
         user_role: str,
         user_role_id: int | None,
         permissions: set[str] | None,
@@ -124,7 +124,6 @@ class AgentChatStreamBootstrapService:
             stream=True,
             conversation_id=conversation_id,
             knowledge_base_ids=knowledge_base_ids,
-            selected_skill_names=selected_skill_names,
             consented_actions=consented_actions,
             user_role=user_role,
             user_role_id=user_role_id,
@@ -283,8 +282,6 @@ class AgentChatStreamBootstrapService:
             )
         except (AgentQuotaExceeded, AgentConcurrencyExceeded, BusinessException):
             if lock_token:
-                from app.ai.agent_quota import AgentConcurrencyLimiter
-
                 await AgentConcurrencyLimiter.release(
                     tenant_id=self.tenant_id,
                     agent_id=agent_id,

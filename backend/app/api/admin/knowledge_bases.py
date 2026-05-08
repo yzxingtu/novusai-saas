@@ -852,7 +852,7 @@ class AdminKnowledgeBaseController(GlobalController):
 
             权限 / Permission: ai_knowledge_base:search
             """
-            from app.ai.rag.retriever import VectorRetriever
+            from app.ai.rag.retriever import HybridRetriever
 
             service = AdminKnowledgeBaseService(db)
             kb = await service.get_by_id(kb_id)
@@ -860,7 +860,7 @@ class AdminKnowledgeBaseController(GlobalController):
                 raise NotFoundException(message=_("knowledge_base.error.not_found"))
 
             tenant_id = kb.tenant_id
-            retriever = VectorRetriever(db, tenant_id)
+            retriever = HybridRetriever(db, tenant_id)
 
             results = await retriever.search(
                 knowledge_base=kb,

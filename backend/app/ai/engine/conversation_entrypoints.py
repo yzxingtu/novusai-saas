@@ -1,4 +1,4 @@
-"""Compatibility facade for ConversationEngine sync/stream entrypoints."""
+"""Stable facade for ConversationEngine sync/stream entrypoints."""
 
 from __future__ import annotations
 

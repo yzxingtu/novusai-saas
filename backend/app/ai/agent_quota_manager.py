@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import date
-from importlib import import_module
 from typing import Any
 
 from app.ai.agent_quota_config import AgentQuotaConfig
@@ -40,10 +39,11 @@ from app.ai.agent_quota_manager_support import (
 from app.ai.agent_quota_manager_support import (
     record_user_usage as _record_user_usage_support,
 )
+from app.core.redis import get_redis
 
 
 class AgentQuotaManager:
-    """Compatibility facade for agent quota checks and usage accounting."""
+    """Agent quota checks and usage accounting manager."""
 
     PREFIX_DAILY = "ai:agent_quota:daily:"
     PREFIX_MONTHLY = "ai:agent_quota:monthly:"
@@ -79,8 +79,7 @@ class AgentQuotaManager:
 
     @staticmethod
     async def _get_redis():
-        quota_module = import_module("app.ai.agent_quota")
-        return await quota_module.get_redis()
+        return await get_redis()
 
     @staticmethod
     async def _atomic_check_and_record(

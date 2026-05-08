@@ -4,7 +4,8 @@ AI 配额诊断 Service / AI quota diagnostics service
 
 from __future__ import annotations
 
-from app.ai.quota import QuotaExceeded, UsageTracker
+from app.ai.quota_exceptions import QuotaExceeded
+from app.ai.quota_usage_tracker import UsageTracker
 from app.ai.rate_limiter import RateLimiter, RateLimitExceeded
 from app.core.base_schema import PageResponse
 from app.core.i18n import _

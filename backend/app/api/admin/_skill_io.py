@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.i18n import _
 from app.core.response import build_public_error_text
 from app.models.ai.skill import Skill
+from app.services.ai.retired_skill_guard import ensure_not_retired_online_search_skill
 
 # 导出字段白名单 / Export field whitelist
 _EXPORT_FIELDS = [
@@ -111,6 +112,14 @@ async def import_skills(
     skipped = 0
     errors: list[str] = []
 
+    for idx, item in enumerate(items):
+        name = item.get("name", "").strip()
+        if not name:
+            errors.append(_("skill.import.error.no_name", index=idx + 1))
+            continue
+
+        ensure_not_retired_online_search_skill(item)
+
     # 查询现有同名 Skill / Query existing same-name skills
     existing_names: dict[str, Skill] = {}
     stmt = sa_select(Skill).where(
@@ -127,7 +136,6 @@ async def import_skills(
     for idx, item in enumerate(items):
         name = item.get("name", "").strip()
         if not name:
-            errors.append(_("skill.import.error.no_name", index=idx + 1))
             continue
 
         skill_type = item.get("type", "")

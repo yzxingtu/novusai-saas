@@ -480,7 +480,9 @@ def _sample_snapshot_with_context_source_polluted_turn_flow() -> dict:
 def test_ai_conversation_show_json_success(monkeypatch) -> None:
     from app.cli import cli
 
-    monkeypatch.setattr("app.cli._run_async", _return_value(_sample_snapshot()))
+    monkeypatch.setattr(
+        "app.cli_commands.ai_commands._run_async", _return_value(_sample_snapshot())
+    )
 
     runner = CliRunner()
     result = runner.invoke(
@@ -514,7 +516,9 @@ def test_ai_real_dialogue_smoke_raw_json_outputs_archivable_report(monkeypatch) 
         "overall_status": "blocked",
         "scenario_results": [],
     }
-    monkeypatch.setattr("app.cli._run_async", _return_value(report))
+    monkeypatch.setattr(
+        "app.cli_commands.ai_commands._run_async", _return_value(report)
+    )
 
     runner = CliRunner()
     result = runner.invoke(
@@ -545,7 +549,7 @@ def test_ai_conversation_show_json_suppresses_runtime_logs(monkeypatch) -> None:
         get_logger("tests.ai_conversation_cli").info("runtime noise should stay hidden")
         return _sample_snapshot()
 
-    monkeypatch.setattr("app.cli._run_async", _fake_run_async)
+    monkeypatch.setattr("app.cli_commands.ai_commands._run_async", _fake_run_async)
 
     runner = CliRunner()
     result = runner.invoke(
@@ -578,8 +582,12 @@ def test_ai_conversation_show_json_accepts_trace_id_reference(monkeypatch) -> No
         assert keyword_limit == 20
         return _sample_snapshot()
 
-    monkeypatch.setattr("app.cli._resolve_ai_conversation_reference", _fake_resolve)
-    monkeypatch.setattr("app.cli._load_ai_conversation_snapshot", _fake_load)
+    monkeypatch.setattr(
+        "app.cli_commands.ai_commands._resolve_ai_conversation_reference", _fake_resolve
+    )
+    monkeypatch.setattr(
+        "app.cli_commands.ai_commands._load_ai_conversation_snapshot", _fake_load
+    )
 
     runner = CliRunner()
     result = runner.invoke(
@@ -614,7 +622,9 @@ def test_ai_conversation_show_json_reports_non_conversation_trace_hint(
             },
         )
 
-    monkeypatch.setattr("app.cli._resolve_ai_conversation_reference", _fake_resolve)
+    monkeypatch.setattr(
+        "app.cli_commands.ai_commands._resolve_ai_conversation_reference", _fake_resolve
+    )
 
     runner = CliRunner()
     result = runner.invoke(
@@ -643,7 +653,7 @@ def test_ai_conversation_show_json_surfaces_nested_assistant_diagnostics(
     from app.cli import cli
 
     monkeypatch.setattr(
-        "app.cli._run_async",
+        "app.cli_commands.ai_commands._run_async",
         _return_value(_sample_snapshot_with_nested_assistant_diagnostics()),
     )
 
@@ -666,7 +676,7 @@ def test_ai_conversation_show_json_infers_budget_exit_from_historical_assistant_
     from app.cli import cli
 
     monkeypatch.setattr(
-        "app.cli._run_async",
+        "app.cli_commands.ai_commands._run_async",
         _return_value(_sample_snapshot_with_historical_budget_exit_metadata()),
     )
 
@@ -689,7 +699,7 @@ def test_ai_conversation_show_json_prefers_completed_turn_record_over_stale_budg
     from app.cli import cli
 
     monkeypatch.setattr(
-        "app.cli._run_async",
+        "app.cli_commands.ai_commands._run_async",
         _return_value(
             _sample_snapshot_with_completed_turn_and_stale_budget_failure_projection()
         ),
@@ -720,7 +730,7 @@ def test_ai_conversation_show_json_scrubs_context_source_polluted_turn_flow(
     from app.cli import cli
 
     monkeypatch.setattr(
-        "app.cli._run_async",
+        "app.cli_commands.ai_commands._run_async",
         _return_value(_sample_snapshot_with_context_source_polluted_turn_flow()),
     )
 
@@ -760,7 +770,7 @@ def test_ai_conversation_show_diagnostics_text_prefers_completed_turn_record_ove
     from app.cli import cli
 
     monkeypatch.setattr(
-        "app.cli._run_async",
+        "app.cli_commands.ai_commands._run_async",
         _return_value(
             _sample_snapshot_with_completed_turn_and_stale_budget_failure_projection()
         ),
@@ -792,7 +802,7 @@ def test_ai_conversation_show_json_falls_back_to_call_log_turn_record(
     from app.cli import cli
 
     monkeypatch.setattr(
-        "app.cli._run_async",
+        "app.cli_commands.ai_commands._run_async",
         _return_value(_sample_snapshot_with_call_log_turn_record_fallback()),
     )
 
@@ -820,7 +830,7 @@ def test_ai_conversation_show_text_omits_none_contract_breach_type(monkeypatch) 
     from app.cli import cli
 
     monkeypatch.setattr(
-        "app.cli._run_async",
+        "app.cli_commands.ai_commands._run_async",
         _return_value(_sample_snapshot_with_call_log_turn_record_fallback()),
     )
 
@@ -848,7 +858,7 @@ def test_ai_conversation_show_text_normalizes_call_log_provider_failure_summary(
     from app.cli import cli
 
     monkeypatch.setattr(
-        "app.cli._run_async",
+        "app.cli_commands.ai_commands._run_async",
         _return_value(_sample_snapshot_with_call_log_provider_failure_metadata()),
     )
 
@@ -872,7 +882,9 @@ def test_ai_conversation_show_text_normalizes_call_log_provider_failure_summary(
 def test_ai_conversation_show_text_renders_diagnostic(monkeypatch) -> None:
     from app.cli import cli
 
-    monkeypatch.setattr("app.cli._run_async", _return_value(_sample_snapshot()))
+    monkeypatch.setattr(
+        "app.cli_commands.ai_commands._run_async", _return_value(_sample_snapshot())
+    )
 
     runner = CliRunner()
     result = runner.invoke(
@@ -901,7 +913,7 @@ def test_ai_conversation_show_json_serializes_nested_datetimes(monkeypatch) -> N
     from app.cli import cli
 
     monkeypatch.setattr(
-        "app.cli._run_async",
+        "app.cli_commands.ai_commands._run_async",
         _return_value(_sample_snapshot_with_datetimes()),
     )
 
@@ -919,7 +931,7 @@ def test_ai_conversation_show_text_handles_nested_datetimes(monkeypatch) -> None
     from app.cli import cli
 
     monkeypatch.setattr(
-        "app.cli._run_async",
+        "app.cli_commands.ai_commands._run_async",
         _return_value(_sample_snapshot_with_datetimes()),
     )
 
@@ -940,7 +952,9 @@ def test_ai_root_cause_json_handles_missing_call_log(monkeypatch) -> None:
     async def _fake_operation(*args, **kwargs):
         raise NotFoundException(message="AI call log not found")
 
-    monkeypatch.setattr("app.cli._run_ai_runtime_cli_operation", _fake_operation)
+    monkeypatch.setattr(
+        "app.cli_commands.ai_commands._run_ai_runtime_cli_operation", _fake_operation
+    )
 
     runner = CliRunner()
     result = runner.invoke(
@@ -973,9 +987,11 @@ def test_ai_root_cause_enables_utf8_stdio(monkeypatch) -> None:
             "cause_code": "incomplete_promissory_reply",
         }
 
-    monkeypatch.setattr("app.cli._run_ai_runtime_cli_operation", _fake_operation)
     monkeypatch.setattr(
-        "app.cli._ensure_utf8_stdio",
+        "app.cli_commands.ai_commands._run_ai_runtime_cli_operation", _fake_operation
+    )
+    monkeypatch.setattr(
+        "app.cli_commands.ai_commands._ensure_utf8_stdio",
         lambda: events.append("utf8"),
     )
 

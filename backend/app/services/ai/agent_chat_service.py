@@ -10,22 +10,18 @@ from typing import TYPE_CHECKING, Any
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.ai.agent_quota import (  # noqa: F401
-    AgentConcurrencyLimiter,
-    AgentQuotaConfig,
-    AgentQuotaManager,
-)
-from app.ai.agent_stats import AgentStatsManager  # noqa: F401
+from app.ai.agent_quota_concurrency import AgentConcurrencyLimiter
+from app.ai.agent_quota_manager import AgentQuotaManager
+from app.ai.agent_stats import AgentStatsManager
 from app.ai.constants import (
     DEFAULT_MEMORY_SCENE,
     MEMORY_CHANNEL_SYSTEM,
 )
-from app.ai.engine.base import BaseEngine  # noqa: F401
+from app.ai.engine.base import BaseEngine
 from app.ai.engine.conversation import ConversationEngine
-from app.ai.engine.dispatcher import ExecutionDispatcher  # noqa: F401
 from app.ai.engine.types import ExecutionRequest, ExecutionResult
-from app.ai.events.hooks import HookPoint, get_hook_registry  # noqa: F401
-from app.core.database import async_session_factory  # noqa: F401
+from app.ai.events.hooks import get_hook_registry
+from app.core.database import async_session_factory
 from app.core.logging import LogManager
 from app.enums.common import UserRoleEnum
 from app.schemas.ai.agent_chat import AgentChatResponse, InteractionMode
@@ -327,7 +323,6 @@ class AgentChatService:
         memory_scene: str = DEFAULT_MEMORY_SCENE,
         memory_channel: str = MEMORY_CHANNEL_SYSTEM,
         memory_source: str = "",
-        selected_skill_names: list[str] | None = None,
         interaction_updates: list[dict[str, Any]] | None = None,
         trust_policy_ref: dict[str, Any] | None = None,
         interaction_mode: InteractionMode = "trusted_auto",
@@ -348,7 +343,6 @@ class AgentChatService:
             memory_scene=memory_scene,
             memory_channel=memory_channel,
             memory_source=memory_source,
-            selected_skill_names=selected_skill_names,
             interaction_updates=interaction_updates,
             trust_policy_ref=trust_policy_ref,
             interaction_mode=interaction_mode,
@@ -376,7 +370,6 @@ class AgentChatService:
         memory_scene: str = DEFAULT_MEMORY_SCENE,
         memory_channel: str = MEMORY_CHANNEL_SYSTEM,
         memory_source: str = "",
-        selected_skill_names: list[str] | None = None,
         interaction_updates: list[dict[str, Any]] | None = None,
         trust_policy_ref: dict[str, Any] | None = None,
         interaction_mode: InteractionMode = "trusted_auto",
@@ -399,7 +392,6 @@ class AgentChatService:
             memory_scene=memory_scene,
             memory_channel=memory_channel,
             memory_source=memory_source,
-            selected_skill_names=selected_skill_names,
             interaction_updates=interaction_updates,
             trust_policy_ref=trust_policy_ref,
             interaction_mode=interaction_mode,
@@ -433,4 +425,12 @@ class AgentChatService:
         )
 
 
-__all__ = ["AgentChatService"]
+__all__ = [
+    "AgentChatService",
+    "AgentConcurrencyLimiter",
+    "AgentQuotaManager",
+    "AgentStatsManager",
+    "BaseEngine",
+    "async_session_factory",
+    "get_hook_registry",
+]

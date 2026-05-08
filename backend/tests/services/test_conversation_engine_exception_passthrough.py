@@ -56,7 +56,7 @@ from app.ai.engine.types import (
     ExecutionRequest,
     PreparedExecution,
 )
-from app.ai.quota import QuotaExceeded
+from app.ai.quota_exceptions import QuotaExceeded
 from app.ai.rate_limiter import RateLimitExceeded
 from app.ai.types import ChatMessage, ChatResponse
 from app.core.config import settings

@@ -4,13 +4,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from app.ai.adapters.openai_compatible import usage_parser as compat_usage_parser
-from app.ai.adapters.openai_compatible.support import usage_estimation, usage_fields
-from app.ai.adapters.openai_compatible.support import (
-    usage_parser as support_usage_parser,
-)
-from app.ai.adapters.openai_compatible.usage_parser import (
+from app.ai.adapters.openai_compatible.support.usage_estimation import (
     estimate_responses_stream_usage,
+)
+from app.ai.adapters.openai_compatible.support.usage_fields import (
     extract_usage_int,
     extract_usage_tokens,
 )
@@ -48,23 +45,3 @@ def test_estimate_responses_stream_usage_delegates_to_usage_mode(
     )
 
     assert estimate_responses_stream_usage(messages, "world") == (11, 13, 24)
-
-
-def test_compat_usage_parser_matches_support_exports() -> None:
-    assert (
-        compat_usage_parser.extract_usage_int is support_usage_parser.extract_usage_int
-    )
-    assert (
-        compat_usage_parser.extract_usage_tokens
-        is support_usage_parser.extract_usage_tokens
-    )
-    assert (
-        compat_usage_parser.estimate_responses_stream_usage
-        is support_usage_parser.estimate_responses_stream_usage
-    )
-    assert compat_usage_parser.extract_usage_int is usage_fields.extract_usage_int
-    assert compat_usage_parser.extract_usage_tokens is usage_fields.extract_usage_tokens
-    assert (
-        compat_usage_parser.estimate_responses_stream_usage
-        is usage_estimation.estimate_responses_stream_usage
-    )

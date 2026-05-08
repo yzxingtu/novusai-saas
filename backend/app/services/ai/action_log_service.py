@@ -9,23 +9,10 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.configs.service import PLATFORM_TENANT_ID
-from app.core.base_service import GlobalService, TenantService
+from app.core.base_service import TenantService
 from app.enums.agent import ActionStatusEnum, ActionTypeEnum
 from app.models.ai.action_log import AIActionLog
-from app.repositories.ai.action_log_repository import (
-    AdminAIActionLogRepository,
-    AIActionLogRepository,
-)
-from app.services.ai.action_log_service_parts.admin_queries import (
-    load_agent_meta_map as _load_admin_agent_meta_map,
-)
-from app.services.ai.action_log_service_parts.admin_queries import (
-    load_operator_meta_map as _load_admin_operator_meta_map,
-)
-from app.services.ai.action_log_service_parts.admin_queries import (
-    load_tenant_meta_map as _load_tenant_meta_map,
-)
+from app.repositories.ai.action_log_repository import AIActionLogRepository
 from app.services.ai.action_log_service_parts.normalization import (
     _normalize_audit_payload,
     _normalize_operator_type,
@@ -221,130 +208,8 @@ class AIActionLogService(TenantService[AIActionLog, AIActionLogRepository]):
         return await self.repo.get_type_distribution()
 
 
-class AdminAIActionLogService(GlobalService[AIActionLog, AdminAIActionLogRepository]):
-    """
-    平台端 AI 操作审计日志 Service / Admin AI Action Log Service.
-    """
-
-    model = AIActionLog
-    repository_class = AdminAIActionLogRepository
-
-    async def _load_agent_meta_map(
-        self,
-        agent_ids: set[int],
-    ) -> dict[int, dict[str, Any]]:
-        return await _load_admin_agent_meta_map(self.db, agent_ids)
-
-    async def _load_tenant_meta_map(
-        self,
-        tenant_ids: set[int],
-    ) -> dict[int, dict[str, str | None]]:
-        return await _load_tenant_meta_map(self.db, tenant_ids)
-
-    @staticmethod
-    def _resolve_operator_live_meta(
-        operator_meta_map: dict[tuple[int, str, int], dict[str, Any]],
-        tenant_id: int,
-        operator_type: str | None,
-        operator_id: int | None,
-    ) -> dict[str, Any]:
-        if not operator_id:
-            return {}
-        normalized_type = _normalize_operator_type(operator_type)
-        if tenant_id == PLATFORM_TENANT_ID:
-            return operator_meta_map.get(
-                (PLATFORM_TENANT_ID, "platform_admin", operator_id),
-                {},
-            )
-        if normalized_type:
-            return operator_meta_map.get((tenant_id, normalized_type, operator_id), {})
-        return operator_meta_map.get(
-            (tenant_id, "tenant_admin", operator_id), {}
-        ) or operator_meta_map.get(
-            (tenant_id, "tenant_user", operator_id),
-            {},
-        )
-
-    async def _load_operator_meta_map(
-        self,
-        logs: list[AIActionLog],
-    ) -> dict[tuple[int, str, int], dict[str, Any]]:
-        return await _load_admin_operator_meta_map(self.db, logs)
-
-    async def serialize_log(self, log: AIActionLog) -> dict[str, Any]:
-        item = log.to_dict()
-        tenant_id = item.get("tenant_id", PLATFORM_TENANT_ID) or PLATFORM_TENANT_ID
-        tenant_meta_map = await self._load_tenant_meta_map({tenant_id})
-        agent_meta_map = await self._load_agent_meta_map(
-            {item["agent_id"]} if item.get("agent_id") else set(),
-        )
-        operator_meta_map = await self._load_operator_meta_map([log])
-        item.update(_default_agent_meta())
-        item.update(_default_operator_meta())
-        item.update(tenant_meta_map.get(tenant_id, {}))
-        item.update(
-            _resolve_agent_meta(
-                item,
-                agent_meta_map.get(item.get("agent_id"), {}),
-            ),
-        )
-        item.update(
-            _resolve_operator_meta(
-                item,
-                self._resolve_operator_live_meta(
-                    operator_meta_map,
-                    tenant_id,
-                    item.get("operator_type"),
-                    item.get("operator_id"),
-                ),
-            ),
-        )
-        return item
-
-    async def serialize_logs(self, logs: list[AIActionLog]) -> list[dict[str, Any]]:
-        tenant_meta_map = await self._load_tenant_meta_map(
-            {log.tenant_id or PLATFORM_TENANT_ID for log in logs},
-        )
-        agent_meta_map = await self._load_agent_meta_map(
-            {log.agent_id for log in logs if log.agent_id},
-        )
-        operator_meta_map = await self._load_operator_meta_map(logs)
-        items: list[dict[str, Any]] = []
-        for log in logs:
-            item = log.to_dict()
-            tenant_id = log.tenant_id or PLATFORM_TENANT_ID
-            item.update(_default_agent_meta())
-            item.update(_default_operator_meta())
-            item.update(
-                tenant_meta_map.get(tenant_id, {}),
-            )
-            item.update(
-                _resolve_agent_meta(item, agent_meta_map.get(log.agent_id, {})),
-            )
-            item.update(
-                _resolve_operator_meta(
-                    item,
-                    self._resolve_operator_live_meta(
-                        operator_meta_map,
-                        tenant_id,
-                        log.operator_type,
-                        log.operator_id,
-                    ),
-                ),
-            )
-            items.append(item)
-        return items
-
-    async def get_stats(self) -> dict:
-        return await self.repo.get_stats()
-
-    async def get_type_distribution(self) -> list[dict]:
-        return await self.repo.get_type_distribution()
-
-
 __all__ = [
     "AIActionLogService",
-    "AdminAIActionLogService",
     "resolve_action_level",
     "write_ai_action_log",
 ]

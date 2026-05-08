@@ -40,8 +40,7 @@ class BaseToolExecutor(ABC):
             definition: Tool definition / 工具定义
             tool_call_id: tool_call_id returned by LLM / LLM 返回的 tool_call_id
             arguments: Arguments passed by LLM / LLM 传入的参数
-            context: Execution context (optional, backward compatible with legacy executors)
-                     执行上下文（可选，向后兼容旧执行器）
+            context: Execution context (optional) / 执行上下文（可选）
 
         Returns:
             ToolResult execution result / ToolResult 执行结果

@@ -7,6 +7,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.ai.adapters.openai_adapter import OpenAIAdapter
+from app.ai.adapters.openai_compatible.capabilities import OpenAIProtocolCapabilities
 from app.models.ai import AIModel, AIProvider
 
 
@@ -48,4 +49,18 @@ def resolve_effective_model_request(
     }
 
 
-__all__ = ["build_adapter_extra", "resolve_effective_model_request"]
+def resolve_provider_primary_wire_api(provider: AIProvider) -> str:
+    if provider.type != "openai_compatible":
+        return "chat_completions"
+    capabilities = OpenAIProtocolCapabilities.from_provider_config(
+        provider_config=provider.config if isinstance(provider.config, dict) else {},
+        configured_wire_api=None,
+    )
+    return capabilities.primary_wire_api
+
+
+__all__ = [
+    "build_adapter_extra",
+    "resolve_effective_model_request",
+    "resolve_provider_primary_wire_api",
+]

@@ -6,11 +6,9 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
-from app.ai.agent_quota import (
-    AgentConcurrencyLimiter,
-    AgentQuotaConfig,
-    AgentQuotaManager,
-)
+from app.ai.agent_quota_concurrency import AgentConcurrencyLimiter
+from app.ai.agent_quota_config import AgentQuotaConfig
+from app.ai.agent_quota_manager import AgentQuotaManager
 from app.ai.events.hooks import HookPoint
 
 from .base import BaseEngine

@@ -19,7 +19,80 @@ def test_validate_provider_payload_rejects_openai_endpoint_style_url() -> None:
             {
                 "type": "openai_compatible",
                 "base_url": "https://code.respyun.com/v1/responses",
-                "config": {"wire_api": "responses"},
+                "config": {
+                    "protocol_capabilities": {
+                        "primary_wire_api": "responses",
+                        "allowed_wire_apis": ["responses"],
+                    }
+                },
+            }
+        )
+
+
+@pytest.mark.parametrize(
+    "retired_field, value",
+    [
+        ("wire_api", "responses"),
+        ("allow_adapter_cross_protocol_fallback", False),
+        ("allowed_cross_protocol_fallbacks", {}),
+    ],
+)
+def test_validate_provider_payload_rejects_top_level_retired_protocol_fields(
+    retired_field: str,
+    value: object,
+) -> None:
+    with pytest.raises(ValidationException):
+        AIProviderService._validate_provider_payload(
+            {
+                "type": "openai_compatible",
+                "base_url": "https://code.respyun.com/v1",
+                "config": {retired_field: value},
+            }
+        )
+
+
+@pytest.mark.parametrize(
+    "retired_field, value",
+    [
+        ("wire_api", "responses"),
+        ("allow_adapter_cross_protocol_fallback", False),
+        ("allowed_cross_protocol_fallbacks", {}),
+    ],
+)
+def test_validate_provider_payload_rejects_nested_retired_protocol_fields(
+    retired_field: str,
+    value: object,
+) -> None:
+    with pytest.raises(ValidationException):
+        AIProviderService._validate_provider_payload(
+            {
+                "type": "openai_compatible",
+                "base_url": "https://code.respyun.com/v1",
+                "config": {
+                    "protocol_capabilities": {
+                        "primary_wire_api": "responses",
+                        "allowed_wire_apis": ["responses"],
+                        retired_field: value,
+                    },
+                },
+            }
+        )
+
+
+def test_validate_provider_payload_rejects_deep_retired_protocol_fields() -> None:
+    with pytest.raises(ValidationException):
+        AIProviderService._validate_provider_payload(
+            {
+                "type": "openai_compatible",
+                "base_url": "https://code.respyun.com/v1",
+                "config": {
+                    "profiles": [
+                        {
+                            "name": "legacy",
+                            "transport": {"wire_api": "responses"},
+                        }
+                    ]
+                },
             }
         )
 

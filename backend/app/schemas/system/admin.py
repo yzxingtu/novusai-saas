@@ -7,9 +7,34 @@ Defines platform admin API request and response data structures.
 
 from datetime import datetime
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from app.core.base_schema import BaseSchema
+
+
+def _validate_writable_avatar_value(value: object) -> str | None:
+    """中文: 写入边界只接受附件 ID，历史 URL 仅允许响应只读展示。
+
+    EN: Write boundaries accept attachment IDs only; legacy URLs are read-only
+    response display values.
+    """
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        raise ValueError("avatar must be a positive attachment ID")
+    if isinstance(value, int):
+        if value > 0:
+            return str(value)
+        raise ValueError("avatar must be a positive attachment ID")
+    if not isinstance(value, str):
+        raise ValueError("avatar must be a positive attachment ID")
+
+    normalized = value.strip()
+    if normalized == "":
+        return ""
+    if normalized.isdecimal() and not normalized.startswith("0"):
+        return normalized
+    raise ValueError("avatar must be a positive attachment ID")
 
 
 class AdminLoginRequest(BaseSchema):
@@ -30,7 +55,7 @@ class AdminResponse(BaseSchema):
     email: str = Field(..., description="邮箱")
     phone: str | None = Field(None, description="手机号")
     nickname: str | None = Field(None, description="昵称")
-    avatar: str | None = Field(None, description="头像附件 ID（兼容旧 URL 值）")
+    avatar: str | None = Field(None, description="头像附件 ID（历史 URL 仅只读展示）")
     is_active: bool = Field(..., description="是否激活")
     ai_enabled: bool = Field(True, description="是否允许使用 AI 对话")
     effective_ai_enabled: bool = Field(True, description="当前账号实际是否可用 AI")
@@ -85,11 +110,16 @@ class AdminUpdateRequest(BaseSchema):
     email: str | None = Field(None, description="邮箱")
     phone: str | None = Field(None, description="手机号")
     nickname: str | None = Field(None, description="昵称")
-    avatar: str | None = Field(None, description="头像附件 ID（兼容旧 URL 值）")
+    avatar: str | None = Field(None, description="头像附件 ID")
     is_active: bool | None = Field(None, description="是否激活")
     ai_enabled: bool | None = Field(None, description="是否允许使用 AI 对话")
     is_super: bool | None = Field(None, description="是否超级管理员")
     role_id: int | None = Field(None, description="角色 ID")
+
+    @field_validator("avatar", mode="before")
+    @classmethod
+    def validate_avatar(cls, value: object) -> str | None:
+        return _validate_writable_avatar_value(value)
 
 
 class AdminChangePasswordRequest(BaseSchema):
@@ -103,11 +133,14 @@ class AdminUpdateProfileRequest(BaseSchema):
     """管理员自助修改个人信息请求 / Admin self-update profile request."""
 
     nickname: str | None = Field(None, max_length=50, description="昵称")
-    avatar: str | None = Field(
-        None, max_length=500, description="头像附件 ID（兼容旧 URL 值）"
-    )
+    avatar: str | None = Field(None, max_length=500, description="头像附件 ID")
     email: str | None = Field(None, max_length=100, description="邮箱")
     phone: str | None = Field(None, max_length=20, description="手机号")
+
+    @field_validator("avatar", mode="before")
+    @classmethod
+    def validate_avatar(cls, value: object) -> str | None:
+        return _validate_writable_avatar_value(value)
 
 
 __all__ = [

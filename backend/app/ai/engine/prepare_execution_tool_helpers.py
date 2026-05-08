@@ -4,6 +4,7 @@ Helpers for tool planning inside BaseEngine._prepare_execution().
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
@@ -14,6 +15,7 @@ from app.ai.runtime.context_assembler import (
 )
 from app.ai.runtime.manifest import AIRuntimeInventoryService
 from app.ai.runtime.types import project_capability_bundle_to_tools
+from app.ai.tools.semantic_defaults import tool_semantic_tags
 from app.ai.tools.types import ToolDefinition
 from app.ai.types import ChatMessage
 from app.core.logging import LogManager
@@ -91,6 +93,43 @@ def _extract_last_user_text(messages: list[ChatMessage]) -> str:
         if text:
             return text
     return ""
+
+
+_QUOTED_QUERY_SEGMENT_RE = re.compile(
+    r"'[^']*'|\"[^\"]*\"|“[^”]*”|‘[^’]*’|「[^」]*」|『[^』]*』|《[^》]*》"
+)
+
+
+def _metadata_match_query_text(user_query: str) -> str:
+    return _QUOTED_QUERY_SEGMENT_RE.sub(" ", str(user_query or ""))
+
+
+def _direct_reply_discoverable_tools(
+    *,
+    all_tools: list[ToolDefinition],
+    user_query: str,
+    limit: int,
+) -> list[ToolDefinition]:
+    normalized_query = _metadata_match_query_text(user_query).strip().lower()
+    if not normalized_query or limit <= 0:
+        return []
+
+    selected: list[ToolDefinition] = []
+    for tool in all_tools:
+        candidates = [
+            str(tool.name or ""),
+            str(tool.name or "").replace("_", " "),
+            str(tool.description or ""),
+            *tool_semantic_tags(tool),
+        ]
+        if any(
+            candidate and len(candidate) >= 2 and candidate.lower() in normalized_query
+            for candidate in candidates
+        ):
+            selected.append(tool)
+        if len(selected) >= limit:
+            return selected
+    return selected
 
 
 def _rebuild_runtime_capability_diagnostics(
@@ -260,6 +299,18 @@ def plan_execution_tools(
             )
             if intent.family == "none" or not intent.requires_tools:
                 intent.status = "completed"
+        if not actionable_intents and all_tools:
+            limit = (
+                execution_budget.max_candidate_tools
+                if execution_budget is not None
+                else len(all_tools)
+            )
+            tool_candidates = _direct_reply_discoverable_tools(
+                all_tools=all_tools,
+                user_query=user_query,
+                limit=limit,
+            )
+            candidate_tool_names = [tool.name for tool in tool_candidates]
         if not tool_candidates and actionable_intents:
             fallback_allowed_names = _allowed_tool_names_for_families_impl(
                 explicit_requested_families,

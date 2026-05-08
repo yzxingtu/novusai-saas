@@ -1,7 +1,13 @@
+"""
+Test type: behavioral
+Scope: storage billing reconciliation host-reader gating and allocation.
+"""
+
 from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -22,6 +28,39 @@ def _make_scalar_one_or_none_result(item):
     result = MagicMock()
     result.scalar_one_or_none.return_value = item
     return result
+
+
+def _make_storage_billing_host(
+    *,
+    driver: str,
+    eligible_tenant_ids: set[int] | None = None,
+    storage_mode: str = "platform",
+) -> SimpleNamespace:
+    eligible_tenant_ids = set(eligible_tenant_ids or set())
+    host = SimpleNamespace()
+    host.get_platform_storage_context = AsyncMock(
+        return_value={
+            "storage_mode": "platform",
+            "storage_config": {"driver": driver},
+        }
+    )
+    host.get_tenant_plan_snapshot = AsyncMock(
+        side_effect=lambda tenant_id: {
+            "tenant_id": tenant_id,
+            "plan": {
+                "features": {
+                    "storage_billing_enabled": tenant_id in eligible_tenant_ids,
+                }
+            },
+        }
+    )
+    host.get_tenant_storage_context = AsyncMock(
+        side_effect=lambda _tenant_id: {
+            "storage_mode": storage_mode,
+            "storage_config": {"driver": driver},
+        }
+    )
+    return host
 
 
 class _FakeReconciliationDb:
@@ -195,7 +234,8 @@ async def test_reconciliation_service_rebuilds_daily_charges_from_binding() -> N
     db.flush = AsyncMock()
     db.add = MagicMock()
 
-    service = module.StorageBillingReconciliationService(db, host_read=None)
+    host = _make_storage_billing_host(driver="tencent-cos", eligible_tenant_ids={9})
+    service = module.StorageBillingReconciliationService(db, host_read=host)
     summary = await service._replace_daily_charges_for_source(
         source_row=source_row,
         charge_items=[charge_item],
@@ -510,7 +550,9 @@ async def test_run_daily_reconciliation_uses_provider_specific_lag_rules(
 
 @pytest.mark.asyncio
 async def test_overview_service_rejects_invalid_period_type() -> None:
-    module = load_plugin_module("storage-billing", "services.reconciliation_service")
+    module = load_plugin_module(
+        "storage-billing", "services.reconciliation_overview_service"
+    )
     assert module is not None
 
     service = module.StorageBillingOverviewService(db=None, host_read=None)
@@ -597,7 +639,11 @@ async def test_reconciliation_service_prefers_bucket_scope_over_account_scope() 
     db.flush = AsyncMock()
     db.add = MagicMock()
 
-    service = module.StorageBillingReconciliationService(db, host_read=None)
+    host = _make_storage_billing_host(
+        driver="tencent-cos",
+        eligible_tenant_ids={101, 202},
+    )
+    service = module.StorageBillingReconciliationService(db, host_read=host)
     summary = await service._replace_daily_charges_for_source(
         source_row=source_row,
         charge_items=[charge_item],
@@ -689,7 +735,11 @@ async def test_reconciliation_service_returns_allocation_audit_samples() -> None
     db.flush = AsyncMock()
     db.add = MagicMock()
 
-    service = module.StorageBillingReconciliationService(db, host_read=None)
+    host = _make_storage_billing_host(
+        driver="aliyun-oss",
+        eligible_tenant_ids={301, 302},
+    )
+    service = module.StorageBillingReconciliationService(db, host_read=host)
     summary = await service._replace_daily_charges_for_source(
         source_row=source_row,
         charge_items=[unmatched_item, ambiguous_item],
@@ -704,6 +754,82 @@ async def test_reconciliation_service_returns_allocation_audit_samples() -> None
         summary["ambiguous_item_samples"][0]["matched_bindings"][0]["scope_value"]
         == "shared-bucket"
     )
+
+
+@pytest.mark.asyncio
+async def test_reconciliation_service_fails_closed_without_tenant_host_readers() -> (
+    None
+):
+    module = load_plugin_module("storage-billing", "services.reconciliation_service")
+    model_module = load_plugin_module("storage-billing", "models")
+    provider_base = load_plugin_module("storage-billing", "providers.base")
+    assert module is not None
+    assert model_module is not None
+    assert provider_base is not None
+
+    source_row = model_module.StorageProviderBillSource(
+        run_id=1,
+        provider_code="tencent-cos",
+        driver_code="tencent-cos",
+        billing_date=date(2026, 3, 21),
+        source_status="fetched",
+    )
+    source_row.id = 10
+
+    binding = model_module.StorageTenantBinding(
+        tenant_id=11,
+        provider_code="tencent-cos",
+        driver_code="tencent-cos",
+        provider_profile_code="tencent-default",
+        billing_mode="official_reconciled",
+        scope_type="bucket",
+        scope_value="tenant-bucket",
+        bucket_name="tenant-bucket",
+        validation_status="valid",
+        entitlement_snapshot_json={},
+        metadata_json={},
+        is_active=True,
+    )
+    binding.id = 13
+
+    charge_item = provider_base.BillingChargeItem(
+        charge_basis="egress_traffic",
+        amount_total=Decimal("0.500000"),
+        usage_bytes=2048,
+        currency="CNY",
+        bucket_name="tenant-bucket",
+        resource_name="tenant-bucket",
+        details_json={"bucket_aliases": ["tenant-bucket"]},
+    )
+
+    db = AsyncMock()
+    db.execute = AsyncMock(
+        side_effect=[
+            _make_scalars_result([]),
+            _make_scalars_result([binding]),
+        ]
+    )
+    db.delete = AsyncMock()
+    db.flush = AsyncMock()
+    db.add = MagicMock()
+    host = SimpleNamespace(
+        get_platform_storage_context=AsyncMock(
+            return_value={
+                "storage_mode": "platform",
+                "storage_config": {"driver": "tencent-cos"},
+            }
+        )
+    )
+
+    service = module.StorageBillingReconciliationService(db, host_read=host)
+    summary = await service._replace_daily_charges_for_source(
+        source_row=source_row,
+        charge_items=[charge_item],
+    )
+
+    assert summary["matched_items"] == 0
+    assert summary["unmatched_items"] == 1
+    db.add.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -1308,7 +1434,9 @@ async def test_reconciliation_service_exports_run_charges_csv_with_headers() -> 
 
 @pytest.mark.asyncio
 async def test_overview_service_exports_tenant_statement_charges_csv() -> None:
-    module = load_plugin_module("storage-billing", "services.reconciliation_service")
+    module = load_plugin_module(
+        "storage-billing", "services.reconciliation_overview_service"
+    )
     models = load_plugin_module("storage-billing", "models")
     assert module is not None
     assert models is not None

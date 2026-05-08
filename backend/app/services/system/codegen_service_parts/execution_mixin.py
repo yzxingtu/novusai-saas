@@ -565,8 +565,8 @@ class CodegenExecutionMixin:
         project_root: Path,
     ) -> dict[str, Any]:
         """
-        Full auto-migrate cycle: purge orphaned stamps → pre-upgrade → autogenerate → inject metadata → post-upgrade.
-        完整自动迁移周期：清理孤立 stamp → 预升级 → 自动生成 → 注入元数据 → 后升级。
+        Full auto-migrate cycle: pre-upgrade → autogenerate → inject metadata → post-upgrade.
+        完整自动迁移周期：预升级 → 自动生成 → 注入元数据 → 后升级。
         """
         import re as _re
         import subprocess
@@ -575,10 +575,6 @@ class CodegenExecutionMixin:
         backend_dir = project_root / "backend"
         if not backend_dir.exists():
             return {"success": False, "error": "backend dir not found"}
-
-        from app.core.database import purge_orphaned_alembic_stamps
-
-        purge_orphaned_alembic_stamps(backend_dir)
 
         _up_pre = subprocess.run(
             [sys.executable, "-m", "alembic", "upgrade", "head"],

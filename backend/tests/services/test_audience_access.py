@@ -25,7 +25,6 @@ _MOCK_MODULES = [
     "celery.app",
     "celery.contrib",
     "socketio.asyncio_server",
-    "app.ai.agent_quota",
     "app.ai.agent_stats",
     "app.ai.gateway",
     "app.ai.cache",

@@ -1,4 +1,11 @@
-"""Weather provider compatibility tests."""
+"""中文: 天气插件 provider 行为测试。
+
+EN: Weather plugin provider behavioral tests.
+
+Test type: behavioral
+Mock strategy: HTTP transport is mocked; provider parsing, validation, cache,
+and geocoding selection logic run real.
+"""
 
 from __future__ import annotations
 
@@ -28,6 +35,7 @@ get_forecast = mod.get_forecast
 get_weather_all = mod.get_weather_all
 get_air_quality = mod.get_air_quality
 get_wmo_info = mod.get_wmo_info
+validate_forecast_days = mod.validate_forecast_days
 _cache = mod._cache
 _cache_get = mod._cache_get
 _cache_set = mod._cache_set
@@ -132,7 +140,9 @@ class TestSearchCity:
         assert result[0]["latitude"] == 31.23
 
     @pytest.mark.asyncio
-    async def test_search_city_retries_trimmed_county_variant(self):
+    async def test_search_city_uses_trimmed_county_variant_after_empty_exact_lookup(
+        self,
+    ):
         search_mock = AsyncMock(
             side_effect=[
                 [],
@@ -161,7 +171,7 @@ class TestSearchCity:
         assert "北京市" in expanded
         assert "Beijing" in expanded
 
-    def test_expand_city_queries_adds_county_fallback_variant(self):
+    def test_expand_city_queries_adds_trimmed_county_variant(self):
         expanded = _expand_city_queries("凤凰县")
         assert expanded[0] == "凤凰县"
         assert "凤凰" in expanded
@@ -222,6 +232,36 @@ class TestWeatherAggregation:
     def setup_method(self):
         _cache.clear()
         _configure_test_provider()
+
+    def test_validate_forecast_days_accepts_default_and_numeric_string(self):
+        assert validate_forecast_days(None, default=3) == 3
+        assert validate_forecast_days("5") == 5
+
+    @pytest.mark.parametrize("days", [0, 8, "abc", ""])
+    @pytest.mark.asyncio
+    async def test_get_weather_all_rejects_invalid_days_before_weather_fetch(
+        self,
+        days,
+    ):
+        fetch_mock = AsyncMock(return_value=[])
+        with (
+            patch.object(mod, "_fetch_met_timeseries", new=fetch_mock),
+            pytest.raises(ValueError, match="1 to 7"),
+        ):
+            await get_weather_all(31.23, 121.47, days)
+
+        fetch_mock.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_get_forecast_rejects_invalid_days_before_aggregate_call(self):
+        aggregate_mock = AsyncMock(return_value={"daily": []})
+        with (
+            patch.object(mod, "get_weather_all", new=aggregate_mock),
+            pytest.raises(ValueError, match="1 to 7"),
+        ):
+            await get_forecast(31.23, 121.47, "abc")
+
+        aggregate_mock.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_get_weather_all_success(self):

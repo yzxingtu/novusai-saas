@@ -870,6 +870,41 @@ def test_recovery_manager_caches_completed_intent_result_from_tool_output() -> N
     assert updated[0].metadata["cached_result"] == "西安现在多云，气温约 18C。"
 
 
+def test_recovery_manager_caches_structured_completion_without_tool_name_coupling() -> (
+    None
+):
+    intents = [
+        IntentPlan(
+            intent_id="intent-environment",
+            kind="environment_status",
+            family="facility_ops",
+            order=1,
+            user_visible_label="环境",
+            source_text="园区状态怎样",
+            status="pending",
+            allowed_tool_names=["fetch_environment_snapshot"],
+            completion_signals=["fetch_environment_snapshot"],
+        )
+    ]
+
+    updated = RecoveryManager.update_intent_statuses(
+        intents,
+        messages=[],
+        tool_results=[
+            ToolResult(
+                tool_call_id="tc-environment",
+                name="fetch_environment_snapshot",
+                success=True,
+                output='{"location":"园区","status":"正常","temperature":"21C"}',
+            )
+        ],
+    )
+
+    assert updated[0].status == "completed"
+    assert updated[0].cached_result == "园区现在正常，气温约 21C。"
+    assert updated[0].metadata["cached_result"] == "园区现在正常，气温约 21C。"
+
+
 def test_recovery_manager_does_not_cache_invalid_runtime_table_result() -> None:
     intents = [
         IntentPlan(

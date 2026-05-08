@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 
 class AuthTenantUserDomain:
-    """Compatibility facade for tenant-user auth flows."""
+    """Stable facade for tenant-user auth flows."""
 
     def __init__(self, service: AuthService) -> None:
         self._service = service

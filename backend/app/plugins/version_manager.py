@@ -282,10 +282,9 @@ class VersionManager:
         # Backup current version / 备份当前版本
         self.archive_version(plugin_name, plugin.version)
 
-        # Rollback alembic migration (must be done before file replacement, using current version's migration scripts)
-        # If downgrade is not done first, current version's extra migration stamps will be purged by
-        # _purge_orphaned_alembic_stamps, causing upgrade to rebuild existing tables and error out.
-        # / 回滚 alembic 迁移（必须在文件替换前）
+        # 中文: 在替换文件前回滚 alembic 迁移，确保 Alembic 仍能读取当前版本迁移脚本。
+        # EN: Downgrade before file replacement so Alembic can still read the
+        # current version's migration scripts.
         try:
             await lifecycle.run_alembic_downgrade(plugin_name)
         except Exception as exc:

@@ -756,8 +756,16 @@ class TestPluginContextAIStream:
                 self.db = db
                 self.tenant_id = tenant_id
 
-            async def stream_chat(self, *, agent_id: int, message: str):
-                _ = agent_id, message
+            async def stream_chat(
+                self,
+                *,
+                agent_id: int,
+                message: str,
+                memory_scene: str,
+                memory_channel: str,
+                memory_source: str,
+            ):
+                _ = agent_id, message, memory_scene, memory_channel, memory_source
                 return _FakeStreamingResponse()
 
         monkeypatch.setattr(
@@ -810,8 +818,16 @@ class TestPluginContextAIStream:
                 self.db = db
                 self.tenant_id = tenant_id
 
-            async def stream_chat(self, *, agent_id: int, message: str):
-                _ = agent_id, message
+            async def stream_chat(
+                self,
+                *,
+                agent_id: int,
+                message: str,
+                memory_scene: str,
+                memory_channel: str,
+                memory_source: str,
+            ):
+                _ = agent_id, message, memory_scene, memory_channel, memory_source
                 return _FakeStreamingResponse()
 
         monkeypatch.setattr(
@@ -851,8 +867,16 @@ class TestPluginContextAIStream:
                 self.db = db
                 self.tenant_id = tenant_id
 
-            async def stream_chat(self, *, agent_id: int, message: str):
-                _ = agent_id, message
+            async def stream_chat(
+                self,
+                *,
+                agent_id: int,
+                message: str,
+                memory_scene: str,
+                memory_channel: str,
+                memory_source: str,
+            ):
+                _ = agent_id, message, memory_scene, memory_channel, memory_source
                 raise RuntimeError("stream not supported")
 
         monkeypatch.setattr(
@@ -876,6 +900,55 @@ class TestPluginContextAIStream:
             deltas.append(delta)
 
         assert deltas == ["fallback"]
+
+    @pytest.mark.asyncio
+    async def test_call_ai_feature_stream_signature_mismatch_is_not_fallback(
+        self,
+        monkeypatch,
+    ):
+        """签名不匹配应暴露为集成错误 / Signature mismatch surfaces."""
+        from unittest.mock import MagicMock
+
+        from app.plugins.context import PluginContext, RequestContext
+
+        ctx = PluginContext(
+            plugin_name="test",
+            manifest=MagicMock(),
+            db=MagicMock(),
+            granted_capabilities=["ai:call"],
+            request_context=RequestContext(tenant_id=1),
+        )
+
+        async def fake_resolve(_feature_code: str):
+            return 123, 1
+
+        ctx._resolve_ai_assignment = fake_resolve  # type: ignore[method-assign]
+
+        class _FakeAgentChatService:
+            def __init__(self, db, tenant_id):
+                self.db = db
+                self.tenant_id = tenant_id
+
+            async def stream_chat(self, *, agent_id: int, message: str):
+                _ = agent_id, message
+                raise AssertionError("unreachable when Python rejects kwargs")
+
+        monkeypatch.setattr(
+            "app.services.ai.agent_chat_service.AgentChatService",
+            _FakeAgentChatService,
+        )
+
+        async def fake_call_ai_feature(*_args, **_kwargs) -> str:
+            raise AssertionError("signature mismatch must not fallback")
+
+        ctx.call_ai_feature = fake_call_ai_feature
+
+        with pytest.raises(TypeError, match="memory_scene"):
+            async for _ in ctx.call_ai_feature_stream(
+                "ai_writer",
+                [{"role": "user", "content": "hi"}],
+            ):
+                pass
 
 
 class TestSocketIONamespaceRegistry:

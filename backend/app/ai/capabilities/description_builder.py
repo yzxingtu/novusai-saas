@@ -14,6 +14,7 @@ from typing import Any
 
 from app.ai.runtime.types import capability_pack_descriptor_is_live
 from app.ai.skills.activation import activated_tools_for_turn
+from app.ai.tools.semantic_defaults import normalize_semantic_family
 
 
 @dataclass
@@ -57,6 +58,8 @@ class CapabilityDescriptionBuilder:
     def build_skill_descriptions(
         self,
         skill_result: Any,
+        *,
+        selected_skill_names: list[str] | None = None,
     ) -> list[CapabilityDescription]:
         """
         Build skill descriptions from SkillResolveResult.
@@ -74,9 +77,20 @@ class CapabilityDescriptionBuilder:
         tools = list(activated_tools_for_turn(skill_result))
         descriptors = list(getattr(skill_result, "capability_descriptors", []) or [])
         activation = getattr(skill_result, "turn_activation", None)
+        explicit_selected_skill_names = self._stable_name_set(selected_skill_names)
         if activation is not None and not activation.applied:
-            tools = []
-            descriptors = []
+            if explicit_selected_skill_names:
+                tools = self._filter_tools_by_skill_names(
+                    tools,
+                    explicit_selected_skill_names,
+                )
+                descriptors = self._filter_descriptors_by_skill_names(
+                    descriptors,
+                    explicit_selected_skill_names,
+                )
+            else:
+                tools = []
+                descriptors = []
         elif activation is not None and activation.applied:
             activated_skill_names = {
                 str(name or "").strip()
@@ -92,6 +106,15 @@ class CapabilityDescriptionBuilder:
                 ]
             else:
                 descriptors = []
+        elif explicit_selected_skill_names:
+            tools = self._filter_tools_by_skill_names(
+                tools,
+                explicit_selected_skill_names,
+            )
+            descriptors = self._filter_descriptors_by_skill_names(
+                descriptors,
+                explicit_selected_skill_names,
+            )
 
         if not tools and not descriptors:
             return []
@@ -176,6 +199,16 @@ class CapabilityDescriptionBuilder:
 
     @staticmethod
     def _determine_tool_skill_family(tool: Any) -> str:
+        family = CapabilityDescriptionBuilder._normalize_skill_family(
+            getattr(tool, "semantic_family", None)
+        )
+        if family:
+            return family
+        family = CapabilityDescriptionBuilder._infer_family_from_text(
+            getattr(tool, "description", None)
+        )
+        if family:
+            return family
         package_name = str(getattr(tool, "source_package_name", "") or "").strip()
         skill_type = str(getattr(tool, "source_skill_type", "") or "").strip()
         if package_name.startswith("plugin."):
@@ -373,11 +406,17 @@ class CapabilityDescriptionBuilder:
         if family:
             return str(family).strip()
 
-        # Fallback: infer from skill name
+        family = self._family_from_descriptor_metadata(metadata)
+        if family:
+            return family
+
+        family = self._infer_family_from_text(getattr(descriptor, "description", None))
+        if family:
+            return family
+
+        # Fallback: infer platform-owned families from skill name.
         skill_name = str(descriptor.name or "").lower()
 
-        if "weather" in skill_name:
-            return "weather"
         if "time" in skill_name or "date" in skill_name:
             return "time"
 
@@ -389,12 +428,90 @@ class CapabilityDescriptionBuilder:
         将技能家族格式化为可读标题。
         """
         family_titles = {
-            "weather": "Weather Skills",
             "time": "Time & Date Skills",
+            "time_ops": "Time & Date Skills",
             "general": "General Skills",
         }
 
-        return family_titles.get(family, family.replace("_", " ").title())
+        if family in family_titles:
+            return family_titles[family]
+        label = family.replace("_", " ").title()
+        if not label:
+            return "Skills"
+        return label if label.endswith("Skills") else f"{label} Skills"
+
+    @staticmethod
+    def _stable_name_set(values: list[Any] | None) -> set[str]:
+        return {
+            text for value in list(values or []) if (text := str(value or "").strip())
+        }
+
+    @staticmethod
+    def _filter_descriptors_by_skill_names(
+        descriptors: list[Any],
+        skill_names: set[str],
+    ) -> list[Any]:
+        if not skill_names:
+            return []
+        return [
+            descriptor
+            for descriptor in descriptors
+            if str(getattr(descriptor, "name", "") or "").strip() in skill_names
+        ]
+
+    @staticmethod
+    def _filter_tools_by_skill_names(
+        tools: list[Any],
+        skill_names: set[str],
+    ) -> list[Any]:
+        if not skill_names:
+            return []
+        return [
+            tool
+            for tool in tools
+            if str(getattr(tool, "source_skill_name", "") or "").strip() in skill_names
+        ]
+
+    @staticmethod
+    def _normalize_skill_family(value: Any) -> str:
+        family = normalize_semantic_family(value)
+        if not family or family == "none":
+            return ""
+        if family in {"time", "date", "time_ops", "date_ops"}:
+            return "time"
+        return family
+
+    @classmethod
+    def _family_from_descriptor_metadata(cls, metadata: Any) -> str:
+        if not isinstance(metadata, Mapping):
+            return ""
+        direct_family = cls._normalize_skill_family(metadata.get("semantic_family"))
+        if direct_family:
+            return direct_family
+        for key in (
+            "semantic_families",
+            "preview_semantic_families",
+            "startup_preview_semantic_families",
+            "resolved_semantic_families",
+            "tool_semantic_families",
+        ):
+            raw_values = metadata.get(key)
+            if not isinstance(raw_values, (list, tuple, set)):
+                continue
+            for raw_value in raw_values:
+                family = cls._normalize_skill_family(raw_value)
+                if family:
+                    return family
+        return ""
+
+    @classmethod
+    def _infer_family_from_text(cls, value: Any) -> str:
+        text = str(value or "").strip().lower()
+        if not text:
+            return ""
+        if any(term in text for term in ("current date", "current time", "日期")):
+            return "time"
+        return ""
 
     def _build_single_skill_description(self, descriptor: Any) -> str:
         """

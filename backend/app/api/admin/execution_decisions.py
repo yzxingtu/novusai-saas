@@ -1,8 +1,8 @@
 """
 Execution decision API (admin) / 执行决策 API（管理端）
 
-No standalone menu entry; the detail endpoint is consumed by action-logs'
-linkedDecision card. / 无独立菜单入口；详情接口供 action-logs 关联决策卡片调用。
+No standalone menu entry; records stay available for diagnostics under AI call
+logs. / 无独立菜单入口；记录保留在 AI 调用日志诊断权限下。
 """
 
 from fastapi import Request
@@ -24,11 +24,11 @@ from app.services.ai.execution_decision_service import AdminExecutionDecisionSer
     resource="execution_decision",
     name="menu.admin.execution_decision",
     scope=PermissionScope.ADMIN,
-    parent_resource="ai_action_log",
+    parent_resource="ai_call_log",
 )
 class AdminExecutionDecisionController(GlobalController):
     prefix = "/ai/execution-decisions"
-    tags = [_("menu.tags.admin_ai_action_audit")]
+    tags = [_("menu.tags.admin_ai_call_log")]
 
     def _register_routes(self) -> None:
         router = self.router

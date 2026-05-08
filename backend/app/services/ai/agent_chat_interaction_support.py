@@ -126,7 +126,7 @@ def build_trusted_auto_bootstrap_policy_ref() -> dict[str, Any]:
     return {
         "policy_ids": [],
         "allowed_tool_names": [],
-        "tool_families": ["weather"],
+        "tool_families": [],
         "risk_level_cap": ActionLevelEnum.READ.value,
     }
 

@@ -12,8 +12,6 @@ from .execution_state_machine import get_current_execution_state_machine
 _PARALLEL_SAFE_TOOLS: frozenset[str] = frozenset(
     {
         "get_current_time",
-        "get_current_weather",
-        "get_weather_forecast",
         "calculate",
         "format_json",
     }
@@ -54,11 +52,7 @@ class ToolProcessorCache:
         name = (func_name or "").strip()
         if not name:
             return None
-        if name in {
-            "get_current_weather",
-            "get_weather_forecast",
-            "get_current_time",
-        }:
+        if name == "get_current_time":
             pass
         else:
             return None

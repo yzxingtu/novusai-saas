@@ -115,7 +115,6 @@ class AdminSkillController(GlobalController):
             page: int = Query(1, ge=1, description="Page number"),
             page_size: int = Query(20, ge=1, le=100, description="Page size"),
             include_system: bool = Query(True, description="Include system skills"),
-            only_active: bool = Query(True, description="Only active skills"),
         ):
             """
             Paginated skills with package metadata for admin agent binding picker.
@@ -129,7 +128,6 @@ class AdminSkillController(GlobalController):
                 page=page,
                 page_size=page_size,
                 include_system=include_system,
-                only_active=only_active,
             )
             return success(data=data)
 

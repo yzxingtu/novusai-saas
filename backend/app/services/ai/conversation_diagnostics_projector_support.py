@@ -11,6 +11,7 @@ from app.ai.json_safe import normalize_json_safe_dict as _normalize_json_safe_di
 from app.ai.tools.types import ToolResult
 from app.ai.types import ChatMessage
 from app.services.ai.conversation_diagnostics_projector_support_diagnostics import (
+    contains_invalid_runtime_diagnostics_reference,
     extract_turn_diagnostics_from_metadata,
     is_invalid_runtime_diagnostics_reference,
     normalize_live_diagnostics_reference,
@@ -173,7 +174,11 @@ def normalize_provider_events(value: Any) -> list[dict[str, Any]]:
         payload = normalize_json_dict(item)
         if not payload:
             continue
-        normalized.append(dict(payload))
+        if contains_invalid_runtime_diagnostics_reference(payload):
+            continue
+        sanitized = sanitize_diagnostics_payload(payload)
+        if sanitized:
+            normalized.append(sanitized)
     return normalized
 
 

@@ -6,13 +6,11 @@ Provides async database connections, session management and dependency injection
 """
 
 import asyncio
-import re
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager, suppress
-from dataclasses import dataclass
 from pathlib import Path
 
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import create_engine, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -43,28 +41,6 @@ def _set_db_init_failure(reason: str) -> None:
 def _clear_db_init_failure() -> None:
     global _db_init_failure_reason
     _db_init_failure_reason = None
-
-
-@dataclass(frozen=True)
-class MainSchemaCoverage:
-    """Main app schema coverage snapshot. / 主应用 schema 覆盖率快照。"""
-
-    model_table_count: int
-    total_model_column_count: int
-    missing_tables: tuple[str, ...]
-    missing_columns_by_table: dict[str, tuple[str, ...]]
-
-    @property
-    def missing_column_count(self) -> int:
-        """Total missing model columns. / 缺失模型列总数。"""
-        return sum(len(cols) for cols in self.missing_columns_by_table.values())
-
-    @property
-    def column_coverage(self) -> float:
-        """Column coverage ratio. / 模型列覆盖率。"""
-        if self.total_model_column_count <= 0:
-            return 1.0
-        return 1.0 - (self.missing_column_count / self.total_model_column_count)
 
 
 # ============================================
@@ -281,32 +257,6 @@ def create_database_if_not_exists() -> bool:
         admin_engine.dispose()
 
 
-_ALEMBIC_REVISION_RE = re.compile(
-    r'^revision\s*(?::[^=]*)?=\s*["\']([^"\']+)["\']',
-    re.MULTILINE,
-)
-
-
-def _collect_revision_ids_from_dir(directory: Path) -> set[str]:
-    """Collect revision IDs from one versions dir. / 收集单个 versions 目录的 revision ID。"""
-    revisions: set[str] = set()
-    if not directory.is_dir():
-        return revisions
-
-    for file_path in directory.iterdir():
-        if file_path.suffix != ".py" or file_path.name == "__init__.py":
-            continue
-        try:
-            src = file_path.read_text(encoding="utf-8", errors="replace")
-        except Exception as exc:
-            logger.warning("Cannot read migration file {}: {}", file_path, exc)
-            continue
-        match = _ALEMBIC_REVISION_RE.search(src)
-        if match:
-            revisions.add(match.group(1))
-    return revisions
-
-
 def _read_alembic_version_rows(db_url: str) -> list[str]:
     """Read current alembic stamps. / 读取当前 alembic_version 版本戳。"""
     engine = create_engine(db_url, echo=False)
@@ -320,93 +270,6 @@ def _read_alembic_version_rows(db_url: str) -> list[str]:
         return []
     finally:
         engine.dispose()
-
-
-def _inspect_main_schema_coverage(db_url: str) -> MainSchemaCoverage:
-    """Inspect current DB coverage against main models. / 对照主应用模型检查当前 DB 覆盖率。"""
-    import app.models  # noqa: F401
-    from app.core.base_model import Base
-
-    engine = create_engine(db_url, echo=False)
-    try:
-        inspector = inspect(engine)
-        actual_tables = set(inspector.get_table_names(schema="public"))
-        model_tables = set(Base.metadata.tables.keys())
-        missing_tables = tuple(sorted(model_tables - actual_tables))
-
-        total_model_column_count = 0
-        missing_columns_by_table: dict[str, tuple[str, ...]] = {}
-
-        for table_name in sorted(model_tables):
-            model_cols = tuple(
-                col.name for col in Base.metadata.tables[table_name].columns
-            )
-            total_model_column_count += len(model_cols)
-
-            if table_name in missing_tables:
-                missing_columns_by_table[table_name] = model_cols
-                continue
-
-            actual_cols = {
-                str(column["name"])
-                for column in inspector.get_columns(table_name, schema="public")
-            }
-            missing_cols = tuple(sorted(set(model_cols) - actual_cols))
-            if missing_cols:
-                missing_columns_by_table[table_name] = missing_cols
-
-        return MainSchemaCoverage(
-            model_table_count=len(model_tables),
-            total_model_column_count=total_model_column_count,
-            missing_tables=missing_tables,
-            missing_columns_by_table=missing_columns_by_table,
-        )
-    finally:
-        engine.dispose()
-
-
-def should_auto_recover_missing_main_branch_stamp(
-    *,
-    current_stamps: list[str],
-    main_revision_ids: set[str],
-    coverage: MainSchemaCoverage,
-    max_missing_columns: int = 3,
-) -> tuple[bool, str]:
-    """Decide whether missing main stamp can be auto-recovered. / 判断是否可自动恢复缺失的主分支 stamp。"""
-    if not current_stamps:
-        return False, "no existing alembic_version rows"
-
-    if any(stamp in main_revision_ids for stamp in current_stamps):
-        return False, "main branch stamp already present"
-
-    if coverage.missing_tables:
-        sample = ", ".join(coverage.missing_tables[:5])
-        return False, f"missing main tables: {sample}"
-
-    if coverage.missing_column_count > max_missing_columns:
-        return (
-            False,
-            f"missing too many model columns: {coverage.missing_column_count}",
-        )
-
-    return True, (
-        "main branch stamp missing while schema is already mostly present; "
-        f"column_coverage={coverage.column_coverage:.4f}"
-    )
-
-
-def _resolve_main_head_revision(cfg, main_revision_ids: set[str]) -> str | None:
-    """Resolve the current main-app head revision. / 解析当前主应用 head revision。"""
-    from alembic.script import ScriptDirectory
-
-    main_heads = [
-        revision
-        for revision in ScriptDirectory.from_config(cfg).get_heads()
-        if revision in main_revision_ids
-    ]
-    if len(main_heads) != 1:
-        return None
-    return str(main_heads[0])
 
 
 def resolve_expected_alembic_heads(
@@ -454,118 +317,6 @@ def should_skip_migration_subprocess(
         )
 
     return True, f"database already at current heads {normalized_heads}"
-
-
-def maybe_recover_missing_main_branch_stamp(
-    *,
-    cfg,
-    db_url: str,
-    main_versions_dir: str | Path,
-) -> tuple[bool, str]:
-    """Attempt to restore missing main branch stamp. / 尝试恢复缺失的主分支 stamp。"""
-    main_revision_ids = _collect_revision_ids_from_dir(Path(main_versions_dir))
-    current_stamps = _read_alembic_version_rows(db_url)
-    coverage = _inspect_main_schema_coverage(db_url)
-    can_recover, reason = should_auto_recover_missing_main_branch_stamp(
-        current_stamps=current_stamps,
-        main_revision_ids=main_revision_ids,
-        coverage=coverage,
-    )
-    if not can_recover:
-        return False, reason
-
-    main_head = _resolve_main_head_revision(cfg, main_revision_ids)
-    if not main_head:
-        return False, "expected exactly one main-app head revision"
-
-    from alembic import command
-
-    command.stamp(cfg, main_head)
-    return True, (
-        f"Recovered missing main branch stamp by stamping '{main_head}' "
-        f"(existing non-main stamps: {', '.join(current_stamps)})"
-    )
-
-
-def purge_orphaned_alembic_stamps(backend_dir: Path | None = None) -> bool:
-    """
-    清除 alembic_version 中无法对应到迁移文件的孤立版本戳。
-    Purge orphaned version stamps in alembic_version that have no corresponding migration file.
-
-    用于 codegen auto-migrate 前清理插件残留（如 sm_001_init），避免 alembic revision 报错。
-    Used before codegen auto-migrate to clean plugin residuals.
-    """
-    import re
-
-    backend = backend_dir or Path(__file__).resolve().parent.parent.parent
-    versions_path = backend / "migrations" / "versions"
-    if not versions_path.exists():
-        return True
-
-    known_revs: set[str] = set()
-    _failed_reads: list[str] = []
-    rev_pat = re.compile(
-        r'^revision\s*(?::[^=]*)?=\s*["\']([^"\']+)["\']', re.MULTILINE
-    )
-
-    def _collect(d: Path) -> None:
-        if not d.is_dir():
-            return
-        for f in d.iterdir():
-            if f.suffix != ".py" or f.name == "__init__.py":
-                continue
-            try:
-                m = rev_pat.search(f.read_text(encoding="utf-8", errors="replace"))
-                if m:
-                    known_revs.add(m.group(1))
-            except Exception as e:
-                _failed_reads.append(str(f))
-                logger.warning("Cannot read migration file {}: {}", f, e)
-
-    db_url = settings.DATABASE_URL_SYNC.replace("\\", "/")
-    for version_location in build_migration_version_locations(
-        backend_dir=backend,
-        db_url=db_url,
-    ):
-        _collect(Path(version_location))
-
-    if _failed_reads:
-        logger.warning(
-            "Skipping stamp purge: {} migration file(s) unreadable ({})",
-            len(_failed_reads),
-            ", ".join(_failed_reads[:5]),
-        )
-        return True
-
-    if not known_revs:
-        return True
-
-    # 临时抑制 SQLAlchemy SQL 日志，避免 codegen rollback/generate 时控制台刷屏
-    import logging as _log
-
-    _sa_log = _log.getLogger("sqlalchemy.engine")
-    _old_level = _sa_log.level
-    _sa_log.setLevel(_log.WARNING)
-    engine = None
-    try:
-        engine = create_engine(db_url, echo=False)
-        with engine.connect() as conn:
-            rows = conn.execute(
-                text("SELECT version_num FROM alembic_version")
-            ).fetchall()
-            for (stamp,) in rows:
-                if stamp not in known_revs:
-                    logger.info("Purging orphaned alembic stamp: {}", stamp)
-                    conn.execute(
-                        text("DELETE FROM alembic_version WHERE version_num = :v"),
-                        {"v": stamp},
-                    )
-            conn.commit()
-    finally:
-        _sa_log.setLevel(_old_level)
-        if engine is not None:
-            engine.dispose()
-    return True
 
 
 def run_migrations() -> bool:
@@ -640,8 +391,6 @@ def run_migrations() -> bool:
             logger.info("Skipping Alembic subprocess: {}", skip_reason)
             return True
 
-        versions_path = str(backend_dir / "migrations" / "versions")
-
         # 将迁移脚本写入临时文件 / Write migration script to temp file to avoid complex one-liner escaping
         import tempfile
 
@@ -651,9 +400,6 @@ def run_migrations() -> bool:
             f"""
 import sys
 import os
-import re
-from pathlib import Path
-from sqlalchemy import create_engine, text
 from alembic.config import Config
 from alembic import command
 
@@ -661,54 +407,14 @@ backend_dir = {str(backend_dir)!r}
 if backend_dir not in sys.path:
     sys.path.insert(0, backend_dir)
 
-# Step 1: 清除 alembic_version 中不存在于迁移文件的孤立 stamp
-# 兼容迁移写法：
-#   - revision = 'xxx'
-#   - revision: str = 'xxx'
-# 并同时扫描主应用 + plugins/* 的迁移目录，避免误删合法插件 revision。
-versions_dir = {versions_path!r}
+# Step 1: 准备迁移图；启动期不自动删除或补写 alembic_version。
+# Step 1: Prepare the migration graph; startup never deletes or stamps alembic_version automatically.
 db_url = {db_url!r}
 version_locations = {version_locations!r}
-known_revs = set()
-_rev_pat = re.compile(r'^revision\\s*(?::[^=]*)?=\\s*[\"\\']([^\"\\']+)[\"\\']', re.MULTILINE)
-
-def _collect_revisions_from_dir(_dir: str) -> None:
-    if not os.path.isdir(_dir):
-        return
-    for _f in os.listdir(_dir):
-        if not _f.endswith('.py') or _f == '__init__.py':
-            continue
-        try:
-            with open(os.path.join(_dir, _f), encoding='utf-8') as _fh:
-                _src = _fh.read()
-            _m = _rev_pat.search(_src)
-            if _m:
-                known_revs.add(_m.group(1))
-        except Exception:
-            pass
-
-for _version_dir in version_locations:
-    _collect_revisions_from_dir(_version_dir)
 
 print(
-    f'[migration] Version locations: {{len(version_locations)}}, '
-    f'known revisions: {{len(known_revs)}}'
+    f'[migration] Version locations: {{len(version_locations)}}'
 )
-
-# 安全检查：若 known_revs 为空（regex 未匹配到任何文件），跳过清理，避免误删合法 stamp
-if known_revs:
-    engine = create_engine(db_url)
-    with engine.connect() as conn:
-        rows = conn.execute(text('SELECT version_num FROM alembic_version')).fetchall()
-        for row in rows:
-            stamp = row[0]
-            if stamp not in known_revs:
-                print(f'[migration] Purging orphaned stamp: {{stamp}}')
-                conn.execute(text('DELETE FROM alembic_version WHERE version_num = :v'), {{'v': stamp}})
-        conn.commit()
-    engine.dispose()
-else:
-    print('[migration] WARNING: no revisions found in migration files, skipping stamp purge')
 
 # Step 2: 运行迁移（主应用 + 插件 revision 可解析）
 cfg = Config({str(alembic_ini)!r})
@@ -718,55 +424,7 @@ cfg.set_main_option('sqlalchemy.url', db_url)
 # 关键：command.upgrade 在创建 ScriptDirectory 时就会读取 version_locations，
 # 不能只依赖 env.py 里后置 set_main_option（那时已太晚）。
 cfg.set_main_option('version_locations', '\\n'.join(version_locations))
-
-try:
-    command.upgrade(cfg, 'heads')
-except Exception as e:
-    err_str = str(e)
-    # 仅在 alembic_version 中无任何记录时，DuplicateTable 才视为「表已手工建好、缺 stamp」。
-    # 若已有 revision 记录仍报 DuplicateTable，多为卡在某条迁移上；此时 stamp heads 会跳过后续 ALTER，
-    # 导致 ORM（如 owner_tenant_id）与真实库列不一致——禁止自动 stamp。
-    if 'already exists' in err_str or 'DuplicateTable' in type(e).__name__:
-        eng = create_engine(db_url)
-        stamp_count = -1
-        try:
-            with eng.connect() as c:
-                r = c.execute(text('SELECT COUNT(*) FROM alembic_version')).fetchone()
-            stamp_count = int(r[0]) if r else 0
-        except Exception as ver_exc:
-            print(
-                '[migration] Cannot read alembic_version: '
-                + str(ver_exc)
-                + '; refusing unsafe stamp.'
-            )
-            raise e from ver_exc
-        finally:
-            eng.dispose()
-        if stamp_count == 0:
-            print(
-                '[migration] Tables exist but stamps missing, stamping heads to recover...'
-            )
-            command.stamp(cfg, 'heads')
-        else:
-            from app.core.database import maybe_recover_missing_main_branch_stamp
-
-            recovered, recover_msg = maybe_recover_missing_main_branch_stamp(
-                cfg=cfg,
-                db_url=db_url,
-                main_versions_dir=Path(versions_dir),
-            )
-            if recovered:
-                print('[migration] ' + recover_msg)
-                command.upgrade(cfg, 'heads')
-            else:
-                print(
-                    '[migration] DuplicateTable/already exists but alembic_version is nonempty; '
-                    + recover_msg
-                    + '. Fix the DB conflict or run: python -m app.cli db upgrade heads'
-                )
-                raise
-    else:
-        raise
+command.upgrade(cfg, 'heads')
 """  # nosec B608
         )
 
@@ -884,7 +542,6 @@ __all__ = [
     "get_db_context",
     "check_database_connection",
     "create_database_if_not_exists",
-    "purge_orphaned_alembic_stamps",
     "get_last_db_init_failure_reason",
     "run_migrations",
     "init_database",

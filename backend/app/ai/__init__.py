@@ -13,13 +13,13 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from app.ai.adapters import AdapterRegistry
     from app.ai.adapters.base import BaseAdapter
-    from app.ai.agent_quota import (
+    from app.ai.agent_quota_concurrency import AgentConcurrencyLimiter
+    from app.ai.agent_quota_config import AgentQuotaConfig
+    from app.ai.agent_quota_exceptions import (
         AgentConcurrencyExceeded,
-        AgentConcurrencyLimiter,
-        AgentQuotaConfig,
         AgentQuotaExceeded,
-        AgentQuotaManager,
     )
+    from app.ai.agent_quota_manager import AgentQuotaManager
     from app.ai.engine import ExecutionDispatcher
     from app.ai.events import EventBus, HookRegistry, get_event_bus, get_hook_registry
     from app.ai.exceptions import (
@@ -53,11 +53,11 @@ if TYPE_CHECKING:
 _EXPORT_MAP = {
     "AdapterRegistry": "app.ai.adapters",
     "BaseAdapter": "app.ai.adapters.base",
-    "AgentConcurrencyExceeded": "app.ai.agent_quota",
-    "AgentConcurrencyLimiter": "app.ai.agent_quota",
-    "AgentQuotaConfig": "app.ai.agent_quota",
-    "AgentQuotaExceeded": "app.ai.agent_quota",
-    "AgentQuotaManager": "app.ai.agent_quota",
+    "AgentConcurrencyExceeded": "app.ai.agent_quota_exceptions",
+    "AgentConcurrencyLimiter": "app.ai.agent_quota_concurrency",
+    "AgentQuotaConfig": "app.ai.agent_quota_config",
+    "AgentQuotaExceeded": "app.ai.agent_quota_exceptions",
+    "AgentQuotaManager": "app.ai.agent_quota_manager",
     "ExecutionDispatcher": "app.ai.engine",
     "EventBus": "app.ai.events",
     "HookRegistry": "app.ai.events",

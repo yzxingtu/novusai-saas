@@ -333,6 +333,9 @@ class TestTenantZeroFilter:
         main_sql = str(main_stmt)
         assert "coalesce(ai_call_logs.billing_tenant_id" in main_sql
         assert "ai_call_logs.tenant_id = :tenant_id_" in main_sql
+        assert "ai_models.name" in main_sql
+        assert "ai_models.code" in main_sql
+        assert "ai_call_logs.model_name_snapshot" not in main_sql
 
     @pytest.mark.asyncio
     async def test_billing_tenant_summary_with_platform_tenant_zero_uses_effective_usage_tenant(

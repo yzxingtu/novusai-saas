@@ -115,6 +115,7 @@ def test_registry_cleanup_clears_runtime_state_on_unreg_failure(monkeypatch):
         "toolkit",
         lambda *_args, **_kwargs: [],
         executor=DummyExecutor,
+        skill_name="cleanup-skill",
     )
 
     def _boom(*_args, **_kwargs):

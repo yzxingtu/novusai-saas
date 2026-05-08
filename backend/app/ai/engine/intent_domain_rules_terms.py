@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import re
 
-_WEATHER_TERMS = ("天气", "气温", "温度", "降雨", "湿度", "weather", "temperature")
 _CAPABILITY_QUERY_TERMS = (
     "是否能",
     "能否",
@@ -18,12 +17,9 @@ _CAPABILITY_QUERY_TERMS = (
     "what are you capable of",
 )
 _CAPABILITY_REFERENCE_TERMS = (
-    "天气",
-    "查询天气",
     "调用技能",
     "技能",
     "工具",
-    "weather",
     "skill",
     "skills",
     "tool",
@@ -158,51 +154,9 @@ _MEMORY_QUERY_HINT_TERMS = (
     "what",
     "which",
 )
-_WEATHER_LOCATION_SUFFIX_RE = re.compile(
-    r"[\u4e00-\u9fff]{2,12}(?:市|区|县|州|省|自治区|特别行政区)"
-)
-_WEATHER_ENGLISH_LOCATION_RE = re.compile(r"\b(?:in|for)\s+([a-z][a-z\s-]{1,40})\b")
-_COMMON_WEATHER_LOCATIONS = (
-    "北京",
-    "上海",
-    "广州",
-    "深圳",
-    "天津",
-    "重庆",
-    "杭州",
-    "南京",
-    "苏州",
-    "成都",
-    "武汉",
-    "西安",
-    "长沙",
-    "郑州",
-    "青岛",
-    "宁波",
-    "厦门",
-    "福州",
-    "合肥",
-    "济南",
-    "昆明",
-    "大连",
-    "沈阳",
-    "长春",
-    "哈尔滨",
-    "无锡",
-    "常州",
-    "南昌",
-    "贵阳",
-    "海口",
-    "三亚",
-    "洛阳",
-    "石家庄",
-    "太原",
-)
-
 __all__ = [
     "_CAPABILITY_QUERY_TERMS",
     "_CAPABILITY_REFERENCE_TERMS",
-    "_COMMON_WEATHER_LOCATIONS",
     "_KNOWLEDGE_COURTESY_PREFIXES",
     "_KNOWLEDGE_DEFINITION_PATTERNS",
     "_KNOWLEDGE_FILLER_SUFFIXES",
@@ -213,7 +167,4 @@ __all__ = [
     "_MEMORY_SAVE_TERMS",
     "_NO_TOOL_REQUEST_TERMS",
     "_TIME_TERMS",
-    "_WEATHER_ENGLISH_LOCATION_RE",
-    "_WEATHER_LOCATION_SUFFIX_RE",
-    "_WEATHER_TERMS",
 ]

@@ -59,9 +59,13 @@ async def test_list_provider_profiles_uses_platform_storage_context_and_masks_se
     ctx = SimpleNamespace(
         get_config=AsyncMock(
             return_value={
-                "qiniu_enabled": True,
-                "qiniu_profile_code": "qiniu-main",
-                "qiniu_account_identifier": "account-main",
+                "providers": {
+                    "qiniu-kodo": {
+                        "enabled": True,
+                        "profile_code": "qiniu-main",
+                        "account_identifier": "account-main",
+                    }
+                },
             }
         ),
         host=host,
@@ -112,9 +116,7 @@ async def test_save_provider_profiles_persists_only_billing_fields():
     ctx = SimpleNamespace(
         get_config=AsyncMock(
             return_value={
-                "aliyun_enabled": True,
-                "aliyun_profile_code": "aliyun-default",
-                "aliyun_access_key_secret": "legacy-secret",
+                "audit_marker": "kept",
                 "providers": {
                     "aliyun-oss": {
                         "enabled": True,
@@ -145,13 +147,13 @@ async def test_save_provider_profiles_persists_only_billing_fields():
     )
 
     saved = ctx.update_config.await_args.args[0]
+    assert saved["audit_marker"] == "kept"
     assert saved["providers"]["aliyun-oss"] == {
         "enabled": True,
         "profile_code": "aliyun-default",
         "bill_source": "bss_openapi",
         "account_identifier": "payer-1",
     }
-    assert "aliyun_access_key_secret" not in saved
     assert "access_key_secret" not in saved["providers"]["aliyun-oss"]
     assert "region" not in saved["providers"]["aliyun-oss"]
 
@@ -184,8 +186,12 @@ async def test_validate_provider_profile_reads_required_fields_from_platform_sto
     ctx = SimpleNamespace(
         get_config=AsyncMock(
             return_value={
-                "tencent_enabled": True,
-                "tencent_profile_code": "tencent-default",
+                "providers": {
+                    "tencent-cos": {
+                        "enabled": True,
+                        "profile_code": "tencent-default",
+                    }
+                },
             }
         ),
         host=host,
@@ -231,8 +237,12 @@ async def test_validate_provider_profile_returns_invalid_when_driver_plugin_disa
     ctx = SimpleNamespace(
         get_config=AsyncMock(
             return_value={
-                "tencent_enabled": True,
-                "tencent_profile_code": "tencent-default",
+                "providers": {
+                    "tencent-cos": {
+                        "enabled": True,
+                        "profile_code": "tencent-default",
+                    }
+                },
             }
         ),
         host=host,

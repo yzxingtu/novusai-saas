@@ -7,12 +7,6 @@ from __future__ import annotations
 from app.ai.engine.intent_clause_helpers import _split_clauses
 from app.ai.text_semantics import collapse_whitespace
 
-NON_PAGE_WEATHER_TOKENS = (
-    "天气",
-    "气温",
-    "温度",
-    "weather",
-)
 NON_PAGE_TIME_TOKENS = (
     "几点",
     "星期几",
@@ -54,8 +48,6 @@ def requested_tool_families(message: str) -> list[str]:
         if not normalized_clause:
             continue
 
-        if any(token in normalized_clause for token in NON_PAGE_WEATHER_TOKENS):
-            add("weather")
         if any(token in normalized_clause for token in NON_PAGE_TIME_TOKENS):
             add("time_ops")
     return families
@@ -63,6 +55,5 @@ def requested_tool_families(message: str) -> list[str]:
 
 __all__ = [
     "NON_PAGE_TIME_TOKENS",
-    "NON_PAGE_WEATHER_TOKENS",
     "requested_tool_families",
 ]

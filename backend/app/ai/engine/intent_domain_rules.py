@@ -8,7 +8,6 @@ from typing import Any
 from app.ai.engine.intent_domain_rules_terms import (
     _CAPABILITY_QUERY_TERMS,
     _CAPABILITY_REFERENCE_TERMS,
-    _COMMON_WEATHER_LOCATIONS,
     _KNOWLEDGE_COURTESY_PREFIXES,
     _KNOWLEDGE_DEFINITION_PATTERNS,
     _KNOWLEDGE_FILLER_SUFFIXES,
@@ -18,8 +17,6 @@ from app.ai.engine.intent_domain_rules_terms import (
     _MEMORY_SAVE_TERMS,
     _NO_TOOL_REQUEST_TERMS,
     _TIME_TERMS,
-    _WEATHER_ENGLISH_LOCATION_RE,
-    _WEATHER_LOCATION_SUFFIX_RE,
 )
 from app.ai.engine.intent_signal_helpers import (
     _first_position,
@@ -27,7 +24,7 @@ from app.ai.engine.intent_signal_helpers import (
     _semantic_profile_position,
     _tool_families,
 )
-from app.ai.text_semantics import has_question_indicator, mentions_weather
+from app.ai.text_semantics import has_question_indicator
 from app.ai.tools.types import ToolDefinition
 
 _CN_LOCAL_TIME_RE = re.compile(r"(?:当前|现在)?[\u4e00-\u9fff]{1,12}(?:时间|时区)")
@@ -73,12 +70,6 @@ _MEMORY_RECALL_CONTEXT_TERMS = (
     "what",
     "which",
     "recall",
-)
-_WEATHER_SHORTCIRCUIT_TERMS = (
-    "天气",
-    "weather",
-    "气温",
-    "温度",
 )
 _KNOWLEDGE_QUERY_PROFILE = (
     "what is explain introduce tell me about knowledge base document policy definition",
@@ -181,16 +172,6 @@ class IntentDomainRules:
             return en_match.start()
 
         return -1
-
-    @staticmethod
-    def weather_query_has_city(lowered: str) -> bool:
-        if not lowered:
-            return False
-        if _WEATHER_LOCATION_SUFFIX_RE.search(lowered):
-            return True
-        if _WEATHER_ENGLISH_LOCATION_RE.search(lowered):
-            return True
-        return any(location in lowered for location in _COMMON_WEATHER_LOCATIONS)
 
     @staticmethod
     def is_question_like_clause(lowered: str) -> bool:
@@ -405,24 +386,6 @@ class IntentDomainRules:
                     "memory_save",
                     offset + memory_save_position,
                     requires_tools=False,
-                    shortcircuit=True,
-                    metadata={"routing_mode": "deterministic_shortcircuit"},
-                )
-            )
-
-        # SHORTCIRCUIT: weather stays bounded to explicit weather/time-style asks.
-        weather_position = (
-            _first_position(lowered, _WEATHER_SHORTCIRCUIT_TERMS)
-            if mentions_weather(lowered)
-            else -1
-        )
-        if "weather" in families and weather_position >= 0:
-            signals.append(
-                _IntentSignal(
-                    "weather_query",
-                    "weather",
-                    "weather",
-                    offset + weather_position,
                     shortcircuit=True,
                     metadata={"routing_mode": "deterministic_shortcircuit"},
                 )

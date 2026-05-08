@@ -967,14 +967,14 @@ class TenantKnowledgeBaseController(TenantController):
             Input query text, returns most similar chunk list
             权限 / Permission: knowledge_base:search
             """
-            from app.ai.rag.retriever import VectorRetriever
+            from app.ai.rag.retriever import HybridRetriever
 
             kb_service = KnowledgeBaseService(db, tenant_admin.tenant_id)
             kb = await kb_service.get_by_id(kb_id)
             if not kb:
                 raise NotFoundException(message=_("knowledge_base.error.not_found"))
 
-            retriever = VectorRetriever(db, tenant_admin.tenant_id)
+            retriever = HybridRetriever(db, tenant_admin.tenant_id)
 
             results = await retriever.search(
                 knowledge_base=kb,

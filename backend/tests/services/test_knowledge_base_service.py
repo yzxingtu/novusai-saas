@@ -241,6 +241,44 @@ class TestKBDetail:
         assert "audio_model_id" not in KnowledgeBase.__filterable__
         assert "video_model_id" not in KnowledgeBase.__filterable__
 
+    def test_admin_request_schemas_reject_legacy_assignment_aliases(self):
+        from pydantic import ValidationError
+
+        from app.core.i18n import _
+        from app.schemas.ai.knowledge_base import (
+            AdminKnowledgeBaseCreate,
+            AdminKnowledgeBaseUpdate,
+        )
+
+        schema_inputs = (
+            (
+                AdminKnowledgeBaseCreate,
+                {
+                    "name": "KB",
+                    "embedding_model_id": 1,
+                },
+            ),
+            (AdminKnowledgeBaseUpdate, {}),
+        )
+        retired_aliases = {
+            "tenant_id": 12,
+            "assigned_tenant_ids": [3, 9],
+        }
+
+        for schema_class, base_input in schema_inputs:
+            schema = schema_class.model_json_schema()
+            assert "tenant_id" not in schema.get("properties", {})
+            assert "assigned_tenant_ids" not in schema.get("properties", {})
+
+            for field, value in retired_aliases.items():
+                with pytest.raises(
+                    ValidationError,
+                    match=re.escape(
+                        _("agent.error.rejected_legacy_field").format(field=field)
+                    ),
+                ):
+                    schema_class(**base_input, **{field: value})
+
 
 class TestKBUpdate:
     @pytest.mark.asyncio
@@ -477,25 +515,37 @@ class TestTenantKBVisibility:
 
 
 class TestAdminKBPayloadNormalization:
-    def test_prepare_admin_payload_uses_assigned_tenant_ids_alias(self, mock_db):
+    def test_prepare_admin_payload_rejects_assigned_tenant_ids_alias(self, mock_db):
         from app.enums.common import ResourceScopeEnum
+        from app.exceptions import BusinessException
         from app.services.ai.knowledge_base_service import AdminKnowledgeBaseService
 
         service = AdminKnowledgeBaseService.__new__(AdminKnowledgeBaseService)
         service.db = mock_db
 
-        payload, tenant_ids = service._prepare_admin_payload(
-            {
-                "name": "Scoped KB",
-                "scope": ResourceScopeEnum.SELECTED_TENANTS.value,
-                "assigned_tenant_ids": [3, 9],
-            }
-        )
+        with pytest.raises(BusinessException, match="assigned_tenant_ids"):
+            service._prepare_admin_payload(
+                {
+                    "name": "Scoped KB",
+                    "scope": ResourceScopeEnum.SELECTED_TENANTS.value,
+                    "assigned_tenant_ids": [3, 9],
+                }
+            )
 
-        assert tenant_ids == [3, 9]
-        assert payload["scope"] == ResourceScopeEnum.SELECTED_TENANTS.value
-        assert payload.get("owner_tenant_id") is None
-        assert "assigned_tenant_ids" not in payload
+    def test_prepare_admin_payload_rejects_tenant_id_alias(self, mock_db):
+        from app.exceptions import BusinessException
+        from app.services.ai.knowledge_base_service import AdminKnowledgeBaseService
+
+        service = AdminKnowledgeBaseService.__new__(AdminKnowledgeBaseService)
+        service.db = mock_db
+
+        with pytest.raises(BusinessException, match="tenant_id"):
+            service._prepare_admin_payload(
+                {
+                    "name": "Tenant-owned KB",
+                    "tenant_id": 12,
+                }
+            )
 
     def test_prepare_admin_payload_defaults_tenant_owned_rows_to_all_tenants(
         self, mock_db
@@ -509,7 +559,7 @@ class TestAdminKBPayloadNormalization:
         payload, tenant_ids = service._prepare_admin_payload(
             {
                 "name": "Tenant-owned KB",
-                "tenant_id": 12,
+                "owner_tenant_id": 12,
             }
         )
 

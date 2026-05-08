@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from app.cli import _BACKEND_DIR, _discover_plugin_migration_paths
+from app.cli_commands.core_commands import (
+    _BACKEND_DIR,
+    _discover_plugin_migration_paths,
+)
 
 
 def _expected_plugin_version_dirs(backend: Path) -> list[str]:

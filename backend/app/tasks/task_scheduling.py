@@ -8,6 +8,8 @@ attaching task-run metadata to the dispatched task.
 
 from __future__ import annotations
 
+import importlib
+import inspect
 from typing import Any
 
 from app.celery_app import celery_app
@@ -42,6 +44,56 @@ def _merge_kwargs(
     if override_kwargs:
         merged.update(override_kwargs)
     return merged
+
+
+def find_invalid_handler_kwargs(
+    handler_path: str,
+    kwargs: dict[str, Any] | None,
+) -> list[str]:
+    if not kwargs:
+        return []
+    task = get_registered_handler_task(handler_path)
+    if task is None:
+        return []
+    try:
+        signature = inspect.signature(task.run)
+    except (TypeError, ValueError):
+        return []
+    parameters = signature.parameters
+    if any(
+        parameter.kind == inspect.Parameter.VAR_KEYWORD
+        for parameter in parameters.values()
+    ):
+        return []
+    accepted = {
+        name
+        for name, parameter in parameters.items()
+        if name != "self"
+        and parameter.kind
+        in (
+            inspect.Parameter.KEYWORD_ONLY,
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+        )
+    }
+    return sorted(str(key) for key in kwargs if str(key) not in accepted)
+
+
+def get_registered_handler_task(handler_path: str):
+    task = celery_app.tasks.get(handler_path)
+    if task is None and "." in handler_path:
+        module_path = handler_path.rsplit(".", 1)[0]
+        try:
+            importlib.import_module(module_path)
+        except Exception:
+            return None
+        task = celery_app.tasks.get(handler_path)
+    return task
+
+
+def is_handler_registered(handler_path: str | None) -> bool:
+    if not handler_path:
+        return False
+    return get_registered_handler_task(handler_path) is not None
 
 
 def _resolve_args(
@@ -156,12 +208,26 @@ def _build_handler_options(
 
 
 def handler_supports_tenant_dispatch(handler_path: str) -> bool:
+    get_registered_handler_task(handler_path)
     registry_info = get_task_registry().get(handler_path, {})
     return registry_info.get("base") == "TenantTask"
 
 
 def _handler_requires_tenant(definition: TaskDefinition) -> bool:
     return handler_supports_tenant_dispatch(definition.handler_path)
+
+
+def resolve_handler_kwargs(
+    handler_path: str,
+    base_kwargs: dict[str, Any] | None,
+    override_kwargs: dict[str, Any] | None = None,
+    *,
+    tenant_id: int | None = None,
+) -> dict[str, Any]:
+    kwargs = _merge_kwargs(base_kwargs, override_kwargs)
+    if tenant_id is not None and handler_supports_tenant_dispatch(handler_path):
+        kwargs["tenant_id"] = tenant_id
+    return kwargs
 
 
 def _resolve_all_tenant_ids(session, task_definition_id: int) -> list[int]:
@@ -198,9 +264,28 @@ def run_task_definition(
                 "reason": "definition_not_available",
                 "task_definition_id": task_definition_id,
             }
+        if not is_handler_registered(definition.handler_path):
+            return {
+                "dispatched": False,
+                "reason": "handler_not_registered",
+                "task_definition_id": task_definition_id,
+                "handler_path": definition.handler_path,
+            }
 
         args = _resolve_args(definition.default_args, None)
-        kwargs = _merge_kwargs(definition.default_kwargs, None)
+        kwargs = resolve_handler_kwargs(
+            definition.handler_path,
+            definition.default_kwargs,
+        )
+        invalid_kwargs = find_invalid_handler_kwargs(definition.handler_path, kwargs)
+        if invalid_kwargs:
+            return {
+                "dispatched": False,
+                "reason": "handler_kwargs_invalid",
+                "task_definition_id": task_definition_id,
+                "handler_path": definition.handler_path,
+                "invalid_kwargs": invalid_kwargs,
+            }
         headers = _build_task_run_headers(
             definition=definition,
             binding=None,
@@ -264,6 +349,13 @@ def run_all_tenants_task_definition(
                 "reason": "definition_not_available",
                 "task_definition_id": task_definition_id,
             }
+        if not is_handler_registered(definition.handler_path):
+            return {
+                "dispatched": False,
+                "reason": "handler_not_registered",
+                "task_definition_id": task_definition_id,
+                "handler_path": definition.handler_path,
+            }
         if not handler_supports_tenant_dispatch(definition.handler_path):
             return {
                 "dispatched": False,
@@ -278,9 +370,24 @@ def run_all_tenants_task_definition(
 
         for tenant_id in tenant_ids:
             args = _resolve_args(definition.default_args, None)
-            kwargs = _merge_kwargs(definition.default_kwargs, None)
-            if _handler_requires_tenant(definition):
-                kwargs["tenant_id"] = tenant_id
+            kwargs = resolve_handler_kwargs(
+                definition.handler_path,
+                definition.default_kwargs,
+                tenant_id=tenant_id,
+            )
+            invalid_kwargs = find_invalid_handler_kwargs(
+                definition.handler_path, kwargs
+            )
+            if invalid_kwargs:
+                dispatch_results.append(
+                    {
+                        "tenant_id": tenant_id,
+                        "dispatched": False,
+                        "reason": "handler_kwargs_invalid",
+                        "invalid_kwargs": invalid_kwargs,
+                    }
+                )
+                continue
 
             headers = _build_task_run_headers(
                 definition=definition,
@@ -402,6 +509,14 @@ def run_tenant_task_binding(
                 "binding_id": binding_id,
                 "task_definition_id": binding.task_definition_id,
             }
+        if not is_handler_registered(definition.handler_path):
+            return {
+                "dispatched": False,
+                "reason": "handler_not_registered",
+                "binding_id": binding_id,
+                "task_definition_id": binding.task_definition_id,
+                "handler_path": definition.handler_path,
+            }
         if not handler_supports_tenant_dispatch(definition.handler_path):
             return {
                 "dispatched": False,
@@ -412,9 +527,22 @@ def run_tenant_task_binding(
             }
 
         args = _resolve_args(definition.default_args, binding.args_override)
-        kwargs = _merge_kwargs(definition.default_kwargs, binding.kwargs_override)
-        if _handler_requires_tenant(definition):
-            kwargs["tenant_id"] = binding.tenant_id
+        kwargs = resolve_handler_kwargs(
+            definition.handler_path,
+            definition.default_kwargs,
+            binding.kwargs_override,
+            tenant_id=binding.tenant_id,
+        )
+        invalid_kwargs = find_invalid_handler_kwargs(definition.handler_path, kwargs)
+        if invalid_kwargs:
+            return {
+                "dispatched": False,
+                "reason": "handler_kwargs_invalid",
+                "binding_id": binding_id,
+                "task_definition_id": definition.id,
+                "handler_path": definition.handler_path,
+                "invalid_kwargs": invalid_kwargs,
+            }
 
         headers = _build_task_run_headers(
             definition=definition,
@@ -459,7 +587,10 @@ __all__ = [
     "ALL_TENANTS_TASK_DEFINITION_WRAPPER",
     "TASK_DEFINITION_WRAPPER",
     "TENANT_BINDING_WRAPPER",
+    "find_invalid_handler_kwargs",
     "handler_supports_tenant_dispatch",
+    "is_handler_registered",
+    "resolve_handler_kwargs",
     "run_all_tenants_task_definition",
     "run_task_definition",
     "run_tenant_task_binding",

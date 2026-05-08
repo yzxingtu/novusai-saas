@@ -33,6 +33,7 @@ def _make_skill(**overrides):
         "type": "builtin",
         "description": "A test skill",
         "is_active": True,
+        "status": "active",
         "config_schema": None,
         "valves_schema": None,
     }
@@ -106,6 +107,104 @@ class TestSkillCreate:
 
         assert skill.type == "builtin"
 
+    @pytest.mark.asyncio
+    async def test_skill_create_status_disabled_syncs_is_active(self, mock_db):
+        from app.services.ai.skill_service import SkillService
+
+        service = SkillService.__new__(SkillService)
+        service.db = mock_db
+        service.tenant_id = 1
+        service.repo = AsyncMock()
+        service.repo.get_by_name = AsyncMock(return_value=None)
+        service._get_toolkit_security_level = AsyncMock(return_value=None)
+
+        data = {"name": "Disabled Skill", "type": "builtin", "status": "disabled"}
+
+        await service._before_create(data)
+
+        assert data["status"] == "disabled"
+        assert data["is_active"] is False
+
+    @pytest.mark.asyncio
+    async def test_skill_create_inactive_flag_syncs_status_disabled(self, mock_db):
+        from app.services.ai.skill_service import SkillService
+
+        service = SkillService.__new__(SkillService)
+        service.db = mock_db
+        service.tenant_id = 1
+        service.repo = AsyncMock()
+        service.repo.get_by_name = AsyncMock(return_value=None)
+        service._get_toolkit_security_level = AsyncMock(return_value=None)
+
+        data = {"name": "Inactive Skill", "type": "builtin", "is_active": False}
+
+        await service._before_create(data)
+
+        assert data["status"] == "disabled"
+        assert data["is_active"] is False
+
+    @pytest.mark.asyncio
+    async def test_skill_create_rejects_retired_search_config_tool(self, mock_db):
+        from app.exceptions import BusinessException
+        from app.services.ai.skill_service import SkillService
+
+        service = SkillService.__new__(SkillService)
+        service.db = mock_db
+        service.tenant_id = 1
+        service.repo = AsyncMock()
+        service.repo.tenant_id = 1
+        service.repo.get_by_name = AsyncMock(return_value=None)
+        service._get_toolkit_security_level = AsyncMock(return_value=None)
+
+        data = {
+            "name": "Current Events Helper",
+            "type": "builtin",
+            "config": {"tools": [{"name": "web_search"}]},
+        }
+
+        with pytest.raises(BusinessException):
+            await service._before_create(data)
+
+    @pytest.mark.asyncio
+    async def test_skill_create_rejects_hook_injected_retired_search_tool(
+        self,
+        mock_db,
+        monkeypatch,
+    ):
+        from app.exceptions import BusinessException
+        from app.services.ai.skill_service import SkillService
+
+        class _HookRegistry:
+            def has_hooks(self, _hook_point):
+                return True
+
+            async def trigger(self, *_args, **_kwargs):
+                return {
+                    "skill_data": {
+                        "name": "Hooked Helper",
+                        "type": "builtin",
+                        "config": {"tools": [{"name": "web_search"}]},
+                    }
+                }
+
+        monkeypatch.setattr(
+            "app.ai.events.hooks.get_hook_registry",
+            lambda: _HookRegistry(),
+        )
+
+        service = SkillService.__new__(SkillService)
+        service.db = mock_db
+        service.tenant_id = 1
+        service.repo = AsyncMock()
+        service.repo.tenant_id = 1
+        service.repo.get_by_name = AsyncMock(return_value=None)
+        service._get_toolkit_security_level = AsyncMock(return_value=None)
+
+        data = {"name": "Hooked Helper", "type": "builtin"}
+
+        with pytest.raises(BusinessException):
+            await service._before_create(data)
+
 
 class TestSkillQuery:
     @pytest.mark.asyncio
@@ -137,6 +236,51 @@ class TestSkillQueryByPackage:
 
         result = await service.repo.get_by_package_id(1)
         assert len(result) == 3
+
+
+class TestAdminSkillStatus:
+    @pytest.mark.asyncio
+    async def test_admin_skill_create_rejects_retired_search_toolkit_method(
+        self,
+        mock_db,
+    ):
+        from app.exceptions import BusinessException
+        from app.services.ai.skill_service import AdminSkillService
+
+        service = AdminSkillService.__new__(AdminSkillService)
+        service.db = mock_db
+        service.repo = AsyncMock()
+        service._get_toolkit_security_level = AsyncMock(return_value=None)
+
+        data = {
+            "name": "Current Events Toolkit",
+            "type": "toolkit",
+            "toolkit_content": (
+                "class Tools:\n"
+                "    def web_search(self, query: str) -> str:\n"
+                "        return query\n"
+            ),
+        }
+
+        with pytest.raises(BusinessException):
+            await service._before_create(data)
+
+    @pytest.mark.asyncio
+    async def test_update_status_syncs_status_field(self, mock_db):
+        from app.services.ai.skill_service import AdminSkillService
+
+        service = AdminSkillService.__new__(AdminSkillService)
+        service.db = mock_db
+        service.repo = AsyncMock()
+        service.repo.get_by_id = AsyncMock(return_value=_make_skill(is_system=False))
+        service.repo.update = AsyncMock(return_value=_make_skill(is_active=False))
+
+        await service.update_status(1, False)
+
+        service.repo.update.assert_awaited_once_with(
+            1,
+            {"is_active": False, "status": "disabled"},
+        )
 
 
 class TestSkillValvesConfig:
@@ -316,7 +460,6 @@ class TestAdminSkillBindingSelect:
                 page=2,
                 page_size=10,
                 include_system=True,
-                only_active=True,
             )
 
         agent_repo.get_by_id.assert_awaited_once_with(59)
@@ -363,7 +506,6 @@ class TestAdminSkillBindingSelect:
                 page=1,
                 page_size=20,
                 include_system=True,
-                only_active=True,
             )
 
         service.repo.query_admin_binding_select.assert_awaited_once_with(
@@ -378,9 +520,7 @@ class TestAdminSkillBindingSelect:
         assert result.items[0].value == 51
 
     @pytest.mark.asyncio
-    async def test_binding_select_forces_active_candidates_even_if_flag_disabled(
-        self, mock_db
-    ):
+    async def test_binding_select_always_uses_active_candidates(self, mock_db):
         from app.services.ai.skill_service import AdminSkillService
 
         service = AdminSkillService.__new__(AdminSkillService)
@@ -400,7 +540,6 @@ class TestAdminSkillBindingSelect:
             page=1,
             page_size=20,
             include_system=True,
-            only_active=False,
         )
 
         service.repo.query_admin_binding_select.assert_awaited_once_with(

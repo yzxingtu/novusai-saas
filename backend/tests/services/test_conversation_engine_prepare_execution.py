@@ -14,7 +14,8 @@ import pytest
 from app.ai.context import get_context_engine
 from app.ai.context.engine import ConversationContextEngine
 from app.ai.engine.base import BaseEngine
-from app.ai.engine.conversation import ConversationEngine, _SyncIOAdapter
+from app.ai.engine.conversation import ConversationEngine
+from app.ai.engine.conversation_sync_io_adapter import _SyncIOAdapter
 from app.ai.engine.stream_runtime_contract import build_stream_runtime_contract
 from app.ai.engine.types import ExecutionRequest, IntentPlan, ToolUsePolicy
 from app.ai.runtime.context_capability_bridge import DefaultContextCapabilityBridge
@@ -59,8 +60,16 @@ def _build_skill_result() -> SkillResolveResult:
 def _build_structured_skill_result() -> SkillResolveResult:
     return SkillResolveResult(
         tools=[
-            ToolDefinition(name="get_current_weather", description="Current weather"),
-            ToolDefinition(name="get_weather_forecast", description="Forecast"),
+            ToolDefinition(
+                name="get_current_weather",
+                description="Current weather",
+                semantic_tags=["天气", "当前天气", "current weather"],
+            ),
+            ToolDefinition(
+                name="get_weather_forecast",
+                description="Forecast",
+                semantic_tags=["天气预报", "未来天气", "forecast"],
+            ),
         ]
     )
 
@@ -297,7 +306,7 @@ async def test_prepare_execution_does_not_discover_forms_from_page_context() -> 
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_routes_weather_requests_to_weather_family(
+async def test_prepare_execution_leaves_plugin_weather_tools_to_model_choice(
     mock_db,
 ) -> None:
     engine = ConversationEngine(
@@ -319,10 +328,12 @@ async def test_prepare_execution_routes_weather_requests_to_weather_family(
             ToolDefinition(
                 name="get_current_weather",
                 description="Get current conditions for a city",
+                semantic_tags=["天气", "current weather"],
             ),
             ToolDefinition(
                 name="get_weather_forecast",
                 description="Get forecast for future days",
+                semantic_tags=["预报", "天气"],
             ),
         ]
     )
@@ -340,9 +351,11 @@ async def test_prepare_execution_routes_weather_requests_to_weather_family(
             skill_result=skill_result,
         )
 
-    assert prep.tool_use_policy.family == "weather"
-    assert {tool.name for tool in prep.tools} == {"get_current_weather"}
-    assert prep.tool_use_policy.allowed_tool_names == ["get_current_weather"]
+    assert prep.tool_use_policy == ToolUsePolicy()
+    assert {tool.name for tool in prep.tools} == {
+        "get_current_weather",
+        "get_weather_forecast",
+    }
 
 
 @pytest.mark.asyncio
@@ -915,7 +928,7 @@ async def test_prepare_execution_skips_memory_vector_recall_for_short_acknowledg
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_trusted_auto_bypasses_readonly_weather_consent() -> (
+async def test_prepare_execution_trusted_auto_does_not_bypass_plugin_weather_consent() -> (
     None
 ):
     engine = ConversationEngine(
@@ -937,7 +950,11 @@ async def test_prepare_execution_trusted_auto_bypasses_readonly_weather_consent(
     )
     skill_result = SkillResolveResult(
         tools=[
-            ToolDefinition(name="get_current_weather", description="Current weather"),
+            ToolDefinition(
+                name="get_current_weather",
+                description="Current weather",
+                semantic_tags=["天气", "current weather"],
+            ),
         ],
         tool_consent_modes={
             "get_current_weather": "ask",
@@ -957,11 +974,11 @@ async def test_prepare_execution_trusted_auto_bypasses_readonly_weather_consent(
             skill_result=skill_result,
         )
 
-    assert prep.tool_consent_modes["get_current_weather"] == "auto"
+    assert prep.tool_consent_modes["get_current_weather"] == "ask"
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_trusted_auto_bypasses_readonly_even_without_trust_policy_ref() -> (
+async def test_prepare_execution_trusted_auto_bypasses_platform_readonly_even_without_trust_policy_ref() -> (
     None
 ):
     """trust_policy_ref=None must not block the readonly whitelist in trusted_auto."""
@@ -974,15 +991,15 @@ async def test_prepare_execution_trusted_auto_bypasses_readonly_even_without_tru
         user_id=1,
         interaction_mode="trusted_auto",
         trust_policy_ref=None,  # <-- the key difference
-        messages=[ChatMessage(role="user", content="今天天气怎么样")],
+        messages=[ChatMessage(role="user", content="现在几点")],
         input_variables={},
     )
     skill_result = SkillResolveResult(
         tools=[
-            ToolDefinition(name="get_current_weather", description="Current weather"),
+            ToolDefinition(name="get_current_time", description="Current time"),
         ],
         tool_consent_modes={
-            "get_current_weather": "ask",
+            "get_current_time": "ask",
         },
     )
 
@@ -999,7 +1016,7 @@ async def test_prepare_execution_trusted_auto_bypasses_readonly_even_without_tru
             skill_result=skill_result,
         )
 
-    assert prep.tool_consent_modes["get_current_weather"] == "auto"
+    assert prep.tool_consent_modes["get_current_time"] == "auto"
 
 
 @pytest.mark.asyncio
@@ -1117,7 +1134,9 @@ async def test_sync_io_adapter_fast_text_round_passes_low_reasoning_override() -
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_current_weather_only_avoids_forecast_tool() -> None:
+async def test_prepare_execution_exposes_plugin_weather_tools_by_metadata_only() -> (
+    None
+):
     engine = ConversationEngine(
         db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
     )
@@ -1143,9 +1162,10 @@ async def test_prepare_execution_current_weather_only_avoids_forecast_tool() -> 
         )
 
     assert prep.execution_path == "fast"
-    assert [intent.kind for intent in prep.intent_plan] == ["weather_query"]
+    assert [intent.kind for intent in prep.intent_plan] == ["direct_reply"]
     assert [tool.name for tool in prep.tools] == ["get_current_weather"]
-    assert prep.intent_plan[0].allowed_tool_names == ["get_current_weather"]
+    assert prep.intent_plan[0].allowed_tool_names == []
+    assert prep.tool_use_policy == ToolUsePolicy()
     assert prep.execution_budget is not None
     assert prep.execution_budget.max_tool_rounds == 2
     assert prep.diagnostics["capability_injection_decision"] == {
@@ -1197,7 +1217,7 @@ async def test_prepare_execution_page_summary_turn_uses_no_page_tools() -> None:
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_record_search_with_weather_keyword_uses_weather_only() -> (
+async def test_prepare_execution_record_search_with_weather_keyword_does_not_force_weather_tools() -> (
     None
 ):
     engine = ConversationEngine(
@@ -1224,8 +1244,9 @@ async def test_prepare_execution_record_search_with_weather_keyword_uses_weather
         )
 
     assert prep.execution_path == "fast"
-    assert [intent.kind for intent in prep.intent_plan] == ["weather_query"]
-    assert [tool.name for tool in prep.tools] == ["get_current_weather"]
+    assert [intent.kind for intent in prep.intent_plan] == ["direct_reply"]
+    assert prep.tools == []
+    assert prep.tool_use_policy == ToolUsePolicy()
     assert prep.execution_budget is not None
     assert prep.execution_budget.max_candidate_tools == 3
     assert prep.execution_budget.first_exceeded_reason() is None

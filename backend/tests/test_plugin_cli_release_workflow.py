@@ -18,7 +18,12 @@ _SCRIPTS_DIR = Path(__file__).resolve().parents[1] / "scripts"
 if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
-import plugin_cli as pc  # noqa: E402
+from plugin_cli_build import cmd_build  # noqa: E402
+from plugin_cli_create import cmd_create  # noqa: E402
+from plugin_cli_pack import cmd_pack  # noqa: E402
+from plugin_cli_release import _generate_release_manifest  # noqa: E402
+from plugin_cli_shared import subprocess as plugin_cli_subprocess  # noqa: E402
+from plugin_cli_validate import cmd_validate  # noqa: E402
 
 
 def _write_plugin(
@@ -202,7 +207,7 @@ def test_cmd_validate_accepts_new_source_contract_and_warns_missing_release(
     plugin_dir = _write_plugin(tmp_path, with_release=False)
 
     with pytest.raises(SystemExit) as exc:
-        pc.cmd_validate(SimpleNamespace(dir=str(plugin_dir)))
+        cmd_validate(SimpleNamespace(dir=str(plugin_dir)))
 
     assert exc.value.code == 0
     out = capsys.readouterr().out
@@ -233,7 +238,7 @@ def test_cmd_validate_accepts_nested_plugin_locale_tree(
     )
 
     with pytest.raises(SystemExit) as exc:
-        pc.cmd_validate(SimpleNamespace(dir=str(plugin_dir)))
+        cmd_validate(SimpleNamespace(dir=str(plugin_dir)))
 
     assert exc.value.code == 0
     out = capsys.readouterr().out
@@ -268,7 +273,7 @@ def test_cmd_validate_rejects_unsupported_manifest_contract_overlay_fields(
     )
 
     with pytest.raises(SystemExit) as exc:
-        pc.cmd_validate(SimpleNamespace(dir=str(plugin_dir)))
+        cmd_validate(SimpleNamespace(dir=str(plugin_dir)))
 
     assert exc.value.code == 1
     out = capsys.readouterr().out
@@ -298,7 +303,7 @@ def test_cmd_validate_warns_when_frontend_titles_are_missing_required_locales(
     )
 
     with pytest.raises(SystemExit) as exc:
-        pc.cmd_validate(SimpleNamespace(dir=str(plugin_dir)))
+        cmd_validate(SimpleNamespace(dir=str(plugin_dir)))
 
     assert exc.value.code == 1
     out = capsys.readouterr().out
@@ -316,7 +321,7 @@ def test_cmd_validate_rejects_missing_frontend_package_json(
     (plugin_dir / "frontend" / "package.json").unlink()
 
     with pytest.raises(SystemExit) as exc:
-        pc.cmd_validate(SimpleNamespace(dir=str(plugin_dir)))
+        cmd_validate(SimpleNamespace(dir=str(plugin_dir)))
 
     assert exc.value.code == 1
     out = capsys.readouterr().out
@@ -331,7 +336,7 @@ def test_cmd_validate_rejects_missing_frontend_vite_config(
     (plugin_dir / "frontend" / "vite.config.ts").unlink()
 
     with pytest.raises(SystemExit) as exc:
-        pc.cmd_validate(SimpleNamespace(dir=str(plugin_dir)))
+        cmd_validate(SimpleNamespace(dir=str(plugin_dir)))
 
     assert exc.value.code == 1
     out = capsys.readouterr().out
@@ -358,7 +363,7 @@ def test_cmd_validate_rejects_peer_only_vue_dependency(
     )
 
     with pytest.raises(SystemExit) as exc:
-        pc.cmd_validate(SimpleNamespace(dir=str(plugin_dir)))
+        cmd_validate(SimpleNamespace(dir=str(plugin_dir)))
 
     assert exc.value.code == 1
     out = capsys.readouterr().out
@@ -380,7 +385,7 @@ def test_cmd_validate_rejects_missing_frontend_page_title_locale(
     )
 
     with pytest.raises(SystemExit) as exc:
-        pc.cmd_validate(SimpleNamespace(dir=str(plugin_dir)))
+        cmd_validate(SimpleNamespace(dir=str(plugin_dir)))
 
     assert exc.value.code == 1
     out = capsys.readouterr().out
@@ -402,7 +407,7 @@ def test_cmd_validate_rejects_missing_frontend_menu_title_locale(
     )
 
     with pytest.raises(SystemExit) as exc:
-        pc.cmd_validate(SimpleNamespace(dir=str(plugin_dir)))
+        cmd_validate(SimpleNamespace(dir=str(plugin_dir)))
 
     assert exc.value.code == 1
     out = capsys.readouterr().out
@@ -431,7 +436,7 @@ export const DemoPage = {};
     )
 
     with pytest.raises(SystemExit) as exc:
-        pc.cmd_validate(SimpleNamespace(dir=str(plugin_dir)))
+        cmd_validate(SimpleNamespace(dir=str(plugin_dir)))
 
     assert exc.value.code == 1
     out = capsys.readouterr().out
@@ -466,7 +471,7 @@ export const DemoPage = {};
     )
 
     with pytest.raises(SystemExit) as exc:
-        pc.cmd_validate(SimpleNamespace(dir=str(plugin_dir)))
+        cmd_validate(SimpleNamespace(dir=str(plugin_dir)))
 
     assert exc.value.code == 0
     out = capsys.readouterr().out
@@ -502,7 +507,7 @@ export const DemoPage = {};
     )
 
     with pytest.raises(SystemExit) as exc:
-        pc.cmd_validate(SimpleNamespace(dir=str(plugin_dir)))
+        cmd_validate(SimpleNamespace(dir=str(plugin_dir)))
 
     assert exc.value.code == 0
     out = capsys.readouterr().out
@@ -517,7 +522,7 @@ def test_cmd_validate_treats_captcha_provider_as_frontend_plugin(
     plugin_dir = _write_captcha_plugin(tmp_path, with_release=False)
 
     with pytest.raises(SystemExit) as exc:
-        pc.cmd_validate(SimpleNamespace(dir=str(plugin_dir)))
+        cmd_validate(SimpleNamespace(dir=str(plugin_dir)))
 
     assert exc.value.code == 0
     out = capsys.readouterr().out
@@ -538,7 +543,7 @@ def test_cmd_validate_rejects_missing_declared_frontend_component_export(
     )
 
     with pytest.raises(SystemExit) as exc:
-        pc.cmd_validate(SimpleNamespace(dir=str(plugin_dir)))
+        cmd_validate(SimpleNamespace(dir=str(plugin_dir)))
 
     assert exc.value.code == 1
     out = capsys.readouterr().out
@@ -569,9 +574,9 @@ def test_cmd_build_generates_release_manifest(
         )
         (dist_dir / "style.css").write_text(".demo { color: red; }", encoding="utf-8")
 
-    monkeypatch.setattr(pc.subprocess, "run", _fake_run)
+    monkeypatch.setattr(plugin_cli_subprocess, "run", _fake_run)
 
-    pc.cmd_build(SimpleNamespace(dir=str(plugin_dir)))
+    cmd_build(SimpleNamespace(dir=str(plugin_dir)))
 
     manifest_path = plugin_dir / "frontend" / "dist" / "plugin.manifest.json"
     payload = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -605,9 +610,9 @@ def test_cmd_build_handles_captcha_provider_frontend_plugin(
         )
         (dist_dir / "style.css").write_text(".demo { color: red; }", encoding="utf-8")
 
-    monkeypatch.setattr(pc.subprocess, "run", _fake_run)
+    monkeypatch.setattr(plugin_cli_subprocess, "run", _fake_run)
 
-    pc.cmd_build(SimpleNamespace(dir=str(plugin_dir)))
+    cmd_build(SimpleNamespace(dir=str(plugin_dir)))
 
     manifest_path = plugin_dir / "frontend" / "dist" / "plugin.manifest.json"
     assert manifest_path.is_file()
@@ -654,9 +659,9 @@ def test_cmd_build_runs_security_scan_before_build_script(
         "app.plugins.security_scan.scan_plugin_directory",
         _fake_scan,
     )
-    monkeypatch.setattr(pc.subprocess, "run", _fake_run)
+    monkeypatch.setattr(plugin_cli_subprocess, "run", _fake_run)
 
-    pc.cmd_build(SimpleNamespace(dir=str(plugin_dir)))
+    cmd_build(SimpleNamespace(dir=str(plugin_dir)))
 
     assert call_order == ["scan", "install", "build"]
 
@@ -680,9 +685,9 @@ def test_cmd_build_skips_dependency_bootstrap_when_node_modules_exists(
         )
         (dist_dir / "style.css").write_text(".demo { color: red; }", encoding="utf-8")
 
-    monkeypatch.setattr(pc.subprocess, "run", _fake_run)
+    monkeypatch.setattr(plugin_cli_subprocess, "run", _fake_run)
 
-    pc.cmd_build(SimpleNamespace(dir=str(plugin_dir)))
+    cmd_build(SimpleNamespace(dir=str(plugin_dir)))
 
     assert call_order == ["npm.cmd run build"] if os.name == "nt" else ["npm run build"]
 
@@ -691,7 +696,7 @@ def test_cmd_pack_release_excludes_source_and_tests(tmp_path: Path) -> None:
     plugin_dir = _write_plugin(tmp_path, with_release=True)
     output_path = tmp_path / "demo-plugin-release.zip"
 
-    pc.cmd_pack(
+    cmd_pack(
         SimpleNamespace(
             dir=str(plugin_dir),
             output=str(output_path),
@@ -716,7 +721,7 @@ def test_cmd_pack_source_keeps_frontend_source(tmp_path: Path) -> None:
     plugin_dir = _write_plugin(tmp_path, with_release=True)
     output_path = tmp_path / "demo-plugin-source.zip"
 
-    pc.cmd_pack(
+    cmd_pack(
         SimpleNamespace(
             dir=str(plugin_dir),
             output=str(output_path),
@@ -748,10 +753,10 @@ def test_cmd_build_rejects_release_manifest_path_traversal(
         encoding="utf-8",
     )
 
-    monkeypatch.setattr(pc.subprocess, "run", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(plugin_cli_subprocess, "run", lambda *_args, **_kwargs: None)
 
     with pytest.raises(SystemExit) as exc:
-        pc.cmd_build(SimpleNamespace(dir=str(plugin_dir)))
+        cmd_build(SimpleNamespace(dir=str(plugin_dir)))
 
     assert exc.value.code == 1
     out = capsys.readouterr().out
@@ -778,7 +783,7 @@ def test_cmd_pack_release_rejects_invalid_release_manifest_assets(
     )
 
     with pytest.raises(SystemExit) as exc:
-        pc.cmd_pack(
+        cmd_pack(
             SimpleNamespace(
                 dir=str(plugin_dir),
                 output=str(tmp_path / "invalid-release.zip"),
@@ -813,7 +818,7 @@ def test_cmd_pack_rejects_security_scan_warnings(
     )
 
     with pytest.raises(SystemExit) as exc:
-        pc.cmd_pack(
+        cmd_pack(
             SimpleNamespace(
                 dir=str(plugin_dir),
                 output=str(tmp_path / "unsafe.zip"),
@@ -834,7 +839,7 @@ def test_cmd_create_full_module_uses_new_frontend_contract(
 ) -> None:
     output_dir = tmp_path / "scaffold-demo"
 
-    pc.cmd_create(
+    cmd_create(
         SimpleNamespace(
             name="scaffold-demo",
             output=str(output_dir),
@@ -852,7 +857,7 @@ def test_cmd_create_full_module_uses_new_frontend_contract(
     assert not (output_dir / "frontend" / "dist" / "plugin.manifest.json").exists()
 
     with pytest.raises(SystemExit) as exc:
-        pc.cmd_validate(SimpleNamespace(dir=str(output_dir)))
+        cmd_validate(SimpleNamespace(dir=str(output_dir)))
 
     assert exc.value.code == 0
     out = capsys.readouterr().out
@@ -865,7 +870,7 @@ def test_cmd_create_minimal_generates_manifest_valid_plugin_yaml(
 ) -> None:
     output_dir = tmp_path / "minimal-demo"
 
-    pc.cmd_create(
+    cmd_create(
         SimpleNamespace(
             name="minimal-demo",
             output=str(output_dir),
@@ -892,7 +897,7 @@ def test_cmd_pack_release_requires_release_assets(
     output_path = tmp_path / "demo-plugin-release.zip"
 
     with pytest.raises(SystemExit) as exc:
-        pc.cmd_pack(
+        cmd_pack(
             SimpleNamespace(
                 dir=str(plugin_dir),
                 output=str(output_path),
@@ -919,7 +924,7 @@ def test_cmd_pack_rejects_invalid_plugin_name(
     )
 
     with pytest.raises(SystemExit) as exc:
-        pc.cmd_pack(
+        cmd_pack(
             SimpleNamespace(
                 dir=str(plugin_dir),
                 output=str(tmp_path / "invalid.zip"),
@@ -939,6 +944,6 @@ def test_generate_release_manifest_rejects_escaping_manifest_name(
     plugin_dir = _write_plugin(tmp_path, with_release=True)
 
     with pytest.raises(RuntimeError) as exc:
-        pc._generate_release_manifest(plugin_dir, "../escape.json")
+        _generate_release_manifest(plugin_dir, "../escape.json")
 
     assert "frontend.release.manifest" in str(exc.value)

@@ -54,7 +54,6 @@ weather-widget/
 ├── backend/
 │   ├── main.py                  # WeatherWidgetPlugin 入口
 │   ├── open_meteo.py            # Open-Meteo + Nominatim API 客户端（含缓存和限速）
-│   ├── _loader.py               # 插件加载器
 │   ├── skills/
 │   │   └── weather_resolver.py  # Skill 解析器（2 个工具）
 │   ├── executors/

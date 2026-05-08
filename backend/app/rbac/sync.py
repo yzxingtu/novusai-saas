@@ -84,8 +84,8 @@ class PermissionSyncService(LoggerMixin):
     @staticmethod
     def _normalize_plugin_permission_scope(raw_scope: str) -> str:
         """
-        Normalize plugin permission scope value to DB scope values.
-        / 规范化插件权限 scope，映射到 DB scope 值。
+        Validate plugin permission scope value against DB scope values.
+        / 校验插件权限 scope 是否为 DB scope 允许值。
         """
         scope = str(raw_scope or "").strip().lower()
         if scope in {
@@ -94,9 +94,10 @@ class PermissionSyncService(LoggerMixin):
             PermissionScope.BOTH.value,
         }:
             return scope
-        # Backward-compatible fallback for legacy/unexpected values
-        # / 兼容历史/异常值，默认按 tenant 处理
-        return PermissionScope.TENANT.value
+        raise ValueError(
+            "Invalid plugin permission scope "
+            f"'{raw_scope}'. Expected one of: admin|tenant|both."
+        )
 
     @staticmethod
     def _resolve_plugin_permission_name(

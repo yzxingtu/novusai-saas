@@ -136,16 +136,6 @@ _FORBID_INSTRUCTION_TERMS = (
     "without",
     "no need",
 )
-_WEATHER_TERMS = (
-    "天气",
-    "气温",
-    "温度",
-    "气候",
-    "降雨",
-    "湿度",
-    "weather",
-    "temperature",
-)
 _RAIL_TICKET_TERMS = (
     "高铁票",
     "动车票",
@@ -201,10 +191,6 @@ def has_tool_planning_leak_phrase(text: str | None) -> bool:
 
 def has_forbid_instruction_phrase(text: str | None) -> bool:
     return contains_any_phrase(text, _FORBID_INSTRUCTION_TERMS)
-
-
-def mentions_weather(text: str | None) -> bool:
-    return contains_any_phrase(text, _WEATHER_TERMS)
 
 
 def mentions_rail_ticket(text: str | None) -> bool:
@@ -313,7 +299,6 @@ __all__ = [
     "is_confirmation_reply",
     "is_rejection_reply",
     "mentions_rail_ticket",
-    "mentions_weather",
     "normalize_match_text",
     "strip_model_function_call_markup",
     "strip_trailing_reply_punctuation",

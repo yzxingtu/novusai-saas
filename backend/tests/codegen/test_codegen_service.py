@@ -344,10 +344,7 @@ def test_run_auto_migrate_accepts_non_create_table_operations(tmp_path: Path) ->
         MagicMock(returncode=0, stdout=f"Generating {migration_file}\n", stderr=""),
         MagicMock(returncode=0, stdout="", stderr=""),
     ]
-    with (
-        patch("app.core.database.purge_orphaned_alembic_stamps", MagicMock()),
-        patch("subprocess.run", side_effect=subprocess_results),
-    ):
+    with patch("subprocess.run", side_effect=subprocess_results):
         result = CodegenService.run_auto_migrate("category", tmp_path)
 
     assert result["success"] is True
@@ -384,7 +381,6 @@ def test_run_auto_migrate_empty_migration_is_noop_when_table_already_exists(
         MagicMock(returncode=0, stdout=f"Generating {migration_file}\n", stderr=""),
     ]
     with (
-        patch("app.core.database.purge_orphaned_alembic_stamps", MagicMock()),
         patch("subprocess.run", side_effect=subprocess_results),
         patch.object(CodegenService, "_table_exists", return_value=True),
     ):

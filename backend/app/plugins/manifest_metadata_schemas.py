@@ -17,35 +17,12 @@ from app.plugins.dependencies import (
 from app.plugins.manifest_helpers import I18nText
 
 _VALID_COMPATIBILITY_EDITIONS = frozenset({"saas", "single_management"})
-_COMPATIBILITY_EDITION_ALIASES = {
-    "single": "single_management",
-    "single_management": "single_management",
-    "singlemanagement": "single_management",
-    "single_mgmt": "single_management",
-}
 _VALID_COMPATIBILITY_SURFACES = frozenset(
     {"admin", "tenant", "user", "platform", "global"}
 )
-_COMPATIBILITY_SURFACE_ALIASES = {
-    "tenant_scoped": "tenant",
-    "tenant_admin": "tenant",
-    "platform_admin": "admin",
-}
 _VALID_TENANT_EXPOSURE = frozenset(
     {"scope_default", "all_tenants", "selected_tenants", "none"}
 )
-_TENANT_EXPOSURE_ALIASES = {
-    "default": "scope_default",
-    "scope": "scope_default",
-    "all": "all_tenants",
-    "global": "all_tenants",
-    "selected": "selected_tenants",
-    "assigned": "selected_tenants",
-    "assignment_required": "selected_tenants",
-    "tenant_scoped": "selected_tenants",
-    "disabled": "none",
-    "admin_only": "none",
-}
 
 
 def _normalize_compatibility_list(
@@ -53,7 +30,6 @@ def _normalize_compatibility_list(
     *,
     field_name: str,
     allowed: frozenset[str],
-    aliases: dict[str, str],
 ) -> list[str]:
     if value is None:
         return []
@@ -66,10 +42,9 @@ def _normalize_compatibility_list(
 
     normalized: list[str] = []
     for item in raw_items:
-        text = str(item or "").strip().lower().replace("-", "_")
+        text = str(item or "").strip().lower()
         if not text:
             continue
-        text = aliases.get(text, text)
         if text not in allowed:
             raise ValueError(
                 f"Invalid {field_name} '{item}'. Must be one of: {sorted(allowed)}"
@@ -82,10 +57,10 @@ def _normalize_compatibility_list(
 class FeatureSchema(BaseModel):
     """Feature flag declaration / Feature Flag 声明"""
 
+    model_config = ConfigDict(extra="forbid")
+
     code: str
     runtime_feature_code: str = ""
-    legacy_runtime_feature_code: str = ""
-    fallback_policy: str = ""
     name: I18nText = Field(default_factory=dict)
     default: bool = True
     description: I18nText = Field(default_factory=dict)
@@ -116,7 +91,6 @@ class CompatibilitySchema(BaseModel):
             v,
             field_name="compatibility.editions",
             allowed=_VALID_COMPATIBILITY_EDITIONS,
-            aliases=_COMPATIBILITY_EDITION_ALIASES,
         )
 
     @field_validator("surfaces", mode="before")
@@ -126,7 +100,6 @@ class CompatibilitySchema(BaseModel):
             v,
             field_name="compatibility.surfaces",
             allowed=_VALID_COMPATIBILITY_SURFACES,
-            aliases=_COMPATIBILITY_SURFACE_ALIASES,
         )
 
     @field_validator("tenant_exposure", mode="before")
@@ -136,7 +109,6 @@ class CompatibilitySchema(BaseModel):
         if not raw:
             return "scope_default"
         normalized = raw.lower().replace("-", "_")
-        normalized = _TENANT_EXPOSURE_ALIASES.get(normalized, normalized)
         if normalized not in _VALID_TENANT_EXPOSURE:
             raise ValueError(
                 "Invalid compatibility.tenant_exposure "
@@ -158,10 +130,10 @@ class CompatibilitySchema(BaseModel):
 class AIFeatureSchema(BaseModel):
     """AI feature declaration / AI 功能声明"""
 
+    model_config = ConfigDict(extra="forbid")
+
     feature_code: str
     runtime_feature_code: str = ""
-    legacy_runtime_feature_code: str = ""
-    fallback_policy: str = ""
     display_name: I18nText = Field(default_factory=dict)
     description: I18nText = Field(default_factory=dict)
     default_prompt: str = ""

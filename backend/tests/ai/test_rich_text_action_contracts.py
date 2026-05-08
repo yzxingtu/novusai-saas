@@ -1,21 +1,22 @@
 """Test type: structural + behavioral
-Scope: rich-text AI action templates, default skill-package metadata, and prompt rendering.
+中文: 覆盖富文本 AI 动作模板、schema 与提示词渲染契约。
+EN: Covers rich-text AI action templates, schemas, and prompt rendering contracts.
 Real dependencies: rich_text_actions contract module and prompt-contract renderer.
 Mocked dependencies: none.
 """
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from app.ai.skills.rich_text_actions import (
     RICH_TEXT_AI_FEATURE_CODE,
-    build_default_rich_text_skill_package_definition,
     build_rich_text_action_catalog,
     build_rich_text_action_input_schema,
+    build_rich_text_action_output_schema,
     build_rich_text_ai_messages,
     build_rich_text_ai_request_message,
-    normalize_rich_text_action_key,
 )
 
 _FORBIDDEN_PAGE_KEYS = {
@@ -40,47 +41,42 @@ def _collect_keys(value: Any) -> set[str]:
     return keys
 
 
-def test_default_rich_text_skill_package_is_catalog_only_internal() -> None:
-    definition = build_default_rich_text_skill_package_definition()
-    package = definition["package"]
-    skill = definition["skills"][0]
-    actions = skill["config"]["action_templates"]
+def test_rich_text_actions_are_editor_domain_templates_not_skill_package_seed() -> None:
+    catalog = build_rich_text_action_catalog()
+    input_schema = build_rich_text_action_input_schema()
+    output_schema = build_rich_text_action_output_schema()
+    payload = {
+        "catalog": catalog,
+        "input_schema": input_schema,
+        "output_schema": output_schema,
+    }
+    serialized = json.dumps(payload, ensure_ascii=False, sort_keys=True)
 
     assert RICH_TEXT_AI_FEATURE_CODE == "system.ai_writing"
-    assert package["source_plugin"] == "novusdoc"
-    assert package["is_recommended"] is False
-    assert package["is_active"] is False
-    assert package["valves_config"]["feature_code"] == RICH_TEXT_AI_FEATURE_CODE
-    assert package["valves_config"]["runtime_feature_code"] == RICH_TEXT_AI_FEATURE_CODE
-    assert package["valves_config"]["internal"] is True
-    assert package["valves_config"]["catalog_visible"] is False
-    assert "legacy_runtime_feature_code" not in package["valves_config"]
-    assert "fallback_policy" not in package["valves_config"]
-    assert skill["key"] == "novusdoc.rich_text_ai.actions"
-    assert skill["status"] == "disabled"
-    assert skill["is_active"] is False
-    assert skill["config"]["internal"] is True
-    assert skill["config"]["catalog_only"] is True
-    assert skill["config"]["runtime_contract"] == "agent_chat_message_template"
-    assert skill["config"]["runtime_feature_code"] == RICH_TEXT_AI_FEATURE_CODE
-    assert "legacy_runtime_feature_code" not in skill["config"]
-    assert "fallback_policy" not in skill["config"]
-    assert {action["key"] for action in actions} >= {
+    assert {action["key"] for action in catalog} >= {
         "continue",
         "rewrite",
         "insert",
         "format",
     }
-    assert _FORBIDDEN_PAGE_KEYS.isdisjoint(_collect_keys(definition))
+    assert "novusdoc" not in serialized
+    assert "source_plugin" not in _collect_keys(payload)
+    assert "source_ref" not in _collect_keys(payload)
+    assert "legacy_runtime_feature_code" not in serialized
+    assert "fallback_policy" not in serialized
+    assert _FORBIDDEN_PAGE_KEYS.isdisjoint(_collect_keys(payload))
 
 
-def test_rich_text_action_input_schema_exposes_legacy_aliases_without_page_runtime() -> (
+def test_rich_text_action_input_schema_exposes_canonical_actions_without_page_runtime() -> (
     None
 ):
     schema = build_rich_text_action_input_schema()
     action_enum = set(schema["properties"]["action"]["enum"])
 
-    assert {"continue", "rewrite", "new", "add_format"} <= action_enum
+    assert {"continue", "rewrite", "insert", "format", "chat"} <= action_enum
+    assert "new" not in action_enum
+    assert "add_format" not in action_enum
+    assert "add-format" not in action_enum
     assert schema["additionalProperties"] is False
     assert _FORBIDDEN_PAGE_KEYS.isdisjoint(_collect_keys(schema))
 
@@ -97,11 +93,9 @@ def test_rich_text_action_catalog_declares_frontend_apply_strategies() -> None:
     assert catalog["format"]["output_contract"] == "editor_rich_text_fragment"
 
 
-def test_rich_text_alias_prompt_rendering_preserves_format_requirement() -> None:
-    assert normalize_rich_text_action_key("add-format") == "format"
-
+def test_rich_text_format_prompt_rendering_preserves_format_requirement() -> None:
     messages = build_rich_text_ai_messages(
-        "add-format",
+        "format",
         selected_text="第一段\n第二段",
         before_text="标题",
         after_text="结尾",

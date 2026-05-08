@@ -1,3 +1,12 @@
+"""Test type: behavioral
+中文: 覆盖技能注册表读模型、安装/升级流程以及退役能力 installed map 过滤。
+EN: Covers skill registry read models, install/upgrade flows, and retired
+installed-map filtering.
+
+Real dependencies: service read-model helpers and query composition.
+Mocked dependencies: HTTP fetches and install/upgrade seams only.
+"""
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -6,6 +15,20 @@ import httpx
 import pytest
 
 from app.services.ai.skill_registry_service import SkillRegistryService
+
+
+class _EmptyAllResult:
+    def all(self) -> list[object]:
+        return []
+
+
+class _CaptureDb:
+    def __init__(self) -> None:
+        self.statements: list[object] = []
+
+    async def execute(self, stmt):
+        self.statements.append(stmt)
+        return _EmptyAllResult()
 
 
 @pytest.mark.asyncio
@@ -452,3 +475,24 @@ async def test_skill_registry_sync_official_starter_packs_installs_and_upgrades(
         "reason": "missing_in_catalog",
         "slug": "novusai-plugin-audit",
     } in result["skipped"]
+
+
+@pytest.mark.asyncio
+async def test_skill_registry_build_installed_map_filters_retired_search_entries() -> (
+    None
+):
+    from app.services.ai.skill_registry_support import SkillRegistrySupport
+
+    db = _CaptureDb()
+    support = SkillRegistrySupport(db)
+
+    await support.build_installed_map()
+
+    assert len(db.statements) == 1
+    compiled = db.statements[0].compile(compile_kwargs={"render_postcompile": True})
+    sql = str(compiled).lower()
+    assert "join skill_packages" in sql
+    assert "skills.is_deleted is false" in sql
+    assert "skill_packages.is_deleted is false" in sql
+    params = " ".join(str(value).lower() for value in compiled.params.values())
+    assert "web_search" in params

@@ -58,6 +58,7 @@ _NETWORK_BLOCK_MARKERS = (
     "ServiceUnavailable",
     "temporary failure",
 )
+_UNAVAILABLE_HTTP_STATUS_CODES = {502, 503, 504}
 
 
 @dataclass(frozen=True, slots=True)
@@ -284,9 +285,11 @@ def _http_error_result(
     status = STATUS_FAILED
     if (
         isinstance(exc, urllib.error.HTTPError)
-        and exc.code == 404
-        and missing_is_blocked
-    ):
+        and (
+            exc.code in _UNAVAILABLE_HTTP_STATUS_CODES
+            or (exc.code == 404 and missing_is_blocked)
+        )
+    ) or isinstance(exc, urllib.error.URLError):
         status = STATUS_BLOCKED
     return ProbeResult(
         area=area,
@@ -303,6 +306,15 @@ def _tool_map(tool_names: tuple[str, ...]) -> dict[str, str | None]:
 
 def _module_available(module_name: str) -> bool:
     return importlib.util.find_spec(module_name) is not None
+
+
+def _is_unavailable_probe_error(message: str) -> bool:
+    return (
+        "HTTPError: HTTP Error 502" in message
+        or "HTTPError: HTTP Error 503" in message
+        or "HTTPError: HTTP Error 504" in message
+        or "URLError" in message
+    )
 
 
 def _docker_image_available(image: str, *, timeout: float) -> dict[str, Any]:
@@ -1275,12 +1287,21 @@ def run_load_smoke(
         "errors": errors[:10],
         "scope": "local readiness smoke only, not a capacity benchmark",
     }
+    unavailable_only = bool(errors) and all(
+        _is_unavailable_probe_error(error) for error in errors
+    )
     return ProbeResult(
         area="capacity",
         name="local_ready_load_smoke",
-        status=STATUS_PASSED if not errors else STATUS_FAILED,
+        status=STATUS_PASSED
+        if not errors
+        else STATUS_BLOCKED
+        if unavailable_only
+        else STATUS_FAILED,
         summary="local /ready load smoke passed"
         if not errors
+        else "local /ready load smoke is blocked because the target is unavailable"
+        if unavailable_only
         else "local /ready load smoke had errors",
         details=details,
     )

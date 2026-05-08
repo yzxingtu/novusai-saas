@@ -124,6 +124,41 @@ def test_has_frontend_extensions_true_when_only_dev_release_declared() -> None:
     assert has_frontend_extensions(manifest) is True
 
 
+def test_backend_only_plugin_does_not_require_frontend_release_manifest(
+    tmp_path,
+) -> None:
+    from app.plugins.manifest import PluginManifest
+
+    manifest = PluginManifest.model_validate(
+        {
+            "name": "storage-plugin",
+            "version": "1.0.0",
+            "display_name": {"zh-CN": "存储插件", "en": "Storage Plugin"},
+            "scope": "global_shared",
+            "extensions": {
+                "storage_drivers": [
+                    {
+                        "code": "storage-demo",
+                        "display_name": {
+                            "zh-CN": "演示存储",
+                            "en": "Demo Storage",
+                        },
+                        "entry_point": "driver.DemoStorageDriver",
+                    }
+                ]
+            },
+        }
+    )
+
+    assert has_frontend_extensions(manifest) is False
+    assert validate_runtime_frontend_contract(
+        tmp_path / "storage-plugin", manifest
+    ) == {
+        "has_frontend": False,
+        "mode": "none",
+    }
+
+
 def test_validate_runtime_frontend_contract_rejects_missing_page_and_menu_locales(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,

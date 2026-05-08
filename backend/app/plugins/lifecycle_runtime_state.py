@@ -356,6 +356,10 @@ class LifecycleRuntimeStateMixin:
         from app.models.ai.skill import Skill
         from app.models.ai.skill_package import SkillPackage
         from app.plugins.preview import resolve_i18n
+        from app.services.ai.retired_skill_guard import (
+            ensure_not_retired_online_search_package,
+            ensure_not_retired_online_search_plugin_skill,
+        )
 
         # Find or create SkillPackage / 查找或创建 SkillPackage
         result = await self._db.execute(
@@ -367,6 +371,9 @@ class LifecycleRuntimeStateMixin:
         package = result.scalar_one_or_none()
 
         display_name = resolve_i18n(manifest.display_name)
+        ensure_not_retired_online_search_package(
+            {"name": display_name, "source_plugin": plugin_name}
+        )
 
         if not package:
             # 创建平台级技能包：tenant_id=NULL，实际使用范围由 Agent 绑定决定
@@ -434,6 +441,13 @@ class LifecycleRuntimeStateMixin:
             )
             skill_desc = (
                 resolve_i18n(skill_ext.description) if skill_ext.description else None
+            )
+            ensure_not_retired_online_search_plugin_skill(
+                plugin_name=plugin_name,
+                skill_extension=skill_ext,
+                skill_display_name=skill_display,
+                skill_key=skill_key,
+                source_ref=source_ref,
             )
 
             if not existing_skill:
@@ -566,9 +580,3 @@ class LifecycleRuntimeStateMixin:
         from app.plugins.module_loader import load_plugin_handler
 
         return load_plugin_handler(plugin_name, handler_path)
-
-    def _load_plugin_executor(self, plugin_name: str, skill_type: str):
-        """Load plugin executor class — delegate to unified loader / 加载插件 executor 类 — 委托给统一加载器"""
-        from app.plugins.module_loader import load_plugin_executor
-
-        return load_plugin_executor(plugin_name, skill_type)

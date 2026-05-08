@@ -69,13 +69,14 @@ def test_intent_domain_rules_suppresses_for_no_tool_or_capability() -> None:
     assert memory_save[0].requires_tools is False
 
 
-def test_intent_domain_rules_detects_weather_and_time() -> None:
+def test_intent_domain_rules_leaves_plugin_weather_to_metadata_and_detects_time() -> (
+    None
+):
     signals = _detect("北京天气，现在几点", tools=_tools_weather_time())
-    assert [signal.kind for signal in signals] == ["weather_query", "time_query"]
-    assert [signal.family for signal in signals] == ["weather", "time_ops"]
+    assert [signal.kind for signal in signals] == ["time_query"]
+    assert [signal.family for signal in signals] == ["time_ops"]
     assert all(signal.shortcircuit for signal in signals)
     assert [signal.metadata.get("routing_mode") for signal in signals] == [
-        "deterministic_shortcircuit",
         "deterministic_shortcircuit",
     ]
 

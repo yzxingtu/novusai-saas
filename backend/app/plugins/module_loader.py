@@ -8,14 +8,14 @@ naming and correct sys.modules cache sharing.
 / 所有插件模块的动态导入统一走此入口。
 
 module_name convention: plugins.{plugin_name}.backend.{dotted_path}
-Physical path convention: backend/plugins/{plugin_name}/backend/{path_parts...}.py
+Physical path convention:
+backend/plugins/{plugin_name}/backend/{path_parts...}.py or package __init__.py
 / module_name 约定 / 物理路径约定
 """
 
 from __future__ import annotations
 
 import importlib.util
-import inspect
 import sys
 from pathlib import Path
 from typing import Any
@@ -52,9 +52,9 @@ def load_plugin_module(plugin_name: str, dotted_path: str) -> Any | None:
         plugins_dir / plugin_name / "backend" / Path(*parts).with_suffix(".py")
     )
 
-    # Try direct file path / 尝试直接文件路径
+    # 中文: 仅解析精确模块文件或显式包模块路径，不扫描目录寻找替代模块。
+    # EN: Resolve only exact module files or explicit package modules; do not scan for substitutes.
     if not module_file.is_file():
-        # Try directory __init__.py / 尝试目录 __init__.py
         module_dir = (
             plugins_dir / plugin_name / "backend" / Path(*parts) / "__init__.py"
         )
@@ -133,104 +133,12 @@ def load_plugin_handler(plugin_name: str, handler_dotpath: str) -> Any | None:
             )
         return attr
 
-    # Fallback: try loading from main module's getattr chain
-    # (supports cases where handler is directly defined or imported in main.py)
-    # / 回退: 尝试从 main module 的 getattr 链加载
-    main_mod = load_plugin_module(plugin_name, "main")
-    if main_mod is None:
-        logger.warning(
-            "Failed to load handler '{}' for plugin '{}': "
-            "neither submodule '%s' nor main.py found",
-            handler_dotpath,
-            plugin_name,
-            module_dotpath,
-        )
-        return None
-
-    obj = main_mod
-    for part in parts:
-        obj = getattr(obj, part, None)
-        if obj is None:
-            logger.warning(
-                "Failed to load handler '{}' for plugin '{}': "
-                "attribute '%s' not found in getattr chain on main module",
-                handler_dotpath,
-                plugin_name,
-                part,
-            )
-            return None
-    return obj
-
-
-def _find_executor_in_module(mod: Any) -> type | None:
-    """Find BaseToolExecutor subclass in module / 在模块中查找 BaseToolExecutor 子类"""
-    from app.ai.tools.executors.base import BaseToolExecutor
-
-    for _name, obj in inspect.getmembers(mod, inspect.isclass):
-        if issubclass(obj, BaseToolExecutor) and obj is not BaseToolExecutor:
-            return obj
-    return None
-
-
-def load_plugin_executor(plugin_name: str, skill_type: str) -> type | None:
-    """
-    Load a plugin's executor class.
-    / 加载插件的 executor 类。
-
-    Lookup order:
-    1. Convention path: backend/executors/{skill_type}_executor.py
-    2. Fallback scan: all *_executor.py files under backend/executors/
-    / 查找顺序：约定路径 → 回退扫描
-
-    Args:
-        plugin_name: Plugin name / 插件名称
-        skill_type: Skill type (e.g. "toolkit", "weather_widget") / 技能类型
-
-    Returns:
-        BaseToolExecutor subclass, or None if not found / BaseToolExecutor 子类，找不到返回 None
-    """
-    # 1. Look up by convention name / 按约定名称查找
-    executor_module_name = f"{skill_type.replace('-', '_')}_executor"
-    mod = load_plugin_module(plugin_name, f"executors.{executor_module_name}")
-    if mod is not None:
-        try:
-            cls = _find_executor_in_module(mod)
-            if cls:
-                return cls
-        except Exception as exc:
-            logger.warning(
-                "Failed to find executor class for skill_type '{}' in plugin '{}': {}",
-                skill_type,
-                plugin_name,
-                exc,
-            )
-
-    # 2. Fallback: scan all *_executor.py in executors directory
-    # / 回退：扫描 executors 目录下所有 *_executor.py
-    plugins_dir = _get_plugins_dir()
-    executors_dir = plugins_dir / plugin_name / "backend" / "executors"
-    if not executors_dir.is_dir():
-        return None
-
-    for py_file in executors_dir.glob("*_executor.py"):
-        stem = py_file.stem
-        if stem == executor_module_name:
-            continue  # Already tried / 已经尝试过
-        fallback_mod = load_plugin_module(plugin_name, f"executors.{stem}")
-        if fallback_mod is None:
-            continue
-        try:
-            cls = _find_executor_in_module(fallback_mod)
-            if cls:
-                logger.info(
-                    "Found plugin executor {} in fallback scan for plugin '{}'",
-                    cls.__name__,
-                    plugin_name,
-                )
-                return cls
-        except Exception:
-            continue
-
+    logger.warning(
+        "Failed to load handler '{}' for plugin '{}': module '{}' not found",
+        handler_dotpath,
+        plugin_name,
+        module_dotpath,
+    )
     return None
 
 

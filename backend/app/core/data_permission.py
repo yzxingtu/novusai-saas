@@ -131,16 +131,6 @@ class DataPermissionFilter:
     """
 
     @classmethod
-    def is_enabled(cls, model: type) -> bool:
-        """类方法兼容入口 / Class-level compatibility wrapper."""
-        return is_data_permission_enabled(model)
-
-    @classmethod
-    def apply_for_current_context(cls, query: Select, model: type) -> Select:
-        """类方法兼容入口 / Class-level compatibility wrapper."""
-        return apply_data_permission_if_needed(query, model)
-
-    @classmethod
     def apply(
         cls,
         query: Select,

@@ -52,15 +52,6 @@ def _tool_semantic_query_tokens(tool: ToolDefinition) -> set[str]:
     return _tokenize(" ".join(_tool_semantic_tags(tool)))
 
 
-def _family_query_tokens(tools: list[ToolDefinition], family: str) -> set[str]:
-    tokens: set[str] = set()
-    for tool in tools:
-        if _tool_semantic_family(tool) != family:
-            continue
-        tokens |= _tool_semantic_query_tokens(tool)
-    return tokens
-
-
 def _query_mentions_family(
     query_text: str,
     query_tokens: set[str],
@@ -281,7 +272,6 @@ def _score_tool(
     query_tokens: set[str],
     query_text: str,
     used_tool_names: set[str] | None = None,
-    prefer_weather_tools: bool = False,
     preferred_family: str | None = None,
 ) -> float:
     """
@@ -325,15 +315,6 @@ def _score_tool(
 
     # 4. Knowledge base tools: no fixed vocabulary list — overlap with name/description/tags already scores relevance.
 
-    # 4.6 Weather tool boost / 天气工具加权
-    if tool_family == "weather" and _query_mentions_family(
-        query_text,
-        query_tokens,
-        semantic_query_tokens,
-        family_hints,
-    ):
-        score += 8.0
-
     if tool_family == "time_ops" and _query_mentions_family(
         query_text,
         query_tokens,
@@ -342,23 +323,12 @@ def _score_tool(
     ):
         score += 10.0
 
-    if prefer_weather_tools and tool_family == "weather":
-        score += 12.0
-
     # 5. History preference: boost previously used tools / 历史偏好加权
     if used_tool_names and tool.name in used_tool_names:
         score += 3.0
 
-    if preferred_family == "weather":
-        if tool_family == "weather":
-            score += 15.0
-        elif tool_family in {"time_ops"}:
-            score -= 10.0
-    elif preferred_family == "time_ops":
-        if tool_family == "time_ops":
-            score += 15.0
-        elif tool_family in {"weather"}:
-            score -= 8.0
+    if preferred_family and tool_family == preferred_family:
+        score += 15.0
     # 6. Base score (ensure minimum score to avoid unstable sorting) / 基础分
     score += 0.1
 
@@ -428,12 +398,6 @@ def optimize_tools(
     # Optimizable tools within budget, keep all / 可优化工具在名额内，全部保留
     if len(optimizable) <= budget:
         if preferred_family:
-            prefer_weather_tools = _query_mentions_family(
-                query_text,
-                query_tokens,
-                _family_query_tokens(tools, "weather"),
-                FAMILY_EXPLICIT_REQUEST_HINTS.get("weather", ()),
-            ) and any(_tool_semantic_family(tool) == "weather" for tool in tools)
             scored = []
             for idx, tool in enumerate(optimizable):
                 score = _score_tool(
@@ -441,7 +405,6 @@ def optimize_tools(
                     query_tokens,
                     query_text,
                     used_tool_names,
-                    prefer_weather_tools=prefer_weather_tools,
                     preferred_family=preferred_family,
                 )
                 scored.append((score, idx, tool))
@@ -471,12 +434,6 @@ def optimize_tools(
         )
 
     # Score (only optimizable tools) / 打分
-    prefer_weather_tools = _query_mentions_family(
-        query_text,
-        query_tokens,
-        _family_query_tokens(tools, "weather"),
-        FAMILY_EXPLICIT_REQUEST_HINTS.get("weather", ()),
-    ) and any(_tool_semantic_family(tool) == "weather" for tool in tools)
     scored: list[tuple[float, int, ToolDefinition]] = []
     for idx, tool in enumerate(optimizable):
         s = _score_tool(
@@ -484,7 +441,6 @@ def optimize_tools(
             query_tokens,
             query_text,
             used_tool_names,
-            prefer_weather_tools=prefer_weather_tools,
             preferred_family=preferred_family,
         )
         scored.append((s, idx, tool))

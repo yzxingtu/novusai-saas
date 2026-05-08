@@ -1,6 +1,6 @@
 """天气 API 路由 / Weather API routes.
 
-供前端天气组件调用，避免 CORS；缓存由兼容层 provider 管理。
+供前端天气组件调用，避免 CORS；缓存由天气插件 provider 管理。
 路由: GET /current, /forecast, /hourly, /air-quality, /geocoding, /config
 """
 
@@ -34,20 +34,12 @@ def _describe_exception(exc: Exception | None) -> str:
 
 
 def _get_open_meteo():
-    import importlib.util
-    import sys
-    from pathlib import Path
+    from app.plugins.module_loader import load_plugin_module
 
-    loader_name = "plugins.weather-widget.backend._loader"
-    if loader_name not in sys.modules:
-        loader_file = Path(__file__).parent.parent / "_loader.py"
-        spec = importlib.util.spec_from_file_location(loader_name, loader_file)
-        if spec is None or spec.loader is None:
-            raise ImportError(f"Cannot load {loader_file}")
-        mod = importlib.util.module_from_spec(spec)
-        sys.modules[loader_name] = mod
-        spec.loader.exec_module(mod)
-    return sys.modules[loader_name].get_open_meteo()
+    provider = load_plugin_module("weather-widget", "open_meteo")
+    if provider is None:
+        raise ImportError("Cannot load weather-widget.open_meteo")
+    return provider
 
 
 def _parse_coords(request) -> tuple[float, float] | dict:
@@ -86,6 +78,27 @@ def _configure_provider(provider, config: dict) -> None:
     configure = getattr(provider, "configure", None)
     if callable(configure):
         configure(config)
+
+
+def _parse_forecast_days(request, provider, plugin_config: dict) -> int | dict:
+    """中文: 校验 forecast days，非法输入返回公开错误。
+
+    EN: Validate forecast days and return a public error for invalid input.
+    """
+    validator = getattr(provider, "validate_forecast_days", None)
+    if not callable(validator):
+        raise ImportError("Weather provider is missing validate_forecast_days")
+
+    days_value = request.query_params.get("days")
+    try:
+        if days_value is None:
+            return validator(None, default=plugin_config.get("forecast_days", 3))
+        return validator(days_value)
+    except ValueError:
+        return {
+            "error": _("plugin.weather-widget.error.days_invalid"),
+            "code": 4001,
+        }
 
 
 # ── 路由 / routes ──
@@ -143,14 +156,9 @@ async def get_forecast(request, ctx) -> dict:
     plugin_config = await _get_plugin_config(ctx)
     provider = _get_open_meteo()
     _configure_provider(provider, plugin_config)
-    days_str = request.query_params.get("days", "")
-    if days_str:
-        try:
-            days = int(days_str)
-        except (ValueError, TypeError):
-            days = 3
-    else:
-        days = plugin_config.get("forecast_days", 3)
+    days = _parse_forecast_days(request, provider, plugin_config)
+    if isinstance(days, dict):
+        return days
 
     last_exc: Exception | None = None
     for attempt in range(2):
@@ -291,7 +299,7 @@ async def search_city(request, ctx) -> dict:
         return {"cities": cities}
     except Exception as exc:
         logger.warning(
-            "Failed to search city query='{}' count={}: {}",
+            "Failed to look up city query='{}' count={}: {}",
             name,
             count,
             _describe_exception(exc),

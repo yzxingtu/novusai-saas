@@ -150,7 +150,6 @@ class OpenAIAdapterProtocolEntrypointsMixin:
                     request_params=request_params,
                     messages=messages,
                     model=model,
-                    fallback_to_responses=False,
                 )
 
             response.metadata = attach_protocol_metadata(
@@ -235,7 +234,6 @@ class OpenAIAdapterProtocolEntrypointsMixin:
                 stream_iter = self._stream_chat_via_chat_completions(
                     request_params=request_params,
                     model=model,
-                    fallback_to_responses=False,
                 )
 
             async for chunk in stream_iter:

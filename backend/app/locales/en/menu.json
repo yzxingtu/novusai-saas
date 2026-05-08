@@ -37,7 +37,6 @@
       "ai_conversation": "Conversation Management",
       "ai_agent": "Agent Management",
       "ai_tool": "Tool Management",
-      "ai_action_log": "Action Audit",
       "ai_long_term_memory_debug": "Memory Debug",
       "execution_decision": "Execution Decisions",
       "admin_agent_chat": "AI Chat",
@@ -56,7 +55,6 @@
     },
     "tags": {
       "admin_agent_mgmt": "Agent Management (Platform)",
-      "admin_ai_action_audit": "AI Action Audit Management",
       "admin_agent_chat": "AI Chat (Platform)",
       "admin_ai_api_key": "AI API Key Management",
       "admin_ai_call_log": "AI Call Logs",

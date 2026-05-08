@@ -46,13 +46,6 @@ def _load_handler(plugin_name: str, handler_path: str) -> Callable | None:
     return load_plugin_handler(plugin_name, handler_path)
 
 
-def _load_executor(plugin_name: str, skill_type: str) -> type | None:
-    """Load plugin executor class — delegates to unified loader / 加载插件 executor 类 — 委托给统一加载器"""
-    from app.plugins.module_loader import load_plugin_executor
-
-    return load_plugin_executor(plugin_name, skill_type)
-
-
 def _normalize_public_captcha_endpoints(value: object) -> list[str]:
     """Normalize public captcha endpoints / 规范化公开验证码端点列表"""
     allowed = {"admin", "tenant", "user"}
@@ -71,6 +64,8 @@ def _build_page_access_codes(plugin_name: str, page) -> list[str]:
     """Build frontend page route access codes from explicit declarations and derived menu permission.
     / 从显式声明和派生菜单权限生成前端页面路由权限码。
     """
+    from app.plugins.registry import _build_plugin_menu_code
+
     access_codes: list[str] = []
 
     for code in page.access_codes:
@@ -80,11 +75,26 @@ def _build_page_access_codes(plugin_name: str, page) -> list[str]:
 
     if page.menu is not None:
         safe_name = plugin_name.replace("-", "_")
-        derived_code = f"menu:{page.scope}.plugin_{safe_name}_{page.name}"
+        derived_code = _build_plugin_menu_code(page.scope, safe_name, page.name)
         if derived_code not in access_codes:
             access_codes.append(derived_code)
 
     return access_codes
+
+
+def _build_plugin_menu_parent_aliases(plugin_name: str, pages) -> dict[str, str]:
+    """Map manifest page names to plugin menu ids. / 将 manifest 页面名映射为插件菜单 ID。"""
+    from app.plugins.registry import _build_plugin_menu_id
+
+    safe_name = plugin_name.replace("-", "_")
+    aliases: dict[str, str] = {}
+    for page in pages:
+        if getattr(page, "menu", None) is None:
+            continue
+        page_name = str(getattr(page, "name", "") or "").strip()
+        if page_name:
+            aliases[page_name] = _build_plugin_menu_id(safe_name, page_name)
+    return aliases
 
 
 def _register_custom_captcha_provider(
@@ -177,7 +187,15 @@ def register_all_extensions(
             if skill_ext.entry_point
             else None
         )
-        executor_cls = _load_executor(plugin_name, skill_ext.type)
+        executor_cls = None
+        if skill_ext.executor_entry_point:
+            executor_cls = _load_handler(plugin_name, skill_ext.executor_entry_point)
+            if executor_cls is None:
+                _record_failure(
+                    plugin_name,
+                    "skill_executor",
+                    skill_ext.executor_entry_point,
+                )
         if resolver_func:
             registry.register_skill(
                 plugin_name,
@@ -410,12 +428,9 @@ def register_navigation_extensions(
 ) -> None:
     """Register page-derived navigation only. / 仅注册页面派生导航。"""
     overrides = menu_overrides or {}
-    plugin_menu_parent_aliases = {
-        page.name: f"plugin_{plugin_name.replace('-', '_')}_{page.name}"
-        for page in manifest.extensions.frontend.pages
-        if page.menu is not None
-    }
-    for page in manifest.extensions.frontend.pages:
+    pages = manifest.extensions.frontend.pages
+    plugin_menu_parent_aliases = _build_plugin_menu_parent_aliases(plugin_name, pages)
+    for page in pages:
         if page.menu is None:
             continue
         override = overrides.get(page.name, {})

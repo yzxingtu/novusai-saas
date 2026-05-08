@@ -35,8 +35,6 @@ _STALE_PLUGIN_ERROR_MARKERS = (
     "Manifest drift detected on disk.",
     "Disk plugin version drift detected:",
     "Plugin files missing from disk",
-    "admin_and_assigned",
-    "admin_and_all",
 )
 
 
@@ -660,19 +658,3 @@ async def restore_enabled_plugins(
         "failed": failed,
         "total": len(enabled_plugins),
     }
-
-
-def _load_plugin_executor(plugin_name: str, skill_type: str):
-    """Load plugin executor class — delegate to unified loader (preserved for external reference)
-    / 加载插件的 executor 类"""
-    from app.plugins.module_loader import load_plugin_executor
-
-    return load_plugin_executor(plugin_name, skill_type)
-
-
-def _load_handler_safe(loader, plugin_name: str, handler_path: str):
-    """Safely load plugin handler function — delegate to unified loader (preserved for external reference)
-    / 安全加载插件处理函数"""
-    from app.plugins.module_loader import load_plugin_handler
-
-    return load_plugin_handler(plugin_name, handler_path)

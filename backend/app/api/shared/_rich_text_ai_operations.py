@@ -14,7 +14,6 @@ from app.ai.engine.stream_error_utils import (
 )
 from app.ai.skills.rich_text_actions import (
     RICH_TEXT_AI_FEATURE_CODE,
-    RICH_TEXT_AI_SKILL_KEY,
 )
 from app.ai.sse import SSEChunkEncoder
 from app.core.i18n import _
@@ -102,7 +101,6 @@ def _normalize_stream_payload(
             "apply_strategy": apply_strategy,
             "output_contract": output_contract,
             "agent_id": agent_id,
-            "selected_skill_names": [RICH_TEXT_AI_SKILL_KEY],
         }
 
     if event_name == "message" or (not event_name and "delta" in payload):
@@ -466,7 +464,6 @@ async def stream_rich_text_operation(
         memory_scene=memory_scene,
         memory_channel=memory_channel,
         memory_source=RICH_TEXT_AI_FEATURE_CODE,
-        selected_skill_names=[RICH_TEXT_AI_SKILL_KEY],
     )
     return normalize_rich_text_operation_stream(
         response,

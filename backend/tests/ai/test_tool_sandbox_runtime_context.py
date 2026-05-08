@@ -159,6 +159,31 @@ async def test_tool_sandbox_rejects_invalid_runtime_tools_even_if_defined() -> N
 
 
 @pytest.mark.asyncio
+async def test_tool_sandbox_rejects_retired_search_tools_even_if_defined() -> None:
+    """
+    Test type: structural
+    中文: 供应的 definition 与 executor 不能复活退役联网搜索工具。
+    EN: Supplied definitions and executors cannot resurrect retired online-search tools.
+    """
+    sandbox = ToolSandbox(
+        tenant_id=100,
+        agent_id=200,
+        config=SandboxConfig(),
+    )
+    sandbox._named_executors["web_search"] = _CaptureExecutor()
+
+    result = await sandbox.execute(
+        tool_call_id="tc-retired-search",
+        name="web_search",
+        arguments={},
+        definitions=[ToolDefinition(name="web_search", description="search")],
+    )
+
+    assert result.success is False
+    assert result.error_type == "invalid_runtime_tool"
+
+
+@pytest.mark.asyncio
 async def test_tool_sandbox_plugin_tool_missing_executor_does_not_use_generic_fallback(
     monkeypatch,
 ) -> None:

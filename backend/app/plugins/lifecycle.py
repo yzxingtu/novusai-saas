@@ -12,7 +12,6 @@ from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING, Any
 
 from app.core.logging import get_logger
-from app.plugins import dependencies as _plugin_dependencies
 from app.plugins import lifecycle_support as _lifecycle_support
 from app.plugins.exceptions import (
     PluginError,
@@ -29,19 +28,6 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 _UNLOCK_IF_OWNER_LUA = _lifecycle_support._UNLOCK_IF_OWNER_LUA
-# Compatibility re-exports for tests and maintenance code that still patch/import these names.
-_escape_like_pattern = _lifecycle_support.escape_like_pattern
-_is_safe_plugin_table_name = _lifecycle_support.is_safe_plugin_table_name
-detect_direct_python_dependency_conflicts = (
-    _plugin_dependencies.detect_direct_python_dependency_conflicts
-)
-get_installed_distribution_version = (
-    _plugin_dependencies.get_installed_distribution_version
-)
-iter_effective_python_requirements = (
-    _plugin_dependencies.iter_effective_python_requirements
-)
-normalize_python_package_name = _plugin_dependencies.normalize_python_package_name
 
 
 def _log_lifecycle_action(
@@ -104,8 +90,8 @@ async def _plugin_lock(plugin_id: int):
             logger.warning("Failed to release plugin lock {} safely: {}", key, exc)
 
 
-# Late imports keep lifecycle helper symbols initialized before mixin modules
-# import from this module for compatibility-preserving composition.
+# 中文: 延迟导入让 facade 初始化完成后再装配生命周期 mixin。
+# EN: Late imports keep the facade initialized before lifecycle mixins are assembled.
 from app.plugins.lifecycle_dependency_runtime import (  # noqa: E402
     LifecycleDependencyRuntimeMixin,
 )

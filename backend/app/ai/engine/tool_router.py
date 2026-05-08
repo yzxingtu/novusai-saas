@@ -36,7 +36,7 @@ class ToolRouter:
         intent_allowed: dict[str, list[str]] = {}
         intent_preferred: dict[str, list[str]] = {}
         _ = input_variables
-        lowered = user_text.lower()
+        _ = user_text
 
         def register(
             intent: IntentPlan,
@@ -57,23 +57,6 @@ class ToolRouter:
             if intent.family == "none" or not intent.requires_tools:
                 intent_allowed[intent.intent_id] = []
                 intent_preferred[intent.intent_id] = []
-                continue
-
-            if intent.kind == "weather_query":
-                future_terms = (
-                    "明天",
-                    "未来",
-                    "forecast",
-                    "接下来",
-                    "后天",
-                    "7天",
-                    "一周",
-                )
-                wants_forecast = any(term in lowered for term in future_terms)
-                names = ["get_current_weather"]
-                if wants_forecast and "get_weather_forecast" in tools_by_name:
-                    names.append("get_weather_forecast")
-                register(intent, names, names)
                 continue
 
             if intent.kind == "time_query":

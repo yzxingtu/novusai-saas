@@ -1,9 +1,38 @@
+"""Test type: behavioral / structural
+Scope: Agent skill grant service behavior and repository query guards.
+Mocked dependencies: async repositories and DB execute capture only; no LLM,
+tool executor, or intent planner mocks.
+"""
+
 from __future__ import annotations
 
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
+
+
+class _EmptyScalarResult:
+    def all(self) -> list[Any]:
+        return []
+
+
+class _EmptyExecuteResult:
+    def scalars(self) -> _EmptyScalarResult:
+        return _EmptyScalarResult()
+
+    def scalar_one_or_none(self) -> None:
+        return None
+
+
+class _StatementCaptureDb:
+    def __init__(self) -> None:
+        self.statements: list[Any] = []
+
+    async def execute(self, stmt: Any) -> _EmptyExecuteResult:
+        self.statements.append(stmt)
+        return _EmptyExecuteResult()
 
 
 @pytest.mark.asyncio
@@ -261,3 +290,69 @@ async def test_bind_skill_rejects_inactive_package_skill() -> None:
         await service.bind_skill(agent_id=59, skill_id=3)
 
     service.grant_repo.create.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_bind_skill_rejects_retired_online_search_skill() -> None:
+    from app.exceptions import NotFoundException
+    from app.services.ai.agent_skill_grant_service import AgentSkillGrantService
+
+    service = AgentSkillGrantService.__new__(AgentSkillGrantService)
+    service.db = AsyncMock()
+    service.tenant_id = None
+    service.agent_repo = AsyncMock()
+    service.agent_repo.get_by_id = AsyncMock(
+        return_value=SimpleNamespace(id=59, owner_tenant_id=None),
+    )
+    service.skill_repo = AsyncMock()
+    service.skill_repo.get_by_id = AsyncMock(
+        return_value=SimpleNamespace(
+            id=3,
+            name="联网搜索",
+            key="web_search",
+            source_ref="web_search",
+            is_active=True,
+            is_deleted=False,
+            package=SimpleNamespace(
+                name="百度公开搜索",
+                source_plugin="baidu_public_search",
+                is_active=True,
+                is_deleted=False,
+            ),
+        )
+    )
+    service.grant_repo = AsyncMock()
+
+    with pytest.raises(NotFoundException):
+        await service.bind_skill(agent_id=59, skill_id=3)
+
+    service.grant_repo.create.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_grant_repository_queries_filter_retired_skill_catalog() -> None:
+    from app.repositories.ai.agent_skill_grant_repository import (
+        AgentSkillGrantRepository,
+    )
+
+    db = _StatementCaptureDb()
+    repo = AgentSkillGrantRepository(db, tenant_id=9)
+
+    await repo.get_by_agent_id(59)
+    await repo.get_enabled_by_agent_id(59)
+    await repo.get_grant(59, 3)
+    await repo.get_by_id(7)
+
+    assert len(db.statements) == 4
+    for stmt in db.statements:
+        compiled = stmt.compile(compile_kwargs={"render_postcompile": True})
+        sql = str(compiled).lower()
+        params = " ".join(str(value).lower() for value in compiled.params.values())
+
+        assert "join skills" in sql
+        assert "join skill_packages" in sql
+        assert "skills.is_deleted is false" in sql
+        assert "skill_packages.is_deleted is false" in sql
+        assert "replace" in sql
+        assert "web_search" in params
+        assert "searchprovider" in params

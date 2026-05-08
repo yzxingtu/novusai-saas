@@ -75,9 +75,7 @@ def enrich_skill_capability_descriptors_with_tools(
     tools: list[ToolDefinition],
 ) -> None:
     tool_names_by_skill: dict[tuple[Any, ...], list[str]] = {}
-    tool_names_by_skill_name: dict[str, list[str]] = {}
     for tool in tools:
-        skill_name = str(getattr(tool, "source_skill_name", "") or "").strip()
         tool_name = str(getattr(tool, "name", "") or "").strip()
         binding_key = _tool_binding_key(tool)
         if binding_key[0] == "name_source" and not binding_key[1]:
@@ -87,10 +85,6 @@ def enrich_skill_capability_descriptors_with_tools(
         bucket = tool_names_by_skill.setdefault(binding_key, [])
         if tool_name not in bucket:
             bucket.append(tool_name)
-        if skill_name:
-            fallback_bucket = tool_names_by_skill_name.setdefault(skill_name, [])
-            if tool_name not in fallback_bucket:
-                fallback_bucket.append(tool_name)
 
     for descriptor in descriptors:
         if str(descriptor.kind or "").strip() != "capability_pack":
@@ -99,10 +93,6 @@ def enrich_skill_capability_descriptors_with_tools(
         if binding_key[0] == "name_source" and not binding_key[1]:
             continue
         resolved_tool_names = list(tool_names_by_skill.get(binding_key, []))
-        if not resolved_tool_names:
-            resolved_tool_names = list(
-                tool_names_by_skill_name.get(str(descriptor.name or "").strip(), [])
-            )
         descriptor.metadata = {
             **dict(descriptor.metadata or {}),
             "resolved_tool_names": resolved_tool_names,

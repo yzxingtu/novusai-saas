@@ -189,7 +189,6 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
     # - menu:admin.ai_usage (Usage Statistics / 用量统计)
     # - menu:admin.ai_call_log (Call Log / 调用日志)
     # - menu:admin.ai_conversation (Conversation Management / 对话管理)
-    # - menu:admin.ai_action_log (Action Audit / 操作审计)
     # - menu:admin.ai_platform_tool (Platform Tools / 平台工具)
     # ========================================
     # System Maintenance (directory) / 系统维护（目录）

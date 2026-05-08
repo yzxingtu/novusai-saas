@@ -355,7 +355,7 @@ def upgrade() -> None:
                 "default_interval_seconds": None,
                 "default_queue": "scheduled",
                 "default_args": [],
-                "default_kwargs": {"retention_days": 90},
+                "default_kwargs": {},
                 "config_schema": {},
                 "is_system_builtin": True,
                 "max_retries": 0,

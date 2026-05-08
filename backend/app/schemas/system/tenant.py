@@ -46,8 +46,6 @@ class TenantResponse(BaseSchema):
     # 套餐信息（新版） / Plan info (new)
     plan_id: int | None = Field(None, description="套餐 ID")
     plan_info: TenantPlanInfo | None = Field(None, description="套餐信息")
-    # 套餐类型（已废弃，保留向后兼容） / Plan type (deprecated)
-    plan: str | None = Field(None, description="套餐类型（已废弃）")
     quota: dict[str, Any] | None = Field(None, description="配额配置")
     expires_at: datetime | None = Field(None, description="到期时间")
     remark: str | None = Field(None, description="备注")
@@ -80,7 +78,6 @@ class TenantResponse(BaseSchema):
                 "contact_email": data.contact_email,
                 "is_active": data.is_active,
                 "plan_id": data.plan_id,
-                "plan": data.plan,
                 "quota": data.quota,
                 "expires_at": data.expires_at,
                 "remark": data.remark,
@@ -155,13 +152,22 @@ class TenantUpdateRequest(BaseSchema):
     contact_email: str | None = Field(None, description="联系人邮箱")
     # 套餐 ID（新版）
     plan_id: int | None = Field(None, description="套餐 ID")
-    # 套餐类型（已废弃，保留向后兼容） / Plan type (deprecated)
-    plan: str | None = Field(None, description="套餐类型（已废弃）")
     quota: dict[str, Any] | None = Field(
         None, description="配额配置（可覆盖套餐默认值）"
     )
     expires_at: datetime | None = Field(None, description="到期时间")
     remark: str | None = Field(None, max_length=500, description="备注")
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_legacy_plan_field(cls, data: Any) -> Any:
+        """中文: 新套餐契约只接受 plan_id，旧 plan 字段进入请求即拒绝。
+
+        EN: The new plan contract only accepts plan_id; reject legacy plan on input.
+        """
+        if isinstance(data, dict) and "plan" in data:
+            raise ValueError("plan is retired; use plan_id")
+        return data
 
 
 class TenantStatusRequest(BaseSchema):

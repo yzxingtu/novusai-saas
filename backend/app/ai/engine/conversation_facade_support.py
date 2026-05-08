@@ -9,13 +9,13 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from typing import Any
 
-from app.ai.adapters import AdapterRegistry
-from app.ai.runtime import ConversationQueryEngine
 from app.ai.tools.types import ToolDefinition, ToolResult
 from app.ai.types import ChatChunk, ChatMessage, ChatResponse
 from app.core.logging import LogManager
+from app.services.ai.conversation_runtime_accounting import (
+    ConversationRuntimeAccounting,
+)
 
-from .conversation_runtime_accounting import ConversationRuntimeAccounting
 from .conversation_runtime_bridge import (
     call_runtime_query_turn as _call_runtime_query_turn_impl,
 )
@@ -53,6 +53,18 @@ from .turn_executor import (
 from .types import ToolUsePolicy
 
 logger = LogManager.get_logger("ai.engine.conversation")
+
+
+def _default_adapter_registry() -> Any:
+    from app.ai.adapters import AdapterRegistry
+
+    return AdapterRegistry
+
+
+def _default_query_engine_cls() -> Any:
+    from app.ai.runtime.query_engine import ConversationQueryEngine
+
+    return ConversationQueryEngine
 
 
 def assistant_tool_round_count(messages: list[ChatMessage]) -> int:
@@ -201,7 +213,7 @@ async def call_runtime_query_turn(
     model_request_override_builder: Any | None = None,
     accounting_builder: Any | None = None,
     engine_logger: Any | None = None,
-) -> tuple[ChatResponse, ConversationQueryEngine]:
+) -> tuple[ChatResponse, Any]:
     return await _call_runtime_query_turn_impl(
         engine,
         agent=agent,
@@ -221,8 +233,8 @@ async def call_runtime_query_turn(
         execution_path=execution_path,
         extra_kwargs=extra_kwargs,
         skip_metering_preflight=skip_metering_preflight,
-        adapter_registry=adapter_registry or AdapterRegistry,
-        query_engine_cls=query_engine_cls or ConversationQueryEngine,
+        adapter_registry=adapter_registry or _default_adapter_registry(),
+        query_engine_cls=query_engine_cls or _default_query_engine_cls(),
         model_request_override_builder=(
             model_request_override_builder or build_model_request_overrides
         ),
@@ -324,8 +336,8 @@ async def stream_llm_chunks(
         tool_use_policy=tool_use_policy,
         breach_retry_result=breach_retry_result,
         skip_metering_preflight=skip_metering_preflight,
-        adapter_registry=adapter_registry or AdapterRegistry,
-        query_engine_cls=query_engine_cls or ConversationQueryEngine,
+        adapter_registry=adapter_registry or _default_adapter_registry(),
+        query_engine_cls=query_engine_cls or _default_query_engine_cls(),
         model_request_override_builder=(
             model_request_override_builder or build_model_request_overrides
         ),

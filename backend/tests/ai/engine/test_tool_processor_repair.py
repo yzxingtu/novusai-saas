@@ -150,9 +150,9 @@ def test_check_consent_treats_approved_pending_consent_as_auto_once() -> None:
 def test_check_consent_auto_approves_readonly_tool_in_trusted_auto_mode() -> None:
     processor = ToolCallProcessor(
         sandbox=None,  # type: ignore[arg-type]
-        tools=[ToolDefinition(name="get_current_weather")],
-        consent_modes={"get_current_weather": "ask"},
+        tools=[ToolDefinition(name="get_current_time")],
+        consent_modes={"get_current_time": "ask"},
         interaction_mode="trusted_auto",
     )
 
-    assert processor.check_consent("get_current_weather", {"city": "西安"}) == "auto"
+    assert processor.check_consent("get_current_time", {}) == "auto"

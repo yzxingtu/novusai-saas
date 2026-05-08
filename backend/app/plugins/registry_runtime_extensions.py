@@ -476,7 +476,10 @@ class RegistryRuntimeExtensionsMixin:
         _set_plugin_permissions_enabled() in lifecycle.py.
         """
         from app.enums.rbac import PermissionScope, PermissionType
-        from app.plugins.registry import _build_plugin_menu_action
+        from app.plugins.registry import (
+            _build_plugin_menu_action,
+            _build_plugin_menu_code,
+        )
         from app.rbac.decorators import PermissionMeta
         from app.rbac.registry import permission_registry
 
@@ -494,7 +497,7 @@ class RegistryRuntimeExtensionsMixin:
                 f"{PermissionScope.ADMIN.value!r} or {PermissionScope.TENANT.value!r}"
             )
 
-        perm_code = f"menu:{scope_prefix}.plugin_{safe_name}_{name}"
+        perm_code = _build_plugin_menu_code(scope_prefix, safe_name, name)
         parent_code = f"menu:{scope_prefix}.{parent}" if parent else None
         i18n_key = f"{safe_name}.{name}.title"
 
@@ -532,8 +535,14 @@ class RegistryRuntimeExtensionsMixin:
         from app.rbac.registry import permission_registry
 
         safe_name = plugin_name.replace("-", "_")
-        permission_registry.unregister(f"menu:admin.plugin_{safe_name}_{name}")
-        permission_registry.unregister(f"menu:tenant.plugin_{safe_name}_{name}")
+        from app.plugins.registry import _build_plugin_menu_code
+
+        permission_registry.unregister(
+            _build_plugin_menu_code("admin", safe_name, name)
+        )
+        permission_registry.unregister(
+            _build_plugin_menu_code("tenant", safe_name, name)
+        )
 
     def get_plugin_menus(
         self,

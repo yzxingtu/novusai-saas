@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable, Mapping, Sequence
 from typing import Any
 
@@ -34,21 +35,89 @@ INVALID_AI_RUNTIME_TOOL_ORDER: tuple[str, ...] = (
     "web_search",
 )
 INVALID_AI_RUNTIME_TOOL_NAMES = frozenset(INVALID_AI_RUNTIME_TOOL_ORDER)
+RETIRED_AI_PROVIDER_PROTOCOL_KEYS = frozenset(
+    {
+        "allow_adapter_cross_protocol_fallback",
+        "allowed_cross_protocol_fallbacks",
+        "wire_api",
+    }
+)
 INVALID_AI_PROVIDER_CONFIG_KEYS = frozenset(
     {
+        *RETIRED_AI_PROVIDER_PROTOCOL_KEYS,
+        "fetch_url",
         "hosted_web_search",
         "hosted_web_search_supported",
+        "native_web_search",
         "native_web_search_supported",
+        "online_search",
+        "search_provider",
+        "searchprovider",
         "supports_hosted_web_search",
+        "web_search_preview",
+        "web_research",
         "web_search",
+        "web_search_options",
         "web_search_runtime",
     }
+)
+RETIRED_ONLINE_SEARCH_CATALOG_TOKENS = frozenset(
+    {
+        "baidu_public_search",
+        "baidu_search",
+        "fetch_url",
+        "hosted_web_search",
+        "hosted_web_search_supported",
+        "internet_search",
+        "native_web_search",
+        "native_web_search_supported",
+        "online_search",
+        "public_search",
+        "response_web_search_call",
+        "search_provider",
+        "searchprovider",
+        "supports_hosted_web_search",
+        "web_search_preview",
+        "web_research",
+        "web_search",
+        "web_search_call",
+        "web_search_options",
+        "web_search_runtime",
+        "webresearch",
+        "websearch",
+    }
+)
+RETIRED_ONLINE_SEARCH_CATALOG_PHRASES = (
+    "fetch url",
+    "baidu public search",
+    "baidu search",
+    "hosted search",
+    "public search",
+    "internet search",
+    "online search",
+    "search online",
+    "search provider",
+    "native search",
+    "web research",
+    "web search",
+    "websearch",
+    "在线搜索",
+    "网络搜索",
+    "网页搜索",
+    "联网搜索",
+    "公开搜索",
+    "百度公开搜索",
+    "原生搜索",
+    "上网查询",
+    "上网搜索",
 )
 INVALID_AI_RUNTIME_REFERENCE_FRAGMENTS = frozenset(
     {
         "web_search_call",
     }
 )
+_AI_RUNTIME_TOKEN_SEPARATORS = re.compile(r"[\s.\-:/\\]+")
+_OMIT_PROVIDER_CONFIG_VALUE = object()
 
 DISALLOWED_AI_RUNTIME_INPUT_KEYS = frozenset(
     {
@@ -105,6 +174,41 @@ def disallowed_ai_runtime_input_keys(
     return sorted(set(disallowed_keys))
 
 
+def retired_ai_provider_protocol_field_paths(
+    value: Any,
+    *,
+    path: str = "",
+) -> list[str]:
+    if isinstance(value, Mapping):
+        retired_paths: list[str] = []
+        for key, nested in value.items():
+            text = str(key or "").strip()
+            next_path = f"{path}.{text}" if path and text else text or path
+            if normalize_ai_runtime_token(text) in RETIRED_AI_PROVIDER_PROTOCOL_KEYS:
+                retired_paths.append(next_path or text)
+            retired_paths.extend(
+                retired_ai_provider_protocol_field_paths(
+                    nested,
+                    path=next_path,
+                )
+            )
+        return retired_paths
+
+    if isinstance(value, Sequence) and not isinstance(value, str | bytes | bytearray):
+        retired_paths = []
+        for index, nested in enumerate(value):
+            next_path = f"{path}[{index}]" if path else f"[{index}]"
+            retired_paths.extend(
+                retired_ai_provider_protocol_field_paths(
+                    nested,
+                    path=next_path,
+                )
+            )
+        return retired_paths
+
+    return []
+
+
 def _collect_disallowed_ai_runtime_input_keys(
     value: Any,
     path: str,
@@ -142,8 +246,13 @@ def _is_disallowed_ai_runtime_key(key: str) -> bool:
     if not text:
         return False
     normalized = normalize_ai_runtime_token(text)
-    return normalized in DISALLOWED_AI_RUNTIME_INPUT_KEYS or normalized.startswith(
-        DISALLOWED_AI_RUNTIME_INPUT_PREFIXES
+    return (
+        normalized in DISALLOWED_AI_RUNTIME_INPUT_KEYS
+        or normalized in INVALID_AI_PROVIDER_CONFIG_KEYS
+        or normalized.startswith(DISALLOWED_AI_RUNTIME_INPUT_PREFIXES)
+        or is_invalid_ai_runtime_tool_name(text)
+        or is_invalid_ai_runtime_tool_family(text)
+        or is_retired_online_search_catalog_reference(text)
     )
 
 
@@ -163,15 +272,8 @@ def _is_disallowed_ai_runtime_value(value: Any) -> bool:
 
 
 def normalize_ai_runtime_token(value: Any) -> str:
-    return (
-        str(value or "")
-        .strip()
-        .lower()
-        .replace("-", "_")
-        .replace(" ", "_")
-        .replace(".", "_")
-        .replace(":", "_")
-    )
+    text = str(value or "").strip().lower()
+    return _AI_RUNTIME_TOKEN_SEPARATORS.sub("_", text).strip("_")
 
 
 def is_invalid_ai_runtime_tool_family(value: Any) -> bool:
@@ -194,6 +296,7 @@ def is_invalid_ai_runtime_reference(value: Any) -> bool:
         and (
             normalized in DISALLOWED_AI_RUNTIME_INPUT_KEYS
             or normalized in DISALLOWED_AI_RUNTIME_INPUT_VALUES
+            or is_retired_online_search_catalog_reference(value)
             or any(
                 fragment in normalized
                 for fragment in INVALID_AI_RUNTIME_REFERENCE_FRAGMENTS
@@ -204,10 +307,84 @@ def is_invalid_ai_runtime_reference(value: Any) -> bool:
     )
 
 
+def is_retired_online_search_catalog_reference(value: Any) -> bool:
+    text = str(value or "").strip()
+    if not text:
+        return False
+    normalized = normalize_ai_runtime_token(text)
+    lowered = text.lower()
+    normalized_phrase_text = normalized.replace("_", " ")
+    return (
+        normalized in RETIRED_ONLINE_SEARCH_CATALOG_TOKENS
+        or _contains_retired_online_search_token(normalized)
+        or any(
+            _contains_retired_online_search_phrase(lowered, phrase)
+            for phrase in RETIRED_ONLINE_SEARCH_CATALOG_PHRASES
+        )
+        or any(
+            _contains_retired_online_search_phrase(normalized_phrase_text, phrase)
+            for phrase in RETIRED_ONLINE_SEARCH_CATALOG_PHRASES
+            if phrase.isascii()
+        )
+    )
+
+
+def _contains_retired_online_search_token(normalized: str) -> bool:
+    for token in RETIRED_ONLINE_SEARCH_CATALOG_TOKENS:
+        start = normalized.find(token)
+        while start >= 0:
+            end = start + len(token)
+            before_boundary = start == 0 or normalized[start - 1] == "_"
+            after_boundary = end == len(normalized) or normalized[end] == "_"
+            if before_boundary and after_boundary:
+                return True
+            start = normalized.find(token, start + 1)
+    return False
+
+
+def _contains_retired_online_search_phrase(text: str, phrase: str) -> bool:
+    if not phrase.isascii():
+        return phrase in text
+    start = text.find(phrase)
+    while start >= 0:
+        end = start + len(phrase)
+        before_boundary = start == 0 or not text[start - 1].isalnum()
+        after_boundary = end == len(text) or not text[end].isalnum()
+        if before_boundary and after_boundary:
+            return True
+        start = text.find(phrase, start + 1)
+    return False
+
+
 def is_invalid_ai_runtime_tool(tool: Any) -> bool:
     if is_invalid_ai_runtime_tool_name(getattr(tool, "name", "")):
         return True
-    return is_invalid_ai_runtime_tool_family(getattr(tool, "semantic_family", ""))
+    if is_invalid_ai_runtime_tool_family(getattr(tool, "semantic_family", "")):
+        return True
+    identity_values = (
+        getattr(tool, "tool_type", None),
+        getattr(tool, "source_skill_name", None),
+        getattr(tool, "source_package_name", None),
+        getattr(tool, "source_plugin", None),
+        getattr(tool, "semantic_family", None),
+        *(getattr(tool, "semantic_tags", None) or []),
+    )
+    if any(is_invalid_ai_runtime_reference(value) for value in identity_values):
+        return True
+    config = getattr(tool, "config", None)
+    if isinstance(config, Mapping):
+        for key in (
+            "plugin_skill_name",
+            "skill_name",
+            "source_skill_name",
+            "package_name",
+            "source_package_name",
+            "source_plugin",
+            "source_ref",
+        ):
+            if is_invalid_ai_runtime_reference(config.get(key)):
+                return True
+    return False
 
 
 def filter_invalid_ai_runtime_tools(tools: Iterable[Any] | None) -> list[Any]:
@@ -230,11 +407,44 @@ def strip_invalid_ai_provider_config_keys(
 ) -> dict[str, Any]:
     if not isinstance(config, Mapping):
         return {}
-    return {
-        str(key): value
-        for key, value in dict(config).items()
-        if normalize_ai_runtime_token(key) not in INVALID_AI_PROVIDER_CONFIG_KEYS
-    }
+    sanitized = _strip_invalid_ai_provider_config_value(config)
+    return sanitized if isinstance(sanitized, dict) else {}
+
+
+def _strip_invalid_ai_provider_config_value(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        cleaned: dict[str, Any] = {}
+        for key, nested in value.items():
+            if _is_invalid_ai_provider_config_key(key):
+                continue
+            sanitized_nested = _strip_invalid_ai_provider_config_value(nested)
+            if sanitized_nested is _OMIT_PROVIDER_CONFIG_VALUE:
+                continue
+            cleaned[str(key)] = sanitized_nested
+        if not cleaned and value:
+            return _OMIT_PROVIDER_CONFIG_VALUE
+        return cleaned
+
+    if isinstance(value, Sequence) and not isinstance(value, str | bytes | bytearray):
+        cleaned_items: list[Any] = []
+        for nested in value:
+            sanitized_nested = _strip_invalid_ai_provider_config_value(nested)
+            if sanitized_nested is _OMIT_PROVIDER_CONFIG_VALUE:
+                continue
+            cleaned_items.append(sanitized_nested)
+        return cleaned_items
+
+    if is_invalid_ai_runtime_reference(value):
+        return _OMIT_PROVIDER_CONFIG_VALUE
+    return value
+
+
+def _is_invalid_ai_provider_config_key(key: Any) -> bool:
+    normalized = normalize_ai_runtime_token(key)
+    return (
+        normalized in INVALID_AI_PROVIDER_CONFIG_KEYS
+        or is_invalid_ai_runtime_reference(key)
+    )
 
 
 def ensure_no_disallowed_ai_runtime_input(
@@ -265,6 +475,9 @@ __all__ = [
     "INVALID_AI_RUNTIME_REFERENCE_FRAGMENTS",
     "INVALID_AI_RUNTIME_TOOL_NAMES",
     "INVALID_AI_RUNTIME_TOOL_ORDER",
+    "RETIRED_AI_PROVIDER_PROTOCOL_KEYS",
+    "RETIRED_ONLINE_SEARCH_CATALOG_PHRASES",
+    "RETIRED_ONLINE_SEARCH_CATALOG_TOKENS",
     "assert_no_disallowed_ai_runtime_input",
     "ensure_no_disallowed_ai_runtime_input",
     "disallowed_ai_runtime_input_keys",
@@ -274,6 +487,8 @@ __all__ = [
     "is_invalid_ai_runtime_tool",
     "is_invalid_ai_runtime_tool_family",
     "is_invalid_ai_runtime_tool_name",
+    "is_retired_online_search_catalog_reference",
     "normalize_ai_runtime_token",
+    "retired_ai_provider_protocol_field_paths",
     "strip_invalid_ai_provider_config_keys",
 ]

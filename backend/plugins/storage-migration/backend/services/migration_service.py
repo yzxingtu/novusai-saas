@@ -6,9 +6,7 @@ Core migration contract facade for storage migration tasks.
 from __future__ import annotations
 
 import asyncio
-import importlib.util
 from datetime import datetime
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import func, select, text, update
@@ -20,95 +18,32 @@ from app.services.common.storage_config_resolver import StorageConfigResolver
 from app.storage.base import StorageConfig
 from app.storage.manager import storage_manager
 
+from . import migration_runtime_registry as runtime_registry
+from .migration_helpers import (
+    deserialize_json_field,
+    execute_single_file_migration,
+    json_dumps,
+    normalize_scope,
+    scopes_overlap,
+)
+from .migration_impact_analyzer import MigrationImpactAnalyzer
+from .migration_service_recovery import (
+    cleanup_source_files as cleanup_source_files_part,
+)
+from .migration_service_recovery import retry_failed as retry_failed_part
+from .migration_service_recovery import rollback_task as rollback_task_part
+from .migration_service_runner import cancel_task as cancel_task_part
+from .migration_service_runner import pause_task as pause_task_part
+from .migration_service_runner import resume_task as resume_task_part
+from .migration_service_runner import run_migration as run_migration_part
+from .migration_service_runner import start_task as start_task_part
+from .migration_service_transfer import create_task as create_task_part
+from .migration_service_transfer import (
+    migrate_single_file as migrate_single_file_part,
+)
+
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
-
-
-_services_dir = Path(__file__).resolve().parent
-
-
-def _load_local_service_module(module_name: str, file_name: str) -> Any:
-    spec = importlib.util.spec_from_file_location(
-        module_name,
-        _services_dir / file_name,
-    )
-    if spec is None or spec.loader is None:
-        raise ImportError(f"Unable to load {file_name}")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-try:
-    from . import migration_runtime_registry as runtime_registry
-    from .migration_helpers import (
-        deserialize_json_field,
-        execute_single_file_migration,
-        json_dumps,
-        normalize_scope,
-        scopes_overlap,
-    )
-    from .migration_impact_analyzer import MigrationImpactAnalyzer
-    from .migration_service_recovery import (
-        cleanup_source_files as cleanup_source_files_part,
-    )
-    from .migration_service_recovery import retry_failed as retry_failed_part
-    from .migration_service_recovery import rollback_task as rollback_task_part
-    from .migration_service_runner import cancel_task as cancel_task_part
-    from .migration_service_runner import pause_task as pause_task_part
-    from .migration_service_runner import resume_task as resume_task_part
-    from .migration_service_runner import run_migration as run_migration_part
-    from .migration_service_runner import start_task as start_task_part
-    from .migration_service_transfer import create_task as create_task_part
-    from .migration_service_transfer import (
-        migrate_single_file as migrate_single_file_part,
-    )
-except ImportError:
-    _helpers = _load_local_service_module(
-        "storage_migration_runtime_helpers",
-        "migration_helpers.py",
-    )
-    deserialize_json_field = _helpers.deserialize_json_field
-    execute_single_file_migration = _helpers.execute_single_file_migration
-    json_dumps = _helpers.json_dumps
-    normalize_scope = _helpers.normalize_scope
-    scopes_overlap = _helpers.scopes_overlap
-
-    _impact_module = _load_local_service_module(
-        "storage_migration_runtime_impact_analyzer",
-        "migration_impact_analyzer.py",
-    )
-    MigrationImpactAnalyzer = _impact_module.MigrationImpactAnalyzer
-
-    runtime_registry = _load_local_service_module(
-        "storage_migration_runtime_registry",
-        "migration_runtime_registry.py",
-    )
-
-    _recovery_module = _load_local_service_module(
-        "storage_migration_runtime_recovery",
-        "migration_service_recovery.py",
-    )
-    cleanup_source_files_part = _recovery_module.cleanup_source_files
-    retry_failed_part = _recovery_module.retry_failed
-    rollback_task_part = _recovery_module.rollback_task
-
-    _runner_module = _load_local_service_module(
-        "storage_migration_runtime_runner",
-        "migration_service_runner.py",
-    )
-    cancel_task_part = _runner_module.cancel_task
-    pause_task_part = _runner_module.pause_task
-    resume_task_part = _runner_module.resume_task
-    run_migration_part = _runner_module.run_migration
-    start_task_part = _runner_module.start_task
-
-    _transfer_module = _load_local_service_module(
-        "storage_migration_runtime_transfer",
-        "migration_service_transfer.py",
-    )
-    create_task_part = _transfer_module.create_task
-    migrate_single_file_part = _transfer_module.migrate_single_file
 
 
 __all__ = ["MigrationImpactAnalyzer", "StorageMigrationService"]
@@ -119,10 +54,6 @@ ACTIVE_TASK_STATUSES = ("pending", "running", "paused", "rolling_back")
 TASK_JSON_FIELDS = ("source_config_snapshot", "target_config_snapshot")
 LOG_JSON_FIELDS = ("old_meta",)
 
-# Compatibility exports for existing tests and runtime inspection.
-_running_migrations = runtime_registry._running_migrations
-_pause_events = runtime_registry._pause_events
-_cancel_flags = runtime_registry._cancel_flags
 _UNSET = object()
 
 
@@ -470,19 +401,14 @@ class StorageMigrationService:
         scope: str,
     ) -> StorageConfig:
         normalized_scope = normalize_scope(scope)
-        tenant_id = 0
         if normalized_scope.startswith("tenant:"):
             tenant_id = int(normalized_scope.split(":", 1)[1])
-
-        try:
-            return await resolver.resolve_for_attachment(driver_name, tenant_id)
-        except Exception as exc:
-            logger.warning(
-                "Tenant storage config resolution failed; falling back to platform "
-                "config driver={} scope={}: {}",
-                driver_name,
-                normalized_scope,
-                exc,
+            config = await resolver.resolve_for_attachment(driver_name, tenant_id)
+            if config.driver == driver_name:
+                return config
+            raise ValueError(
+                f"Cannot resolve tenant config for driver '{driver_name}' "
+                f"and scope '{normalized_scope}'."
             )
 
         config = await resolver.resolve_platform_config()
@@ -491,5 +417,5 @@ class StorageMigrationService:
 
         raise ValueError(
             f"Cannot resolve config for driver '{driver_name}'. "
-            "Ensure the driver is configured in platform or tenant storage settings."
+            "Ensure the driver is configured in platform storage settings."
         )

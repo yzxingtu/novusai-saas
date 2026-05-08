@@ -51,20 +51,12 @@ def convert_server_to_toolkit(
         if "class Tools" in src:
             return src
 
-    try:
-        result = _convert(sources, metadata, env_schema)
-        logger.info(
-            "Server package auto-converted to toolkit: {}",
-            metadata.get("name", "unknown"),
-        )
-        return result
-    except Exception as exc:
-        logger.warning(
-            "Auto-conversion failed for '{}', using fallback: {}",
-            metadata.get("name", "unknown"),
-            exc,
-        )
-        return _fallback_combine(sources, metadata)
+    result = _convert(sources, metadata, env_schema)
+    logger.info(
+        "Server package auto-converted to toolkit: {}",
+        metadata.get("name", "unknown"),
+    )
+    return result
 
 
 # ─────────────────────────────────────────────────────────────
@@ -373,131 +365,3 @@ def _simplify_type(type_str: str) -> str:
     if t in ("int", "float", "bool", "str"):
         return t
     return "str"
-
-
-# ─────────────────────────────────────────────────────────────
-# Credential sanitisation / 凭据脱敏
-# ─────────────────────────────────────────────────────────────
-
-_CREDENTIAL_TERMS = (
-    "secret",
-    "password",
-    "passwd",
-    "token",
-    "api_key",
-    "app_key",
-    "private_key",
-    "access_key",
-)
-
-
-def _sanitize_source(source: str) -> str:
-    """Redact credential-like assignments from source code. / 从源码中脱敏凭据类赋值。"""
-    lines: list[str] = []
-    for line in source.splitlines():
-        credential_name = _extract_credential_assignment_name(line)
-        if credential_name:
-            lines.append(f'{credential_name} = "***REDACTED***"')
-        else:
-            lines.append(line)
-    return "\n".join(lines)
-
-
-def _extract_credential_assignment_name(line: str) -> str | None:
-    stripped = line.strip()
-    if not stripped or "=" not in stripped:
-        return None
-    left, right = stripped.split("=", 1)
-    name = left.strip()
-    value = right.strip()
-    normalized_name = name.lower()
-    if not any(term in normalized_name for term in _CREDENTIAL_TERMS):
-        return None
-    if not (
-        (value.startswith('"') and value.endswith('"'))
-        or (value.startswith("'") and value.endswith("'"))
-    ):
-        return None
-    if not name or not _is_upper_snake_identifier(name):
-        return None
-    return name
-
-
-def _is_upper_snake_identifier(name: str) -> bool:
-    if not name:
-        return False
-    for index, ch in enumerate(name):
-        if ch == "_":
-            continue
-        if "A" <= ch <= "Z":
-            continue
-        if index > 0 and "0" <= ch <= "9":
-            continue
-        return False
-    return True
-
-
-# ─────────────────────────────────────────────────────────────
-# Fallback: combine all source files with template / 回退：合并所有源文件与模板
-# ─────────────────────────────────────────────────────────────
-
-
-def _fallback_combine(
-    sources: dict[str, str],
-    metadata: dict[str, Any],
-) -> str:
-    env_requires = _extract_env_requires(metadata)
-    name = metadata.get("name", "Toolkit")
-    desc = metadata.get("description", "")
-
-    L: list[str] = []
-    L.append(f'"""\ntitle: {name}\ndescription: {desc}\nversion: 1.0.0')
-    L.append("")
-    L.append(
-        "Auto-conversion failed. Original server source appended below as reference."
-    )
-    L.append(
-        "Wrap relevant functions in class Tools to make them available as LLM tools."
-    )
-    L.append('"""')
-    L.append("")
-    L.append("import json")
-    L.append("from typing import Any")
-    L.append("")
-    L.append("import httpx")
-    L.append("from pydantic import BaseModel, Field")
-    L.append("")
-    L.append("")
-    L.append("class Valves(BaseModel):")
-    if env_requires:
-        for var in env_requires:
-            L.append(f'    {var.lower()}: str = Field(default="", description="{var}")')
-    else:
-        L.append("    pass")
-    L.append("")
-    L.append("")
-    L.append("class Tools:")
-    L.append(f'    """{desc}"""')
-    L.append("")
-    L.append("    valves: Valves")
-    L.append("")
-    L.append("    def __init__(self):")
-    L.append("        self.valves = Valves()")
-    L.append("")
-    L.append("    # TODO: Add async methods here.")
-    L.append("    # Each public async method becomes an LLM tool.")
-    L.append("    # See original source below for reference.")
-    L.append("")
-    L.append("")
-
-    for fname, src in sources.items():
-        L.append(f"# {'=' * 60}")
-        L.append(f"# Original source: {fname}.py")
-        L.append(f"# {'=' * 60}")
-        L.append("")
-        sanitized = _sanitize_source(src)
-        for line in sanitized.splitlines():
-            L.append(f"# {line}" if line.strip() else "#")
-        L.append("")
-
-    return "\n".join(L) + "\n"

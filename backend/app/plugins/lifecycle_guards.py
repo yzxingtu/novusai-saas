@@ -129,7 +129,7 @@ class PluginLifecycleGuardRegistry:
             result = await item.handler(payload)
             if not result:
                 continue
-            if not result.get("allowed", True):
+            if result.get("allowed") is not True:
                 return {
                     "allowed": False,
                     "reason_code": str(

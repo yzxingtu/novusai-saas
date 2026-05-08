@@ -15,8 +15,15 @@ from app.repositories.ai.skill_package_repository import (
 )
 from app.schemas.common.query import QuerySpec
 from app.schemas.common.select import SelectResponse
+from app.services.ai.retired_skill_guard import (
+    ensure_not_retired_online_search_package,
+)
 
 logger = LogManager.get_logger("ai")
+
+
+def _ensure_not_retired_online_search_package(data: dict[str, Any]) -> None:
+    ensure_not_retired_online_search_package(data)
 
 
 async def _build_resolved_tools_payload(
@@ -102,6 +109,7 @@ class SkillPackageService(TenantService[SkillPackage, SkillPackageRepository]):
     async def _before_create(self, data: dict[str, Any]) -> None:
         """创建前校验：名称唯一性 / Before create: name uniqueness."""
         await super()._before_create(data)
+        _ensure_not_retired_online_search_package(data)
 
         name = data.get("name")
         if name:
@@ -112,6 +120,7 @@ class SkillPackageService(TenantService[SkillPackage, SkillPackageRepository]):
     async def _before_update(self, id: int, data: dict[str, Any]) -> None:
         """更新前校验：名称唯一性、系统技能包保护 / Before update: name uniqueness, system package protection."""
         await super()._before_update(id, data)
+        _ensure_not_retired_online_search_package(data)
 
         pkg = await self.repo.get_by_id(id)
         if not pkg:
@@ -228,6 +237,7 @@ class AdminSkillPackageService(
     async def _before_create(self, data: dict[str, Any]) -> None:
         """创建前校验：名称唯一性 / Before create: name uniqueness."""
         await super()._before_create(data)
+        _ensure_not_retired_online_search_package(data)
 
         data["tenant_id"] = None
 
@@ -240,6 +250,7 @@ class AdminSkillPackageService(
     async def _before_update(self, id: int, data: dict[str, Any]) -> None:
         """更新前校验：系统技能包关键属性保护 / Before update: system package key fields protected."""
         await super()._before_update(id, data)
+        _ensure_not_retired_online_search_package(data)
 
         pkg = await self.repo.get_by_id(id)
         if not pkg:
@@ -342,7 +353,7 @@ class AdminSkillPackageService(
         limit: int = 50,
         tree: bool = False,
         parent_id: int | None = None,
-        page: int = 0,
+        page: int = 1,
         page_size: int = 20,
         **filters: Any,
     ) -> SelectResponse:

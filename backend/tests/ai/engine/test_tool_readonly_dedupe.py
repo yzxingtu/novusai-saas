@@ -14,26 +14,22 @@ from app.ai.tools.types import ToolDefinition, ToolResult
 
 
 @pytest.mark.asyncio
-async def test_dedupes_identical_get_current_weather_same_turn() -> None:
+async def test_dedupes_identical_platform_time_tool_same_turn() -> None:
     sandbox = MagicMock()
     sandbox.execute = AsyncMock(
         return_value=ToolResult(
             tool_call_id="first",
-            name="get_current_weather",
+            name="get_current_time",
             success=True,
-            output="晴",
+            output="12:00",
         )
     )
     proc = ToolCallProcessor(
         sandbox=sandbox,
-        tools=[ToolDefinition(name="get_current_weather", description="x")],
+        tools=[ToolDefinition(name="get_current_time", description="x")],
     )
-    r1, _ms1 = await proc.execute_tool(
-        "tc-1", "get_current_weather", {"city": "北京"}, 1
-    )
-    r2, ms2 = await proc.execute_tool(
-        "tc-2", "get_current_weather", {"city": "北京"}, 1
-    )
+    r1, _ms1 = await proc.execute_tool("tc-1", "get_current_time", {}, 1)
+    r2, ms2 = await proc.execute_tool("tc-2", "get_current_time", {}, 1)
 
     assert sandbox.execute.call_count == 1
     assert ms2 == 0

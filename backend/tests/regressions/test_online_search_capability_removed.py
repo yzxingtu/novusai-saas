@@ -20,16 +20,27 @@ from app.ai.adapters.openai_compatible.request_payload_builders import (
 from app.ai.engine.intent_planner import IntentPlanner
 from app.ai.skills.resolver import resolve_for_agent
 from app.ai.types import ChatMessage
+from app.schemas.ai.invalid_ai_runtime_input import (
+    is_retired_online_search_catalog_reference,
+)
 from app.services.ai.provider_service import AIProviderService
 
 REMOVED_ONLINE_SEARCH_NAMES = {"web_search", "fetch_url", "web_research"}
 REMOVED_PROVIDER_CONFIG_KEYS = {
+    "fetch_url",
     "web_search",
+    "web_research",
+    "online_search",
     "web_search_runtime",
+    "web_search_options",
     "hosted_web_search",
     "supports_hosted_web_search",
     "hosted_web_search_supported",
+    "native_web_search",
     "native_web_search_supported",
+    "search_provider",
+    "searchprovider",
+    "web_search_preview",
 }
 
 
@@ -64,6 +75,24 @@ class _ResponsesPayloadAdapterStub:
             }
             for message in messages
         ]
+
+
+def test_retired_online_search_token_normalization_handles_separator_variants() -> None:
+    """中文: 退役联网搜索 token 归一化覆盖历史分隔符写法。
+
+    EN: Retired online-search token normalization covers historical separators.
+    """
+    for value in (
+        "provider/SearchProvider",
+        "provider:search-provider",
+        "native/web/search/supported",
+        r"native\web\search\supported",
+        "hosted.web.search.supported",
+        "web search options",
+    ):
+        assert is_retired_online_search_catalog_reference(value) is True
+
+    assert is_retired_online_search_catalog_reference("research_provider") is False
 
 
 @pytest.mark.asyncio
@@ -119,13 +148,38 @@ def test_provider_config_surfaces_strip_online_search_settings() -> None:
                 "web_search": True,
                 "hosted_web_search": {"enabled": True},
                 "native_web_search_supported": True,
+                "protocol_capabilities": {
+                    "primary_wire_api": "responses",
+                    "metadata": {
+                        "hosted.web.search": True,
+                        "native/web/search/supported": True,
+                        "kept": "value",
+                    },
+                    "tool_providers": [
+                        "SearchProvider",
+                        "crm_lookup",
+                        {"web-search-options": {"enabled": True}},
+                        {"kept": "nested"},
+                    ],
+                },
                 "reasoning_effort": "high",
             },
         }
     )
 
-    assert validated["config"] == {"reasoning_effort": "high"}
-    assert set(validated["config"]).isdisjoint(REMOVED_PROVIDER_CONFIG_KEYS)
+    assert validated["config"] == {
+        "protocol_capabilities": {
+            "primary_wire_api": "responses",
+            "metadata": {"kept": "value"},
+            "tool_providers": ["crm_lookup", {"kept": "nested"}],
+        },
+        "reasoning_effort": "high",
+    }
+    serialized_validated = json.dumps(validated["config"], sort_keys=True)
+    assert all(
+        name not in serialized_validated for name in REMOVED_PROVIDER_CONFIG_KEYS
+    )
+    assert "SearchProvider" not in serialized_validated
 
     provider = SimpleNamespace(
         id=7,
@@ -141,16 +195,29 @@ def test_provider_config_surfaces_strip_online_search_settings() -> None:
         created_at=datetime(2026, 5, 5, tzinfo=timezone.utc),
         updated_at=datetime(2026, 5, 5, tzinfo=timezone.utc),
         config={
+            "wire.api": "responses",
             "supports_hosted_web_search": True,
             "web_search_runtime": {"mode": "native"},
+            "nested": {
+                "search.provider": "SearchProvider",
+                "safe": {
+                    "allowed": True,
+                    "tools": ["SearchProvider", "crm_lookup"],
+                },
+            },
             "kept": "value",
         },
     )
 
     response = AIProviderService.to_response_schema(provider)
 
-    assert response.config == {"kept": "value"}
-    assert set(response.config or {}).isdisjoint(REMOVED_PROVIDER_CONFIG_KEYS)
+    assert response.config == {
+        "nested": {"safe": {"allowed": True, "tools": ["crm_lookup"]}},
+        "kept": "value",
+    }
+    serialized_response = json.dumps(response.config, sort_keys=True)
+    assert all(name not in serialized_response for name in REMOVED_PROVIDER_CONFIG_KEYS)
+    assert "SearchProvider" not in serialized_response
 
 
 @pytest.mark.asyncio
@@ -169,7 +236,11 @@ async def test_responses_payload_surface_does_not_forward_hosted_search_tools() 
             {"type": "function", "function": {"name": "crm_lookup", "parameters": {}}},
         ],
         tool_choice="required",
-        kwargs={"_runtime_native_search_probe": True},
+        kwargs={
+            "_runtime_native_search_probe": True,
+            "web_search_options": {"enabled": True},
+            "search_provider": "SearchProvider",
+        },
         reasoning_summary_model_prefixes=("gpt-5",),
     )
 
@@ -183,3 +254,4 @@ async def test_responses_payload_surface_does_not_forward_hosted_search_tools() 
     ]
     serialized = json.dumps(request, sort_keys=True)
     assert all(name not in serialized for name in REMOVED_ONLINE_SEARCH_NAMES)
+    assert all(name not in serialized for name in REMOVED_PROVIDER_CONFIG_KEYS)

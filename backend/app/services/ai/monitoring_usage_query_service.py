@@ -114,12 +114,11 @@ class MonitoringUsageQueryService:
             for row in daily_rows
         ]
 
+        model_label_expr = func.coalesce(AIModel.name, AIModel.code)
         model_stmt = (
             select(
                 AICallLog.model_id.label("key"),
-                func.coalesce(AICallLog.model_name_snapshot, AIModel.name).label(
-                    "label"
-                ),
+                model_label_expr.label("label"),
                 func.count(AICallLog.id).label("call_count"),
                 func.coalesce(func.sum(AICallLog.total_tokens), 0).label(
                     "total_tokens"
@@ -137,7 +136,8 @@ class MonitoringUsageQueryService:
             .where(*filters)
             .group_by(
                 AICallLog.model_id,
-                func.coalesce(AICallLog.model_name_snapshot, AIModel.name),
+                AIModel.name,
+                AIModel.code,
             )
             .order_by(func.coalesce(func.sum(AICallLog.total_tokens), 0).desc())
             .limit(10)

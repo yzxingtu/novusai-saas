@@ -7,11 +7,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.plugins.lifecycle import (
-    PluginLifecycle,
-    _escape_like_pattern,
-    _is_safe_plugin_table_name,
-)
+from app.plugins.lifecycle import PluginLifecycle
+from app.plugins.lifecycle_support import escape_like_pattern, is_safe_plugin_table_name
 
 
 class _RowsResult:
@@ -29,17 +26,17 @@ class _DeleteResult:
 
 def test_is_safe_plugin_table_name_filters_unsafe_patterns() -> None:
     prefix = "px_demo_plugin_"
-    assert _is_safe_plugin_table_name("px_demo_plugin_orders", prefix) is True
-    assert _is_safe_plugin_table_name("px_demo_plugin_orders_2026", prefix) is True
-    assert _is_safe_plugin_table_name("users", prefix) is False
-    assert _is_safe_plugin_table_name("px_demo_plugin_orders;drop", prefix) is False
-    assert _is_safe_plugin_table_name('px_demo_plugin_orders"hack', prefix) is False
-    assert _is_safe_plugin_table_name("px_demo_plugin_orders%", prefix) is False
+    assert is_safe_plugin_table_name("px_demo_plugin_orders", prefix) is True
+    assert is_safe_plugin_table_name("px_demo_plugin_orders_2026", prefix) is True
+    assert is_safe_plugin_table_name("users", prefix) is False
+    assert is_safe_plugin_table_name("px_demo_plugin_orders;drop", prefix) is False
+    assert is_safe_plugin_table_name('px_demo_plugin_orders"hack', prefix) is False
+    assert is_safe_plugin_table_name("px_demo_plugin_orders%", prefix) is False
 
 
 def test_escape_like_pattern_escapes_wildcards() -> None:
     raw = r"px_demo_plugin_%_abc\name"
-    escaped = _escape_like_pattern(raw)
+    escaped = escape_like_pattern(raw)
     assert escaped == r"px\_demo\_plugin\_\%\_abc\\name"
 
 

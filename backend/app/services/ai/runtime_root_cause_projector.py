@@ -12,7 +12,9 @@ from app.ai.text_semantics import (
 )
 from app.enums.ai import CallStatusEnum
 from app.models.ai.call_log import AICallLog
+from app.schemas.ai.invalid_ai_runtime_input import is_invalid_ai_runtime_reference
 from app.services.ai.conversation_diagnostics_projector_support_diagnostics import (
+    contains_invalid_runtime_diagnostics_reference,
     sanitize_diagnostics_payload,
 )
 from app.services.ai.conversation_turn_flow_projector import (
@@ -190,7 +192,8 @@ class RuntimeRootCauseProjector:
     def _is_retired_root_cause_evidence_reference(cls, value: Any) -> bool:
         token = cls._root_cause_evidence_token(value)
         return bool(
-            token in _RETIRED_ROOT_CAUSE_EVIDENCE_REFERENCES
+            is_invalid_ai_runtime_reference(value)
+            or token in _RETIRED_ROOT_CAUSE_EVIDENCE_REFERENCES
             or token.startswith(_RETIRED_ROOT_CAUSE_EVIDENCE_TOOL_PREFIXES)
         )
 
@@ -220,7 +223,26 @@ class RuntimeRootCauseProjector:
         for key in ("intent", "family"):
             if cls._is_retired_root_cause_evidence_reference(payload.get(key)):
                 return None
-        return payload or None
+        return sanitize_diagnostics_payload(payload)
+
+    @classmethod
+    def _root_cause_evidence_value(cls, value: Any) -> Any:
+        if value in (None, "", [], {}, ()):
+            return None
+        if isinstance(value, dict):
+            if contains_invalid_runtime_diagnostics_reference(value):
+                return None
+            return sanitize_diagnostics_payload(value) or None
+        if isinstance(value, list | tuple):
+            normalized: list[Any] = []
+            for item in value:
+                sanitized_item = cls._root_cause_evidence_value(item)
+                if sanitized_item not in (None, "", [], {}, ()):
+                    normalized.append(sanitized_item)
+            return normalized or None
+        if isinstance(value, str):
+            return cls._root_cause_evidence_reference(value)
+        return value
 
     @classmethod
     def merge_root_cause_diagnostics(
@@ -363,21 +385,11 @@ class RuntimeRootCauseProjector:
                 "几号",
             )
         )
-        looks_like_weather = any(
-            token in source_text
-            for token in ("天气", "气温", "温度", "降雨", "湿度", "weather")
-        )
         merged_names = " ".join(selected_skill_names).lower()
         has_time_capability = any(
             token in merged_names for token in ("get_current_time", "time", "时间")
         )
-        has_weather_capability = any(
-            token in merged_names for token in ("weather", "天气")
-        )
-        return bool(
-            (looks_like_time and has_time_capability)
-            or (looks_like_weather and has_weather_capability)
-        )
+        return bool(looks_like_time and has_time_capability)
 
     @classmethod
     def has_authoritative_completed_conversation_output(
@@ -593,7 +605,7 @@ class RuntimeRootCauseProjector:
                 "post_processing",
                 "planner_false_direct_reply",
                 "The planner collapsed a tool-eligible current-information request into direct_reply even though matching runtime capabilities were available.",
-                "Fix explicit time/weather/web intent detection before allowing direct_reply short-circuit.",
+                "Fix explicit time/tool intent detection before allowing direct_reply short-circuit.",
                 0.93,
             )
         if (
@@ -800,9 +812,12 @@ class RuntimeRootCauseProjector:
         )
 
         def append(label: str, value: Any) -> None:
-            if value in (None, "", [], {}, ()):
+            normalized_value = RuntimeRootCauseProjector._root_cause_evidence_value(
+                value
+            )
+            if normalized_value in (None, "", [], {}, ()):
                 return
-            evidence.append({"label": label, "value": value})
+            evidence.append({"label": label, "value": normalized_value})
 
         if call_log is not None:
             if (

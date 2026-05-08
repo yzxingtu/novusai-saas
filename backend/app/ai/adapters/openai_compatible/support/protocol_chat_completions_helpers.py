@@ -25,75 +25,6 @@ def payload_looks_like_api_error(payload: Any) -> bool:
     return isinstance(payload, dict) and payload.get("error") is not None
 
 
-def payload_resembles_responses_api_body(payload: Any) -> bool:
-    """Only treat Responses-shaped bodies as cross-protocol fallback candidates."""
-    if payload is None:
-        return False
-    if getattr(payload, "object", None) == "response":
-        return True
-    if isinstance(payload, dict) and payload.get("object") == "response":
-        return True
-    output = getattr(payload, "output", None)
-    if isinstance(output, (list, tuple)):
-        return True
-    if isinstance(payload, dict) and isinstance(payload.get("output"), list):
-        return True
-    output_text = getattr(payload, "output_text", None)
-    if isinstance(output_text, str):
-        return True
-    return isinstance(payload, dict) and isinstance(payload.get("output_text"), str)
-
-
-def should_fallback_to_responses(
-    *,
-    use_responses_api: bool,
-    cross_protocol_fallback_allowed: bool,
-    payload: Any,
-) -> bool:
-    if use_responses_api:
-        return False
-    if not cross_protocol_fallback_allowed:
-        return False
-    if hasattr(payload, "choices"):
-        return False
-    if payload_looks_like_api_error(payload):
-        return False
-    return payload_resembles_responses_api_body(payload)
-
-
-def responses_fallback_context_ok(responses_kwargs: dict[str, Any] | None) -> bool:
-    """Ensure responses fallback has enough context to avoid accidental cross-protocol hops."""
-    if not responses_kwargs:
-        return False
-    messages = responses_kwargs.get("messages")
-    model = responses_kwargs.get("model")
-    return isinstance(messages, list) and isinstance(model, str) and bool(model.strip())
-
-
-def is_salvageable_raw_text_chat_response(payload: Any) -> bool:
-    """
-    Accept plain assistant text from compatible gateways, but reject HTML/JSON junk.
-    / 接受兼容网关直接返回的纯文本答复，但拒绝 HTML/JSON 垃圾载荷。
-    """
-    if not isinstance(payload, str):
-        return False
-
-    text = payload.strip()
-    if not text:
-        return False
-
-    lowered = text.lower()
-    if (
-        lowered.startswith("<!doctype")
-        or lowered.startswith("<html")
-        or lowered.startswith("<body")
-    ):
-        return False
-    if text.startswith("<"):
-        return False
-    return not (text.startswith("{") or text.startswith("["))
-
-
 def convert_chat_response(
     *,
     adapter: _UsageExtractor,
@@ -199,9 +130,5 @@ def convert_chat_chunk(
 __all__ = [
     "convert_chat_chunk",
     "convert_chat_response",
-    "is_salvageable_raw_text_chat_response",
     "payload_looks_like_api_error",
-    "payload_resembles_responses_api_body",
-    "responses_fallback_context_ok",
-    "should_fallback_to_responses",
 ]

@@ -12,10 +12,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.ai.engine.conversation import (
-    ConversationEngine,
-    _StreamRuntimeContext,
-)
+from app.ai.engine.conversation import ConversationEngine
+from app.ai.engine.conversation_runtime_preflight import ConversationRuntimeContext
 from app.ai.tools.types import ToolDefinition
 from app.ai.types import ChatChunk, ChatMessage, ChatResponse
 
@@ -238,7 +236,7 @@ class _RuntimeQueryEngineCaptureOverridesStub:
 
 def _build_runtime_context(
     *, should_record_call_log: bool = False
-) -> _StreamRuntimeContext:
+) -> ConversationRuntimeContext:
     provider = SimpleNamespace(
         id=101,
         code="provider_1",
@@ -259,7 +257,7 @@ def _build_runtime_context(
         output_price_per_1k=0.06,
         supports_streaming=True,
     )
-    return _StreamRuntimeContext(
+    return ConversationRuntimeContext(
         provider=provider,
         api_key=api_key,
         ai_model=ai_model,
@@ -311,11 +309,11 @@ async def test_runtime_v2_active_mode_uses_query_engine(mock_db) -> None:
 
     with (
         patch(
-            "app.ai.engine.conversation.AdapterRegistry.create_adapter",
+            "app.ai.adapters.AdapterRegistry.create_adapter",
             return_value=adapter,
         ),
         patch(
-            "app.ai.engine.conversation.ConversationQueryEngine",
+            "app.ai.runtime.query_engine.ConversationQueryEngine",
             new=_RuntimeQueryEngineStub,
         ),
     ):
@@ -370,11 +368,11 @@ async def test_runtime_v2_stream_path_uses_query_engine_for_query_tools(
 
     with (
         patch(
-            "app.ai.engine.conversation.AdapterRegistry.create_adapter",
+            "app.ai.adapters.AdapterRegistry.create_adapter",
             return_value=adapter,
         ),
         patch(
-            "app.ai.engine.conversation.ConversationQueryEngine",
+            "app.ai.runtime.query_engine.ConversationQueryEngine",
             new=_RuntimeQueryEngineStub,
         ),
     ):
@@ -425,11 +423,11 @@ async def test_runtime_v2_fast_text_round_passes_low_reasoning_override(
 
     with (
         patch(
-            "app.ai.engine.conversation.AdapterRegistry.create_adapter",
+            "app.ai.adapters.AdapterRegistry.create_adapter",
             return_value=adapter,
         ),
         patch(
-            "app.ai.engine.conversation.ConversationQueryEngine",
+            "app.ai.runtime.query_engine.ConversationQueryEngine",
             new=_RuntimeQueryEngineCaptureOverridesStub,
         ),
     ):
@@ -542,11 +540,11 @@ async def test_runtime_v2_stream_failure_before_first_chunk_raises_without_fallb
 
     with (
         patch(
-            "app.ai.engine.conversation.AdapterRegistry.create_adapter",
+            "app.ai.adapters.AdapterRegistry.create_adapter",
             return_value=adapter,
         ),
         patch(
-            "app.ai.engine.conversation.ConversationQueryEngine",
+            "app.ai.runtime.query_engine.ConversationQueryEngine",
             new=_RuntimeQueryEngineFailBeforeMeaningfulChunkStub,
         ),
         pytest.raises(
@@ -591,11 +589,11 @@ async def test_runtime_v2_stream_failure_before_first_chunk_does_not_fallback_to
 
     with (
         patch(
-            "app.ai.engine.conversation.AdapterRegistry.create_adapter",
+            "app.ai.adapters.AdapterRegistry.create_adapter",
             return_value=adapter,
         ),
         patch(
-            "app.ai.engine.conversation.ConversationQueryEngine",
+            "app.ai.runtime.query_engine.ConversationQueryEngine",
             new=_RuntimeQueryEngineFailBeforeMeaningfulChunkStub,
         ),
         pytest.raises(
@@ -636,11 +634,11 @@ async def test_runtime_v2_stream_success_with_call_log_enabled_records_success_l
 
     with (
         patch(
-            "app.ai.engine.conversation.AdapterRegistry.create_adapter",
+            "app.ai.adapters.AdapterRegistry.create_adapter",
             return_value=adapter,
         ),
         patch(
-            "app.ai.engine.conversation.ConversationQueryEngine",
+            "app.ai.runtime.query_engine.ConversationQueryEngine",
             new=_RuntimeQueryEngineStub,
         ),
     ):
@@ -687,11 +685,11 @@ async def test_runtime_v2_stream_failure_with_call_log_enabled_records_failure_l
 
     with (
         patch(
-            "app.ai.engine.conversation.AdapterRegistry.create_adapter",
+            "app.ai.adapters.AdapterRegistry.create_adapter",
             return_value=adapter,
         ),
         patch(
-            "app.ai.engine.conversation.ConversationQueryEngine",
+            "app.ai.runtime.query_engine.ConversationQueryEngine",
             new=_RuntimeQueryEngineFailBeforeMeaningfulChunkStub,
         ),
         pytest.raises(
@@ -736,11 +734,11 @@ async def test_runtime_v2_stream_failure_after_chunk_records_flag(mock_db) -> No
 
     with (
         patch(
-            "app.ai.engine.conversation.AdapterRegistry.create_adapter",
+            "app.ai.adapters.AdapterRegistry.create_adapter",
             return_value=adapter,
         ),
         patch(
-            "app.ai.engine.conversation.ConversationQueryEngine",
+            "app.ai.runtime.query_engine.ConversationQueryEngine",
             new=_RuntimeQueryEngineFailAfterMeaningfulChunkStub,
         ),
         pytest.raises(
@@ -781,11 +779,11 @@ async def test_runtime_v2_stream_failure_after_reasoning_only_chunk_does_not_set
 
     with (
         patch(
-            "app.ai.engine.conversation.AdapterRegistry.create_adapter",
+            "app.ai.adapters.AdapterRegistry.create_adapter",
             return_value=adapter,
         ),
         patch(
-            "app.ai.engine.conversation.ConversationQueryEngine",
+            "app.ai.runtime.query_engine.ConversationQueryEngine",
             new=_RuntimeQueryEngineFailAfterReasoningOnlyStub,
         ),
         pytest.raises(

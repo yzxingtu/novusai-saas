@@ -359,7 +359,8 @@
             "restore_failed": "恢复失败",
             "already_deleted": "该记录已被删除",
             "batch_too_large": "批量操作数量超限",
-            "invalid_module": "无效的模块代码"
+            "invalid_module": "无效的模块代码",
+            "retired_retention_days": "旧参数 retention_days/retentionDays 已退役，请使用 module_retention_days 和 global_retention_days"
         },
         "cleanup_triggered": "清理任务已提交",
         "module_cleared": "已清空当前模块回收站",
@@ -520,6 +521,8 @@
             "no_valves_schema": "该技能包没有可配置项",
             "invalid_valves_config": "valves_config 必须是 JSON 对象",
             "invalid_export_format": "无效的技能包导出格式或版本不兼容",
+            "retired_online_search": "联网搜索技能包已退役，不可创建、更新或绑定",
+            "platform_builtin_import_forbidden": "平台内置技能包不可通过导出文件导入",
             "scope_tenant_id_required": "作用域为「指定企业」时必须选择企业",
             "valves_missing_required": "缺少必填配置项: {fields}"
         }
@@ -559,6 +562,7 @@
             "invalid_type": "无效的技能类型",
             "invalid_scope": "无效的作用域",
             "system_protected": "系统技能不可删除或修改关键属性",
+            "retired_online_search": "联网搜索技能已退役，不可创建、更新或绑定",
             "toolkit_parse_failed": "Toolkit 源码解析失败: {error}",
             "toolkit_security_violation": "Toolkit 安全扫描未通过: {detail}"
         },
@@ -830,7 +834,9 @@
             "provider_code_exists": "供应商代码已存在",
             "provider_base_url_invalid": "供应商 API 地址格式无效，请使用以 http:// 或 https:// 开头的完整地址",
             "provider_base_url_endpoint_not_allowed": "OpenAI 兼容供应商的 API 地址不能包含 /responses 或 /chat/completions，请只填写基础地址并单独选择 API 协议",
+            "provider_protocol_config_invalid": "供应商协议配置必须写在 protocol_capabilities 中，不支持顶层 wire_api 或协议回退开关",
             "api_key_not_found": "API Key 不存在",
+            "api_key_scope_invalid": "API Key 作用域无效，仅支持 admin_only、global_shared、selected_tenants",
             "api_key_owner_required": "部分企业（selected_tenants）作用域必须选择归属企业 / Owner tenant is required for selected_tenants scope",
             "api_key_owner_forbidden": "当前作用域下归属企业必须为空 / Owner tenant must be empty for this scope",
             "fetch_remote_models_failed": "从供应商拉取模型列表失败",
@@ -2682,8 +2688,7 @@
                 "name": "DNS 提供商",
                 "desc": "生产环境仅支持 Cloudflare 自动化 DNS-01；手动模式仅用于开发调试",
                 "manual": "手动模式（仅开发调试，不支持自动签发）",
-                "cloudflare": "Cloudflare",
-                "legacy_option": "当前遗留值：{provider}（已下线，需切换）"
+                "cloudflare": "Cloudflare"
             },
             "dns_cloudflare_api_token": {
                 "name": "Cloudflare API Token",
@@ -3194,7 +3199,9 @@
             "binding_tenant_not_selected": "绑定覆盖中的企业必须包含在已选择企业列表中",
             "plugin_disabled": "插件 '{plugin}' 未启用，请先启用插件后再启用或触发其定时任务",
             "edit_locked": "该任务不允许编辑，仅允许切换启用状态",
-            "delete_locked": "任务 '{name}' 已被保护，禁止删除"
+            "delete_locked": "任务 '{name}' 已被保护，禁止删除",
+            "handler_not_registered": "任务处理器 '{handler}' 未注册为 Celery 任务",
+            "handler_kwargs_invalid": "任务处理器 '{handler}' 不接受参数：{fields}"
         }
     },
     "task_log": {"error": {"not_found": "任务日志不存在"}},

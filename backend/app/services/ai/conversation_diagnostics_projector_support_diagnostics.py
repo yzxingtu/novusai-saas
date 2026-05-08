@@ -9,6 +9,7 @@ from app.schemas.ai.invalid_ai_runtime_input import (
     DISALLOWED_AI_RUNTIME_INPUT_KEYS,
     DISALLOWED_AI_RUNTIME_INPUT_PREFIXES,
     DISALLOWED_AI_RUNTIME_INPUT_VALUES,
+    is_invalid_ai_runtime_reference,
     is_invalid_ai_runtime_tool_family,
     is_invalid_ai_runtime_tool_name,
     normalize_ai_runtime_token,
@@ -70,7 +71,8 @@ def is_invalid_runtime_diagnostics_reference(value: Any) -> bool:
         return False
     token = normalize_ai_runtime_token(text)
     return (
-        is_invalid_ai_runtime_tool_name(token)
+        is_invalid_ai_runtime_reference(text)
+        or is_invalid_ai_runtime_tool_name(token)
         or is_invalid_ai_runtime_tool_family(token)
         or token in DISALLOWED_AI_RUNTIME_INPUT_KEYS
         or token in DISALLOWED_AI_RUNTIME_INPUT_VALUES
@@ -431,7 +433,7 @@ def _normalize_provider_events(value: Any) -> list[dict[str, Any]]:
         payload = _normalize_json_dict(item)
         if not payload:
             continue
-        if _contains_invalid_runtime_diagnostics_reference(payload):
+        if contains_invalid_runtime_diagnostics_reference(payload):
             continue
         sanitized = sanitize_diagnostics_payload(payload)
         if sanitized:
@@ -439,21 +441,25 @@ def _normalize_provider_events(value: Any) -> list[dict[str, Any]]:
     return normalized
 
 
-def _contains_invalid_runtime_diagnostics_reference(value: Any) -> bool:
+def contains_invalid_runtime_diagnostics_reference(value: Any) -> bool:
     if isinstance(value, dict):
         for key, nested in value.items():
             if is_invalid_runtime_diagnostics_reference(key):
                 return True
-            if _contains_invalid_runtime_diagnostics_reference(nested):
+            if contains_invalid_runtime_diagnostics_reference(nested):
                 return True
         return False
     if isinstance(value, list | tuple):
         return any(
-            _contains_invalid_runtime_diagnostics_reference(item) for item in value
+            contains_invalid_runtime_diagnostics_reference(item) for item in value
         )
     if isinstance(value, str):
         return is_invalid_runtime_diagnostics_reference(value)
     return False
+
+
+def _contains_invalid_runtime_diagnostics_reference(value: Any) -> bool:
+    return contains_invalid_runtime_diagnostics_reference(value)
 
 
 def _normalize_turn_skill_activation(value: Any) -> dict[str, Any] | None:
@@ -1024,6 +1030,7 @@ def extract_turn_diagnostics_from_metadata(
 
 
 __all__ = [
+    "contains_invalid_runtime_diagnostics_reference",
     "extract_turn_diagnostics_from_metadata",
     "is_invalid_runtime_diagnostics_reference",
     "normalize_live_diagnostics_reference",

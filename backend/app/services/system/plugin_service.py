@@ -99,8 +99,9 @@ class PluginService(BaseService[Plugin, PluginRepository]):
 
         for key, value in config.items():
             if key not in properties:
-                # 允许额外字段，保持向后兼容 / Allow extra fields for backward compatibility
-                continue
+                raise ValidationException(
+                    message=f"Unknown plugin config field: {key}",
+                )
             spec = properties.get(key) or {}
             expected_type = spec.get("type")
             if isinstance(expected_type, str) and not _type_ok(value, expected_type):
@@ -302,9 +303,11 @@ class PluginService(BaseService[Plugin, PluginRepository]):
             except Exception:
                 previous_manifest = None
 
+        manifest_drift_error = "Manifest drift detected on disk." in str(
+            getattr(plugin, "error_message", None) or ""
+        )
         stale_manifest_error = (
-            plugin.status == PluginStatusEnum.ERROR.value
-            and "Manifest drift detected on disk." in str(plugin.error_message or "")
+            plugin.status == PluginStatusEnum.ERROR.value and manifest_drift_error
         )
         should_restore_runtime = plugin.status == PluginStatusEnum.ENABLED.value or (
             stale_manifest_error and plugin.enabled_at is not None
@@ -379,12 +382,13 @@ class PluginService(BaseService[Plugin, PluginRepository]):
             plugin.error_message = None
             plugin.error_count = 0
             await self.db.flush()
-        elif stale_manifest_error:
-            plugin.status = (
-                PluginStatusEnum.DISABLED.value
-                if plugin.enabled_at is not None
-                else PluginStatusEnum.INSTALLED.value
-            )
+        elif manifest_drift_error:
+            if stale_manifest_error:
+                plugin.status = (
+                    PluginStatusEnum.DISABLED.value
+                    if plugin.enabled_at is not None
+                    else PluginStatusEnum.INSTALLED.value
+                )
             plugin.error_message = None
             plugin.error_count = 0
             await self.db.flush()

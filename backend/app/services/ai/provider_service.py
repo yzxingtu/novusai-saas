@@ -18,6 +18,7 @@ from app.exceptions import ConflictException, NotFoundException, ValidationExcep
 from app.models.ai import AIProvider
 from app.repositories.ai import AIProviderRepository
 from app.schemas.ai.invalid_ai_runtime_input import (
+    retired_ai_provider_protocol_field_paths,
     strip_invalid_ai_provider_config_keys,
 )
 from app.schemas.ai.provider import (
@@ -175,18 +176,29 @@ class AIProviderService(BaseService[AIProvider, AIProviderRepository]):
         else:
             raise ValidationException(message="provider config must be an object")
 
+        retired_paths = retired_ai_provider_protocol_field_paths(provider_config)
+        if retired_paths:
+            raise ValidationException(
+                message=_("ai.error.provider_protocol_config_invalid")
+            )
+
         provider_config = strip_invalid_ai_provider_config_keys(provider_config)
         return provider_config or None
 
+    @staticmethod
+    def _strip_retired_provider_protocol_fields(
+        config: dict[str, Any],
+    ) -> dict[str, Any]:
+        return strip_invalid_ai_provider_config_keys(config)
+
     @classmethod
     def to_response_schema(cls, provider: AIProvider) -> AIProviderResponse:
+        raw_config = provider.config if isinstance(provider.config, dict) else {}
         try:
-            config_dict = cls._normalize_provider_config(
-                provider.config if isinstance(provider.config, dict) else None
-            )
+            config_dict = cls._normalize_provider_config(raw_config)
         except ValidationException:
-            config_dict = (
-                dict(provider.config) if isinstance(provider.config, dict) else {}
+            config_dict = strip_invalid_ai_provider_config_keys(
+                cls._strip_retired_provider_protocol_fields(raw_config)
             )
         payload = AIProviderResponse.model_validate(provider, from_attributes=True)
         payload.config = config_dict

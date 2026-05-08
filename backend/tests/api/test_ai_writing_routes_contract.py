@@ -268,12 +268,10 @@ def test_global_agent_chat_request_accepts_rendered_rich_text_operation_message(
     request = AgentChatRequest.model_validate(
         {
             "message": message,
-            "selected_skill_names": ["novusdoc.rich_text_ai.actions"],
         }
     )
 
     assert request.message == message
-    assert request.selected_skill_names == ["novusdoc.rich_text_ai.actions"]
     assert "[User Request]" in request.message
     assert "自然续写一段" in request.message
     assert request.variables is None
@@ -297,7 +295,7 @@ def test_rich_text_operation_message_omitted_target_lang_does_not_force_english(
 
 
 @pytest.mark.asyncio
-async def test_rich_text_operation_stream_resolves_system_ai_writing_and_selects_skill() -> (
+async def test_rich_text_operation_stream_resolves_system_ai_writing_without_hidden_skill_activation() -> (
     None
 ):
     async def stream_chunks():
@@ -344,7 +342,7 @@ async def test_rich_text_operation_stream_resolves_system_ai_writing_and_selects
     chat_service.stream_chat.assert_awaited_once()
     call_kwargs = chat_service.stream_chat.await_args.kwargs
     assert call_kwargs["agent_id"] == 9
-    assert call_kwargs["selected_skill_names"] == ["novusdoc.rich_text_ai.actions"]
+    assert "selected_skill_names" not in call_kwargs
     assert call_kwargs["memory_source"] == "system.ai_writing"
     assert "[User Request]" in call_kwargs["message"]
     assert "plugin.novusdoc.rich_text_ai" not in call_kwargs["message"]

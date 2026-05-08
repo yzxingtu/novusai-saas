@@ -5,10 +5,6 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from app.ai.adapters.openai_compatible.client_factory import (
-    build_chat_completions_v1_retry_base_url,
-    resolve_retry_client,
-)
 from app.ai.adapters.openai_compatible.request_builder import build_endpoint_url
 from app.core.logging import LogManager
 
@@ -28,20 +24,6 @@ class OpenAIAdapterUpstreamRuntimeMixin:
 
     def _build_endpoint_url(self, endpoint_path: str) -> str:
         return build_endpoint_url(base_url=self.base_url, endpoint_path=endpoint_path)
-
-    def _build_chat_completions_v1_retry_base_url(self) -> str | None:
-        return build_chat_completions_v1_retry_base_url(self.base_url)
-
-    def _get_chat_completions_v1_retry_client(self) -> Any | None:
-        retry_client, retry_base_url = resolve_retry_client(
-            api_key=self.api_key,
-            base_url=self.base_url,
-            cached_client=self._chat_completions_v1_retry_client,
-            cached_base_url=self._chat_completions_v1_retry_base_url,
-        )
-        self._chat_completions_v1_retry_client = retry_client
-        self._chat_completions_v1_retry_base_url = retry_base_url
-        return self._chat_completions_v1_retry_client
 
     @staticmethod
     def _extract_status_code(error: Exception) -> int | None:

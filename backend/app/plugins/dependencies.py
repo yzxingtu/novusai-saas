@@ -147,26 +147,18 @@ def _iter_plugin_dependency_items(
 
 def normalize_plugin_dependencies(
     manifest_or_data: Any,
-    *,
-    include_legacy_requires: bool = True,
 ) -> list[PluginDependencyRequirement]:
     """Normalize plugin dependency declarations from manifest/model/dict.
     / 从 manifest/model/dict 归一化插件依赖声明。
     """
     dependencies_block: Any = {}
-    compatibility_block: Any = {}
-
     if hasattr(manifest_or_data, "dependencies"):
         dependencies_block = manifest_or_data.dependencies
-        compatibility_block = getattr(manifest_or_data, "compatibility", None)
     elif isinstance(manifest_or_data, dict):
         dependencies_block = manifest_or_data.get("dependencies") or {}
-        compatibility_block = manifest_or_data.get("compatibility") or {}
 
     if hasattr(dependencies_block, "model_dump"):
         dependencies_block = dependencies_block.model_dump()
-    if hasattr(compatibility_block, "model_dump"):
-        compatibility_block = compatibility_block.model_dump()
 
     deps_items: Any = []
     if isinstance(dependencies_block, dict):
@@ -178,19 +170,6 @@ def normalize_plugin_dependencies(
         deps_items,
         source="dependencies.plugins",
     )
-
-    if include_legacy_requires:
-        legacy_items: Any = []
-        if isinstance(compatibility_block, dict):
-            legacy_items = compatibility_block.get("requires") or []
-        elif compatibility_block is not None:
-            legacy_items = getattr(compatibility_block, "requires", []) or []
-        requirements.extend(
-            _iter_plugin_dependency_items(
-                legacy_items,
-                source="compatibility.requires",
-            )
-        )
 
     merged: dict[str, PluginDependencyRequirement] = {}
     for requirement in requirements:

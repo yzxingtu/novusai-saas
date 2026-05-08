@@ -96,10 +96,6 @@ def downgrade():
             "app.codegen.migration_helper._get_current_heads",
             return_value=(["xyz999"], None),
         ),
-        patch(
-            "app.core.database.purge_orphaned_alembic_stamps",
-            MagicMock(),
-        ),
     ):
         result = run_rollback_migration_cleanup(
             resource="stock_record",
@@ -135,10 +131,6 @@ def downgrade():
             "app.codegen.migration_helper._get_current_heads",
             return_value=(["abc123", "other_head"], None),
         ),
-        patch(
-            "app.core.database.purge_orphaned_alembic_stamps",
-            MagicMock(),
-        ),
     ):
         result = run_rollback_migration_cleanup(
             resource="stock_record",
@@ -151,10 +143,14 @@ def downgrade():
     assert result is False
 
 
-def test_locate_migration_file_falls_back_for_legacy_codegen_migration_without_metadata(
+def test_locate_migration_file_requires_explicit_manifest_path(
     tmp_path: Path,
 ) -> None:
-    """旧 codegen 迁移（无 codegen_resource metadata）可被 fallback 定位."""
+    """中文: 没有明确 migration_file 时 fail closed，不再扫描旧迁移回退。
+
+    EN: Rollback fails closed without an explicit migration_file and no longer
+    scans old migrations as a fallback.
+    """
     backend = tmp_path / "backend"
     versions = backend / "migrations" / "versions"
     versions.mkdir(parents=True, exist_ok=True)
@@ -170,25 +166,9 @@ def upgrade():
 def downgrade():
     op.drop_table("stock_records")
 """)
-    # 无 codegen_resource，仅有表名
-
-    with (
-        patch(
-            "app.codegen.migration_helper._get_current_heads",
-            return_value=(["legacy123"], None),
-        ),
-        patch(
-            "app.core.database.purge_orphaned_alembic_stamps",
-            MagicMock(),
-        ),
-        patch(
-            "app.codegen.migration_helper._drop_table_if_exists",
-            return_value=False,
-        ),
-        patch(
-            "subprocess.run",
-            return_value=MagicMock(returncode=0),
-        ),
+    with patch(
+        "app.codegen.migration_helper._drop_table_if_exists",
+        return_value=False,
     ):
         result = run_rollback_migration_cleanup(
             resource="stock_record",
@@ -198,8 +178,7 @@ def downgrade():
             force_drop=False,
         )
 
-    assert result is True
-    # 关键：能定位到 legacy 迁移文件，不会因 migration_file=None 直接放弃
+    assert result is False
 
 
 def test_rollback_without_manifest_does_not_drop_table(tmp_path: Path) -> None:
@@ -209,10 +188,6 @@ def test_rollback_without_manifest_does_not_drop_table(tmp_path: Path) -> None:
     versions.mkdir(parents=True, exist_ok=True)
 
     with (
-        patch(
-            "app.core.database.purge_orphaned_alembic_stamps",
-            MagicMock(),
-        ),
         patch(
             "app.codegen.migration_helper._drop_table_if_exists",
             MagicMock(),
@@ -331,10 +306,6 @@ def test_migration_cleaned_only_true_when_downgrade_succeeds(tmp_path: Path) -> 
     versions.mkdir(parents=True, exist_ok=True)
 
     with (
-        patch(
-            "app.core.database.purge_orphaned_alembic_stamps",
-            MagicMock(),
-        ),
         patch(
             "app.codegen.migration_helper._get_current_heads",
             return_value=(["other_head"], None),

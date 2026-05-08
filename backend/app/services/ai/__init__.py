@@ -39,7 +39,6 @@ if TYPE_CHECKING:
     from app.services.ai.session_memory_service import SessionMemoryService
     from app.services.ai.skill_registry_service import SkillRegistryService
     from app.services.ai.skill_service import SkillService
-    from app.services.ai.usage_metrics import CostCalculator, TokenCounter
 
 _EXPORT_MAP = {
     "AgentService": "app.services.ai.agent_service",
@@ -64,8 +63,6 @@ _EXPORT_MAP = {
     "SessionMemoryService": "app.services.ai.session_memory_service",
     "SkillRegistryService": "app.services.ai.skill_registry_service",
     "SkillService": "app.services.ai.skill_service",
-    "CostCalculator": "app.services.ai.usage_metrics",
-    "TokenCounter": "app.services.ai.usage_metrics",
 }
 
 
@@ -84,8 +81,6 @@ __all__ = [
     "AIModelService",
     "MonitoringService",
     "ProviderApiKeyService",
-    "TokenCounter",
-    "CostCalculator",
     "CallLogService",
     "ConversationDiagnosticsProjector",
     "AdminExecutionDecisionService",

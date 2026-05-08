@@ -9,7 +9,7 @@ from typing import Any
 from app.middleware.trace import trace_id_var
 
 from .conversation_result_projector import coerce_turn_record_payload
-from .stream_generation_view import ensure_stream_generation_view
+from .stream_generation_view import build_stream_generation_view
 from .turn_flow_projector import resolve_final_stage_status
 from .types import ExecutionResult
 
@@ -28,7 +28,7 @@ def _resolve_generation_view(handler: Any) -> Any:
     explicit = getattr(handler, "_stream_generation_view", None)
     if callable(explicit):
         return explicit()
-    return ensure_stream_generation_view(handler)
+    return build_stream_generation_view(handler)
 
 
 def build_result_turn_record(

@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from typing import Any
 
+from app.ai.exceptions import ProviderError
 from app.ai.types import ChatChunk, ChatMessage, ChatResponse
 from app.models.ai import AIProvider
 
@@ -16,12 +17,6 @@ def resolve_gateway_protocol_wire_api(
     runtime_force_wire_api = runtime_kwargs.get("_runtime_force_wire_api")
     if runtime_force_wire_api is not None:
         return str(runtime_force_wire_api)
-
-    provider_config = getattr(provider, "config", None)
-    if isinstance(provider_config, dict):
-        configured_wire_api = provider_config.get("wire_api")
-        if configured_wire_api is not None:
-            return str(configured_wire_api)
     return None
 
 
@@ -48,9 +43,14 @@ def resolve_adapter_protocol_wire_api(
         if callable(runtime_wire_api_resolver):
             return runtime_wire_api_resolver(wire_api)
 
-    if wire_api is not None:
-        return str(wire_api)
-    return str(getattr(adapter, "wire_api", "chat_completions"))
+    raise ProviderError(
+        message=(
+            "OpenAI-compatible adapter is missing protocol_capabilities; "
+            "runtime protocol selection cannot proceed"
+        ),
+        provider_code="openai_compatible",
+        error_code="invalid_protocol_contract",
+    )
 
 
 async def call_chat_adapter(

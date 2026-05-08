@@ -126,3 +126,85 @@ async def test_real_dialogue_smoke_service_calls_agent_chat_with_smoke_metadata(
     assert report["scenario_results"][0]["observable_checks"][
         "answer_enterprise_saas_relevant"
     ]
+
+
+@pytest.mark.asyncio
+async def test_real_dialogue_smoke_fails_on_retired_provider_search_diagnostics(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fake_resolve_agent(
+        self,
+        *,
+        tenant_id: int | None,
+        agent_id: int | None,
+        agent_code: str | None,
+    ):
+        del self, tenant_id, agent_code
+        return SimpleNamespace(id=agent_id, name="Smoke Agent")
+
+    class FakeAgentChatService:
+        def __init__(self, db: Any, tenant_id: int) -> None:
+            _ = db, tenant_id
+
+        async def chat(self, **kwargs: Any):
+            _ = kwargs
+            return SimpleNamespace(
+                conversation_id=101,
+                message="我不能联网搜索，请提供资料后我可以分析。",
+                context_diagnostics={
+                    "selected_tool_names": ["crm_lookup"],
+                    "selected_skill_names": ["CRM Lookup"],
+                    "candidate_tool_names": ["crm_lookup", "web_search"],
+                    "provider_events": [{"kind": "response.web_search_call.completed"}],
+                },
+                total_tokens=12,
+                duration_ms=34,
+                last_run_summary={
+                    "provider_events": [{"kind": "response.web_search_call.completed"}]
+                },
+            )
+
+    async def fake_latest_call_log(self, **kwargs: Any):
+        _ = self, kwargs
+        return SimpleNamespace(
+            id=202,
+            status="success",
+            provider_name_snapshot="provider",
+            model_name_snapshot="model",
+            request_type="chat",
+            call_type="main_chat",
+        )
+
+    monkeypatch.setattr(RuntimeInventoryService, "_resolve_agent", fake_resolve_agent)
+    monkeypatch.setattr(smoke_module, "AgentChatService", FakeAgentChatService)
+    monkeypatch.setattr(
+        RuntimeRealDialogueSmokeService,
+        "_latest_call_log",
+        fake_latest_call_log,
+    )
+
+    ledger = tmp_path / "smoke-scenarios.md"
+    _write_ledger(ledger)
+    service = RuntimeRealDialogueSmokeService(db=object())
+
+    report = await service.run(
+        tenant_id=7,
+        agent_id=59,
+        agent_code=None,
+        ledger_path=str(ledger),
+        scenario_ids=["SCENARIO-002-short-answer-real-turn"],
+        message=None,
+        user_id=3,
+        user_role="platform_admin",
+        user_role_id=None,
+        repo_root=None,
+    )
+
+    result = report["scenario_results"][0]
+    assert report["overall_status"] == "failed"
+    assert result["status"] == "failed"
+    assert result["observable_checks"]["retired_current_page_or_online_search_exposed"]
+    assert result["retired_capability_probe_values"]["context_diagnostics"][
+        "provider_events"
+    ] == [{"kind": "response.web_search_call.completed"}]

@@ -12,12 +12,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import TYPE_CHECKING, Any
 
-from app.ai.adapters import AdapterRegistry  # noqa: F401
-from app.ai.runtime import ConversationQueryEngine  # noqa: F401
-from app.ai.runtime.usage_metrics import CostCalculator  # noqa: F401
-
 from .base import BaseEngine
-from .conversation_entrypoints import _SyncIOAdapter  # noqa: F401
 from .conversation_entrypoints import (
     execute_conversation as _execute_conversation,
 )
@@ -63,9 +58,6 @@ from .conversation_facade_support import (
 from .conversation_facade_support import (
     synthesize_tool_results_from_calls as _synthesize_tool_results_from_calls_impl,
 )
-from .conversation_runtime_preflight import (
-    ConversationRuntimeContext,
-)
 
 if TYPE_CHECKING:
     from fastapi.responses import StreamingResponse
@@ -74,16 +66,16 @@ if TYPE_CHECKING:
     from app.ai.tools.types import ToolDefinition, ToolResult
     from app.ai.types import ChatChunk, ChatMessage, ChatResponse
     from app.models.ai.agent import Agent
+    from app.services.ai.conversation_runtime_accounting import (
+        ConversationRuntimeAccounting,
+    )
 
-    from .conversation_runtime_accounting import ConversationRuntimeAccounting
-    from .conversation_runtime_preflight import ConversationRuntimePreflight
+    from .conversation_runtime_preflight import (
+        ConversationRuntimeContext,
+        ConversationRuntimePreflight,
+    )
     from .execution_state_machine import ExecutionStateMachine
     from .types import ExecutionRequest, ExecutionResult, ToolUsePolicy
-
-# Compatibility seam: replay tests and legacy callers still import the old
-# private runtime-context name while the implementation has moved to the
-# focused preflight helper module.
-_StreamRuntimeContext = ConversationRuntimeContext
 
 
 class ConversationEngine(BaseEngine):
@@ -142,10 +134,7 @@ class ConversationEngine(BaseEngine):
         return _build_runtime_preflight(self)
 
     def _runtime_accounting(self) -> ConversationRuntimeAccounting:
-        return _build_runtime_accounting(
-            self,
-            cost_calculator=CostCalculator,
-        )
+        return _build_runtime_accounting(self)
 
     async def _finalize_partial_output(
         self,
@@ -307,7 +296,7 @@ class ConversationEngine(BaseEngine):
         execution_path: str | None,
         extra_kwargs: dict[str, Any] | None,
         skip_metering_preflight: bool,
-    ) -> tuple[ChatResponse, ConversationQueryEngine]:
+    ) -> tuple[ChatResponse, Any]:
         return await _call_runtime_query_turn_impl(
             self,
             agent=agent,
@@ -327,8 +316,6 @@ class ConversationEngine(BaseEngine):
             execution_path=execution_path,
             extra_kwargs=extra_kwargs,
             skip_metering_preflight=skip_metering_preflight,
-            adapter_registry=AdapterRegistry,
-            query_engine_cls=ConversationQueryEngine,
             accounting_builder=lambda runtime_engine: (
                 runtime_engine._runtime_accounting()
             ),
@@ -462,8 +449,6 @@ class ConversationEngine(BaseEngine):
             tool_use_policy=tool_use_policy,
             breach_retry_result=breach_retry_result,
             skip_metering_preflight=skip_metering_preflight,
-            adapter_registry=AdapterRegistry,
-            query_engine_cls=ConversationQueryEngine,
             accounting_builder=lambda runtime_engine: (
                 runtime_engine._runtime_accounting()
             ),

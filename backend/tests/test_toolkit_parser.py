@@ -1,5 +1,18 @@
-"""Test toolkit_parser.py / 测试"""
+"""中文: 测试类型：behavioral。
 
+EN: Test type: behavioral.
+
+中文: 覆盖 Toolkit 解析元数据提取，以及 server 包转换失败时 fail closed 的语义。
+EN: Covers toolkit parser metadata extraction and server package conversion
+failure semantics.
+
+中文: 仅使用本地源码 fixture，无外部依赖 mock。
+EN: Uses local source fixtures only; no external dependency mocks.
+"""
+
+import pytest
+
+from app.ai.skills.server_converter import convert_server_to_toolkit
 from app.ai.skills.toolkit_parser import (
     ToolkitMeta,
     parse_toolkit,
@@ -184,6 +197,20 @@ class Tools:
     assert params[6]["required"] is False
     assert params[7]["required"] is False
     print("PASS: type annotations")
+
+
+def test_server_converter_fails_closed_when_auto_conversion_has_no_tools(
+    tmp_path,
+) -> None:
+    server_dir = tmp_path / "server"
+    server_dir.mkdir()
+    (server_dir / "helpers.py").write_text(
+        "def helper() -> str:\n    return 'not a route'\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="No FastAPI route handlers"):
+        convert_server_to_toolkit(server_dir, {"name": "broken-server"})
 
 
 if __name__ == "__main__":

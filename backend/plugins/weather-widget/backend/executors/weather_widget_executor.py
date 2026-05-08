@@ -1,6 +1,8 @@
-"""实时天气工具执行器 / Description.
+"""实时天气工具执行器 / Realtime weather tool executor.
 
-通过兼容 provider 获取真实天气数据，支持当前天气和多日预报两个工具。"""
+通过插件 provider 获取天气数据，支持当前天气和多日预报两个工具。
+EN: Fetches weather data through the plugin provider for current weather and
+forecast tools."""
 
 from __future__ import annotations
 
@@ -17,21 +19,16 @@ if TYPE_CHECKING:
 
 
 def _get_open_meteo():
-    """Load the historical compatibility module via the shared loader."""
-    import importlib.util
-    import sys
-    from pathlib import Path
+    """中文: 通过平台插件模块加载器加载天气 provider。
 
-    loader_name = "plugins.weather-widget.backend._loader"
-    if loader_name not in sys.modules:
-        loader_file = Path(__file__).parent.parent / "_loader.py"
-        spec = importlib.util.spec_from_file_location(loader_name, loader_file)
-        if spec is None or spec.loader is None:
-            raise ImportError(f"Cannot load {loader_file}")
-        mod = importlib.util.module_from_spec(spec)
-        sys.modules[loader_name] = mod
-        spec.loader.exec_module(mod)
-    return sys.modules[loader_name].get_open_meteo()
+    EN: Load the weather provider through the platform plugin module loader.
+    """
+    from app.plugins.module_loader import load_plugin_module
+
+    provider = load_plugin_module("weather-widget", "open_meteo")
+    if provider is None:
+        raise ImportError("Cannot load weather-widget.open_meteo")
+    return provider
 
 
 class WeatherWidgetExecutor(BaseToolExecutor):
@@ -62,20 +59,6 @@ class WeatherWidgetExecutor(BaseToolExecutor):
         if remaining <= minimum:
             return None
         return remaining
-
-    @staticmethod
-    def _lookup_candidates(city: str, open_meteo: Any) -> list[str]:
-        candidates = [city]
-        trim = (
-            open_meteo.__dict__.get("_trim_city_label_suffix")
-            if hasattr(open_meteo, "__dict__")
-            else getattr(open_meteo, "_trim_city_label_suffix", None)
-        )
-        if callable(trim):
-            trimmed = str(trim(city) or "").strip()
-            if trimmed and trimmed not in candidates:
-                candidates.append(trimmed)
-        return candidates
 
     async def validate(
         self,
@@ -109,6 +92,19 @@ class WeatherWidgetExecutor(BaseToolExecutor):
 
         tool_name = definition.name
         tool_timeout = self._tool_timeout_seconds(definition)
+        if tool_name not in {"get_current_weather", "get_weather_forecast"}:
+            err_msg = _("plugin.weather-widget.error.unknown_tool").format(
+                tool_name=tool_name,
+            )
+            return ToolResult(
+                tool_call_id=tool_call_id,
+                name=tool_name,
+                success=False,
+                error=err_msg,
+                output=err_msg,
+                duration_ms=int((time.perf_counter() - start) * 1000),
+            )
+
         provider = _get_open_meteo()
         configure = getattr(provider, "configure", None)
         if callable(configure):
@@ -117,29 +113,26 @@ class WeatherWidgetExecutor(BaseToolExecutor):
         try:
             if tool_name == "get_current_weather":
                 output = await self._get_current(city, total_timeout=tool_timeout)
-            elif tool_name == "get_weather_forecast":
-                days = arguments.get("days", 3)
-                if not isinstance(days, int):
-                    try:
-                        days = int(days)
-                    except (ValueError, TypeError):
-                        days = 3
+            else:
+                validate_days = getattr(provider, "validate_forecast_days", None)
+                if not callable(validate_days):
+                    raise RuntimeError("Weather provider is missing days validation")
+                try:
+                    days = validate_days(arguments.get("days"), default=3)
+                except ValueError:
+                    err_msg = _("plugin.weather-widget.error.days_invalid")
+                    return ToolResult(
+                        tool_call_id=tool_call_id,
+                        name=tool_name,
+                        success=False,
+                        error=err_msg,
+                        output=err_msg,
+                        duration_ms=int((time.perf_counter() - start) * 1000),
+                    )
                 output = await self._get_forecast(
                     city,
                     days,
                     total_timeout=tool_timeout,
-                )
-            else:
-                err_msg = _("plugin.weather-widget.error.unknown_tool").format(
-                    tool_name=tool_name,
-                )
-                return ToolResult(
-                    tool_call_id=tool_call_id,
-                    name=tool_name,
-                    success=False,
-                    error=err_msg,
-                    output=err_msg,
-                    duration_ms=int((time.perf_counter() - start) * 1000),
                 )
 
             duration_ms = int((time.perf_counter() - start) * 1000)
@@ -185,58 +178,28 @@ class WeatherWidgetExecutor(BaseToolExecutor):
             if total_timeout is not None and total_timeout > 0
             else None
         )
-        queries = self._lookup_candidates(city, open_meteo)
-        direct_open_meteo_search = (
-            open_meteo.__dict__.get("_search_city_open_meteo")
-            if hasattr(open_meteo, "__dict__")
-            else getattr(open_meteo, "_search_city_open_meteo", None)
-        )
-        attempted_timeout = False
+        remaining = self._remaining_timeout(deadline) if deadline is not None else None
+        if deadline is not None and remaining is None:
+            timeout_value = max(1, int(total_timeout or 1))
+            raise TimeoutError(_("tool.error.execution_timeout", timeout=timeout_value))
 
-        lookup_steps: list[tuple[str, str]] = [("smart", queries[0])]
-        if len(queries) > 1:
-            lookup_steps.append(("direct", queries[1]))
+        try:
+            lookup = open_meteo.search_city(city, count=1)
+            results = (
+                await asyncio.wait_for(lookup, timeout=remaining)
+                if remaining is not None
+                else await lookup
+            )
+        except asyncio.TimeoutError:
+            timeout_value = max(1, int(total_timeout or 1))
+            raise TimeoutError(
+                _("tool.error.execution_timeout", timeout=timeout_value)
+            ) from None
 
-        for mode, query in lookup_steps:
-            remaining = self._remaining_timeout(deadline)
-            if remaining is None:
-                break
-            step_timeout = remaining
-            if (
-                mode == "smart"
-                and len(lookup_steps) > 1
-                and total_timeout is not None
-                and total_timeout > 0
-            ):
-                step_timeout = min(
-                    remaining,
-                    max(1.0, total_timeout * 0.6),
-                )
-            try:
-                if mode == "direct" and callable(direct_open_meteo_search):
-                    results = await asyncio.wait_for(
-                        direct_open_meteo_search(query, 1),
-                        timeout=step_timeout,
-                    )
-                else:
-                    results = await asyncio.wait_for(
-                        open_meteo.search_city(query, count=1),
-                        timeout=step_timeout,
-                    )
-            except asyncio.TimeoutError:
-                attempted_timeout = True
-                continue
-
-            if not results:
-                continue
-
+        if results:
             hit = results[0]
             resolved_name = hit.get("name", city)
             return hit["latitude"], hit["longitude"], resolved_name
-
-        if attempted_timeout:
-            timeout_value = max(1, int(total_timeout or 1))
-            raise TimeoutError(_("tool.error.execution_timeout", timeout=timeout_value))
 
         raise ValueError(
             _("plugin.weather-widget.error.city_not_found_with_name").format(

@@ -78,8 +78,7 @@ class PromptContractName(StrEnum):
     CONTRACT_RECOVERY = "contract_recovery"
     PARTIAL_EXIT = "partial_exit"
 
-    # --- Domain capability blocks (weather / time) / 领域能力块 ---
-    WEATHER_TOOLS = "weather_tools"
+    # --- Domain capability blocks (time) / 领域能力块 ---
     TIME_TOOLS = "time_tools"
 
     # --- Turn capability & research state / 轮次能力与调研状态 ---
@@ -146,12 +145,6 @@ _PROMPT_CONTRACTS: dict[str, PromptContractSpec] = {
         name=PromptContractName.PARTIAL_EXIT,
         template_name="partial_exit.md",
         description="User-facing summary returned when orchestration exits partially.",
-    ),
-    # --- Domain capability blocks (weather / time) / 领域能力块 ---
-    PromptContractName.WEATHER_TOOLS.value: PromptContractSpec(
-        name=PromptContractName.WEATHER_TOOLS,
-        template_name="weather_tools.md",
-        description="Weather tool guidance block.",
     ),
     PromptContractName.TIME_TOOLS.value: PromptContractSpec(
         name=PromptContractName.TIME_TOOLS,

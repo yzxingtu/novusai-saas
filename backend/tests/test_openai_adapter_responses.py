@@ -151,12 +151,38 @@ def _make_openai_rate_limit_error(
     )
 
 
+def _responses_provider_config() -> dict[str, object]:
+    return {
+        "protocol_capabilities": {
+            "primary_wire_api": "responses",
+            "allowed_wire_apis": ["responses"],
+        },
+    }
+
+
+def _chat_completions_provider_config() -> dict[str, object]:
+    return {
+        "protocol_capabilities": {
+            "primary_wire_api": "chat_completions",
+            "allowed_wire_apis": ["chat_completions"],
+        },
+    }
+
+
+def _dual_protocol_chat_primary_config() -> dict[str, object]:
+    return {
+        "protocol_capabilities": {
+            "primary_wire_api": "chat_completions",
+            "allowed_wire_apis": ["chat_completions", "responses"],
+        },
+    }
+
+
 def _responses_cross_protocol_provider_config() -> dict[str, object]:
     return {
-        "wire_api": "responses",
         "protocol_capabilities": {
+            "primary_wire_api": "responses",
             "allowed_wire_apis": ["responses", "chat_completions"],
-            "allow_adapter_cross_protocol_fallback": True,
         },
     }
 
@@ -333,7 +359,7 @@ async def test_chat_applies_runtime_reasoning_override_to_responses_request() ->
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
-        provider_config={"wire_api": "responses"},
+        provider_config=_responses_provider_config(),
     )
     response_obj = SimpleNamespace(
         object="response",
@@ -350,7 +376,7 @@ async def test_chat_applies_runtime_reasoning_override_to_responses_request() ->
 
     result = await adapter.chat(
         messages=[ChatMessage(role="user", content="hello")],
-        model="gpt-5.4-xhigh",
+        model="gpt-5.4",
         _runtime_reasoning_effort_override="low",
     )
 
@@ -360,51 +386,13 @@ async def test_chat_applies_runtime_reasoning_override_to_responses_request() ->
 
 
 @pytest.mark.asyncio
-async def test_chat_falls_back_to_responses_when_chat_payload_has_no_choices() -> None:
-    adapter = OpenAIAdapter(
-        api_key="test-key",
-        base_url="https://api.example.com",
-        provider_config={
-            "wire_api": "chat_completions",
-            "protocol_capabilities": {
-                "allowed_wire_apis": ["chat_completions", "responses"],
-                "allow_adapter_cross_protocol_fallback": True,
-            },
-        },
-    )
-    response_obj = SimpleNamespace(
-        object="response",
-        status="completed",
-        usage=SimpleNamespace(input_tokens=12, output_tokens=8, total_tokens=20),
-        output=[
-            _make_responses_message("hello from responses"),
-            _make_responses_function_call(
-                "lookup_weather", '{"city":"Shanghai"}', "call_1"
-            ),
-        ],
-        output_text="hello from responses",
-        model_dump=lambda: {"ok": True},
-    )
-    # Misrouted: chat.completions returns a Responses-shaped body (no choices) / 误走路由：chat 返回 Responses 形响应
-    adapter.client = _FakeClient(
-        chat_response=response_obj, responses_response=response_obj
-    )
-
-
-@pytest.mark.asyncio
 async def test_chat_public_entrypoint_does_not_fallback_to_responses_on_misrouted_payload() -> (
     None
 ):
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
-        provider_config={
-            "wire_api": "chat_completions",
-            "protocol_capabilities": {
-                "allowed_wire_apis": ["chat_completions", "responses"],
-                "allow_adapter_cross_protocol_fallback": True,
-            },
-        },
+        provider_config=_dual_protocol_chat_primary_config(),
     )
     response_obj = SimpleNamespace(
         object="response",
@@ -422,7 +410,7 @@ async def test_chat_public_entrypoint_does_not_fallback_to_responses_on_misroute
     with pytest.raises(ProviderError, match="AI 请求失败"):
         await adapter.chat(
             messages=[ChatMessage(role="user", content="hello")],
-            model="gpt-5.4-xhigh",
+            model="gpt-5.4",
         )
 
     assert adapter.client.responses.last_kwargs is None
@@ -435,13 +423,7 @@ async def test_stream_chat_public_entrypoint_does_not_fallback_to_responses_on_m
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
-        provider_config={
-            "wire_api": "chat_completions",
-            "protocol_capabilities": {
-                "allowed_wire_apis": ["chat_completions", "responses"],
-                "allow_adapter_cross_protocol_fallback": True,
-            },
-        },
+        provider_config=_dual_protocol_chat_primary_config(),
     )
     response_obj = SimpleNamespace(
         object="response",
@@ -460,7 +442,7 @@ async def test_stream_chat_public_entrypoint_does_not_fallback_to_responses_on_m
     with pytest.raises(ProviderError, match="AI 请求失败"):
         async for _ in adapter.stream_chat(
             messages=[ChatMessage(role="user", content="hello")],
-            model="gpt-5.4-xhigh",
+            model="gpt-5.4",
         ):
             pass
 
@@ -475,12 +457,6 @@ async def test_chat_does_not_fallback_when_payload_is_plain_html() -> None:
         chat_response="<!doctype html><html></html>",
         responses_response=SimpleNamespace(output_text="should not be used"),
     )
-    adapter._chat_completions_v1_retry_client = SimpleNamespace(
-        chat=SimpleNamespace(
-            completions=_FakeChatCompletions("<!doctype html><html></html>"),
-        ),
-    )
-    adapter._chat_completions_v1_retry_base_url = "https://api.example.com/v1"
     with pytest.raises(ProviderError, match="AI 请求失败"):
         await adapter.chat(
             messages=[ChatMessage(role="user", content="hello")],
@@ -489,25 +465,22 @@ async def test_chat_does_not_fallback_when_payload_is_plain_html() -> None:
 
 
 @pytest.mark.asyncio
-async def test_chat_accepts_plain_text_response_from_chat_completions_gateway() -> None:
+async def test_chat_rejects_plain_text_response_from_chat_completions_gateway() -> None:
     adapter = OpenAIAdapter(api_key="test-key", base_url="https://api.example.com")
     adapter.client = _FakeClient(
         chat_response="raw text reply from gateway",
         responses_response=SimpleNamespace(output_text="should not be used"),
     )
 
-    result = await adapter.chat(
-        messages=[ChatMessage(role="user", content="hello")],
-        model="gpt-4",
-    )
-
-    assert result.message.content == "raw text reply from gateway"
-    assert result.metadata["protocol_path"] == "chat_completions"
-    assert result.metadata["response_shape"] == "raw_text"
+    with pytest.raises(ProviderError, match="AI 请求失败"):
+        await adapter.chat(
+            messages=[ChatMessage(role="user", content="hello")],
+            model="gpt-4",
+        )
 
 
 @pytest.mark.asyncio
-async def test_chat_retries_chat_completions_with_v1_when_root_endpoint_returns_html() -> (
+async def test_chat_does_not_retry_chat_completions_with_v1_when_root_endpoint_returns_html() -> (
     None
 ):
     adapter = OpenAIAdapter(
@@ -518,21 +491,12 @@ async def test_chat_retries_chat_completions_with_v1_when_root_endpoint_returns_
         chat_response="<!doctype html><html></html>",
         responses_response=SimpleNamespace(output_text="should not be used"),
     )
-    retry_completions = _FakeChatCompletions(
-        _make_chat_completion_response("v1 retry ok"),
-    )
-    adapter._chat_completions_v1_retry_client = SimpleNamespace(
-        chat=SimpleNamespace(completions=retry_completions),
-    )
-    adapter._chat_completions_v1_retry_base_url = "https://codex.2api.com.cn/v1"
 
-    result = await adapter.chat(
-        messages=[ChatMessage(role="user", content="hello")],
-        model="gpt-5.4-xhigh",
-    )
-
-    assert result.message.content == "v1 retry ok"
-    assert retry_completions.last_kwargs is not None
+    with pytest.raises(ProviderError, match="AI 请求失败"):
+        await adapter.chat(
+            messages=[ChatMessage(role="user", content="hello")],
+            model="gpt-5.4",
+        )
 
 
 @pytest.mark.asyncio
@@ -556,13 +520,7 @@ async def test_chat_runtime_force_wire_api_uses_responses_path() -> None:
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
-        provider_config={
-            "wire_api": "chat_completions",
-            "protocol_capabilities": {
-                "allowed_wire_apis": ["chat_completions", "responses"],
-                "allow_adapter_cross_protocol_fallback": True,
-            },
-        },
+        provider_config=_dual_protocol_chat_primary_config(),
     )
     response_obj = SimpleNamespace(
         object="response",
@@ -583,7 +541,7 @@ async def test_chat_runtime_force_wire_api_uses_responses_path() -> None:
 
     result = await adapter.chat(
         messages=[ChatMessage(role="user", content="hello")],
-        model="gpt-5.4-xhigh",
+        model="gpt-5.4",
         _runtime_force_wire_api="responses",
         _runtime_disable_cross_protocol_fallback=True,
     )
@@ -595,7 +553,30 @@ async def test_chat_runtime_force_wire_api_uses_responses_path() -> None:
 
 
 @pytest.mark.asyncio
-async def test_chat_public_entrypoint_keeps_protocol_safe_responses_error_without_legacy_fallback() -> (
+async def test_chat_public_wire_api_override_is_rejected() -> None:
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config=_dual_protocol_chat_primary_config(),
+    )
+    adapter.client = _FakeClient(
+        chat_response=_make_chat_completion_response("chat path"),
+        responses_response=SimpleNamespace(output_text="should not be used"),
+    )
+
+    with pytest.raises(ProviderError, match="Public wire_api override is retired"):
+        await adapter.chat(
+            messages=[ChatMessage(role="user", content="hello")],
+            model="gpt-5.4",
+            wire_api="responses",
+        )
+
+    assert adapter.client.chat.completions.last_kwargs is None
+    assert adapter.client.responses.last_kwargs is None
+
+
+@pytest.mark.asyncio
+async def test_chat_public_entrypoint_keeps_protocol_safe_responses_error_without_adapter_fallback() -> (
     None
 ):
     adapter = OpenAIAdapter(
@@ -616,7 +597,7 @@ async def test_chat_public_entrypoint_keeps_protocol_safe_responses_error_withou
     with pytest.raises(ProviderError, match="AI 请求失败"):
         await adapter.chat(
             messages=[ChatMessage(role="user", content="hello")],
-            model="gpt-5.4-xhigh",
+            model="gpt-5.4",
             tools=[
                 {
                     "type": "function",
@@ -633,7 +614,7 @@ def test_responses_provider_defaults_to_primary_only_protocol_capabilities() -> 
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
-        provider_config={"wire_api": "responses"},
+        provider_config=_responses_provider_config(),
     )
 
     assert adapter.protocol_capabilities.primary_wire_api == "responses"
@@ -679,44 +660,32 @@ def test_nested_protocol_capabilities_without_top_level_wire_api_preserves_first
     )
 
 
-def test_top_level_wire_api_respected_when_supported_by_nested_protocol_contract() -> (
-    None
-):
-    adapter = OpenAIAdapter(
-        api_key="test-key",
-        base_url="https://api.example.com",
-        provider_config={
-            "wire_api": "responses",
-            "protocol_capabilities": {
-                "allowed_wire_apis": ["chat_completions", "responses"],
+def test_top_level_wire_api_is_rejected_when_nested_protocol_contract_exists() -> None:
+    with pytest.raises(ProviderError, match="Retired provider protocol field wire_api"):
+        OpenAIAdapter(
+            api_key="test-key",
+            base_url="https://api.example.com",
+            provider_config={
+                "wire_api": "responses",
+                "protocol_capabilities": {
+                    "allowed_wire_apis": ["chat_completions", "responses"],
+                },
             },
-        },
-    )
-
-    assert adapter.protocol_capabilities.primary_wire_api == "responses"
-    assert adapter.protocol_capabilities.allowed_wire_apis == (
-        "responses",
-        "chat_completions",
-    )
+        )
 
 
-def test_conflicting_top_level_wire_api_does_not_widen_nested_responses_only_contract() -> (
-    None
-):
-    adapter = OpenAIAdapter(
-        api_key="test-key",
-        base_url="https://api.example.com",
-        provider_config={
-            "wire_api": "chat_completions",
-            "protocol_capabilities": {
-                "allowed_wire_apis": ["responses"],
+def test_conflicting_top_level_wire_api_is_rejected() -> None:
+    with pytest.raises(ProviderError, match="Retired provider protocol field wire_api"):
+        OpenAIAdapter(
+            api_key="test-key",
+            base_url="https://api.example.com",
+            provider_config={
+                "wire_api": "chat_completions",
+                "protocol_capabilities": {
+                    "allowed_wire_apis": ["responses"],
+                },
             },
-        },
-    )
-
-    assert adapter.protocol_capabilities.primary_wire_api == "responses"
-    assert adapter.protocol_capabilities.allowed_wire_apis == ("responses",)
-    assert adapter.protocol_capabilities.allow_adapter_cross_protocol_fallback is False
+        )
 
 
 def test_invalid_protocol_token_in_allowed_wire_apis_raises_provider_error() -> None:
@@ -735,7 +704,7 @@ def test_invalid_protocol_token_in_allowed_wire_apis_raises_provider_error() -> 
 
 
 def test_invalid_top_level_wire_api_raises_provider_error() -> None:
-    with pytest.raises(ProviderError, match="Invalid provider wire API in wire_api"):
+    with pytest.raises(ProviderError, match="Retired provider protocol field wire_api"):
         OpenAIAdapter(
             api_key="test-key",
             base_url="https://api.example.com",
@@ -769,13 +738,7 @@ async def test_runtime_force_wire_api_rejects_unsupported_protocol_for_responses
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
-        provider_config={
-            "wire_api": "responses",
-            "protocol_capabilities": {
-                "allowed_wire_apis": ["responses"],
-                "allow_adapter_cross_protocol_fallback": False,
-            },
-        },
+        provider_config=_responses_provider_config(),
     )
     adapter.client = _FakeClient(
         chat_response=_make_chat_completion_response(),
@@ -788,7 +751,7 @@ async def test_runtime_force_wire_api_rejects_unsupported_protocol_for_responses
     ):
         await adapter.chat(
             messages=[ChatMessage(role="user", content="hello")],
-            model="gpt-5.4-xhigh",
+            model="gpt-5.4",
             _runtime_force_wire_api="chat_completions",
         )
 
@@ -818,7 +781,7 @@ async def test_runtime_force_wire_api_rejects_unsupported_protocol_for_nested_re
     ):
         await adapter.chat(
             messages=[ChatMessage(role="user", content="hello")],
-            model="gpt-5.4-xhigh",
+            model="gpt-5.4",
             _runtime_force_wire_api="chat_completions",
         )
 
@@ -942,7 +905,7 @@ async def test_chat_responses_maps_timeout_seconds_to_timeout() -> None:
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
-        provider_config={"wire_api": "responses"},
+        provider_config=_responses_provider_config(),
     )
     response_obj = SimpleNamespace(
         id="resp_sync_1",
@@ -961,7 +924,7 @@ async def test_chat_responses_maps_timeout_seconds_to_timeout() -> None:
 
     response = await adapter.chat(
         messages=[ChatMessage(role="user", content="hello")],
-        model="gpt-5.4-xhigh",
+        model="gpt-5.4",
         timeout_seconds=7,
     )
 
@@ -980,7 +943,7 @@ async def test_stream_chat_responses_defaults_timeout_without_timeout_seconds_pa
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
-        provider_config={"wire_api": "responses"},
+        provider_config=_responses_provider_config(),
     )
     completed_response = SimpleNamespace(
         usage=SimpleNamespace(input_tokens=11, output_tokens=4, total_tokens=15),
@@ -1003,7 +966,7 @@ async def test_stream_chat_responses_defaults_timeout_without_timeout_seconds_pa
     chunks: list[ChatChunk] = []
     async for chunk in adapter.stream_chat(
         messages=[ChatMessage(role="user", content="hello")],
-        model="gpt-5.4-xhigh",
+        model="gpt-5.4",
     ):
         chunks.append(chunk)
 
@@ -1022,7 +985,7 @@ async def test_stream_chat_responses_low_reasoning_override_uses_fast_path_timeo
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
-        provider_config={"wire_api": "responses"},
+        provider_config=_responses_provider_config(),
     )
     completed_response = SimpleNamespace(
         usage=SimpleNamespace(input_tokens=11, output_tokens=4, total_tokens=15),
@@ -1045,7 +1008,7 @@ async def test_stream_chat_responses_low_reasoning_override_uses_fast_path_timeo
     chunks: list[ChatChunk] = []
     async for chunk in adapter.stream_chat(
         messages=[ChatMessage(role="user", content="hello")],
-        model="gpt-5.4-xhigh",
+        model="gpt-5.4",
         _runtime_reasoning_effort_override="low",
     ):
         chunks.append(chunk)
@@ -1060,7 +1023,7 @@ async def test_stream_chat_responses_low_reasoning_override_uses_fast_path_timeo
 
 
 @pytest.mark.asyncio
-async def test_stream_chat_public_entrypoint_keeps_protocol_safe_responses_error_without_legacy_rescue() -> (
+async def test_stream_chat_public_entrypoint_keeps_protocol_safe_responses_error_without_adapter_rescue() -> (
     None
 ):
     adapter = OpenAIAdapter(
@@ -1088,7 +1051,7 @@ async def test_stream_chat_public_entrypoint_keeps_protocol_safe_responses_error
     with pytest.raises(ProviderError, match="AI 请求失败"):
         async for _ in adapter.stream_chat(
             messages=[ChatMessage(role="user", content="hello")],
-            model="gpt-5.4-xhigh",
+            model="gpt-5.4",
             tools=[
                 {
                     "type": "function",
@@ -1151,6 +1114,15 @@ class _RuntimeFakeAdapter:
         return result
 
 
+def _responses_only_runtime_capabilities() -> SimpleNamespace:
+    return SimpleNamespace(
+        primary_wire_api="responses",
+        allowed_wire_apis=("responses",),
+        allowed_cross_protocol_fallbacks={},
+        allow_adapter_cross_protocol_fallback=False,
+    )
+
+
 class _ProtocolOnlyRuntimeAdapter(_RuntimeFakeAdapter):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -1202,14 +1174,14 @@ async def test_runtime_query_engine_uses_protocol_specific_adapter_entrypoints()
         ChatResponse(
             message=ChatMessage(role="assistant", content="hello from protocol client"),
             finish_reason="stop",
-            model="gpt-5.4-xhigh",
+            model="gpt-5.4",
         ),
     )
     query_engine = ConversationQueryEngine(adapter=adapter, strict_contract=False)
 
     response = await query_engine.run_chat_turn(
         messages=[ChatMessage(role="user", content="hello")],
-        model="gpt-5.4-xhigh",
+        model="gpt-5.4",
         temperature=0.7,
         max_tokens=None,
         top_p=1.0,
@@ -1249,7 +1221,7 @@ async def test_runtime_query_engine_uses_protocol_specific_stream_entrypoint() -
         chunk
         async for chunk in query_engine.iter_stream_turn(
             messages=[ChatMessage(role="user", content="hello")],
-            model="gpt-5.4-xhigh",
+            model="gpt-5.4",
             temperature=0.7,
             max_tokens=None,
             top_p=1.0,
@@ -1270,7 +1242,10 @@ async def test_runtime_query_engine_uses_protocol_specific_stream_entrypoint() -
 async def test_runtime_query_engine_provider_rate_limit_stream_does_not_cross_fallback() -> (
     None
 ):
-    adapter = _RuntimeFakeAdapter(wire_api="responses")
+    adapter = _RuntimeFakeAdapter(
+        wire_api="responses",
+        protocol_capabilities=_responses_only_runtime_capabilities(),
+    )
     adapter.set_stream(
         "responses",
         [ProviderRateLimitError("too many concurrent sessions")],
@@ -1284,7 +1259,7 @@ async def test_runtime_query_engine_provider_rate_limit_stream_does_not_cross_fa
     with pytest.raises(ProviderRateLimitError):
         await query_engine.run_stream_turn(
             messages=[ChatMessage(role="user", content="hello")],
-            model="gpt-5.4-xhigh",
+            model="gpt-5.4",
             temperature=0.7,
             max_tokens=None,
             top_p=1.0,
@@ -1308,7 +1283,10 @@ async def test_runtime_query_engine_provider_rate_limit_stream_does_not_cross_fa
 async def test_runtime_query_engine_provider_timeout_stream_does_not_cross_fallback() -> (
     None
 ):
-    adapter = _RuntimeFakeAdapter(wire_api="responses")
+    adapter = _RuntimeFakeAdapter(
+        wire_api="responses",
+        protocol_capabilities=_responses_only_runtime_capabilities(),
+    )
     adapter.set_stream(
         "responses",
         [
@@ -1328,7 +1306,7 @@ async def test_runtime_query_engine_provider_timeout_stream_does_not_cross_fallb
     with pytest.raises(ProviderTimeoutError, match="provider timed out"):
         await query_engine.run_stream_turn(
             messages=[ChatMessage(role="user", content="hello")],
-            model="gpt-5.4-xhigh",
+            model="gpt-5.4",
             temperature=0.7,
             max_tokens=None,
             top_p=1.0,
@@ -1352,7 +1330,10 @@ async def test_runtime_query_engine_provider_timeout_stream_does_not_cross_fallb
 async def test_runtime_query_engine_provider_connection_stream_does_not_cross_fallback() -> (
     None
 ):
-    adapter = _RuntimeFakeAdapter(wire_api="responses")
+    adapter = _RuntimeFakeAdapter(
+        wire_api="responses",
+        protocol_capabilities=_responses_only_runtime_capabilities(),
+    )
     adapter.set_stream(
         "responses",
         [ProviderConnectionError("Connection error.")],
@@ -1366,7 +1347,7 @@ async def test_runtime_query_engine_provider_connection_stream_does_not_cross_fa
     with pytest.raises(ProviderConnectionError, match="Connection error\\."):
         await query_engine.run_stream_turn(
             messages=[ChatMessage(role="user", content="hello")],
-            model="gpt-5.4-xhigh",
+            model="gpt-5.4",
             temperature=0.7,
             max_tokens=None,
             top_p=1.0,
@@ -1411,7 +1392,7 @@ async def test_stream_chat_responses_output_text_done_without_completed() -> Non
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
-        provider_config={"wire_api": "responses"},
+        provider_config=_responses_provider_config(),
     )
     rs = _FakeResponsesStream(
         [
@@ -1466,7 +1447,7 @@ async def test_stream_chat_responses_output_text_done_retrieves_usage_when_event
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
-        provider_config={"wire_api": "responses"},
+        provider_config=_responses_provider_config(),
     )
     created_response = SimpleNamespace(id="resp_123")
     retrieved_response = SimpleNamespace(
@@ -1527,7 +1508,7 @@ async def test_stream_chat_responses_output_text_done_uses_fast_usage_backfill_c
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
-        provider_config={"wire_api": "responses"},
+        provider_config=_responses_provider_config(),
     )
     created_response = SimpleNamespace(id="resp_123")
     retrieved_response = SimpleNamespace(
@@ -1599,7 +1580,7 @@ async def test_stream_chat_responses_output_text_done_estimates_usage_when_retri
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
-        provider_config={"wire_api": "responses"},
+        provider_config=_responses_provider_config(),
     )
     rs = _FakeResponsesStream(
         [
@@ -1622,7 +1603,7 @@ async def test_stream_chat_responses_output_text_done_estimates_usage_when_retri
     chunks = []
     async for chunk in adapter.stream_chat(
         messages=[ChatMessage(role="user", content="测试输入")],
-        model="gpt-5.4-xhigh",
+        model="gpt-5.4",
     ):
         chunks.append(chunk)
 
@@ -1690,7 +1671,7 @@ async def test_stream_chat_responses_done_event_text_when_no_prior_deltas() -> N
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
-        provider_config={"wire_api": "responses"},
+        provider_config=_responses_provider_config(),
     )
     adapter.client = SimpleNamespace(
         responses=SimpleNamespace(
@@ -1741,7 +1722,7 @@ async def test_stream_chat_uses_responses_protocol_when_configured() -> None:
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
-        provider_config={"wire_api": "responses"},
+        provider_config=_responses_provider_config(),
     )
     completed_response = SimpleNamespace(
         usage=SimpleNamespace(input_tokens=11, output_tokens=4, total_tokens=15),
@@ -1766,7 +1747,7 @@ async def test_stream_chat_uses_responses_protocol_when_configured() -> None:
     chunks = []
     async for chunk in adapter.stream_chat(
         messages=[ChatMessage(role="user", content="hello")],
-        model="gpt-5.4-xhigh",
+        model="gpt-5.4",
     ):
         chunks.append(chunk)
 
@@ -1798,7 +1779,7 @@ async def test_stream_chat_responses_timeout_before_first_chunk_fails_without_sy
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
-        provider_config={"wire_api": "responses"},
+        provider_config=_responses_provider_config(),
     )
     hanging_stream = _HangingResponsesStream()
     create_calls: list[dict[str, Any]] = []
@@ -1823,7 +1804,7 @@ async def test_stream_chat_responses_timeout_before_first_chunk_fails_without_sy
     with pytest.raises(ProviderTimeoutError):
         async for _ in adapter.stream_chat(
             messages=[ChatMessage(role="user", content="hello")],
-            model="gpt-5.4-xhigh",
+            model="gpt-5.4",
             timeout_seconds=0.05,
         ):
             pass
@@ -1841,7 +1822,7 @@ async def test_stream_chat_responses_stream_create_timeout_fails_without_sync_re
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
-        provider_config={"wire_api": "responses"},
+        provider_config=_responses_provider_config(),
     )
     create_calls: list[dict[str, Any]] = []
 
@@ -1865,7 +1846,7 @@ async def test_stream_chat_responses_stream_create_timeout_fails_without_sync_re
     with pytest.raises(ProviderError):
         async for _ in adapter.stream_chat(
             messages=[ChatMessage(role="user", content="hello")],
-            model="gpt-5.4-xhigh",
+            model="gpt-5.4",
             timeout_seconds=0.05,
         ):
             pass
@@ -1896,7 +1877,7 @@ async def test_stream_chat_responses_hanging_stream_times_out_with_timeout_secon
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
-        provider_config={"wire_api": "responses"},
+        provider_config=_responses_provider_config(),
     )
     hanging_stream = _HangingResponsesStream()
     create_calls: list[dict[str, Any]] = []
@@ -1919,7 +1900,7 @@ async def test_stream_chat_responses_hanging_stream_times_out_with_timeout_secon
     with pytest.raises(ProviderTimeoutError):
         async for _ in adapter.stream_chat(
             messages=[ChatMessage(role="user", content="hello")],
-            model="gpt-5.4-xhigh",
+            model="gpt-5.4",
             timeout_seconds=0.05,
         ):
             pass
@@ -1975,7 +1956,7 @@ async def test_stream_chat_public_responses_timeout_does_not_hit_chat_completion
     with pytest.raises(ProviderTimeoutError):
         async for _ in adapter.stream_chat(
             messages=[ChatMessage(role="user", content="hello")],
-            model="gpt-5.4-xhigh",
+            model="gpt-5.4",
             tools=[
                 {
                     "type": "function",
@@ -1999,7 +1980,7 @@ async def test_chat_protocol_responses_applies_client_retry_override() -> None:
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
-        provider_config={"wire_api": "responses"},
+        provider_config=_responses_provider_config(),
     )
     client = _FakeClientWithOptions(
         None,
@@ -2053,7 +2034,7 @@ async def test_stream_protocol_responses_applies_client_retry_override() -> None
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
-        provider_config={"wire_api": "responses"},
+        provider_config=_responses_provider_config(),
     )
     stream = _FakeResponsesStream(
         [
@@ -2121,7 +2102,7 @@ async def test_stream_chat_emits_reasoning_from_completed_response_when_no_reaso
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
-        provider_config={"wire_api": "responses"},
+        provider_config=_responses_provider_config(),
     )
     completed_response = SimpleNamespace(
         usage=SimpleNamespace(input_tokens=11, output_tokens=4, total_tokens=15),
@@ -2151,7 +2132,7 @@ async def test_stream_chat_emits_reasoning_from_completed_response_when_no_reaso
     chunks = []
     async for chunk in adapter.stream_chat(
         messages=[ChatMessage(role="user", content="hello")],
-        model="gpt-5.4-xhigh",
+        model="gpt-5.4",
     ):
         chunks.append(chunk)
 
@@ -2167,7 +2148,7 @@ async def test_convert_messages_to_responses_input_preserves_tool_roundtrip() ->
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
-        provider_config={"wire_api": "responses"},
+        provider_config=_responses_provider_config(),
     )
 
     converted = await adapter._convert_messages_to_responses_input(
@@ -2213,7 +2194,7 @@ async def test_convert_messages_to_responses_input_keeps_item_id_separate_from_c
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
-        provider_config={"wire_api": "responses"},
+        provider_config=_responses_provider_config(),
     )
 
     converted = await adapter._convert_messages_to_responses_input(
@@ -2261,7 +2242,7 @@ async def test_convert_messages_to_responses_input_uses_following_call_id_when_i
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
-        provider_config={"wire_api": "responses"},
+        provider_config=_responses_provider_config(),
     )
 
     converted = await adapter._convert_messages_to_responses_input(
@@ -2312,7 +2293,7 @@ async def test_convert_messages_to_responses_input_synthesizes_missing_call_id_r
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
-        provider_config={"wire_api": "responses"},
+        provider_config=_responses_provider_config(),
     )
 
     converted = await adapter._convert_messages_to_responses_input(
@@ -2359,7 +2340,7 @@ async def test_convert_messages_to_responses_input_pairs_mismatched_internal_too
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
-        provider_config={"wire_api": "responses"},
+        provider_config=_responses_provider_config(),
     )
 
     converted = await adapter._convert_messages_to_responses_input(
@@ -2410,7 +2391,7 @@ async def test_convert_messages_to_responses_input_drops_orphan_tool_without_cal
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
-        provider_config={"wire_api": "responses"},
+        provider_config=_responses_provider_config(),
     )
 
     converted = await adapter._convert_messages_to_responses_input(
@@ -2421,15 +2402,17 @@ async def test_convert_messages_to_responses_input_drops_orphan_tool_without_cal
 
 
 @pytest.mark.asyncio
-async def test_convert_messages_to_responses_input_ignores_legacy_text_mode_and_keeps_structured_tool_roundtrip() -> (
+async def test_convert_messages_to_responses_input_keeps_structured_tool_roundtrip() -> (
     None
 ):
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
         provider_config={
-            "wire_api": "responses",
-            "responses_tool_history_mode": "text",
+            "protocol_capabilities": {
+                "primary_wire_api": "responses",
+                "allowed_wire_apis": ["responses"],
+            },
         },
     )
 
@@ -2488,24 +2471,12 @@ def test_init_keeps_endpoint_style_base_url_and_does_not_infer_wire_api() -> Non
     assert adapter.wire_api == "chat_completions"
 
 
-def test_build_chat_completions_v1_retry_base_url_for_root_base_url() -> None:
-    adapter = OpenAIAdapter(
-        api_key="test-key",
-        base_url="https://codex.2api.com.cn",
-    )
-
-    assert (
-        adapter._build_chat_completions_v1_retry_base_url()
-        == "https://codex.2api.com.cn/v1"
-    )
-
-
 @pytest.mark.asyncio
 async def test_build_responses_request_enables_reasoning_summary_for_gpt5() -> None:
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
-        provider_config={"wire_api": "responses"},
+        provider_config=_responses_provider_config(),
     )
 
     request = await adapter._build_responses_request(
@@ -2522,12 +2493,12 @@ async def test_build_responses_request_preserves_explicit_reasoning_effort() -> 
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
-        provider_config={"wire_api": "responses"},
+        provider_config=_responses_provider_config(),
     )
 
     request = await adapter._build_responses_request(
         messages=[ChatMessage(role="user", content="hello")],
-        model="gpt-5.4-xhigh",
+        model="gpt-5.4",
         reasoning={"effort": "high"},
     )
 
@@ -2570,7 +2541,7 @@ async def test_build_responses_request_applies_model_config_reasoning_effort() -
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
-        provider_config={"wire_api": "responses"},
+        provider_config=_responses_provider_config(),
     )
 
     request = await adapter._build_responses_request(
@@ -2593,25 +2564,20 @@ async def test_build_responses_request_applies_model_config_reasoning_effort() -
 
 
 @pytest.mark.asyncio
-async def test_build_responses_request_legacy_alias_uses_base_model_and_effort() -> (
-    None
-):
+async def test_build_responses_request_keeps_model_code_without_alias_parsing() -> None:
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
-        provider_config={"wire_api": "responses"},
+        provider_config=_responses_provider_config(),
     )
 
     request = await adapter._build_responses_request(
         messages=[ChatMessage(role="user", content="hello")],
-        model="gpt-5.4-xhigh",
+        model="gpt-5.4",
     )
 
     assert request["model"] == "gpt-5.4"
-    assert request["reasoning"] == {
-        "effort": "xhigh",
-        "summary": "auto",
-    }
+    assert request["reasoning"] == {"summary": "auto"}
 
 
 def test_build_chat_completions_request_keeps_plain_model_without_reasoning_override() -> (
@@ -2700,7 +2666,7 @@ def test_convert_responses_chat_response_extracts_reasoning_summary() -> None:
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
-        provider_config={"wire_api": "responses"},
+        provider_config=_responses_provider_config(),
     )
 
     response_obj = SimpleNamespace(
@@ -2720,18 +2686,42 @@ def test_convert_responses_chat_response_extracts_reasoning_summary() -> None:
 
     result = adapter._convert_responses_chat_response(
         response_obj,
-        "gpt-5.4-xhigh",
+        "gpt-5.4",
     )
 
     assert result.message.content == "hello from responses"
     assert result.message.reasoning_content == "先读取上下文，再决定是否调用工具。"
 
 
+def test_convert_responses_chat_response_rejects_retired_search_output() -> None:
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config=_responses_provider_config(),
+    )
+    response_obj = SimpleNamespace(
+        object="response",
+        status="completed",
+        usage=SimpleNamespace(input_tokens=1, output_tokens=1, total_tokens=2),
+        output=[
+            SimpleNamespace(type="web_search_call", status="completed"),
+            _make_responses_message("done"),
+        ],
+        output_text="done",
+        model_dump=lambda: {"ok": True},
+    )
+
+    with pytest.raises(ProviderError) as exc:
+        adapter._convert_responses_chat_response(response_obj, "gpt-5.4")
+
+    assert exc.value.error_code == "retired_online_search_provider_output"
+
+
 def test_convert_responses_chat_response_accepts_chat_style_usage_fields() -> None:
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
-        provider_config={"wire_api": "responses"},
+        provider_config=_responses_provider_config(),
     )
 
     response_obj = SimpleNamespace(
@@ -2749,7 +2739,7 @@ def test_convert_responses_chat_response_accepts_chat_style_usage_fields() -> No
 
     result = adapter._convert_responses_chat_response(
         response_obj,
-        "gpt-5.4-xhigh",
+        "gpt-5.4",
     )
 
     assert result.input_tokens == 21
@@ -2781,7 +2771,7 @@ async def test_stream_chat_responses_completed_accepts_chat_style_usage_fields()
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
-        provider_config={"wire_api": "responses"},
+        provider_config=_responses_provider_config(),
     )
     completed_response = SimpleNamespace(
         usage={
@@ -2812,7 +2802,7 @@ async def test_stream_chat_responses_completed_accepts_chat_style_usage_fields()
     chunks = []
     async for chunk in adapter.stream_chat(
         messages=[ChatMessage(role="user", content="hello")],
-        model="gpt-5.4-xhigh",
+        model="gpt-5.4",
     ):
         chunks.append(chunk)
 

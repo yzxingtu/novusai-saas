@@ -1,5 +1,5 @@
 """Test type: structural
-Scope: skill-package export/import field compatibility for AI runtime skill contracts.
+Scope: skill-package export/import field governance for AI runtime skill contracts.
 Real dependencies: shared skill-package IO helpers and ORM model constructors.
 Mocked dependencies: repository lookup seams and async DB flush/add boundary.
 """
@@ -10,7 +10,12 @@ from types import SimpleNamespace
 
 import pytest
 
+from app.api.admin import _skill_io as skill_io
 from app.api.shared import _skill_package_export as package_io
+from app.exceptions import BusinessException
+from app.services.ai.retired_skill_guard import (
+    ensure_not_retired_online_search_plugin_skill,
+)
 
 
 class _FakeDb:
@@ -112,73 +117,254 @@ async def test_export_skill_package_preserves_stable_skill_contract_fields(
 
 
 @pytest.mark.asyncio
-async def test_import_skill_package_restores_stable_skill_contract_fields(
+async def test_import_platform_rich_text_package_is_rejected(
     monkeypatch,
 ) -> None:
     class _PackageRepo:
         def __init__(self, db) -> None:
             self.db = db
 
-        async def get_by_name_global(self, name: str):
-            assert name == "NovusDoc Rich Text AI"
+        async def get_by_name_global(self, _name: str):
+            pytest.fail("platform built-in package imports must fail before lookup")
             return None
 
     monkeypatch.setattr(package_io, "AdminSkillPackageRepository", _PackageRepo)
     db = _FakeDb()
 
-    result = await package_io.import_skill_package(
-        db,
-        {
-            "export_version": package_io.EXPORT_VERSION,
-            "package_info": {
-                "name": "NovusDoc Rich Text AI",
-                "description": "Default rich text package",
-                "source_plugin": "novusdoc",
-                "is_recommended": True,
-                "is_active": True,
+    with pytest.raises(BusinessException):
+        await package_io.import_skill_package(
+            db,
+            {
+                "export_version": package_io.EXPORT_VERSION,
+                "package_info": {
+                    "name": "NovusDoc Rich Text AI",
+                    "description": "Default rich text package",
+                    "source_plugin": "novusdoc",
+                    "is_recommended": True,
+                    "is_active": True,
+                },
+                "skills": [
+                    {
+                        "name": "Rich Text AI Actions",
+                        "key": "novusdoc.rich_text_ai.actions",
+                        "type": "builtin",
+                        "source_type": "platform_builtin",
+                        "source_ref": "novusdoc.rich_text_ai.actions",
+                        "skill_md": "---\nname: rich_text_ai\ndescription: Rich text AI\n---\nBody",
+                        "version": "1.2.3",
+                        "status": "active",
+                        "is_readonly": True,
+                        "config": dict(_RICH_TEXT_SKILL_CONFIG),
+                        "input_schema": {"type": "object"},
+                        "output_schema": {"type": "object"},
+                    }
+                ],
+                "valves_schema": {"type": "object"},
             },
-            "skills": [
+        )
+
+    assert db.added == []
+
+
+@pytest.mark.asyncio
+async def test_import_retired_online_search_package_is_rejected() -> None:
+    db = _FakeDb()
+
+    with pytest.raises(BusinessException):
+        await package_io.import_skill_package(
+            db,
+            {
+                "export_version": package_io.EXPORT_VERSION,
+                "package_info": {
+                    "name": "联网搜索技能包",
+                    "source_plugin": "web-search",
+                },
+                "skills": [],
+            },
+        )
+
+
+@pytest.mark.asyncio
+async def test_import_skills_rejects_retired_online_search_toolkit_method() -> None:
+    db = _FakeDb()
+
+    with pytest.raises(BusinessException):
+        await skill_io.import_skills(
+            db,
+            [
                 {
-                    "name": "Rich Text AI Actions",
-                    "key": "novusdoc.rich_text_ai.actions",
-                    "type": "builtin",
-                    "source_type": "platform_builtin",
-                    "source_ref": "novusdoc.rich_text_ai.actions",
-                    "skill_md": "---\nname: rich_text_ai\ndescription: Rich text AI\n---\nBody",
-                    "version": "1.2.3",
-                    "status": "active",
-                    "is_readonly": True,
-                    "config": dict(_RICH_TEXT_SKILL_CONFIG),
-                    "input_schema": {"type": "object"},
-                    "output_schema": {"type": "object"},
+                    "name": "Current Events Toolkit",
+                    "type": "toolkit",
+                    "toolkit_content": (
+                        "class Tools:\n"
+                        "    def web_search(self, query: str) -> str:\n"
+                        "        return query\n"
+                    ),
                 }
             ],
-            "valves_schema": {"type": "object"},
-        },
+            tenant_id=None,
+            package_id=7,
+        )
+
+    assert db.added == []
+
+
+@pytest.mark.asyncio
+async def test_import_retired_online_search_skill_is_rejected(
+    monkeypatch,
+) -> None:
+    class _PackageRepo:
+        def __init__(self, db) -> None:
+            self.db = db
+
+        async def get_by_name_global(self, _name: str):
+            return None
+
+    monkeypatch.setattr(package_io, "AdminSkillPackageRepository", _PackageRepo)
+    db = _FakeDb()
+
+    with pytest.raises(BusinessException):
+        await package_io.import_skill_package(
+            db,
+            {
+                "export_version": package_io.EXPORT_VERSION,
+                "package_info": {"name": "Custom Skill Package"},
+                "skills": [
+                    {
+                        "name": "联网搜索",
+                        "key": "web_search",
+                        "source_ref": "web_search",
+                    }
+                ],
+            },
+        )
+
+
+@pytest.mark.asyncio
+async def test_import_retired_online_search_config_tool_is_rejected(
+    monkeypatch,
+) -> None:
+    class _PackageRepo:
+        def __init__(self, db) -> None:
+            self.db = db
+
+        async def get_by_name_global(self, _name: str):
+            pytest.fail("retired tool imports must fail before package lookup")
+            return None
+
+    monkeypatch.setattr(package_io, "AdminSkillPackageRepository", _PackageRepo)
+    db = _FakeDb()
+
+    with pytest.raises(BusinessException):
+        await package_io.import_skill_package(
+            db,
+            {
+                "export_version": package_io.EXPORT_VERSION,
+                "package_info": {"name": "Current Events Toolkit"},
+                "skills": [
+                    {
+                        "name": "Current Events",
+                        "key": "current_events",
+                        "type": "builtin",
+                        "config": {
+                            "tools": [
+                                {
+                                    "name": "web_search",
+                                    "description": "Retired search tool",
+                                }
+                            ]
+                        },
+                    }
+                ],
+            },
+        )
+
+    assert db.added == []
+
+
+@pytest.mark.asyncio
+async def test_import_retired_online_search_toolkit_method_is_rejected(
+    monkeypatch,
+) -> None:
+    class _PackageRepo:
+        def __init__(self, db) -> None:
+            self.db = db
+
+        async def get_by_name_global(self, _name: str):
+            pytest.fail("retired toolkit imports must fail before package lookup")
+            return None
+
+    monkeypatch.setattr(package_io, "AdminSkillPackageRepository", _PackageRepo)
+    db = _FakeDb()
+
+    with pytest.raises(BusinessException):
+        await package_io.import_skill_package(
+            db,
+            {
+                "export_version": package_io.EXPORT_VERSION,
+                "package_info": {"name": "Current Events Toolkit"},
+                "skills": [
+                    {
+                        "name": "Current Events",
+                        "key": "current_events.toolkit",
+                        "type": "toolkit",
+                        "toolkit_content": (
+                            "class Tools:\n"
+                            "    def web_search(self, query: str) -> str:\n"
+                            "        return query\n"
+                        ),
+                    }
+                ],
+            },
+        )
+
+    assert db.added == []
+
+
+def test_plugin_lifecycle_guard_rejects_retired_search_preview_tool() -> None:
+    skill_ext = SimpleNamespace(
+        name="current-events",
+        display_name={"en": "Current Events"},
+        description={"en": "General current events helper"},
+        entry_point="skills.current_events",
+        executor_entry_point="executors.current_events.Executor",
+        config_schema=None,
+        preview_tool_names=["web_search"],
+        preview_semantic_families=[],
     )
 
-    assert result["status"] == "created"
-    assert result["skills_created"] == 1
-    imported_package = db.added[0]
-    assert imported_package.is_recommended is False
-    assert imported_package.is_active is False
-    assert imported_package.valves_config == {
-        "internal": True,
-        "catalog_visible": False,
-        "runtime_feature_code": "system.ai_writing",
-    }
-    imported_skill = db.added[1]
-    assert imported_skill.key == "novusdoc.rich_text_ai.actions"
-    assert imported_skill.source_type == "platform_builtin"
-    assert imported_skill.source_ref == "novusdoc.rich_text_ai.actions"
-    assert imported_skill.skill_md.startswith("---")
-    assert imported_skill.version == "1.2.3"
-    assert imported_skill.status == "disabled"
-    assert imported_skill.is_active is False
-    assert imported_skill.is_readonly is True
-    assert imported_skill.config == _RICH_TEXT_SKILL_CONFIG
-    assert "legacy_runtime_feature_code" not in imported_skill.config
-    assert "fallback_policy" not in imported_skill.config
+    with pytest.raises(BusinessException):
+        ensure_not_retired_online_search_plugin_skill(
+            plugin_name="current-events-helper",
+            skill_extension=skill_ext,
+            skill_display_name="Current Events",
+            skill_key="current-events-helper:current-events",
+            source_ref="current-events-helper:current-events",
+        )
+
+
+def test_plugin_lifecycle_guard_allows_plugin_owned_weather_tools() -> None:
+    skill_ext = SimpleNamespace(
+        name="weather-realtime",
+        display_name={"zh-CN": "实时天气查询", "en": "Real-time Weather Query"},
+        description={
+            "zh-CN": "调用免 Key 的天气服务查询真实天气数据（当前天气 + 多日预报）",
+            "en": "Query real weather data via no-key weather services",
+        },
+        entry_point="skills.weather_resolver",
+        executor_entry_point="executors.weather_widget_executor.WeatherWidgetExecutor",
+        config_schema=None,
+        preview_tool_names=["get_current_weather", "get_weather_forecast"],
+        preview_semantic_families=["weather"],
+    )
+
+    ensure_not_retired_online_search_plugin_skill(
+        plugin_name="weather-widget",
+        skill_extension=skill_ext,
+        skill_display_name="Real-time Weather Query",
+        skill_key="weather-widget:weather-realtime",
+        source_ref="weather-widget:weather-realtime",
+    )
 
 
 @pytest.mark.asyncio
@@ -201,11 +387,11 @@ async def test_import_renamed_package_clears_skill_key_to_avoid_unique_conflict(
             "conflict_mode": "rename",
             "export_data": {
                 "export_version": package_io.EXPORT_VERSION,
-                "package_info": {"name": "NovusDoc Rich Text AI"},
+                "package_info": {"name": "Custom Skill Package"},
                 "skills": [
                     {
-                        "name": "Rich Text AI Actions",
-                        "key": "novusdoc.rich_text_ai.actions",
+                        "name": "Custom Actions",
+                        "key": "custom.actions",
                         "type": "builtin",
                     }
                 ],
@@ -214,6 +400,44 @@ async def test_import_renamed_package_clears_skill_key_to_avoid_unique_conflict(
     )
 
     assert result["status"] == "created"
-    assert result["package_name"].startswith("NovusDoc Rich Text AI_")
+    assert result["package_name"].startswith("Custom Skill Package_")
     imported_skill = db.added[1]
     assert imported_skill.key is None
+
+
+@pytest.mark.asyncio
+async def test_import_skill_status_drives_is_active_flag(
+    monkeypatch,
+) -> None:
+    class _PackageRepo:
+        def __init__(self, db) -> None:
+            self.db = db
+
+        async def get_by_name_global(self, name: str):
+            assert name == "Custom Skill Package"
+            return None
+
+    monkeypatch.setattr(package_io, "AdminSkillPackageRepository", _PackageRepo)
+    db = _FakeDb()
+
+    result = await package_io.import_skill_package(
+        db,
+        {
+            "export_version": package_io.EXPORT_VERSION,
+            "package_info": {"name": "Custom Skill Package"},
+            "skills": [
+                {
+                    "name": "Dormant Skill",
+                    "key": "custom.dormant",
+                    "type": "builtin",
+                    "status": "disabled",
+                    "is_active": True,
+                }
+            ],
+        },
+    )
+
+    assert result["skills_created"] == 1
+    imported_skill = db.added[1]
+    assert imported_skill.status == "disabled"
+    assert imported_skill.is_active is False

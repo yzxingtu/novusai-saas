@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import importlib
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -14,7 +13,7 @@ _SCRIPTS_DIR = _BACKEND_DIR / "scripts"
 if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
-pc = importlib.import_module("plugin_cli")
+from plugin_cli_validate import cmd_validate  # noqa: E402
 
 
 @pytest.mark.parametrize(
@@ -55,7 +54,7 @@ def test_historical_plugin_validate_baseline(
         pytest.skip(f"Historical plugin fixture not found: {plugin_dir}")
 
     with pytest.raises(SystemExit) as exc:
-        pc.cmd_validate(SimpleNamespace(dir=str(plugin_dir)))
+        cmd_validate(SimpleNamespace(dir=str(plugin_dir)))
 
     assert exc.value.code == expected_exit_code
     out = capsys.readouterr().out

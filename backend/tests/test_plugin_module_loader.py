@@ -2,8 +2,7 @@
 
 测试 module_loader.py 的核心功能：
 - load_plugin_module: 加载子模块
-- load_plugin_handler: 加载处理函数（子模块 + main fallback）
-- load_plugin_executor: 加载 executor 类
+- load_plugin_handler: 加载显式子模块处理函数
 - unload_plugin_modules: 清理 sys.modules"""
 
 import sys
@@ -52,6 +51,30 @@ def fake_plugins_dir(tmp_path: Path) -> Path:
     (skills_dir / "__init__.py").write_text("", encoding="utf-8")
     (skills_dir / "resolver.py").write_text(
         "def resolve(skill, config):\n    return []\n",
+        encoding="utf-8",
+    )
+
+    executors_dir = plugin_dir / "executors"
+    executors_dir.mkdir()
+    (executors_dir / "__init__.py").write_text("", encoding="utf-8")
+    (executors_dir / "toolkit_executor.py").write_text(
+        "from app.ai.tools.executors.base import BaseToolExecutor\n"
+        "from app.ai.tools.types import ToolResult\n\n"
+        "class FakeToolkitExecutor(BaseToolExecutor):\n"
+        "    async def execute(self, definition, tool_call_id, arguments, context=None):\n"
+        "        return ToolResult(tool_call_id=tool_call_id, name=definition.name, success=True, output='ok')\n"
+        "    async def validate(self, definition, arguments):\n"
+        "        return True\n",
+        encoding="utf-8",
+    )
+    (executors_dir / "custom_executor.py").write_text(
+        "from app.ai.tools.executors.base import BaseToolExecutor\n"
+        "from app.ai.tools.types import ToolResult\n\n"
+        "class CustomExecutor(BaseToolExecutor):\n"
+        "    async def execute(self, definition, tool_call_id, arguments, context=None):\n"
+        "        return ToolResult(tool_call_id=tool_call_id, name=definition.name, success=True, output='custom')\n"
+        "    async def validate(self, definition, arguments):\n"
+        "        return True\n",
         encoding="utf-8",
     )
 
@@ -127,7 +150,7 @@ class TestLoadPluginHandler:
             assert resolver is not None
             assert resolver(None, None) == []
 
-    def test_load_handler_from_main_fallback(self, fake_plugins_dir: Path):
+    def test_load_handler_from_explicit_main_module(self, fake_plugins_dir: Path):
         with patch(
             "app.plugins.module_loader._get_plugins_dir", return_value=fake_plugins_dir
         ):
@@ -136,6 +159,19 @@ class TestLoadPluginHandler:
             handler = load_plugin_handler("fake-plugin", "main.main_func")
             assert handler is not None
             assert handler() == "from_main"
+
+    def test_missing_submodule_does_not_fallback_to_main_getattr_chain(
+        self,
+        fake_plugins_dir: Path,
+    ):
+        with patch(
+            "app.plugins.module_loader._get_plugins_dir", return_value=fake_plugins_dir
+        ):
+            from app.plugins.module_loader import load_plugin_handler
+
+            assert (
+                load_plugin_handler("fake-plugin", "api.missing.handle_current") is None
+            )
 
     def test_empty_path_returns_none(self, fake_plugins_dir: Path):
         with patch(
@@ -194,6 +230,29 @@ class TestUnloadPluginModules:
 
         count = unload_plugin_modules("nonexistent-plugin")
         assert count == 0
+
+
+# ── executor loading ──
+
+
+class TestLoadPluginExecutor:
+    def test_load_executor_by_explicit_handler_path(self, fake_plugins_dir: Path):
+        with patch(
+            "app.plugins.module_loader._get_plugins_dir", return_value=fake_plugins_dir
+        ):
+            from app.plugins.module_loader import load_plugin_handler
+
+            executor_cls = load_plugin_handler(
+                "fake-plugin",
+                "executors.toolkit_executor.FakeToolkitExecutor",
+            )
+            assert executor_cls is not None
+            assert executor_cls.__name__ == "FakeToolkitExecutor"
+
+    def test_skill_type_executor_guessing_api_is_removed(self):
+        import app.plugins.module_loader as module_loader
+
+        assert not hasattr(module_loader, "load_plugin_executor")
 
 
 # ── API dispatcher error handling ──

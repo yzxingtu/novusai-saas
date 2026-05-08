@@ -6,8 +6,15 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import selectinload
 
 from app.core.base_repository import BaseRepository, TenantRepository
+from app.enums.skill import SkillStatusEnum
 from app.models.ai.skill import Skill
 from app.models.ai.skill_package import SkillPackage
+from app.repositories.ai.retired_skill_catalog_filters import (
+    is_retired_package_instance,
+    is_retired_skill_instance,
+    not_retired_skill_condition,
+    not_retired_skill_package_condition,
+)
 from app.schemas.common.query import FilterRule, QuerySpec
 
 
@@ -30,12 +37,15 @@ class SkillRepository(TenantRepository[Skill]):
             and not getattr(package, "is_deleted", False)
             and getattr(package, "is_active", True)
             and getattr(package, "tenant_id", None) in {None, self.tenant_id}
+            and not is_retired_package_instance(package)
         )
 
     async def get_by_id(self, id: int, include_deleted: bool = False) -> Skill | None:
         """根据 ID 获取技能，允许访问全局 + 已分配技能包下的技能 / Get skill by ID (global + assigned package)."""
         instance = await BaseRepository.get_by_id(self, id, include_deleted)
         if instance and hasattr(instance, "tenant_id"):
+            if is_retired_skill_instance(instance):
+                return None
             if not self._is_skill_tenant_visible(instance):
                 return None
             pkg = await self.db.get(SkillPackage, instance.package_id)
@@ -70,6 +80,8 @@ class SkillRepository(TenantRepository[Skill]):
         query = query.where(
             SkillPackage.is_deleted.is_(False),
             SkillPackage.is_active.is_(True),
+            not_retired_skill_condition(self.model),
+            not_retired_skill_package_condition(SkillPackage),
             or_(
                 self.model.tenant_id == self.tenant_id,
                 self.model.tenant_id.is_(None),
@@ -111,6 +123,8 @@ class SkillRepository(TenantRepository[Skill]):
         instances = await BaseRepository.get_by_ids(self, ids, include_deleted)
         visible: list[Skill] = []
         for instance in instances:
+            if is_retired_skill_instance(instance):
+                continue
             if not self._is_skill_tenant_visible(instance):
                 continue
             pkg = await self.db.get(SkillPackage, instance.package_id)
@@ -142,6 +156,8 @@ class SkillRepository(TenantRepository[Skill]):
         conditions = [
             sk.is_deleted.is_(False),
             pkg.is_deleted.is_(False),
+            not_retired_skill_condition(sk),
+            not_retired_skill_package_condition(pkg),
             or_(
                 sk.tenant_id == self.tenant_id,
                 sk.tenant_id.is_(None),
@@ -155,6 +171,7 @@ class SkillRepository(TenantRepository[Skill]):
             conditions.extend(
                 [
                     sk.is_active.is_(True),
+                    sk.status == SkillStatusEnum.ACTIVE.value,
                     pkg.is_active.is_(True),
                 ]
             )
@@ -227,6 +244,7 @@ class SkillRepository(TenantRepository[Skill]):
 
         if not include_deleted:
             stmt = stmt.where(Skill.is_deleted.is_(False))
+        stmt = stmt.where(not_retired_skill_condition(Skill))
 
         stmt = stmt.where(
             or_(Skill.tenant_id == self.tenant_id, Skill.tenant_id.is_(None))
@@ -277,9 +295,12 @@ class SkillRepository(TenantRepository[Skill]):
                 and_(
                     or_(Skill.tenant_id == self.tenant_id, Skill.tenant_id.is_(None)),
                     Skill.is_active.is_(True),
+                    Skill.status == SkillStatusEnum.ACTIVE.value,
                     Skill.is_deleted.is_(False),
                     SkillPackage.is_active.is_(True),
                     SkillPackage.is_deleted.is_(False),
+                    not_retired_skill_condition(Skill),
+                    not_retired_skill_package_condition(SkillPackage),
                     or_(
                         SkillPackage.tenant_id == self.tenant_id,
                         SkillPackage.tenant_id.is_(None),
@@ -309,9 +330,12 @@ class SkillRepository(TenantRepository[Skill]):
                     or_(Skill.tenant_id == self.tenant_id, Skill.tenant_id.is_(None)),
                     Skill.type == skill_type,
                     Skill.is_active.is_(True),
+                    Skill.status == SkillStatusEnum.ACTIVE.value,
                     Skill.is_deleted.is_(False),
                     SkillPackage.is_active.is_(True),
                     SkillPackage.is_deleted.is_(False),
+                    not_retired_skill_condition(Skill),
+                    not_retired_skill_package_condition(SkillPackage),
                     or_(
                         SkillPackage.tenant_id == self.tenant_id,
                         SkillPackage.tenant_id.is_(None),
@@ -333,6 +357,52 @@ class AdminSkillRepository(BaseRepository[Skill]):
 
     model = Skill
 
+    async def get_by_id(self, id: int, include_deleted: bool = False) -> Skill | None:
+        instance = await super().get_by_id(id, include_deleted)
+        if instance and is_retired_skill_instance(instance):
+            return None
+        return instance
+
+    async def get_by_ids(
+        self,
+        ids: list[int],
+        include_deleted: bool = False,
+    ) -> list[Skill]:
+        instances = await super().get_by_ids(ids, include_deleted)
+        return [item for item in instances if not is_retired_skill_instance(item)]
+
+    async def query_list(
+        self,
+        spec: QuerySpec,
+        scope: str | None = None,
+        forced_filters: list[FilterRule] | None = None,
+        include_deleted: bool = False,
+    ) -> tuple[list[Skill], int]:
+        allowed_fields = self.get_allowed_fields(scope)
+        all_fields = self.get_allowed_fields(None)
+        query = select(self.model).join(
+            SkillPackage,
+            self.model.package_id == SkillPackage.id,
+        )
+        if not include_deleted:
+            query = query.where(self.model.is_deleted.is_(False))
+        query = query.where(
+            SkillPackage.is_deleted.is_(False),
+            not_retired_skill_condition(self.model),
+            not_retired_skill_package_condition(SkillPackage),
+        )
+        if forced_filters:
+            query = self._apply_filters(query, forced_filters, all_fields)
+        if spec.filters:
+            query = self._apply_filters(query, spec.filters, allowed_fields)
+        count_query = select(func.count()).select_from(query.subquery())
+        count_result = await self.db.execute(count_query)
+        total = count_result.scalar() or 0
+        query = self._apply_sort(query, spec.sort, self.get_sortable_fields())
+        query = query.offset(spec.offset).limit(spec.limit)
+        result = await self.db.execute(query)
+        return list(result.scalars().all()), total
+
     async def get_by_package_id(
         self,
         package_id: int,
@@ -353,6 +423,7 @@ class AdminSkillRepository(BaseRepository[Skill]):
 
         if not include_deleted:
             stmt = stmt.where(Skill.is_deleted.is_(False))
+        stmt = stmt.where(not_retired_skill_condition(Skill))
 
         stmt = stmt.order_by(Skill.sort_order.asc(), Skill.created_at.desc())
         result = await self.db.execute(stmt)
@@ -412,11 +483,14 @@ class AdminSkillRepository(BaseRepository[Skill]):
         conditions = [
             sk.is_deleted.is_(False),
             pkg.is_deleted.is_(False),
+            not_retired_skill_condition(sk),
+            not_retired_skill_package_condition(pkg),
         ]
         if only_active:
             conditions.extend(
                 [
                     sk.is_active.is_(True),
+                    sk.status == SkillStatusEnum.ACTIVE.value,
                     pkg.is_active.is_(True),
                 ]
             )

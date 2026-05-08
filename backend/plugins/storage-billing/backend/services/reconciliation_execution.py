@@ -760,7 +760,12 @@ class StorageBillingReconciliationExecutionMixin:
         if not bindings:
             return []
         if self._host_read is None:
-            return list(bindings)
+            logger.warning(
+                "Storage billing reconciliation blocked: host readers are missing "
+                "for provider={}",
+                provider_code,
+            )
+            return []
 
         platform_storage_context = await _read_platform_storage_context(self._host_read)
         active_storage_driver = _stringify(
@@ -777,7 +782,12 @@ class StorageBillingReconciliationExecutionMixin:
         snapshot_reader = getattr(self._host_read, "get_tenant_plan_snapshot", None)
         storage_reader = getattr(self._host_read, "get_tenant_storage_context", None)
         if not callable(snapshot_reader) or not callable(storage_reader):
-            return list(bindings)
+            logger.warning(
+                "Storage billing reconciliation blocked: tenant host readers are "
+                "missing for provider={}",
+                provider_code,
+            )
+            return []
 
         tenant_snapshot_cache: dict[int, dict[str, Any]] = {}
         tenant_storage_cache: dict[int, dict[str, Any]] = {}

@@ -4,11 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.ai.agent_quota import (
-    AgentConcurrencyLimiter,
-    AgentQuotaConfig,
-    AgentQuotaManager,
-)
+from app.ai.agent_quota_concurrency import AgentConcurrencyLimiter
+from app.ai.agent_quota_config import AgentQuotaConfig
+from app.ai.agent_quota_manager import AgentQuotaManager
 from app.ai.events.hooks import HookPoint, get_hook_registry
 from app.ai.utils.token_estimator import estimate_tokens
 from app.core.i18n import _

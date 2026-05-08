@@ -104,34 +104,6 @@ def _translate_config_item(config: dict) -> ConfigItemResponse:
     )
 
 
-def _inject_legacy_select_option(config: dict) -> dict:
-    """
-    为已下线的 select 当前值追加一个只读占位选项 / Inject a placeholder option for retired current select values.
-    """
-    if config.get("key") != "dns_provider" or config.get("value_type") != "select":
-        return config
-
-    current_value = config.get("value")
-    if current_value in (None, ""):
-        return config
-
-    option_values = {opt.get("value") for opt in config.get("options", [])}
-    if current_value in option_values:
-        return config
-
-    patched = dict(config)
-    patched["options"] = [
-        *config.get("options", []),
-        {
-            "value": current_value,
-            "label": _(
-                "config.platform.dns_provider.legacy_option", provider=current_value
-            ),
-        },
-    ]
-    return patched
-
-
 @permission_resource(
     resource="platform_config",
     name="menu.admin.platform_config",  # i18n key / 国际化键名
@@ -242,8 +214,6 @@ class AdminConfigController(GlobalController):
                 )
 
             raw_configs = target_group["configs"]
-            if group_code == "platform_ssl":
-                raw_configs = [_inject_legacy_select_option(c) for c in raw_configs]
             inject_captcha_provider_options(
                 raw_configs,
                 required_endpoints={"admin"},
@@ -351,8 +321,6 @@ class AdminConfigController(GlobalController):
                     break
 
             raw_configs = target_group["configs"] if target_group else []
-            if group_code == "platform_ssl":
-                raw_configs = [_inject_legacy_select_option(c) for c in raw_configs]
             inject_captcha_provider_options(
                 raw_configs,
                 required_endpoints={"admin"},

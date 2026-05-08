@@ -1,4 +1,4 @@
-"""Compatibility facade for system prompt helper seams."""
+"""Stable facade for system prompt helper seams."""
 
 from __future__ import annotations
 
@@ -27,9 +27,6 @@ from .system_prompt_capability_hints import (
 )
 from .system_prompt_capability_hints import (
     build_time_tools_hint as build_time_tools_hint,
-)
-from .system_prompt_capability_hints import (
-    build_weather_tools_hint as build_weather_tools_hint,
 )
 from .system_prompt_intent_helpers import (
     deserialize_intent_plan as deserialize_intent_plan,
@@ -67,7 +64,6 @@ __all__ = [
     "build_system_message",
     "build_system_message_default",
     "build_time_tools_hint",
-    "build_weather_tools_hint",
     "deserialize_intent_plan",
     "inject_runtime_summary",
     "intent_completion_signals",

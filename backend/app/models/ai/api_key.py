@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String
-from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base_model import BaseModel
 from app.core.i18n import _
@@ -42,7 +42,6 @@ class ProviderApiKey(BaseModel):
     __filterable__ = {
         "id": "id",
         "provider_id": "provider_id",
-        "tenant_id": "owner_tenant_id",
         "owner_tenant_id": "owner_tenant_id",
         "scope": "scope",
         "name": "name",
@@ -79,7 +78,7 @@ class ProviderApiKey(BaseModel):
         comment=_("enum.ai_api_key.provider_id"),
     )
 
-    # 归属企业（平台级为 NULL）；API/筛选仍可使用 tenant_id 别名
+    # 归属企业（平台级为 NULL） / Owner tenant (NULL for platform-level keys)
     owner_tenant_id: Mapped[int | None] = mapped_column(
         Integer,
         ForeignKey("tenants.id", ondelete="CASCADE"),
@@ -87,7 +86,6 @@ class ProviderApiKey(BaseModel):
         index=True,
         comment=_("enum.ai_api_key.tenant_id"),
     )
-    tenant_id = synonym("owner_tenant_id")
 
     # Key 名称（便于识别） / Display name for key
     name: Mapped[str] = mapped_column(String(100), comment=_("enum.ai_api_key.name"))

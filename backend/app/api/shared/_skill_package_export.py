@@ -28,13 +28,16 @@ from app.repositories.ai.skill_package_repository import (
     SkillPackageRepository,
 )
 from app.repositories.ai.skill_repository import AdminSkillRepository
+from app.services.ai.retired_skill_guard import (
+    ensure_not_retired_online_search_package,
+    ensure_not_retired_online_search_skill,
+)
 
 logger = LogManager.get_logger("ai")
 
 EXPORT_VERSION = 1
-LEGACY_RICH_TEXT_PACKAGE_NAME = "NovusDoc Rich Text AI"
-LEGACY_RICH_TEXT_SKILL_KEY = "novusdoc.rich_text_ai.actions"
-RICH_TEXT_RUNTIME_FEATURE_CODE = "system.ai_writing"
+PLATFORM_RICH_TEXT_PACKAGE_NAME = "NovusDoc Rich Text AI"
+PLATFORM_RICH_TEXT_SKILL_KEY = "novusdoc.rich_text_ai.actions"
 
 # 导出时技能字段白名单（排除运行时/ID/时间戳等） / Skill export field whitelist (excludes runtime/ID/timestamp fields)
 _SKILL_EXPORT_FIELDS = [
@@ -74,64 +77,52 @@ _PACKAGE_EXPORT_FIELDS = [
 ]
 
 
-def _is_legacy_rich_text_package(
+def _is_platform_rich_text_package(
     package_info: dict[str, Any],
     skills_data: list[dict[str, Any]],
 ) -> bool:
-    if package_info.get("name") == LEGACY_RICH_TEXT_PACKAGE_NAME:
+    if package_info.get("name") == PLATFORM_RICH_TEXT_PACKAGE_NAME:
         return True
     return any(
-        skill.get("key") == LEGACY_RICH_TEXT_SKILL_KEY
-        or skill.get("source_ref") == LEGACY_RICH_TEXT_SKILL_KEY
+        skill.get("key") == PLATFORM_RICH_TEXT_SKILL_KEY
+        or skill.get("source_ref") == PLATFORM_RICH_TEXT_SKILL_KEY
         for skill in skills_data
     )
 
 
-def _normalize_legacy_rich_text_import(
+def _reject_platform_rich_text_import(
     package_info: dict[str, Any],
     skills_data: list[dict[str, Any]],
-) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-    """中文: 导入旧富文本包时强制转为内部隐藏项，避免再次出现在技能包目录。
+) -> None:
+    """中文: 平台内置富文本包不能通过导出包导入或兼容修正。
 
-    EN: Force legacy rich-text imports to internal hidden items so they do not
-    reappear in the skill-package catalog.
+    EN: Platform built-in rich-text packages cannot be imported or normalized
+    through exported package payloads.
     """
-    if not _is_legacy_rich_text_package(package_info, skills_data):
-        return package_info, skills_data
+    if _is_platform_rich_text_package(package_info, skills_data):
+        raise BusinessException(
+            message=_("skill_package.error.platform_builtin_import_forbidden"),
+        )
 
-    normalized_package_info = dict(package_info)
-    valves_config = dict(normalized_package_info.get("valves_config") or {})
-    valves_config.update(
-        {
-            "internal": True,
-            "catalog_visible": False,
-            "runtime_feature_code": RICH_TEXT_RUNTIME_FEATURE_CODE,
-        }
-    )
-    normalized_package_info["valves_config"] = valves_config
-    normalized_package_info["is_recommended"] = False
-    normalized_package_info["is_active"] = False
 
-    normalized_skills: list[dict[str, Any]] = []
-    for skill_data in skills_data:
-        skill = dict(skill_data)
-        if (
-            skill.get("key") == LEGACY_RICH_TEXT_SKILL_KEY
-            or skill.get("source_ref") == LEGACY_RICH_TEXT_SKILL_KEY
-        ):
-            config = dict(skill.get("config") or {})
-            config.update(
-                {
-                    "internal": True,
-                    "catalog_only": True,
-                    "runtime_feature_code": RICH_TEXT_RUNTIME_FEATURE_CODE,
-                }
-            )
-            skill["config"] = config
-            skill["status"] = "disabled"
-            skill["is_active"] = False
-        normalized_skills.append(skill)
-    return normalized_package_info, normalized_skills
+def _resolve_imported_skill_status_flags(
+    skill_data: dict[str, Any],
+    valid_statuses: list[str],
+    active_status: str,
+    disabled_status: str,
+) -> tuple[str, bool]:
+    raw_status = skill_data.get("status")
+    if raw_status:
+        status = str(getattr(raw_status, "value", raw_status))
+        if status not in valid_statuses:
+            status = active_status
+        return status, status == active_status
+
+    if "is_active" in skill_data:
+        is_active = bool(skill_data.get("is_active"))
+        return (active_status if is_active else disabled_status), is_active
+
+    return active_status, True
 
 
 async def export_skill_package(
@@ -206,10 +197,11 @@ async def import_skill_package(
             message=_("skill_package.error.invalid_export_format"),
         )
 
-    package_info, skills_data = _normalize_legacy_rich_text_import(
-        package_info,
-        skills_data,
-    )
+    _reject_platform_rich_text_import(package_info, skills_data)
+    ensure_not_retired_online_search_package(package_info)
+    for skill_data in skills_data:
+        if isinstance(skill_data, dict):
+            ensure_not_retired_online_search_skill(skill_data)
     pkg_name = package_info["name"]
 
     if target_tenant_id is not None:
@@ -282,9 +274,12 @@ async def import_skill_package(
         if source_type not in valid_source_types:
             source_type = SkillSourceTypeEnum.CUSTOM.value
 
-        status = skill_data.get("status") or SkillStatusEnum.ACTIVE.value
-        if status not in valid_statuses:
-            status = SkillStatusEnum.ACTIVE.value
+        status, is_active = _resolve_imported_skill_status_flags(
+            skill_data,
+            valid_statuses,
+            SkillStatusEnum.ACTIVE.value,
+            SkillStatusEnum.DISABLED.value,
+        )
 
         skill_key = skill_data.get("key")
         if package_renamed:
@@ -310,7 +305,7 @@ async def import_skill_package(
             input_schema=skill_data.get("input_schema"),
             output_schema=skill_data.get("output_schema"),
             is_system=False,
-            is_active=skill_data.get("is_active", True),
+            is_active=is_active,
             sort_order=skill_data.get("sort_order", 0),
             timeout=skill_data.get("timeout", 30),
         )

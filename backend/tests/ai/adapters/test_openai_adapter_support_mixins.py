@@ -123,10 +123,6 @@ def test_upstream_helpers_and_public_exports_remain_available() -> None:
     assert adapter._build_endpoint_url("chat/completions") == (
         "https://codex.2api.com.cn/chat/completions"
     )
-    assert (
-        adapter._build_chat_completions_v1_retry_base_url()
-        == "https://codex.2api.com.cn/v1"
-    )
     assert adapter.get_supported_features() == {
         "chat": True,
         "streaming": True,

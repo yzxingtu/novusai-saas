@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.api.admin.skill_packages import AdminSkillPackageController
 from app.api.admin.skills import AdminSkillController
 
 
@@ -49,7 +50,6 @@ async def test_select_skills_for_binding_forwards_agent_id() -> None:
             page=2,
             page_size=20,
             include_system=True,
-            only_active=True,
         )
 
     skill_service.get_binding_select_options.assert_awaited_once_with(
@@ -59,7 +59,55 @@ async def test_select_skills_for_binding_forwards_agent_id() -> None:
         page=2,
         page_size=20,
         include_system=True,
-        only_active=True,
     )
     assert response["code"] == 0
     assert response["data"]["page"] == 2
+
+
+@pytest.mark.asyncio
+async def test_select_skill_packages_uses_paginated_contract() -> None:
+    endpoint = next(
+        route.endpoint
+        for route in AdminSkillPackageController.get_router().routes
+        if getattr(route, "path", None) == "/ai/skill-packages/select"
+        and "GET" in route.methods
+    )
+
+    db = AsyncMock()
+    request = MagicMock()
+    admin = SimpleNamespace(id=1)
+
+    package_service = MagicMock()
+    package_service.get_select_options = AsyncMock(
+        return_value={
+            "items": [],
+            "total": 0,
+            "page": 1,
+            "page_size": 20,
+            "has_more": False,
+        }
+    )
+
+    with patch(
+        "app.api.admin.skill_packages.AdminSkillPackageService",
+        return_value=package_service,
+    ):
+        response = await endpoint(
+            request,
+            db,
+            admin,
+            search="weather",
+            include_system=False,
+            page=1,
+            page_size=20,
+        )
+
+    package_service.get_select_options.assert_awaited_once_with(
+        search="weather",
+        limit=100,
+        page=1,
+        page_size=20,
+        is_system=False,
+    )
+    assert response["code"] == 0
+    assert response["data"]["page"] == 1

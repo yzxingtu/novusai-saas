@@ -107,7 +107,7 @@ async def test_run_cleanup_promotes_module_stage_then_deletes_global_stage(
     }
 
 
-def test_cleanup_recycle_bin_legacy_retention_days_applies_to_both_stages(
+def test_cleanup_recycle_bin_uses_explicit_stage_retention_days(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     run_cleanup = AsyncMock(
@@ -117,16 +117,24 @@ def test_cleanup_recycle_bin_legacy_retention_days_applies_to_both_stages(
             "promote_details": {},
             "delete_details": {},
             "module_retention_days": 15,
-            "global_retention_days": 15,
+            "global_retention_days": 45,
         }
     )
     monkeypatch.setattr(recycle_bin_task, "_run_cleanup", run_cleanup)
 
-    result = recycle_bin_task.cleanup_recycle_bin.run(retention_days=15)
+    result = recycle_bin_task.cleanup_recycle_bin.run(
+        module_retention_days=15,
+        global_retention_days=45,
+    )
 
     run_cleanup.assert_awaited_once_with(
         module_retention_days=15,
-        global_retention_days=15,
+        global_retention_days=45,
     )
     assert result["module_retention_days"] == 15
-    assert result["global_retention_days"] == 15
+    assert result["global_retention_days"] == 45
+
+
+def test_cleanup_recycle_bin_rejects_retired_retention_days_parameter() -> None:
+    with pytest.raises(TypeError):
+        recycle_bin_task.cleanup_recycle_bin.run(retention_days=15)

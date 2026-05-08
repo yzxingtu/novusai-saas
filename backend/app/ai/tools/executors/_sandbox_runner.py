@@ -19,6 +19,7 @@ Resource limits (Linux/macOS) / 资源限制（Linux/macOS）:
 from __future__ import annotations
 
 import importlib.util
+import inspect
 import json
 import sys
 import types
@@ -52,29 +53,59 @@ def _load_module(source_path: str) -> types.ModuleType:
     return module
 
 
+def _validate_valves_config_keys(
+    valves_cls: type,
+    valves_config: dict[str, Any],
+) -> None:
+    model_fields = getattr(valves_cls, "model_fields", None) or getattr(
+        valves_cls,
+        "__fields__",
+        None,
+    )
+    if isinstance(model_fields, dict):
+        allowed = {str(key) for key in model_fields}
+    else:
+        signature = inspect.signature(valves_cls)
+        parameters = list(signature.parameters.values())
+        if any(param.kind == inspect.Parameter.VAR_KEYWORD for param in parameters):
+            return
+        allowed = {
+            param.name
+            for param in parameters
+            if param.name != "self"
+            and param.kind
+            in {inspect.Parameter.KEYWORD_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD}
+        }
+
+    unknown = sorted(str(key) for key in valves_config if str(key) not in allowed)
+    if unknown:
+        raise ValueError(f"Unknown Valves config keys: {', '.join(unknown)}")
+
+
 def _inject_valves(
     tools_instance: Any,
     module: types.ModuleType,
     valves_config: dict[str, Any],
-) -> str | None:
+) -> None:
     """Inject Valves configuration / 注入 Valves 配置"""
     if not valves_config:
-        return None
+        return
 
     valves_cls = getattr(module, "Valves", None)
     if valves_cls is None:
-        return None
+        return
 
     try:
-        normalized = {k.lower(): v for k, v in valves_config.items()}
-        valves_instance = valves_cls(**normalized)
+        _validate_valves_config_keys(valves_cls, valves_config)
+        valves_instance = valves_cls(**valves_config)
         tools_instance.valves = valves_instance
-        return None
     except Exception as exc:
-        return build_public_error_text(
-            message="Valves config injection failed",
-            exc=exc,
-        )
+        raise RuntimeError(
+            build_public_error_text(
+                message="Valves config injection failed",
+                exc=exc,
+            )
+        ) from exc
 
 
 def _to_string(value: Any) -> str:
@@ -131,7 +162,7 @@ def main() -> None:
         tools_instance = tools_cls()
 
         # Inject Valves / 注入 Valves
-        valves_error = _inject_valves(tools_instance, module, valves_config)
+        _inject_valves(tools_instance, module, valves_config)
 
         # Find method / 查找方法
         method = getattr(tools_instance, method_name, None)
@@ -149,12 +180,6 @@ def main() -> None:
             result_value = method(**args)
 
         output = _to_string(result_value)
-
-        if valves_error:
-            output = (
-                f"[WARNING] Valves config injection failed: {valves_error}. "
-                f"Tool ran with default values.\n\n{output}"
-            )
 
         _write_result(output)
 

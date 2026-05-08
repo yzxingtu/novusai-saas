@@ -44,6 +44,9 @@ async def snapshot_skill_grants(svc: Any, agent_id: int) -> list[dict[str, Any]]
 
     from app.models.ai.agent_skill_grant import AgentSkillGrant
     from app.models.ai.skill import Skill
+    from app.repositories.ai.retired_skill_catalog_filters import (
+        is_retired_skill_instance,
+    )
 
     result = await svc.db.execute(
         select(AgentSkillGrant)
@@ -71,6 +74,7 @@ async def snapshot_skill_grants(svc: Any, agent_id: int) -> list[dict[str, Any]]
             "config_override": grant.config_override,
         }
         for grant in grants
+        if not is_retired_skill_instance(getattr(grant, "skill", None))
     ]
 
 
@@ -88,14 +92,17 @@ async def restore_skill_grants(
     grant_svc = AgentSkillGrantService(svc.db, svc.tenant_id)
 
     from app.models.ai.skill import Skill
+    from app.repositories.ai.retired_skill_catalog_filters import (
+        is_retired_skill_instance,
+    )
 
     valid_items: list[dict[str, Any]] = []
     for item in grants_snapshot:
         skill_id = item.get("skill_id")
         if not skill_id:
             continue
-        skill = await svc.db.get(Skill, skill_id)
-        if not skill or skill.is_deleted:
+        skill = await _await_if_needed(svc.db.get(Skill, skill_id))
+        if not skill or skill.is_deleted or is_retired_skill_instance(skill):
             logger.warning(
                 "Skipping deleted skill {} during rollback for agent {}",
                 skill_id,

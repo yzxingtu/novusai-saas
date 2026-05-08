@@ -43,7 +43,7 @@ class CodegenService(
     """
     CRUD 代码生成服务 / Codegen service.
 
-    平台级服务，无企业隔离。保留稳定 facade，对外兼容原有调用；
+    平台级服务，无企业隔离。保留稳定 facade，对外提供明确调用入口；
     复杂职责拆到 `codegen_service_parts` 内部模块。
     """
 
@@ -91,7 +91,7 @@ class CodegenService(
 
     @staticmethod
     def _make_generator() -> CodeGenerator:
-        """Create the generator via the facade module for patch compatibility."""
+        """Create the generator through the stable facade module."""
         return CodeGenerator()
 
     async def get_by_resource(self, resource: str) -> CodegenConfig | None:

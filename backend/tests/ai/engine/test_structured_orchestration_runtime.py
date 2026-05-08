@@ -62,7 +62,7 @@ def _intent(
     )
 
 
-def test_tool_router_omits_forecast_for_current_weather_only() -> None:
+def test_tool_router_does_not_hardcode_plugin_owned_weather_tools() -> None:
     budget = BudgetGuard.build_default("fast", intent_count=1)
     intent = _intent("intent-1", kind="weather_query", family="weather", order=1)
 
@@ -74,9 +74,9 @@ def test_tool_router_omits_forecast_for_current_weather_only() -> None:
         user_text="帮我查一下北京现在的天气",
     )
 
-    assert decision.intent_allowed_tools["intent-1"] == ["get_current_weather"]
-    assert decision.intent_preferred_tools["intent-1"] == ["get_current_weather"]
-    assert "get_weather_forecast" not in decision.candidate_tool_names()
+    assert decision.intent_allowed_tools.get("intent-1") is None
+    assert decision.intent_preferred_tools.get("intent-1") is None
+    assert decision.candidate_tool_names() == []
 
 
 def test_budget_guard_registers_preparation_and_detects_candidate_budget_exit() -> None:

@@ -15,6 +15,8 @@ from app.ai.exceptions import (
     ProviderTimeoutError,
 )
 from app.ai.runtime.query_engine import ConversationQueryEngine
+from app.ai.runtime.tool_executor import ToolExecutor
+from app.ai.runtime.types import TurnRecord
 from app.ai.types import ChatChunk, ChatMessage, ChatResponse
 
 
@@ -152,6 +154,37 @@ class _ReasoningOnlyThenRetryableRescueAdapter:
             finish_reason="stop",
             model="gpt-5.4",
         )
+
+
+def test_required_tool_contract_treats_no_tool_sentinel_as_empty() -> None:
+    """Test type: structural
+    中文: no-tool 哨兵不能满足 required 工具轮契约。
+    EN: No-tool sentinels must not satisfy the required tool-round contract.
+    """
+    turn_record = TurnRecord()
+
+    with pytest.raises(RuntimeError, match=ToolExecutor.REQUIRED_EMPTY_FAILURE):
+        ToolExecutor.enforce_required_contract(
+            tool_choice="required",
+            output_text="",
+            tool_calls=[
+                {
+                    "id": "tc-no-tool",
+                    "type": "function",
+                    "function": {
+                        "name": "NO_TOOL",
+                        "arguments": "{}",
+                    },
+                }
+            ],
+            turn_record=turn_record,
+        )
+
+    assert turn_record.turn_outcome == "tool_round_failed"
+    assert turn_record.termination_reason == "tool_round_empty"
+    assert turn_record.metadata["failure_reason"] == (
+        ToolExecutor.REQUIRED_EMPTY_FAILURE
+    )
 
 
 @pytest.mark.asyncio

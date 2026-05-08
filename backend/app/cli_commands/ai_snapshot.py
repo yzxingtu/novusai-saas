@@ -40,10 +40,6 @@ def _format_cli_dt(dt: object) -> object:
 
 
 def _serialize_cli_conversation_message(row: object) -> dict:
-    from app.services.ai.recovery_evidence_read_model import (
-        patch_recovery_evidence_answer_payload,
-    )
-
     metadata = getattr(row, "metadata_", None)
     metadata_payload = dict(metadata) if isinstance(metadata, dict) else None
     payload = {
@@ -65,7 +61,7 @@ def _serialize_cli_conversation_message(row: object) -> dict:
         payload["model_name"] = metadata_payload.get("model_name")
         payload["provider_id"] = metadata_payload.get("provider_id")
         payload["provider_name"] = metadata_payload.get("provider_name")
-    return patch_recovery_evidence_answer_payload(payload)
+    return payload
 
 
 def _resolve_assistant_turn_flow(last_assistant: object) -> dict | None:

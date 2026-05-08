@@ -75,18 +75,20 @@ def _plugin_row(
     )
 
 
-def test_structural_manifest_compatibility_profile_defaults_and_aliases() -> None:
-    """Test type: structural. Manifest compatibility aliases normalize deterministically."""
-    legacy_manifest = PluginManifest.model_validate(
+def test_structural_manifest_compatibility_profile_defaults_and_canonical_values() -> (
+    None
+):
+    """Test type: structural. Manifest compatibility profile uses canonical values only."""
+    default_manifest = PluginManifest.model_validate(
         _base_manifest(ResourceScopeEnum.GLOBAL_SHARED.value)
     )
 
-    legacy_profile = build_plugin_exposure_profile(
-        legacy_manifest,
-        scope=legacy_manifest.scope,
+    default_profile = build_plugin_exposure_profile(
+        default_manifest,
+        scope=default_manifest.scope,
     )
 
-    assert legacy_profile.to_dict() == {
+    assert default_profile.to_dict() == {
         "current_edition": "saas",
         "editions": ["saas"],
         "declared_editions": ["saas"],
@@ -101,9 +103,9 @@ def test_structural_manifest_compatibility_profile_defaults_and_aliases() -> Non
 
     payload = _base_manifest(ResourceScopeEnum.ALL_TENANTS.value)
     payload["compatibility"] = {
-        "editions": ["saas", "single-management"],
-        "surfaces": ["platform-admin", "tenant-scoped"],
-        "tenant_exposure": "tenant-scoped",
+        "editions": ["saas", "single_management"],
+        "surfaces": ["admin", "tenant"],
+        "tenant_exposure": "selected_tenants",
     }
 
     manifest = PluginManifest.model_validate(payload)
@@ -242,7 +244,7 @@ async def test_behavioral_admin_gate_allows_single_management_management(
 async def test_behavioral_selected_tenant_exposure_requires_assignment_on_global_scope(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Test type: behavioral. Selected tenant exposure narrows legacy broad scopes to assignments."""
+    """Test type: behavioral. Selected tenant exposure narrows broad scopes to assignments."""
     manifest = _base_manifest(ResourceScopeEnum.GLOBAL_SHARED.value)
     manifest["compatibility"] = {
         "editions": ["saas"],

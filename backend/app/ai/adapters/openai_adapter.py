@@ -11,8 +11,6 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from typing import Any
 
-from openai import AsyncOpenAI
-
 from app.ai.adapters.base import BaseAdapter
 from app.ai.adapters.openai_compatible import (
     OpenAIProtocolCapabilities,
@@ -31,6 +29,7 @@ from app.ai.adapters.openai_compatible.support import (
 from app.ai.adapters.openai_compatible.support.protocol_bridge import (
     OpenAIAdapterProtocolBridgeMixin,
 )
+from app.ai.exceptions import ProviderError
 from app.ai.types import ChatChunk, ChatMessage, ChatResponse
 
 
@@ -62,19 +61,24 @@ class OpenAIAdapter(
         self.base_url = self._clean_base_url(base_url)
         self.protocol_capabilities = OpenAIProtocolCapabilities.from_provider_config(
             provider_config=self.provider_config,
-            configured_wire_api=self.provider_config.get("wire_api"),
+            configured_wire_api=None,
         )
         self.wire_api = self.protocol_capabilities.primary_wire_api
 
         self.client = build_openai_client(api_key=api_key, base_url=self.base_url)
-        self._chat_completions_v1_retry_client: AsyncOpenAI | Any | None = None
-        self._chat_completions_v1_retry_base_url: str | None = None
 
     @staticmethod
     def _resolve_public_entrypoint_wire_api(kwargs: dict[str, Any]) -> Any:
         explicit_wire_api = kwargs.pop("wire_api", None)
-        if explicit_wire_api is not None:
-            return explicit_wire_api
+        if explicit_wire_api is not None and str(explicit_wire_api).strip():
+            raise ProviderError(
+                message=(
+                    "Public wire_api override is retired; use runtime protocol "
+                    "planning instead"
+                ),
+                provider_code="openai_compatible",
+                error_code="invalid_protocol_contract",
+            )
         return kwargs.get("_runtime_force_wire_api")
 
     async def chat(

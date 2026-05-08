@@ -105,7 +105,11 @@ class TestCapabilityDescriptionBuilder:
                 self.capability_descriptors = [
                     MockDescriptor("database_lookup", "Lookup records"),
                     MockDescriptor("policy_summary", "Summarize policy records"),
-                    MockDescriptor("weather_helper", "Check the weather"),
+                    MockDescriptor(
+                        "weather_helper",
+                        "Check the weather",
+                        metadata={"semantic_family": "weather"},
+                    ),
                     MockDescriptor("date_helper", "Read the date"),
                     MockDescriptor("custom_helper", "General utility"),
                 ]

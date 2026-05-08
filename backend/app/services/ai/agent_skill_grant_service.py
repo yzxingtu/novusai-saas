@@ -12,6 +12,7 @@ from app.repositories.ai.agent_repository import AgentRepository
 from app.repositories.ai.agent_skill_grant_repository import (
     AgentSkillGrantRepository,
 )
+from app.repositories.ai.retired_skill_catalog_filters import is_retired_skill_instance
 from app.repositories.ai.skill_repository import AdminSkillRepository, SkillRepository
 
 logger = LogManager.get_logger("ai")
@@ -38,6 +39,8 @@ class AgentSkillGrantService:
     @staticmethod
     def _skill_runtime_available(skill: Any) -> bool:
         if not skill:
+            return False
+        if is_retired_skill_instance(skill):
             return False
         if not getattr(skill, "is_active", True) or getattr(skill, "is_deleted", False):
             return False
@@ -259,6 +262,7 @@ class AgentSkillGrantService:
             raise NotFoundException(
                 message=_("agent_skill_grant.error.binding_not_found"),
             )
+        await self._validate_skill_accessible(grant.skill_id)
 
         updated = await self.grant_repo.update(grant_id, dict(data or {}))
         return updated

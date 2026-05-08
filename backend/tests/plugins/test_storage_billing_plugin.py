@@ -22,7 +22,9 @@ def test_storage_billing_manifest_loads() -> None:
 
 @pytest.mark.asyncio
 async def test_storage_billing_overview_service_scaffold() -> None:
-    module = load_plugin_module("storage-billing", "services.reconciliation_service")
+    module = load_plugin_module(
+        "storage-billing", "services.reconciliation_overview_service"
+    )
     assert module is not None
 
     service = module.StorageBillingOverviewService(db=None, host_read=None)
@@ -43,6 +45,29 @@ async def test_storage_billing_overview_service_scaffold() -> None:
         ]
         == "D-3"
     )
+
+
+def test_storage_billing_overview_uses_canonical_service_module() -> None:
+    admin_api = load_plugin_module("storage-billing", "api.admin")
+    tenant_api = load_plugin_module("storage-billing", "api.tenant")
+    overview_module = load_plugin_module(
+        "storage-billing", "services.reconciliation_overview_service"
+    )
+    reconciliation_module = load_plugin_module(
+        "storage-billing", "services.reconciliation_service"
+    )
+    assert admin_api is not None
+    assert tenant_api is not None
+    assert overview_module is not None
+    assert reconciliation_module is not None
+
+    assert admin_api.StorageBillingOverviewService is (
+        overview_module.StorageBillingOverviewService
+    )
+    assert tenant_api.StorageBillingOverviewService is (
+        overview_module.StorageBillingOverviewService
+    )
+    assert not hasattr(reconciliation_module, "StorageBillingOverviewService")
 
 
 def test_storage_billing_task_handler_loads() -> None:

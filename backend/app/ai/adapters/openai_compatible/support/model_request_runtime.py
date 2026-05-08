@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from app.ai.text_semantics import split_last_suffix
 from app.core.logging import LogManager
 
 logger = LogManager.get_logger("ai")
@@ -31,10 +30,6 @@ _OPENAI_RUNTIME_OVERRIDE_PATHS: dict[str, str] = {
     "chat_completions_reasoning_effort": (
         "runtime_overrides.openai_compatible.chat_completions.reasoning_effort"
     ),
-    "legacy_reasoning_effort": "reasoning.effort",
-    "legacy_reasoning_effort_flat": "reasoning_effort",
-    "legacy_reasoning_effort_camel": "reasoningEffort",
-    "legacy_model_code_alias": "legacy_model_code_alias",
 }
 
 
@@ -112,24 +107,6 @@ class OpenAIAdapterModelRequestMixin:
         return (normalized_effort, ignored_overrides, ignore_reasons)
 
     @classmethod
-    def _extract_legacy_reasoning_effort_from_model_config(
-        cls,
-        model_config: Any,
-    ) -> str | None:
-        if not isinstance(model_config, dict):
-            return None
-
-        reasoning = model_config.get("reasoning")
-        if isinstance(reasoning, dict):
-            effort = cls._normalize_reasoning_effort(reasoning.get("effort"))
-            if effort is not None:
-                return effort
-
-        return cls._normalize_reasoning_effort(
-            model_config.get("reasoning_effort") or model_config.get("reasoningEffort"),
-        )
-
-    @classmethod
     def _get_runtime_overrides_for_provider(
         cls,
         model_config: Any,
@@ -186,31 +163,6 @@ class OpenAIAdapterModelRequestMixin:
         )
 
     @classmethod
-    def _extract_legacy_reasoning_effort_from_model(
-        cls,
-        model: str,
-    ) -> tuple[str, str | None]:
-        normalized_model = str(model or "").strip()
-        if not normalized_model:
-            return ("", None)
-
-        base_model, effort = split_last_suffix(
-            normalized_model,
-            separator="-",
-            allowed_suffixes=("none", "minimal", "low", "medium", "high", "xhigh"),
-        )
-        if effort is None:
-            return (normalized_model, None)
-
-        if not any(
-            base_model.lower().startswith(prefix)
-            for prefix in RESPONSES_REASONING_SUMMARY_MODEL_PREFIXES
-        ):
-            return (normalized_model, None)
-
-        return (base_model, effort)
-
-    @classmethod
     def resolve_effective_model_request(
         cls,
         *,
@@ -248,34 +200,6 @@ class OpenAIAdapterModelRequestMixin:
                 effective_request["reasoning_effort"] = config_effort
                 effective_request["override_source"] = "runtime_overrides"
                 effective_request["applied_overrides"].append(config_path)
-
-        if effective_request["reasoning_effort"] is None:
-            legacy_config_effort = (
-                cls._extract_legacy_reasoning_effort_from_model_config(model_config)
-            )
-            if legacy_config_effort is not None:
-                legacy_path = "config.reasoning.effort"
-                if cls._supports_reasoning_effort_model(logical_model_code):
-                    effective_request["reasoning_effort"] = legacy_config_effort
-                    effective_request["override_source"] = "legacy_model_config"
-                    effective_request["applied_overrides"].append(legacy_path)
-                else:
-                    effective_request["ignored_overrides"].append(legacy_path)
-                    effective_request["ignore_reasons"][legacy_path] = (
-                        "unsupported_model_family"
-                    )
-
-        upstream_model, legacy_effort = cls._extract_legacy_reasoning_effort_from_model(
-            logical_model_code
-        )
-        if legacy_effort is not None:
-            effective_request["upstream_model"] = upstream_model
-            if effective_request["reasoning_effort"] is None:
-                effective_request["reasoning_effort"] = legacy_effort
-                effective_request["override_source"] = "legacy_model_code"
-                effective_request["applied_overrides"].append(
-                    "legacy_model_code_suffix"
-                )
 
         if effective_request["reasoning_effort"] is not None:
             if normalized_wire_api == "responses":

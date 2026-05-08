@@ -39,7 +39,7 @@ from .stream_generation_pipeline import (
     finalize_successful_turn,
     reset_stream_state,
 )
-from .stream_generation_view import ensure_stream_generation_view
+from .stream_generation_view import build_stream_generation_view
 from .stream_llm_round_support import (
     StreamRoundState,
     finalize_model_round,
@@ -472,7 +472,7 @@ class StreamIOAdapter:
 
     async def emit_chunk(self, text: str) -> None:
         if text:
-            generation_view = ensure_stream_generation_view(self.handler)
+            generation_view = build_stream_generation_view(self.handler)
             generation_view.visible_stream_content = (
                 generation_view.visible_stream_content + text
             )
@@ -692,7 +692,7 @@ def _resolve_completion_reason_public_error_message(
 
 
 def _sync_exception_runtime_metadata(handler: Any, exc: BaseException) -> None:
-    view = ensure_stream_generation_view(handler)
+    view = build_stream_generation_view(handler)
 
     runtime_model_info = getattr(exc, "_novusai_runtime_model_info", None)
     if isinstance(runtime_model_info, dict) and runtime_model_info:
@@ -731,7 +731,7 @@ def _register_stream_exception_failure(handler: Any, exc: BaseException) -> None
     ).strip()
     if not protocol_path:
         protocol_path = str(
-            (ensure_stream_generation_view(handler).runtime_turn_record or {}).get(
+            (build_stream_generation_view(handler).runtime_turn_record or {}).get(
                 "protocol_path",
             )
             or "",
@@ -860,7 +860,7 @@ async def _build_stream_exception_artifacts(
     public_error_message: str,
     completion_reason: str,
 ) -> StreamFinalizationArtifacts:
-    view = ensure_stream_generation_view(handler)
+    view = build_stream_generation_view(handler)
     duration_ms = int((time.perf_counter() - handler.start_time) * 1000)
     recovered_tool_results = _resolve_exception_tool_results(
         all_tool_results=all_tool_results,
@@ -1056,7 +1056,7 @@ async def _handle_stream_exception(
             str(exc),
             exc_info=True,
         )
-    view = ensure_stream_generation_view(handler)
+    view = build_stream_generation_view(handler)
     if _should_emit_graceful_exception_done(handler):
         try:
             artifacts = await _build_stream_exception_artifacts(
@@ -1172,7 +1172,7 @@ async def _handle_stream_base_exception(
     )
     handler._update_turn_progress(interrupted_stage=handler._interrupted_stage)
 
-    view = ensure_stream_generation_view(handler)
+    view = build_stream_generation_view(handler)
     if handler.on_complete and not view.runtime.on_complete_called:
         duration_ms = int((time.perf_counter() - handler.start_time) * 1000)
         partial_output = view.output or output
@@ -1251,7 +1251,7 @@ async def _handle_stream_cancelled_exception(
         )
     handler._update_turn_progress(interrupted_stage=handler._interrupted_stage)
 
-    view = ensure_stream_generation_view(handler)
+    view = build_stream_generation_view(handler)
     duration_ms = int((time.perf_counter() - handler.start_time) * 1000)
     partial_output = str(view.output or output or "").strip()
     public_error_message = _resolve_completion_reason_public_error_message(

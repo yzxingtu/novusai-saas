@@ -197,6 +197,12 @@ def _get_frontend_decl(manifest: Any) -> dict[str, Any]:
     if hasattr(manifest, "extensions") and getattr(
         manifest.extensions, "frontend", None
     ):
+        extensions_fields_set = getattr(manifest.extensions, "model_fields_set", None)
+        if (
+            extensions_fields_set is not None
+            and "frontend" not in extensions_fields_set
+        ):
+            return {}
         frontend = manifest.extensions.frontend
         if hasattr(frontend, "model_dump"):
             return frontend.model_dump(exclude_none=True)

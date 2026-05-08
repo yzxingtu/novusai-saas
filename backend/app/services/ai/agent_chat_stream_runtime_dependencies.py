@@ -8,7 +8,8 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.ai.agent_quota import AgentConcurrencyLimiter, AgentQuotaManager
+from app.ai.agent_quota_concurrency import AgentConcurrencyLimiter
+from app.ai.agent_quota_manager import AgentQuotaManager
 from app.ai.agent_stats import AgentStatsManager
 from app.ai.engine.base import BaseEngine
 from app.ai.engine.types import ExecutionRequest, ExecutionResult

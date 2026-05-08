@@ -23,6 +23,7 @@ from app.core.logging import get_logger
 from app.enums.ai import CallStatusEnum, CallTypeEnum, RequestTypeEnum
 from app.exceptions import AppException
 from app.models.ai.call_log import AICallLog
+from app.schemas.ai.invalid_ai_runtime_input import is_invalid_ai_runtime_reference
 from app.services.ai.agent_chat_service import AgentChatService
 from app.services.ai.runtime_diagnostics_support import RuntimeDiagnosticsCheckSupport
 from app.services.ai.runtime_inventory_service import RuntimeInventoryService
@@ -60,7 +61,16 @@ _RETIRED_CAPABILITY_MARKERS = (
     "page_context",
     "page_data",
     "pageop_",
+    "fetch_url",
+    "hosted_web_search",
+    "native_web_search",
     "online_search",
+    "response.web_search_call",
+    "search_provider",
+    "web_research",
+    "web_search",
+    "web_search_options",
+    "web_search_runtime",
 )
 _FABRICATED_SOURCE_MARKERS = (
     "http://",
@@ -72,6 +82,21 @@ _FABRICATED_SOURCE_MARKERS = (
     "source:",
     "citation",
     "[1]",
+)
+_RETIRED_CAPABILITY_FREE_TEXT_KEYS = frozenset(
+    {
+        "assistant_text",
+        "content",
+        "detail",
+        "error_message",
+        "message",
+        "output_text",
+        "reason",
+        "source_text",
+        "summary",
+        "text",
+        "user_input",
+    }
 )
 
 logger = get_logger(__name__)
@@ -238,9 +263,30 @@ def _status_from_error(exc: Exception) -> str:
     return _STATUS_FAILED
 
 
-def _contains_retired_capability(value: Any) -> bool:
-    text = str(value or "").lower()
-    return any(marker in text for marker in _RETIRED_CAPABILITY_MARKERS)
+def _contains_retired_capability(value: Any, *, field_name: str | None = None) -> bool:
+    if isinstance(value, dict):
+        for key, nested in value.items():
+            key_text = str(key or "")
+            if _contains_retired_capability(key_text):
+                return True
+            if key_text in _RETIRED_CAPABILITY_FREE_TEXT_KEYS:
+                continue
+            if _contains_retired_capability(nested, field_name=key_text):
+                return True
+        return False
+    if isinstance(value, list | tuple | set):
+        return any(
+            _contains_retired_capability(item, field_name=field_name) for item in value
+        )
+    text = str(value or "").strip()
+    if not text:
+        return False
+    if field_name in _RETIRED_CAPABILITY_FREE_TEXT_KEYS:
+        return False
+    lowered = text.lower()
+    return is_invalid_ai_runtime_reference(text) or any(
+        marker in lowered for marker in _RETIRED_CAPABILITY_MARKERS
+    )
 
 
 def _contains_fabricated_live_source(value: Any) -> bool:
@@ -532,7 +578,6 @@ class RuntimeRealDialogueSmokeService:
                 memory_scene=DEFAULT_MEMORY_SCENE,
                 memory_channel=MEMORY_CHANNEL_SYSTEM,
                 memory_source="real_dialogue_smoke",
-                selected_skill_names=None,
                 interaction_mode="trusted_auto",
             )
             call_log = await self._latest_call_log(
@@ -548,9 +593,15 @@ class RuntimeRealDialogueSmokeService:
             selected_skills = list(
                 (response.context_diagnostics or {}).get("selected_skill_names") or []
             )
-            retired_capability_exposed = any(
-                _contains_retired_capability(value)
-                for value in [assistant_text, *selected_tools, *selected_skills]
+            retired_probe_values = {
+                "selected_tool_names": selected_tools,
+                "selected_skill_names": selected_skills,
+                "context_diagnostics": response.context_diagnostics,
+                "last_run_summary": response.last_run_summary,
+                "capability_smoke": capability_smoke,
+            }
+            retired_capability_exposed = _contains_retired_capability(
+                retired_probe_values
             )
             scripted_checks = self._build_scripted_checks(
                 scenario=scenario,
@@ -592,6 +643,9 @@ class RuntimeRealDialogueSmokeService:
                 "total_tokens": response.total_tokens,
                 "duration_ms": response.duration_ms,
                 "observable_checks": observable_checks,
+                "retired_capability_probe_values": retired_probe_values
+                if retired_capability_exposed
+                else {},
                 "capability_smoke": capability_smoke,
                 "context_diagnostics": response.context_diagnostics,
                 "last_run_summary": response.last_run_summary,

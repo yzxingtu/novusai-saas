@@ -1,4 +1,10 @@
-"""Test toolkit_executor.py / 测试"""
+"""Test type: behavioral.
+
+Scope: toolkit executor loading, method dispatch, Valves injection, and output
+formatting.
+Mocked dependencies: local toolkit source fixtures only; no LLM response bodies
+are mocked.
+"""
 
 import asyncio
 from contextvars import ContextVar
@@ -136,7 +142,7 @@ async def test_sync_method_preserves_contextvars_in_threadpool(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_valves_injection():
-    executor = ToolkitExecutor()
+    executor = ToolkitExecutor(sandbox_mode="inprocess")
     defn = _make_definition(
         "greet",
         "greet",
@@ -146,6 +152,21 @@ async def test_valves_injection():
     assert result.success is True
     assert result.output == "Hi there, Alice!"
     print("PASS: valves injection")
+
+
+@pytest.mark.asyncio
+async def test_valves_injection_uses_canonical_field_names_only():
+    executor = ToolkitExecutor(sandbox_mode="inprocess")
+    defn = _make_definition(
+        "greet",
+        "greet",
+        valves_config={"GREETING": "Hi there"},
+    )
+    result = await executor.execute(defn, "call3_upper", {"name": "Alice"})
+    assert result.success is False
+    assert "Valves config injection failed" in (result.error or "")
+    assert "GREETING" in (result.error or "")
+    print("PASS: canonical-only valves injection")
 
 
 @pytest.mark.asyncio
@@ -299,6 +320,8 @@ async def _run_all():
     await test_sync_method()
     clear_toolkit_cache()
     await test_valves_injection()
+    clear_toolkit_cache()
+    await test_valves_injection_uses_canonical_field_names_only()
     clear_toolkit_cache()
     await test_default_params()
     clear_toolkit_cache()

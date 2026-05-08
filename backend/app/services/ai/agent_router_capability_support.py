@@ -9,6 +9,7 @@ from app.ai.routing.router import ModelRouter
 from app.ai.tools.semantic_defaults import tool_family_from_name
 from app.models.ai.agent import Agent
 from app.models.ai.agent_skill_grant import AgentSkillGrant
+from app.repositories.ai.retired_skill_catalog_filters import is_retired_skill_instance
 from app.schemas.ai.invalid_ai_runtime_input import filter_invalid_ai_runtime_references
 
 BASELINE_RUNTIME_FAMILIES = frozenset({"time_ops"})
@@ -19,6 +20,8 @@ def grant_skill_name_if_active(grant: AgentSkillGrant | Any) -> str | None:
         return None
     skill = getattr(grant, "skill", None)
     if not skill:
+        return None
+    if is_retired_skill_instance(skill):
         return None
     if not getattr(skill, "is_active", True) or getattr(skill, "is_deleted", False):
         return None

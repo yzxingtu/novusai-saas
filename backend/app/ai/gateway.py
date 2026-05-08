@@ -43,7 +43,7 @@ from app.ai.types import (
     ImageGenerationResponse,
     TestModelResult,
 )
-from app.ai.usage_recorder import UsageRecorder
+from app.ai.usage_recorder_core import UsageRecorder
 from app.core.config import settings
 from app.core.logging import LogManager
 from app.enums.ai import CallTypeEnum

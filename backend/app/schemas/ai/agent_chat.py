@@ -19,7 +19,6 @@ from pydantic import (
 from app.core.i18n import _
 from app.schemas.ai.invalid_ai_runtime_input import (
     ensure_no_disallowed_ai_runtime_input,
-    is_invalid_ai_runtime_reference,
     is_invalid_ai_runtime_tool_family,
     is_invalid_ai_runtime_tool_name,
 )
@@ -39,12 +38,6 @@ def _raise_invalid_runtime_tool(value: str) -> None:
 def _ensure_valid_runtime_tool_name(value: str | None) -> None:
     text = str(value or "").strip()
     if text and is_invalid_ai_runtime_tool_name(text):
-        _raise_invalid_runtime_tool(text)
-
-
-def _ensure_valid_runtime_reference(value: str | None) -> None:
-    text = str(value or "").strip()
-    if text and is_invalid_ai_runtime_reference(text):
         _raise_invalid_runtime_tool(text)
 
 
@@ -144,8 +137,6 @@ class AgentChatRequest(BaseModel):
         if msgs and any(not (m or "").strip() for m in msgs):
             raise ValueError("messages must not contain empty strings")
         ensure_no_disallowed_ai_runtime_input(self.variables)
-        for skill_name in self.selected_skill_names or []:
-            _ensure_valid_runtime_reference(skill_name)
         for update in self.interaction_updates or []:
             _ensure_valid_runtime_tool_name(update.tool_name)
         return self
@@ -161,11 +152,6 @@ class AgentChatRequest(BaseModel):
     knowledge_base_ids: list[int] | None = Field(
         None,
         description=_("agent_chat.field.knowledge_base_ids"),
-    )
-    selected_skill_names: list[str] | None = Field(
-        None,
-        max_length=20,
-        description="Turn-priority skill/package names selected from current agent bindings",
     )
     consented_actions: list[str] | None = Field(
         None,

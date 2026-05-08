@@ -30,7 +30,6 @@ class TenantRepository(BaseRepository[Tenant]):
             "contact_phone",
             "contact_email",
             "is_active",
-            "plan",
             "plan_id",
             "expires_at",
             "created_at",

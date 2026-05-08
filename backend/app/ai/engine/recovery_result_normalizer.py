@@ -12,6 +12,49 @@ from .types import IntentPlan
 
 class RecoveryResultNormalizer:
     @staticmethod
+    def _first_scalar_value(value: dict[str, Any], keys: tuple[str, ...]) -> str:
+        for key in keys:
+            candidate = value.get(key)
+            if candidate is None:
+                continue
+            normalized = RecoveryResultNormalizer._normalize_scalar_preview(candidate)
+            if normalized:
+                return normalized
+        return ""
+
+    @staticmethod
+    def _normalize_observation_payload(value: dict[str, Any]) -> str | None:
+        subject = RecoveryResultNormalizer._first_scalar_value(
+            value,
+            ("city", "location", "place", "area", "site", "name"),
+        )
+        condition = RecoveryResultNormalizer._first_scalar_value(
+            value,
+            (
+                "condition",
+                "status",
+                "state",
+            ),
+        )
+        temperature = RecoveryResultNormalizer._first_scalar_value(
+            value,
+            ("temperature", "temp", "temperature_c", "temperature_f"),
+        )
+        if not subject or not (condition or temperature):
+            return None
+        parts = [
+            _("{subject}现在{condition}").format(
+                subject=subject,
+                condition=condition,
+            )
+            if condition
+            else subject
+        ]
+        if temperature:
+            parts.append(_("气温约 {temperature}").format(temperature=temperature))
+        return "，".join(part for part in parts if part) + "。"
+
+    @staticmethod
     def _truncate_preview(
         text: str,
         *,
@@ -77,27 +120,9 @@ class RecoveryResultNormalizer:
                 if normalized_nested:
                     return normalized_nested
 
-            city = str(value.get("city") or value.get("location") or "").strip()
-            condition = str(
-                value.get("condition") or value.get("weather") or ""
-            ).strip()
-            temperature = str(
-                value.get("temperature") or value.get("temp") or ""
-            ).strip()
-            if city and (condition or temperature):
-                parts = [
-                    _("{city}现在{condition}").format(
-                        city=city,
-                        condition=condition,
-                    )
-                    if condition
-                    else city
-                ]
-                if temperature:
-                    parts.append(
-                        _("气温约 {temperature}").format(temperature=temperature)
-                    )
-                return "，".join(part for part in parts if part) + "。"
+            observation = RecoveryResultNormalizer._normalize_observation_payload(value)
+            if observation:
+                return observation
 
             for key in (
                 "summary",
@@ -178,8 +203,6 @@ class RecoveryResultNormalizer:
             "direct_reply",
             "time",
             "time_query",
-            "weather",
-            "weather_query",
         }:
             return False
         return not (
@@ -193,8 +216,6 @@ class RecoveryResultNormalizer:
             return label
         normalized_kind = str(intent.kind or "").strip().lower()
         normalized_family = str(intent.family or "").strip().lower()
-        if normalized_kind == "weather_query" or normalized_family == "weather":
-            return _("天气")
         if normalized_kind == "time_query" or normalized_family == "time_ops":
             return _("时间")
         return _("这部分")

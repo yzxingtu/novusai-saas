@@ -17,11 +17,15 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.ai.adapters.openai_adapter import OpenAIAdapter
+from app.ai.adapters.openai_compatible.capabilities import OpenAIProtocolCapabilities
 from app.core.base_model import utc_now
 from app.core.config import settings
 from app.core.database import sync_session_factory
 from app.core.i18n import _
 from app.core.logging import LogManager
+from app.schemas.ai.invalid_ai_runtime_input import (
+    retired_ai_provider_protocol_field_paths,
+)
 from app.tasks.base import BaseTask, register_task
 
 logger = LogManager.get_logger("tasks.ai")
@@ -77,13 +81,27 @@ def ai_provider_health_check(self: BaseTask) -> dict:
             "{} provider_count={}", _("ai.log.health_check_start"), len(providers)
         )
 
+        provider_error_count = 0
         for provider in providers:
-            _check_provider_health(provider, db, redis_client)
+            try:
+                _check_provider_health(provider, db, redis_client)
+            except Exception as exc:
+                provider_error_count += 1
+                logger.error(
+                    "{} provider={} error={}",
+                    _("ai.log.health_check_provider_failed"),
+                    getattr(provider, "code", ""),
+                    str(exc),
+                )
 
         logger.info(
             "{} provider_count={}", _("ai.log.health_check_completed"), len(providers)
         )
-        return {"provider_count": len(providers), "status": "completed"}
+        return {
+            "provider_count": len(providers),
+            "provider_error_count": provider_error_count,
+            "status": "completed",
+        }
 
     except Exception as e:
         logger.error("{} error={}", _("ai.log.health_check_task_failed"), str(e))
@@ -123,19 +141,16 @@ def _check_provider_health(
     tool_probe_ignored_overrides: list[str] = []
     tool_probe_ignore_reasons: dict[str, str] = {}
     tool_probe_error_message: str | None = None
-    wire_api = _normalize_wire_api(
-        (provider.config or {}).get("wire_api")
-        if isinstance(getattr(provider, "config", None), dict)
-        else None
-    )
+    primary_wire_api: str | None = None
 
     try:
+        primary_wire_api = _resolve_provider_primary_wire_api(provider)
         # Get provider's API Key / 获取供应商的 API Key
         stmt = (
             select(ProviderApiKey)
             .where(
                 ProviderApiKey.provider_id == provider_id,
-                ProviderApiKey.tenant_id.is_(None),
+                ProviderApiKey.owner_tenant_id.is_(None),
                 ProviderApiKey.is_active.is_(True),
                 ProviderApiKey.is_deleted.is_(False),
             )
@@ -184,7 +199,11 @@ def _check_provider_health(
                         model_code=tool_model.code,
                         model_config=getattr(tool_model, "config", None),
                     )
-                    if _provider_needs_responses_tool_probe(provider, tool_model)
+                    if _provider_needs_responses_tool_probe(
+                        provider,
+                        tool_model,
+                        primary_wire_api=primary_wire_api,
+                    )
                     else (None, None)
                 )
                 if tool_calling_healthy is False:
@@ -227,7 +246,7 @@ def _check_provider_health(
         "provider_id": provider_id,
         "provider_code": provider.code,
         "provider_name": provider.name,
-        "wire_api": wire_api,
+        "primary_wire_api": primary_wire_api,
         "is_healthy": is_healthy,
         "base_connectivity_healthy": base_connectivity_healthy,
         "tool_calling_healthy": tool_calling_healthy,
@@ -253,6 +272,7 @@ def _check_provider_health(
     # Append to history (sorted set, score = timestamp) / 追加到历史记录（使用 sorted set，score 为时间戳）
     history_entry = json.dumps(
         {
+            "primary_wire_api": primary_wire_api,
             "is_healthy": is_healthy,
             "base_connectivity_healthy": base_connectivity_healthy,
             "tool_calling_healthy": tool_calling_healthy,
@@ -283,11 +303,22 @@ def _check_provider_health(
     )
 
 
-def _normalize_wire_api(wire_api: str | None) -> str:
-    value = str(wire_api or "").strip().lower().replace("-", "_")
-    if value in {"responses", "response", "responses_api"}:
-        return "responses"
-    return "chat_completions"
+def _resolve_provider_primary_wire_api(provider: object) -> str:
+    provider_config = (
+        provider.config if isinstance(getattr(provider, "config", None), dict) else {}
+    )
+    retired_paths = retired_ai_provider_protocol_field_paths(provider_config)
+    if retired_paths:
+        raise ValueError(
+            "Retired provider protocol field "
+            f"{retired_paths[0]} is no longer supported; "
+            "use protocol_capabilities.primary_wire_api"
+        )
+    capabilities = OpenAIProtocolCapabilities.from_provider_config(
+        provider_config=provider_config,
+        configured_wire_api=None,
+    )
+    return capabilities.primary_wire_api
 
 
 def _config_enabled(value: object, *, default: bool) -> bool:
@@ -317,16 +348,17 @@ def _resolve_tool_probe_model(provider: object, db: Session):
 
 
 def _provider_needs_responses_tool_probe(
-    provider: object, tool_model: object | None
+    provider: object,
+    tool_model: object | None,
+    *,
+    primary_wire_api: str | None = None,
 ) -> bool:
     if tool_model is None:
         return False
-    wire_api = _normalize_wire_api(
-        (provider.config or {}).get("wire_api")
-        if isinstance(getattr(provider, "config", None), dict)
-        else None
+    effective_wire_api = primary_wire_api or _resolve_provider_primary_wire_api(
+        provider
     )
-    if wire_api != "responses":
+    if effective_wire_api != "responses":
         return False
     if not bool(getattr(tool_model, "supports_function_calling", False)):
         return False

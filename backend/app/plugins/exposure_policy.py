@@ -18,31 +18,8 @@ TENANT_EXPOSURE_SELECTED_TENANTS = "selected_tenants"
 TENANT_EXPOSURE_NONE = "none"
 
 _VALID_EDITIONS = frozenset({PLUGIN_EDITION_SAAS, PLUGIN_EDITION_SINGLE_MANAGEMENT})
-_EDITION_ALIASES = {
-    "single": PLUGIN_EDITION_SINGLE_MANAGEMENT,
-    "single_management": PLUGIN_EDITION_SINGLE_MANAGEMENT,
-    "singlemanagement": PLUGIN_EDITION_SINGLE_MANAGEMENT,
-    "single_mgmt": PLUGIN_EDITION_SINGLE_MANAGEMENT,
-}
 _VALID_SURFACES = frozenset({"admin", "tenant", "user", "platform", "global"})
-_SURFACE_ALIASES = {
-    "tenant_scoped": "tenant",
-    "tenant_admin": "tenant",
-    "platform_admin": "admin",
-}
 _TENANT_RUNTIME_SURFACES = frozenset({"tenant", "global"})
-_TENANT_EXPOSURE_ALIASES = {
-    "default": TENANT_EXPOSURE_SCOPE_DEFAULT,
-    "scope": TENANT_EXPOSURE_SCOPE_DEFAULT,
-    "all": TENANT_EXPOSURE_ALL_TENANTS,
-    "global": TENANT_EXPOSURE_ALL_TENANTS,
-    "selected": TENANT_EXPOSURE_SELECTED_TENANTS,
-    "assigned": TENANT_EXPOSURE_SELECTED_TENANTS,
-    "assignment_required": TENANT_EXPOSURE_SELECTED_TENANTS,
-    "tenant_scoped": TENANT_EXPOSURE_SELECTED_TENANTS,
-    "disabled": TENANT_EXPOSURE_NONE,
-    "admin_only": TENANT_EXPOSURE_NONE,
-}
 _VALID_TENANT_EXPOSURE = frozenset(
     {
         TENANT_EXPOSURE_SCOPE_DEFAULT,
@@ -94,10 +71,9 @@ def build_plugin_exposure_profile(
     *,
     scope: str | None = None,
 ) -> PluginExposureProfile:
-    """中文: 从 manifest 派生兼容 profile，旧 manifest 默认保持 SaaS 行为。
+    """中文: 从 manifest 派生宿主版本和企业暴露 profile。
 
-    EN: Derive a compatibility profile from a manifest; legacy manifests keep
-    the existing SaaS behavior by default.
+    EN: Derive the host-edition and tenant-exposure profile from a manifest.
     """
     manifest_data = _as_mapping(manifest_or_data)
     raw_scope = _normalize_scope(scope or _read_value(manifest_or_data, "scope"))
@@ -106,13 +82,11 @@ def build_plugin_exposure_profile(
     declared_editions = _normalize_list(
         compatibility.get("editions"),
         allowed=_VALID_EDITIONS,
-        aliases=_EDITION_ALIASES,
         default=[PLUGIN_EDITION_SAAS],
     )
     surfaces = _normalize_list(
         compatibility.get("surfaces"),
         allowed=_VALID_SURFACES,
-        aliases=_SURFACE_ALIASES,
         default=_derive_surfaces_from_scope(raw_scope),
     )
     tenant_exposure = _normalize_tenant_exposure(compatibility.get("tenant_exposure"))
@@ -177,7 +151,6 @@ def _normalize_list(
     value: object,
     *,
     allowed: frozenset[str],
-    aliases: dict[str, str],
     default: list[str],
 ) -> list[str]:
     if value is None:
@@ -196,7 +169,6 @@ def _normalize_list(
         text = str(item or "").strip().lower().replace("-", "_")
         if not text:
             continue
-        text = aliases.get(text, text)
         if text not in allowed:
             continue
         if text not in normalized:
@@ -210,7 +182,6 @@ def _normalize_tenant_exposure(value: object) -> str:
     text = str(value or "").strip().lower().replace("-", "_")
     if not text:
         return TENANT_EXPOSURE_SCOPE_DEFAULT
-    text = _TENANT_EXPOSURE_ALIASES.get(text, text)
     if text not in _VALID_TENANT_EXPOSURE:
         return TENANT_EXPOSURE_NONE
     return text

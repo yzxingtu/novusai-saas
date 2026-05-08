@@ -8,7 +8,6 @@ import pytest
 
 from app.models.auth.tenant_admin_role import TenantAdminRole
 from app.services.ai.action_log_service import (
-    AdminAIActionLogService,
     AIActionLogService,
     _normalize_audit_payload,
     write_ai_action_log,
@@ -219,69 +218,6 @@ def test_tenant_action_log_serialize_log_prefers_operator_snapshot_over_live_met
     assert payload["operator_is_active"] is True
     assert payload["operator_is_leader"] is True
     assert payload["operator_is_owner"] is True
-
-
-def test_admin_action_log_serialize_log_merges_tenant_agent_and_operator_metadata():
-    service = AdminAIActionLogService.__new__(AdminAIActionLogService)
-    service._load_tenant_meta_map = _fake_empty_async  # type: ignore[method-assign]
-    service._load_agent_meta_map = _fake_empty_async  # type: ignore[method-assign]
-    service._load_operator_meta_map = _fake_empty_async  # type: ignore[method-assign]
-
-    async def _tenant_meta(_tenant_ids):
-        return {9: {"tenant_name": "Acme", "tenant_code": "acme"}}
-
-    async def _agent_meta(_agent_ids):
-        return {7: {"agent_name": "Order Copilot", "agent_avatar": "18"}}
-
-    async def _operator_meta(_logs):
-        return {
-            (9, "tenant_admin", 12): {
-                "operator_name": "alice",
-                "operator_nickname": "Alice",
-                "operator_avatar": "22",
-                "operator_display_name": "Alice",
-                "operator_org_node_id": 5,
-                "operator_org_node_name": "Ops",
-                "operator_role_name": "Owner",
-                "operator_is_active": True,
-                "operator_is_leader": True,
-                "operator_is_owner": True,
-                "operator_type": "tenant_admin",
-            }
-        }
-
-    service._load_tenant_meta_map = _tenant_meta  # type: ignore[method-assign]
-    service._load_agent_meta_map = _agent_meta  # type: ignore[method-assign]
-    service._load_operator_meta_map = _operator_meta  # type: ignore[method-assign]
-
-    log = SimpleNamespace(
-        tenant_id=9,
-        agent_id=7,
-        operator_id=12,
-        to_dict=lambda: {
-            "id": 1,
-            "tenant_id": 9,
-            "agent_id": 7,
-            "operator_id": 12,
-        },
-    )
-
-    import asyncio
-
-    payload = asyncio.run(service.serialize_log(log))
-
-    assert payload["tenant_name"] == "Acme"
-    assert payload["tenant_code"] == "acme"
-    assert payload["agent_name"] == "Order Copilot"
-    assert payload["operator_name"] == "alice"
-    assert payload["operator_avatar"] == "22"
-    assert payload["operator_display_name"] == "Alice"
-    assert payload["operator_org_node_name"] == "Ops"
-    assert payload["operator_role_name"] == "Owner"
-    assert payload["operator_is_active"] is True
-    assert payload["operator_is_leader"] is True
-    assert payload["operator_is_owner"] is True
-    assert payload["operator_type"] == "tenant_admin"
 
 
 @pytest.mark.asyncio

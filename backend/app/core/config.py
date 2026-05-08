@@ -43,6 +43,9 @@ class Settings(BaseSettings):
     APP_VERSION: str = "0.1.0"
     APP_ENV: str = "development"  # development, staging, production / 运行环境
     DEBUG: bool = False
+    # 中文: 生产镜像由独立 migrate 容器执行迁移，API 启动只做连接校验。
+    # EN: Production images run migrations in a dedicated migrate container; API startup only checks connectivity.
+    RUN_MIGRATIONS_ON_STARTUP: bool = True
 
     # 时区配置（用于后端和数据库） / Timezone config (for backend and database)
     TIMEZONE: str = "Asia/Shanghai"

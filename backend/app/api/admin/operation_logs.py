@@ -21,7 +21,6 @@ from app.rbac.decorators import (
 )
 from app.schemas.system.operation_log import (
     OperationLogDeleteRequest,
-    OperatorSelectItem,
 )
 from app.services.system.operation_log_service import OperationLogService
 
@@ -106,39 +105,31 @@ class AdminOperationLogController(GlobalController):
             db: DbSession,
             current_admin: ActiveAdmin,
             search: str | None = None,
-            page: int | None = None,
+            page: int = Query(1, ge=1),
             page_size: int = Query(10, ge=1, le=100),
         ):
             """
             获取平台端操作日志中的去重操作人列表（含头像） / Get deduplicated operator list from platform logs (with avatar)
 
-            支持两种模式 / Supports two modes:
-            - 分页模式（传 page 参数）：返回 {items, total, page, page_size} 供远程下拉使用
-            - 全量模式（不传 page）：返回完整列表，兼容旧逻辑
+            返回分页数据 {items, total, page, page_size} 供远程下拉使用。
+            Returns paginated data {items, total, page, page_size} for remote selects.
 
             权限 / Permission: operation_log:list
             """
             service = OperationLogService(db)
 
-            if page is not None:
-                items, total = await service.get_admin_operators_select(
-                    search=search,
-                    page=page,
-                    page_size=page_size,
-                )
-                return success(
-                    data={
-                        "items": items,
-                        "total": total,
-                        "page": page,
-                        "page_size": page_size,
-                    },
-                    message=_("common.success"),
-                )
-
-            operators = await service.get_admin_operators()
+            items, total = await service.get_admin_operators_select(
+                search=search,
+                page=page,
+                page_size=page_size,
+            )
             return success(
-                data=[OperatorSelectItem(**op) for op in operators],
+                data={
+                    "items": items,
+                    "total": total,
+                    "page": page,
+                    "page_size": page_size,
+                },
                 message=_("common.success"),
             )
 

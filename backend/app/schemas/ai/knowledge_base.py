@@ -23,6 +23,10 @@ _RETIRED_MULTIMODAL_MODEL_FIELDS = (
     "audio_model_id",
     "video_model_id",
 )
+_RETIRED_ADMIN_KB_ALIAS_FIELDS = (
+    "tenant_id",
+    "assigned_tenant_ids",
+)
 
 
 def _reject_retired_multimodal_request_fields(data: Any) -> Any:
@@ -33,11 +37,27 @@ def _reject_retired_multimodal_request_fields(data: Any) -> Any:
     return data
 
 
+def _reject_retired_admin_kb_alias_fields(data: Any) -> Any:
+    if not isinstance(data, dict):
+        return data
+    for field in _RETIRED_ADMIN_KB_ALIAS_FIELDS:
+        if field in data:
+            raise ValueError(_("agent.error.rejected_legacy_field").format(field=field))
+    return data
+
+
 class _RejectRetiredMultimodalModelFields:
     @model_validator(mode="before")
     @classmethod
     def reject_retired_multimodal_model_fields(cls, data: Any) -> Any:
         return _reject_retired_multimodal_request_fields(data)
+
+
+class _RejectRetiredAdminKnowledgeBaseAliases:
+    @model_validator(mode="before")
+    @classmethod
+    def reject_retired_admin_kb_alias_fields(cls, data: Any) -> Any:
+        return _reject_retired_admin_kb_alias_fields(data)
 
 
 class KnowledgeBaseCreate(_RejectRetiredMultimodalModelFields, BaseCreateSchema):
@@ -116,7 +136,11 @@ class KnowledgeBaseUpdate(_RejectRetiredMultimodalModelFields, BaseUpdateSchema)
     status: str | None = Field(None, description=_("knowledge_base.model.status"))
 
 
-class AdminKnowledgeBaseCreate(_RejectRetiredMultimodalModelFields, BaseCreateSchema):
+class AdminKnowledgeBaseCreate(
+    _RejectRetiredAdminKnowledgeBaseAliases,
+    _RejectRetiredMultimodalModelFields,
+    BaseCreateSchema,
+):
     """管理端创建知识库请求（支持 scope） / Admin create KB request (scope supported)."""
 
     name: str = Field(..., max_length=200, description=_("knowledge_base.model.name"))
@@ -132,14 +156,7 @@ class AdminKnowledgeBaseCreate(_RejectRetiredMultimodalModelFields, BaseCreateSc
     )
     owner_tenant_id: int | None = Field(
         None,
-        description="归属企业ID（平台级为 NULL；请求可传 tenant_id 由服务端映射）",
-    )
-    tenant_id: int | None = Field(
-        None,
-        description="兼容字段，写入时映射为 owner_tenant_id",
-    )
-    assigned_tenant_ids: list[int] | None = Field(
-        None, description=_("knowledge_base.model.assigned_tenant_ids")
+        description="归属企业ID（平台级为 NULL）",
     )
     tenant_ids: list[int] | None = Field(
         None, description=_("knowledge_base.model.tenant_ids")
@@ -171,7 +188,11 @@ class AdminKnowledgeBaseCreate(_RejectRetiredMultimodalModelFields, BaseCreateSc
     )
 
 
-class AdminKnowledgeBaseUpdate(_RejectRetiredMultimodalModelFields, BaseUpdateSchema):
+class AdminKnowledgeBaseUpdate(
+    _RejectRetiredAdminKnowledgeBaseAliases,
+    _RejectRetiredMultimodalModelFields,
+    BaseUpdateSchema,
+):
     """管理端更新知识库请求 / Admin update KB request."""
 
     name: str | None = Field(
@@ -185,10 +206,6 @@ class AdminKnowledgeBaseUpdate(_RejectRetiredMultimodalModelFields, BaseUpdateSc
     )
     scope: str | None = Field(None, description=_("knowledge_base.model.scope"))
     owner_tenant_id: int | None = Field(None, description="归属企业ID")
-    tenant_id: int | None = Field(None, description="兼容字段，映射为 owner_tenant_id")
-    assigned_tenant_ids: list[int] | None = Field(
-        None, description=_("knowledge_base.model.assigned_tenant_ids")
-    )
     tenant_ids: list[int] | None = Field(
         None, description=_("knowledge_base.model.tenant_ids")
     )

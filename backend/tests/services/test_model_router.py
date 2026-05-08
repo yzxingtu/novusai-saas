@@ -90,6 +90,25 @@ def _patch_model_repo(monkeypatch: pytest.MonkeyPatch, repo_mock: MagicMock) -> 
 
 
 @pytest.mark.asyncio
+async def test_is_provider_healthy_fails_closed_when_lookup_raises(
+    mock_db,
+    monkeypatch,
+):
+    async def _raise_health_error(self, provider_id: int):
+        _ = (self, provider_id)
+        raise RuntimeError("redis unavailable")
+
+    monkeypatch.setattr(
+        "app.ai.failover.FailoverService.is_provider_healthy",
+        _raise_health_error,
+    )
+
+    router = ModelRouter(mock_db)
+
+    assert await router._is_provider_healthy(123) is False
+
+
+@pytest.mark.asyncio
 async def test_route_raises_when_image_attachment_has_no_capable_model(
     mock_db, monkeypatch
 ):

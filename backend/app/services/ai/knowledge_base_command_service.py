@@ -69,11 +69,19 @@ def _validate_kb_scope_owner(scope: str, owner_tenant_id: int | None) -> None:
 
 
 def _normalize_admin_owner_tenant_alias(data: dict[str, Any]) -> None:
-    if "tenant_id" not in data:
-        return
-    tenant_id = data.pop("tenant_id")
-    if "owner_tenant_id" not in data:
-        data["owner_tenant_id"] = tenant_id
+    if "tenant_id" in data:
+        raise BusinessException(
+            message=_("agent.error.rejected_legacy_field").format(field="tenant_id")
+        )
+
+
+def _reject_admin_assignment_alias(data: dict[str, Any]) -> None:
+    if "assigned_tenant_ids" in data:
+        raise BusinessException(
+            message=_("agent.error.rejected_legacy_field").format(
+                field="assigned_tenant_ids"
+            )
+        )
 
 
 def _validate_tenant_scope_owner_payload(
@@ -261,19 +269,14 @@ class AdminKnowledgeBaseCommandService:
     ) -> tuple[dict[str, Any], list[int] | None]:
         payload = dict(data)
         payload.pop("visibility", None)
+        _normalize_admin_owner_tenant_alias(payload)
+        _reject_admin_assignment_alias(payload)
 
         tenant_ids = payload.pop("tenant_ids", None)
-        assigned_tenant_ids = payload.pop("assigned_tenant_ids", None)
-        if tenant_ids is None:
-            tenant_ids = assigned_tenant_ids
 
         normalized_tenant_ids: list[int] | None = None
         if tenant_ids is not None:
             normalized_tenant_ids = [int(tid) for tid in tenant_ids]
-
-        incoming_tenant_id = payload.pop("tenant_id", None)
-        if incoming_tenant_id is not None and "owner_tenant_id" not in payload:
-            payload["owner_tenant_id"] = incoming_tenant_id
 
         owner_tenant_id = payload.get(
             "owner_tenant_id",
@@ -338,6 +341,7 @@ class AdminKnowledgeBaseCommandService:
     async def before_create(service, data: dict[str, Any]) -> None:
         _reject_unsupported_multimodal_model_config(data)
         _normalize_admin_owner_tenant_alias(data)
+        _reject_admin_assignment_alias(data)
         owner_tid = data.get("owner_tenant_id")
         scope = data.get(
             "scope",
@@ -364,6 +368,7 @@ class AdminKnowledgeBaseCommandService:
     async def before_update(service, id: int, data: dict[str, Any]) -> None:
         _reject_unsupported_multimodal_model_config(data)
         _normalize_admin_owner_tenant_alias(data)
+        _reject_admin_assignment_alias(data)
         kb = await service.repo.get_by_id(id)
         if not kb:
             raise NotFoundException(message=_("knowledge_base.error.not_found"))

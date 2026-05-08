@@ -30,7 +30,6 @@ async def test_stream_request_uses_actor_user_id_for_memory_scope() -> None:
         knowledge_base_ids=None,
         dropped_knowledge_base_ids=[],
         consented_actions=None,
-        selected_skill_names=None,
         user_role="admin",
         user_role_id=None,
         permissions=None,

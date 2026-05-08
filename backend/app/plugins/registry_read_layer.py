@@ -133,14 +133,18 @@ class RegistryReadLayer:
                     }
                 )
 
-        plugin_name = getattr(manifest, "name", "")
-        if plugin_name and plugin_name in self._registry._plugin_skill_resolvers:
-            owner = self.find_owner("skill", plugin_name)
+        plugin_name = str(getattr(manifest, "name", "") or "").strip()
+        for skill in getattr(extensions, "skills", []):
+            skill_name = str(getattr(skill, "name", "") or "").strip()
+            if not plugin_name or not skill_name:
+                continue
+            skill_key = f"{plugin_name}:{skill_name}"
+            owner = self.find_owner("skill", skill_key)
             if owner and owner != plugin_name:
                 conflicts.append(
                     {
                         "type": "skill",
-                        "key": plugin_name,
+                        "key": skill_key,
                         "owner": owner,
                     }
                 )

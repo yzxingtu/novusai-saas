@@ -56,6 +56,66 @@ async def test_lifecycle_guard_registry_stops_on_first_denial():
     assert calls == ["deny"]
 
 
+@pytest.mark.asyncio
+async def test_lifecycle_guard_registry_fails_closed_on_malformed_result():
+    registry = get_plugin_lifecycle_guard_registry()
+    registry.reset()
+    registry = get_plugin_lifecycle_guard_registry()
+
+    async def malformed_handler(_payload):
+        return {
+            "reason_code": "bad_contract",
+            "message": "handler returned no allowed flag",
+            "details": {"owner": "storage-billing"},
+        }
+
+    registry.register("malformed", malformed_handler, priority=10)
+
+    result = await registry.run(
+        {
+            "operation": "uninstall",
+            "plugin_id": 11,
+            "plugin_name": "storage-billing",
+            "force": False,
+            "manifest": {},
+        }
+    )
+
+    assert result["allowed"] is False
+    assert result["reason_code"] == "bad_contract"
+    assert result["details"] == {"owner": "storage-billing"}
+
+
+@pytest.mark.asyncio
+async def test_lifecycle_guard_registry_rejects_string_allowed_value():
+    registry = get_plugin_lifecycle_guard_registry()
+    registry.reset()
+    registry = get_plugin_lifecycle_guard_registry()
+
+    async def malformed_handler(_payload):
+        return {
+            "allowed": "true",
+            "reason_code": "bad_allowed_type",
+            "message": "allowed must be boolean true",
+            "details": {},
+        }
+
+    registry.register("malformed", malformed_handler, priority=10)
+
+    result = await registry.run(
+        {
+            "operation": "disable",
+            "plugin_id": 11,
+            "plugin_name": "storage-billing",
+            "force": False,
+            "manifest": {},
+        }
+    )
+
+    assert result["allowed"] is False
+    assert result["reason_code"] == "bad_allowed_type"
+
+
 def _make_plugin(*, status: str):
     return type(
         "Plugin",

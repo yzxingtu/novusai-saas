@@ -75,6 +75,32 @@ def _parse_output_json(result) -> dict:
     return json.loads(result.output)
 
 
+def _patch_codegen_run_async(monkeypatch, replacement) -> None:
+    monkeypatch.setattr("app.cli_commands.codegen_core._run_async", replacement)
+    monkeypatch.setattr("app.cli_commands.codegen_manage._run_async", replacement)
+
+
+def _patch_codegen_load_config_stdin(monkeypatch, replacement) -> None:
+    monkeypatch.setattr("app.cli_commands.codegen_core._load_config_stdin", replacement)
+    monkeypatch.setattr(
+        "app.cli_commands.codegen_manage._load_config_stdin",
+        replacement,
+    )
+
+
+def _patch_codegen_paths(monkeypatch, *, backend_dir: Path, project_root: Path) -> None:
+    monkeypatch.setattr("app.cli_commands.codegen_core._BACKEND_DIR", backend_dir)
+    monkeypatch.setattr(
+        "app.cli_commands.codegen_core._CODEGEN_PROJECT_ROOT",
+        project_root,
+    )
+    monkeypatch.setattr("app.cli_commands.codegen_manage._BACKEND_DIR", backend_dir)
+    monkeypatch.setattr(
+        "app.cli_commands.codegen_manage._CODEGEN_PROJECT_ROOT",
+        project_root,
+    )
+
+
 def test_codegen_delete_not_found_returns_clean_json(monkeypatch) -> None:
     """codegen delete 缺失配置时返回 JSON 错误而不是 traceback."""
     from app.cli import cli
@@ -85,7 +111,7 @@ def test_codegen_delete_not_found_returns_clean_json(monkeypatch) -> None:
         coro.close()
         raise NotFoundException(message="Config not found")
 
-    monkeypatch.setattr("app.cli._run_async", _raise_not_found)
+    _patch_codegen_run_async(monkeypatch, _raise_not_found)
 
     result = runner.invoke(
         cli, ["codegen", "delete", "--id", "999999", "--yes", "--json"]
@@ -108,7 +134,7 @@ def test_codegen_duplicate_not_found_returns_clean_json(monkeypatch) -> None:
         coro.close()
         raise NotFoundException(message="Config not found")
 
-    monkeypatch.setattr("app.cli._run_async", _raise_not_found)
+    _patch_codegen_run_async(monkeypatch, _raise_not_found)
 
     result = runner.invoke(cli, ["codegen", "duplicate", "--id", "999999", "--json"])
 
@@ -124,7 +150,7 @@ def test_codegen_show_not_found_returns_clean_json(monkeypatch) -> None:
 
     runner = CliRunner()
 
-    monkeypatch.setattr("app.cli._run_async", _return_none)
+    _patch_codegen_run_async(monkeypatch, _return_none)
 
     result = runner.invoke(cli, ["codegen", "show", "--id", "999999", "--json"])
 
@@ -140,7 +166,7 @@ def test_codegen_preview_not_found_returns_clean_json(monkeypatch) -> None:
 
     runner = CliRunner()
 
-    monkeypatch.setattr("app.cli._run_async", _raise_system_exit_not_found)
+    _patch_codegen_run_async(monkeypatch, _raise_system_exit_not_found)
 
     result = runner.invoke(cli, ["codegen", "preview", "--id", "999999", "--json"])
 
@@ -156,7 +182,7 @@ def test_codegen_generate_not_found_returns_clean_json(monkeypatch) -> None:
 
     runner = CliRunner()
 
-    monkeypatch.setattr("app.cli._run_async", _raise_system_exit_not_found)
+    _patch_codegen_run_async(monkeypatch, _raise_system_exit_not_found)
 
     result = runner.invoke(cli, ["codegen", "generate", "--id", "999999", "--json"])
 
@@ -186,8 +212,8 @@ def test_codegen_generate_success_with_auto_migrate_returns_single_json(
             "migration_path": None,
         }
 
-    monkeypatch.setattr("app.cli._load_config_stdin", lambda: {"resource": "demo"})
-    monkeypatch.setattr("app.cli._run_async", _return_fake_generate_output)
+    _patch_codegen_load_config_stdin(monkeypatch, lambda: {"resource": "demo"})
+    _patch_codegen_run_async(monkeypatch, _return_fake_generate_output)
     monkeypatch.setattr(
         "app.services.system.codegen_service.CodegenService.run_auto_migrate",
         staticmethod(_run_auto_migrate),
@@ -213,8 +239,8 @@ def test_codegen_generate_auto_migrate_failure_returns_single_json(
 
     runner = CliRunner()
 
-    monkeypatch.setattr("app.cli._load_config_stdin", lambda: {"resource": "demo"})
-    monkeypatch.setattr("app.cli._run_async", _return_fake_generate_output)
+    _patch_codegen_load_config_stdin(monkeypatch, lambda: {"resource": "demo"})
+    _patch_codegen_run_async(monkeypatch, _return_fake_generate_output)
     monkeypatch.setattr(
         "app.services.system.codegen_service.CodegenService.run_auto_migrate",
         staticmethod(
@@ -248,7 +274,7 @@ def test_codegen_validate_draft_returns_enveloped_json(monkeypatch) -> None:
             assert mode == "draft"
             return {"valid": True, "errors": [], "warnings": [], "mode": mode}
 
-    monkeypatch.setattr("app.cli._load_config_stdin", lambda: {"resource": "demo"})
+    _patch_codegen_load_config_stdin(monkeypatch, lambda: {"resource": "demo"})
     monkeypatch.setattr(
         "app.services.system.codegen_service.CodegenService.create_standalone",
         staticmethod(lambda: _FakeService()),
@@ -299,7 +325,7 @@ def test_codegen_preview_stdin_returns_enveloped_json(monkeypatch) -> None:
                 "error": None,
             }
 
-    monkeypatch.setattr("app.cli._load_config_stdin", lambda: {"resource": "demo"})
+    _patch_codegen_load_config_stdin(monkeypatch, lambda: {"resource": "demo"})
     monkeypatch.setattr(
         "app.services.system.codegen_service.CodegenService.create_standalone",
         staticmethod(lambda: _FakeService()),
@@ -320,8 +346,8 @@ def test_codegen_show_by_resource_returns_enveloped_json(monkeypatch) -> None:
 
     runner = CliRunner()
 
-    monkeypatch.setattr(
-        "app.cli._run_async",
+    _patch_codegen_run_async(
+        monkeypatch,
         _return_value(
             {
                 "id": 8,
@@ -349,8 +375,8 @@ def test_codegen_delete_blocked_returns_reason_code_and_clean_json(monkeypatch) 
 
     runner = CliRunner()
 
-    monkeypatch.setattr(
-        "app.cli._run_async",
+    _patch_codegen_run_async(
+        monkeypatch,
         _raise_exception(
             ConflictException(
                 message="Manifest entry still exists",
@@ -478,8 +504,7 @@ def test_codegen_rollback_no_auto_migrate_returns_partial_json(
         encoding="utf-8",
     )
 
-    monkeypatch.setattr("app.cli._BACKEND_DIR", backend_dir)
-    monkeypatch.setattr("app.cli._CODEGEN_PROJECT_ROOT", tmp_path)
+    _patch_codegen_paths(monkeypatch, backend_dir=backend_dir, project_root=tmp_path)
     monkeypatch.setattr(
         "app.codegen.rollback.CodegenRollback.rollback",
         lambda _self, **_kwargs: SimpleNamespace(
@@ -491,7 +516,7 @@ def test_codegen_rollback_no_auto_migrate_returns_partial_json(
             errors=[],
         ),
     )
-    monkeypatch.setattr("app.cli._run_async", lambda coro: coro.close())
+    _patch_codegen_run_async(monkeypatch, lambda coro: coro.close())
 
     result = runner.invoke(
         cli,
@@ -563,8 +588,7 @@ def test_codegen_download_by_id_uses_service_download(
                 "create_standalone should not be used for --id download"
             )
 
-    monkeypatch.setattr("app.cli._BACKEND_DIR", backend_dir)
-    monkeypatch.setattr("app.cli._CODEGEN_PROJECT_ROOT", tmp_path)
+    _patch_codegen_paths(monkeypatch, backend_dir=backend_dir, project_root=tmp_path)
     monkeypatch.setattr("app.core.database.get_db_context", lambda: _DummyDbContext())
     monkeypatch.setattr(
         "app.services.system.codegen_service.CodegenService", _FakeService

@@ -35,13 +35,9 @@ _BATCH_SIZE = 100
 
 def _resolve_retention_days(
     *,
-    retention_days: int | None,
     module_retention_days: int | None,
     global_retention_days: int | None,
 ) -> tuple[int, int]:
-    if retention_days is not None:
-        return retention_days, retention_days
-
     return (
         module_retention_days or settings.RECYCLE_BIN_MODULE_RETENTION_DAYS,
         global_retention_days or settings.RECYCLE_BIN_GLOBAL_RETENTION_DAYS,
@@ -332,7 +328,6 @@ async def _run_cleanup(
 )
 def cleanup_recycle_bin(
     self: BaseTask,
-    retention_days: int | None = None,
     module_retention_days: int | None = None,
     global_retention_days: int | None = None,
 ) -> dict[str, Any]:
@@ -340,14 +335,12 @@ def cleanup_recycle_bin(
     Execute two-stage recycle-bin cleanup / 执行两阶段回收站清理
 
     Args:
-        retention_days: 兼容旧参数，若传入则同时覆盖两个阶段 / Backward-compatible override for both phases
         module_retention_days: 模块回收站保留天数 / Module recycle-bin retention days
         global_retention_days: 总回收站保留天数 / Global recycle-bin retention days
     """
 
     start = time.monotonic()
     resolved_module_days, resolved_global_days = _resolve_retention_days(
-        retention_days=retention_days,
         module_retention_days=module_retention_days,
         global_retention_days=global_retention_days,
     )

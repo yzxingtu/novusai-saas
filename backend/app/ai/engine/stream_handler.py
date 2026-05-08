@@ -33,7 +33,7 @@ from .stream_completion_support import (
     start_on_complete_task as _start_on_complete_task_impl,
 )
 from .stream_execution_runtime import StreamIOAdapter, run_stream_execution
-from .stream_generation_view import StreamGenerationView, ensure_stream_generation_view
+from .stream_generation_view import StreamGenerationView, build_stream_generation_view
 from .stream_output_projection import (
     build_budget_exit_fallback_output as _build_budget_exit_fallback_output_impl,
 )
@@ -306,7 +306,7 @@ class StreamExecutionHandler:
         )
 
     def _stream_generation_view(self) -> StreamGenerationView:
-        return ensure_stream_generation_view(self)
+        return build_stream_generation_view(self)
 
     async def _run_with_turn_executor(self):
         """Run the shared TurnExecutor with streaming transport hooks."""

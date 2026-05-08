@@ -10,7 +10,6 @@ from app.repositories.system.admin_permission_role_repository import (
     AdminPermissionRoleRepository,
 )
 from app.repositories.system.admin_repository import AdminRepository
-from app.repositories.system.admin_role_repository import AdminRoleRepository
 from app.repositories.system.attachment_repository import AdminAttachmentRepository
 from app.repositories.system.operation_log_repository import OperationLogRepository
 from app.repositories.system.task_definition_repository import TaskDefinitionRepository
@@ -25,7 +24,6 @@ __all__ = [
     "AdminRepository",
     "AdminOrgNodeRepository",
     "AdminPermissionRoleRepository",
-    "AdminRoleRepository",
     "TenantRepository",
     "TenantDomainRepository",
     "OperationLogRepository",

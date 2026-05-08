@@ -70,6 +70,7 @@ class SkillExtensionSchema(BaseModel):
     display_name: I18nText = Field(default_factory=dict)
     description: I18nText = Field(default_factory=dict)
     entry_point: str
+    executor_entry_point: str = ""
     config_schema: dict | None = None
     preview_tool_names: list[str] = Field(default_factory=list)
     preview_semantic_families: list[str] = Field(default_factory=list)
@@ -80,6 +81,14 @@ class SkillExtensionSchema(BaseModel):
         if not str(v or "").strip():
             raise ValueError("skill.entry_point is required")
         return _validate_handler_path(v, "skill.entry_point")
+
+    @field_validator("executor_entry_point")
+    @classmethod
+    def validate_executor_entry_point(cls, v: str) -> str:
+        text = str(v or "").strip()
+        if not text:
+            return ""
+        return _validate_handler_path(text, "skill.executor_entry_point")
 
     @field_validator("name")
     @classmethod
@@ -912,8 +921,8 @@ class PluginManifest(BaseModel):
     @field_validator("db_table_prefixes")
     @classmethod
     def validate_db_table_prefixes(cls, v: list[str]) -> list[str]:
-        """Custom DB table prefix whitelist (optional), for backward-compatible legacy prefix plugins.
-        / 自定义 DB 表前缀白名单（可选），用于兼容历史前缀插件。"""
+        """Custom DB table prefix whitelist for explicitly declared plugin tables.
+        / 显式声明插件表的自定义 DB 表前缀白名单。"""
         normalized: list[str] = []
         for item in v:
             prefix = (item or "").strip()

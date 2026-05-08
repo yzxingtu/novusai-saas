@@ -88,7 +88,7 @@ async def test_plugin_storage_driver_registers_and_namespaces(monkeypatch):
         lambda *_args, **_kwargs: CapturingStorageDriver,
     )
     monkeypatch.setattr(
-        "app.services.common.config_service.ConfigService",
+        "app.configs.service.ConfigService",
         DummyConfigService,
     )
     monkeypatch.setattr(

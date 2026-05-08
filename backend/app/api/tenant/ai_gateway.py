@@ -9,7 +9,7 @@ from fastapi import Request
 
 from app.ai.exceptions import AIGatewayError
 from app.ai.internal_ai_service import InternalAIService
-from app.ai.quota import QuotaExceeded
+from app.ai.quota_exceptions import QuotaExceeded
 from app.ai.rate_limiter import RateLimitExceeded
 from app.ai.utils import parse_messages, parse_provider_and_model
 from app.core.base_controller import TenantController

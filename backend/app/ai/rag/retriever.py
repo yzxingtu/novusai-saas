@@ -226,15 +226,10 @@ class HybridRetriever:
         await invalidate_kb_cache_helper(kb_id)
 
 
-# Backward compatibility: keep VectorRetriever alias / 向后兼容：保留 VectorRetriever 别名
-VectorRetriever = HybridRetriever
-
-
 __all__ = [
     "ChunkSearchResult",
     "SearchKBContext",
     "VectorSearcher",
     "KeywordSearcher",
     "HybridRetriever",
-    "VectorRetriever",
 ]

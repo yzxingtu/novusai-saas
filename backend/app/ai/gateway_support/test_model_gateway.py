@@ -5,7 +5,10 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from app.ai.gateway_support.adapter_support import resolve_effective_model_request
+from app.ai.gateway_support.adapter_support import (
+    resolve_effective_model_request,
+    resolve_provider_primary_wire_api,
+)
 from app.ai.types import ChatMessage, TestModelResult
 from app.core.i18n import _
 from app.core.logging import LogManager
@@ -37,6 +40,8 @@ async def execute_test_model(
             trace_id=trace_id_var.get() or None,
         )
 
+    primary_wire_api = resolve_provider_primary_wire_api(provider)
+
     api_key = await gateway.api_key_repo.get_available_key(
         provider_id=provider.id,
         tenant_id=None,
@@ -49,11 +54,7 @@ async def execute_test_model(
             model=model_code,
             provider=provider.code,
             trace_id=trace_id_var.get() or None,
-            wire_api=(
-                (provider.config or {}).get("wire_api", "chat_completions")
-                if isinstance(provider.config, dict)
-                else "chat_completions"
-            ),
+            wire_api=primary_wire_api,
         )
 
     ai_model = await gateway._get_model(model_code, provider.id)
@@ -64,11 +65,7 @@ async def execute_test_model(
         provider=provider,
         ai_model=ai_model,
         model_code=model_code,
-        wire_api=(
-            (provider.config or {}).get("wire_api")
-            if isinstance(provider.config, dict)
-            else None
-        ),
+        wire_api=primary_wire_api,
     )
     trace_id = trace_id_var.get() or None
 
@@ -81,9 +78,7 @@ async def execute_test_model(
             effective_request["upstream_model"],
             effective_request.get("reasoning_effort") or "",
             provider.base_url or "",
-            (provider.config or {}).get("wire_api", "chat_completions")
-            if isinstance(provider.config, dict)
-            else "chat_completions",
+            primary_wire_api,
             api_key.id,
             stream,
         )
@@ -112,11 +107,7 @@ async def execute_test_model(
                 model=model_code,
                 provider=provider.code,
                 trace_id=trace_id,
-                wire_api=(
-                    (provider.config or {}).get("wire_api", "chat_completions")
-                    if isinstance(provider.config, dict)
-                    else "chat_completions"
-                ),
+                wire_api=primary_wire_api,
                 effective_upstream_model=effective_request["upstream_model"],
                 effective_reasoning_effort=effective_request.get("reasoning_effort"),
                 applied_overrides=list(
@@ -161,11 +152,7 @@ async def execute_test_model(
                 model=model_code,
                 provider=provider.code,
                 trace_id=trace_id,
-                wire_api=(
-                    (provider.config or {}).get("wire_api", "chat_completions")
-                    if isinstance(provider.config, dict)
-                    else "chat_completions"
-                ),
+                wire_api=primary_wire_api,
                 effective_upstream_model=effective_request["upstream_model"],
                 effective_reasoning_effort=effective_request.get("reasoning_effort"),
                 applied_overrides=list(
@@ -203,11 +190,7 @@ async def execute_test_model(
             model=model_code,
             provider=provider.code,
             trace_id=trace_id,
-            wire_api=(
-                (provider.config or {}).get("wire_api", "chat_completions")
-                if isinstance(provider.config, dict)
-                else "chat_completions"
-            ),
+            wire_api=primary_wire_api,
             effective_upstream_model=effective_request["upstream_model"],
             effective_reasoning_effort=effective_request.get("reasoning_effort"),
             applied_overrides=list(
@@ -238,11 +221,7 @@ async def execute_test_model(
             model=model_code,
             provider=provider.code,
             trace_id=trace_id,
-            wire_api=(
-                (provider.config or {}).get("wire_api", "chat_completions")
-                if isinstance(provider.config, dict)
-                else "chat_completions"
-            ),
+            wire_api=primary_wire_api,
             effective_upstream_model=effective_request["upstream_model"],
             effective_reasoning_effort=effective_request.get("reasoning_effort"),
             applied_overrides=list(

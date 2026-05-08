@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import importlib.util
-from pathlib import Path
 from typing import Any
 
 from sqlalchemy import func, select
@@ -12,19 +10,7 @@ from app.models.tenant.attachment import Attachment
 from app.storage.base import StorageVisibility
 from app.storage.manager import storage_manager
 
-try:
-    from .migration_helpers import normalize_scope
-except ImportError:
-    _services_dir = Path(__file__).resolve().parent
-    _helpers_spec = importlib.util.spec_from_file_location(
-        "storage_migration_runtime_helpers_for_analyzer",
-        _services_dir / "migration_helpers.py",
-    )
-    if _helpers_spec is None or _helpers_spec.loader is None:
-        raise ImportError("Unable to load migration_helpers.py")
-    _helpers_module = importlib.util.module_from_spec(_helpers_spec)
-    _helpers_spec.loader.exec_module(_helpers_module)
-    normalize_scope = _helpers_module.normalize_scope
+from .migration_helpers import normalize_scope
 
 
 class MigrationImpactAnalyzer:

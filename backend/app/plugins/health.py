@@ -27,7 +27,7 @@ DEFAULT_AUTO_DISABLE_THRESHOLD = 10
 async def _get_auto_disable_threshold(db: AsyncSession) -> int:
     """Read auto-disable threshold from platform config, fallback to default / 从平台配置读取自动禁用阈值，回退到默认值"""
     try:
-        from app.services.common.config_service import ConfigService
+        from app.configs.service import ConfigService
 
         config_service = ConfigService(db)
         val = await config_service.get_value("plugin_auto_disable_threshold")

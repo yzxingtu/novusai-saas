@@ -18,7 +18,7 @@ from app.core.i18n import _
 from app.exceptions import BusinessException
 
 if TYPE_CHECKING:
-    from app.ai.agent_quota import AgentQuotaConfig
+    from app.ai.agent_quota_config import AgentQuotaConfig
 
 
 def _normalize_attachments(

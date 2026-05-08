@@ -115,6 +115,24 @@ def test_command_probe_result_blocks_on_registry_endpoint_failure() -> None:
     assert result.summary == "blocked"
 
 
+def test_http_error_result_blocks_when_local_target_is_unavailable() -> None:
+    result = probe._http_error_result(
+        area="readiness",
+        name="api_ready",
+        url="http://localhost:8000/ready",
+        exc=urllib.error.HTTPError(
+            "http://localhost:8000/ready",
+            502,
+            "Bad Gateway",
+            {},
+            None,
+        ),
+    )
+
+    assert result.status == probe.STATUS_BLOCKED
+    assert result.details["url"] == "http://localhost:8000/ready"
+
+
 def test_probe_api_passes_metrics_when_prometheus_exposition_is_valid(
     monkeypatch,
 ) -> None:
@@ -542,6 +560,25 @@ def test_capacity_benchmark_blocks_when_not_requested() -> None:
 
     assert result.status == probe.STATUS_BLOCKED
     assert result.details["run_with"] == "--capacity-requests"
+
+
+def test_local_load_smoke_blocks_when_target_is_unavailable(monkeypatch) -> None:
+    def raise_bad_gateway(url: str, *, timeout: float):
+        del timeout
+        raise urllib.error.HTTPError(url, 502, "Bad Gateway", {}, None)
+
+    monkeypatch.setattr(probe, "_request_json", raise_bad_gateway)
+
+    result = probe.run_load_smoke(
+        "http://localhost:8000",
+        concurrency=2,
+        requests=4,
+        timeout=1,
+    )
+
+    assert result.status == probe.STATUS_BLOCKED
+    assert result.details["success_count"] == 0
+    assert result.details["error_count"] == 4
 
 
 def test_capacity_benchmark_passes_when_thresholds_are_met(monkeypatch) -> None:

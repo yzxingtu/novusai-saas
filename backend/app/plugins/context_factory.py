@@ -10,7 +10,6 @@ Currently only V1 is supported; versioned extension mechanism is reserved.
 
 from __future__ import annotations
 
-import inspect
 from typing import TYPE_CHECKING
 
 from app.plugins.context import PluginContext, RequestContext
@@ -22,8 +21,8 @@ if TYPE_CHECKING:
 
     from app.plugins.manifest import PluginManifest
 
-# PluginContext is V1, not renamed to maintain backward compatibility
-# / PluginContext 即 V1，不重命名以保持向后兼容
+# PluginContext is the current V1 context contract.
+# / PluginContext 是当前 V1 上下文契约。
 PluginContextV1 = PluginContext
 
 # Version → Context class mapping / 版本 → Context 类映射
@@ -74,9 +73,6 @@ def create_plugin_context(
         "request_context": request_context,
     }
 
-    # Backward compatibility: only pass host facade when context class supports it.
-    # / 向后兼容：仅当上下文类支持时才注入宿主只读门面。
-    if "host_read" in inspect.signature(ctx_class).parameters:
-        kwargs["host_read"] = HostReadFacade(db)
+    kwargs["host_read"] = HostReadFacade(db)
 
     return ctx_class(**kwargs)

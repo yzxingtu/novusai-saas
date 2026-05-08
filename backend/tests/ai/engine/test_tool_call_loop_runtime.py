@@ -12,6 +12,7 @@ import pytest
 from app.ai.engine import base_tool_loop_support as tool_loop_support_mod
 from app.ai.engine import tool_call_loop_runtime as runtime_mod
 from app.ai.engine.base import BaseEngine
+from app.ai.engine.tool_policy_selection_helpers import allowed_tool_names_for_family
 from app.ai.engine.types import (
     ExecutionBudget,
     ExecutionRequest,
@@ -80,7 +81,7 @@ def _make_callbacks(
         first_incomplete_requested_family=lambda _ordered, _completed: None,
         allowed_tool_names_for_family=lambda _family, _tools, _input: [],
         build_ordered_capability_hint=lambda _families, _tools, _input: None,
-        restrict_tools_to_names=lambda tools, _allowed: tools,
+        restrict_tools_to_names=lambda _tools, _allowed: [],
         call_followup_llm=call_followup_llm or _default_followup_llm,
     )
 
@@ -161,3 +162,17 @@ async def test_handle_tool_calls_delegates_to_runtime_helper(monkeypatch) -> Non
     assert kwargs["context_sources"] == context_sources
     assert kwargs["route_result"] == {"chosen": "mock"}
     assert kwargs["log_user_type"] == request.user_role
+
+
+def test_allowed_tool_names_for_family_unknown_family_stays_empty() -> None:
+    """Test type: structural; missing family must not reopen all tool names."""
+    tools = [ToolDefinition(name="clock_now", description="time")]
+
+    assert (
+        allowed_tool_names_for_family(
+            "missing_family",
+            tools,
+            None,
+        )
+        == []
+    )

@@ -16,7 +16,8 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.ai.quota import QuotaExceeded, QuotaManager
+from app.ai.quota_exceptions import QuotaExceeded
+from app.ai.quota_manager import QuotaManager
 from app.ai.rate_limiter import (
     RateLimiter,
     RateLimitExceeded,
