@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 from app.ai.skills.plugin_identity import make_plugin_skill_identity
 from app.core.logging import get_logger
 from app.enums.plugin import PluginStatusEnum
-from app.enums.skill import SkillSourceTypeEnum
+from app.enums.skill import SkillSourceTypeEnum, SkillStatusEnum
 from app.plugins.exceptions import PluginDependencyError
 from app.plugins.preview import resolve_i18n
 
@@ -16,6 +16,14 @@ if TYPE_CHECKING:
 
 
 logger = get_logger(__name__)
+
+
+def _plugin_skill_status_for_active(active: bool) -> str:
+    """中文: 插件生命周期的 is_active 与 Skill.status 必须同步。
+
+    EN: Plugin lifecycle active state must mirror Skill.status.
+    """
+    return SkillStatusEnum.ACTIVE.value if active else SkillStatusEnum.DISABLED.value
 
 
 class LifecycleRuntimeStateMixin:
@@ -415,6 +423,7 @@ class LifecycleRuntimeStateMixin:
 
         desired_source_refs: set[str] = set()
         touched_skill_ids: set[int] = set()
+        skill_status = _plugin_skill_status_for_active(active)
 
         # Create or update Skill record for each skill extension
         # / 对每个 skill extension 创建或更新 Skill 记录
@@ -463,6 +472,7 @@ class LifecycleRuntimeStateMixin:
                     config=skill_ext.config_schema or {},
                     is_system=True,
                     is_active=active,
+                    status=skill_status,
                     tenant_id=None,
                 )
                 self._db.add(skill)
@@ -474,6 +484,7 @@ class LifecycleRuntimeStateMixin:
                 )
             else:
                 existing_skill.is_active = active
+                existing_skill.status = skill_status
                 existing_skill.name = skill_display
                 existing_skill.description = skill_desc
                 existing_skill.type = skill_ext.type
@@ -496,6 +507,7 @@ class LifecycleRuntimeStateMixin:
             ).strip()
             if existing_source_ref not in desired_source_refs:
                 existing_skill.is_active = False
+                existing_skill.status = SkillStatusEnum.DISABLED.value
                 logger.info(
                     "Deactivated stale Skill '{}' for plugin {}",
                     existing_skill.name,

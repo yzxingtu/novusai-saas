@@ -962,9 +962,8 @@ async def resolve_for_agent(
     if not grants:
         return _build_time_only_runtime_result()
 
-    plugin_skill_previews_by_plugin = await parts.load_plugin_skill_startup_previews(
-        db=db,
-        source_plugins=[
+    source_plugins = _stable_unique_texts(
+        [
             str(
                 getattr(getattr(grant.skill, "package", None), "source_plugin", "")
                 or ""
@@ -974,7 +973,11 @@ async def resolve_for_agent(
                 getattr(getattr(grant.skill, "package", None), "source_plugin", "")
                 or ""
             ).strip()
-        ],
+        ]
+    )
+    plugin_skill_previews_by_plugin = await parts.load_plugin_skill_startup_previews(
+        db=db,
+        source_plugins=source_plugins,
     )
     grant_previews = _build_skill_grant_previews(
         grants,
@@ -990,6 +993,20 @@ async def resolve_for_agent(
             getattr(agent, "id", None),
             len(grant_previews),
             len(startup_grant_previews),
+        )
+
+    if source_plugins:
+        from app.plugins.runtime_registration import (
+            ensure_enabled_plugin_skill_runtime_registered,
+        )
+
+        await ensure_enabled_plugin_skill_runtime_registered(
+            db,
+            source_plugins=[
+                preview.source_plugin
+                for preview in startup_grant_previews
+                if preview.source_plugin
+            ],
         )
 
     skills: list[SkillModel] = []

@@ -98,10 +98,128 @@ def _extract_last_user_text(messages: list[ChatMessage]) -> str:
 _QUOTED_QUERY_SEGMENT_RE = re.compile(
     r"'[^']*'|\"[^\"]*\"|“[^”]*”|‘[^’]*’|「[^」]*」|『[^』]*』|《[^》]*》"
 )
+_WORD_TOKEN_RE = re.compile(r"[a-z0-9][a-z0-9_-]{2,}", re.IGNORECASE)
+_CJK_RUN_RE = re.compile(r"[\u4e00-\u9fff]{2,}")
+_DISCOVERABLE_STOP_TOKENS = {
+    "查询",
+    "获取",
+    "工具",
+    "技能",
+    "插件",
+    "调用",
+    "使用",
+    "当前",
+    "实时",
+    "未来",
+    "结果",
+    "数据",
+    "信息",
+    "the",
+    "and",
+    "for",
+    "with",
+    "tool",
+    "skill",
+    "plugin",
+    "query",
+    "search",
+    "get",
+}
 
 
 def _metadata_match_query_text(user_query: str) -> str:
     return _QUOTED_QUERY_SEGMENT_RE.sub(" ", str(user_query or ""))
+
+
+def _discoverable_tool_metadata_values(tool: ToolDefinition) -> list[str]:
+    values = [
+        str(tool.name or ""),
+        str(tool.name or "").replace("_", " ").replace("-", " "),
+        str(tool.description or ""),
+        str(getattr(tool, "source_skill_name", "") or ""),
+        str(getattr(tool, "source_package_name", "") or ""),
+        str(getattr(tool, "semantic_family", "") or ""),
+        *tool_semantic_tags(tool),
+    ]
+    return [value for value in values if value.strip()]
+
+
+def _metadata_match_tokens(text: str) -> set[str]:
+    normalized = str(text or "").strip().lower()
+    tokens = {
+        match.group(0).replace("_", " ").replace("-", " ")
+        for match in _WORD_TOKEN_RE.finditer(normalized)
+    }
+    for run_match in _CJK_RUN_RE.finditer(normalized):
+        run = run_match.group(0)
+        if len(run) == 2:
+            tokens.add(run)
+            continue
+        for index in range(0, len(run) - 1):
+            tokens.add(run[index : index + 2])
+
+    return {
+        token
+        for token in tokens
+        if token and token not in _DISCOVERABLE_STOP_TOKENS
+    }
+
+
+def _tool_metadata_matches_query(
+    *,
+    tool: ToolDefinition,
+    normalized_query: str,
+    query_tokens: set[str],
+) -> bool:
+    if not normalized_query:
+        return False
+
+    for candidate in _discoverable_tool_metadata_values(tool):
+        lowered_candidate = candidate.lower()
+        if (
+            lowered_candidate
+            and len(lowered_candidate) >= 2
+            and lowered_candidate in normalized_query
+        ):
+            return True
+
+        candidate_tokens = _metadata_match_tokens(candidate)
+        if candidate_tokens and query_tokens.intersection(candidate_tokens):
+            return True
+
+    return False
+
+
+def _looks_like_explicit_tool_request(user_query: str) -> bool:
+    lowered = str(user_query or "").strip().lower()
+    if not lowered:
+        return False
+    if any(
+        term in lowered
+        for term in (
+            "不要使用",
+            "不用工具",
+            "别用工具",
+            "without tools",
+            "do not use tools",
+            "don't use tools",
+        )
+    ):
+        return False
+    return any(
+        term in lowered
+        for term in (
+            "使用",
+            "调用",
+            "用一下",
+            "用工具",
+            "用这个技能",
+            "use ",
+            "call ",
+            "invoke ",
+            "run tool",
+        )
+    )
 
 
 def _direct_reply_discoverable_tools(
@@ -115,16 +233,12 @@ def _direct_reply_discoverable_tools(
         return []
 
     selected: list[ToolDefinition] = []
+    query_tokens = _metadata_match_tokens(normalized_query)
     for tool in all_tools:
-        candidates = [
-            str(tool.name or ""),
-            str(tool.name or "").replace("_", " "),
-            str(tool.description or ""),
-            *tool_semantic_tags(tool),
-        ]
-        if any(
-            candidate and len(candidate) >= 2 and candidate.lower() in normalized_query
-            for candidate in candidates
+        if _tool_metadata_matches_query(
+            tool=tool,
+            normalized_query=normalized_query,
+            query_tokens=query_tokens,
         ):
             selected.append(tool)
         if len(selected) >= limit:
@@ -311,6 +425,19 @@ def plan_execution_tools(
                 limit=limit,
             )
             candidate_tool_names = [tool.name for tool in tool_candidates]
+            if tool_candidates:
+                explicit_request = _looks_like_explicit_tool_request(user_query)
+                tool_use_policy = ToolUsePolicy(
+                    family="none",
+                    mode="required" if explicit_request else "auto",
+                    allowed_tool_names=list(candidate_tool_names),
+                    retry_on_contract_breach=explicit_request,
+                    reason=(
+                        "direct_reply_explicit_tool_request"
+                        if explicit_request
+                        else "direct_reply_discoverable_tools"
+                    ),
+                )
         if not tool_candidates and actionable_intents:
             fallback_allowed_names = _allowed_tool_names_for_families_impl(
                 explicit_requested_families,

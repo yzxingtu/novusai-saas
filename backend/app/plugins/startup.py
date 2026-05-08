@@ -15,6 +15,7 @@ Design principles:
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from typing import TYPE_CHECKING
 
 from app.core.base_model import utc_now
@@ -418,6 +419,7 @@ async def restore_enabled_plugins(
     *,
     run_heavy: bool = True,
     mutate_db_status: bool = True,
+    plugin_names: Iterable[str] | None = None,
 ) -> dict:
     """
     Restore extension point registration for all enabled plugins at service startup.
@@ -429,6 +431,17 @@ async def restore_enabled_plugins(
     3. Single plugin failure → record failure, write back ERROR status based on mutate_db_status
     / 流程：查询启用插件、注册扩展点、失败标记 ERROR
 
+    Args:
+        db: Async database session. / 异步数据库会话。
+        run_heavy: Restore heavier startup side effects such as task sync.
+            / 是否恢复任务同步等较重启动副作用。
+        mutate_db_status: Whether this caller owns plugin status writes.
+            / 当前调用方是否拥有插件状态写权限。
+        plugin_names: Optional subset of enabled plugins to restore. Used by
+            runtime cold-path registration when only specific plugin skill
+            resolvers are missing.
+            / 可选插件子集；运行时冷路径仅在指定插件 skill resolver 缺失时使用。
+
     Returns:
         {"restored": N, "failed": N, "total": N}
     """
@@ -439,12 +452,21 @@ async def restore_enabled_plugins(
     from app.plugins.loader import PluginLoader
     from app.plugins.registry import ExtensionRegistry
 
-    result = await db.execute(
-        select(Plugin).where(
-            Plugin.status == PluginStatusEnum.ENABLED.value,
-            Plugin.is_deleted.is_(False),
+    normalized_plugin_names = [
+        name
+        for name in dict.fromkeys(
+            str(item or "").strip() for item in list(plugin_names or [])
         )
+        if name
+    ]
+    stmt = select(Plugin).where(
+        Plugin.status == PluginStatusEnum.ENABLED.value,
+        Plugin.is_deleted.is_(False),
     )
+    if normalized_plugin_names:
+        stmt = stmt.where(Plugin.name.in_(normalized_plugin_names))
+
+    result = await db.execute(stmt)
     enabled_plugins = list(result.scalars().all())
 
     if not enabled_plugins:

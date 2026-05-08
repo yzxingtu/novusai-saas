@@ -34,6 +34,21 @@ function normalizeText(value: unknown) {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+function normalizeComparableAnswerText(value: string) {
+  return value.normalize('NFKC').replaceAll(/\s+/gu, ' ').trim();
+}
+
+function normalizeCompactAnswerText(value: string) {
+  return value.normalize('NFKC').replaceAll(/\s+/gu, '');
+}
+
+function isSameAnswerText(left: string, right: string) {
+  return (
+    normalizeComparableAnswerText(left) === normalizeComparableAnswerText(right) ||
+    normalizeCompactAnswerText(left) === normalizeCompactAnswerText(right)
+  );
+}
+
 function normalizeIdentityPart(value: unknown): string | undefined {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return String(value);
@@ -293,7 +308,7 @@ const isRedundantAnswerCard = computed(() => {
   if (fallbackAnswerSummary.value) {
     return false;
   }
-  if (props.msg.streaming || hasEvidence.value) {
+  if (hasEvidence.value) {
     return false;
   }
   const messageBody = normalizedMessageBody.value;
@@ -302,7 +317,8 @@ const isRedundantAnswerCard = computed(() => {
   }
 
   const summaryMatches =
-    !displayAnswerSummary.value || displayAnswerSummary.value === messageBody;
+    !displayAnswerSummary.value ||
+    isSameAnswerText(displayAnswerSummary.value, messageBody);
   if (!summaryMatches) {
     return false;
   }
@@ -314,7 +330,7 @@ const isRedundantAnswerCard = computed(() => {
   return displayAnswerSections.value.every((section) => {
     const sectionBody =
       normalizeText(section.body) || normalizeText(section.content);
-    return sectionBody === messageBody;
+    return isSameAnswerText(sectionBody, messageBody);
   });
 });
 const shouldShow = computed(

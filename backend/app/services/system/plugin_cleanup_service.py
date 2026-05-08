@@ -10,6 +10,7 @@ from sqlalchemy import delete, or_, select, text, update
 from app.core.base_model import utc_now
 from app.core.i18n import _
 from app.core.logging import get_logger
+from app.enums.skill import SkillStatusEnum
 from app.exceptions import BusinessException, NotFoundException
 from app.models.auth.permission import Permission
 from app.models.common.notification_template import NotificationTemplate
@@ -178,7 +179,7 @@ class PluginCleanupService:
                 Skill.package_id == package_id,
                 Skill.is_deleted.is_(False),
             )
-            .values(is_active=False)
+            .values(is_active=False, status=SkillStatusEnum.DISABLED.value)
         )
         await self._db.flush()
         logger.info("Deactivated skill records for plugin {}", plugin_name)
