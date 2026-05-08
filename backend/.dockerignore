@@ -1,6 +1,17 @@
 __pycache__
 *.pyc
 *.pyo
+celerybeat-schedule*
+**/celerybeat-schedule*
+.pytest-tmp
+storage/celerybeat/
+var/celerybeat/
+logs/
+storage/
+**/node_modules/
+.codex-temp/
+.idea/
+.tmp/
 .venv
 .env
 .env.*

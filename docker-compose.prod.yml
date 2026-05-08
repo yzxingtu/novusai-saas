@@ -1,0 +1,324 @@
+name: novusai-prod
+
+x-app-env: &app-env
+  env_file:
+    - ${NOVUSAI_PROD_ENV_FILE:?set NOVUSAI_PROD_ENV_FILE to a copied production env file and pass the same file with --env-file}
+
+x-backend-env: &backend-env
+  <<: *app-env
+  environment:
+    APP_ENV: production
+    DEBUG: "false"
+    RUN_MIGRATIONS_ON_STARTUP: "false"
+    DATABASE_HOST: postgres
+    DATABASE_PORT: "5432"
+    REDIS_HOST: redis
+    REDIS_PORT: "6379"
+    APP_INTERNAL_BASE_URL: http://backend-api:8000
+  volumes:
+    - backend_storage:/app/storage
+    - backend_logs:/app/logs
+
+services:
+  production-guard:
+    <<: *app-env
+    image: redis:7-alpine
+    restart: "no"
+    user: "999:999"
+    read_only: true
+    network_mode: none
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      NOVUSAI_PROD_ENV_FILE: ${NOVUSAI_PROD_ENV_FILE:?set NOVUSAI_PROD_ENV_FILE}
+    command:
+      - sh
+      - -ec
+      - |
+        fail() { echo "production env guard: $$1" >&2; exit 1; }
+        require_value() {
+          value="$$(printenv "$$1" || true)"
+          [ -n "$$value" ] || fail "$$1 must be set"
+        }
+        require_real_secret() {
+          require_value "$$1"
+          value="$$(printenv "$$1" || true)"
+          lower="$$(printf '%s' "$$value" | tr '[:upper:]' '[:lower:]')"
+          case "$$lower" in
+            change-me*|changeme*|please-replace*|replace-me*|your-secret-key-change-in-production|example|example-*|*-example|todo|todo-*|*-todo)
+              fail "$$1 still contains an example/placeholder value"
+              ;;
+          esac
+        }
+        bool_value() {
+          printf '%s' "$${1:-}" | tr '[:upper:]' '[:lower:]'
+        }
+        require_release_tag() {
+          require_value NOVUSAI_IMAGE_TAG
+          value="$$(printenv NOVUSAI_IMAGE_TAG || true)"
+          case "$$value" in
+            latest|dev|test|change-me*|please-replace*|example*)
+              fail "NOVUSAI_IMAGE_TAG must be an immutable production release tag"
+              ;;
+          esac
+        }
+        require_public_value() {
+          require_value "$$1"
+          value="$$(printenv "$$1" || true)"
+          lower="$$(printf '%s' "$$value" | tr '[:upper:]' '[:lower:]')"
+          case "$$lower" in
+            *example.com*|*localhost*|*127.0.0.1*|*0.0.0.0*|*.local*|http://*)
+              fail "$$1 must be a real HTTPS production endpoint/domain, not an example or local value"
+              ;;
+          esac
+        }
+        require_public_email() {
+          require_value "$$1"
+          value="$$(printenv "$$1" || true)"
+          lower="$$(printf '%s' "$$value" | tr '[:upper:]' '[:lower:]')"
+          case "$$lower" in
+            *@example.com|ops@example.com|*@localhost|*@*.local)
+              fail "$$1 must be a real production mailbox"
+              ;;
+          esac
+          printf '%s' "$$value" | grep -Eq '^[^@]+@[^@]+\.[^@]+$$' || fail "$$1 must be a valid email address"
+        }
+        case "$${NOVUSAI_PROD_ENV_FILE:-}" in
+          ""|./ops/production.env.example|ops/production.env.example|*/ops/production.env.example)
+            fail "set NOVUSAI_PROD_ENV_FILE to a copied real production env file, not ops/production.env.example"
+            ;;
+        esac
+        [ "$${APP_ENV:-}" = "production" ] || fail "APP_ENV must be production"
+        [ "$${DEBUG:-}" = "false" ] || fail "DEBUG must be false"
+        [ "$${RUN_MIGRATIONS_ON_STARTUP:-}" = "false" ] || fail "RUN_MIGRATIONS_ON_STARTUP must be false; use backend-migrate"
+        require_release_tag
+        require_real_secret DATABASE_PASSWORD
+        require_real_secret REDIS_PASSWORD
+        require_real_secret SECRET_KEY
+        require_real_secret FRONTEND_VITE_APP_STORE_SECURE_KEY
+        require_public_value CORS_ORIGINS
+        require_public_value PLATFORM_DOMAINS
+        require_public_value FRONTEND_VITE_GLOB_API_URL
+        require_public_value FRONTEND_VITE_PLATFORM_DOMAINS
+        custom_domain_enabled="$$(bool_value "$${ALLOW_CUSTOM_DOMAIN:-false}")"
+        case "$$custom_domain_enabled" in
+          true|1|yes|on)
+            require_real_secret SSL_PRIVATE_KEY_ENCRYPTION_KEY
+            require_public_value TENANT_DOMAIN_SUFFIX
+            require_public_email ACME_ACCOUNT_EMAIL
+            ;;
+          false|0|no|off|"")
+            ;;
+          *)
+            fail "ALLOW_CUSTOM_DOMAIN must be a boolean-like value"
+            ;;
+        esac
+        echo "production env guard passed"
+
+  postgres:
+    image: pgvector/pgvector:0.8.0-pg14
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DATABASE_NAME:?set DATABASE_NAME}
+      POSTGRES_USER: ${DATABASE_USER:?set DATABASE_USER}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:?set DATABASE_PASSWORD}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      production-guard:
+        condition: service_completed_successfully
+    networks:
+      - novusai-prod
+
+  redis-init:
+    image: redis:7-alpine
+    restart: "no"
+    user: "0:0"
+    read_only: true
+    network_mode: none
+    tmpfs:
+      - /tmp
+    command:
+      - sh
+      - -ec
+      - chown -R 999:999 /data
+    volumes:
+      - redis_data:/data
+    depends_on:
+      production-guard:
+        condition: service_completed_successfully
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    user: "999:999"
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD}
+    command:
+      - sh
+      - -c
+      - |
+        set -eu
+        : "$${REDIS_PASSWORD:?set REDIS_PASSWORD}"
+        umask 077
+        printf 'appendonly yes\nrequirepass %s\n' "$${REDIS_PASSWORD}" > /tmp/redis.conf
+        exec redis-server /tmp/redis.conf
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$${REDIS_PASSWORD}\" redis-cli ping | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      production-guard:
+        condition: service_completed_successfully
+      redis-init:
+        condition: service_completed_successfully
+    networks:
+      - novusai-prod
+
+  backend-migrate:
+    <<: *backend-env
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: api
+    image: novusai/backend:${NOVUSAI_IMAGE_TAG:?set NOVUSAI_IMAGE_TAG}
+    command: ["novusai", "db", "upgrade", "heads"]
+    depends_on:
+      production-guard:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - novusai-prod
+
+  backend-api:
+    <<: *backend-env
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: api
+    image: novusai/backend:${NOVUSAI_IMAGE_TAG:?set NOVUSAI_IMAGE_TAG}
+    depends_on:
+      production-guard:
+        condition: service_completed_successfully
+      backend-migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=5).read()"]
+      interval: 30s
+      timeout: 5s
+      start_period: 60s
+      retries: 3
+    ports:
+      - "127.0.0.1:${BACKEND_HTTP_PORT:-8000}:8000"
+    restart: unless-stopped
+    networks:
+      - novusai-prod
+
+  backend-worker:
+    <<: *backend-env
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: worker
+    image: novusai/backend-worker:${NOVUSAI_IMAGE_TAG:?set NOVUSAI_IMAGE_TAG}
+    depends_on:
+      production-guard:
+        condition: service_completed_successfully
+      backend-migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -m celery -A app.celery_app:celery_app inspect ping -d celery@\"$${HOSTNAME}\" --timeout=5 | grep -q OK"]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - novusai-prod
+
+  backend-beat:
+    <<: *backend-env
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: beat
+    image: novusai/backend-beat:${NOVUSAI_IMAGE_TAG:?set NOVUSAI_IMAGE_TAG}
+    depends_on:
+      production-guard:
+        condition: service_completed_successfully
+      backend-migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "test -w /app/var/celerybeat && test -f /app/var/celerybeat/celerybeat-schedule && novusai check celery",
+        ]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 3
+    volumes:
+      - backend_storage:/app/storage
+      - backend_logs:/app/logs
+      - backend_beat_state:/app/var/celerybeat
+    restart: unless-stopped
+    networks:
+      - novusai-prod
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: scripts/deploy/Dockerfile
+      args:
+        VITE_GLOB_API_URL: ${FRONTEND_VITE_GLOB_API_URL:?set FRONTEND_VITE_GLOB_API_URL}
+        VITE_PLATFORM_DOMAINS: ${FRONTEND_VITE_PLATFORM_DOMAINS:?set FRONTEND_VITE_PLATFORM_DOMAINS}
+        VITE_APP_NAMESPACE: ${FRONTEND_VITE_APP_NAMESPACE:-novusai-web-saas}
+        VITE_APP_STORE_SECURE_KEY: ${FRONTEND_VITE_APP_STORE_SECURE_KEY:?set FRONTEND_VITE_APP_STORE_SECURE_KEY}
+    image: novusai/frontend-web-antd:${NOVUSAI_IMAGE_TAG:?set NOVUSAI_IMAGE_TAG}
+    depends_on:
+      production-guard:
+        condition: service_completed_successfully
+      backend-api:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${FRONTEND_HTTP_PORT:-8080}:8080"
+    restart: unless-stopped
+    networks:
+      - novusai-prod
+
+volumes:
+  backend_storage:
+  backend_beat_state:
+  backend_logs:
+  postgres_data:
+  redis_data:
+
+networks:
+  novusai-prod:
+    driver: bridge

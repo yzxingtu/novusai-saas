@@ -1,33 +1,68 @@
-FROM python:3.12-slim AS base
+FROM python:3.12-slim AS builder
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     TZ=Asia/Shanghai
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libpq-dev gcc curl \
+RUN set -eux; \
+    for f in /etc/apt/sources.list /etc/apt/sources.list.d/*.sources; do \
+        [ -e "$f" ] || continue; \
+        sed -i 's|http://deb.debian.org|https://deb.debian.org|g' "$f"; \
+    done; \
+    apt-get -o Acquire::Retries=5 update \
+    && apt-get -o Acquire::Retries=5 install -y --no-install-recommends \
+    build-essential libcairo2-dev pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-COPY pyproject.toml ./
-# Production images must not install optional dev extras (smaller attack surface / 生产镜像不装 dev 可选依赖)
-RUN pip install --no-cache-dir -e . 2>/dev/null || pip install --no-cache-dir .
+COPY pyproject.toml README.md ./
+COPY app ./app
+# 中文: 元数据和源码都进入镜像后再执行一次正式安装，避免 fallback 掩盖构建问题。
+# EN: Install once after metadata and source are present so fallback paths cannot mask build issues.
+RUN pip install --prefix=/install --no-cache-dir .
 
-COPY . .
+FROM python:3.12-slim AS runtime
 
-FROM base AS api
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    TZ=Asia/Shanghai
+
+RUN set -eux; \
+    for f in /etc/apt/sources.list /etc/apt/sources.list.d/*.sources; do \
+        [ -e "$f" ] || continue; \
+        sed -i 's|http://deb.debian.org|https://deb.debian.org|g' "$f"; \
+    done; \
+    apt-get -o Acquire::Retries=5 update \
+    && apt-get -o Acquire::Retries=5 install -y --no-install-recommends \
+    libcairo2 \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --system --gid 10001 novusai \
+    && useradd --system --uid 10001 --gid novusai --home-dir /app --shell /usr/sbin/nologin novusai
+
+WORKDIR /app
+
+COPY --from=builder /install /usr/local
+COPY --chown=novusai:novusai . .
+
+RUN mkdir -p /app/logs /app/storage/uploads /app/storage/cache/images /app/var/celerybeat \
+    && chown -R novusai:novusai /app
+
+USER novusai
+
+FROM runtime AS api
 
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
-    CMD curl -fsS http://127.0.0.1:8000/health || exit 1
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=5).read()" || exit 1
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
 
-FROM base AS worker
+FROM runtime AS worker
 
-CMD ["celery", "-A", "app.celery_app:celery_app", "worker", "--loglevel=info", "--concurrency=4"]
+CMD ["celery", "-A", "app.celery_app:celery_app", "worker", "--loglevel=info"]
 
-FROM base AS beat
+FROM runtime AS beat
 
-CMD ["celery", "-A", "app.celery_app:celery_app", "beat", "--loglevel=info"]
+CMD ["celery", "-A", "app.celery_app:celery_app", "beat", "--loglevel=info", "--schedule=/app/var/celerybeat/celerybeat-schedule"]

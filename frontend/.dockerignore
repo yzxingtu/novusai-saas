@@ -1,6 +1,11 @@
 node_modules
 .git
 .gitignore
+.env
+.env.*
+!.env.example
+.env.local
+.env.*.local
 *.md
 dist
 .turbo
