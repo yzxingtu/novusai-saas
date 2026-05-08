@@ -31,6 +31,13 @@ interface Props {
 }
 
 defineProps<Props>();
+
+function isRuntimeActiveSkill(record: AdminSkillInfo): boolean {
+  const status = String(
+    (record as AdminSkillInfo & { status?: string }).status ?? '',
+  );
+  return record.is_active === true && status === 'active';
+}
 </script>
 
 <template>
@@ -111,14 +118,18 @@ defineProps<Props>();
 
       <template v-else-if="column.key === 'is_active'">
         <Tag
-          :color="record.is_active ? 'success' : 'default'"
+          :color="
+            isRuntimeActiveSkill(record as AdminSkillInfo)
+              ? 'success'
+              : 'default'
+          "
           :class="{ 'cursor-pointer': !record.is_system }"
           @click="
             !record.is_system && onToggleSkillStatus(record as AdminSkillInfo)
           "
         >
           {{
-            record.is_active
+            isRuntimeActiveSkill(record as AdminSkillInfo)
               ? $t('admin.common.enabled')
               : $t('admin.common.disabled')
           }}

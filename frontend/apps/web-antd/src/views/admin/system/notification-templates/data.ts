@@ -400,11 +400,15 @@ export function useGridFormSchema(): VbenFormSchema[] {
         ),
       },
     ),
-    searchInput('plugin_name', $t('admin.system.notificationTemplate.plugin'), {
-      placeholder: $t(
-        'admin.system.notificationTemplate.placeholder.searchPlugin',
-      ),
-    }),
+    searchInput(
+      'filter[plugin_name][ilike]',
+      $t('admin.system.notificationTemplate.plugin'),
+      {
+        placeholder: $t(
+          'admin.system.notificationTemplate.placeholder.searchPlugin',
+        ),
+      },
+    ),
     select(
       'filter[source][eq]',
       $t('admin.system.notificationTemplate.source'),

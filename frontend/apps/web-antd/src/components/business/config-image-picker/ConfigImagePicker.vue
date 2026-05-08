@@ -12,7 +12,7 @@ constructs image processing URL from ID for display. * 显示时根据 ID
 <script setup lang="ts">
 import type { AttachmentInfo } from '#/types/attachment';
 
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
@@ -20,15 +20,18 @@ import { Button, Form, Image } from 'ant-design-vue';
 
 import { FilePicker } from '#/components/business/file-picker';
 import { $t } from '#/locales';
-import { toAttachmentImageUrl } from '#/utils/image';
+import {
+  isReadOnlyLegacyImageValue,
+  toReadOnlyAttachmentImageDisplayUrl,
+} from '#/utils/image';
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     /** Allowed file types, passed to FilePicker's accept (e.g. 'image/*', 'image/png') / 允许的文件类型，传给 FilePicker 的 accept（如 'image/*', 'image/png'） */
     accept?: string;
     /** Whether to show only image type files / 是否仅显示图片类型文件 */
     imageOnly?: boolean;
-    /** Current value: attachment ID (string format), also compatible with legacy URL format / 当前值：附件 ID（字符串形式），也兼容旧的 URL 格式 */
+    /** Current value: attachment ID; historical URL values are read-only display only / 当前值：附件 ID；历史 URL 值仅用于只读展示 */
     modelValue?: string;
   }>(),
   {
@@ -43,14 +46,17 @@ const emit = defineEmits<{ (e: 'update:modelValue', v: string): void }>();
 const filePickerRef = ref<InstanceType<typeof FilePicker>>();
 const previewVisible = ref(false);
 
+const isLegacyReadonly = computed(() =>
+  isReadOnlyLegacyImageValue(props.modelValue),
+);
+
 /**
- * Convert stored attachment ID to thumbnail URL (for list/card preview)
- * If value is a legacy full URL, return directly
+ * Convert stored image value to thumbnail URL; legacy URLs stay read-only.
  * 将存储的附件 ID 转换为缩略图 URL（用于列表/卡片预览）
- * 如果值是旧格式的完整 URL，直接返回
+ * 历史 URL 仅用于只读展示
  */
 function toDisplayUrl(val: string | undefined): string {
-  return toAttachmentImageUrl(val, { preset: 'medium' });
+  return toReadOnlyAttachmentImageDisplayUrl(val, { preset: 'medium' });
 }
 
 /**
@@ -60,7 +66,7 @@ function toDisplayUrl(val: string | undefined): string {
  * 不传 preset 参数，返回原始尺寸图片
  */
 function toPreviewUrl(val: string | undefined): string {
-  return toAttachmentImageUrl(val);
+  return toReadOnlyAttachmentImageDisplayUrl(val);
 }
 
 /** Open attachment manager modal / 打开附件管理器弹窗 */
@@ -78,6 +84,9 @@ function handleSelect(files: AttachmentInfo[]) {
 
 /** Remove selected image, clear value / 移除已选图片，清空值 */
 function handleRemove() {
+  if (isLegacyReadonly.value) {
+    return;
+  }
   emit('update:modelValue', '');
 }
 </script>
@@ -88,6 +97,7 @@ function handleRemove() {
     <div
       v-if="modelValue"
       class="group relative size-[120px] overflow-hidden rounded-lg border border-border"
+      :data-readonly-legacy-image="isLegacyReadonly ? 'true' : undefined"
     >
       <img
         :src="toDisplayUrl(modelValue)"
@@ -100,6 +110,7 @@ function handleRemove() {
         class="absolute inset-0 flex items-center justify-center gap-2 bg-black/40 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
       >
         <Button
+          v-if="!isLegacyReadonly"
           type="text"
           size="small"
           class="!size-8 !min-w-0 !rounded-full !bg-white/20 !text-white hover:!bg-white/40"

@@ -34,12 +34,11 @@ export function useAIChatComposer(deps: UseAIChatComposerDeps) {
   const mentionQuery = ref('');
   const mentionActiveIndex = ref(0);
   const selectedKBIds = ref<number[]>([]);
-  const selectedSkillNames = ref<string[]>([]);
   const agentKBBindings = ref<ChatKBBindingInfo[]>([]);
   const agentKBBindingsByAgentId = ref<Record<number, ChatKBBindingInfo[]>>({});
-  const agentSkillBindingsByAgentId = ref<Record<number, AgentSkillBindingSummary[]>>(
-    {},
-  );
+  const agentSkillBindingsByAgentId = ref<
+    Record<number, AgentSkillBindingSummary[]>
+  >({});
   const pendingAgentKBBindingLoads = new Map<
     number,
     Promise<ChatKBBindingInfo[]>
@@ -158,23 +157,14 @@ export function useAIChatComposer(deps: UseAIChatComposerDeps) {
     binding: Pick<AgentSkillBindingSummary, 'package_name' | 'skill_name'>,
   ) {
     const value = skillPackageSelectionValue(binding);
-    if (value && !selectedSkillNames.value.includes(value)) {
-      selectedSkillNames.value = [...selectedSkillNames.value, value];
-    }
     mentionQuery.value = '';
     mentionActiveIndex.value = 0;
-    inputMessage.value = '';
+    inputMessage.value = value ? `@${value} ` : '';
   }
 
   function removeSelectedKnowledgeBase(knowledgeBaseId: number) {
     selectedKBIds.value = selectedKBIds.value.filter(
       (k) => k !== knowledgeBaseId,
-    );
-  }
-
-  function removeSelectedSkillName(skillName: string) {
-    selectedSkillNames.value = selectedSkillNames.value.filter(
-      (name) => name !== skillName,
     );
   }
 
@@ -324,20 +314,6 @@ export function useAIChatComposer(deps: UseAIChatComposerDeps) {
       selectedKBIds.value = selectedKBIds.value.filter((kid) =>
         allowed.has(kid),
       );
-      const allowedSkillNames = new Set<string>();
-      for (const binding of getAgentSkillBindings(id) ?? []) {
-        const packageName = String(binding.package_name || '').trim();
-        const skillName = String(binding.skill_name || binding.name || '').trim();
-        if (packageName) {
-          allowedSkillNames.add(packageName);
-        }
-        if (skillName) {
-          allowedSkillNames.add(skillName);
-        }
-      }
-      selectedSkillNames.value = selectedSkillNames.value.filter((name) =>
-        allowedSkillNames.has(name),
-      );
     },
     { immediate: true },
   );
@@ -398,10 +374,8 @@ export function useAIChatComposer(deps: UseAIChatComposerDeps) {
     mentionCandidates,
     mentionOpen,
     removeSelectedKnowledgeBase,
-    removeSelectedSkillName,
     selectMentionKnowledgeBase,
     selectMentionSkillPackage,
     selectedKBIds,
-    selectedSkillNames,
   };
 }

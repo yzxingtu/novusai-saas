@@ -45,7 +45,7 @@ vi.mock('#/adapter/form', () => ({
   })),
 }));
 
-vi.mock('#/api/admin/ai', () => ({
+vi.mock('#/api/admin/ai-models', () => ({
   getAIModelSelectApi: vi.fn(),
 }));
 

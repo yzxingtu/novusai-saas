@@ -4,7 +4,6 @@ import type {
   PendingConfirmation,
   PendingConsent,
 } from './types';
-import type { PersistedToolResponseMap } from './use-ai-chat-message-merge-tool-responses';
 import type { AssistantTurnMergeState } from './use-ai-chat-message-merge-turn-state';
 
 import type { RawMessageItem } from '#/api/shared/ai-chat';
@@ -12,7 +11,6 @@ import type { AppErrorInfo } from '#/utils/request';
 
 import { $t } from '#/locales';
 
-import { collectToolCallsFromAssistantMessage } from './use-ai-chat-message-merge-tool-call-collector';
 import { collectTurnContentMetadata } from './use-ai-chat-message-merge-turn-content';
 import { collectTurnDiagnostics } from './use-ai-chat-message-merge-turn-diagnostics';
 import {
@@ -152,12 +150,10 @@ export function processAssistantMessage({
   agents,
   messageItem,
   state,
-  toolResponseMap,
 }: {
   agents: AgentItem[];
   messageItem: RawMessageItem;
   state: AssistantTurnMergeState;
-  toolResponseMap: PersistedToolResponseMap;
 }) {
   const assistantMetadata = normalizeObjectRecord(messageItem.metadata);
   const persistedErrorState = resolvePersistedAssistantError(
@@ -184,7 +180,6 @@ export function processAssistantMessage({
     messageItem.turn_flow ?? assistantMetadata?.turn_flow,
   );
   if (persistedTurnFlow) {
-    state.hasCanonicalTurnFlow = true;
     state.turnFlow = mergeTurnFlow(state.turnFlow, persistedTurnFlow);
     if (persistedTurnFlow.completionReason) {
       state.turnCompletionReason = persistedTurnFlow.completionReason;
@@ -207,8 +202,6 @@ export function processAssistantMessage({
         state.turnTerminationReason || 'interrupted';
     }
   }
-  collectToolCallsFromAssistantMessage(state, messageItem, toolResponseMap);
-
   if (assistantMetadata?.memory_updated) {
     state.hasMemoryUpdated = true;
   }

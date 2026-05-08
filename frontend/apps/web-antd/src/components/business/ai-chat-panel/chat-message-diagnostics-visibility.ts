@@ -41,9 +41,7 @@ export function hasTurnDiagnosticsData(msg: ChatMessage): boolean {
     terminationReason ||
     normalizeDiagnosticText(msg.protocolPath) ||
     visibleRuntimeDiagnosticTokens(msg.selectedToolNames).length > 0 ||
-    (msg.selectedSkillNames ?? []).some(
-      (item) => normalizeDiagnosticText(item).length > 0,
-    ) ||
+    visibleRuntimeDiagnosticTokens(msg.selectedSkillNames).length > 0 ||
     hasActiveContextSources(msg),
   );
 }

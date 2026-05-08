@@ -68,6 +68,7 @@ export function useSkillPackageDetail(options: UseSkillPackageDetailOptions) {
       package_id: options.selectedPackageId.value,
       type: 'toolkit',
       timeout: 30,
+      status: 'active',
       is_active: true,
       toolkit_content: '',
       valves_config: {},

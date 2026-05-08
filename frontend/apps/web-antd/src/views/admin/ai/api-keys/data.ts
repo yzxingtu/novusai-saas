@@ -3,7 +3,7 @@
  */
 import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
-import type { AIApiKeyInfo } from '#/api/admin/ai';
+import type { AIApiKeyInfo } from '#/api/admin/ai-providers';
 
 import {
   inputField,
@@ -12,7 +12,7 @@ import {
   select,
   switchField,
 } from '#/adapter/form';
-import { getAIProviderSelectApi } from '#/api/admin/ai';
+import { getAIProviderSelectApi } from '#/api/admin/ai-providers';
 import { useScopeFields } from '#/components/business/scope-select';
 import { $t } from '#/locales';
 import { getScopeOptions } from '#/utils/scope-helpers';

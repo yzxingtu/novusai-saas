@@ -32,7 +32,6 @@ export interface RecycleBinItem {
 }
 
 export interface TriggerRecycleBinCleanupParams {
-  retentionDays?: number;
   moduleRetentionDays?: number;
   globalRetentionDays?: number;
 }

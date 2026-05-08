@@ -19,7 +19,6 @@ const mainRoutes: RouteRecordRaw = {
     {
       name: 'UserHome',
       path: '',
-      alias: ['/home'],
       component: () => import('#/views/user/home/index.vue'),
       meta: {
         affixTab: true,

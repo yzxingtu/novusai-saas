@@ -16,8 +16,7 @@ import type {
 
 import type { ApiRequestOptions } from '#/utils/request';
 
-import { useAccessStore } from '@vben/stores';
-
+import { TokenStorage } from '#/store/shared/token-storage';
 import { baseRequestClient, requestClient } from '#/utils/request';
 
 // Logout uses baseRequestClient to avoid circular calls on 401 / Logout 使用 baseRequestClient 避免 401 时循环调用
@@ -88,8 +87,7 @@ export async function adminRefreshTokenApi(
  */
 export async function adminLogoutApi() {
   try {
-    const accessStore = useAccessStore();
-    const token = accessStore?.accessToken;
+    const token = TokenStorage.getToken('admin');
     const headers: Record<string, string> = {};
     if (token) headers.Authorization = `Bearer ${token}`;
     return await baseRequestClient.post(`${API_PREFIX}/logout`, undefined, {
@@ -132,7 +130,6 @@ function mapAdminAIAvailability(
   return {
     accountAIEnabled,
     aiChatEnabled,
-    aiEnabled: aiChatEnabled,
     aiUnavailableReason: raw.ai_unavailable_reason ?? undefined,
     tenantPlanAIEnabled,
   };

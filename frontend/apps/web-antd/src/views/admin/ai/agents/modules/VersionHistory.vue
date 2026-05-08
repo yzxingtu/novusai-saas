@@ -5,7 +5,7 @@
  *
  * 功能：版本列表、回滚 / Version list, rollback
  */
-import type { AIAgentVersionDiff, AIAgentVersionItem } from '#/api/admin/ai';
+import type { AIAgentVersionDiff, AIAgentVersionItem } from '#/api/admin/ai-agents';
 
 import { computed, ref } from 'vue';
 
@@ -14,25 +14,19 @@ import { IconifyIcon } from '@vben/icons';
 
 import {
   Button,
-  Descriptions,
-  DescriptionsItem,
   Empty,
   message,
   Modal,
   Select,
-  SelectOption,
   Spin,
   Tag,
-  Timeline,
-  TimelineItem,
-  Tooltip,
 } from 'ant-design-vue';
 
 import {
   diffAIAgentVersionsApi,
   getAIAgentVersionsApi,
   rollbackAIAgentApi,
-} from '#/api/admin/ai';
+} from '#/api/admin/ai-agents';
 import { $t } from '#/locales';
 import { formatDate, formatRelativeTime } from '#/utils/common';
 

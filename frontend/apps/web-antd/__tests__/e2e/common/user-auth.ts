@@ -1,3 +1,5 @@
+// Test type: smoke
+// Scope: tenant-user Playwright authentication and provisioning helper.
 import type { APIRequestContext, Page } from '@playwright/test';
 
 import process from 'node:process';
@@ -63,19 +65,7 @@ const API_BASE_URL = (
 const USER_E2E_TENANT_CODE =
   process.env.USER_E2E_TENANT_CODE ||
   getBackendEnvValue('USER_E2E_TENANT_CODE') ||
-  getBackendEnvValue('TENANT_ADMIN_TENANT_CODE') ||
   getBackendEnvValue('DEV_TENANT_BOOTSTRAP_TENANT_CODE');
-
-const TENANT_ADMIN_USERNAME =
-  process.env.TENANT_ADMIN_USERNAME ||
-  getBackendEnvValue('TENANT_ADMIN_USERNAME');
-const TENANT_ADMIN_PASSWORD =
-  process.env.TENANT_ADMIN_PASSWORD ||
-  getBackendEnvValue('TENANT_ADMIN_PASSWORD');
-const TENANT_ADMIN_TENANT_CODE =
-  process.env.TENANT_ADMIN_TENANT_CODE ||
-  getBackendEnvValue('TENANT_ADMIN_TENANT_CODE') ||
-  USER_E2E_TENANT_CODE;
 
 function buildEphemeralUserCredentials(): UserCredentials | null {
   if (!USER_E2E_TENANT_CODE) {
@@ -96,7 +86,12 @@ function resolveUserCredentials(): UserCredentials | null {
 }
 
 export function hasUserCredentials() {
-  return Boolean(resolveUserCredentials() && USER_E2E_TENANT_CODE);
+  return Boolean(
+    resolveUserCredentials() &&
+      USER_E2E_TENANT_CODE &&
+      getDevBootstrapSecret('tenant') &&
+      getDevBootstrapSecret('user'),
+  );
 }
 
 async function fetchTenantAdminAccessToken() {
@@ -128,35 +123,13 @@ async function fetchTenantAdminAccessToken() {
       expect(
         bootstrapBody.data?.access_token,
         'Expected tenant admin access token in bootstrap response.',
-      ).toBeTruthy();
+      ).toEqual(expect.any(String));
       return bootstrapBody.data?.access_token as string;
     }
 
-    expect(
-      TENANT_ADMIN_USERNAME &&
-        TENANT_ADMIN_PASSWORD &&
-        TENANT_ADMIN_TENANT_CODE,
-      'Tenant admin credentials are required when dev bootstrap is unavailable.',
-    ).toBeTruthy();
-
-    const loginResponse = await api.post('/tenant/auth/login', {
-      data: {
-        password: TENANT_ADMIN_PASSWORD,
-        tenant_code: TENANT_ADMIN_TENANT_CODE,
-        username: TENANT_ADMIN_USERNAME,
-      },
-    });
-    expect(
-      loginResponse.ok(),
-      'Expected tenant admin login API to succeed for user e2e provisioning.',
-    ).toBe(true);
-    const loginBody = (await loginResponse.json()) as UserLoginResponse;
-    expect(loginBody.code, 'Expected tenant admin login code to be 0.').toBe(0);
-    expect(
-      loginBody.data?.access_token,
-      'Expected tenant admin access token in login response.',
-    ).toBeTruthy();
-    return loginBody.data?.access_token as string;
+    throw new Error(
+      'Set DEV_TENANT_BOOTSTRAP_SECRET to provision user e2e sessions. Legacy tenant login fallback is retired.',
+    );
   } finally {
     await api.dispose();
   }
@@ -209,7 +182,7 @@ async function ensureTenantUserProvisioned(
     expect(
       existingUser?.id,
       'Expected to resolve an existing tenant user after duplicate create failure.',
-    ).toBeTruthy();
+    ).toEqual(expect.any(Number));
 
     const resetResponse = await api.put(
       `/tenant/users/${existingUser!.id}/reset-password`,
@@ -257,7 +230,7 @@ async function ensureTenantUserAccessibleAgent(api: APIRequestContext) {
   expect(
     candidate?.id,
     'Expected at least one published tenant agent for user e2e provisioning.',
-  ).toBeTruthy();
+  ).toEqual(expect.any(Number));
 
   const publicationResponse = await api.get(
     `/tenant/ai/agents/${candidate!.id}/publication`,
@@ -328,32 +301,16 @@ async function loginUser(
       expect(
         bootstrapBody.data?.access_token,
         'Expected tenant user access token in bootstrap response.',
-      ).toBeTruthy();
+      ).toEqual(expect.any(String));
       return {
         accessToken: bootstrapBody.data.access_token as string,
         refreshToken: bootstrapBody.data.refresh_token,
       };
     }
 
-    const loginPayload = {
-      password: credentials.password,
-      tenant_code: credentials.tenantCode,
-      username: credentials.username,
-    };
-
-    const loginResponse = await api.post('/api/user/auth/login/json', {
-      data: loginPayload,
-    });
-    if (loginResponse.ok()) {
-      const loginBody = (await loginResponse.json()) as UserLoginResponse;
-      if (loginBody.code === 0 && loginBody.data?.access_token) {
-        return {
-          accessToken: loginBody.data.access_token,
-          refreshToken: loginBody.data.refresh_token,
-        };
-      }
-    }
-    throw new Error('Tenant user login failed after provisioning.');
+    throw new Error(
+      'Set DEV_TENANT_USER_BOOTSTRAP_SECRET to run user e2e smoke. Legacy user login fallback is retired.',
+    );
   } finally {
     await api.dispose();
   }
@@ -363,7 +320,7 @@ export async function loginAsUser(page: Page) {
   const credentials = resolveUserCredentials();
   if (!credentials) {
     throw new Error(
-      'Set USER_E2E_TENANT_CODE or backend DEV_TENANT_BOOTSTRAP_TENANT_CODE to run user e2e tests.',
+      'Set USER_E2E_TENANT_CODE or backend DEV_TENANT_BOOTSTRAP_TENANT_CODE to run user e2e smoke.',
     );
   }
 

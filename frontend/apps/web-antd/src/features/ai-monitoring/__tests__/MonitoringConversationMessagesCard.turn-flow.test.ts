@@ -1,4 +1,6 @@
 // @vitest-environment happy-dom
+// Test type: behavioral
+// Verifies: monitoring message cards project canonical turn_flow data through real adapters.
 import { mount } from '@vue/test-utils';
 import { computed, defineComponent } from 'vue';
 

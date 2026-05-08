@@ -6,7 +6,7 @@ import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
 import type { AIUsageStatInfo } from '#/api/admin/ai-call-logs';
 
 import { searchDateRange, select } from '#/adapter/form';
-import { getAIModelSelectApi } from '#/api/admin/ai';
+import { getAIModelSelectApi } from '#/api/admin/ai-models';
 import { getTenantSelectApi } from '#/api/admin/tenant';
 import { $t } from '#/locales';
 

@@ -16,6 +16,7 @@ export function getSkillFormDefaults(
   return {
     type: 'toolkit',
     timeout: 30,
+    status: 'active',
     is_active: true,
     toolkit_content: '',
     valves_config: {},
@@ -141,6 +142,7 @@ export function buildSkillFormPayload(values: Record<string, unknown>) {
   }
 
   const result: Record<string, unknown> = {
+    status: values.is_active === false ? 'disabled' : 'active',
     package_id: values.package_id,
     name: values.name,
     type,
@@ -200,6 +202,7 @@ export function toSkillFormValues(
     type: data.type,
     description: data.description,
     timeout: data.timeout,
+    status: (data as AdminSkillInfo & { status?: string }).status ?? 'active',
     is_active: data.is_active,
     toolkit_content: data.toolkit_content || '',
     valves_config: (cfg.valves as Record<string, unknown>) || {},

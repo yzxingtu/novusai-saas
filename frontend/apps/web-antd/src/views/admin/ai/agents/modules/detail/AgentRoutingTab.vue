@@ -1,9 +1,9 @@
 <script lang="ts" setup>
-import type { AIAgentInfo } from '#/api/admin/ai';
+import type { AIAgentInfo } from '#/api/admin/ai-agents';
 
 import { ref, watch } from 'vue';
 
-import { getAIModelListApi } from '#/api/admin/ai';
+import { getAIModelListApi } from '#/api/admin/ai-models';
 import AgentRoutingTab from '#/components/business/agent-routing-tab/AgentRoutingTab.vue';
 import {
   applyAgentRoutingConfig,

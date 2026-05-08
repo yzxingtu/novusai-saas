@@ -16,11 +16,9 @@ export interface NotificationTemplateEffectivePreview {
 
 export interface NotificationTemplateEffectivePreviewRaw {
   body_template?: null | string;
-  bodyTemplate?: null | string;
   channels?: string[];
   priority?: string;
   title_template?: string;
-  titleTemplate?: string;
 }
 
 /** Notification template info / 通知模板信息 */
@@ -51,33 +49,21 @@ export interface NotificationTemplateInfoRaw {
   code: string;
   category?: string;
   title_template?: string;
-  titleTemplate?: string;
   body_template?: null | string;
-  bodyTemplate?: null | string;
   channels?: string[];
   priority?: string;
   is_system?: boolean;
-  isSystem?: boolean;
   scope?: null | string;
   tenant_id?: null | number;
-  tenantId?: null | number;
   tenant_name?: null | string;
-  tenantName?: null | string;
   plugin_name?: null | string;
-  pluginName?: null | string;
   source?: null | string;
   override_of?: null | number;
-  overrideOf?: null | number;
   is_override?: boolean;
-  isOverride?: boolean;
-  enabled?: boolean;
   is_enabled?: boolean;
   effective_preview?: NotificationTemplateEffectivePreviewRaw;
-  effectivePreview?: NotificationTemplateEffectivePreviewRaw;
   created_at?: null | string;
-  createdAt?: null | string;
   updated_at?: null | string;
-  updatedAt?: null | string;
 }
 
 /** Update notification template params / 通知模板更新参数 */
@@ -109,26 +95,14 @@ function transformEffectivePreview(
   fallback: Pick<
     NotificationTemplateInfoRaw,
     | 'body_template'
-    | 'bodyTemplate'
     | 'channels'
     | 'priority'
     | 'title_template'
-    | 'titleTemplate'
   >,
 ): NotificationTemplateEffectivePreview {
   return {
-    titleTemplate:
-      raw?.title_template ??
-      raw?.titleTemplate ??
-      fallback.title_template ??
-      fallback.titleTemplate ??
-      '',
-    bodyTemplate:
-      raw?.body_template ??
-      raw?.bodyTemplate ??
-      fallback.body_template ??
-      fallback.bodyTemplate ??
-      null,
+    titleTemplate: raw?.title_template ?? fallback.title_template ?? '',
+    bodyTemplate: raw?.body_template ?? fallback.body_template ?? null,
     channels: raw?.channels ?? fallback.channels ?? [],
     priority: raw?.priority ?? fallback.priority ?? 'normal',
   };
@@ -141,25 +115,22 @@ function transformNotificationTemplateInfo(
     id: raw.id,
     code: raw.code,
     category: raw.category ?? 'system',
-    titleTemplate: raw.title_template ?? raw.titleTemplate ?? '',
-    bodyTemplate: raw.body_template ?? raw.bodyTemplate ?? null,
+    titleTemplate: raw.title_template ?? '',
+    bodyTemplate: raw.body_template ?? null,
     channels: raw.channels ?? [],
     priority: raw.priority ?? 'normal',
-    isSystem: raw.is_system ?? raw.isSystem ?? false,
+    isSystem: raw.is_system ?? false,
     scope: raw.scope ?? null,
-    tenantId: raw.tenant_id ?? raw.tenantId ?? null,
-    tenantName: raw.tenant_name ?? raw.tenantName ?? null,
-    pluginName: raw.plugin_name ?? raw.pluginName ?? null,
+    tenantId: raw.tenant_id ?? null,
+    tenantName: raw.tenant_name ?? null,
+    pluginName: raw.plugin_name ?? null,
     source: raw.source ?? null,
-    overrideOf: raw.override_of ?? raw.overrideOf ?? null,
-    isOverride: raw.is_override ?? raw.isOverride ?? false,
-    enabled: raw.enabled ?? raw.is_enabled ?? true,
-    effectivePreview: transformEffectivePreview(
-      raw.effective_preview ?? raw.effectivePreview,
-      raw,
-    ),
-    createdAt: raw.created_at ?? raw.createdAt ?? null,
-    updatedAt: raw.updated_at ?? raw.updatedAt ?? null,
+    overrideOf: raw.override_of ?? null,
+    isOverride: raw.is_override ?? false,
+    enabled: raw.is_enabled ?? true,
+    effectivePreview: transformEffectivePreview(raw.effective_preview, raw),
+    createdAt: raw.created_at ?? null,
+    updatedAt: raw.updated_at ?? null,
   };
 }
 

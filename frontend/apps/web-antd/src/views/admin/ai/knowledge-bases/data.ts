@@ -12,7 +12,7 @@ import {
   switchField,
   textareaField,
 } from '#/adapter/form';
-import { getAIModelSelectApi } from '#/api/admin/ai';
+import { getAIModelSelectApi } from '#/api/admin/ai-models';
 import { useScopeFields } from '#/components/business/scope-select';
 import { $t } from '#/locales';
 import {

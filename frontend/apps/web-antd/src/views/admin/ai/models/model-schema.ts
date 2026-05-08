@@ -1,6 +1,6 @@
 import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
-import type { AIModelInfo } from '#/api/admin/ai';
+import type { AIModelInfo } from '#/api/admin/ai-models';
 
 import {
   dividerField,
@@ -10,7 +10,8 @@ import {
   select,
   switchField,
 } from '#/adapter/form';
-import { getAIModelSelectApi, getAIProviderSelectApi } from '#/api/admin/ai';
+import { getAIModelSelectApi } from '#/api/admin/ai-models';
+import { getAIProviderSelectApi } from '#/api/admin/ai-providers';
 import { $t } from '#/locales';
 
 import {

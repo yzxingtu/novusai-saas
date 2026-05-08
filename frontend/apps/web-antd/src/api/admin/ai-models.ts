@@ -25,14 +25,8 @@ export interface AIModelOpenAICompatibleResponsesOverrides {
   [key: string]: unknown;
 }
 
-export interface AIModelOpenAICompatibleChatCompletionsOverrides {
-  reasoning_effort?: null | ReasoningEffort | string;
-  [key: string]: unknown;
-}
-
 export interface AIModelOpenAICompatibleRuntimeOverrides {
   responses?: AIModelOpenAICompatibleResponsesOverrides | null;
-  chat_completions?: AIModelOpenAICompatibleChatCompletionsOverrides | null;
   [key: string]: unknown;
 }
 
@@ -46,10 +40,6 @@ export interface AIModelRuntimeOverrides {
 
 export interface AIModelConfig {
   runtime_overrides?: AIModelRuntimeOverrides | null;
-  runtimeOverrides?: AIModelRuntimeOverrides | null;
-  reasoning?: AIModelReasoningConfig | null;
-  reasoning_effort?: null | ReasoningEffort | string;
-  reasoningEffort?: null | ReasoningEffort | string;
   [key: string]: unknown;
 }
 

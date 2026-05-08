@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import type { AIAgentInfo, AIAgentMemoryConfig } from '#/api/admin/ai';
+import type { AIAgentInfo, AIAgentMemoryConfig } from '#/api/admin/ai-agents';
 
 import { ref, watch } from 'vue';
 
@@ -10,7 +10,7 @@ import { Button, message, Spin, Switch, Tag, Textarea } from 'ant-design-vue';
 import {
   getAIAgentMemoryConfigApi,
   updateAIAgentMemoryConfigApi,
-} from '#/api/admin/ai';
+} from '#/api/admin/ai-agents';
 import { $t } from '#/locales';
 import { showRequestError } from '#/utils/error-helpers';
 import { getScopeColor, getScopeText } from '#/utils/scope-helpers';

@@ -2,11 +2,11 @@ import type {
   AIModelConfig,
   ModelProviderType,
   ReasoningEffort,
-} from '#/api/admin/ai';
+} from '#/api/admin/ai-models';
 
 import { OPENAI_COMPATIBLE_PROVIDER_TYPE } from './model-options';
 
-const LEGACY_REASONING_MODEL_PREFIXES = ['gpt-5', 'o1', 'o3', 'o4'] as const;
+const REASONING_MODEL_PREFIXES = ['gpt-5', 'o1', 'o3', 'o4'] as const;
 
 export function supportsReasoningEffort(
   modelCode: null | string | undefined,
@@ -15,7 +15,7 @@ export function supportsReasoningEffort(
     .trim()
     .toLowerCase();
   if (!normalizedModelCode) return false;
-  return LEGACY_REASONING_MODEL_PREFIXES.some((prefix) =>
+  return REASONING_MODEL_PREFIXES.some((prefix) =>
     normalizedModelCode.startsWith(prefix),
   );
 }
@@ -53,37 +53,6 @@ export function normalizeReasoningEffort(
   }
 }
 
-export function extractLegacyReasoningAlias(
-  modelCode: null | string | undefined,
-): null | {
-  reasoningEffort: null | ReasoningEffort;
-  upstreamModel: string;
-} {
-  const normalizedModelCode = String(modelCode || '').trim();
-  if (!normalizedModelCode) return null;
-
-  const segments = normalizedModelCode.split('-');
-  if (segments.length < 2) return null;
-
-  const effortSegment = segments.at(-1);
-  const baseModel = segments.slice(0, -1).join('-');
-  if (
-    !LEGACY_REASONING_MODEL_PREFIXES.some((prefix) =>
-      baseModel.startsWith(prefix),
-    )
-  ) {
-    return null;
-  }
-
-  const reasoningEffort = normalizeReasoningEffort(effortSegment);
-  if (!reasoningEffort) return null;
-
-  return {
-    upstreamModel: baseModel,
-    reasoningEffort,
-  };
-}
-
 export function getOpenAICompatibleRuntimeOverrides(
   config: AIModelConfig | null | undefined,
 ): NonNullable<AIModelConfig['runtime_overrides']>['openai_compatible'] | null {
@@ -109,19 +78,7 @@ export function readConfiguredReasoningEffort(
   );
   if (responsesEffort) return responsesEffort;
 
-  const chatEffort = normalizeReasoningEffort(
-    openaiOverrides?.chat_completions?.reasoning_effort,
-  );
-  if (chatEffort) return chatEffort;
-
-  const legacyReasoningEffort = normalizeReasoningEffort(
-    config?.reasoning?.effort,
-  );
-  if (legacyReasoningEffort) return legacyReasoningEffort;
-
-  return normalizeReasoningEffort(
-    config?.reasoning_effort || config?.reasoningEffort,
-  );
+  return null;
 }
 
 export function resolveReasoningEffort(
@@ -139,21 +96,14 @@ export function resolveReasoningEffort(
     ? readConfiguredReasoningEffort(config)
     : null;
   if (configEffort) return configEffort;
-
-  return extractLegacyReasoningAlias(modelCode)?.reasoningEffort || null;
+  return null;
 }
 
 export function resolveModelCodeForForm(
-  config: AIModelConfig | null | undefined,
+  _config: AIModelConfig | null | undefined,
   modelCode?: null | string,
 ): string {
-  const configEffort = readConfiguredReasoningEffort(config);
-  if (configEffort) return String(modelCode || '');
-
-  return (
-    extractLegacyReasoningAlias(modelCode)?.upstreamModel ||
-    String(modelCode || '')
-  );
+  return String(modelCode || '');
 }
 
 export function buildModelConfig(
@@ -180,16 +130,12 @@ export function buildModelConfig(
     typeof nextOpenAIOverrides.responses === 'object'
       ? { ...nextOpenAIOverrides.responses }
       : {};
-  const nextChatOverrides =
-    nextOpenAIOverrides.chat_completions &&
-    typeof nextOpenAIOverrides.chat_completions === 'object'
-      ? { ...nextOpenAIOverrides.chat_completions }
-      : {};
   const nextReasoning =
     nextResponsesOverrides.reasoning &&
     typeof nextResponsesOverrides.reasoning === 'object'
       ? { ...nextResponsesOverrides.reasoning }
       : {};
+  delete nextOpenAIOverrides.chat_completions;
 
   if (
     normalizedEffort &&
@@ -201,9 +147,7 @@ export function buildModelConfig(
   ) {
     nextReasoning.effort = normalizedEffort;
     nextResponsesOverrides.reasoning = nextReasoning;
-    nextChatOverrides.reasoning_effort = normalizedEffort;
     nextOpenAIOverrides.responses = nextResponsesOverrides;
-    nextOpenAIOverrides.chat_completions = nextChatOverrides;
     nextRuntimeOverrides.openai_compatible = nextOpenAIOverrides;
     nextConfig.runtime_overrides = nextRuntimeOverrides;
   } else {
@@ -214,17 +158,10 @@ export function buildModelConfig(
       delete nextResponsesOverrides.reasoning;
     }
 
-    delete nextChatOverrides.reasoning_effort;
-
     if (Object.keys(nextResponsesOverrides).length > 0) {
       nextOpenAIOverrides.responses = nextResponsesOverrides;
     } else {
       delete nextOpenAIOverrides.responses;
-    }
-    if (Object.keys(nextChatOverrides).length > 0) {
-      nextOpenAIOverrides.chat_completions = nextChatOverrides;
-    } else {
-      delete nextOpenAIOverrides.chat_completions;
     }
     if (Object.keys(nextOpenAIOverrides).length > 0) {
       nextRuntimeOverrides.openai_compatible = nextOpenAIOverrides;
@@ -241,6 +178,7 @@ export function buildModelConfig(
   delete nextConfig.reasoning;
   delete nextConfig.reasoning_effort;
   delete nextConfig.reasoningEffort;
+  delete nextConfig.runtimeOverrides;
 
   return Object.keys(nextConfig).length > 0 ? nextConfig : null;
 }

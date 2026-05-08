@@ -21,7 +21,6 @@ import {
 import { overridesPreferences } from '#/preferences';
 import {
   ensureCaptchaPluginReady,
-  fallbackToBuiltinCaptcha,
 } from '#/utils/captcha-plugin';
 import { mergeBrandConfig } from '#/utils/public-branding';
 
@@ -138,8 +137,7 @@ async function prepareTenantCaptchaPlugin(
   config: TenantPublicConfig,
 ): Promise<TenantPublicConfig> {
   if (!(await ensureCaptchaPluginReady(config.login.captcha))) {
-    config.login.captcha =
-      fallbackToBuiltinCaptcha(config.login.captcha) ?? config.login.captcha;
+    throw new Error('Configured tenant captcha plugin is unavailable');
   }
   return config;
 }
@@ -394,9 +392,7 @@ export const usePublicConfigStore = defineStore('publicConfig', {
       try {
         const config = await getPlatformPublicConfigApi();
         if (!(await ensureCaptchaPluginReady(config.login.captcha))) {
-          config.login.captcha =
-            fallbackToBuiltinCaptcha(config.login.captcha) ??
-            config.login.captcha;
+          throw new Error('Configured platform captcha plugin is unavailable');
         }
         this.platformConfig = config;
         this.platformConfigLoaded = true;

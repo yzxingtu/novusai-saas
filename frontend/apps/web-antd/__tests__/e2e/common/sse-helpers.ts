@@ -1,3 +1,5 @@
+// Test type: smoke
+// Scope: Playwright SSE capture helpers for real-browser AI chat smoke.
 import type { Page } from '@playwright/test';
 
 type JsonRecord = Record<string, unknown>;

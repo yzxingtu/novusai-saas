@@ -38,7 +38,6 @@ vi.mock('#/api/public/config', () => ({
 
 vi.mock('#/utils/captcha-plugin', () => ({
   ensureCaptchaPluginReady,
-  fallbackToBuiltinCaptcha: (captcha: unknown) => captcha,
 }));
 
 function createPlatformConfig(): PlatformPublicConfig {
@@ -192,6 +191,30 @@ describe('usePublicConfigStore tenant config guard', () => {
 
     expect(favicon?.href).toContain('/platform.ico');
     expect(description?.content).toBe('Platform Description');
+  });
+
+  it('fails closed when the platform captcha plugin is not available', async () => {
+    ensureCaptchaPluginReady.mockResolvedValueOnce(false);
+    const store = usePublicConfigStore();
+
+    const result = await store.loadPlatformConfig();
+
+    expect(result).toBeNull();
+    expect(store.platformConfigLoaded).toBe(false);
+    expect(store.error).toBe('Configured platform captcha plugin is unavailable');
+  });
+
+  it('fails closed when the tenant captcha plugin is not available', async () => {
+    ensureCaptchaPluginReady
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(false);
+    const store = usePublicConfigStore();
+
+    const result = await store.loadTenantConfig({ skipDomainCheck: true });
+
+    expect(result).toBeNull();
+    expect(store.tenantConfigLoaded).toBe(false);
+    expect(store.error).toBe('Configured tenant captcha plugin is unavailable');
   });
 
   it('restores default branding when all public configs are reset', async () => {

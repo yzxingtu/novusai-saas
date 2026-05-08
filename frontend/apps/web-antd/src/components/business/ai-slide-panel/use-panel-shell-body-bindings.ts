@@ -116,7 +116,6 @@ interface UsePanelShellBodyBindingsOptions {
   rejectConsent: (index: number) => void;
   removeAttachment: (index: number) => void;
   removeSelectedKnowledgeBase: (id: number) => void;
-  removeSelectedSkillName: (skillName: string) => void;
   retryLastMessage: (index: number) => void;
   routing: Ref<boolean>;
   scrollToBottom: (force?: boolean) => void;
@@ -227,7 +226,6 @@ export function usePanelShellBodyBindings(
     reject: options.rejectAction,
     removeAttachment: options.removeAttachment,
     removeSelectedKnowledgeBase: options.removeSelectedKnowledgeBase,
-    removeSelectedSkillPackage: options.removeSelectedSkillName,
     retry: options.retryLastMessage,
     scroll: options.handleMessagesScroll,
     scrollToBottom: () => options.scrollToBottom(true),

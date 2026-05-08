@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import type { AIAgentSkillGrantInfo } from '#/api/admin/ai';
+import type { AIAgentSkillGrantInfo } from '#/api/admin/ai-agents';
 import type { AgentSkillBindingDraftItem } from '#/components/business/agent-skill-binding-picker';
 
 import { computed, ref, watch } from 'vue';
@@ -20,7 +20,7 @@ import {
   getAIAgentSkillsApi,
   unbindAIAgentSkillApi,
   updateAIAgentSkillGrantApi,
-} from '#/api/admin/ai';
+} from '#/api/admin/ai-agents';
 import {
   AgentSkillBindingPicker,
   draftsToBatchPayload,

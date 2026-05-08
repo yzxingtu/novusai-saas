@@ -2,12 +2,12 @@
 /**
  * AI API Key 新建/编辑表单抽屉
  */
-import type { AIApiKeyInfo } from '#/api/admin/ai';
+import type { AIApiKeyInfo } from '#/api/admin/ai-providers';
 
 import { computed } from 'vue';
 
 import { useVbenForm } from '#/adapter/form';
-import { getAIApiKeyDetailApi } from '#/api/admin/ai';
+import { getAIApiKeyDetailApi } from '#/api/admin/ai-providers';
 import { extractScopeFormValues } from '#/components/business/scope-select';
 import { useCrudDrawer } from '#/composables';
 import { $t } from '#/locales';
@@ -38,7 +38,7 @@ const { Drawer, isEdit } = useCrudDrawer<AIApiKeyInfo>({
       data.api_key = values.api_key;
       const scope = values.scope as string;
       data.scope = scope;
-      data.tenant_id =
+      data.owner_tenant_id =
         scope === 'selected_tenants'
           ? (values.tenant_id as null | number)
           : null;
@@ -52,7 +52,15 @@ const { Drawer, isEdit } = useCrudDrawer<AIApiKeyInfo>({
       is_active: data.is_active,
       usage_limit: data.usage_limit,
       ...extractScopeFormValues(
-        data as unknown as {
+        {
+          ...(data as unknown as {
+            [k: string]: unknown;
+            assigned_tenant_ids?: number[];
+            owner_tenant_id?: null | number;
+            scope?: string;
+          }),
+          tenant_id: data.owner_tenant_id,
+        } as {
           [k: string]: unknown;
           assigned_tenant_ids?: number[];
           scope?: string;

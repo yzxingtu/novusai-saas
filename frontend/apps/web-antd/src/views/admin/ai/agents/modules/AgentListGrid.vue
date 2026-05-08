@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import type { AIAgentInfo } from '#/api/admin/ai';
+import type { AIAgentInfo } from '#/api/admin/ai-agents';
 
 import { IconifyIcon } from '@vben/icons';
 

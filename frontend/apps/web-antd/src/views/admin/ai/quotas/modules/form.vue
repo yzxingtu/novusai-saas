@@ -2,12 +2,12 @@
 /**
  * AI 配额新建/编辑表单抽屉
  */
-import type { AIQuotaInfo } from '#/api/admin/ai';
+import type { AIQuotaInfo } from '#/api/admin/ai-quotas';
 
 import { computed } from 'vue';
 
 import { useVbenForm } from '#/adapter/form';
-import { getAIQuotaDetailApi } from '#/api/admin/ai';
+import { getAIQuotaDetailApi } from '#/api/admin/ai-quotas';
 import { useCrudDrawer } from '#/composables';
 import { $t } from '#/locales';
 

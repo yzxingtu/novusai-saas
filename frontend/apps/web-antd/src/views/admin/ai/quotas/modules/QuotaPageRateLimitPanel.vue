@@ -1,8 +1,5 @@
 <script lang="ts" setup>
-import type {
-  AIRateLimitDiagnosticInfo,
-  AIRateLimitInfo,
-} from '#/api/admin/ai';
+import type { AIRateLimitDiagnosticInfo, AIRateLimitInfo } from '#/api/admin/ai-quotas';
 
 import { IconifyIcon } from '@vben/icons';
 

@@ -1,10 +1,17 @@
 const RETIRED_RUNTIME_DIAGNOSTIC_EXACT = new Set([
+  'baidu_public_search',
+  'baidu_search',
   'fetch_url',
   'hosted_web_search',
+  'internet_search',
   'native_web_search',
+  'online_search',
+  'public_search',
+  'search_provider',
   'supports_hosted_web_search',
   'web_research',
   'web_search',
+  'web_search_options',
   'web_search_runtime',
 ]);
 
@@ -12,15 +19,23 @@ const RETIRED_RUNTIME_DIAGNOSTIC_FRAGMENTS = [
   'hosted_web_search',
   'native_web_search',
   'response_web_search_call',
+  'search_provider',
   'web_research',
   'web_search_call',
+  '在线搜索',
+  '网络搜索',
   '联网搜索',
   '网页搜索',
+  '公开搜索',
+  '百度公开搜索',
   '原生搜索',
 ];
 
 function normalizeRuntimeDiagnosticToken(value: string): string {
-  return value.trim().toLowerCase().replaceAll(/[.\-:\s]+/g, '_');
+  return value
+    .trim()
+    .toLowerCase()
+    .replaceAll(/[.\-:\s]+/g, '_');
 }
 
 export function isRetiredRuntimeDiagnosticText(value: unknown): boolean {

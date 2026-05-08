@@ -48,9 +48,6 @@ export const TENANT_HOME_PATH = '/tenant/dashboard';
 /** User default home / 用户端默认首页 */
 export const USER_HOME_PATH = '/';
 
-/** User legacy home alias / 用户端历史首页别名 */
-export const USER_HOME_ALIAS_PATH = '/home';
-
 // ============================================================
 // API prefix constants / API 前缀常量
 // ============================================================
@@ -226,7 +223,7 @@ export function resolveHomePathByPath(path: string, hostname?: string): string {
 
 /**
  * Normalize navigation target for an endpoint.
- * 规范化端内导航目标，收敛历史 `/home` 别名并阻止跨端错跳。
+ * 规范化端内导航目标，阻止跨端错跳。
  */
 export function normalizeEndpointNavigationPath(
   path: null | string | undefined,
@@ -243,10 +240,6 @@ export function normalizeEndpointNavigationPath(
 
   const { pathname: rawPathname, suffix } = splitPathSuffix(rawPath);
   const pathname = normalizePath(rawPathname);
-
-  if (endpointKey === EndpointType.USER && pathname === USER_HOME_ALIAS_PATH) {
-    return `${USER_HOME_PATH}${suffix}`;
-  }
 
   if (pathname === LOGIN_PATHS[endpointKey]) {
     return homePath;

@@ -1,4 +1,4 @@
-import type { AIAgentInfo } from '#/api/admin/ai';
+import type { AIAgentInfo } from '#/api/admin/ai-agents';
 
 import { computed, ref } from 'vue';
 
@@ -11,7 +11,7 @@ import {
   getAIAgentListApi,
   publishAIAgentApi,
   updateAIAgentStatusApi,
-} from '#/api/admin/ai';
+} from '#/api/admin/ai-agents';
 import { useCrudList } from '#/composables';
 import { $t } from '#/locales';
 import { buildFormExtraData } from '#/utils/form-extra-data';

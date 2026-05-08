@@ -12,6 +12,18 @@ import { requestClient } from '#/utils/request';
 
 /** Provider type / 供应商类型 */
 export type ProviderType = string;
+export type ProviderWireApi = 'chat_completions' | 'responses';
+
+export interface AIProviderProtocolCapabilities {
+  allowed_wire_apis?: Array<ProviderWireApi | string> | null;
+  primary_wire_api?: null | ProviderWireApi | string;
+  [key: string]: unknown;
+}
+
+export interface AIProviderConfig {
+  protocol_capabilities?: AIProviderProtocolCapabilities | null;
+  [key: string]: unknown;
+}
 
 /** Adapter type info / 适配器类型信息 */
 export interface AdapterTypeInfo {
@@ -35,7 +47,7 @@ export interface AIProviderInfo {
   icon: null | string;
   is_active: boolean;
   sort_order: number;
-  config: null | Record<string, unknown>;
+  config: AIProviderConfig | null;
   model_count: number;
   created_at: string;
   updated_at: string;
@@ -51,7 +63,7 @@ export interface AIProviderCreateRequest {
   icon?: null | string;
   is_active?: boolean;
   sort_order?: number;
-  config?: null | Record<string, unknown>;
+  config?: AIProviderConfig | null;
 }
 
 /** Update provider request / 更新供应商请求 */
@@ -64,7 +76,7 @@ export interface AIProviderUpdateRequest {
   icon?: null | string;
   is_active?: boolean | null;
   sort_order?: null | number;
-  config?: null | Record<string, unknown>;
+  config?: AIProviderConfig | null;
 }
 
 // ============================================================
@@ -76,8 +88,7 @@ export interface AIApiKeyInfo {
   id: number;
   provider_id: number;
   scope: string;
-  tenant_id: null | number;
-  owner_tenant_id?: null | number;
+  owner_tenant_id: null | number;
   name: string;
   is_active: boolean;
   usage_limit: null | number;
@@ -98,7 +109,7 @@ export interface AIApiKeyInfo {
 export interface AIApiKeyCreateRequest {
   provider_id: number;
   scope?: string;
-  tenant_id?: null | number;
+  owner_tenant_id?: null | number;
   name: string;
   api_key: string;
   is_active?: boolean;
@@ -311,11 +322,11 @@ export async function getAIApiKeyListApi(
 /** Get API Keys by provider / 获取供应商的 API Key 列表 */
 export async function getAIApiKeysByProviderApi(
   providerId: number,
-  tenantId?: number,
+  ownerTenantId?: number,
   options?: ApiRequestOptions,
 ): Promise<AIApiKeyInfo[]> {
   const params: Record<string, unknown> = {};
-  if (tenantId !== undefined) params.tenant_id = tenantId;
+  if (ownerTenantId !== undefined) params.owner_tenant_id = ownerTenantId;
   return requestClient.get<AIApiKeyInfo[]>(
     `${API_KEY_PREFIX}/provider/${providerId}`,
     { params, ...options },

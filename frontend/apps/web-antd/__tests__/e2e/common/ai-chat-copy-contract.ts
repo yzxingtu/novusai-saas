@@ -1,3 +1,5 @@
+// Test type: smoke
+// Scope: shared copy assertions used by AI chat Playwright smoke.
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';

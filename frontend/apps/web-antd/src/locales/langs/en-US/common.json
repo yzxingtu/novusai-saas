@@ -823,7 +823,6 @@
     "batchMoveToGlobal": "Move Selected to Global Bin",
     "deletedAt": "Deleted At",
     "movedToGlobalAt": "Moved to Global Bin At",
-    "retentionDays": "Auto-cleanup after {days} days",
     "moduleRetentionDays": "Items stay in the module recycle bin for {days} days before moving to the global recycle bin",
     "globalRetentionDays": "Items are permanently deleted only after another {days} days in the global recycle bin",
     "globalRetentionDaysManaged": "After transfer to the admin global recycle bin, items stay another {days} days under platform-managed restore or cleanup",

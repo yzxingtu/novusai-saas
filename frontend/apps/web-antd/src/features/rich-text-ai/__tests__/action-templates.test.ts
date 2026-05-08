@@ -1,5 +1,5 @@
 // Test type: behavioral
-// Verifies: default rich text context-menu behavior, apply modes, and retired editor-tool guard.
+// Verifies: default rich text context-menu behavior and apply modes.
 // Mock strategy: No mocks; behavior is pure template selection and filtering.
 import { describe, expect, it } from 'vitest';
 
@@ -9,7 +9,6 @@ import {
   getRichTextAiActionTemplate,
   getRichTextAiContextMenuActions,
   groupRichTextAiActionsByKind,
-  isRetiredEditorToolName,
 } from '../index';
 
 describe('rich text ai action template behavior', () => {
@@ -50,7 +49,7 @@ describe('rich text ai action template behavior', () => {
     expect(rewriteAction.supportsFormatInstruction).toBe(true);
   });
 
-  it('filters enabled actions without reintroducing retired editor runtime tools', () => {
+  it('filters enabled actions through the canonical action list', () => {
     const visible = getRichTextAiContextMenuActions({
       enabledActions: ['chat', 'rewrite', 'continue', 'insert', 'format'],
     });
@@ -72,13 +71,6 @@ describe('rich text ai action template behavior', () => {
       'format',
       'chat',
     ]);
-    expect(
-      visibleWithAssist.every(
-        (action) =>
-          !isRetiredEditorToolName(action.action) &&
-          !isRetiredEditorToolName(action.endpointFeature),
-      ),
-    ).toBe(true);
   });
 
   it('keeps default action groups and format presets concrete enough for configuration UI', () => {

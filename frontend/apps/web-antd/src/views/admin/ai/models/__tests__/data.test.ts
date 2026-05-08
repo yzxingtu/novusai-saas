@@ -5,7 +5,6 @@ import {
   buildModelFormValues,
   buildModelPayload,
   buildRemoteModelFormValues,
-  extractLegacyReasoningAlias,
   resolveModelCodeForForm,
   resolveReasoningEffort,
   supportsReasoningEffort,
@@ -20,8 +19,11 @@ vi.mock('#/adapter/form', () => ({
   switchField: vi.fn(),
 }));
 
-vi.mock('#/api/admin/ai', () => ({
+vi.mock('#/api/admin/ai-models', () => ({
   getAIModelSelectApi: vi.fn(),
+}));
+
+vi.mock('#/api/admin/ai-providers', () => ({
   getAIProviderSelectApi: vi.fn(),
 }));
 
@@ -29,16 +31,8 @@ vi.mock('#/locales', () => ({
   $t: (key: string) => key,
 }));
 
-describe('ai model compatibility helpers', () => {
-  it('extracts legacy reasoning effort from historical alias code', () => {
-    expect(extractLegacyReasoningAlias('gpt-5.4-xhigh')).toEqual({
-      upstreamModel: 'gpt-5.4',
-      reasoningEffort: 'xhigh',
-    });
-    expect(extractLegacyReasoningAlias('deepseek-chat')).toBeNull();
-  });
-
-  it('prefers config reasoning effort over legacy alias parsing', () => {
+describe('ai model runtime helpers', () => {
+  it('reads reasoning effort only from structured runtime overrides', () => {
     expect(
       resolveReasoningEffort(
         {
@@ -55,6 +49,29 @@ describe('ai model compatibility helpers', () => {
         'chat',
       ),
     ).toBe('high');
+    expect(
+      resolveReasoningEffort(
+        {
+          runtimeOverrides: {
+            openai_compatible: {
+              responses: {
+                reasoning: { effort: 'xhigh' },
+              },
+            },
+          },
+          runtime_overrides: {
+            openai_compatible: {
+              chat_completions: { reasoning_effort: 'xhigh' },
+            },
+          },
+          reasoningEffort: 'xhigh',
+          reasoning_effort: 'xhigh',
+        },
+        'gpt-5.4',
+        'openai_compatible',
+        'chat',
+      ),
+    ).toBeNull();
     expect(
       resolveModelCodeForForm(
         {
@@ -78,7 +95,6 @@ describe('ai model compatibility helpers', () => {
       runtime_overrides: {
         openai_compatible: {
           responses: { reasoning: { effort: 'xhigh' } },
-          chat_completions: { reasoning_effort: 'xhigh' },
         },
       },
     });
@@ -106,7 +122,7 @@ describe('ai model compatibility helpers', () => {
     ).toBeNull();
   });
 
-  it('builds form values from model info with legacy fallback', () => {
+  it('builds form values from model info without parsing model-code aliases', () => {
     const values = buildModelFormValues({
       id: 1,
       provider_id: 10,
@@ -137,8 +153,8 @@ describe('ai model compatibility helpers', () => {
       updated_at: '',
     });
 
-    expect(values.code).toBe('gpt-5.4');
-    expect(values.reasoning_effort).toBe('xhigh');
+    expect(values.code).toBe('gpt-5.4-xhigh');
+    expect(values.reasoning_effort).toBeNull();
   });
 
   it('builds payload without dropping unrelated config keys', () => {
@@ -170,7 +186,6 @@ describe('ai model compatibility helpers', () => {
       runtime_overrides: {
         openai_compatible: {
           responses: { reasoning: { effort: 'xhigh' } },
-          chat_completions: { reasoning_effort: 'xhigh' },
         },
       },
     });

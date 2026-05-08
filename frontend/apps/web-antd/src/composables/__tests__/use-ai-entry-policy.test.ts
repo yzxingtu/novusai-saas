@@ -68,7 +68,7 @@ describe('useAIEntryPolicy', () => {
     });
     await nextTick();
 
-    expect(policy.aiEnabled.value).toBe(true);
+    expect(policy.aiChatEnabled.value).toBe(true);
     expect(policy.effectiveMode.value).toBe('enabled');
 
     scope.stop();
@@ -89,7 +89,7 @@ describe('useAIEntryPolicy', () => {
     });
     await nextTick();
 
-    expect(policy.aiEnabled.value).toBe(false);
+    expect(policy.aiChatEnabled.value).toBe(false);
     expect(policy.entryDisabled.value).toBe(true);
     expect(policy.commandBarEnabled.value).toBe(true);
     expect(policy.effectiveMode.value).toBe('disabled');
@@ -109,7 +109,7 @@ describe('useAIEntryPolicy', () => {
     });
     await nextTick();
 
-    expect(policy.aiEnabled.value).toBe(false);
+    expect(policy.aiChatEnabled.value).toBe(false);
     expect(policy.commandBarEnabled.value).toBe(true);
     expect(policy.effectiveMode.value).toBe('disabled');
     expect(policy.aiUnavailableReason.value).toBe('permission_missing');

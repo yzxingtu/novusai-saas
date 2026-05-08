@@ -24,7 +24,6 @@ import { message } from 'ant-design-vue';
 import {
   LOGIN_PATHS,
   resolveEndpointByPath,
-  USER_HOME_ALIAS_PATH,
   USER_HOME_PATH,
 } from '#/constants/endpoints';
 import { resolveRuntimeLocale } from '#/locales/runtime-locale';
@@ -80,8 +79,7 @@ async function doReAuthenticate() {
   // 根据当前路由获取端类型 / resolve endpoint from current route
   const currentPath = window.location.pathname;
   const endpoint = resolveEndpointByPath(currentPath, window.location.hostname);
-  const isPublicRootPath =
-    currentPath === USER_HOME_PATH || currentPath === USER_HOME_ALIAS_PATH;
+  const isPublicRootPath = currentPath === USER_HOME_PATH;
 
   // 仅清除当前端的 Token
   TokenStorage.clearToken(endpoint);

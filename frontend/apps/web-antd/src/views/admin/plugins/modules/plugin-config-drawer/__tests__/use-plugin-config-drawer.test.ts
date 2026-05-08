@@ -62,28 +62,26 @@ const mockRefs = vi.hoisted(() => {
     resolvePluginCompatibilityProfile: vi.fn(
       (source: {
         compatibility_profile?: {
-          tenant_exposure?: {
-            mode?: string;
-            requires_explicit_assignment?: boolean;
-          };
+          tenant_assignment_required?: boolean;
+          tenant_exposure?: string;
         } | null;
-        scope?: string;
       }) => {
-        const tenantExposure =
-          source.compatibility_profile?.tenant_exposure ?? {};
+        const tenantExposure = source.compatibility_profile?.tenant_exposure;
         const tenantExposureMode =
-          tenantExposure.mode ??
-          (source.scope === 'selected_tenants'
-            ? 'selected_tenants'
-            : 'scope_inherited');
+          tenantExposure === 'all_tenants' ||
+          tenantExposure === 'none' ||
+          tenantExposure === 'scope_default' ||
+          tenantExposure === 'selected_tenants'
+            ? tenantExposure
+            : 'scope_default';
         return {
           editions: ['saas'],
           saasCompatible: true,
           singleManagementCompatible: false,
           surfaces: [],
           tenantAssignmentRequired:
-            tenantExposure.requires_explicit_assignment === true ||
-            source.scope === 'selected_tenants',
+            source.compatibility_profile?.tenant_assignment_required === true ||
+            tenantExposureMode === 'selected_tenants',
           tenantExposureMode,
         };
       },
@@ -245,28 +243,26 @@ describe('usePluginConfigDrawer', () => {
     mockRefs.resolvePluginCompatibilityProfile.mockImplementation(
       (source: {
         compatibility_profile?: {
-          tenant_exposure?: {
-            mode?: string;
-            requires_explicit_assignment?: boolean;
-          };
+          tenant_assignment_required?: boolean;
+          tenant_exposure?: string;
         } | null;
-        scope?: string;
       }) => {
-        const tenantExposure =
-          source.compatibility_profile?.tenant_exposure ?? {};
+        const tenantExposure = source.compatibility_profile?.tenant_exposure;
         const tenantExposureMode =
-          tenantExposure.mode ??
-          (source.scope === 'selected_tenants'
-            ? 'selected_tenants'
-            : 'scope_inherited');
+          tenantExposure === 'all_tenants' ||
+          tenantExposure === 'none' ||
+          tenantExposure === 'scope_default' ||
+          tenantExposure === 'selected_tenants'
+            ? tenantExposure
+            : 'scope_default';
         return {
           editions: ['saas'],
           saasCompatible: true,
           singleManagementCompatible: false,
           surfaces: [],
           tenantAssignmentRequired:
-            tenantExposure.requires_explicit_assignment === true ||
-            source.scope === 'selected_tenants',
+            source.compatibility_profile?.tenant_assignment_required === true ||
+            tenantExposureMode === 'selected_tenants',
           tenantExposureMode,
         };
       },
@@ -370,11 +366,9 @@ describe('usePluginConfigDrawer', () => {
   it('[behavioral] loads tenant assignments when compatibility profile requires explicit assignment', async () => {
     const plugin = createPlugin({
       compatibility_profile: {
-        editions: ['saas', 'single-management'],
-        tenant_exposure: {
-          mode: 'specified_tenants',
-          requires_explicit_assignment: true,
-        },
+        editions: ['saas', 'single_management'],
+        tenant_assignment_required: true,
+        tenant_exposure: 'selected_tenants',
       },
       id: 52,
       scope: 'platform',

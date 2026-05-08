@@ -24,6 +24,7 @@ import {
 } from './chat-message-turn-flow-core';
 import {
   normalizeObjectRecord,
+  normalizeObjectRecordList,
   normalizeOptionalString,
 } from './use-ai-chat-message-normalizers';
 
@@ -77,6 +78,146 @@ const TURN_FLOW_NON_VISIBLE_SUMMARY_SET = new Set([
   '这次处理没有成功生成最终答复，请再试一次。',
 ]);
 
+const CANONICAL_STAGE_KEYS = [
+  'detail_lines',
+  'duration_ms',
+  'ended_at_ms',
+  'id',
+  'metrics',
+  'source_refs',
+  'stage_id',
+  'stage_type',
+  'started_at_ms',
+  'status',
+  'summary',
+  'title',
+  'tool_call_ids',
+  'type',
+] as const;
+
+const CANONICAL_EVIDENCE_KEYS = [
+  'arguments',
+  'badge',
+  'display_name',
+  'duration_ms',
+  'error',
+  'error_type',
+  'id',
+  'kind',
+  'output',
+  'result_link',
+  'score',
+  'skill_name',
+  'skill_type',
+  'snippet',
+  'source_ref',
+  'started_at',
+  'status',
+  'summary',
+  'summary_payload',
+  'title',
+  'tool_call_id',
+  'tool_name',
+  'url',
+] as const;
+
+function pickCanonicalFields(
+  record: Record<string, unknown>,
+  keys: readonly string[],
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const key of keys) {
+    if (record[key] !== undefined) {
+      out[key] = record[key];
+    }
+  }
+  return out;
+}
+
+function canonicalStageRecord(
+  value: unknown,
+): null | Record<string, unknown> {
+  const record = normalizeObjectRecord(value);
+  return record ? pickCanonicalFields(record, CANONICAL_STAGE_KEYS) : null;
+}
+
+function canonicalEvidenceRecord(
+  value: unknown,
+): null | Record<string, unknown> {
+  const record = normalizeObjectRecord(value);
+  return record ? pickCanonicalFields(record, CANONICAL_EVIDENCE_KEYS) : null;
+}
+
+function canonicalAnswerCardPayload(value: unknown): unknown {
+  const record = normalizeObjectRecord(value);
+  if (!record) {
+    return undefined;
+  }
+  return pickCanonicalFields(record, [
+    'confidence_label',
+    'follow_up_suggestions',
+    'sections',
+    'source_chip_ids',
+    'summary',
+  ]);
+}
+
+function canonicalErrorSurfacePayload(value: unknown): unknown {
+  const record = normalizeObjectRecord(value);
+  if (!record) {
+    return undefined;
+  }
+  return pickCanonicalFields(record, [
+    'debug_message',
+    'detail',
+    'error',
+    'error_type',
+    'message',
+    'reason',
+    'summary',
+    'trace_id',
+  ]);
+}
+
+function canonicalTurnFlowPayload(
+  value: unknown,
+): null | Record<string, unknown> {
+  const record = normalizeObjectRecord(value);
+  if (!record) {
+    return null;
+  }
+  const out = pickCanonicalFields(record, [
+    'completion_reason',
+    'failure_kind',
+    'final_stage_status',
+    'interrupted',
+    'trace_id',
+    'turn_flow_complete',
+    'turn_outcome',
+  ]);
+  const timeline = normalizeObjectRecordList(record.timeline)
+    .map((item) => canonicalStageRecord(item))
+    .filter((item): item is Record<string, unknown> => !!item);
+  if (timeline.length > 0) {
+    out.timeline = timeline;
+  }
+  const evidence = normalizeObjectRecordList(record.evidence)
+    .map((item) => canonicalEvidenceRecord(item))
+    .filter((item): item is Record<string, unknown> => !!item);
+  if (evidence.length > 0) {
+    out.evidence = evidence;
+  }
+  const answerCard = canonicalAnswerCardPayload(record.answer_card);
+  if (answerCard) {
+    out.answer_card = answerCard;
+  }
+  const errorSurface = canonicalErrorSurfacePayload(record.error_surface);
+  if (errorSurface) {
+    out.error_surface = errorSurface;
+  }
+  return out;
+}
+
 function toErrorSurface(
   error?: AppErrorInfo,
 ): TurnFlowErrorSurface | undefined {
@@ -121,6 +262,18 @@ function extractFailureKind(value: unknown): string | undefined {
   return (
     normalizeFailureSignal(record.failure_kind ?? record.failureKind) ??
     normalizeFailureSignal(metadata?.failure_kind ?? metadata?.failureKind)
+  );
+}
+
+function extractCanonicalFailureKind(value: unknown): string | undefined {
+  const record = normalizeObjectRecord(value);
+  if (!record) {
+    return undefined;
+  }
+  const metadata = normalizeObjectRecord(record.metadata);
+  return (
+    normalizeFailureSignal(record.failure_kind) ??
+    normalizeFailureSignal(metadata?.failure_kind)
   );
 }
 
@@ -195,14 +348,13 @@ function buildStageFromCanonicalEvent(
   event: Record<string, unknown>,
 ): TurnFlowStage | undefined {
   const stageRecord =
-    normalizeObjectRecord(event.stage) ??
     normalizeObjectRecord(event.stage_payload) ??
-    normalizeObjectRecord(event.data);
+    null;
   const candidate = {
     ...event,
     ...stageRecord,
   };
-  const normalizedCandidate = normalizeObjectRecord(candidate);
+  const normalizedCandidate = canonicalStageRecord(candidate);
   if (!normalizedCandidate) {
     return undefined;
   }
@@ -214,13 +366,12 @@ function buildEvidenceFromCanonicalEvent(
 ): TurnFlowEvidenceItem | undefined {
   const evidenceRecord =
     normalizeObjectRecord(event.evidence) ??
-    normalizeObjectRecord(event.item) ??
-    normalizeObjectRecord(event.data);
+    null;
   const candidate = {
     ...event,
     ...evidenceRecord,
   };
-  const normalizedCandidate = normalizeObjectRecord(candidate);
+  const normalizedCandidate = canonicalEvidenceRecord(candidate);
   if (!normalizedCandidate) {
     return undefined;
   }
@@ -233,12 +384,9 @@ function nestedTurnFlowFromDone(
 ): TurnFlowViewModel | undefined {
   const turnRecordMetadata = normalizeObjectRecord(turnRecord?.metadata);
   return normalizeTurnFlowViewModel(
-    event.turn_flow ??
-      event.turnFlow ??
-      turnRecord?.turn_flow ??
-      turnRecord?.turnFlow ??
-      turnRecordMetadata?.turn_flow ??
-      turnRecordMetadata?.turnFlow,
+    canonicalTurnFlowPayload(
+      event.turn_flow ?? turnRecord?.turn_flow ?? turnRecordMetadata?.turn_flow,
+    ),
   );
 }
 
@@ -263,32 +411,24 @@ function stageStatusFromDone(
   event: Record<string, unknown>,
   mergedFlow?: TurnFlowViewModel,
 ): TurnFlowStageStatus {
-  const turnRecord = normalizeObjectRecord(
-    event.turn_record ?? event.turnRecord,
-  );
+  const turnRecord = normalizeObjectRecord(event.turn_record);
   const nestedFlow = mergedFlow ?? nestedTurnFlowFromDone(event, turnRecord);
   const completionReason = normalizeFailureSignal(
-    event.completion_reason ??
-      event.completionReason ??
-      nestedFlow?.completionReason,
+    event.completion_reason ?? nestedFlow?.completionReason,
   );
   const terminationReason = normalizeFailureSignal(
     event.termination_reason ??
-      event.terminationReason ??
       turnRecord?.termination_reason ??
-      turnRecord?.terminationReason ??
       nestedFlow?.completionReason,
   );
   const turnOutcome = normalizeFailureSignal(
     event.turn_outcome ??
-      event.turnOutcome ??
       turnRecord?.turn_outcome ??
-      turnRecord?.turnOutcome ??
       nestedFlow?.turnOutcome,
   );
   const failureKind =
-    normalizeFailureSignal(event.failure_kind ?? event.failureKind) ??
-    extractFailureKind(turnRecord) ??
+    normalizeFailureSignal(event.failure_kind) ??
+    extractCanonicalFailureKind(turnRecord) ??
     failureKindFromFlow(nestedFlow);
   if (
     shouldProjectFailureFromSignals({
@@ -300,9 +440,7 @@ function stageStatusFromDone(
   ) {
     return 'error';
   }
-  const status = normalizeOptionalString(
-    event.final_stage_status ?? event.finalStatus,
-  );
+  const status = normalizeOptionalString(event.final_stage_status);
   const nestedStatus = normalizeOptionalString(nestedFlow?.finalStageStatus);
   if (status === 'failed') {
     return 'error';
@@ -427,7 +565,7 @@ export function applyCanonicalTurnAnswerCardEvent(
   event: Record<string, unknown>,
 ): void {
   const answerCard = normalizeAnswerCard(
-    event.answer_card ?? event.answerCard ?? event.data,
+    canonicalAnswerCardPayload(event.answer_card),
   );
   if (!answerCard) {
     return;
@@ -441,24 +579,19 @@ export function applyCanonicalDoneEvent(
   message: ChatMessage,
   event: Record<string, unknown>,
 ): void {
-  const turnRecord = normalizeObjectRecord(
-    event.turn_record ?? event.turnRecord,
-  );
+  const turnRecord = normalizeObjectRecord(event.turn_record);
   const incomingTurnFlow = nestedTurnFlowFromDone(event, turnRecord);
   const baseFlow = getOrCreateCanonicalTurnFlow(message);
   const flow = incomingTurnFlow
     ? (mergeTurnFlow(baseFlow, incomingTurnFlow) ?? baseFlow)
     : baseFlow;
   const failureKind =
-    normalizeFailureSignal(event.failure_kind ?? event.failureKind) ??
-    extractFailureKind(turnRecord) ??
+    normalizeFailureSignal(event.failure_kind) ??
+    extractCanonicalFailureKind(turnRecord) ??
     failureKindFromFlow(flow);
   const turnOutcome =
     normalizeFailureSignal(
-      event.turn_outcome ??
-        event.turnOutcome ??
-        turnRecord?.turn_outcome ??
-        turnRecord?.turnOutcome,
+      event.turn_outcome ?? turnRecord?.turn_outcome,
     ) ?? normalizeFailureSignal(flow.turnOutcome);
   if (failureKind) {
     flow.failureKind = failureKind;
@@ -469,9 +602,7 @@ export function applyCanonicalDoneEvent(
 
   const completionReason =
     normalizeOptionalString(event.completion_reason) ??
-    normalizeOptionalString(event.completionReason) ??
     normalizeOptionalString(event.termination_reason) ??
-    normalizeOptionalString(event.terminationReason) ??
     normalizeOptionalString(flow.completionReason) ??
     inferCompletionReason(message);
   if (completionReason) {
@@ -487,8 +618,7 @@ export function applyCanonicalDoneEvent(
       finalStageStatus === 'interrupted' ||
       message.interrupted === true);
   const traceId =
-    normalizeOptionalString(event.trace_id) ??
-    normalizeOptionalString(event.traceId);
+    normalizeOptionalString(event.trace_id);
   if (traceId) {
     flow.traceId = traceId;
   }

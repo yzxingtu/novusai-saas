@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 /** Rate limit form (Admin) / 速率限制表单（管理端） */
-import type { AIRateLimitInfo } from '#/api/admin/ai';
+import type { AIRateLimitInfo } from '#/api/admin/ai-quotas';
 
 import { useVbenForm } from '#/adapter/form';
 import { useCrudDrawer } from '#/composables';

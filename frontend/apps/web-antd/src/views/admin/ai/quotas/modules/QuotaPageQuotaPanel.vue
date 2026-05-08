@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import type { AIQuotaDiagnosticInfo } from '#/api/admin/ai';
+import type { AIQuotaDiagnosticInfo } from '#/api/admin/ai-quotas';
 
 import { IconifyIcon } from '@vben/icons';
 

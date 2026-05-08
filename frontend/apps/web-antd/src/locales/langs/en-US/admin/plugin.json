@@ -30,13 +30,8 @@
       "allTenants": "All tenants",
       "explicitRequired": "Explicit assignment required",
       "none": "Not exposed to tenants",
-      "partialTenants": "Partial tenants",
-      "platformOnly": "Platform only",
-      "platformOrUser": "Platform or user side",
-      "scopeInherited": "Scope inherited",
-      "selectedTenants": "Selected tenants",
-      "specifiedTenants": "Specified tenants",
-      "userSide": "User side"
+      "scopeDefault": "Scope default",
+      "selectedTenants": "Selected tenants"
     }
   },
   "aiAssignment": {

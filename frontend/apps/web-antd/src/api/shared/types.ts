@@ -87,8 +87,6 @@ export interface AIAvailabilityInfo {
   accountAIEnabled?: boolean;
   /** Effective AI chat availability / AI 对话最终可用性 */
   aiChatEnabled?: boolean;
-  /** Compatibility alias for aiChatEnabled / aiChatEnabled 兼容别名 */
-  aiEnabled?: boolean;
   /** Stable unavailable reason from backend / 后端返回的不可用原因 */
   aiUnavailableReason?: string;
   /** Tenant plan AI feature switch / 企业套餐 AI 功能开关 */

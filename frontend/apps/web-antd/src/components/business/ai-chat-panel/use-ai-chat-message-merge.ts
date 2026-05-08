@@ -2,7 +2,6 @@ import type { AgentItem, ChatMessage } from './types';
 
 import type { RawMessageItem } from '#/api/shared/ai-chat';
 
-import { buildToolResponseMap } from './use-ai-chat-message-merge-tool-responses';
 import {
   createUserMessageForDisplay,
   mergeAssistantTurnForDisplay,
@@ -32,7 +31,6 @@ export function mergeMessagesForDisplay(
   }
 
   const result: ChatMessage[] = [];
-  const toolResponseMap = buildToolResponseMap(filteredMessages);
   let index = 0;
 
   while (index < filteredMessages.length) {
@@ -50,7 +48,6 @@ export function mergeMessagesForDisplay(
       agents,
       messages: filteredMessages,
       startIndex: index,
-      toolResponseMap,
     });
     if (assistantMessage) {
       result.push(assistantMessage);

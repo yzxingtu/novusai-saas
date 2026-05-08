@@ -4,7 +4,7 @@
 import type { VbenFormSchema } from '#/adapter/form';
 
 import { inputField, numberField, select, textareaField } from '#/adapter/form';
-import { getAIModelSelectApi } from '#/api/admin/ai';
+import { getAIModelSelectApi } from '#/api/admin/ai-models';
 import { useScopeFields } from '#/components/business/scope-select/use-scope-fields';
 import { $t } from '#/locales';
 

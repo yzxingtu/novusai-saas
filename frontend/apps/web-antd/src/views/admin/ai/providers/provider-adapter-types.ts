@@ -1,8 +1,8 @@
-import type { AdapterTypeInfo } from '#/api/admin/ai';
+import type { AdapterTypeInfo } from '#/api/admin/ai-providers';
 
 import { ref } from 'vue';
 
-import { getAdapterTypesApi } from '#/api/admin/ai';
+import { getAdapterTypesApi } from '#/api/admin/ai-providers';
 import { $t } from '#/locales';
 
 /** 缓存适配器类型列表 / Cached adapter type list */

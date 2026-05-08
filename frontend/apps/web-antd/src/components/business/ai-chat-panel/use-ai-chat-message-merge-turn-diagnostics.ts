@@ -1,13 +1,13 @@
 import type { AssistantTurnMergeState } from './use-ai-chat-message-merge-turn-state';
 
 import {
+  normalizeRuntimeDiagnosticTokens,
   normalizeContextSources,
   normalizeTurnRecord,
 } from './use-ai-chat-message-context';
 import {
   normalizeObjectRecord,
   normalizeOptionalString,
-  normalizeStringList,
 } from './use-ai-chat-message-normalizers';
 
 export function collectTurnDiagnostics(
@@ -59,7 +59,7 @@ export function collectTurnDiagnostics(
     state.turnProtocolPath = turnRecord.protocol_path;
   }
 
-  const metadataSelectedToolNames = normalizeStringList(
+  const metadataSelectedToolNames = normalizeRuntimeDiagnosticTokens(
     assistantMetadata?.selected_tool_names,
   );
   if (metadataSelectedToolNames.length > 0) {
@@ -71,7 +71,7 @@ export function collectTurnDiagnostics(
     state.turnSelectedToolNames = [...(turnRecord?.selected_tool_names ?? [])];
   }
 
-  const metadataSelectedSkillNames = normalizeStringList(
+  const metadataSelectedSkillNames = normalizeRuntimeDiagnosticTokens(
     assistantMetadata?.selected_skill_names,
   );
   if (metadataSelectedSkillNames.length > 0) {

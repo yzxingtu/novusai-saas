@@ -1,6 +1,8 @@
 import type { MonitoringConversationMessage } from '../api';
 
 // @vitest-environment happy-dom
+// Test type: behavioral
+// Verifies: monitoring and user chat surfaces share the canonical turn_flow projection.
 import type { ChatMessage } from '#/types/ai-chat';
 
 import { describe, expect, it } from 'vitest';

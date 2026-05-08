@@ -18,13 +18,11 @@ import {
   applyCanonicalTurnAnswerCardEvent,
   applyCanonicalTurnEvidenceEvent,
   applyCanonicalTurnStageEvent,
-  applyStreamingToolResultToTurnFlow,
-  applyStreamingToolStartToTurnFlow,
   isTurnFailure,
   normalizeContextSources,
   normalizeObjectRecord,
   normalizeOptionalString,
-  normalizeStringList,
+  normalizeRuntimeDiagnosticTokens,
   normalizeTurnRecord,
 } from './use-ai-chat-message-helpers';
 
@@ -74,9 +72,11 @@ function isDraftClearContentEventAllowed(messageItem: {
   );
 }
 
-function shouldSuppressLegacyTurnFlowStreamEvent(eventName?: string): boolean {
+function shouldIgnoreLegacyTurnFlowProjectionEvent(eventName?: string): boolean {
   return (
     eventName === 'optimizing_tools' ||
+    eventName === 'tool_call' ||
+    eventName === 'tool_start' ||
     eventName === 'thinking' ||
     eventName === 'rag_sources'
   );
@@ -99,7 +99,7 @@ export function createStreamSseHandler(
       if (lifecycle.didTerminalizeMessage) {
         return;
       }
-      if (shouldSuppressLegacyTurnFlowStreamEvent(event.event)) {
+      if (shouldIgnoreLegacyTurnFlowProjectionEvent(event.event)) {
         return;
       }
 
@@ -109,18 +109,6 @@ export function createStreamSseHandler(
             break;
           }
           msg.content = '';
-          break;
-        }
-        case 'tool_call': {
-          lifecycle.promoteToolRoundContent();
-          applyStreamingToolResultToTurnFlow(msg, event);
-          deps.scrollToBottom();
-          break;
-        }
-        case 'tool_start': {
-          lifecycle.promoteToolRoundContent();
-          applyStreamingToolStartToTurnFlow(msg, event);
-          deps.scrollToBottom();
           break;
         }
         case 'turn_answer_card': {
@@ -147,7 +135,6 @@ export function createStreamSseHandler(
           if (event.event === 'authorization_required' && event.consent_key) {
             addConsent(event.consent_key as string);
           } else if (event.event === 'confirmation_request') {
-            lifecycle.promoteToolRoundContent();
             msg.pendingConfirmation = {
               action: (event.action as string) || '',
               table: (event.table as string) || '',
@@ -158,7 +145,6 @@ export function createStreamSseHandler(
                 undefined,
             };
           } else if (event.event === 'tool_consent_request') {
-            lifecycle.promoteToolRoundContent();
             deps.interactionModeEffective.value = 'trusted_auto';
             msg.pendingConsent = {
               toolName: (event.name as string) || '',
@@ -258,14 +244,14 @@ export function createStreamSseHandler(
             const protocolPath =
               normalizeOptionalString(event.protocol_path) ??
               turnRecord?.protocol_path;
-            const selectedToolNamesFromEvent = normalizeStringList(
+            const selectedToolNamesFromEvent = normalizeRuntimeDiagnosticTokens(
               event.selected_tool_names,
             );
             const selectedToolNames =
               selectedToolNamesFromEvent.length > 0
                 ? selectedToolNamesFromEvent
                 : (turnRecord?.selected_tool_names ?? []);
-            const selectedSkillNamesFromEvent = normalizeStringList(
+            const selectedSkillNamesFromEvent = normalizeRuntimeDiagnosticTokens(
               event.selected_skill_names,
             );
             const selectedSkillNames =
@@ -280,15 +266,11 @@ export function createStreamSseHandler(
                 ? contextSourcesFromEvent
                 : (turnRecord?.context_sources ?? []);
             const failureKind =
-              normalizeOptionalString(
-                event.failure_kind ?? event.failureKind,
-              ) ??
-              normalizeOptionalString(
-                turnRecordRaw?.failure_kind ?? turnRecordRaw?.failureKind,
-              ) ??
+              normalizeOptionalString(event.failure_kind) ??
+              normalizeOptionalString(turnRecordRaw?.failure_kind) ??
               normalizeOptionalString(
                 normalizeObjectRecord(turnRecordRaw?.metadata)?.failure_kind ??
-                  normalizeObjectRecord(turnRecordRaw?.metadata)?.failureKind,
+                  undefined,
               );
             if (failureKind) {
               turnRecord = {

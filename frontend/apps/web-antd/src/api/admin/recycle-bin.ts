@@ -53,22 +53,16 @@ export function clearRecycleBinModuleApi(module: string) {
 
 /** Manually trigger expired cleanup / 手动触发过期清理 */
 export function triggerRecycleBinCleanupApi(
-  params: number | TriggerRecycleBinCleanupParams = {},
+  params: TriggerRecycleBinCleanupParams = {},
 ) {
-  const requestParams =
-    typeof params === 'number'
-      ? { retention_days: params }
-      : {
-          ...(params.retentionDays === undefined
-            ? {}
-            : { retention_days: params.retentionDays }),
-          ...(params.moduleRetentionDays === undefined
-            ? {}
-            : { module_retention_days: params.moduleRetentionDays }),
-          ...(params.globalRetentionDays === undefined
-            ? {}
-            : { global_retention_days: params.globalRetentionDays }),
-        };
+  const requestParams = {
+    ...(params.moduleRetentionDays === undefined
+      ? {}
+      : { module_retention_days: params.moduleRetentionDays }),
+    ...(params.globalRetentionDays === undefined
+      ? {}
+      : { global_retention_days: params.globalRetentionDays }),
+  };
 
   return requestClient.delete(`${BASE_URL}/cleanup`, {
     params: requestParams,

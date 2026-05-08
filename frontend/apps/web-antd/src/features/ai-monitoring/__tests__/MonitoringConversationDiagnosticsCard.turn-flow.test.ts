@@ -1,4 +1,6 @@
 // @vitest-environment happy-dom
+// Test type: behavioral
+// Verifies: monitoring diagnostics render canonical turn_flow facts and suppress retired online-search diagnostics.
 import { mount } from '@vue/test-utils';
 import { defineComponent } from 'vue';
 

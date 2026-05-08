@@ -1,5 +1,4 @@
 import type { AgentItem, ChatMessage } from './types';
-import type { PersistedToolResponseMap } from './use-ai-chat-message-merge-tool-responses';
 
 import type { RawMessageItem } from '#/api/shared/ai-chat';
 
@@ -26,12 +25,10 @@ export function mergeAssistantTurnForDisplay({
   agents,
   messages,
   startIndex,
-  toolResponseMap,
 }: {
   agents: AgentItem[];
   messages: RawMessageItem[];
   startIndex: number;
-  toolResponseMap: PersistedToolResponseMap;
 }): { assistantMessage?: ChatMessage; nextIndex: number } {
   const state = createInitialAssistantTurnState(startIndex);
   let index = startIndex;
@@ -46,7 +43,6 @@ export function mergeAssistantTurnForDisplay({
         agents,
         messageItem: current,
         state,
-        toolResponseMap,
       });
     }
     index += 1;

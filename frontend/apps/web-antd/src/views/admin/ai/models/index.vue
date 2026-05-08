@@ -3,7 +3,7 @@
  * AI 模型管理列表页面
  * AI model management list page
  */
-import type { AIModelInfo } from '#/api/admin/ai';
+import type { AIModelInfo } from '#/api/admin/ai-models';
 
 import { h, ref } from 'vue';
 
@@ -15,9 +15,9 @@ import { message, Modal, Switch, Tag, Tooltip } from 'ant-design-vue';
 import { useCrudPage } from '#/adapter/vxe-table';
 import {
   getAIModelListApi,
-  testAIGatewayApi,
   toggleAIModelStatusApi,
-} from '#/api/admin/ai';
+} from '#/api/admin/ai-models';
+import { testAIGatewayApi } from '#/api/admin/ai-providers';
 import { $t } from '#/locales';
 import { toAttachmentImageUrl } from '#/utils/image';
 

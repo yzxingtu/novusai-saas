@@ -233,15 +233,6 @@ export const DEFAULT_RICH_TEXT_AI_FORMAT_TEMPLATES = [
   },
 ] as const satisfies readonly RichTextAiFormatTemplate[];
 
-const RETIRED_PAGE_OPERATION_PREFIX = `pageop${'_'}` as const;
-const RETIRED_INTERFACE_ACTION_PREFIX = `ui${'_'}` as const;
-
-export const RETIRED_EDITOR_TOOL_PREFIXES = [
-  'editor_',
-  RETIRED_PAGE_OPERATION_PREFIX,
-  RETIRED_INTERFACE_ACTION_PREFIX,
-] as const;
-
 const TEMPLATE_BY_ACTION = new Map<
   RichTextAiActionType,
   RichTextAiActionTemplate
@@ -285,10 +276,4 @@ export function groupRichTextAiActionsByKind(
   }
 
   return [...groups.entries()].map(([kind, actions]) => ({ actions, kind }));
-}
-
-export function isRetiredEditorToolName(name: string): boolean {
-  return RETIRED_EDITOR_TOOL_PREFIXES.some((prefix) =>
-    name.toLowerCase().startsWith(prefix),
-  );
 }

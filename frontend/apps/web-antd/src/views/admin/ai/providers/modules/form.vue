@@ -2,32 +2,36 @@
 /**
  * AI 供应商新建/编辑表单抽屉
  */
-import type { AIProviderInfo } from '#/api/admin/ai';
+import type {
+  AIProviderConfig,
+  AIProviderInfo,
+} from '#/api/admin/ai-providers';
 
 import { computed, ref } from 'vue';
 
 import { message } from 'ant-design-vue';
 
 import { useVbenForm } from '#/adapter/form';
-import { getAIProviderDetailApi } from '#/api/admin/ai';
+import { getAIProviderDetailApi } from '#/api/admin/ai-providers';
 import { useCrudDrawer } from '#/composables';
 import { $t } from '#/locales';
 
 import {
+  buildProviderConfigWithPrimaryWireApi,
   getDefaultProviderType,
   getFormDefaults,
   hasForbiddenProviderEndpointSuffix,
   hasLikelyMissingProviderApiVersion,
   loadAdapterTypes,
   normalizeProviderBaseUrlInput,
-  resolveProviderWireApi,
+  resolveProviderPrimaryWireApi,
   useFormSchema,
 } from '../data';
 
 defineOptions({ name: 'AIProviderForm' });
 
 const emits = defineEmits<{ success: [] }>();
-const configSnapshot = ref<null | Record<string, unknown>>(null);
+const configSnapshot = ref<AIProviderConfig | null>(null);
 const providerTypeSnapshot = ref(getDefaultProviderType());
 
 const [Form, formApi] = useVbenForm({
@@ -69,20 +73,13 @@ const { Drawer, isEdit } = useCrudDrawer<AIProviderInfo>({
       );
     }
 
-    const effectiveWireApi = resolveProviderWireApi(
+    const nextConfig = buildProviderConfigWithPrimaryWireApi(
+      edit ? configSnapshot.value : null,
       effectiveProviderType,
-      typeof values.wire_api === 'string' ? values.wire_api : null,
+      typeof values.primary_wire_api === 'string'
+        ? values.primary_wire_api
+        : null,
     );
-
-    const nextConfig =
-      edit && configSnapshot.value ? { ...configSnapshot.value } : {};
-    if (effectiveProviderType === 'openai_compatible') {
-      nextConfig.wire_api = effectiveWireApi || 'chat_completions';
-      delete nextConfig.responses_tool_history_mode;
-    } else {
-      delete nextConfig.wire_api;
-      delete nextConfig.responses_tool_history_mode;
-    }
 
     const result: Record<string, unknown> = {
       name: values.name,
@@ -92,7 +89,7 @@ const { Drawer, isEdit } = useCrudDrawer<AIProviderInfo>({
       icon: values.icon || null,
       sort_order: values.sort_order ?? 0,
       is_active: values.is_active ?? true,
-      config: Object.keys(nextConfig).length > 0 ? nextConfig : null,
+      config: nextConfig,
     };
     if (!edit) {
       result.code = values.code;
@@ -109,16 +106,16 @@ const { Drawer, isEdit } = useCrudDrawer<AIProviderInfo>({
         ? { ...data.config }
         : null;
     providerTypeSnapshot.value = data.type || getDefaultProviderType();
-    const effectiveWireApi = resolveProviderWireApi(
+    const effectiveWireApi = resolveProviderPrimaryWireApi(
       data.type,
-      typeof data.config?.wire_api === 'string' ? data.config.wire_api : null,
+      data.config,
     );
     return {
       name: data.name,
       code: data.code,
       type: data.type,
       base_url: data.base_url,
-      wire_api: effectiveWireApi || 'chat_completions',
+      primary_wire_api: effectiveWireApi,
       description: data.description,
       icon: data.icon,
       sort_order: data.sort_order,

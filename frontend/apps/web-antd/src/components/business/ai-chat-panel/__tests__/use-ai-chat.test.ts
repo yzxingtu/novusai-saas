@@ -4,7 +4,7 @@ import type { AIInteractionUpdate } from '#/store/shared/ai-panel';
 
 /**
  * Test type: behavioral
- * Verifies: AI chat streaming keeps canonical turnFlow authoritative and only reads legacy assistant fields as persisted-history fallback.
+ * Verifies: AI chat streaming keeps canonical turnFlow authoritative and keeps legacy assistant fields out of process cards.
  * Mock strategy: only transport/store boundaries are mocked; turnFlow ingestion and display helpers run real.
  */
 // @vitest-environment happy-dom
@@ -22,10 +22,6 @@ import {
 import { buildTurnFlowState } from '../../ai-chat-kernel/TurnFlowState';
 import { shouldDisplayConversationInHistory, useAIChat } from '../use-ai-chat';
 import { createStreamSseHandler } from '../use-ai-chat-streaming-request-sse';
-import {
-  applyStreamingToolResultToTurnFlow,
-  applyStreamingToolStartToTurnFlow,
-} from '../use-ai-chat-turn-flow';
 import {
   baseChatOptions,
   buildAgentList,
@@ -634,12 +630,12 @@ describe('useAIChat interrupted stream recovery', () => {
     apiMocks.getChatConversationMessagesApi.mockResolvedValue(
       buildConversationDetail(
         [
-          buildUserMessage('请查一下北京今天的天气。'),
+          buildUserMessage('请生成今天的报表摘要。'),
           buildAssistantMessage('', {
             metadata: {
               pending_consent: {
-                arguments: { city: '北京' },
-                tool_name: 'get_current_weather',
+                arguments: { report: 'daily' },
+                tool_name: 'report_summary',
               },
             },
           }),
@@ -667,8 +663,8 @@ describe('useAIChat interrupted stream recovery', () => {
             sseEvent({
               event: 'tool_consent_request',
               interaction_mode_effective: 'trusted_auto',
-              name: 'get_current_weather',
-              arguments: { city: '北京' },
+              name: 'report_summary',
+              arguments: { report: 'daily' },
             }),
           );
         }
@@ -682,7 +678,7 @@ describe('useAIChat interrupted stream recovery', () => {
 
     await chat.loadAgents();
     chat.interactionMode.value = 'trusted_auto';
-    chat.inputMessage.value = '请查一下北京今天的天气。';
+    chat.inputMessage.value = '请生成今天的报表摘要。';
 
     const firstSendPromise = chat.sendMessage();
     await flushPromises();
@@ -704,12 +700,12 @@ describe('useAIChat interrupted stream recovery', () => {
         kind: 'pending_consent',
         auto_approved: true,
         rejected: false,
-        tool_name: 'get_current_weather',
+        tool_name: 'report_summary',
       },
     ]);
   });
 
-  it('stores summary_payload from tool_call SSE events for tool cards', async () => {
+  it('stores summary_payload from canonical turn_evidence while ignoring legacy tool SSE events', async () => {
     apiMocks.sendChatStreamApi.mockImplementation(
       async (
         _prefix: string,
@@ -737,14 +733,30 @@ describe('useAIChat interrupted stream recovery', () => {
             id: 'tc_query_records',
             name: 'query_records',
             success: true,
-            summary: '按今天范围统计调用并按租户分组',
+            summary: 'legacy tool_call summary must stay ignored',
+            summary_payload: {
+              source: 'legacy_tool_call',
+            },
+          }),
+        );
+        await options.onMessage(
+          sseEvent({
+            display_name: '数据查询',
+            event: 'turn_evidence',
+            id: 'canonical-tool-tc-query-records',
+            kind: 'tool',
+            snippet: '按今天范围统计调用并按租户分组',
+            status: 'success',
             summary_payload: {
               filters: ['today'],
               group_by: ['t.name'],
               metrics: ['COUNT(acl.id)'],
+              source: 'canonical_turn_evidence',
               tables: ['ai_call_logs', 'tenants'],
               tool_kind: 'query_records',
             },
+            tool_call_id: 'tc_query_records',
+            tool_name: 'query_records',
           }),
         );
         await options.onMessage(sseEvent({ event: 'done', total_tokens: 18 }));
@@ -766,12 +778,13 @@ describe('useAIChat interrupted stream recovery', () => {
     if (!assistantMessage) {
       throw new Error('assistant message missing');
     }
-    expect(
-      getToolCallsForDisplay(assistantMessage)?.[0]?.summaryPayload,
-    ).toEqual({
+    const toolCalls = getToolCallsForDisplay(assistantMessage) ?? [];
+    expect(toolCalls).toHaveLength(1);
+    expect(toolCalls[0]?.summaryPayload).toEqual({
       filters: ['today'],
       group_by: ['t.name'],
       metrics: ['COUNT(acl.id)'],
+      source: 'canonical_turn_evidence',
       tables: ['ai_call_logs', 'tenants'],
       tool_kind: 'query_records',
     });
@@ -1327,7 +1340,7 @@ describe('useAIChat interrupted stream recovery', () => {
     expect(timeline.some((stage) => stage.status === 'running')).toBe(false);
   });
 
-  it('clears stale running turn stages after lifecycle finalization marks orphaned tools as error', async () => {
+  it('clears stale running canonical turn stages after lifecycle finalization', async () => {
     apiMocks.sendChatStreamApi.mockImplementation(
       async (
         _prefix: string,
@@ -1347,13 +1360,6 @@ describe('useAIChat interrupted stream recovery', () => {
             metrics: { running: 1, total: 1 },
             status: 'running',
             type: 'tool_execution',
-          }),
-        );
-        await options.onMessage(
-          sseEvent({
-            event: 'tool_start',
-            id: 'tc-orphan-1',
-            name: 'query_records',
           }),
         );
         await options.onMessage(
@@ -1383,7 +1389,7 @@ describe('useAIChat interrupted stream recovery', () => {
     if (!assistantMessage) {
       throw new Error('assistant message missing');
     }
-    expect(getToolCallsForDisplay(assistantMessage)?.[0]?.status).toBe('error');
+    expect(getToolCallsForDisplay(assistantMessage)).toBeUndefined();
     expect(
       timeline.find((stage) => stage.id === 'tool-execution-running-stage')
         ?.status,
@@ -1757,28 +1763,28 @@ describe('useAIChat interrupted stream recovery', () => {
           sseEvent({ event: 'conversation', conversation_id: 42 }),
         );
         await options.onMessage(
-          sseEvent({ event: 'message', delta: '北京今天晴，气温 26C。' }),
+            sseEvent({ event: 'message', delta: '今日报表摘要已生成。' }),
         );
         await options.onMessage(
           sseEvent({
             completion_reason: 'completed',
             conversation_id: 42,
             event: 'done',
-            selected_tool_names: ['get_weather'],
+            selected_tool_names: ['report_summary'],
             total_tokens: 24,
             turn_record: {
               turn_flow: {
                 completion_reason: 'completed',
                 evidence: [
                   {
-                    display_name: '天气查询',
-                    id: 'ev_tool_tc_weather_1',
+                    display_name: '报表摘要',
+                    id: 'ev_tool_tc_report_1',
                     kind: 'tool',
-                    output: '北京今天晴，气温 26C。',
-                    snippet: '已查询北京天气',
+                    output: '今日报表摘要已生成。',
+                    snippet: '已生成今日报表摘要',
                     status: 'success',
-                    tool_call_id: 'tc_weather_1',
-                    tool_name: 'get_weather',
+                    tool_call_id: 'tc_report_1',
+                    tool_name: 'report_summary',
                   },
                 ],
                 final_stage_status: 'completed',
@@ -1791,7 +1797,7 @@ describe('useAIChat interrupted stream recovery', () => {
                     },
                     status: 'completed',
                     summary: '执行了 1 个工具调用',
-                    tool_call_ids: ['tc_weather_1'],
+                    tool_call_ids: ['tc_report_1'],
                     type: 'tool_execution',
                   },
                   {
@@ -1817,7 +1823,7 @@ describe('useAIChat interrupted stream recovery', () => {
     const chat = createChat();
 
     await chat.loadAgents();
-    chat.inputMessage.value = '查一下今天北京的天气';
+    chat.inputMessage.value = '生成今天的报表摘要';
 
     const sendPromise = chat.sendMessage();
     await vi.advanceTimersByTimeAsync(3200);
@@ -1834,12 +1840,12 @@ describe('useAIChat interrupted stream recovery', () => {
 
     expect(getToolCallsForDisplay(assistantMessage)).toEqual([
       expect.objectContaining({
-        displayName: '天气查询',
-        id: 'tc_weather_1',
-        name: 'get_weather',
-        output: '北京今天晴，气温 26C。',
+        displayName: '报表摘要',
+        id: 'tc_report_1',
+        name: 'report_summary',
+        output: '今日报表摘要已生成。',
         status: 'success',
-        summary: '已查询北京天气',
+        summary: '已生成今日报表摘要',
       }),
     ]);
     expect(
@@ -1904,10 +1910,10 @@ describe('useAIChat interrupted stream recovery', () => {
       throw new Error('assistant message missing');
     }
     expect(getThinkingContentForDisplay(assistantMessage)).toBe(
-      '**Considering tool responses** I have the weather details now.',
+      '**Considering tool responses** I have the report details now.',
     );
     expect(assistantMessage?.content).toBe(
-      '广州今天多云，气温 24 到 29 摄氏度。',
+      '今日报表显示调用量平稳，异常率低于阈值。',
     );
     expect(assistantMessage?.turnFlow).toBeDefined();
   });
@@ -2139,13 +2145,24 @@ describe('useAIChat interrupted stream recovery', () => {
     ]);
   });
 
-  it('ignores legacy-only persisted toolCalls when canonical turnFlow is missing', async () => {
+  it('keeps legacy-only persisted assistant fields out of process cards when canonical turnFlow is missing', async () => {
     apiMocks.getChatConversationMessagesApi.mockResolvedValue(
       buildConversationDetail([
         buildUserMessage('回放一下旧工具记录'),
         buildAssistantMessage('历史答复。', {
           metadata: {
             completion_reason: 'completed',
+            optimizing_tools: { selected: 0, total: 12 },
+            rag_sources: [
+              {
+                doc_id: 11,
+                doc_name: '旧知识库来源',
+                score: 0.92,
+                snippet: 'legacy rag snippet',
+                source_kind: 'formal_kb',
+              },
+            ],
+            thinking_content: 'legacy thinking should stay audit-only',
           },
           tool_calls: [
             {
@@ -2187,7 +2204,12 @@ describe('useAIChat interrupted stream recovery', () => {
       throw new Error('assistant message missing');
     }
 
+    expect(assistantMessage.content).toBe('历史答复。');
+    expect(assistantMessage.turnFlow).toBeUndefined();
+    expect(getThinkingContentForDisplay(assistantMessage)).toBeUndefined();
+    expect(getOptimizingToolsForDisplay(assistantMessage)).toBeUndefined();
     expect(getToolCallsForDisplay(assistantMessage)).toBeUndefined();
+    expect(getRagSourcesForDisplay(assistantMessage)).toBeUndefined();
   });
 
   it('deduplicates repeated persisted assistant content blocks inside one merged turn', async () => {
@@ -2322,7 +2344,7 @@ describe('useAIChat interrupted stream recovery', () => {
     ).toBe(false);
   });
 
-  it('matches tool_call completion by tool_call_id for duplicate tool names', async () => {
+  it('ignores legacy tool_start/tool_call SSE events with duplicate tool names', async () => {
     apiMocks.sendChatStreamApi.mockImplementation(
       async (
         _prefix: string,
@@ -2372,7 +2394,7 @@ describe('useAIChat interrupted stream recovery', () => {
     const chat = createChat();
 
     await chat.loadAgents();
-    chat.inputMessage.value = '测试 tool_call_id 匹配';
+    chat.inputMessage.value = '测试旧工具事件忽略';
     await chat.sendMessage();
     await flushDebouncedSend();
 
@@ -2383,66 +2405,8 @@ describe('useAIChat interrupted stream recovery', () => {
     if (!assistantMessage) {
       throw new Error('assistant message missing');
     }
-    const toolCallById = new Map(
-      (getToolCallsForDisplay(assistantMessage) ?? []).map((toolCall) => [
-        toolCall.id,
-        toolCall,
-      ]),
-    );
-    expect(toolCallById.get('tc-id-1')?.status).toBe('success');
-    expect(toolCallById.get('tc-id-1')?.output).toBe('first result');
-    expect(toolCallById.get('tc-id-2')?.status).toBe('error');
-  });
-
-  it('does not merge idless tool_call completion onto same-name running evidence', () => {
-    const assistantMessage = {
-      ...buildAssistantMessage(''),
-      clientKey: 'assistant-idless-tool-call-test',
-    } as ChatMessage;
-
-    applyStreamingToolStartToTurnFlow(assistantMessage, {
-      id: 'tc-id-1',
-      name: 'query_records',
-    });
-    applyStreamingToolStartToTurnFlow(assistantMessage, {
-      id: 'tc-id-2',
-      name: 'query_records',
-    });
-    applyStreamingToolResultToTurnFlow(assistantMessage, {
-      name: 'query_records',
-      output: 'fallback result',
-      success: true,
-    });
-
-    const toolCalls = getToolCallsForDisplay(assistantMessage) ?? [];
-    expect(toolCalls).toHaveLength(3);
-    expect(
-      toolCalls.filter((toolCall) => toolCall.status === 'running'),
-    ).toHaveLength(2);
-    expect(
-      toolCalls.filter((toolCall) => toolCall.status === 'success'),
-    ).toHaveLength(1);
-    expect(
-      toolCalls.find((toolCall) => toolCall.id === 'tc-id-1'),
-    ).toMatchObject({
-      id: 'tc-id-1',
-      name: 'query_records',
-      status: 'running',
-    });
-    expect(
-      toolCalls.find((toolCall) => toolCall.id === 'tc-id-2'),
-    ).toMatchObject({
-      id: 'tc-id-2',
-      name: 'query_records',
-      status: 'running',
-    });
-    expect(
-      toolCalls.find((toolCall) => toolCall.output === 'fallback result'),
-    ).toMatchObject({
-      name: 'query_records',
-      output: 'fallback result',
-      status: 'success',
-    });
+    expect(getToolCallsForDisplay(assistantMessage)).toBeUndefined();
+    expect(assistantMessage.turnFlow?.evidence).toEqual([]);
   });
 
   it('prefers trusted final assistant content over concatenated intermediate history parts', async () => {
@@ -2540,7 +2504,7 @@ describe('useAIChat interrupted stream recovery', () => {
     expect(chat.selectedKBIds.value).toEqual([10]);
   });
 
-  it('builds bound KB and skill-package mention candidates and selects them on Enter', async () => {
+  it('builds bound KB and skill-package mention candidates and inserts skill mentions as visible text', async () => {
     apiMocks.getChatAgentKBBindingsApi.mockResolvedValue([
       {
         enabled: true,
@@ -2554,11 +2518,11 @@ describe('useAIChat interrupted stream recovery', () => {
         enabled: true,
         id: 20,
         is_auto_bound: false,
-        package_description: 'Legacy tool search',
+        package_description: 'Record lookup helper',
         package_id: 30,
         package_is_system: true,
         package_name: '历史工具',
-        skill_description: 'Search records through a legacy tool',
+        skill_description: 'Search records through a bound tool',
         skill_id: 40,
         skill_key: 'legacy_tool_search',
         skill_name: 'Legacy Tool Skill',
@@ -2607,22 +2571,21 @@ describe('useAIChat interrupted stream recovery', () => {
     );
 
     expect(skillHandled).toBe(true);
-    expect(chat.selectedSkillNames.value).toEqual(['历史工具']);
-    expect(chat.inputMessage.value).toBe('');
+    expect(chat.inputMessage.value).toBe('@历史工具 ');
   });
 
-  it('sends selected bound skill packages in the next chat request', async () => {
+  it('keeps skill-package mentions as visible text instead of hidden activation', async () => {
     apiMocks.getChatAgentSkillsApi.mockResolvedValue([
       {
         agent_id: 1,
         enabled: true,
         id: 21,
         is_auto_bound: false,
-        package_description: 'Legacy tool search',
+        package_description: 'Record lookup helper',
         package_id: 31,
         package_is_system: true,
         package_name: '历史工具',
-        skill_description: 'Search records through a legacy tool',
+        skill_description: 'Search records through a bound tool',
         skill_id: 41,
         skill_key: 'legacy_tool_search',
         skill_name: 'Legacy Tool Skill',
@@ -2652,17 +2615,116 @@ describe('useAIChat interrupted stream recovery', () => {
 
     chat.inputMessage.value = '@历史';
     await flushPromises();
-    chat.handleInputKeyDown(new KeyboardEvent('keydown', { key: 'Enter' }));
-    chat.inputMessage.value = '统计今天调用情况';
+    expect(
+      chat.handleInputKeyDown(new KeyboardEvent('keydown', { key: 'Enter' })),
+    ).toBe(true);
+    expect(chat.inputMessage.value).toBe('@历史工具 ');
+    chat.inputMessage.value += '统计今天调用情况';
 
     await chat.sendMessage();
-    await flushPromises();
+    await flushDebouncedSend();
 
     const requestBody = apiMocks.sendChatStreamApi.mock.calls.at(-1)?.[2] as
       | Record<string, unknown>
       | undefined;
-    expect(requestBody?.selected_skill_names).toEqual(['历史工具']);
-    expect(chat.selectedSkillNames.value).toEqual([]);
+    expect(requestBody).toBeDefined();
+    expect(requestBody).not.toHaveProperty('selected_skill_names');
+    expect(requestBody?.message).toBe('@历史工具 统计今天调用情况');
+  });
+
+  it('does not name-filter live skill package mentions in the frontend', async () => {
+    apiMocks.getChatAgentSkillsApi.mockResolvedValue([
+      {
+        agent_id: 1,
+        enabled: true,
+        id: 22,
+        is_auto_bound: false,
+        package_description: 'Retired online search package',
+        package_id: 32,
+        package_is_system: true,
+        package_name: '联网搜索',
+        skill_description: 'Retired public web search',
+        skill_id: 42,
+        skill_key: 'web_search',
+        skill_name: 'web_search',
+        skill_type: 'toolkit',
+      },
+      {
+        agent_id: 1,
+        enabled: true,
+        id: 23,
+        is_auto_bound: false,
+        package_description: 'Allowed reporting helper',
+        package_id: 33,
+        package_is_system: false,
+        package_name: '报表工具',
+        skill_description: 'Query reports',
+        skill_id: 43,
+        skill_key: 'report_query',
+        skill_name: '报表查询',
+        skill_type: 'toolkit',
+      },
+    ]);
+    apiMocks.sendChatStreamApi.mockImplementation(
+      async (
+        _prefix: string,
+        _agentId: number,
+        _body: Record<string, unknown>,
+        options: {
+          onMessage: (chunk: string) => Promise<void>;
+        },
+      ) => {
+        await options.onMessage(
+          sseEvent({ event: 'conversation', conversation_id: 42 }),
+        );
+        await options.onMessage(sseEvent({ event: 'done', total_tokens: 18 }));
+      },
+    );
+
+    const chat = createChat();
+
+    await chat.loadAgents();
+    await flushPromises();
+
+    expect(
+      chat.getAgentSkillBindings(1)?.map((item) => item.package_name),
+    ).toEqual(['联网搜索', '报表工具']);
+
+    chat.inputMessage.value = '@联网';
+    await flushPromises();
+    expect(chat.mentionCandidates.value).toEqual([
+      expect.objectContaining({
+        kind: 'skill_package',
+      }),
+    ]);
+    expect(
+      chat.handleInputKeyDown(new KeyboardEvent('keydown', { key: 'Enter' })),
+    ).toBe(true);
+    expect(chat.inputMessage.value).toBe('@联网搜索 ');
+
+    chat.inputMessage.value = '@报表';
+    await flushPromises();
+    expect(chat.mentionCandidates.value).toEqual([
+      expect.objectContaining({
+        kind: 'skill_package',
+      }),
+    ]);
+    expect(
+      chat.handleInputKeyDown(new KeyboardEvent('keydown', { key: 'Enter' })),
+    ).toBe(true);
+    expect(chat.inputMessage.value).toBe('@报表工具 ');
+    chat.inputMessage.value += '统计今天调用情况';
+    await flushPromises();
+
+    await chat.sendMessage();
+    await flushDebouncedSend();
+
+    const requestBody = apiMocks.sendChatStreamApi.mock.calls.at(-1)?.[2] as
+      | Record<string, unknown>
+      | undefined;
+    expect(requestBody).toBeDefined();
+    expect(requestBody).not.toHaveProperty('selected_skill_names');
+    expect(requestBody?.message).toBe('@报表工具 统计今天调用情况');
   });
 
   it('does not tag debounced assistant placeholders as rich text drafts', async () => {

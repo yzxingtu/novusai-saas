@@ -8,7 +8,6 @@ import type { AppErrorInfo } from '#/utils/request';
 
 import {
   getRunningToolExecutionRefs,
-  promoteStreamingContentToThinkingTurnFlow,
   settleTurnFlowAfterLifecycleFinalize,
 } from './use-ai-chat-turn-flow';
 
@@ -31,7 +30,6 @@ export interface StreamRequestLifecycle {
   applyAssistantError: (appError: AppErrorInfo) => void;
   clearDoneAbortTimer: () => void;
   getAssistantMessage: () => ChatMessage | undefined;
-  promoteToolRoundContent: () => void;
   scheduleDoneAbort: () => void;
   terminalizeMessage: (options?: { markInterrupted?: boolean }) => void;
   triggerCommittedConversationSync: () => void;
@@ -122,13 +120,6 @@ export function createStreamRequestLifecycle(
     },
     getAssistantMessage() {
       return deps.chatMessages.value[lifecycle.assistantIdx];
-    },
-    promoteToolRoundContent() {
-      const msg = lifecycle.getAssistantMessage();
-      if (!msg || msg.role !== 'assistant') {
-        return;
-      }
-      promoteStreamingContentToThinkingTurnFlow(msg);
     },
     scheduleDoneAbort() {
       lifecycle.clearDoneAbortTimer();

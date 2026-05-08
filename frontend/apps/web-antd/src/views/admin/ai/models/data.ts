@@ -6,7 +6,6 @@ export {
 } from './model-options';
 export {
   buildModelConfig,
-  extractLegacyReasoningAlias,
   getOpenAICompatibleRuntimeOverrides,
   normalizeReasoningEffort,
   readConfiguredReasoningEffort,

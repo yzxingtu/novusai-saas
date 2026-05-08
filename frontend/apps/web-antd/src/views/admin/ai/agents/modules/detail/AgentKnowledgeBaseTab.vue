@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import type { AIAgentInfo, AIAgentKBBindingInfo } from '#/api/admin/ai';
+import type { AIAgentInfo, AIAgentKBBindingInfo } from '#/api/admin/ai-agents';
 import type { AgentKnowledgeBaseBindingDraftItem } from '#/components/business/agent-kb-binding-picker';
 
 import { computed, ref, watch } from 'vue';
@@ -22,7 +22,7 @@ import {
   getAIAgentKBsApi,
   unbindAIAgentKBApi,
   updateAIAgentKBBindingApi,
-} from '#/api/admin/ai';
+} from '#/api/admin/ai-agents';
 import { getAdminSelectableKBApi } from '#/api/admin/knowledge-bases';
 import {
   AgentKnowledgeBaseBindingPicker,

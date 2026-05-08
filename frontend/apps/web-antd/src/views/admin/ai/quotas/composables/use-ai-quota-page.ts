@@ -3,18 +3,18 @@ import type {
   AIQuotaDiagnosticsSummaryInfo,
   AIRateLimitDiagnosticInfo,
   AIRateLimitInfo,
-} from '#/api/admin/ai';
+} from '#/api/admin/ai-quotas';
 
 import { computed, onMounted, ref } from 'vue';
 
 import {
   deleteAIQuotaApi,
   deleteAIRateLimitApi,
-  getAIModelSelectApi,
   getAIQuotaListApi,
   getAIQuotaSummaryApi,
   getAIRateLimitListApi,
-} from '#/api/admin/ai';
+} from '#/api/admin/ai-quotas';
+import { getAIModelSelectApi } from '#/api/admin/ai-models';
 import { getTenantSelectApi } from '#/api/admin/tenant';
 import { useCrudList } from '#/composables';
 import { $t } from '#/locales';

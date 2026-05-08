@@ -6,7 +6,7 @@
  * 仅允许修改调优参数（model_id / system_prompt / temperature / max_tokens）。
  * 技能绑定统一在详情页中处理，不在抽屉表单内处理。
  */
-import type { AIAgentInfo } from '#/api/admin/ai';
+import type { AIAgentInfo } from '#/api/admin/ai-agents';
 
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
@@ -14,7 +14,8 @@ import { useRouter } from 'vue-router';
 import { Alert } from 'ant-design-vue';
 
 import { useVbenForm } from '#/adapter/form';
-import { getAIAgentDetailApi, getAIModelListApi } from '#/api/admin/ai';
+import { getAIAgentDetailApi } from '#/api/admin/ai-agents';
+import { getAIModelListApi } from '#/api/admin/ai-models';
 import { scopeNeedsAssignment } from '#/components/business/scope-select/use-scope-fields';
 import { useCrudDrawer } from '#/composables';
 import { $t } from '#/locales';

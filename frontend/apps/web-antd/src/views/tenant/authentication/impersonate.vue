@@ -37,11 +37,9 @@ const errorMessage = ref('');
 function getAIAvailabilityInfo(
   userInfo: BaseUserInfo | null | undefined,
 ): AIAvailabilityInfo {
-  const aiChatEnabled = userInfo?.aiChatEnabled ?? userInfo?.aiEnabled;
   return {
     accountAIEnabled: userInfo?.accountAIEnabled,
-    aiChatEnabled,
-    aiEnabled: aiChatEnabled,
+    aiChatEnabled: userInfo?.aiChatEnabled,
     aiUnavailableReason: userInfo?.aiUnavailableReason,
     tenantPlanAIEnabled: userInfo?.tenantPlanAIEnabled,
   };

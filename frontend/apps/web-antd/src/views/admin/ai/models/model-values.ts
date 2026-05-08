@@ -3,7 +3,7 @@ import type {
   AIModelInfo,
   ModelProviderType,
   RemoteModelCapabilities,
-} from '#/api/admin/ai';
+} from '#/api/admin/ai-models';
 
 import {
   getFormDefaults,

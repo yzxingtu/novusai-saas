@@ -8,6 +8,16 @@ import {
   normalizeStringList,
 } from './use-ai-chat-message-normalizers';
 
+export function normalizeRuntimeDiagnosticTokens(value: unknown): string[] {
+  const out: string[] = [];
+  for (const text of normalizeStringList(value)) {
+    if (!out.includes(text)) {
+      out.push(text);
+    }
+  }
+  return out;
+}
+
 export function normalizeContextSources(
   value: unknown,
 ): TurnContextSourcePayload[] {
@@ -48,8 +58,12 @@ export function normalizeTurnRecord(value: unknown): null | TurnRecordPayload {
   const turnOutcome = normalizeOptionalString(payload.turn_outcome);
   const terminationReason = normalizeOptionalString(payload.termination_reason);
   const protocolPath = normalizeOptionalString(payload.protocol_path);
-  const selectedToolNames = normalizeStringList(payload.selected_tool_names);
-  const selectedSkillNames = normalizeStringList(payload.selected_skill_names);
+  const selectedToolNames = normalizeRuntimeDiagnosticTokens(
+    payload.selected_tool_names,
+  );
+  const selectedSkillNames = normalizeRuntimeDiagnosticTokens(
+    payload.selected_skill_names,
+  );
   const contextSources = normalizeContextSources(payload.context_sources);
   const fallbackHistory = Array.isArray(payload.fallback_history)
     ? payload.fallback_history

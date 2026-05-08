@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import type { VNodeRef } from 'vue';
 
-import type { AIAgentInfo } from '#/api/admin/ai';
+import type { AIAgentInfo } from '#/api/admin/ai-agents';
 import type { InputVariable } from '#/types/ai-chat';
 
 import { nextTick, ref, watch } from 'vue';

@@ -48,6 +48,11 @@ describe('rich text ai structural contract', () => {
     expect(retiredTransportExport in richTextAiExports).toBe(false);
   });
 
+  it('does not expose retired editor-tool denylist helpers from the frontend contract', () => {
+    expect('RETIRED_EDITOR_TOOL_PREFIXES' in richTextAiExports).toBe(false);
+    expect('isRetiredEditorToolName' in richTextAiExports).toBe(false);
+  });
+
   it('types editor-domain operation payloads without global panel or page-runtime fields', () => {
     const payload = {
       after_text: 'Next paragraph',

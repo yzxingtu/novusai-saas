@@ -19,25 +19,7 @@ export async function ensureCaptchaPluginReady(
       publicEndpoint: plugin.publicEndpoint,
     });
     return true;
-  } catch (error) {
-    console.warn(
-      `[CaptchaPlugin] failed to load provider '${captcha.provider}' from plugin '${plugin.pluginName}'`,
-      error,
-    );
+  } catch {
     return false;
   }
-}
-
-export function fallbackToBuiltinCaptcha(
-  captcha: CaptchaConfig | null | undefined,
-): CaptchaConfig | null | undefined {
-  if (!captcha) {
-    return captcha;
-  }
-  return {
-    ...captcha,
-    plugin: undefined,
-    provider: 'image',
-    type: 'image',
-  };
 }

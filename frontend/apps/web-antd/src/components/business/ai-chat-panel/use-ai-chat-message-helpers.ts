@@ -1,15 +1,10 @@
 export {
   isTurnFailure,
   normalizeContextSources,
+  normalizeRuntimeDiagnosticTokens,
   normalizeTurnRecord,
 } from './use-ai-chat-message-context';
 export { mergeMessagesForDisplay } from './use-ai-chat-message-merge';
-export {
-  buildToolResponseMap,
-  type PersistedToolResponse,
-  type PersistedToolResponseMap,
-  resolveToolCallStatus,
-} from './use-ai-chat-message-merge-tool-responses';
 export {
   createUserMessageForDisplay,
   mergeAssistantTurnForDisplay,
@@ -27,9 +22,6 @@ export {
   applyCanonicalTurnAnswerCardEvent,
   applyCanonicalTurnEvidenceEvent,
   applyCanonicalTurnStageEvent,
-  applyStreamingToolResultToTurnFlow,
-  applyStreamingToolStartToTurnFlow,
   mergeTurnFlow,
   normalizeTurnFlowViewModel,
-  promoteStreamingContentToThinkingTurnFlow,
 } from './use-ai-chat-turn-flow';

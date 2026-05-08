@@ -1,5 +1,5 @@
-// 中文: 测试类型 behavioral，覆盖通知模板 API 兼容转换与更新载荷。
-// EN: Test type behavioral, covering notification template API compatibility transforms and update payloads.
+// 中文: 测试类型 behavioral，覆盖通知模板 API canonical snake_case 转换与更新载荷。
+// EN: Test type behavioral, covering notification template API canonical snake_case transforms and update payloads.
 // 中文: Mock 请求传输层，真实运行 API 适配映射。
 // EN: Mock request transport while running the real API adapter mapping.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -50,7 +50,7 @@ describe('notification template api', () => {
           source: 'plugin',
           override_of: 4,
           is_override: true,
-          enabled: false,
+          is_enabled: false,
           effective_preview: {
             title_template: 'Effective title',
             body_template: 'Effective body',
@@ -93,6 +93,57 @@ describe('notification template api', () => {
         channels: ['email'],
         priority: 'urgent',
       },
+    });
+  });
+
+  it('ignores camelCase raw response aliases when normalizing template fields', async () => {
+    requestGetMock.mockResolvedValue({
+      items: [
+        {
+          id: 10,
+          code: 'legacy.camel',
+          titleTemplate: 'Legacy title',
+          bodyTemplate: 'Legacy body',
+          isSystem: true,
+          tenantId: 33,
+          tenantName: 'Legacy Tenant',
+          pluginName: 'legacy-plugin',
+          overrideOf: 2,
+          isOverride: true,
+          effectivePreview: {
+            titleTemplate: 'Legacy effective title',
+            bodyTemplate: 'Legacy effective body',
+          },
+          createdAt: '2026-05-03T00:00:00Z',
+          updatedAt: '2026-05-04T00:00:00Z',
+        },
+      ],
+      page: 1,
+      page_size: 20,
+      total: 1,
+    });
+
+    const result = await getNotificationTemplateListApi();
+
+    expect(result.items[0]).toMatchObject({
+      id: 10,
+      code: 'legacy.camel',
+      titleTemplate: '',
+      bodyTemplate: null,
+      isSystem: false,
+      tenantId: null,
+      tenantName: null,
+      pluginName: null,
+      overrideOf: null,
+      isOverride: false,
+      effectivePreview: {
+        titleTemplate: '',
+        bodyTemplate: null,
+        channels: [],
+        priority: 'normal',
+      },
+      createdAt: null,
+      updatedAt: null,
     });
   });
 

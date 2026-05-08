@@ -72,7 +72,6 @@ interface UseAIChatStreamingDeps {
   rememberConversationAnchor: (conversationId: number, agentId: number) => void;
   selectedAgentId: Ref<null | number>;
   selectedKBIds: Ref<number[]>;
-  selectedSkillNames: Ref<string[]>;
   syncConversationAfterInterrupt: (
     conversationId: number,
     interruptedHistoryBaseline: number,
@@ -114,7 +113,6 @@ export function useAIChatStreaming(deps: UseAIChatStreamingDeps) {
     rememberConversationAnchor,
     selectedAgentId,
     selectedKBIds,
-    selectedSkillNames,
     syncConversationAfterInterrupt,
     uiPanelStore,
     imageParams,
@@ -201,7 +199,6 @@ export function useAIChatStreaming(deps: UseAIChatStreamingDeps) {
       recoverConversationIdFromHistory,
       rememberConversationAnchor,
       selectedKBIds,
-      selectedSkillNames,
       sendMessage,
       streamControl,
       streaming,
@@ -338,7 +335,6 @@ export function useAIChatStreaming(deps: UseAIChatStreamingDeps) {
       msgAttachments.length === 0 &&
       !hasInteractionUpdates &&
       selectedKBIds.value.length === 0 &&
-      selectedSkillNames.value.length === 0 &&
       userMsg.length > 0;
 
     if (useDebounce) {

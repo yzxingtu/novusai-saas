@@ -115,32 +115,66 @@ export function getProcessedImageUrl(
   return `${base}/api/public/attachments/${attachmentId}/image${query ? `?${query}` : ''}`;
 }
 
+function normalizeAttachmentIdString(value: unknown): string {
+  if (value === null || value === undefined || value === '') {
+    return '';
+  }
+
+  if (typeof value === 'number') {
+    return Number.isSafeInteger(value) && value > 0 ? String(value) : '';
+  }
+
+  if (typeof value !== 'string') {
+    return '';
+  }
+
+  const normalized = value.trim();
+  if (!/^[1-9]\d*$/.test(normalized)) {
+    return '';
+  }
+  return normalized;
+}
+
 /**
  * Parse a positive attachment ID from unknown input
  * 从未知输入中解析正整数附件 ID
  */
 export function parseAttachmentId(value: unknown): null | number {
-  if (value === null || value === undefined || value === '') {
+  const normalized = normalizeAttachmentIdString(value);
+  if (!normalized) {
     return null;
   }
-
-  let id = Number.NaN;
-  if (typeof value === 'number') {
-    id = value;
-  } else if (typeof value === 'string') {
-    id = Number(value.trim());
-  }
-
-  if (!Number.isFinite(id) || id <= 0) {
-    return null;
-  }
-
-  return Math.trunc(id);
+  return Number(normalized);
 }
 
 /**
- * Resolve an image-ish value (attachment ID or legacy URL) to a displayable URL
- * 将图片值（附件 ID 或旧 URL）解析为可显示 URL
+ * Normalize image form values before writeback.
+ * 写入前归一化图片表单值。
+ */
+export function toCanonicalAttachmentImageValue(value: unknown): string {
+  return normalizeAttachmentIdString(value);
+}
+
+/**
+ * Detect historical URL values that may only be used for read-only display.
+ * 识别只能用于只读展示的历史 URL 值。
+ */
+export function isReadOnlyLegacyImageValue(value: unknown): boolean {
+  if (typeof value !== 'string') {
+    return false;
+  }
+  const normalized = value.trim();
+  return Boolean(
+    normalized &&
+      !normalizeAttachmentIdString(normalized) &&
+      !/^-?\d+(?:\.\d+)?$/.test(normalized) &&
+      /^(?:blob:|data:image\/|https?:\/\/|\/\/|\/)/i.test(normalized),
+  );
+}
+
+/**
+ * Resolve a canonical attachment image value to a displayable URL.
+ * 将规范附件图片值解析为可显示 URL。
  */
 export function toAttachmentImageUrl(
   value: AttachmentImageValue,
@@ -150,18 +184,27 @@ export function toAttachmentImageUrl(
   if (attachmentId) {
     return getProcessedImageUrl(attachmentId, options);
   }
+  return '';
+}
+
+/**
+ * Resolve a stored image value for read-only display, including historical URLs.
+ * 解析存量图片值用于只读展示，包括历史 URL。
+ */
+export function toReadOnlyAttachmentImageDisplayUrl(
+  value: AttachmentImageValue,
+  options: ImageProcessOptions = {},
+): string {
+  const attachmentUrl = toAttachmentImageUrl(value, options);
+  if (attachmentUrl) {
+    return attachmentUrl;
+  }
   if (typeof value !== 'string') {
     return '';
   }
 
   const normalized = value.trim();
-  if (!normalized) {
-    return '';
-  }
-  if (/^-?\d+(?:\.\d+)?$/.test(normalized)) {
-    return '';
-  }
-  return normalized;
+  return isReadOnlyLegacyImageValue(normalized) ? normalized : '';
 }
 
 interface AttachmentLike {
@@ -171,18 +214,18 @@ interface AttachmentLike {
 }
 
 /**
- * Convert avatar value (attachment ID or legacy URL) to displayable image URL
- * 将头像值（附件 ID 或旧格式 URL）转为可显示的图片 URL
+ * Convert avatar value to display URL; legacy URLs are read-only display only.
+ * 将头像值转为展示 URL；历史 URL 仅用于只读展示。
  *
  * - Number → attachment ID → generate URL via image processing endpoint
- * - Already a URL → return directly
+ * - Historical URL → return directly for read-only display
  * - Empty value → return empty string
  * - 纯数字 → 附件 ID → 通过图片处理端点生成 URL
- * - 已是 URL → 直接返回
+ * - 历史 URL → 仅为只读展示直接返回
  * - 空值 → 返回空字符串
  */
 export function toAvatarDisplayUrl(val: null | string | undefined): string {
-  return toAttachmentImageUrl(val, { preset: 'avatar' });
+  return toReadOnlyAttachmentImageDisplayUrl(val, { preset: 'avatar' });
 }
 
 /**

@@ -1,3 +1,5 @@
+// Test type: structural
+// Verifies: monitoring actor identity models preserve canonical display metadata.
 import type { MonitoringActorInfo, MonitoringCallLogInfo } from '../api';
 
 import { describe, expect, it, vi } from 'vitest';

@@ -5,7 +5,7 @@
  * Tab 面板：概览 / 模型参数 / 对话配置 / 技能绑定 / 配额管理
  * 显示分发模式/归属等元信息，系统智能体核心字段保护。
  */
-import type { AIAgentInfo } from '#/api/admin/ai';
+import type { AIAgentInfo } from '#/api/admin/ai-agents';
 
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
@@ -15,7 +15,7 @@ import { IconifyIcon } from '@vben/icons';
 
 import { Empty, message, Spin, TabPane, Tabs } from 'ant-design-vue';
 
-import { getAIAgentDetailApi, updateAIAgentApi } from '#/api/admin/ai';
+import { getAIAgentDetailApi, updateAIAgentApi } from '#/api/admin/ai-agents';
 import { $t } from '#/locales';
 import { showRequestError } from '#/utils/error-helpers';
 

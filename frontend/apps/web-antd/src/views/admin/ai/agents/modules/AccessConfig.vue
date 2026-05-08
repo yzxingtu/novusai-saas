@@ -1,13 +1,6 @@
 <script setup lang="ts">
 import type { OrgNodeInfo } from '#/api/admin/organization';
 
-/**
- * 智能体访问权限配置抽屉（管理端）
- * Agent access config drawer (admin)
- *
- * 仅配置 admin_role_ids；企业端/用户端角色由企业管理员配置。
- * Configures admin_role_ids only; tenant/user roles configured by tenant admin.
- */
 import { computed, ref } from 'vue';
 
 import { useVbenDrawer } from '@vben/common-ui';
@@ -25,7 +18,7 @@ import {
   TreeSelect,
 } from 'ant-design-vue';
 
-import { getAIAgentAccessApi, updateAIAgentAccessApi } from '#/api/admin/ai';
+import { getAIAgentAccessApi, updateAIAgentAccessApi } from '#/api/admin/ai-agents';
 import { getOrganizationTreeApi } from '#/api/admin/organization';
 import { $t } from '#/locales';
 

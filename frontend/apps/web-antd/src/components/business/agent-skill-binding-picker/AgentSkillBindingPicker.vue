@@ -200,7 +200,6 @@ async function fetchCandidates(resetPage: boolean) {
     const res = await getSkillBindingSelectApi({
       agent_id: props.agentId ?? undefined,
       include_system: true,
-      only_active: true,
       package_id: filterPackageId.value ?? undefined,
       page: page.value,
       page_size: pageSize.value,

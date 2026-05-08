@@ -1,11 +1,10 @@
 <script lang="ts" setup>
 import type { QuotaPageTab } from '../composables/use-ai-quota-page';
-
 import type {
   AIQuotaDiagnosticInfo,
   AIRateLimitDiagnosticInfo,
   AIRateLimitInfo,
-} from '#/api/admin/ai';
+} from '#/api/admin/ai-quotas';
 
 import QuotaPageContentShell from './QuotaPageContentShell.vue';
 

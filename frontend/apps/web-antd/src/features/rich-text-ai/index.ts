@@ -4,8 +4,6 @@ export {
   getRichTextAiActionTemplate,
   getRichTextAiContextMenuActions,
   groupRichTextAiActionsByKind,
-  isRetiredEditorToolName,
-  RETIRED_EDITOR_TOOL_PREFIXES,
 } from './action-templates';
 export type {
   RichTextAiActionGroup,

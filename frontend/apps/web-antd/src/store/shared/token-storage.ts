@@ -12,7 +12,7 @@
  * - {namespace}_tenant_user_token / {namespace}_tenant_user_refresh_token
  */
 
-import type { ApiEndpoint } from '#/api';
+import type { ApiEndpoint } from '#/types/endpoint';
 
 // ============================================================
 // Storage key suffix constants / 存储 Key 后缀常量
@@ -98,8 +98,12 @@ class TokenStorageClass {
   clearToken(endpoint: ApiEndpoint): void {
     const tokenKey = this.getFullKey(TOKEN_KEYS[endpoint]);
     const refreshTokenKey = this.getFullKey(REFRESH_TOKEN_KEYS[endpoint]);
-    localStorage.removeItem(tokenKey);
-    localStorage.removeItem(refreshTokenKey);
+    if (tokenKey) {
+      localStorage.removeItem(tokenKey);
+    }
+    if (refreshTokenKey) {
+      localStorage.removeItem(refreshTokenKey);
+    }
   }
 
   // ============================================================
@@ -135,7 +139,7 @@ class TokenStorageClass {
    */
   getRefreshToken(endpoint: ApiEndpoint): null | string {
     const key = this.getFullKey(REFRESH_TOKEN_KEYS[endpoint]);
-    return localStorage.getItem(key);
+    return key ? localStorage.getItem(key) : null;
   }
 
   /**
@@ -144,7 +148,7 @@ class TokenStorageClass {
    */
   getToken(endpoint: ApiEndpoint): null | string {
     const key = this.getFullKey(TOKEN_KEYS[endpoint]);
-    return localStorage.getItem(key);
+    return key ? localStorage.getItem(key) : null;
   }
 
   // ============================================================
@@ -190,7 +194,9 @@ class TokenStorageClass {
    */
   setRefreshToken(endpoint: ApiEndpoint, token: string): void {
     const key = this.getFullKey(REFRESH_TOKEN_KEYS[endpoint]);
-    localStorage.setItem(key, token);
+    if (key) {
+      localStorage.setItem(key, token);
+    }
   }
 
   /**
@@ -200,18 +206,20 @@ class TokenStorageClass {
    */
   setToken(endpoint: ApiEndpoint, token: string): void {
     const key = this.getFullKey(TOKEN_KEYS[endpoint]);
-    localStorage.setItem(key, token);
+    if (key) {
+      localStorage.setItem(key, token);
+    }
   }
 
   /**
    * Get full storage key with namespace prefix / 获取带 namespace 前缀的完整 key
    */
-  private getFullKey(key: string): string {
+  private getFullKey(key: string): null | string {
     if (!this.namespace) {
       console.warn(
         '[TokenStorage] namespace not initialized, call TokenStorage.init() first / namespace 未初始化',
       );
-      return key;
+      return null;
     }
     return `${this.namespace}_${key}`;
   }

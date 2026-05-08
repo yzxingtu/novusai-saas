@@ -48,13 +48,13 @@ export function getAdminIdentityTypeLabel(userType?: null | string): string {
     case 'admin':
     case 'platform_admin':
     case 'system_admin': {
-      return $t('admin.ai.actionLog.operatorTypes.admin');
+      return $t('shared.identity.userTypes.admin');
     }
     case 'tenant_admin': {
-      return $t('admin.ai.actionLog.operatorTypes.tenantAdmin');
+      return $t('shared.identity.userTypes.tenantAdmin');
     }
     case 'tenant_user': {
-      return $t('admin.ai.actionLog.operatorTypes.tenantUser');
+      return $t('shared.identity.userTypes.tenantUser');
     }
     default: {
       return normalized ? humanizeIdentityType(normalized) : '';

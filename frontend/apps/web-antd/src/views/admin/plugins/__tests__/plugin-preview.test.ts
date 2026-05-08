@@ -84,12 +84,10 @@ describe('plugin preview helpers', () => {
     const profile = resolvePluginCompatibilityProfile({
       scope: 'all_tenants',
       compatibility_profile: {
-        editions: ['saas', 'single-management'],
+        editions: ['saas', 'single_management'],
         surfaces: ['admin', 'user'],
-        tenant_exposure: {
-          mode: 'specified_tenants',
-          requires_explicit_assignment: true,
-        },
+        tenant_assignment_required: true,
+        tenant_exposure: 'selected_tenants',
       },
     });
 
@@ -100,8 +98,62 @@ describe('plugin preview helpers', () => {
         singleManagementCompatible: true,
         surfaces: ['admin', 'user'],
         tenantAssignmentRequired: true,
-        tenantExposureMode: 'specified_tenants',
+        tenantExposureMode: 'selected_tenants',
       }),
     );
+  });
+
+  it('[structural] ignores legacy compatibility profile sources and scope-derived exposure', () => {
+    const legacySource = {
+      compatibility: {
+        editions: ['single_management'],
+        tenant_exposure: 'selected_tenants',
+      },
+      manifest: {
+        compatibility_profile: {
+          editions: ['single_management'],
+          tenant_exposure: 'selected_tenants',
+        },
+      },
+      plugin_info: {
+        compatibility_profile: {
+          editions: ['single_management'],
+          tenant_exposure: 'selected_tenants',
+        },
+      },
+      scope: 'selected_tenants',
+    };
+
+    expect(resolvePluginCompatibilityProfile(legacySource)).toEqual({
+      editions: ['saas'],
+      saasCompatible: true,
+      singleManagementCompatible: false,
+      surfaces: [],
+      tenantAssignmentRequired: false,
+      tenantExposureMode: 'scope_default',
+    });
+  });
+
+  it('[structural] accepts only canonical compatibility profile values', () => {
+    const profile = resolvePluginCompatibilityProfile({
+      compatibility_profile: {
+        declared_editions: ['saas'],
+        editions: ['single-management', 'single_management'],
+        is_saas_compatible: true,
+        is_single_management_compatible: false,
+        surfaces: ['platform-admin', 'admin', 'Tenant', 'tenant'],
+        tenant_assignment_required: false,
+        tenant_exposure: 'specified_tenants',
+      },
+    });
+
+    expect(profile).toEqual({
+      editions: ['single_management'],
+      saasCompatible: false,
+      singleManagementCompatible: true,
+      surfaces: ['admin', 'tenant'],
+      tenantAssignmentRequired: false,
+      tenantExposureMode: 'scope_default',
+    });
   });
 });

@@ -28,7 +28,6 @@ const {
   sending,
   streaming,
   pendingAttachments,
-  removeSelectedSkillName,
   uploading,
   fileInput,
   chatAcceptAttribute,
@@ -41,7 +40,6 @@ const {
   selectMentionSkillPackage,
   removeSelectedKnowledgeBase,
   selectedKBIds,
-  selectedSkillNames,
   agentKBBindings,
   stopGeneration,
 } = chat;
@@ -233,30 +231,6 @@ const setFileInputRef: VNodeRef = (element) => {
           class="rounded p-0 leading-none text-muted-foreground hover:text-destructive"
           :aria-label="$t('common.globalAiChat.removeKbFromTurn')"
           @click="removeSelectedKnowledgeBase(knowledgeBaseId)"
-        >
-          <IconifyIcon icon="lucide:x" class="size-2.5" />
-        </button>
-      </span>
-    </div>
-
-    <div
-      v-if="selectedSkillNames.length > 0"
-      class="mb-1.5 flex flex-wrap items-center gap-1"
-    >
-      <span class="text-[10px] text-muted-foreground/70">{{
-        $t('common.globalAiChat.selectedSkillForTurn')
-      }}</span>
-      <span
-        v-for="skillName in selectedSkillNames"
-        :key="skillName"
-        class="inline-flex items-center gap-0.5 rounded-full border border-primary/25 bg-background px-1.5 py-0.5 text-[10px] text-primary"
-      >
-        {{ skillName }}
-        <button
-          type="button"
-          class="rounded p-0 leading-none text-muted-foreground hover:text-destructive"
-          :aria-label="$t('common.globalAiChat.removeSkillFromTurn')"
-          @click="removeSelectedSkillName(skillName)"
         >
           <IconifyIcon icon="lucide:x" class="size-2.5" />
         </button>

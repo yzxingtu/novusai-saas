@@ -1,4 +1,6 @@
 <script lang="ts" setup>
+import type { AdminSkillInfo } from '#/api/admin/skills';
+
 import { IconifyIcon } from '@vben/icons';
 
 import { Button, Empty, Popconfirm, Spin, Switch, Tag } from 'ant-design-vue';
@@ -22,6 +24,13 @@ const {
   skills,
   skillsLoading,
 } = useSkillPackageDetailContext();
+
+function isRuntimeActiveSkill(skill: AdminSkillInfo): boolean {
+  const status = String(
+    (skill as AdminSkillInfo & { status?: string }).status ?? '',
+  );
+  return skill.is_active === true && status === 'active';
+}
 </script>
 
 <template>
@@ -132,7 +141,7 @@ const {
                 <IconifyIcon icon="lucide:external-link" class="size-4" />
               </Button>
               <Switch
-                :checked="skill.is_active"
+                :checked="isRuntimeActiveSkill(skill)"
                 size="small"
                 :disabled="skill.is_system || !canToggleSkillStatus"
                 @change="handleToggleSkillStatus(skill)"

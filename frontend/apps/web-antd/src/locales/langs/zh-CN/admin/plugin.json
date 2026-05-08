@@ -30,13 +30,8 @@
       "allTenants": "全部企业可用",
       "explicitRequired": "需显式分配",
       "none": "不暴露给企业",
-      "partialTenants": "部分企业可用",
-      "platformOnly": "仅平台侧",
-      "platformOrUser": "平台或用户侧",
-      "scopeInherited": "沿用作用域",
-      "selectedTenants": "指定企业可用",
-      "specifiedTenants": "指定企业可用",
-      "userSide": "用户侧可用"
+      "scopeDefault": "沿用作用域默认",
+      "selectedTenants": "指定企业可用"
     }
   },
   "aiAssignment": {

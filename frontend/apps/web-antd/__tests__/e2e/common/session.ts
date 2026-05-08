@@ -1,3 +1,5 @@
+// Test type: smoke
+// Scope: authenticated Playwright session bootstrap helpers.
 import type { APIRequestContext, Page } from '@playwright/test';
 
 import { readFileSync } from 'node:fs';
@@ -8,12 +10,6 @@ import { fileURLToPath } from 'node:url';
 import { expect, request } from '@playwright/test';
 
 type AuthEndpoint = 'admin' | 'tenant' | 'user';
-
-interface LoginPayload {
-  password: string;
-  tenant_code?: string;
-  username: string;
-}
 
 interface LoginResponse {
   code: number;
@@ -89,27 +85,38 @@ export function getDevBootstrapSecret(endpoint: AuthEndpoint) {
   return process.env[key] || getBackendEnvValue(key);
 }
 
-async function tryDevBootstrap(endpoint: AuthEndpoint, api: APIRequestContext) {
+async function fetchDevBootstrapTokens(
+  endpoint: AuthEndpoint,
+  api: APIRequestContext,
+) {
   const secret = getDevBootstrapSecret(endpoint);
-  if (!secret) return null;
+  if (!secret) {
+    throw new Error(
+      `Set ${SECRET_VARIABLES[endpoint]} in the environment or backend/.env to run authenticated e2e smoke.`,
+    );
+  }
   const response = await api.post(`/${endpoint}/auth/dev/bootstrap`, {
     data: {
       bootstrap_secret: secret,
     },
   });
-  if (!response.ok()) return null;
+  expect(
+    response.ok(),
+    `Expected ${endpoint} dev bootstrap API to succeed`,
+  ).toBe(true);
   const body = (await response.json()) as LoginResponse;
-  if (body.code !== 0 || !body.data?.access_token) return null;
+  expect(body.code, `Expected ${endpoint} dev bootstrap code to be 0`).toBe(0);
+  expect(
+    body.data?.access_token,
+    `Expected ${endpoint} access token in dev bootstrap response`,
+  ).toEqual(expect.any(String));
   return {
     accessToken: body.data.access_token as string,
     refreshToken: body.data.refresh_token,
   };
 }
 
-async function fetchTokens(
-  endpoint: AuthEndpoint,
-  payload: LoginPayload | null,
-) {
+async function fetchTokens(endpoint: AuthEndpoint) {
   const api = await request.newContext({
     baseURL: API_BASE_URL,
     extraHTTPHeaders: {
@@ -118,33 +125,7 @@ async function fetchTokens(
   });
 
   try {
-    const bootstrapTokens = await tryDevBootstrap(endpoint, api);
-    if (bootstrapTokens) {
-      return bootstrapTokens;
-    }
-
-    if (!payload) {
-      throw new Error(
-        `No credentials provided for ${endpoint} login and bootstrap is unavailable.`,
-      );
-    }
-
-    const response = await api.post(`/${endpoint}/auth/login`, {
-      data: payload,
-    });
-    expect(response.ok(), `Expected ${endpoint} login API to succeed`).toBe(
-      true,
-    );
-    const body = (await response.json()) as LoginResponse;
-    expect(body.code, `Expected ${endpoint} login code to be 0`).toBe(0);
-    expect(
-      body.data?.access_token,
-      'Expected access token in login response',
-    ).toBeTruthy();
-    return {
-      accessToken: body.data?.access_token as string,
-      refreshToken: body.data?.refresh_token,
-    };
+    return await fetchDevBootstrapTokens(endpoint, api);
   } finally {
     await api.dispose();
   }
@@ -188,36 +169,14 @@ export async function seedAuthSession(
 
 export async function createAdminSession(
   page: Page,
-  credentials?: {
-    password: string;
-    username: string;
-  },
 ) {
-  const payload = credentials
-    ? {
-        password: credentials.password,
-        username: credentials.username,
-      }
-    : null;
-  const tokens = await fetchTokens('admin', payload);
+  const tokens = await fetchTokens('admin');
   await seedAuthSession(page, 'admin', tokens);
 }
 
 export async function createTenantSession(
   page: Page,
-  credentials?: {
-    password: string;
-    tenantCode: string;
-    username: string;
-  },
 ) {
-  const payload = credentials
-    ? {
-        password: credentials.password,
-        tenant_code: credentials.tenantCode,
-        username: credentials.username,
-      }
-    : null;
-  const tokens = await fetchTokens('tenant', payload);
+  const tokens = await fetchTokens('tenant');
   await seedAuthSession(page, 'tenant', tokens);
 }

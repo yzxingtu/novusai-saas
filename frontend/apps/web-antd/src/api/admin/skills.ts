@@ -113,7 +113,6 @@ export interface AdminSkillBindingSelectResponse {
 export interface AdminSkillBindingSelectParams {
   agent_id?: number;
   include_system?: boolean;
-  only_active?: boolean;
   package_id?: number;
   page?: number;
   page_size?: number;

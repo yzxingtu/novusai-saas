@@ -10,7 +10,7 @@ import {
   select,
   switchField,
 } from '#/adapter/form';
-import { getAIModelSelectApi } from '#/api/admin/ai';
+import { getAIModelSelectApi } from '#/api/admin/ai-models';
 import { getTenantSelectApi } from '#/api/admin/tenant';
 import { $t } from '#/locales';
 

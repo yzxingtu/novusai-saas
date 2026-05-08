@@ -13,7 +13,7 @@ vi.mock('#/adapter/form', () => ({
   textareaField: vi.fn(() => ({ fieldName: 'textarea' })),
 }));
 
-vi.mock('#/api/admin/ai', () => ({
+vi.mock('#/api/admin/ai-models', () => ({
   getAIModelSelectApi: vi.fn(),
 }));
 

@@ -3,7 +3,7 @@
  * AI API Key 管理列表页面
  * AI API Key management list page
  */
-import type { AIApiKeyInfo } from '#/api/admin/ai';
+import type { AIApiKeyInfo } from '#/api/admin/ai-providers';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -19,7 +19,10 @@ import {
 } from 'ant-design-vue';
 
 import { useCrudPage } from '#/adapter/vxe-table';
-import { getAIApiKeyListApi, toggleAIApiKeyStatusApi } from '#/api/admin/ai';
+import {
+  getAIApiKeyListApi,
+  toggleAIApiKeyStatusApi,
+} from '#/api/admin/ai-providers';
 import { $t } from '#/locales';
 import { formatDate, formatRelativeTime } from '#/utils/common';
 import { toAttachmentImageUrl } from '#/utils/image';

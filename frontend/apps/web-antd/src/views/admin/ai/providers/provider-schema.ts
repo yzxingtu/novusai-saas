@@ -1,6 +1,6 @@
 import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
-import type { AIProviderInfo } from '#/api/admin/ai';
+import type { AIProviderInfo } from '#/api/admin/ai-providers';
 
 import {
   inputField,
@@ -69,7 +69,7 @@ export function useColumns<T = AIProviderInfo>(
             slots: { default: 'type_cell' },
           },
           {
-            field: 'wire_api',
+            field: 'primary_wire_api',
             title: $t('admin.ai.provider.wireApi'),
             width: 180,
             align: 'center' as const,
@@ -187,7 +187,7 @@ export function useFormSchema(isEdit = false): VbenFormSchema[] {
       help: $t('admin.ai.provider.help.baseUrl'),
     } as VbenFormSchema,
     {
-      ...select('wire_api', $t('admin.ai.provider.wireApi'), {
+      ...select('primary_wire_api', $t('admin.ai.provider.wireApi'), {
         options: getProviderWireApiOptions(),
         placeholder: $t('admin.ai.provider.placeholder.selectWireApi'),
         required: true,
@@ -223,7 +223,7 @@ export function useFormSchema(isEdit = false): VbenFormSchema[] {
 export function getFormDefaults(): Record<string, unknown> {
   return {
     type: getDefaultProviderType(),
-    wire_api: 'chat_completions',
+    primary_wire_api: 'chat_completions',
     is_active: true,
     sort_order: 0,
   };

@@ -9,8 +9,3 @@ export {
   normalizeTurnFlowViewModel,
   settleTurnFlowAfterLifecycleFinalize,
 } from './chat-message-turn-flow-ingestion';
-export {
-  applyStreamingToolResultToTurnFlow,
-  applyStreamingToolStartToTurnFlow,
-  promoteStreamingContentToThinkingTurnFlow,
-} from './chat-message-turn-flow-projection';

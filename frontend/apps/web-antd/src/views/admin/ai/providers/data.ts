@@ -9,13 +9,14 @@ export {
   loadAdapterTypes,
 } from './provider-adapter-types';
 export {
+  buildProviderConfigWithPrimaryWireApi,
   getProviderWireApiOptions,
   getProviderWireApiText,
   hasForbiddenProviderEndpointSuffix,
   hasLikelyMissingProviderApiVersion,
   normalizeProviderBaseUrlInput,
   type OpenAICompatibleWireApi,
-  resolveProviderWireApi,
+  resolveProviderPrimaryWireApi,
 } from './provider-connection';
 export {
   getFormDefaults,

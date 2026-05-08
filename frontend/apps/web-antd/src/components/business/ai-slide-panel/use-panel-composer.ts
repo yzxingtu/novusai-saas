@@ -5,7 +5,6 @@ import type {
   ChatAttachment,
   MentionCandidate,
   MentionSkillPackageBinding,
-  SelectedSkillPackageChip,
 } from '#/types/ai-chat';
 
 import { computed } from 'vue';
@@ -24,7 +23,6 @@ interface UsePanelComposerOptions {
   pendingAttachments: Ref<ChatAttachment[]>;
   routing: Ref<boolean>;
   selectedKBIds: Ref<number[]>;
-  selectedSkillNames: Ref<string[]>;
   selectMentionKnowledgeBase: (
     binding: Pick<ChatKBBindingInfo, 'knowledge_base_id'>,
   ) => void;
@@ -68,14 +66,7 @@ export function usePanelComposer(options: UsePanelComposerOptions) {
     })),
   );
 
-  const composerSelectedSkillPackages = computed<SelectedSkillPackageChip[]>(
-    () =>
-      options.selectedSkillNames.value.map((skillName) => ({
-        id: skillName,
-        label: skillName,
-        value: skillName,
-      })),
-  );
+  const composerSelectedSkillPackages = computed(() => []);
 
   const composerMentionCandidates = computed(() =>
     options.mentionCandidates.value.map((candidate, candidateIndex) => {

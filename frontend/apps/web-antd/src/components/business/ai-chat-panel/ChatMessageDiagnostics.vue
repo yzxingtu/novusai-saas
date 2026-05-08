@@ -89,9 +89,7 @@ const diagnosticSelectedTools = computed(() => {
   return visibleRuntimeDiagnosticTokens(props.msg.selectedToolNames);
 });
 const diagnosticSelectedSkills = computed(() => {
-  return (props.msg.selectedSkillNames ?? [])
-    .map((item) => normalizeDiagnosticText(item))
-    .filter((item) => item.length > 0);
+  return visibleRuntimeDiagnosticTokens(props.msg.selectedSkillNames);
 });
 const diagnosticContextSources = computed<ContextSourceDisplayItem[]>(() => {
   const list = props.msg.contextSources ?? [];

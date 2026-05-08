@@ -26,40 +26,55 @@ const mockRefs = vi.hoisted(() => ({
   previewPluginInstallApi: vi.fn(),
 }));
 
-vi.mock('#/api/admin/plugin', () => ({
-  getPluginTenantExposureColor: (mode: string) => `color:${mode}`,
-  getPluginTenantExposureLabelKey: (mode: string) =>
-    mode === 'specified_tenants'
-      ? 'admin.plugin.compatibility.tenantExposure.specifiedTenants'
-      : `admin.plugin.compatibility.tenantExposure.${mode}`,
-  installPluginApi: mockRefs.installPluginApi,
-  previewPluginInstallApi: mockRefs.previewPluginInstallApi,
-  resolvePluginCompatibilityProfile: (source: {
-    compatibility_profile?: {
-      editions?: string[];
-      saas_compatible?: boolean;
-      single_management_compatible?: boolean;
-      tenant_exposure?: {
-        mode?: string;
-        requires_explicit_assignment?: boolean;
+vi.mock('#/api/admin/plugin', () => {
+  const tenantExposureLabelKeys: Record<string, string> = {
+    all_tenants: 'admin.plugin.compatibility.tenantExposure.allTenants',
+    none: 'admin.plugin.compatibility.tenantExposure.none',
+    scope_default: 'admin.plugin.compatibility.tenantExposure.scopeDefault',
+    selected_tenants:
+      'admin.plugin.compatibility.tenantExposure.selectedTenants',
+  };
+
+  return {
+    getPluginTenantExposureColor: (mode: string) => `color:${mode}`,
+    getPluginTenantExposureLabelKey: (mode: string) =>
+      tenantExposureLabelKeys[mode] ??
+      'admin.plugin.compatibility.tenantExposure.scopeDefault',
+    installPluginApi: mockRefs.installPluginApi,
+    previewPluginInstallApi: mockRefs.previewPluginInstallApi,
+    resolvePluginCompatibilityProfile: (source: {
+      compatibility_profile?: {
+        editions?: string[];
+        tenant_assignment_required?: boolean;
+        tenant_exposure?: string;
       };
-    };
-  }) => {
-    const profile = source.compatibility_profile ?? {};
-    const tenantExposure = profile.tenant_exposure ?? {};
-    return {
-      editions: profile.editions ?? ['saas'],
-      saasCompatible: profile.saas_compatible ?? true,
-      singleManagementCompatible:
-        profile.single_management_compatible ??
-        (profile.editions ?? []).includes('single-management'),
-      surfaces: [],
-      tenantAssignmentRequired:
-        tenantExposure.requires_explicit_assignment === true,
-      tenantExposureMode: tenantExposure.mode ?? 'scope_inherited',
-    };
-  },
-}));
+    }) => {
+      const profile = source.compatibility_profile ?? {};
+      const editions = (profile.editions ?? ['saas']).filter(
+        (value) => value === 'saas' || value === 'single_management',
+      );
+      const resolvedEditions = editions.length > 0 ? editions : ['saas'];
+      const tenantExposureMode =
+        profile.tenant_exposure &&
+        tenantExposureLabelKeys[profile.tenant_exposure]
+          ? profile.tenant_exposure
+          : 'scope_default';
+      const tenantAssignmentRequired =
+        profile.tenant_assignment_required === true ||
+        tenantExposureMode === 'selected_tenants';
+
+      return {
+        editions: resolvedEditions,
+        saasCompatible: resolvedEditions.includes('saas'),
+        singleManagementCompatible:
+          resolvedEditions.includes('single_management'),
+        surfaces: [],
+        tenantAssignmentRequired,
+        tenantExposureMode,
+      };
+    },
+  };
+});
 
 vi.mock('#/api/admin/plugin-marketplace', () => ({
   marketplaceConfirmInstallApi: mockRefs.marketplaceConfirmInstallApi,
@@ -244,15 +259,10 @@ function buildPreviewResponse() {
     },
     conflicts: [],
     capabilities: [],
-    compatibility: {},
     compatibility_profile: {
-      editions: ['saas', 'single-management'],
-      saas_compatible: true,
-      single_management_compatible: true,
-      tenant_exposure: {
-        mode: 'specified_tenants',
-        requires_explicit_assignment: true,
-      },
+      editions: ['saas', 'single_management'],
+      tenant_assignment_required: true,
+      tenant_exposure: 'selected_tenants',
     },
     warnings: [],
     preview_token: 'preview-token',
@@ -406,7 +416,7 @@ describe('pluginInstallWizard', () => {
       'admin.plugin.compatibility.edition.singleManagementCompatible',
     );
     expect(wrapper.text()).toContain(
-      'admin.plugin.compatibility.tenantExposure.specifiedTenants',
+      'admin.plugin.compatibility.tenantExposure.selectedTenants',
     );
     expect(wrapper.text()).toContain(
       'admin.plugin.compatibility.tenantExposure.explicitRequired',

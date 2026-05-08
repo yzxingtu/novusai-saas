@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import type { AIAgentInfo } from '#/api/admin/ai';
+import type { AIAgentInfo } from '#/api/admin/ai-agents';
 
 import { ref, watch } from 'vue';
 
@@ -7,7 +7,7 @@ import { IconifyIcon } from '@vben/icons';
 
 import { Button, InputNumber, message } from 'ant-design-vue';
 
-import { getAIModelListApi } from '#/api/admin/ai';
+import { getAIModelListApi } from '#/api/admin/ai-models';
 import {
   buildAgentRoutingModelOptions,
   createEmptyAgentRoutingModelOptions,

@@ -11,7 +11,7 @@ import type {
   AIModelConfig,
   AIModelInfo,
   RemoteModelInfo,
-} from '#/api/admin/ai';
+} from '#/api/admin/ai-models';
 
 import { computed, ref, watch } from 'vue';
 
@@ -23,8 +23,8 @@ import { useVbenForm } from '#/adapter/form';
 import {
   fetchRemoteModelsApi,
   getAIModelDetailApi,
-  getAIProviderDetailApi,
-} from '#/api/admin/ai';
+} from '#/api/admin/ai-models';
+import { getAIProviderDetailApi } from '#/api/admin/ai-providers';
 import { useCrudDrawer } from '#/composables';
 import { $t } from '#/locales';
 
@@ -40,6 +40,8 @@ defineOptions({ name: 'AIModelForm' });
 
 const emits = defineEmits<{ success: [] }>();
 const configSnapshot = ref<AIModelConfig | null>(null);
+const currentProviderId = ref<number | undefined>(undefined);
+const currentProviderType = ref<null | string>(null);
 
 const [Form, formApi] = useVbenForm({
   schema: useFormSchema(),
@@ -88,8 +90,6 @@ const title = computed(() =>
 const remoteModels = ref<RemoteModelInfo[]>([]);
 const remoteLoading = ref(false);
 const selectedRemoteModel = ref<string | undefined>(undefined);
-const currentProviderId = ref<number | undefined>(undefined);
-const currentProviderType = ref<null | string>(null);
 
 const remoteModelOptions = computed(() =>
   remoteModels.value.map((m) => ({
@@ -146,7 +146,7 @@ async function fetchRemoteByProvider(providerId: number) {
 watch(currentProviderId, (newId) => {
   if (newId && !isEdit.value) {
     void syncProviderType(newId);
-    fetchRemoteByProvider(newId);
+    void fetchRemoteByProvider(newId);
   }
 });
 

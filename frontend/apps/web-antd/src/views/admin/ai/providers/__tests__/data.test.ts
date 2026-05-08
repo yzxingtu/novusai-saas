@@ -52,7 +52,7 @@ vi.mock('#/adapter/vxe-table', () => ({
   dragColumn: {},
 }));
 
-vi.mock('#/api/admin/ai', () => ({
+vi.mock('#/api/admin/ai-providers', () => ({
   getAdapterTypesApi: vi.fn(),
 }));
 
@@ -73,9 +73,11 @@ describe('provider connection settings helpers', () => {
     expect(providerData.normalizeProviderBaseUrlInput('   ')).toBeNull();
   });
 
-  it('uses the explicit configured wire api', () => {
+  it('uses the explicit configured primary wire api', () => {
     expect(
-      providerData.resolveProviderWireApi('openai_compatible', 'responses'),
+      providerData.resolveProviderPrimaryWireApi('openai_compatible', {
+        protocol_capabilities: { primary_wire_api: 'responses' },
+      }),
     ).toBe('responses');
   });
 
@@ -94,15 +96,17 @@ describe('provider connection settings helpers', () => {
     ).toBe(false);
   });
 
-  it('defaults openai compatible providers to chat completions', () => {
-    expect(providerData.resolveProviderWireApi('openai_compatible', null)).toBe(
-      'chat_completions',
-    );
+  it('does not invent a default wire api when protocol capabilities are missing', () => {
+    expect(
+      providerData.resolveProviderPrimaryWireApi('openai_compatible', null),
+    ).toBeNull();
   });
 
   it('does not expose wire api for non-openai-compatible providers', () => {
     expect(
-      providerData.resolveProviderWireApi('anthropic', 'responses'),
+      providerData.resolveProviderPrimaryWireApi('anthropic', {
+        protocol_capabilities: { primary_wire_api: 'responses' },
+      }),
     ).toBeNull();
   });
 
@@ -132,18 +136,55 @@ describe('provider form config contracts', () => {
   it('does not expose retired provider defaults', () => {
     const defaults = providerData.getFormDefaults();
     expect(defaults.type).toBe('openai_compatible');
+    expect(defaults.primary_wire_api).toBe('chat_completions');
     expect(defaults.is_active).toBe(true);
+    expect(Object.prototype.hasOwnProperty.call(defaults, 'wire_api')).toBe(
+      false,
+    );
     expect(
-      Object.prototype.hasOwnProperty.call(defaults, 'responses_tool_history_compat'),
+      Object.prototype.hasOwnProperty.call(
+        defaults,
+        'responses_tool_history_compat',
+      ),
     ).toBe(false);
   });
 
   it('does not expose retired compatibility fields in the provider form schema', () => {
     const schema = providerData.useFormSchema();
 
+    expect(schema.some((item) => item.fieldName === 'primary_wire_api')).toBe(
+      true,
+    );
+    expect(schema.some((item) => item.fieldName === 'wire_api')).toBe(false);
     expect(
       schema.some((item) => item.fieldName === 'responses_tool_history_compat'),
     ).toBe(false);
+  });
+
+  it('writes primary wire api into protocol capabilities and strips retired aliases', () => {
+    expect(
+      providerData.buildProviderConfigWithPrimaryWireApi(
+        {
+          wire_api: 'chat_completions',
+          responses_tool_history_mode: 'legacy',
+          protocol_capabilities: {
+            wire_api: 'chat_completions',
+            primary_wire_api: 'chat_completions',
+            allowed_wire_apis: ['chat_completions', 'responses'],
+            allowed_cross_protocol_fallbacks: {
+              responses: ['chat_completions'],
+            },
+          },
+        },
+        'openai_compatible',
+        'responses',
+      ),
+    ).toEqual({
+      protocol_capabilities: {
+        primary_wire_api: 'responses',
+        allowed_wire_apis: ['responses'],
+      },
+    });
   });
 
   it('hides the type search filter when only one adapter type is available', () => {

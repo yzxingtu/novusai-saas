@@ -178,75 +178,75 @@ export const buildLegacyToolInterruptedMessages = () => [
 ];
 
 export const buildThinkingDedupHistoryMessages = () => [
-  buildUserMessage('那广州今天的天气呢？'),
+  buildUserMessage('那广州分部今天的报表呢？'),
   buildAssistantMessage('', {
     turn_flow: {
       evidence: [
         {
-          id: 'tc_weather_1',
-          display_name: 'get_current_weather',
+          id: 'tc_report_1',
+          display_name: 'report_summary',
           kind: 'tool',
           status: 'running',
-          tool_call_id: 'tc_weather_1',
-          tool_name: 'get_current_weather',
-          title: 'get_current_weather',
+          tool_call_id: 'tc_report_1',
+          tool_name: 'report_summary',
+          title: 'report_summary',
         },
       ],
       timeline: [
         {
           detail_lines: [
-            '**Considering tool responses** I have the weather details now.',
+            '**Considering tool responses** I have the report details now.',
           ],
           id: 'turn-thinking',
           status: 'completed',
-          summary: '**Considering tool responses** I have the weather details now.',
+          summary: '**Considering tool responses** I have the report details now.',
           type: 'thinking',
         },
         {
           id: 'turn-tool-execution',
           status: 'running',
-          tool_call_ids: ['tc_weather_1'],
+          tool_call_ids: ['tc_report_1'],
           type: 'tool_execution',
         },
       ],
     },
   }),
-  buildToolMessage('{"city":"广州","condition":"多云"}', {
+  buildToolMessage('{"branch":"广州","status":"stable"}', {
     metadata: {
       tool_success: true,
     },
-    tool_call_id: 'tc_weather_1',
-    tool_name: 'get_current_weather',
+    tool_call_id: 'tc_report_1',
+    tool_name: 'report_summary',
   }),
-  buildAssistantMessage('广州今天多云，气温 24 到 29 摄氏度。', {
+  buildAssistantMessage('今日报表显示调用量平稳，异常率低于阈值。', {
     turn_flow: {
       completion_reason: 'completed',
       evidence: [
         {
-          id: 'tc_weather_1',
-          display_name: 'get_current_weather',
+          id: 'tc_report_1',
+          display_name: 'report_summary',
           kind: 'tool',
-          output: '{"city":"广州","condition":"多云"}',
+          output: '{"branch":"广州","status":"stable"}',
           status: 'success',
-          tool_call_id: 'tc_weather_1',
-          tool_name: 'get_current_weather',
-          title: 'get_current_weather',
+          tool_call_id: 'tc_report_1',
+          tool_name: 'report_summary',
+          title: 'report_summary',
         },
       ],
       timeline: [
         {
           detail_lines: [
-            '**Considering tool responses** I have the weather details now.',
+            '**Considering tool responses** I have the report details now.',
           ],
           id: 'turn-thinking',
           status: 'completed',
-          summary: '**Considering tool responses** I have the weather details now.',
+          summary: '**Considering tool responses** I have the report details now.',
           type: 'thinking',
         },
         {
           id: 'turn-tool-execution',
           status: 'completed',
-          tool_call_ids: ['tc_weather_1'],
+          tool_call_ids: ['tc_report_1'],
           type: 'tool_execution',
         },
       ],

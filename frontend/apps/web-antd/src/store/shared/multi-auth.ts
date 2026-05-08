@@ -11,11 +11,11 @@ import type { UserInfo } from '@vben/types';
 
 import type {
   AIAvailabilityInfo,
-  ApiEndpoint,
   BaseUserInfo,
   LoginByCodeParams,
   LoginParams,
-} from '#/api';
+} from '#/api/shared/types';
+import type { ApiEndpoint } from '#/types/endpoint';
 
 import { computed, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
@@ -25,7 +25,29 @@ import { useAccessStore, useTabbarStore, useUserStore } from '@vben/stores';
 import { notification } from 'ant-design-vue';
 import { defineStore } from 'pinia';
 
-import { adminApi, tenantApi, userApi } from '#/api';
+import {
+  adminChangePasswordApi,
+  adminLoginApi,
+  adminLogoutApi,
+  adminRefreshTokenApi,
+  getAdminInfoApi,
+} from '#/api/admin/auth';
+import {
+  getTenantAdminInfoApi,
+  tenantChangePasswordApi,
+  tenantLoginApi,
+  tenantLogoutApi,
+  tenantRefreshTokenApi,
+} from '#/api/tenant/auth';
+import {
+  getUserInfoApi,
+  userChangePasswordApi,
+  userLoginApi,
+  userLoginByCodeApi,
+  userLogoutApi,
+  userRefreshTokenApi,
+  userSendLoginCodeApi,
+} from '#/api/user/auth';
 import {
   HOME_PATHS,
   LOGIN_PATHS,
@@ -83,11 +105,9 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
   function getAIAvailabilityInfo(
     userInfo: BaseUserInfo | null | undefined,
   ): AIAvailabilityInfo {
-    const aiChatEnabled = userInfo?.aiChatEnabled ?? userInfo?.aiEnabled;
     return {
       accountAIEnabled: userInfo?.accountAIEnabled,
-      aiChatEnabled,
-      aiEnabled: aiChatEnabled,
+      aiChatEnabled: userInfo?.aiChatEnabled,
       aiUnavailableReason: userInfo?.aiUnavailableReason,
       tenantPlanAIEnabled: userInfo?.tenantPlanAIEnabled,
     };
@@ -119,31 +139,31 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
     switch (ep) {
       case 'admin': {
         return {
-          changePassword: adminApi.adminChangePasswordApi,
-          getUserInfo: adminApi.getAdminInfoApi,
-          login: adminApi.adminLoginApi,
-          logout: adminApi.adminLogoutApi,
-          refreshToken: adminApi.adminRefreshTokenApi,
+          changePassword: adminChangePasswordApi,
+          getUserInfo: getAdminInfoApi,
+          login: adminLoginApi,
+          logout: adminLogoutApi,
+          refreshToken: adminRefreshTokenApi,
         };
       }
       case 'tenant': {
         return {
-          changePassword: tenantApi.tenantChangePasswordApi,
-          getUserInfo: tenantApi.getTenantAdminInfoApi,
-          login: tenantApi.tenantLoginApi,
-          logout: tenantApi.tenantLogoutApi,
-          refreshToken: tenantApi.tenantRefreshTokenApi,
+          changePassword: tenantChangePasswordApi,
+          getUserInfo: getTenantAdminInfoApi,
+          login: tenantLoginApi,
+          logout: tenantLogoutApi,
+          refreshToken: tenantRefreshTokenApi,
         };
       }
       default: {
         return {
-          changePassword: userApi.userChangePasswordApi,
-          getUserInfo: userApi.getUserInfoApi,
-          login: userApi.userLoginApi,
-          loginByCode: userApi.userLoginByCodeApi,
-          logout: userApi.userLogoutApi,
-          refreshToken: userApi.userRefreshTokenApi,
-          sendLoginCode: userApi.userSendLoginCodeApi,
+          changePassword: userChangePasswordApi,
+          getUserInfo: getUserInfoApi,
+          login: userLoginApi,
+          loginByCode: userLoginByCodeApi,
+          logout: userLogoutApi,
+          refreshToken: userRefreshTokenApi,
+          sendLoginCode: userSendLoginCodeApi,
         };
       }
     }

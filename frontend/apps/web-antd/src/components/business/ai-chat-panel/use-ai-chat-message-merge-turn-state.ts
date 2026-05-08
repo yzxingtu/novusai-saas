@@ -2,8 +2,6 @@ import type {
   ActionButton,
   PendingConfirmation,
   PendingConsent,
-  RagSource,
-  ToolCallEvent,
   TurnFlowViewModel,
 } from './types';
 
@@ -15,14 +13,11 @@ import type { AppErrorInfo } from '#/utils/request';
 
 export interface AssistantTurnMergeState {
   contentParts: string[];
-  hasCanonicalTurnFlow: boolean;
   hasInterrupted: boolean;
   hasMemoryUpdated: boolean;
   hasPartial: boolean;
   startIndex: number;
-  thinkingContentParts: string[];
   trustedFinalContent: null | string;
-  toolCalls: ToolCallEvent[];
   turnActionButtons?: ActionButton[];
   turnActionButtonsUsed: boolean;
   turnAgentAvatar: null | string;
@@ -42,7 +37,6 @@ export interface AssistantTurnMergeState {
   turnPersistedErrorOnly: boolean;
   turnFlow?: TurnFlowViewModel;
   turnProtocolPath?: string;
-  turnRagSources?: RagSource[];
   turnRecordPayload: null | TurnRecordPayload;
   turnRecordRaw: null | Record<string, unknown>;
   turnSelectedSkillNames: string[];
@@ -55,14 +49,11 @@ export function createInitialAssistantTurnState(
 ): AssistantTurnMergeState {
   return {
     contentParts: [],
-    hasCanonicalTurnFlow: false,
     hasInterrupted: false,
     hasMemoryUpdated: false,
     hasPartial: false,
     startIndex,
-    thinkingContentParts: [],
     trustedFinalContent: null,
-    toolCalls: [],
     turnActionButtonsUsed: false,
     turnAgentAvatar: null,
     turnAgentDescription: null,

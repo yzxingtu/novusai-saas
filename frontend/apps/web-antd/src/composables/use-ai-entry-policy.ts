@@ -82,7 +82,7 @@ export function useAIEntryPolicy() {
   });
   const serverAIChatEnabled = computed(() =>
     normalizeBoolean(
-      userInfo.value?.aiChatEnabled ?? userInfo.value?.aiEnabled,
+      userInfo.value?.aiChatEnabled,
       accountAIEnabled.value && tenantPlanAIEnabled.value,
     ),
   );
@@ -94,7 +94,6 @@ export function useAIEntryPolicy() {
       tenantPlanAIEnabled.value &&
       serverAIChatEnabled.value,
   );
-  const aiEnabled = aiChatEnabled;
   const aiUnavailableReason = computed(() => {
     const backendReason = normalizeReason(userInfo.value?.aiUnavailableReason);
     if (!accountAIEnabled.value) {
@@ -120,7 +119,6 @@ export function useAIEntryPolicy() {
 
   return {
     accountAIEnabled,
-    aiEnabled,
     aiChatEnabled,
     aiUnavailableReason,
     canChat,

@@ -3,7 +3,7 @@
  * AI 供应商管理列表页面
  * AI provider management list page
  */
-import type { AIProviderInfo } from '#/api/admin/ai';
+import type { AIProviderInfo } from '#/api/admin/ai-providers';
 
 import { ref } from 'vue';
 
@@ -17,7 +17,7 @@ import {
   getAIProviderListApi,
   reorderAIProvidersApi,
   toggleAIProviderStatusApi,
-} from '#/api/admin/ai';
+} from '#/api/admin/ai-providers';
 import { $t } from '#/locales';
 import { toAttachmentImageUrl } from '#/utils/image';
 
@@ -28,7 +28,7 @@ import {
   getProviderWireApiText,
   hasMultipleAdapterTypeOptions,
   loadAdapterTypes,
-  resolveProviderWireApi,
+  resolveProviderPrimaryWireApi,
   useColumns,
   useGridFormSchema,
 } from './data';
@@ -52,15 +52,8 @@ function buildColumns(
   });
 }
 
-function getRowWireApi(row: AIProviderInfo) {
-  const config =
-    row.config && typeof row.config === 'object'
-      ? (row.config as Record<string, unknown>)
-      : null;
-  return resolveProviderWireApi(
-    row.type,
-    typeof config?.wire_api === 'string' ? config.wire_api : null,
-  );
+function getRowPrimaryWireApi(row: AIProviderInfo) {
+  return resolveProviderPrimaryWireApi(row.type, row.config);
 }
 
 // ============================================================
@@ -219,8 +212,12 @@ useAutoTableDragSort(() => gridApi.grid, {
             <Tag color="blue" class="m-0">
               {{ getProviderTypeText(row.type) }}
             </Tag>
-            <Tag v-if="getRowWireApi(row)" color="processing" class="m-0">
-              {{ getProviderWireApiText(getRowWireApi(row)) }}
+            <Tag
+              v-if="getRowPrimaryWireApi(row)"
+              color="processing"
+              class="m-0"
+            >
+              {{ getProviderWireApiText(getRowPrimaryWireApi(row)) }}
             </Tag>
           </div>
         </template>
@@ -228,11 +225,11 @@ useAutoTableDragSort(() => gridApi.grid, {
         <!-- API 协议列 -->
         <template #wireApi_cell="{ row }">
           <Tag
-            v-if="row.type === 'openai_compatible'"
+            v-if="getRowPrimaryWireApi(row)"
             color="processing"
             class="m-0"
           >
-            {{ getProviderWireApiText(getRowWireApi(row)) }}
+            {{ getProviderWireApiText(getRowPrimaryWireApi(row)) }}
           </Tag>
           <span v-else class="text-xs text-muted-foreground">-</span>
         </template>

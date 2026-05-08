@@ -16,8 +16,7 @@ import type {
 
 import type { ApiRequestOptions } from '#/utils/request';
 
-import { useAccessStore } from '@vben/stores';
-
+import { TokenStorage } from '#/store/shared/token-storage';
 import { baseRequestClient, requestClient } from '#/utils/request';
 
 // Logout uses baseRequestClient to avoid circular calls on 401 / Logout 使用 baseRequestClient 避免 401 时循环调用
@@ -160,8 +159,7 @@ export async function userRefreshTokenApi(
  */
 export async function userLogoutApi() {
   try {
-    const accessStore = useAccessStore();
-    const token = accessStore?.accessToken;
+    const token = TokenStorage.getToken('user');
     const headers: Record<string, string> = {};
     if (token) headers.Authorization = `Bearer ${token}`;
     return await baseRequestClient.post(`${API_PREFIX}/logout`, undefined, {

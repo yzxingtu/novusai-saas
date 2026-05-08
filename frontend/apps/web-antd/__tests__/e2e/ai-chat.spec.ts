@@ -75,18 +75,6 @@ const DIAGNOSTIC_LABELS = [
   '本轮技能',
   '上下文来源',
 ] as const;
-const WEATHER_RESPONSE_PATTERNS = [
-  /天气/,
-  /气温/,
-  /预报/,
-  /下雨/,
-  /温度/,
-  /最高/,
-  /最低/,
-  /穿衣/,
-  /降雨/,
-  /湿度/,
-] as const;
 const RETIRED_ONLINE_SEARCH_TOOL_NAMES = new Set([
   'fetch_url',
   'native_web_search',
@@ -131,10 +119,6 @@ function isRetiredOnlineSearchTool(name: string) {
   return RETIRED_ONLINE_SEARCH_TOOL_NAMES.has(normalized);
 }
 
-function isWeatherCapableTool(name: string) {
-  return isWeatherTool(name);
-}
-
 function isBlockedRuntimeTool(name: string) {
   const normalized = normalizeToolName(name);
   return (
@@ -172,6 +156,19 @@ function expectNoSSEErrors(metrics: ChatTurnMetrics) {
 
 function expectNonEmptyResponse(metrics: ChatTurnMetrics, minLength = 8) {
   expect(metrics.fullResponse.trim().length).toBeGreaterThan(minLength);
+}
+
+function expectDonePayload(metrics: Pick<ChatTurnMetrics, 'donePayload'>) {
+  expect(metrics.donePayload).toEqual(
+    expect.objectContaining({
+      context_compacted: expect.any(Boolean),
+      conversation_id: expect.any(Number),
+      duration_ms: expect.any(Number),
+      memory_recalled: expect.any(Boolean),
+      rag_source_kinds: expect.any(Array),
+      total_tokens: expect.any(Number),
+    }),
+  );
 }
 
 function expectGracefulResponse(metrics: ChatTurnMetrics, minLength = 8) {
@@ -227,40 +224,35 @@ function expectNoRetiredOnlineSearchTool(
   ).toBe(false);
 }
 
-function expectDistinctToolFamiliesAtLeast(
-  metrics: ChatTurnMetrics,
-  minCount: number,
-) {
-  const foundFamilies = new Set(
-    metrics.toolCalls.map((toolCall) => resolveToolFamily(toolCall.name)),
-  );
-
-  expect(
-    foundFamilies.size,
-    `Expected at least ${minCount} tool families. Seen families: ${[...foundFamilies].join(', ') || 'none'}`,
-  ).toBeGreaterThanOrEqual(minCount);
-}
-
 function expectOptimizingTools(metrics: ChatTurnMetrics) {
-  expect(metrics.optimizingTools).not.toBeNull();
-  if (metrics.optimizingTools) {
-    expect(metrics.optimizingTools.selected).toBeLessThanOrEqual(
-      metrics.optimizingTools.total,
-    );
-  }
-}
-
-function expectWeatherCapableResponse(metrics: ChatTurnMetrics, minLength = 8) {
-  expectGracefulResponse(metrics, minLength);
-  expectTool(
-    metrics,
-    isWeatherCapableTool,
-    'Expected weather-capable tool call',
+  expect(metrics.optimizingTools).toEqual(
+    expect.objectContaining({
+      selected: expect.any(Number),
+      total: expect.any(Number),
+    }),
   );
   expect(
-    responseContainsAny(metrics, WEATHER_RESPONSE_PATTERNS),
-    `Expected weather-related response. Seen tool calls: ${readToolNames(metrics).join(', ') || 'none'}`,
+    metrics.optimizingTools?.execution_path === null ||
+      typeof metrics.optimizingTools?.execution_path === 'string',
   ).toBe(true);
+  expect(metrics.optimizingTools!.selected).toBeLessThanOrEqual(
+    metrics.optimizingTools!.total,
+  );
+}
+
+function expectWeatherPromptHandledWithoutBuiltinRequirement(
+  metrics: ChatTurnMetrics,
+  minLength = 8,
+) {
+  expectGracefulResponse(metrics, minLength);
+  expectNoRetiredOnlineSearchTool(
+    metrics,
+    'Expected weather prompt not to call retired online-search tools',
+  );
+  expectNoBlockedRuntimeTool(
+    metrics,
+    'Expected weather prompt not to call invalid runtime tools',
+  );
 }
 
 function expectNoRetiredEditorTool(metrics: ChatTurnMetrics, message: string) {
@@ -727,7 +719,7 @@ test.describe('AI Chat E2E', () => {
       const metrics = await runChatTurn(page, '你好喵~');
 
       expectGracefulResponse(metrics, 5);
-      expect(metrics.donePayload).not.toBeNull();
+      expectDonePayload(metrics);
       expect(metrics.donePayload?.total_tokens ?? 0).toBeGreaterThan(0);
     });
 
@@ -815,24 +807,24 @@ test.describe('AI Chat E2E', () => {
     });
   });
 
-  test.describe('B: Weather tools', () => {
+  test.describe('B: Plugin weather prompts', () => {
     registerSingleTurnScenarios([
       {
         id: 'B1',
-        name: 'weather query triggers tool call',
+        name: 'weather query stays safe without builtin tool assumptions',
         prompt: '查一下今天北京的天气',
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
-          expectWeatherCapableResponse(metrics, 12);
+          expectWeatherPromptHandledWithoutBuiltinRequirement(metrics, 12);
         },
       },
       {
         id: 'B2',
-        name: 'weather + advice wrapping',
+        name: 'weather + advice does not require builtin runtime weather',
         prompt: '今天适合出门吗？帮我看看深圳天气，给点穿衣建议',
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
-          expectWeatherCapableResponse(metrics, 20);
+          expectWeatherPromptHandledWithoutBuiltinRequirement(metrics, 20);
         },
       },
     ]);
@@ -853,12 +845,7 @@ test.describe('AI Chat E2E', () => {
         '[data-testid="turn-process-body"]',
       );
 
-      expectGracefulResponse(metrics, 8);
-      expectTool(
-        metrics,
-        isWeatherCapableTool,
-        'Expected weather-capable tool call',
-      );
+      expectWeatherPromptHandledWithoutBuiltinRequirement(metrics, 8);
       await expectTranscriptFirst(assistantSurface);
       await expectDiagnosticsHiddenByDefault(assistantSurface);
       await expect(kernelOverviewToggle).toHaveAttribute(
@@ -998,7 +985,7 @@ test.describe('AI Chat E2E', () => {
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
           expectGracefulResponse(metrics, 12);
-          expect(metrics.donePayload).not.toBeNull();
+          expectDonePayload(metrics);
           expect(
             (metrics.donePayload?.rag_source_kinds ?? []).some((kind) =>
               /formal|kb|knowledge/i.test(kind),
@@ -1038,7 +1025,7 @@ test.describe('AI Chat E2E', () => {
         route: ROUTES.skillPackages,
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
-          expectWeatherCapableResponse(metrics, 20);
+          expectWeatherPromptHandledWithoutBuiltinRequirement(metrics, 20);
           expectNoBlockedRuntimeTool(
             metrics,
             'Expected consent-style guidance not to call invalid runtime tools',
@@ -1080,7 +1067,7 @@ test.describe('AI Chat E2E', () => {
       expectGracefulResponse(metrics, 8);
       expect(metrics.contentType).toMatch(/text\/event-stream/i);
       expect(metrics.events.length).toBeGreaterThan(0);
-      expect(metrics.donePayload).not.toBeNull();
+      expectDonePayload(metrics);
       expect(metrics.totalMs).toBeGreaterThanOrEqual(metrics.ttfb);
     });
 
@@ -1140,8 +1127,9 @@ test.describe('AI Chat E2E', () => {
             metrics,
             'Expected multi-intent turn not to call invalid runtime tools',
           );
-          expect(responseContainsAny(metrics, WEATHER_RESPONSE_PATTERNS)).toBe(
-            true,
+          expectNoRetiredOnlineSearchTool(
+            metrics,
+            'Expected weather plus current-info prompt not to call retired online-search tools',
           );
         },
       },
@@ -1160,26 +1148,20 @@ test.describe('AI Chat E2E', () => {
       },
       {
         id: 'J3',
-        name: 'time + weather families are co-selected',
+        name: 'time + weather prompt keeps weather optional',
         prompt: '现在几点了？今天天气如何？顺便给我一个运维提醒',
         route: ROUTES.agents,
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
           expectGracefulResponse(metrics, 16);
-          expectDistinctToolFamiliesAtLeast(metrics, 2);
-          expect(
-            metrics.toolCalls.some(
-              (toolCall) =>
-                isTimeTool(toolCall.name) ||
-                isWeatherCapableTool(toolCall.name),
-            ),
-          ).toBe(true);
+          expectTool(metrics, isTimeTool, 'Expected current time tool call');
           expectNoBlockedRuntimeTool(
             metrics,
             'Expected time/weather turn not to call invalid runtime tools',
           );
-          expect(responseContainsAny(metrics, WEATHER_RESPONSE_PATTERNS)).toBe(
-            true,
+          expectNoRetiredOnlineSearchTool(
+            metrics,
+            'Expected time/weather turn not to call retired online-search tools',
           );
         },
       },
@@ -1203,14 +1185,6 @@ test.describe('AI Chat E2E', () => {
       expectGracefulResponse(secondTurn, 20);
       expectGracefulResponse(thirdTurn, 12);
 
-      expectDistinctToolFamiliesAtLeast(secondTurn, 2);
-      expect(
-        secondTurn.toolCalls.some(
-          (toolCall) =>
-            isTimeTool(toolCall.name) ||
-            isWeatherCapableTool(toolCall.name),
-        ),
-      ).toBe(true);
       expectNoRetiredOnlineSearchTool(
         secondTurn,
         'Expected chaos turn not to call retired online-search tools',
@@ -1239,28 +1213,16 @@ test.describe('AI Chat E2E', () => {
         route: ROUTES.agents,
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
-          expectGracefulResponse(metrics, 16);
-          expectTool(
-            metrics,
-            isWeatherCapableTool,
-            'Expected weather-capable tool call',
-          );
-          expectNoBlockedRuntimeTool(
-            metrics,
-            'Expected mixed-language prompt not to call invalid runtime tools',
-          );
-          expect(responseContainsAny(metrics, WEATHER_RESPONSE_PATTERNS)).toBe(
-            true,
-          );
+          expectWeatherPromptHandledWithoutBuiltinRequirement(metrics, 16);
         },
       },
       {
         id: 'K2',
-        name: 'typos and fuzzy intent still route to weather',
+        name: 'typos and fuzzy weather prompt stays safe',
         prompt: '帮我察一下今天背景的天汽怎么洋',
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
-          expectWeatherCapableResponse(metrics, 8);
+          expectWeatherPromptHandledWithoutBuiltinRequirement(metrics, 8);
         },
       },
       {
@@ -1280,8 +1242,9 @@ test.describe('AI Chat E2E', () => {
             metrics,
             'Expected noisy multi-intent prompt not to call invalid runtime tools',
           );
-          expect(responseContainsAny(metrics, WEATHER_RESPONSE_PATTERNS)).toBe(
-            true,
+          expectNoRetiredOnlineSearchTool(
+            metrics,
+            'Expected noisy multi-intent prompt not to call retired online-search tools',
           );
           expect(metrics.fullResponse).not.toContain('[PARTIAL EXIT]');
         },
@@ -1300,7 +1263,7 @@ test.describe('AI Chat E2E', () => {
       },
     ]);
 
-    test('K5 — follow-up questions reuse the same weather context', async ({
+    test('K5 — follow-up weather questions keep the same conversation safely', async ({
       page,
     }) => {
       test.setTimeout(EXTENDED_CHAT_TIMEOUT + TURN_TIMEOUT_BUFFER);
@@ -1310,19 +1273,24 @@ test.describe('AI Chat E2E', () => {
         { timeout: DEFAULT_CHAT_TIMEOUT },
       );
 
-      expectGracefulResponse(firstTurn, 8);
+      expectWeatherPromptHandledWithoutBuiltinRequirement(firstTurn, 8);
       expectGracefulResponse(secondTurn, 8);
       expectGracefulResponse(thirdTurn, 8);
-      expectTool(firstTurn, isWeatherTool, 'Expected first turn weather tool');
-      expectNoTool(
+      expectNoRetiredOnlineSearchTool(
         secondTurn,
-        isWeatherTool,
-        'Expected second turn to answer from context without weather tool',
+        'Expected second turn not to call retired online-search tools',
       );
-      expectNoTool(
+      expectNoBlockedRuntimeTool(
+        secondTurn,
+        'Expected second turn not to call invalid runtime tools',
+      );
+      expectNoRetiredOnlineSearchTool(
         thirdTurn,
-        isWeatherTool,
-        'Expected third turn to answer from context without weather tool',
+        'Expected third turn not to call retired online-search tools',
+      );
+      expectNoBlockedRuntimeTool(
+        thirdTurn,
+        'Expected third turn not to call invalid runtime tools',
       );
       expect(secondTurn.conversationId).toBe(firstTurn.conversationId);
       expect(thirdTurn.conversationId).toBe(firstTurn.conversationId);
@@ -1369,8 +1337,8 @@ test.describe('AI Chat E2E', () => {
 
       expectGracefulResponse(firstTurn, 8);
       expectGracefulResponse(secondTurn, 8);
-      expect(firstTurn.conversationId).not.toBeNull();
-      expect(secondTurn.conversationId).not.toBeNull();
+      expect(firstTurn.conversationId).toEqual(expect.any(Number));
+      expect(secondTurn.conversationId).toEqual(expect.any(Number));
     });
   });
 
@@ -1382,7 +1350,7 @@ test.describe('AI Chat E2E', () => {
         prompt: '帮我查一下阿斯加德的天气',
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
-          expectWeatherCapableResponse(metrics, 8);
+          expectWeatherPromptHandledWithoutBuiltinRequirement(metrics, 8);
         },
       },
       {
@@ -1392,7 +1360,7 @@ test.describe('AI Chat E2E', () => {
         route: ROUTES.agents,
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
-          expectWeatherCapableResponse(metrics, 12);
+          expectWeatherPromptHandledWithoutBuiltinRequirement(metrics, 12);
           expectNoBlockedRuntimeTool(
             metrics,
             'Expected degraded mixed turn not to call invalid runtime tools',
@@ -1439,7 +1407,7 @@ test.describe('AI Chat E2E', () => {
 
       expectGracefulResponse(firstTurn, 4);
       expectGracefulResponse(secondTurn, 8);
-      expect(secondTurn.conversationId).not.toBeNull();
+      expect(secondTurn.conversationId).toEqual(expect.any(Number));
     });
   });
 
@@ -1450,14 +1418,7 @@ test.describe('AI Chat E2E', () => {
       test.setTimeout(DEFAULT_CHAT_TIMEOUT + TURN_TIMEOUT_BUFFER);
       const metrics = await runChatTurn(page, '深圳好热啊');
 
-      expectGracefulResponse(metrics, 4);
-      if (metrics.toolCalls.length > 0) {
-        expectTool(
-          metrics,
-          isWeatherCapableTool,
-          'Expected weather-capable tool when a tool is used',
-        );
-      }
+      expectWeatherPromptHandledWithoutBuiltinRequirement(metrics, 4);
     });
 
     test('O2 — pronoun disambiguation stays grounded in conversation context', async ({
@@ -1487,18 +1448,11 @@ test.describe('AI Chat E2E', () => {
     registerSingleTurnScenarios([
       {
         id: 'O3',
-        name: 'spoken shorthand weather prompt is understood',
+        name: 'spoken shorthand weather prompt stays safe',
         prompt: '那个……就是……外面下雨了没有啊？我在长沙',
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
-          expectGracefulResponse(metrics, 8);
-          if (metrics.toolCalls.length > 0) {
-            expectTool(
-              metrics,
-              isWeatherCapableTool,
-              'Expected weather-capable tool when routed',
-            );
-          }
+          expectWeatherPromptHandledWithoutBuiltinRequirement(metrics, 8);
         },
       },
       {
@@ -1539,18 +1493,24 @@ test.describe('AI Chat E2E', () => {
         { timeout: DEFAULT_CHAT_TIMEOUT },
       );
 
-      expectWeatherCapableResponse(firstTurn, 8);
+      expectWeatherPromptHandledWithoutBuiltinRequirement(firstTurn, 8);
       expectGracefulResponse(secondTurn, 4);
       expectGracefulResponse(thirdTurn, 4);
-      expectNoTool(
+      expectNoRetiredOnlineSearchTool(
         secondTurn,
-        isWeatherCapableTool,
-        'Expected second turn joke answer without weather-capable tool',
+        'Expected second turn not to call retired online-search tools',
       );
-      expectNoTool(
+      expectNoBlockedRuntimeTool(
+        secondTurn,
+        'Expected second turn not to call invalid runtime tools',
+      );
+      expectNoRetiredOnlineSearchTool(
         thirdTurn,
-        isWeatherCapableTool,
-        'Expected third turn to reuse prior weather result',
+        'Expected third turn not to call retired online-search tools',
+      );
+      expectNoBlockedRuntimeTool(
+        thirdTurn,
+        'Expected third turn not to call invalid runtime tools',
       );
     });
   });
@@ -1703,10 +1663,13 @@ test.describe('AI Chat E2E', () => {
         );
 
       expectGracefulResponse(weatherTurn, 8);
-      expectTool(
+      expectNoRetiredOnlineSearchTool(
         weatherTurn,
-        isWeatherCapableTool,
-        'Expected weather-capable skill trigger',
+        'Expected weather turn not to call retired online-search tools',
+      );
+      expectNoBlockedRuntimeTool(
+        weatherTurn,
+        'Expected weather turn not to call invalid runtime tools',
       );
       expectGracefulResponse(offlineTurn, 4);
       expectNoRetiredOnlineSearchTool(
@@ -1758,20 +1721,11 @@ test.describe('AI Chat E2E', () => {
     registerSingleTurnScenarios([
       {
         id: 'T1',
-        name: 'weather forecast uses forecast tool',
+        name: 'weather forecast prompt keeps plugin weather optional',
         prompt: '未来三天北京天气怎么样？会不会下雨？',
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
-          expectWeatherCapableResponse(metrics, 12);
-          expect(
-            responseContainsAny(metrics, [
-              /未来三天/,
-              /明天/,
-              /后天/,
-              /预报/,
-              /下雨/,
-            ]),
-          ).toBe(true);
+          expectWeatherPromptHandledWithoutBuiltinRequirement(metrics, 12);
         },
       },
       {
@@ -1786,19 +1740,19 @@ test.describe('AI Chat E2E', () => {
       },
       {
         id: 'T3',
-        name: 'time and weather can be answered together',
+        name: 'time and weather prompt uses time without builtin weather',
         prompt: '现在几点了？今天天气怎么样？',
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
           expectGracefulResponse(metrics, 8);
           expectTool(metrics, isTimeTool, 'Expected current time tool call');
-          expectTool(
+          expectNoRetiredOnlineSearchTool(
             metrics,
-            isWeatherCapableTool,
-            'Expected weather-capable tool call',
+            'Expected time plus weather prompt not to call retired online-search tools',
           );
-          expect(responseContainsAny(metrics, WEATHER_RESPONSE_PATTERNS)).toBe(
-            true,
+          expectNoBlockedRuntimeTool(
+            metrics,
+            'Expected time plus weather prompt not to call invalid runtime tools',
           );
         },
       },
@@ -1930,7 +1884,7 @@ test.describe('AI Chat E2E', () => {
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
           expectGracefulResponse(metrics, 6);
-          expect(metrics.donePayload).not.toBeNull();
+          expectDonePayload(metrics);
           expect(typeof metrics.donePayload?.memory_recalled).toBe('boolean');
         },
       },
@@ -2069,9 +2023,11 @@ test.describe('AI Chat E2E', () => {
       for (const turn of turns) {
         expectGracefulResponse(turn, 4);
       }
-      expect(finalTurn).toBeDefined();
-      expect(finalTurn?.donePayload).not.toBeNull();
-      expect(typeof finalTurn?.donePayload?.context_compacted).toBe('boolean');
+      if (!finalTurn) {
+        throw new Error('Expected final turn after long conversation sequence.');
+      }
+      expectDonePayload(finalTurn);
+      expect(typeof finalTurn.donePayload?.context_compacted).toBe('boolean');
     });
   });
 });

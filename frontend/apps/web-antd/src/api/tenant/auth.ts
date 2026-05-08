@@ -16,9 +16,8 @@ import type {
 
 import type { ApiRequestOptions, HttpResponse } from '#/utils/request';
 
-import { useAccessStore } from '@vben/stores';
-
 import { $t } from '#/locales';
+import { TokenStorage } from '#/store/shared/token-storage';
 import { baseRequestClient, requestClient } from '#/utils/request';
 
 // Logout uses baseRequestClient to avoid circular calls on 401 / 登出使用 baseRequestClient 避免循环调用
@@ -98,8 +97,7 @@ export async function tenantRefreshTokenApi(
  */
 export async function tenantLogoutApi() {
   try {
-    const accessStore = useAccessStore();
-    const token = accessStore?.accessToken;
+    const token = TokenStorage.getToken('tenant');
     const headers: Record<string, string> = {};
     if (token) headers.Authorization = `Bearer ${token}`;
     return await baseRequestClient.post(`${API_PREFIX}/logout`, undefined, {
@@ -148,7 +146,6 @@ function mapTenantAIAvailability(
   return {
     accountAIEnabled,
     aiChatEnabled,
-    aiEnabled: aiChatEnabled,
     aiUnavailableReason: raw.ai_unavailable_reason ?? undefined,
     tenantPlanAIEnabled,
   };

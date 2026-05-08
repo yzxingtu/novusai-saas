@@ -126,8 +126,8 @@ export interface QuickSearchConfig {
 
 export interface SearchConfig {
   /**
-   * Whether advanced search panel is open on first render. Defaults to true for backward compatibility.
-   * 高级搜索面板首次渲染时是否展开；默认为 true，以保持兼容。
+   * Whether advanced search panel is open on first render. Defaults to true as the shared CRUD UX.
+   * 高级搜索面板首次渲染时是否展开；默认为 true，作为共享 CRUD 体验默认值。
    */
   defaultOpen?: boolean;
   /**

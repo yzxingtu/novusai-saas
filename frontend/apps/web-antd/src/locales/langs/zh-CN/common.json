@@ -823,7 +823,6 @@
     "batchMoveToGlobal": "批量移入总回收站",
     "deletedAt": "删除时间",
     "movedToGlobalAt": "进入总回收站时间",
-    "retentionDays": "{days} 天后自动清除",
     "moduleRetentionDays": "模块回收站保留 {days} 天后自动进入总回收站",
     "globalRetentionDays": "进入总回收站后再保留 {days} 天才会彻底删除",
     "globalRetentionDaysManaged": "转入管理端总回收站后继续保留 {days} 天，由平台统一恢复或清理",
