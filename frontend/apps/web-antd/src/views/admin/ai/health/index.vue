@@ -1,10 +1,13 @@
 <script lang="ts" setup>
-import type { AIHealthStatus } from '#/api/admin/ai';
+import type {
+  AIHealthHistoryEntry,
+  AIHealthStatus,
+} from '#/api/admin/ai-providers';
 
 /**
  * AI 供应商健康状态监控页面 — useCrudList + autoRefresh
  */
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -12,16 +15,17 @@ import { IconifyIcon } from '@vben/icons';
 import {
   Badge,
   Button,
-  Card,
   Empty,
   InputNumber,
   Modal,
   Spin,
-  Tag,
   Tooltip,
 } from 'ant-design-vue';
 
-import { getAIHealthStatusApi } from '#/api/admin/ai';
+import {
+  getAIHealthHistoryApi,
+  getAIHealthStatusApi,
+} from '#/api/admin/ai-providers';
 import {
   getAIRuntimeCapabilitiesApi,
   getAIRuntimeDoctorApi,
@@ -29,12 +33,16 @@ import {
 } from '#/api/admin/ai-runtime';
 import { useCrudList } from '#/composables';
 import { $t } from '#/locales';
-import { formatDate, formatRelativeTime } from '#/utils/common';
+import { formatDate } from '#/utils/common';
 import { toAttachmentImageUrl } from '#/utils/image';
 
-import AIGatewayQuickStartHero from '../_shared/AIGatewayQuickStartHero.vue';
-
 defineOptions({ name: 'AIHealthMonitor' });
+
+interface HealthHistoryDisplayPoint extends AIHealthHistoryEntry {
+  isMissing?: boolean;
+}
+
+const HISTORY_SLOT_COUNT = 60;
 
 // ========== 声明式列表管理 + 30秒自动刷新 / Declarative list + 30s refresh ==========
 const {
@@ -66,6 +74,10 @@ const degradedCount = computed(
 const unavailableCount = computed(
   () => statuses.value.filter((s) => !s.is_available).length,
 );
+
+const healthHistoryMap = ref<Record<number, AIHealthHistoryEntry[]>>({});
+const historyLoading = ref(false);
+let historyLoadToken = 0;
 
 const runtimeAgentId = ref<number>();
 const runtimeLoading = ref(false);
@@ -120,12 +132,6 @@ function prettyRuntimeResult(value: unknown): string {
 }
 
 // ========== 辅助 / Helpers ==========
-function getStatusColor(status: AIHealthStatus): string {
-  if (status.is_healthy && status.is_available) return 'success';
-  if (!status.is_healthy && status.is_available) return 'warning';
-  return 'error';
-}
-
 function getStatusText(status: AIHealthStatus): string {
   if (status.is_healthy && status.is_available)
     return $t('admin.ai.health.status.healthy');
@@ -134,70 +140,176 @@ function getStatusText(status: AIHealthStatus): string {
   return $t('admin.ai.health.status.unavailable');
 }
 
-function getBadgeStatus(
+function getStatusPillClass(status: AIHealthStatus): string {
+  if (status.is_healthy && status.is_available) {
+    return 'border-emerald-300 bg-emerald-500/10 text-emerald-700 dark:border-emerald-400/25 dark:text-emerald-200';
+  }
+  if (!status.is_healthy && status.is_available) {
+    return 'border-amber-300 bg-amber-500/10 text-amber-700 dark:border-amber-400/25 dark:text-amber-200';
+  }
+  return 'border-rose-300 bg-rose-500/10 text-rose-700 dark:border-rose-400/25 dark:text-rose-200';
+}
+
+function getStatusAccentClass(status: AIHealthStatus): string {
+  if (status.is_healthy && status.is_available) {
+    return 'text-emerald-600 dark:text-emerald-300';
+  }
+  if (!status.is_healthy && status.is_available) {
+    return 'text-amber-600 dark:text-amber-300';
+  }
+  return 'text-rose-600 dark:text-rose-300';
+}
+
+function getProviderHistory(status: AIHealthStatus): AIHealthHistoryEntry[] {
+  const history = healthHistoryMap.value[status.provider_id] ?? [];
+  const points = history.slice(0, HISTORY_SLOT_COUNT).toReversed();
+  if (points.length > 0) return points;
+  return [
+    {
+      primary_wire_api: status.primary_wire_api,
+      is_healthy: status.is_healthy,
+      is_available: status.is_available,
+      base_connectivity_healthy: status.base_connectivity_healthy,
+      tool_calling_healthy: status.tool_calling_healthy,
+      response_time_ms: status.response_time_ms,
+      error_message: status.error_message,
+      checked_at: status.checked_at,
+    },
+  ];
+}
+
+function getHistoryDisplayPoints(
   status: AIHealthStatus,
-): 'error' | 'success' | 'warning' {
-  return getStatusColor(status) as 'error' | 'success' | 'warning';
+): HealthHistoryDisplayPoint[] {
+  const history = getProviderHistory(status).slice(-HISTORY_SLOT_COUNT);
+  const missingCount = Math.max(HISTORY_SLOT_COUNT - history.length, 0);
+  const missingPoints = Array.from<unknown, HealthHistoryDisplayPoint>(
+    { length: missingCount },
+    () => ({ isMissing: true }),
+  );
+  return [...missingPoints, ...history];
 }
 
-function getProbeBadgeStatus(
-  passed: boolean | null | undefined,
-): 'default' | 'error' | 'success' | 'warning' {
-  if (passed === true) return 'success';
-  if (passed === false) return 'error';
-  return 'default';
+function getHistorySuccessCount(status: AIHealthStatus): number {
+  return getProviderHistory(status).filter((item) => item.is_healthy === true)
+    .length;
 }
 
-function getProbeText(passed: boolean | null | undefined): string {
-  if (passed === true) return $t('admin.ai.health.checks.pass');
-  if (passed === false) return $t('admin.ai.health.checks.fail');
-  return $t('admin.ai.health.checks.skipped');
+function getHistoryAvailability(status: AIHealthStatus): string {
+  const history = getProviderHistory(status);
+  if (history.length === 0) return '0.00';
+  return ((getHistorySuccessCount(status) / history.length) * 100).toFixed(2);
 }
+
+function getHistoryPointClass(point: HealthHistoryDisplayPoint): string {
+  if (point.isMissing) return 'bg-muted-foreground/20 dark:bg-white/15';
+  if (point.is_healthy === true) return 'bg-emerald-500';
+  if (
+    point.is_available === false ||
+    point.base_connectivity_healthy === false
+  ) {
+    return 'bg-rose-600';
+  }
+  return 'bg-amber-400';
+}
+
+function getHistoryPointStatusText(point: HealthHistoryDisplayPoint): string {
+  if (point.isMissing) return $t('admin.ai.health.noSample');
+  if (point.is_healthy === true) return $t('admin.ai.health.status.healthy');
+  if (
+    point.is_available === false ||
+    point.base_connectivity_healthy === false
+  ) {
+    return $t('admin.ai.health.status.unavailable');
+  }
+  return $t('admin.ai.health.status.degraded');
+}
+
+function getHistoryPointTooltip(point: HealthHistoryDisplayPoint): string {
+  if (point.isMissing) return $t('admin.ai.health.noSample');
+  const checkedAt = point.checked_at ? formatDate(point.checked_at) : '-';
+  const responseTime =
+    typeof point.response_time_ms === 'number'
+      ? `${point.response_time_ms} ms`
+      : '-';
+  return `${checkedAt} · ${getHistoryPointStatusText(point)} · ${responseTime}`;
+}
+
+async function loadHealthHistory(items: AIHealthStatus[]) {
+  const currentToken = ++historyLoadToken;
+  if (items.length === 0) {
+    healthHistoryMap.value = {};
+    return;
+  }
+  historyLoading.value = true;
+  try {
+    const entries = await Promise.all(
+      items.map(async (item) => {
+        try {
+          const history = await getAIHealthHistoryApi(
+            item.provider_id,
+            { limit: HISTORY_SLOT_COUNT },
+            {
+              showCodeMessage: false,
+              showErrorMessage: false,
+            },
+          );
+          return [item.provider_id, history] as const;
+        } catch {
+          return [item.provider_id, []] as const;
+        }
+      }),
+    );
+    if (currentToken !== historyLoadToken) return;
+    healthHistoryMap.value = Object.fromEntries(entries);
+  } finally {
+    if (currentToken === historyLoadToken) {
+      historyLoading.value = false;
+    }
+  }
+}
+
+watch(
+  statuses,
+  (items) => {
+    void loadHealthHistory(items);
+  },
+  { immediate: true },
+);
 </script>
 
 <template>
   <Page auto-content-height content-class="flex flex-col gap-4 !p-4">
-    <div
-      data-testid="admin-ai-health-page"
-      class="flex flex-col gap-4"
-    >
-      <AIGatewayQuickStartHero :current-title="$t('admin.ai.health.title')" />
-
+    <div data-testid="admin-ai-health-page" class="flex flex-col gap-4">
       <section
         data-testid="health-runtime-actions"
-        class="rounded-[20px] border border-border/70 bg-card px-4 py-3 shadow-sm"
+        class="rounded-[24px] border border-border/70 bg-card/90 px-5 py-4 shadow-sm dark:border-white/[0.08]"
       >
         <div
-          class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"
+          class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"
         >
-          <div class="flex flex-wrap items-center gap-2">
-            <span
-              class="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs text-emerald-700 dark:text-emerald-200"
-            >
-              <Badge status="success" />
-              {{ healthyCount }} {{ $t('admin.ai.health.status.healthy') }}
-            </span>
-            <span
-              class="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-2.5 py-1 text-xs text-amber-700 dark:text-amber-200"
-            >
-              <Badge status="warning" />
-              {{ degradedCount }} {{ $t('admin.ai.health.status.degraded') }}
-            </span>
-            <span
-              class="inline-flex items-center gap-1.5 rounded-full bg-rose-500/10 px-2.5 py-1 text-xs text-rose-700 dark:text-rose-200"
-            >
-              <Badge status="error" />
-              {{ unavailableCount }}
-              {{ $t('admin.ai.health.status.unavailable') }}
-            </span>
-            <span
-              class="rounded-xl border border-border/60 bg-background/80 px-3 py-2 text-xs text-muted-foreground"
-            >
-              <span class="mr-1 font-semibold text-foreground">
+          <div>
+            <h2 class="text-lg font-semibold text-foreground">
+              {{ $t('admin.ai.health.title') }}
+            </h2>
+            <div class="mt-1 flex flex-wrap items-center gap-3 text-sm">
+              <span class="text-muted-foreground">
                 {{ statuses.length }}
+                {{ $t('admin.ai.health.monitoringItems') }}
               </span>
-              {{ $t('admin.ai.health.providers') }}
-            </span>
+              <span class="inline-flex items-center gap-1 text-emerald-600">
+                <Badge status="success" />
+                {{ healthyCount }}
+              </span>
+              <span class="inline-flex items-center gap-1 text-amber-600">
+                <Badge status="warning" />
+                {{ degradedCount }}
+              </span>
+              <span class="inline-flex items-center gap-1 text-rose-600">
+                <Badge status="error" />
+                {{ unavailableCount }}
+              </span>
+            </div>
           </div>
           <div class="flex flex-wrap items-center justify-end gap-2">
             <InputNumber
@@ -258,172 +370,163 @@ function getProbeText(passed: boolean | null | undefined): string {
         </div>
       </section>
 
-      <!-- 健康状态卡片网格 -->
-      <Spin :spinning="loading">
+      <Spin :spinning="loading || historyLoading">
         <div
           v-if="statuses.length > 0"
           data-testid="health-provider-cards"
-          class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3"
+          class="grid grid-cols-1 gap-4 xl:grid-cols-2 2xl:grid-cols-3"
         >
-          <Card
+          <article
             v-for="status in statuses"
             :key="status.provider_id"
-            class="transition-shadow duration-200 hover:shadow-md"
-            :body-style="{ padding: '20px' }"
+            data-testid="health-provider-card"
+            class="overflow-hidden rounded-[20px] border border-border/70 bg-gradient-to-br from-background via-background to-muted/25 shadow-sm transition-shadow duration-200 hover:shadow-md dark:border-white/[0.08] dark:from-card dark:via-card dark:to-primary/[0.04]"
           >
-            <!-- 头部：供应商 + 状态 -->
-            <div class="mb-4 flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <div
-                  class="flex size-10 items-center justify-center overflow-hidden rounded-lg"
-                  :class="
-                    status.is_available ? 'bg-success/10' : 'bg-destructive/10'
-                  "
-                >
-                  <img
-                    v-if="
-                      toAttachmentImageUrl(status.provider_icon, {
-                        preset: 'small',
-                      })
-                    "
-                    :src="
-                      toAttachmentImageUrl(status.provider_icon, {
-                        preset: 'small',
-                      })
-                    "
-                    class="size-full object-contain"
-                    alt=""
-                  />
-                  <IconifyIcon
-                    v-else
-                    icon="lucide:cpu"
-                    class="size-5"
-                    :class="
-                      status.is_available ? 'text-success' : 'text-destructive'
-                    "
-                  />
-                </div>
-                <div>
-                  <div class="font-medium text-foreground">
-                    {{ status.provider_name }}
+            <div class="space-y-3 px-3.5 py-3.5">
+              <div class="flex items-start justify-between gap-3">
+                <div class="flex min-w-0 items-center gap-2.5">
+                  <div
+                    class="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border/70 bg-background/90 text-foreground dark:border-white/[0.08]"
+                  >
+                    <img
+                      v-if="
+                        toAttachmentImageUrl(status.provider_icon, {
+                          preset: 'small',
+                        })
+                      "
+                      :src="
+                        toAttachmentImageUrl(status.provider_icon, {
+                          preset: 'small',
+                        })
+                      "
+                      class="size-full object-contain p-1.5"
+                      alt=""
+                    />
+                    <IconifyIcon v-else icon="lucide:activity" class="size-5" />
                   </div>
-                  <code class="text-xs text-muted-foreground">{{
-                    status.provider_code
-                  }}</code>
+                  <div class="min-w-0">
+                    <h3
+                      class="truncate text-base font-semibold leading-5 text-foreground"
+                      :title="status.provider_name"
+                    >
+                      {{ status.provider_name }}
+                    </h3>
+                    <div
+                      class="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground"
+                    >
+                      <span
+                        class="inline-flex items-center rounded-full border border-border/70 bg-background/80 px-2 py-0.5 font-semibold text-foreground dark:border-white/[0.08]"
+                      >
+                        {{ $t('admin.ai.health.serviceLayer') }}
+                      </span>
+                      <span class="truncate">{{ status.provider_code }}</span>
+                    </div>
+                  </div>
                 </div>
-              </div>
-              <Badge
-                :status="getBadgeStatus(status)"
-                :text="getStatusText(status)"
-              />
-            </div>
-
-            <!-- 指标 -->
-            <div class="grid grid-cols-2 gap-3 text-sm">
-              <div>
-                <span class="text-muted-foreground">{{
-                  $t('admin.ai.health.responseTime')
-                }}</span>
-                <div class="mt-0.5 font-medium text-foreground">
-                  <span
-                    :class="
-                      status.response_time_ms > 5000
-                        ? 'text-destructive'
-                        : status.response_time_ms > 3000
-                          ? 'text-warning'
-                          : ''
-                    "
-                  >
-                    {{ status.response_time_ms }}ms
-                  </span>
-                </div>
-              </div>
-              <div>
-                <span class="text-muted-foreground">{{
-                  $t('admin.ai.health.failures')
-                }}</span>
-                <div class="mt-0.5 font-medium">
-                  <Tag v-if="status.consecutive_failures === 0" color="success">
-                    0
-                  </Tag>
-                  <Tag
-                    v-else
-                    :color="
-                      status.consecutive_failures >= 3 ? 'error' : 'warning'
-                    "
-                  >
-                    {{ status.consecutive_failures }}
-                  </Tag>
-                </div>
-              </div>
-            </div>
-
-            <div class="mt-4 space-y-2 border-t border-border/60 pt-3 text-xs">
-              <div class="flex items-center justify-between gap-2">
-                <span class="text-muted-foreground">{{
-                  $t('admin.ai.health.wireApi')
-                }}</span>
-                <Tag color="blue">{{ status.wire_api || '-' }}</Tag>
-              </div>
-              <div class="flex items-center justify-between gap-2">
-                <span class="text-muted-foreground">{{
-                  $t('admin.ai.health.baseConnectivity')
-                }}</span>
-                <Tag
-                  :color="getProbeBadgeStatus(status.base_connectivity_healthy)"
+                <span
+                  class="shrink-0 rounded-full border px-2.5 py-0.5 text-xs font-semibold"
+                  :class="getStatusPillClass(status)"
                 >
-                  {{ getProbeText(status.base_connectivity_healthy) }}
-                </Tag>
+                  {{ getStatusText(status) }}
+                </span>
               </div>
-              <div class="flex items-center justify-between gap-2">
-                <span class="text-muted-foreground">{{
-                  $t('admin.ai.health.toolProbe')
-                }}</span>
-                <Tag :color="getProbeBadgeStatus(status.tool_calling_healthy)">
-                  {{ getProbeText(status.tool_calling_healthy) }}
-                </Tag>
-              </div>
-              <div
-                v-if="
-                  status.tool_probe_model || status.tool_probe_reasoning_effort
-                "
-                class="flex flex-col gap-1"
-              >
-                <span class="text-muted-foreground">{{
-                  $t('admin.ai.health.toolProbeModel')
-                }}</span>
-                <code class="break-all text-foreground">
-                  {{ status.tool_probe_model || '-' }}
-                  <template v-if="status.tool_probe_reasoning_effort">
-                    ({{ status.tool_probe_reasoning_effort }})
-                  </template>
-                </code>
-              </div>
-            </div>
 
-            <!-- 错误信息 -->
-            <div v-if="status.error_message" class="mt-3">
-              <Tooltip :title="status.error_message">
+              <div class="grid gap-2 sm:grid-cols-2">
                 <div
-                  class="line-clamp-1 rounded bg-destructive/5 px-2 py-1 text-xs text-destructive"
+                  class="rounded-xl border border-border/70 bg-background/80 px-3 py-2.5 dark:border-white/[0.08] dark:bg-background/40"
+                >
+                  <div
+                    class="flex items-center gap-1.5 text-[11px] uppercase text-muted-foreground"
+                  >
+                    <IconifyIcon icon="lucide:waves" class="size-3.5" />
+                    {{ $t('admin.ai.health.ttfb') }}
+                  </div>
+                  <div class="mt-1.5 text-xl font-semibold text-foreground">
+                    {{ status.response_time_ms }} ms
+                  </div>
+                </div>
+                <div
+                  class="rounded-xl border border-border/70 bg-background/80 px-3 py-2.5 dark:border-white/[0.08] dark:bg-background/40"
+                >
+                  <div
+                    class="flex items-center gap-1.5 text-[11px] uppercase text-muted-foreground"
+                  >
+                    <IconifyIcon icon="lucide:clock-3" class="size-3.5" />
+                    {{ $t('admin.ai.health.latest') }}
+                  </div>
+                  <div
+                    class="mt-1.5 text-xs font-semibold text-foreground sm:text-sm"
+                  >
+                    {{ formatDate(status.checked_at) }}
+                  </div>
+                </div>
+              </div>
+
+              <div class="flex items-end justify-between gap-4">
+                <div>
+                  <div class="text-[11px] uppercase text-muted-foreground">
+                    {{ $t('admin.ai.health.availabilityOneHour') }}
+                  </div>
+                  <div
+                    class="mt-0.5 text-lg font-semibold"
+                    :class="getStatusAccentClass(status)"
+                  >
+                    {{ getHistoryAvailability(status) }}%
+                  </div>
+                  <div class="text-[11px] text-muted-foreground">
+                    {{ getHistorySuccessCount(status) }}/{{
+                      getProviderHistory(status).length
+                    }}
+                    {{ $t('admin.ai.health.success') }}
+                  </div>
+                </div>
+                <div
+                  class="text-right text-[11px] uppercase text-muted-foreground"
+                >
+                  {{
+                    $t('admin.ai.health.history', {
+                      count: HISTORY_SLOT_COUNT,
+                    })
+                  }}
+                </div>
+              </div>
+
+              <div class="space-y-1">
+                <div
+                  class="flex items-center justify-between text-[11px] uppercase text-muted-foreground"
+                >
+                  <span>{{ $t('admin.ai.health.historyPast') }}</span>
+                  <span>{{ $t('admin.ai.health.historyNow') }}</span>
+                </div>
+                <div
+                  class="grid grid-cols-[repeat(60,minmax(0,1fr))] items-center gap-[3px]"
+                >
+                  <Tooltip
+                    v-for="(point, index) in getHistoryDisplayPoints(status)"
+                    :key="`${status.provider_id}-${point.checked_at || index}`"
+                    :title="getHistoryPointTooltip(point)"
+                  >
+                    <span
+                      data-testid="health-history-point"
+                      class="h-8 w-full rounded-full"
+                      :class="getHistoryPointClass(point)"
+                    ></span>
+                  </Tooltip>
+                </div>
+              </div>
+
+              <Tooltip
+                v-if="status.error_message"
+                :title="status.error_message"
+              >
+                <div
+                  class="line-clamp-1 rounded-lg border border-rose-500/20 bg-rose-500/5 px-2.5 py-1 text-xs text-rose-600 dark:text-rose-300"
                 >
                   {{ status.error_message }}
                 </div>
               </Tooltip>
             </div>
-
-            <!-- 最后检查时间 -->
-            <div class="mt-3 text-xs text-muted-foreground">
-              {{ $t('admin.ai.health.lastCheck') }}:
-              <Tooltip :title="formatDate(status.checked_at)">
-                <span
-                  class="ml-1 inline-flex cursor-default rounded-md px-1 py-0.5 tabular-nums transition-colors hover:bg-muted/80"
-                >
-                  {{ formatRelativeTime(status.checked_at) }}
-                </span>
-              </Tooltip>
-            </div>
-          </Card>
+          </article>
         </div>
         <Empty
           v-else

@@ -124,7 +124,7 @@ export interface AIHealthStatus {
   provider_code: string;
   provider_name: string;
   provider_icon?: null | string;
-  wire_api?: null | string;
+  primary_wire_api?: null | string;
   is_healthy: boolean;
   is_available: boolean;
   base_connectivity_healthy?: boolean;
@@ -139,6 +139,22 @@ export interface AIHealthStatus {
   consecutive_failures: number;
   error_message: null | string;
   checked_at: string;
+}
+
+/** Provider health history entry / 供应商健康历史记录 */
+export interface AIHealthHistoryEntry {
+  primary_wire_api?: null | string;
+  is_healthy?: boolean | null;
+  is_available?: boolean | null;
+  base_connectivity_healthy?: boolean | null;
+  tool_calling_healthy?: boolean | null;
+  response_time_ms?: null | number;
+  error_message?: null | string;
+  checked_at?: null | string;
+}
+
+export interface AIHealthHistoryParams {
+  limit?: number;
 }
 
 // ============================================================
@@ -364,6 +380,18 @@ export async function getAIHealthStatusApi(
   options?: ApiRequestOptions,
 ): Promise<AIHealthStatus[]> {
   return requestClient.get<AIHealthStatus[]>('/admin/ai/health', options);
+}
+
+/** Get AI provider health history / 获取 AI 供应商健康历史 */
+export async function getAIHealthHistoryApi(
+  providerId: number,
+  params?: AIHealthHistoryParams,
+  options?: ApiRequestOptions,
+): Promise<AIHealthHistoryEntry[]> {
+  return requestClient.get<AIHealthHistoryEntry[]>(
+    `/admin/ai/health/${providerId}/history`,
+    { params, ...options },
+  );
 }
 
 // ============================================================

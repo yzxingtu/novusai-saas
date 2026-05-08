@@ -120,6 +120,12 @@ class AdminAIHealthController(GlobalController):
             db: DbSession,
             provider_id: int,
             admin: ActiveAdmin,
+            limit: int = Query(
+                60,
+                ge=1,
+                le=288,
+                description="返回历史采样条数，默认 60 条",
+            ),
         ):
             """
             获取供应商最近 24h 健康检查记录 / Get provider last 24h health check history
@@ -128,7 +134,7 @@ class AdminAIHealthController(GlobalController):
             """
             history = await FailoverService.get_provider_health_history(
                 provider_id=provider_id,
-                limit=288,  # 24h * 12 (every 5 min) / 24 小时 × 12 条（每 5 分钟采样）
+                limit=limit,
             )
             return success(data=history, message=_("common.success"))
 
