@@ -1,19 +1,17 @@
 /**
- * Tabbar sessionStorage self-healing utility
- * Tabbar sessionStorage 自愈工具
+ * Tabbar sessionStorage maintenance utility
+ * Tabbar sessionStorage 维护工具
  *
  * Goals:
- * 1) Clean up legacy error keys (e.g., core-tabbar)
- * 2) Limit persisted tabs count to prevent state bloat from long-running tabs
- * 3) Deduplicate tabs caused by query differences (default dedup by path)
+ * 1) Limit persisted tabs count to prevent state bloat from long-running tabs
+ * 2) Deduplicate tabs caused by query differences (default dedup by path)
  * 目标：
- * 1) 清理历史错误 key（如 core-tabbar）
- * 2) 限制持久化 tabs 数量，避免单标签页长期运行后状态膨胀
- * 3) 收敛 query 导致的重复 tab（默认按 path 去重）
+ * 1) 限制持久化 tabs 数量，避免单标签页长期运行后状态膨胀
+ * 2) 收敛 query 导致的重复 tab（默认按 path 去重）
  */
 
-const LEGACY_TABBAR_KEY = 'core-tabbar';
-const TABBAR_KEY_SUFFIX = '-core-tabbar';
+const TABBAR_STORE_ID = 'core-tabbar';
+const TABBAR_KEY_SUFFIX = `-${TABBAR_STORE_ID}`;
 
 const DEFAULT_MAX_PERSISTED_TABS = 30;
 const MAX_PAYLOAD_BYTES = 512 * 1024;
@@ -35,18 +33,21 @@ interface PersistedTabbarState {
   tabs?: PersistedTab[];
 }
 
-function isTabbarStorageKey(key: string, namespace?: string): boolean {
-  if (key === LEGACY_TABBAR_KEY) return true;
-  if (namespace && key === `${namespace}-core-tabbar`) return true;
-  return key.endsWith(TABBAR_KEY_SUFFIX);
+function getNamespacedTabbarStorageKey(namespace: string): string {
+  return `${namespace}-${TABBAR_STORE_ID}`;
 }
 
 function getTabbarStorageKeys(namespace?: string): string[] {
+  if (namespace) {
+    const key = getNamespacedTabbarStorageKey(namespace);
+    return sessionStorage.getItem(key) === null ? [] : [key];
+  }
+
   const keys: string[] = [];
   for (let i = 0; i < sessionStorage.length; i++) {
     const key = sessionStorage.key(i);
     if (!key) continue;
-    if (isTabbarStorageKey(key, namespace)) {
+    if (key.endsWith(TABBAR_KEY_SUFFIX)) {
       keys.push(key);
     }
   }
@@ -127,14 +128,7 @@ export function clearPersistedTabbarStorage(namespace?: string): void {
  */
 export function sanitizePersistedTabbarStorage(namespace?: string): void {
   const keys = getTabbarStorageKeys(namespace);
-  const currentKey = namespace ? `${namespace}-core-tabbar` : '';
   for (const key of keys) {
-    // 清理历史版本遗留 key，避免 sessionStorage 在同标签页内长期膨胀
-    if (namespace && key !== currentKey) {
-      sessionStorage.removeItem(key);
-      continue;
-    }
-
     const raw = sessionStorage.getItem(key);
     if (!raw) {
       sessionStorage.removeItem(key);

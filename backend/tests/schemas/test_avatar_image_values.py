@@ -1,11 +1,19 @@
+"""中文: 测试类型 behavioral；头像写入 schema 只接受附件 ID。
+
+EN: Test type behavioral; avatar write schemas accept attachment IDs only.
+"""
+
 import pytest
 from pydantic import ValidationError
 
 from app.schemas.system.admin import AdminUpdateProfileRequest, AdminUpdateRequest
+from app.schemas.system.admin_org_node import AdminOrgNodeUpdateMemberRequest
+from app.schemas.system.role import AdminRoleUpdateMemberRequest
 from app.schemas.tenant.admin import (
     TenantAdminUpdateProfileRequest,
     TenantAdminUpdateRequest,
 )
+from app.schemas.tenant.tenant_org_node import TenantOrgNodeUpdateMemberRequest
 from app.schemas.tenant.user import (
     TenantUserProfileUpdateRequest,
     TenantUserUpdateRequest,
@@ -17,8 +25,11 @@ from app.schemas.tenant.user import (
     [
         AdminUpdateRequest,
         AdminUpdateProfileRequest,
+        AdminOrgNodeUpdateMemberRequest,
+        AdminRoleUpdateMemberRequest,
         TenantAdminUpdateRequest,
         TenantAdminUpdateProfileRequest,
+        TenantOrgNodeUpdateMemberRequest,
         TenantUserUpdateRequest,
         TenantUserProfileUpdateRequest,
     ],
@@ -39,8 +50,11 @@ def test_avatar_write_schemas_accept_canonical_attachment_ids(schema_cls) -> Non
     [
         AdminUpdateRequest,
         AdminUpdateProfileRequest,
+        AdminOrgNodeUpdateMemberRequest,
+        AdminRoleUpdateMemberRequest,
         TenantAdminUpdateRequest,
         TenantAdminUpdateProfileRequest,
+        TenantOrgNodeUpdateMemberRequest,
         TenantUserUpdateRequest,
         TenantUserProfileUpdateRequest,
     ],

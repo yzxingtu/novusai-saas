@@ -39,13 +39,12 @@ class TenantUserLoginDomain:
         username: str,
         password: str,
         tenant_code: str | None = None,
-        tenant_id_from_ctx: int | None = None,
         client_ip: str | None = None,
         captcha_challenge_id: str | None = None,
         captcha_solution: str | None = None,
         captcha_provider_code: str | None = None,
     ) -> dict[str, Any]:
-        if not tenant_code and not tenant_id_from_ctx:
+        if not tenant_code:
             self._service._log_auth_warning(
                 "tenant_user.login.failed",
                 identifier=self._service._mask_identifier(username),
@@ -68,8 +67,6 @@ class TenantUserLoginDomain:
                 Tenant.is_active.is_(True),
                 Tenant.is_deleted.is_(False),
             )
-        elif tenant_id_from_ctx:
-            query = query.where(TenantUser.tenant_id == tenant_id_from_ctx)
 
         result = await self._service.db.execute(query)
         results = result.scalars().all()
@@ -406,7 +403,6 @@ class TenantUserAccountDomain:
         email: str,
         password: str,
         tenant_code: str | None = None,
-        tenant_id_from_ctx: int | None = None,
         phone: str | None = None,
         nickname: str | None = None,
         client_ip: str | None = None,
@@ -414,8 +410,8 @@ class TenantUserAccountDomain:
         captcha_solution: str | None = None,
         captcha_provider_code: str | None = None,
     ) -> dict[str, Any]:
-        tenant_id = tenant_id_from_ctx
-        if not tenant_id and tenant_code:
+        tenant_id: int | None = None
+        if tenant_code:
             result = await self._service.db.execute(
                 select(Tenant).where(
                     Tenant.code == tenant_code,
@@ -426,16 +422,6 @@ class TenantUserAccountDomain:
             if tenant is None or not tenant.is_active:
                 raise BusinessException(message=_("tenant.not_found"))
             tenant_id = tenant.id
-        elif tenant_id:
-            result = await self._service.db.execute(
-                select(Tenant).where(
-                    Tenant.id == tenant_id,
-                    Tenant.is_deleted.is_(False),
-                )
-            )
-            tenant = result.scalar_one_or_none()
-            if tenant is None or not tenant.is_active:
-                raise BusinessException(message=_("tenant.disabled"))
 
         if not tenant_id:
             raise BusinessException(
@@ -688,10 +674,9 @@ class TenantUserAccountDomain:
         self,
         email: str,
         tenant_code: str | None = None,
-        tenant_id_from_ctx: int | None = None,
     ) -> dict[str, Any]:
-        tenant_id = tenant_id_from_ctx
-        if not tenant_id and tenant_code:
+        tenant_id: int | None = None
+        if tenant_code:
             result = await self._service.db.execute(
                 select(Tenant).where(
                     Tenant.code == tenant_code,
@@ -780,10 +765,9 @@ class TenantUserAccountDomain:
         code: str,
         new_password: str,
         tenant_code: str | None = None,
-        tenant_id_from_ctx: int | None = None,
     ) -> None:
-        tenant_id = tenant_id_from_ctx
-        if not tenant_id and tenant_code:
+        tenant_id: int | None = None
+        if tenant_code:
             result = await self._service.db.execute(
                 select(Tenant).where(
                     Tenant.code == tenant_code,

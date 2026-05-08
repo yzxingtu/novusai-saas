@@ -12,6 +12,7 @@ import { flushPromises } from '@vue/test-utils';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { buildTurnFlowState } from '../../ai-chat-kernel/TurnFlowState';
 import {
   getOptimizingToolsForDisplay,
   getRagSourcesForDisplay,
@@ -19,7 +20,6 @@ import {
   getToolCallsForDisplay,
   getTurnFlowForDisplay,
 } from '../chat-message-turn-flow';
-import { buildTurnFlowState } from '../../ai-chat-kernel/TurnFlowState';
 import { shouldDisplayConversationInHistory, useAIChat } from '../use-ai-chat';
 import { createStreamSseHandler } from '../use-ai-chat-streaming-request-sse';
 import {
@@ -1763,7 +1763,7 @@ describe('useAIChat interrupted stream recovery', () => {
           sseEvent({ event: 'conversation', conversation_id: 42 }),
         );
         await options.onMessage(
-            sseEvent({ event: 'message', delta: '今日报表摘要已生成。' }),
+          sseEvent({ event: 'message', delta: '今日报表摘要已生成。' }),
         );
         await options.onMessage(
           sseEvent({
@@ -2639,14 +2639,14 @@ describe('useAIChat interrupted stream recovery', () => {
         enabled: true,
         id: 22,
         is_auto_bound: false,
-        package_description: 'Retired online search package',
+        package_description: 'Allowed internal knowledge helper',
         package_id: 32,
         package_is_system: true,
-        package_name: '联网搜索',
-        skill_description: 'Retired public web search',
+        package_name: '知识检索',
+        skill_description: 'Query approved knowledge records',
         skill_id: 42,
-        skill_key: 'web_search',
-        skill_name: 'web_search',
+        skill_key: 'knowledge_lookup',
+        skill_name: '知识检索',
         skill_type: 'toolkit',
       },
       {
@@ -2688,9 +2688,9 @@ describe('useAIChat interrupted stream recovery', () => {
 
     expect(
       chat.getAgentSkillBindings(1)?.map((item) => item.package_name),
-    ).toEqual(['联网搜索', '报表工具']);
+    ).toEqual(['知识检索', '报表工具']);
 
-    chat.inputMessage.value = '@联网';
+    chat.inputMessage.value = '@知识';
     await flushPromises();
     expect(chat.mentionCandidates.value).toEqual([
       expect.objectContaining({
@@ -2700,7 +2700,7 @@ describe('useAIChat interrupted stream recovery', () => {
     expect(
       chat.handleInputKeyDown(new KeyboardEvent('keydown', { key: 'Enter' })),
     ).toBe(true);
-    expect(chat.inputMessage.value).toBe('@联网搜索 ');
+    expect(chat.inputMessage.value).toBe('@知识检索 ');
 
     chat.inputMessage.value = '@报表';
     await flushPromises();

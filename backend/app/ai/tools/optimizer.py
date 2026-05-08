@@ -463,7 +463,8 @@ def optimize_tools(
         [tool.name for tool in tools if tool not in selected],
         user_query[:50],
     )
-    # Loguru 无 isEnabledFor，使用 getattr 兼容 / Loguru has no isEnabledFor, use getattr for compat
+    # 中文: Loguru 不提供 isEnabledFor；使用可选探测避免直接依赖标准 logging API。
+    # EN: Loguru does not expose isEnabledFor, so probe it without depending on stdlib logging.
     if getattr(logger, "isEnabledFor", lambda _: False)(10):
         for t in protected:
             logger.debug("  [protected] {}", t.name)

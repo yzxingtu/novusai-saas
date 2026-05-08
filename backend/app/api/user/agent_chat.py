@@ -9,7 +9,6 @@ All AI usage (tokens, quotas, statistics) is automatically attributed to the use
 Reuses existing AgentChatService / ConversationService / shared helpers.
 """
 
-from fastapi import Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.shared._agent_chat_helpers import (
@@ -109,7 +108,6 @@ class UserAgentChatController(BaseController):
         )
         @auth_only
         async def chat(
-            request: Request,
             db: DbSession,
             agent_id: int,
             data: AgentChatRequest,
@@ -169,7 +167,6 @@ class UserAgentChatController(BaseController):
         )
         @auth_only
         async def stream_chat(
-            request: Request,
             db: DbSession,
             agent_id: int,
             data: AgentChatRequest,
@@ -201,7 +198,6 @@ class UserAgentChatController(BaseController):
             return await service.stream_chat(
                 agent_id=agent_id,
                 message=data.message or "",
-                messages=data.messages,
                 conversation_id=data.conversation_id,
                 variables=data.variables,
                 user_id=current_user.id,
@@ -238,7 +234,6 @@ class UserAgentChatController(BaseController):
         )
         @auth_only
         async def route_agent(
-            request: Request,
             db: DbSession,
             data: AgentRouteRequest,
             current_user: ActiveTenantUser,
@@ -278,7 +273,6 @@ class UserAgentChatController(BaseController):
         )
         @auth_only
         async def list_conversations(
-            request: Request,
             db: DbSession,
             current_user: ActiveTenantUser,
             query: QueryParams,
@@ -316,7 +310,6 @@ class UserAgentChatController(BaseController):
         )
         @auth_only
         async def get_conversation_detail(
-            request: Request,
             db: DbSession,
             conversation_id: int,
             current_user: ActiveTenantUser,
@@ -337,7 +330,6 @@ class UserAgentChatController(BaseController):
         )
         @auth_only
         async def get_conversation_compact_snapshot(
-            request: Request,
             db: DbSession,
             conversation_id: int,
             current_user: ActiveTenantUser,
@@ -358,7 +350,6 @@ class UserAgentChatController(BaseController):
         )
         @auth_only
         async def get_conversation_timeline(
-            request: Request,
             db: DbSession,
             conversation_id: int,
             current_user: ActiveTenantUser,
@@ -378,7 +369,6 @@ class UserAgentChatController(BaseController):
         )
         @auth_only
         async def update_conversation_title(
-            request: Request,
             db: DbSession,
             conversation_id: int,
             data: UpdateConversationTitleRequest,
@@ -402,7 +392,6 @@ class UserAgentChatController(BaseController):
         )
         @auth_only
         async def delete_conversation(
-            request: Request,
             db: DbSession,
             conversation_id: int,
             current_user: ActiveTenantUser,
@@ -428,7 +417,6 @@ class UserAgentChatController(BaseController):
         )
         @auth_only
         async def get_conversation_memory(
-            request: Request,
             db: DbSession,
             conversation_id: int,
             current_user: ActiveTenantUser,
@@ -449,7 +437,6 @@ class UserAgentChatController(BaseController):
         )
         @auth_only
         async def clear_conversation_memory(
-            request: Request,
             db: DbSession,
             conversation_id: int,
             current_user: ActiveTenantUser,
@@ -474,7 +461,6 @@ class UserAgentChatController(BaseController):
         )
         @auth_only
         async def rebuild_conversation_compaction(
-            request: Request,
             db: DbSession,
             conversation_id: int,
             current_user: ActiveTenantUser,
@@ -495,7 +481,6 @@ class UserAgentChatController(BaseController):
         )
         @auth_only
         async def get_conversation_run_timeline(
-            request: Request,
             db: DbSession,
             conversation_id: int,
             current_user: ActiveTenantUser,

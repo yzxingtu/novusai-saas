@@ -13,10 +13,9 @@ from app.core.base_schema import BaseSchema
 
 
 def _validate_writable_avatar_value(value: object) -> str | None:
-    """中文: 写入边界只接受附件 ID，历史 URL 仅允许响应只读展示。
+    """中文: 写入边界只接受附件 ID。
 
-    EN: Write boundaries accept attachment IDs only; legacy URLs are read-only
-    response display values.
+    EN: Write boundaries accept attachment IDs only.
     """
     if value is None:
         return None
@@ -37,6 +36,17 @@ def _validate_writable_avatar_value(value: object) -> str | None:
     raise ValueError("avatar must be a positive attachment ID")
 
 
+def _normalize_readable_avatar_value(value: object) -> str | None:
+    """中文: 响应边界隐藏非附件 ID 的存量头像值。
+
+    EN: Response boundaries hide stored avatar values that are not attachment IDs.
+    """
+    try:
+        return _validate_writable_avatar_value(value)
+    except ValueError:
+        return None
+
+
 class AdminLoginRequest(BaseSchema):
     """管理员登录请求 / Admin login request."""
 
@@ -55,7 +65,7 @@ class AdminResponse(BaseSchema):
     email: str = Field(..., description="邮箱")
     phone: str | None = Field(None, description="手机号")
     nickname: str | None = Field(None, description="昵称")
-    avatar: str | None = Field(None, description="头像附件 ID（历史 URL 仅只读展示）")
+    avatar: str | None = Field(None, description="头像附件 ID")
     is_active: bool = Field(..., description="是否激活")
     ai_enabled: bool = Field(True, description="是否允许使用 AI 对话")
     effective_ai_enabled: bool = Field(True, description="当前账号实际是否可用 AI")
@@ -88,6 +98,11 @@ class AdminResponse(BaseSchema):
             last_login_at=admin.last_login_at,
             created_at=admin.created_at,
         )
+
+    @field_validator("avatar", mode="before")
+    @classmethod
+    def normalize_avatar(cls, value: object) -> str | None:
+        return _normalize_readable_avatar_value(value)
 
 
 class AdminCreateRequest(BaseSchema):

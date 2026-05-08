@@ -14,10 +14,9 @@ from app.core.base_schema import BaseSchema
 
 
 def _validate_writable_avatar_value(value: object) -> str | None:
-    """中文: 写入边界只接受附件 ID，历史 URL 仅允许响应只读展示。
+    """中文: 写入边界只接受附件 ID。
 
-    EN: Write boundaries accept attachment IDs only; legacy URLs are read-only
-    response display values.
+    EN: Write boundaries accept attachment IDs only.
     """
     if value is None:
         return None
@@ -36,6 +35,17 @@ def _validate_writable_avatar_value(value: object) -> str | None:
     if normalized.isdecimal() and not normalized.startswith("0"):
         return normalized
     raise ValueError("avatar must be a positive attachment ID")
+
+
+def _normalize_readable_avatar_value(value: object) -> str | None:
+    """中文: 响应边界隐藏非附件 ID 的存量头像值。
+
+    EN: Response boundaries hide stored avatar values that are not attachment IDs.
+    """
+    try:
+        return _validate_writable_avatar_value(value)
+    except ValueError:
+        return None
 
 
 class TenantUserLoginRequest(BaseSchema):
@@ -108,7 +118,7 @@ class TenantUserResponse(BaseSchema):
     email: str = Field(..., description="邮箱")
     phone: str | None = Field(None, description="手机号")
     nickname: str | None = Field(None, description="昵称")
-    avatar: str | None = Field(None, description="头像附件 ID（历史 URL 仅只读展示）")
+    avatar: str | None = Field(None, description="头像附件 ID")
     gender: int = Field(0, description="性别: 0未知 1男 2女")
     is_active: bool = Field(..., description="是否激活")
     approval_status: str = Field("approved", description="审批状态")
@@ -119,6 +129,11 @@ class TenantUserResponse(BaseSchema):
     last_login_at: datetime | None = Field(None, description="最后登录时间")
     created_at: datetime = Field(..., description="创建时间")
     updated_at: datetime | None = Field(None, description="更新时间")
+
+    @field_validator("avatar", mode="before")
+    @classmethod
+    def normalize_avatar(cls, value: object) -> str | None:
+        return _normalize_readable_avatar_value(value)
 
 
 class TenantUserCreateRequest(BaseSchema):

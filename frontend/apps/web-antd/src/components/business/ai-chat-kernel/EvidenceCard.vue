@@ -44,7 +44,8 @@ function normalizeCompactAnswerText(value: string) {
 
 function isSameAnswerText(left: string, right: string) {
   return (
-    normalizeComparableAnswerText(left) === normalizeComparableAnswerText(right) ||
+    normalizeComparableAnswerText(left) ===
+      normalizeComparableAnswerText(right) ||
     normalizeCompactAnswerText(left) === normalizeCompactAnswerText(right)
   );
 }

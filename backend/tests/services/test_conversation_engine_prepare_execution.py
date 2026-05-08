@@ -351,7 +351,12 @@ async def test_prepare_execution_leaves_plugin_weather_tools_to_model_choice(
             skill_result=skill_result,
         )
 
-    assert prep.tool_use_policy == ToolUsePolicy()
+    assert prep.tool_use_policy == ToolUsePolicy(
+        family="none",
+        mode="auto",
+        allowed_tool_names=["get_current_weather", "get_weather_forecast"],
+        reason="direct_reply_discoverable_tools",
+    )
     assert {tool.name for tool in prep.tools} == {
         "get_current_weather",
         "get_weather_forecast",
@@ -1163,9 +1168,17 @@ async def test_prepare_execution_exposes_plugin_weather_tools_by_metadata_only()
 
     assert prep.execution_path == "fast"
     assert [intent.kind for intent in prep.intent_plan] == ["direct_reply"]
-    assert [tool.name for tool in prep.tools] == ["get_current_weather"]
+    assert [tool.name for tool in prep.tools] == [
+        "get_current_weather",
+        "get_weather_forecast",
+    ]
     assert prep.intent_plan[0].allowed_tool_names == []
-    assert prep.tool_use_policy == ToolUsePolicy()
+    assert prep.tool_use_policy == ToolUsePolicy(
+        family="none",
+        mode="auto",
+        allowed_tool_names=["get_current_weather", "get_weather_forecast"],
+        reason="direct_reply_discoverable_tools",
+    )
     assert prep.execution_budget is not None
     assert prep.execution_budget.max_tool_rounds == 2
     assert prep.diagnostics["capability_injection_decision"] == {

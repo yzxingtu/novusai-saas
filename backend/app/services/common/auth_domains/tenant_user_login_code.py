@@ -33,12 +33,11 @@ class TenantUserLoginCodeDomain:
         self,
         *,
         tenant_code: str | None,
-        tenant_id_from_ctx: int | None,
         identifier: str | None = None,
         client_ip: str | None = None,
         log_reason: str = "tenant_domain_required",
     ) -> int:
-        if not tenant_code and not tenant_id_from_ctx:
+        if not tenant_code:
             self._service._log_auth_warning(
                 "tenant_user.login_code.failed",
                 identifier=self._service._mask_identifier(identifier),
@@ -47,23 +46,17 @@ class TenantUserLoginCodeDomain:
             )
             raise AuthenticationException(message=_("auth.tenant_domain_required"))
 
-        tenant_id = tenant_id_from_ctx
-        if not tenant_id and tenant_code:
-            result = await self._service.db.execute(
-                select(Tenant).where(
-                    Tenant.code == tenant_code,
-                    Tenant.is_active.is_(True),
-                    Tenant.is_deleted.is_(False),
-                )
+        result = await self._service.db.execute(
+            select(Tenant).where(
+                Tenant.code == tenant_code,
+                Tenant.is_active.is_(True),
+                Tenant.is_deleted.is_(False),
             )
-            tenant = result.scalar_one_or_none()
-            if not tenant:
-                raise BusinessException(message=_("tenant.not_found"))
-            tenant_id = tenant.id
-
-        if tenant_id is None:
+        )
+        tenant = result.scalar_one_or_none()
+        if not tenant:
             raise BusinessException(message=_("tenant.not_found"))
-        return int(tenant_id)
+        return int(tenant.id)
 
     async def ensure_login_code_channel_enabled(
         self,
@@ -147,7 +140,6 @@ class TenantUserLoginCodeDomain:
         email: str | None = None,
         phone: str | None = None,
         tenant_code: str | None = None,
-        tenant_id_from_ctx: int | None = None,
         client_ip: str | None = None,
         captcha_challenge_id: str | None = None,
         captcha_solution: str | None = None,
@@ -158,7 +150,6 @@ class TenantUserLoginCodeDomain:
         identifier = normalized_email or normalized_phone
         tenant_id = await self.resolve_login_tenant_id(
             tenant_code=tenant_code,
-            tenant_id_from_ctx=tenant_id_from_ctx,
             identifier=identifier,
             client_ip=client_ip,
         )
@@ -279,7 +270,6 @@ class TenantUserLoginCodeDomain:
         email: str | None = None,
         phone: str | None = None,
         tenant_code: str | None = None,
-        tenant_id_from_ctx: int | None = None,
         client_ip: str | None = None,
     ) -> dict[str, Any]:
         normalized_email = (email or "").strip().lower() or None
@@ -287,7 +277,6 @@ class TenantUserLoginCodeDomain:
         identifier = normalized_email or normalized_phone
         tenant_id = await self.resolve_login_tenant_id(
             tenant_code=tenant_code,
-            tenant_id_from_ctx=tenant_id_from_ctx,
             identifier=identifier,
             client_ip=client_ip,
         )

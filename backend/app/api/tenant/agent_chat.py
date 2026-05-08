@@ -198,7 +198,6 @@ class TenantAgentChatController(TenantController):
             return await service.stream_chat(
                 agent_id=agent_id,
                 message=data.message or "",
-                messages=data.messages,
                 conversation_id=data.conversation_id,
                 variables=data.variables,
                 user_id=tenant_admin.id,

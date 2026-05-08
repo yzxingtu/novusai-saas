@@ -4,6 +4,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from app.ai.runtime.execution_trust_policy import (
+    build_policy_ref,
+    risk_rank,
+    tool_family_for_name,
+    tool_risk_level,
+)
 from app.enums.agent import ActionLevelEnum
 from app.schemas.ai.invalid_ai_runtime_input import is_invalid_ai_runtime_tool_name
 
@@ -69,17 +75,9 @@ async def resolve_runtime_trust_policy_ref(
 
 def build_trust_policy_ref_from_interaction_updates(
     interaction_updates: list[dict[str, Any]] | None,
-    trust_policy_service_cls: type | None = None,
 ) -> dict[str, Any] | None:
     if not interaction_updates:
         return None
-
-    if trust_policy_service_cls is None:
-        from app.services.ai.execution_trust_policy_service import (
-            ExecutionTrustPolicyService,
-        )
-
-        trust_policy_service_cls = ExecutionTrustPolicyService
 
     allowed_tool_names: set[str] = set()
     tool_families: set[str] = set()
@@ -98,28 +96,26 @@ def build_trust_policy_ref_from_interaction_updates(
         tool_name = str(update.get("tool_name") or "").strip()
         if not tool_name or is_invalid_ai_runtime_tool_name(tool_name):
             continue
-        tool_family = trust_policy_service_cls.tool_family_for_name(tool_name)
-        tool_risk = trust_policy_service_cls.tool_risk_level(
+        tool_family = tool_family_for_name(tool_name)
+        tool_risk = tool_risk_level(
             tool_name=tool_name,
             tool_family=tool_family,
         )
         allowed_tool_names.add(tool_name)
         if tool_family and tool_family != "none":
             tool_families.add(tool_family)
-        if trust_policy_service_cls._risk_rank(
-            tool_risk
-        ) > trust_policy_service_cls._risk_rank(risk_cap):
+        if risk_rank(tool_risk) > risk_rank(risk_cap):
             risk_cap = tool_risk
 
     if not allowed_tool_names:
         return None
 
-    return {
-        "policy_ids": [],
-        "allowed_tool_names": sorted(allowed_tool_names),
-        "tool_families": sorted(tool_families),
-        "risk_level_cap": risk_cap,
-    }
+    return build_policy_ref(
+        policy_ids=[],
+        allowed_tool_names=sorted(allowed_tool_names),
+        tool_families=sorted(tool_families),
+        risk_level_cap=risk_cap,
+    )
 
 
 def build_trusted_auto_bootstrap_policy_ref() -> dict[str, Any]:
@@ -181,7 +177,6 @@ async def resolve_interaction_mode(
         return "trusted_auto", resolved_ref, None
     interaction_ref = build_trust_policy_ref_from_interaction_updates(
         interaction_updates,
-        trust_policy_service_cls=trust_policy_service_cls,
     )
     if interaction_ref:
         return "trusted_auto", interaction_ref, None

@@ -5,10 +5,10 @@
 Defines organization node types, data scope for row-level filtering.
 """
 
-from app.enums.base import StrEnum
+from app.enums.base import LabeledStrEnum
 
 
-class DataScope(StrEnum):
+class DataScope(LabeledStrEnum):
     """
     数据权限范围枚举 / Data permission scope enum
 
@@ -26,13 +26,13 @@ class DataScope(StrEnum):
     CUSTOM = ("custom", "enum.data_scope.custom")
 
 
-class RoleType(StrEnum):
+class RoleType(LabeledStrEnum):
     """
     Organization Node Type Enum / 组织架构节点类型枚举
 
     - DEPARTMENT: Department / 部门 - can add sub-depts/positions, members, leaders / 可添加子部门/岗位，成员，负责人
     - POSITION: Position / 岗位 - no children, can add members / 不可添加子节点，可添加成员
-    - ROLE: Functional Role / 职能角色 - can add sub-roles, members (default, backward compat) / 可添加子角色，成员（默认类型）
+    - ROLE: Functional Role / 职能角色 - can add sub-roles and members / 可添加子角色和成员
     """
 
     DEPARTMENT = ("department", "enum.role_type.department")

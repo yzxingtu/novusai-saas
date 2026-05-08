@@ -6,9 +6,8 @@ from typing import Any, Protocol
 
 from app.ai.types import ChatMessage
 from app.schemas.ai.invalid_ai_runtime_input import (
-    INVALID_AI_PROVIDER_CONFIG_KEYS,
     is_invalid_ai_runtime_reference,
-    normalize_ai_runtime_token,
+    strip_invalid_ai_provider_config_keys,
 )
 
 
@@ -93,22 +92,31 @@ def _is_safe_responses_tool_followup(
 
 
 def _drop_runtime_private_kwargs(runtime_kwargs: dict[str, Any]) -> None:
+    sanitized = strip_invalid_ai_provider_config_keys(runtime_kwargs)
+    runtime_kwargs.clear()
+    runtime_kwargs.update(sanitized)
     for key in tuple(runtime_kwargs):
-        normalized = normalize_ai_runtime_token(key)
-        if (
-            str(key).startswith("_runtime_")
-            or normalized in INVALID_AI_PROVIDER_CONFIG_KEYS
-            or is_invalid_ai_runtime_reference(key)
-        ):
+        if str(key).startswith("_runtime_"):
             runtime_kwargs.pop(key, None)
+    runtime_kwargs.pop("tools", None)
+    runtime_kwargs.pop("tool_choice", None)
 
 
 def _function_tools_only(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    return [
-        tool
-        for tool in tools
-        if isinstance(tool, dict) and str(tool.get("type") or "").strip() == "function"
-    ]
+    filtered: list[dict[str, Any]] = []
+    for tool in tools:
+        if not isinstance(tool, dict):
+            continue
+        if str(tool.get("type") or "").strip() != "function":
+            continue
+        function = tool.get("function")
+        function_name = ""
+        if isinstance(function, dict):
+            function_name = str(function.get("name") or "").strip()
+        if is_invalid_ai_runtime_reference(function_name):
+            continue
+        filtered.append(tool)
+    return filtered
 
 
 def build_chat_completions_request(
@@ -212,6 +220,8 @@ def convert_tools_for_responses(tools: list[dict]) -> list[dict]:
         if tool.get("type") == "function" and isinstance(tool.get("function"), dict):
             function = tool["function"]
             func_name = function.get("name", "")
+            if is_invalid_ai_runtime_reference(func_name):
+                continue
             converted.append(
                 {
                     "type": "function",

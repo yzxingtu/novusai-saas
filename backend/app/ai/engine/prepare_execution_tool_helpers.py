@@ -159,9 +159,7 @@ def _metadata_match_tokens(text: str) -> set[str]:
             tokens.add(run[index : index + 2])
 
     return {
-        token
-        for token in tokens
-        if token and token not in _DISCOVERABLE_STOP_TOKENS
+        token for token in tokens if token and token not in _DISCOVERABLE_STOP_TOKENS
     }
 
 

@@ -128,13 +128,12 @@ class AuthTenantAdminDomain:
         username: str,
         password: str,
         tenant_code: str | None = None,
-        tenant_id_from_ctx: int | None = None,
         client_ip: str | None = None,
         captcha_challenge_id: str | None = None,
         captcha_solution: str | None = None,
         captcha_provider_code: str | None = None,
     ) -> dict[str, Any]:
-        if not tenant_code and not tenant_id_from_ctx:
+        if not tenant_code:
             self._service._log_auth_warning(
                 "tenant_admin.login.failed",
                 identifier=self._service._mask_identifier(username),
@@ -157,8 +156,6 @@ class AuthTenantAdminDomain:
                 Tenant.is_active.is_(True),
                 Tenant.is_deleted.is_(False),
             )
-        elif tenant_id_from_ctx:
-            query = query.where(TenantAdmin.tenant_id == tenant_id_from_ctx)
 
         result = await self._service.db.execute(query)
         results = result.scalars().all()

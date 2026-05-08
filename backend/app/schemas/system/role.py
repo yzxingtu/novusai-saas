@@ -10,10 +10,14 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from app.core.base_schema import BaseSchema
 from app.enums.role import DataScope, RoleType
+from app.schemas.system.admin import (
+    _normalize_readable_avatar_value,
+    _validate_writable_avatar_value,
+)
 
 
 class AdminRoleResponse(BaseSchema):
@@ -159,6 +163,11 @@ class AdminRoleUpdateMemberRequest(BaseSchema):
     is_active: bool | None = Field(None, description="是否激活")
     role_id: int | None = Field(None, description="新角色 ID（调整所属角色）")
 
+    @field_validator("avatar", mode="before")
+    @classmethod
+    def validate_avatar(cls, value: object) -> str | None:
+        return _validate_writable_avatar_value(value)
+
 
 class AdminRoleResetPasswordRequest(BaseSchema):
     """Reset role member password request / 重置节点成员密码请求。"""
@@ -186,6 +195,11 @@ class AdminRoleMemberResponse(BaseSchema):
     role_name: str | None = Field(None, description="角色/节点名称")
     created_at: datetime | None = Field(None, description="创建时间")
     updated_at: datetime | None = Field(None, description="更新时间")
+
+    @field_validator("avatar", mode="before")
+    @classmethod
+    def normalize_avatar(cls, value: object) -> str | None:
+        return _normalize_readable_avatar_value(value)
 
 
 __all__ = [

@@ -15,8 +15,8 @@ class ChatMessage:
     """
     Chat Message / 聊天消息
 
-    Unified chat message format, compatible with all providers.
-    统一的聊天消息格式，适配所有供应商。
+    Unified chat message format for provider adapters.
+    面向供应商适配器的统一聊天消息格式。
 
     Multimodal: when attachments is non-empty, adapter layer converts
     content + attachments to OpenAI content array format (text + image_url).

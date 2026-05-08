@@ -5,10 +5,10 @@
 Defines agent conversation records, stores conversation metadata and messages.
 """
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import JSON, ForeignKey, Index, Integer, Numeric, String
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
 from app.core.base_model import TenantModel
 from app.core.deletion import DeletionDep, DeletionStrategy
@@ -68,7 +68,7 @@ class AgentConversation(TenantModel):
         index=True,
         comment=_("enum.agent_conversation.agent_id"),
     )
-    # 业务用户 ID，nullable 兼容匿名/API 调用 / Business user id (nullable for anon/API)
+    # 业务用户 ID，nullable 支持匿名/API 调用 / Business user id (nullable for anon/API)
     user_id: Mapped[int | None] = mapped_column(
         Integer,
         nullable=True,
@@ -101,10 +101,8 @@ class AgentConversation(TenantModel):
 
     # ==================== 消息存储 ==================== / Message storage
 
-    # [已废弃] 初版 JSON 存储，已迁移至 ConversationMessage 独立模型 /
-    # Deprecated JSON blob; use ConversationMessage rows
-    # 保留字段兼容旧数据，新消息通过 message_list relationship 访问 /
-    # Legacy column; new code uses message_list
+    # 退役消息 JSON 列；新消息通过 message_list relationship 访问 /
+    # Retired message JSON column; new code uses message_list.
     messages: Mapped[list | None] = mapped_column(
         JSON,
         nullable=True,
@@ -175,6 +173,17 @@ class AgentConversation(TenantModel):
         cascade="all, delete-orphan",
         order_by="ConversationMessage.sequence",
     )
+
+    @validates("messages")
+    def _reject_retired_messages_write(self, key: str, value: Any) -> Any:
+        """中文: 退役 JSON 消息列只允许清空，新增消息必须写 ConversationMessage。
+
+        EN: The retired JSON message column may only be cleared; new messages
+        must be written as ConversationMessage rows.
+        """
+        if value in (None, []):
+            return value
+        raise ValueError(f"agent_conversations.{key} is retired; use message_list")
 
     def __repr__(self) -> str:
         return (

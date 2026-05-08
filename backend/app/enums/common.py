@@ -5,24 +5,24 @@
 Defines common system status enums.
 """
 
-from app.enums.base import IntEnum, LabeledStrEnum, StrEnum
+from app.enums.base import LabeledIntEnum, LabeledStrEnum
 
 
-class StatusEnum(IntEnum):
+class StatusEnum(LabeledIntEnum):
     """通用状态枚举 / Common Status Enum"""
 
     INACTIVE = (0, "enum.status.inactive")
     ACTIVE = (1, "enum.status.active")
 
 
-class BoolEnum(IntEnum):
+class BoolEnum(LabeledIntEnum):
     """布尔枚举（用于数据库存储） / Boolean Enum (for DB storage)"""
 
     NO = (0, "enum.bool.no")
     YES = (1, "enum.bool.yes")
 
 
-class GenderEnum(IntEnum):
+class GenderEnum(LabeledIntEnum):
     """性别枚举 / Gender Enum"""
 
     UNKNOWN = (0, "enum.gender.unknown")
@@ -30,7 +30,7 @@ class GenderEnum(IntEnum):
     FEMALE = (2, "enum.gender.female")
 
 
-class AuditStatusEnum(IntEnum):
+class AuditStatusEnum(LabeledIntEnum):
     """审核状态枚举 / Audit Status Enum"""
 
     PENDING = (0, "enum.audit.pending")
@@ -38,14 +38,14 @@ class AuditStatusEnum(IntEnum):
     REJECTED = (2, "enum.audit.rejected")
 
 
-class SortOrderEnum(StrEnum):
+class SortOrderEnum(LabeledStrEnum):
     """排序方向枚举 / Sort Direction Enum"""
 
     ASC = ("asc", "enum.sort.asc")
     DESC = ("desc", "enum.sort.desc")
 
 
-class OperationTypeEnum(StrEnum):
+class OperationTypeEnum(LabeledStrEnum):
     """操作类型枚举（用于日志记录） / Operation Type Enum (for audit logging)"""
 
     CREATE = ("create", "enum.operation.create")
@@ -58,7 +58,7 @@ class OperationTypeEnum(StrEnum):
     IMPORT = ("import", "enum.operation.import")
 
 
-class PriorityEnum(IntEnum):
+class PriorityEnum(LabeledIntEnum):
     """优先级枚举 / Priority Enum"""
 
     LOW = (1, "enum.priority.low")
@@ -94,9 +94,8 @@ class ResourceScopeEnum(LabeledStrEnum):
 class SkillBindModeEnum(LabeledStrEnum):
     """技能包绑定模式枚举 / Skill Bind Mode Enum
 
-    控制技能包如何绑定到智能体 / Controls how skill packages bind to agents:
-      - AUTO:   自动注入（已弃用，仅历史兼容）
-      - MANUAL: 手动分组（已弃用，仅历史兼容）
+    退役的技能包绑定模式元数据，不参与新系统写入路径。
+    Retired skill-package bind-mode metadata, not part of new-system writes.
     """
 
     AUTO = ("auto", "enum.skill_bind_mode.auto")

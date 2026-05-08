@@ -128,23 +128,11 @@ class PluginLifecycle(
         self.orchestrator = LifecycleOrchestrator(self)
 
     def _resolve_plugin_table_prefixes(self, plugin_name: str) -> list[str]:
-        """Resolve plugin-operable DB table prefixes (default px_{plugin}_* + manifest-declared extra prefixes) / 解析插件可操作的 DB 表前缀（默认 px_{plugin}_* + manifest 声明扩展前缀）。"""
-        own_prefix = f"px_{plugin_name.replace('-', '_')}_"
-        prefixes: list[str] = [own_prefix]
-        try:
-            manifest = self._loader.load_manifest(plugin_name)
-            extra_prefixes = getattr(manifest, "db_table_prefixes", None) or []
-            for prefix in extra_prefixes:
-                normalized = (prefix or "").strip()
-                if normalized:
-                    prefixes.append(normalized)
-        except Exception as exc:
-            logger.warning(
-                "Plugin {}: failed to resolve custom DB table prefixes, fallback to default: {}",
-                plugin_name,
-                exc,
-            )
-        return list(dict.fromkeys(prefixes))
+        """中文: 解析插件 DB 表前缀；manifest 无效时失败关闭。
+
+        EN: Resolve plugin DB table prefixes and fail closed when the manifest is invalid.
+        """
+        return self._resolve_plugin_table_prefixes_strict(plugin_name)
 
     async def _run_lifecycle_guards(
         self,

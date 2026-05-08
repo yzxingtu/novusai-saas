@@ -163,7 +163,7 @@ class TenantUser(TenantModel):
     avatar: Mapped[str | None] = mapped_column(
         String(500),
         nullable=True,
-        comment="头像附件 ID（兼容旧 URL 值） / Avatar attachment id",
+        comment="头像附件 ID / Avatar attachment id",
     )
     gender: Mapped[int] = mapped_column(
         Integer,

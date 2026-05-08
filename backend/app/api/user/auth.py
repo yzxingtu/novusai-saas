@@ -20,7 +20,6 @@ from app.core.i18n import _
 from app.core.rate_limit import check_login_rate_limit
 from app.core.response import success
 from app.exceptions import BusinessException
-from app.middleware.tenant import get_tenant_context
 from app.rbac.decorators import auth_only, public
 from app.schemas.common import RefreshTokenRequest, TokenResponse
 from app.schemas.tenant import (
@@ -98,17 +97,10 @@ async def login_oauth2(
     auth_service = AuthService(db)
     form = await request.form()
 
-    # 从域名中间件获取 tenant_ctx 作为回退 / Get tenant_ctx from domain middleware as fallback
-    tenant_ctx = get_tenant_context(request)
-    tenant_id_from_ctx = (
-        tenant_ctx.tenant_id if tenant_ctx and tenant_ctx.is_resolved else None
-    )
-
     tokens = await auth_service.authenticate_tenant_user(
         username=form_data.username,
         password=form_data.password,
         tenant_code=form.get("tenant_code"),
-        tenant_id_from_ctx=tenant_id_from_ctx,
         client_ip=request.client.host if request.client else None,
         captcha_challenge_id=form.get("captcha_challenge_id"),
         captcha_solution=form.get("captcha_solution"),
@@ -140,17 +132,10 @@ async def login_json(
         return rate_limited
     auth_service = AuthService(db)
 
-    # 从域名中间件获取 tenant_ctx 作为回退 / Get tenant_ctx from domain middleware as fallback
-    tenant_ctx = get_tenant_context(request)
-    tenant_id_from_ctx = (
-        tenant_ctx.tenant_id if tenant_ctx and tenant_ctx.is_resolved else None
-    )
-
     tokens = await auth_service.authenticate_tenant_user(
         username=login_data.username,
         password=login_data.password,
         tenant_code=login_data.tenant_code,
-        tenant_id_from_ctx=tenant_id_from_ctx,
         client_ip=request.client.host if request.client else None,
         captcha_challenge_id=login_data.captcha_challenge_id,
         captcha_solution=login_data.captcha_solution,
@@ -181,17 +166,12 @@ async def send_login_code(
         return rate_limited
 
     auth_service = AuthService(db)
-    tenant_ctx = get_tenant_context(request)
-    tenant_id_from_ctx = (
-        tenant_ctx.tenant_id if tenant_ctx and tenant_ctx.is_resolved else None
-    )
 
     result = await auth_service.send_tenant_user_login_code(
         channel=payload.channel,
         email=payload.email,
         phone=payload.phone,
         tenant_code=payload.tenant_code,
-        tenant_id_from_ctx=tenant_id_from_ctx,
         client_ip=request.client.host if request.client else None,
         captcha_challenge_id=payload.captcha_challenge_id,
         captcha_solution=payload.captcha_solution,
@@ -218,10 +198,6 @@ async def login_by_code(
         return rate_limited
 
     auth_service = AuthService(db)
-    tenant_ctx = get_tenant_context(request)
-    tenant_id_from_ctx = (
-        tenant_ctx.tenant_id if tenant_ctx and tenant_ctx.is_resolved else None
-    )
 
     tokens = await auth_service.authenticate_tenant_user_by_code(
         channel=payload.channel,
@@ -229,7 +205,6 @@ async def login_by_code(
         email=payload.email,
         phone=payload.phone,
         tenant_code=payload.tenant_code,
-        tenant_id_from_ctx=tenant_id_from_ctx,
         client_ip=request.client.host if request.client else None,
     )
     await db.commit()
@@ -334,17 +309,11 @@ async def register(
     """
     auth_service = AuthService(db)
 
-    tenant_ctx = get_tenant_context(request)
-    tenant_id_from_ctx = (
-        tenant_ctx.tenant_id if tenant_ctx and tenant_ctx.is_resolved else None
-    )
-
     result = await auth_service.register_tenant_user(
         username=register_data.username,
         email=register_data.email,
         password=register_data.password,
         tenant_code=register_data.tenant_code,
-        tenant_id_from_ctx=tenant_id_from_ctx,
         phone=register_data.phone,
         nickname=register_data.nickname,
         client_ip=request.client.host if request.client else None,
@@ -411,15 +380,9 @@ async def forgot_password(
     """
     auth_service = AuthService(db)
 
-    tenant_ctx = get_tenant_context(request)
-    tenant_id_from_ctx = (
-        tenant_ctx.tenant_id if tenant_ctx and tenant_ctx.is_resolved else None
-    )
-
     result = await auth_service.request_password_reset(
         email=forgot_data.email,
         tenant_code=forgot_data.tenant_code,
-        tenant_id_from_ctx=tenant_id_from_ctx,
     )
 
     return success(
@@ -440,17 +403,11 @@ async def reset_password(
     """
     auth_service = AuthService(db)
 
-    tenant_ctx = get_tenant_context(request)
-    tenant_id_from_ctx = (
-        tenant_ctx.tenant_id if tenant_ctx and tenant_ctx.is_resolved else None
-    )
-
     await auth_service.reset_tenant_user_password(
         email=reset_data.email,
         code=reset_data.code,
         new_password=reset_data.new_password,
         tenant_code=reset_data.tenant_code,
-        tenant_id_from_ctx=tenant_id_from_ctx,
     )
     await db.commit()
 

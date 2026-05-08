@@ -142,6 +142,28 @@ research answers, or provider-hosted/native search as runtime capabilities.
   document analysis. It forbids AI dialogue live paths from browsing/searching
   the public web to answer a prompt.
 
+## Compatibility Keyword Scan Rule
+
+Repo-wide `compat`, `legacy`, `fallback`, `alias`, and related keyword scans are
+triage inputs, not delete lists. Keep matches only when they describe an
+explicit current-system contract:
+
+- OpenAI-compatible providers, protocol-safe model fallback/failover, 404 or
+  route fallback pages, i18n/display fallback labels, plugin dependency or
+  compatibility matrices, storage-driver compatibility, and browser/framework
+  compatibility.
+- Historical diagnostics, cleanup migrations, denylist guards, and regression
+  tests that prove retired page-operation or online-search names are hidden,
+  rejected, or audit-only.
+- Stable public v1 API fields that are still the current frontend/backend
+  contract and require a coordinated breaking migration before removal.
+
+Do not keep matches that act as old-system live shims: positive activation from
+`selected_skill_names`, retired skill aliases, page-runtime bridges, provider
+hosted-search config, adapter compat entrypoints, package re-export shims, or
+frontend fixtures that present retired online-search/page-operation names as
+ordinary usable capabilities.
+
 ## Required Guards
 
 - API entrypoints must not accept `page_context` or `page_session_id`.

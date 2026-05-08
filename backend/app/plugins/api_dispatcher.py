@@ -375,8 +375,19 @@ async def _dispatch_plugin_api(
         # Wrap normal dict as success response / 正常 dict 包装为 success 响应
         if isinstance(result, dict):
             return success(data=result)
-        # M4: Fallback for non-dict/JSONResponse — wrap as success / 非 dict/JSONResponse 兜底 — 包装为 success
-        return success(data=result)
+        result_type = type(result).__name__
+        logger.error(
+            "Plugin API handler returned unsupported result type: {}/{} type={}",
+            plugin_name,
+            path,
+            result_type,
+        )
+        raise AppException(
+            message="Plugin API handler must return a dict or Response object",
+            code=5001,
+            status_code=500,
+            data={"result_type": result_type},
+        )
     except AppException:
         raise
     except Exception as exc:

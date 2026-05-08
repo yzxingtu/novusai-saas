@@ -6,8 +6,8 @@ Mock strategy: no mocks; pure policy helper calls with observable boolean outcom
 
 from pathlib import Path
 
-from app.services.ai.execution_trust_policy_service import (
-    ExecutionTrustPolicyService,
+from app.ai.runtime.execution_trust_policy import (
+    allows_tool,
 )
 
 
@@ -21,7 +21,7 @@ def test_execution_trust_policy_allows_named_safe_write_tool_with_sufficient_ris
     }
 
     assert (
-        ExecutionTrustPolicyService.allows_tool(
+        allows_tool(
             tool_name="crm_update_record",
             tool_family="data_ops",
             policy_ref=policy_ref,
@@ -38,7 +38,7 @@ def test_execution_trust_policy_allows_family_when_policy_lists_family() -> None
     }
 
     assert (
-        ExecutionTrustPolicyService.allows_tool(
+        allows_tool(
             tool_name="custom_data_update",
             tool_family="data_ops",
             policy_ref=policy_ref,

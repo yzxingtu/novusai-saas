@@ -35,6 +35,8 @@ class ManualTestAdminTenantDomains(BaseAPITest):
         # 生成唯一的测试数据
         timestamp = int(time.time())
         self._test_data["tenant_name"] = f"测试企业_{timestamp}"
+        self._test_data["admin_username"] = f"tenant_owner_{timestamp}"
+        self._test_data["admin_email"] = f"tenant_owner_{timestamp}@example.com"
         self._test_data["custom_domain"] = f"test{timestamp}.example.com"
         self._test_data["custom_domain_2"] = f"test{timestamp}b.example.com"
 
@@ -438,8 +440,10 @@ class ManualTestAdminTenantDomains(BaseAPITest):
                 "contact_name": "测试联系人",
                 "contact_phone": "13800138000",
                 "contact_email": "test@example.com",
-                "plan": "basic",
                 "quota": {"max_users": 100},
+                "admin_username": self._test_data["admin_username"],
+                "admin_email": self._test_data["admin_email"],
+                "admin_password": "test123456",
             },
         )
         data = assert_success(resp, "创建测试企业失败")

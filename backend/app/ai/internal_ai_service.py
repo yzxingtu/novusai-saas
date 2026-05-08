@@ -23,9 +23,8 @@ class InternalAIService:
     """
     Internal AI service / 内部 AI 服务
 
-    This service replaces the legacy SystemAgentService bridge. Internal
-    platform and tenant calls now route directly to AIGateway through a named
-    infrastructure service instead of depending on fake "system agent" rows.
+    Internal platform and tenant calls route directly to AIGateway through a
+    named infrastructure service instead of depending on synthetic agent rows.
     """
 
     def __init__(self, db: AsyncSession):

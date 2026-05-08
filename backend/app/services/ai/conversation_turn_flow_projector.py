@@ -44,10 +44,6 @@ _MISSING_FINAL_ANSWER_SUMMARIES = frozenset(
         "无可信最终答案",
     }
 )
-_LEGACY_TOOL_CALLS_METADATA_KEYS = (
-    "canonical_tool_calls",
-    "canonicalToolCalls",
-)
 
 
 def _strip_trace_suffix(text: str) -> str:
@@ -55,13 +51,6 @@ def _strip_trace_suffix(text: str) -> str:
     if trace_marker in text:
         return text.split(trace_marker, 1)[0].strip()
     return text.strip()
-
-
-def _summarize_thinking_content(value: Any, *, max_length: int = 160) -> str | None:
-    text = _to_non_empty_str(value)
-    if not text:
-        return None
-    return _PUBLIC_THINKING_STAGE_SUMMARY
 
 
 def _to_non_empty_str(value: Any) -> str | None:
@@ -402,10 +391,6 @@ def _map_source_kind(raw_kind: Any) -> str:
     return "knowledge_base"
 
 
-def _map_legacy_source_kind(raw_kind: Any) -> str:
-    return _map_source_kind(raw_kind)
-
-
 def _is_user_facing_evidence_item(item: dict[str, Any]) -> bool:
     kind = _map_source_kind(item.get("kind"))
     if kind == "tool":
@@ -701,39 +686,6 @@ def _resolve_tool_calls(tool_calls: Any) -> list[dict[str, Any]]:
     return resolved
 
 
-def _resolve_legacy_tool_calls(metadata: dict[str, Any] | None) -> list[dict[str, Any]]:
-    resolved: list[dict[str, Any]] = []
-
-    def _extend(candidate: Any) -> None:
-        if not isinstance(candidate, list):
-            return
-        resolved.extend(dict(item) for item in candidate if isinstance(item, dict))
-
-    metadata_payload = dict(metadata) if isinstance(metadata, dict) else {}
-    turn_record = ConversationDiagnosticsProjector.normalize_turn_record_payload(
-        metadata_payload.get("turn_record")
-    )
-    turn_record_payload = (
-        dict(turn_record or {}) if isinstance(turn_record, dict) else {}
-    )
-    turn_record_metadata = (
-        dict(turn_record_payload.get("metadata") or {})
-        if isinstance(turn_record_payload.get("metadata"), dict)
-        else {}
-    )
-
-    for key in _LEGACY_TOOL_CALLS_METADATA_KEYS:
-        _extend(metadata_payload.get(key))
-        _extend(turn_record_payload.get(key))
-        _extend(turn_record_metadata.get(key))
-        for metadata_key in ("orchestration", "turn_diagnostics"):
-            nested = turn_record_metadata.get(metadata_key)
-            if isinstance(nested, dict):
-                _extend(nested.get(key))
-
-    return resolved
-
-
 def _build_tool_evidence_from_tool_call(
     call: dict[str, Any],
     index: int,
@@ -795,34 +747,6 @@ def _build_tool_evidence_from_tool_call(
         if value is not None:
             payload[key] = value
     return payload
-
-
-def _build_legacy_rag_evidence(
-    source: dict[str, Any],
-    index: int,
-) -> dict[str, Any]:
-    return {
-        "id": _to_non_empty_str(source.get("source_ref") or source.get("chunk_id"))
-        or f"ev_rag_{index + 1}",
-        "kind": _map_legacy_source_kind(
-            source.get("kind") or source.get("source_kind")
-        ),
-        "title": _to_non_empty_str(
-            source.get("title")
-            or source.get("source")
-            or source.get("name")
-            or source.get("chunk_id")
-        )
-        or f"Source {index + 1}",
-        "url": _to_non_empty_str(source.get("url") or source.get("source_url")),
-        "snippet": _to_non_empty_str(source.get("snippet") or source.get("content")),
-        "badge": _to_non_empty_str(source.get("badge")),
-        "score": _normalize_optional_float(source.get("score")),
-        "tool_call_id": None,
-        "source_ref": _to_non_empty_str(
-            source.get("source_ref") or source.get("chunk_id")
-        ),
-    }
 
 
 def _evidence_identity(item: dict[str, Any]) -> str:
@@ -1196,10 +1120,20 @@ class ConversationTurnFlowProjector:
             return None
         metadata = message.get("metadata")
         metadata_payload = dict(metadata) if isinstance(metadata, dict) else {}
+        raw_turn_flow = message.get("turn_flow")
+        if isinstance(raw_turn_flow, dict):
+            metadata_payload["turn_flow"] = dict(raw_turn_flow)
+        if (
+            _resolve_canonical_turn_flow_payload(
+                raw_turn_flow,
+                metadata=metadata_payload,
+            )
+            is None
+        ):
+            return None
         return cls.project_from_metadata(
             metadata_payload,
             content=message.get("content"),
-            tool_calls=message.get("tool_calls"),
             token_count=message.get("token_count"),
         )
 
@@ -1268,29 +1202,9 @@ class ConversationTurnFlowProjector:
             selected_tools = list(completed_tool_names)
         candidate_tools = _normalize_string_list(turn_meta.get("candidate_tool_names"))
         unfinished_intents = _normalize_string_list(turn_meta.get("unfinished_intents"))
-        context_sources = [
-            dict(item)
-            for item in (turn_meta.get("context_sources") or [])
-            if isinstance(item, dict)
-        ]
-        del context_sources
         canonical_evidence: list[dict[str, Any]] = []
-        legacy_projection_allowed = not canonical_evidence and not normalized_tool_calls
-        legacy_tool_calls = (
-            _resolve_legacy_tool_calls(payload) if legacy_projection_allowed else []
-        )
-        if not normalized_tool_calls and legacy_projection_allowed:
-            normalized_tool_calls = [dict(item) for item in legacy_tool_calls]
-        rag_sources = payload.get("rag_sources") if legacy_projection_allowed else None
-        rag_items = (
-            [dict(item) for item in rag_sources if isinstance(item, dict)]
-            if isinstance(rag_sources, list)
-            else []
-        )
 
         evidence: list[dict[str, Any]] = [dict(item) for item in canonical_evidence]
-        for idx, source in enumerate(rag_items):
-            evidence.append(_build_legacy_rag_evidence(source, idx))
 
         for idx, call in enumerate(normalized_tool_calls):
             item = _build_tool_evidence_from_tool_call(call, idx)
@@ -1298,26 +1212,14 @@ class ConversationTurnFlowProjector:
                 evidence.append(item)
 
         timeline: list[dict[str, Any]] = []
-        thinking_content = (
-            _to_non_empty_str(payload.get("thinking_content"))
-            if legacy_projection_allowed
-            and not turn_meta.get("intent_plan")
-            and not turn_meta.get("tool_planner")
-            else None
-        )
-        thinking_summary = _summarize_thinking_content(thinking_content)
-        if (
-            thinking_content
-            or turn_meta.get("intent_plan")
-            or turn_meta.get("tool_planner")
-        ):
+        if turn_meta.get("intent_plan") or turn_meta.get("tool_planner"):
             timeline.append(
                 {
                     "id": "thinking",
                     "type": "thinking",
                     "status": "completed",
                     "title": "已思考",
-                    "summary": thinking_summary or _PUBLIC_THINKING_STAGE_SUMMARY,
+                    "summary": _PUBLIC_THINKING_STAGE_SUMMARY,
                     "detail_lines": [],
                     "started_at_ms": None,
                     "ended_at_ms": None,
@@ -1407,7 +1309,7 @@ class ConversationTurnFlowProjector:
         retrieval_evidence = [
             item for item in evidence if _map_source_kind(item.get("kind")) != "tool"
         ]
-        has_retrieval_signal = bool(rag_items or retrieval_evidence)
+        has_retrieval_signal = bool(retrieval_evidence)
         if has_retrieval_signal:
             retrieval_summary = _summarize_retrieval_progress(
                 evidence_count=len(retrieval_evidence),

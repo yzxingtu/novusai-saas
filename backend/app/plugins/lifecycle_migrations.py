@@ -7,13 +7,13 @@ from typing import TYPE_CHECKING
 
 from app.core.logging import get_logger
 from app.core.response import resolve_public_error_message
-from app.plugins.exceptions import PluginInstallError
+from app.plugins.exceptions import PluginError, PluginInstallError
 from app.plugins.lifecycle_support import (
     escape_like_pattern,
     is_safe_plugin_table_name,
     run_subprocess_async,
 )
-from app.plugins.loader import PLUGINS_DIR
+from app.plugins.loader import PLUGINS_DIR, PluginLoader
 from app.plugins.migration_paths import build_migration_version_locations
 
 if TYPE_CHECKING:
@@ -23,8 +23,73 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
+def _collect_plugin_revision_ids(plugin_name: str) -> list[str]:
+    """中文: 从插件迁移目录收集显式 Alembic revision ID。
+
+    EN: Collect explicit Alembic revision IDs from a plugin migration directory.
+    """
+    import re as _re
+
+    migrations_dir = PLUGINS_DIR / plugin_name / "backend" / "migrations" / "versions"
+    if not migrations_dir.is_dir():
+        return []
+
+    revision_ids: list[str] = []
+    for migration_file in sorted(migrations_dir.iterdir()):
+        if migration_file.suffix != ".py" or migration_file.name == "__init__.py":
+            continue
+        try:
+            source = migration_file.read_text(encoding="utf-8")
+        except Exception as exc:
+            raise PluginInstallError(
+                message=(
+                    f"Cannot read migration file '{migration_file.name}' for "
+                    f"plugin '{plugin_name}'"
+                ),
+            ) from exc
+        match = _re.search(
+            r'^revision\s*(?::[^=]*)?=\s*["\']([^"\']+)["\']',
+            source,
+            _re.MULTILINE,
+        )
+        if not match:
+            raise PluginInstallError(
+                message=(
+                    f"Migration file '{migration_file.name}' for plugin "
+                    f"'{plugin_name}' does not declare a revision"
+                ),
+            )
+        revision_ids.append(match.group(1))
+    return revision_ids
+
+
 class LifecycleMigrationMixin:
     """Alembic/database cleanup helpers extracted from PluginLifecycle."""
+
+    def _resolve_plugin_table_prefixes_strict(self, plugin_name: str) -> list[str]:
+        """中文: 仅从有效 manifest 解析插件 DB 表前缀，不做猜测。
+
+        EN: Resolve plugin DB table prefixes from a valid manifest, without guessing.
+        """
+        own_prefix = f"px_{plugin_name.replace('-', '_')}_"
+        prefixes: list[str] = [own_prefix]
+        loader = getattr(self, "_loader", None) or PluginLoader()
+        try:
+            manifest = loader.load_manifest(plugin_name)
+        except Exception as exc:
+            raise PluginError(
+                message=(
+                    f"Cannot resolve DB table prefixes for plugin '{plugin_name}'. "
+                    "Fix plugin.yaml before database cleanup."
+                ),
+            ) from exc
+
+        extra_prefixes = getattr(manifest, "db_table_prefixes", None) or []
+        for prefix in extra_prefixes:
+            normalized = (prefix or "").strip()
+            if normalized:
+                prefixes.append(normalized)
+        return list(dict.fromkeys(prefixes))
 
     async def run_alembic_upgrade(self, plugin_name: str) -> None:
         """Run plugin Alembic migration (public interface, called by version_manager etc.).
@@ -113,8 +178,6 @@ command.upgrade(cfg, target)
             )
             return
 
-        import re as _re
-
         from sqlalchemy import text as _text
 
         branch_label = f"plugin_{plugin_name.replace('-', '_')}"
@@ -127,30 +190,12 @@ command.upgrade(cfg, target)
         # More reliable than alembic command.current(): the latter depends on version_locations containing plugin paths,
         # and assumes revision ID contains plugin name prefix (e.g. ncc_001 doesn't contain novus_crud_code prefix).
         # / 扫描迁移文件获取实际 revision ID，然后直接查询 DB。
-        migrations_dir = (
-            PLUGINS_DIR / plugin_name / "backend" / "migrations" / "versions"
-        )
-        plugin_revision_ids: list[str] = []
-        for _f in migrations_dir.iterdir():
-            if _f.suffix == ".py" and _f.name != "__init__.py":
-                try:
-                    _src = _f.read_text(encoding="utf-8")
-                    _m = _re.search(
-                        r'^revision\s*(?::[^=]*)?=\s*["\']([^"\']+)["\']',
-                        _src,
-                        _re.MULTILINE,
-                    )
-                    if _m:
-                        plugin_revision_ids.append(_m.group(1))
-                except Exception:
-                    pass
+        plugin_revision_ids = _collect_plugin_revision_ids(plugin_name)
 
         if not plugin_revision_ids:
-            logger.info(
-                "Plugin {}: no revision IDs found in migration files, skipping downgrade",
-                plugin_name,
+            raise PluginInstallError(
+                message=f"Plugin '{plugin_name}' has migration files but no revisions",
             )
-            return
 
         # Directly query alembic_version table, no alembic subprocess needed
         # / 直接查询 alembic_version 表，无需 alembic subprocess
@@ -190,8 +235,14 @@ command.downgrade(cfg, {f"{branch_label}@base"!r})
             shell=False,
         )
         if result.returncode != 0:
-            logger.warning(
-                "Alembic downgrade for {}: {}", plugin_name, result.stderr.strip()
+            err_output = (
+                result.stderr.strip() or result.stdout.strip() or "unknown error"
+            )
+            raise PluginInstallError(
+                message=resolve_public_error_message(
+                    err_output,
+                    fallback_message=f"Alembic downgrade failed for '{plugin_name}'",
+                ),
             )
 
     async def _cleanup_plugin_database(self, plugin_name: str) -> None:
@@ -199,39 +250,42 @@ command.downgrade(cfg, {f"{branch_label}@base"!r})
         / 清理插件数据库资源：DROP 插件表 + 清理 alembic 版本戳
 
         Strategy:
-        1. Try alembic downgrade (graceful rollback, preserves data integrity)
-        2. If alembic fails, directly DROP all plugin-prefixed tables (fallback)
-        3. Always clean alembic_version plugin version stamps
+        1. Try alembic downgrade when migrations exist; failures block cleanup.
+        2. Plugins without migrations may drop only manifest-owned safe table prefixes.
+        3. Clean alembic_version by exact revision IDs only.
         / 策略：
-        1. 尝试 alembic downgrade（优雅回退）
-        2. 若 alembic 失败，直接 DROP 所有插件前缀表（兜底）
-        3. 无论如何，清理 alembic_version 中的插件版本戳
+        1. 存在迁移时先执行 alembic downgrade；失败则阻断清理。
+        2. 无迁移插件仅允许按 manifest 声明的安全表前缀清理。
+        3. 仅按精确 revision ID 清理 alembic_version。
         """
         from sqlalchemy import text
 
-        table_prefixes = self._resolve_plugin_table_prefixes(plugin_name)
+        table_prefixes = self._resolve_plugin_table_prefixes_strict(plugin_name)
         escaped_table_prefixes = [
             escape_like_pattern(prefix) for prefix in table_prefixes
         ]
 
         # Step 1: Try alembic downgrade (only when plugin has migration files)
         # / Step 1: 尝试 alembic downgrade（仅当插件有迁移文件时）
-        alembic_ok = False
-        if self._plugin_has_migrations(plugin_name):
+        has_migrations = self._plugin_has_migrations(plugin_name)
+        if has_migrations:
             try:
                 await self.run_alembic_downgrade(plugin_name)
-                alembic_ok = True
             except Exception as exc:
-                logger.warning(
-                    "Plugin {} alembic downgrade failed: {}", plugin_name, exc
-                )
+                raise PluginInstallError(
+                    message=(
+                        f"Plugin '{plugin_name}' database cleanup blocked: "
+                        "alembic downgrade failed"
+                    ),
+                ) from exc
         else:
             logger.info(
                 "Plugin {} has no migrations, skipping alembic downgrade", plugin_name
             )
 
-        # Step 2: Check for remaining tables, DROP directly if found
-        # / Step 2: 检查是否还有残留表，若有则直接 DROP
+        # Step 2: Check for remaining tables. If migrations exist, residual tables
+        # indicate a broken migration contract and must not be hidden by direct DROP.
+        # / Step 2: 检查残留表；有迁移仍残留说明迁移契约错误，不能用直接 DROP 掩盖。
         try:
             # Critical cleanup SQL uses savepoint to prevent local exceptions from polluting outer transaction
             # / 关键清理 SQL 使用 savepoint，避免局部异常污染外层事务
@@ -248,11 +302,18 @@ command.downgrade(cfg, {f"{branch_label}@base"!r})
                     remaining_tables.update(row[0] for row in result.fetchall())
 
                 if remaining_tables:
-                    if alembic_ok:
-                        logger.warning(
-                            "Plugin {}: alembic downgrade succeeded but {} tables remain, dropping directly",
-                            plugin_name,
-                            len(remaining_tables),
+                    if has_migrations:
+                        safe_remaining = [
+                            tbl
+                            for tbl in sorted(remaining_tables)
+                            if is_safe_plugin_table_name(tbl, table_prefixes)
+                        ]
+                        raise PluginInstallError(
+                            message=(
+                                f"Plugin '{plugin_name}' database cleanup blocked: "
+                                "alembic downgrade left plugin tables behind"
+                            ),
+                            data={"tables": safe_remaining},
                         )
                     for tbl in sorted(remaining_tables):
                         if not is_safe_plugin_table_name(tbl, table_prefixes):
@@ -274,36 +335,32 @@ command.downgrade(cfg, {f"{branch_label}@base"!r})
                                 tbl,
                                 exc,
                             )
+                            raise PluginInstallError(
+                                message=(
+                                    f"Plugin '{plugin_name}' database cleanup blocked: "
+                                    "residual table cleanup failed"
+                                ),
+                                data={"table": tbl},
+                            ) from exc
                     await self._db.flush()
         except Exception as exc:
+            if isinstance(exc, PluginInstallError):
+                raise
             logger.error(
                 "Plugin {}: failed to query/drop residual tables: {}", plugin_name, exc
             )
+            raise PluginInstallError(
+                message=(
+                    f"Plugin '{plugin_name}' database cleanup blocked: "
+                    "residual table cleanup failed"
+                ),
+            ) from exc
 
         # Step 3: Clean alembic_version plugin version stamps
         # Prefer scanning migration files for actual revision IDs (avoid short prefix like ncc_ not matching plugin name)
         # / Step 3: 清理 alembic_version 中的插件版本戳
         # 优先通过扫描迁移文件获取实际 revision ID
-        import re as _re
-
-        revision_ids_from_files: list[str] = []
-        migrations_dir = (
-            PLUGINS_DIR / plugin_name / "backend" / "migrations" / "versions"
-        )
-        if migrations_dir.is_dir():
-            for f in migrations_dir.iterdir():
-                if f.suffix == ".py" and f.name != "__init__.py":
-                    try:
-                        source = f.read_text(encoding="utf-8")
-                        m = _re.search(
-                            r'^revision\s*(?::[^=]*)?=\s*["\']([^"\']+)["\']',
-                            source,
-                            _re.MULTILINE,
-                        )
-                        if m:
-                            revision_ids_from_files.append(m.group(1))
-                    except Exception:
-                        pass
+        revision_ids_from_files = _collect_plugin_revision_ids(plugin_name)
 
         try:
             # Critical cleanup SQL uses savepoint to prevent local exceptions from polluting outer transaction
@@ -328,24 +385,15 @@ command.downgrade(cfg, {f"{branch_label}@base"!r})
                             deleted_count,
                         )
                 else:
-                    # Fallback: match by plugin name prefix, escaping LIKE wildcards
-                    # / 兜底：按插件名前缀匹配，并转义 LIKE 通配符
-                    version_prefix = plugin_name.replace("-", "_") + "_"
-                    escaped_version_prefix = escape_like_pattern(version_prefix)
-                    result = await self._db.execute(
-                        text(
-                            "DELETE FROM alembic_version WHERE version_num LIKE :prefix ESCAPE '\\'"
-                        ),
-                        {"prefix": f"{escaped_version_prefix}%"},
+                    logger.info(
+                        "Plugin {}: no migration revisions found; skipping alembic_version cleanup",
+                        plugin_name,
                     )
-                    if result.rowcount:
-                        logger.info(
-                            "Plugin {}: cleaned {} alembic_version stamp(s) by prefix fallback",
-                            plugin_name,
-                            result.rowcount,
-                        )
                 await self._db.flush()
         except Exception as exc:
-            logger.warning(
-                "Plugin {}: failed to clean alembic_version: {}", plugin_name, exc
-            )
+            raise PluginInstallError(
+                message=(
+                    f"Plugin '{plugin_name}' database cleanup blocked: "
+                    "alembic_version cleanup failed"
+                ),
+            ) from exc

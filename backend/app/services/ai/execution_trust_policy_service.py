@@ -8,9 +8,6 @@ from datetime import datetime
 from typing import Any
 
 from app.ai.runtime.execution_trust_policy import (
-    allows_tool as runtime_allows_tool,
-)
-from app.ai.runtime.execution_trust_policy import (
     build_policy_ref as runtime_build_policy_ref,
 )
 from app.ai.runtime.execution_trust_policy import (
@@ -177,42 +174,6 @@ class ExecutionTrustPolicyService(
         )
         return any(
             getattr(row, "conversation_id", None) == conversation_id for row in rows
-        )
-
-    # Compatibility delegates: keep legacy call sites/tests stable while the
-    # pure trust-policy logic lives under app.ai.runtime.
-    @staticmethod
-    def _risk_rank(value: str | None) -> int:
-        return runtime_risk_rank(value)
-
-    @classmethod
-    def tool_risk_level(
-        cls,
-        *,
-        tool_name: str,
-        tool_family: str | None,
-    ) -> str:
-        return runtime_tool_risk_level(
-            tool_name=tool_name,
-            tool_family=tool_family,
-        )
-
-    @staticmethod
-    def tool_family_for_name(tool_name: str) -> str:
-        return runtime_tool_family_for_name(tool_name)
-
-    @classmethod
-    def allows_tool(
-        cls,
-        *,
-        tool_name: str,
-        tool_family: str | None,
-        policy_ref: dict[str, Any] | None,
-    ) -> bool:
-        return runtime_allows_tool(
-            tool_name=tool_name,
-            tool_family=tool_family,
-            policy_ref=policy_ref,
         )
 
 

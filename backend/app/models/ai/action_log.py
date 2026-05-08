@@ -89,7 +89,7 @@ class AIActionLog(TenantModel):
         comment="LLM tool_call_id / LLM 工具调用 ID",
     )
 
-    # 来源 Skill ID（可为 NULL，向后兼容旧数据）
+    # 来源 Skill ID（非技能型操作可为 NULL） / Source Skill ID (nullable for non-skill actions)
     skill_id: Mapped[int | None] = mapped_column(
         Integer,
         nullable=True,

@@ -33,10 +33,10 @@ DEFAULT_ACTION_RATE_LIMIT = 100
 # Session Memory Scenes (Entry Boundary) / 会话记忆场景（入口边界）
 # ============================================
 
-# Legacy default memory scene marker.
+# Canonical default memory scene marker.
 # Runtime allowlist is resolved in AgentChatService._resolve_memory_context()
 # and currently includes ai_chat_page + admin_chat.
-# 历史默认记忆场景标记。运行时真正允许的场景由
+# 规范默认记忆场景标记。运行时真正允许的场景由
 # AgentChatService._resolve_memory_context() 决定，当前包含
 # ai_chat_page + admin_chat。
 MEMORY_ENABLED_SCENE = "ai_chat_page"
@@ -59,7 +59,7 @@ MEMORY_CHANNEL_SYSTEM = "system"
 # mem:sess:{tenant_id}:{channel}:{source}:{agent_id}:{user_id}:{conversation_id} / 占位：租户、渠道、来源、智能体、用户、会话 ID
 SESSION_MEMORY_KEY_PREFIX = "mem:sess:"
 
-# Session memory TTL (seconds), for fallback cleanup / 会话记忆 TTL（秒），用于兜底清理
+# Session memory TTL (seconds), paired with scheduled cleanup / 会话记忆 TTL（秒），配合定时清理
 SESSION_MEMORY_TTL_SECONDS = 86400  # Session memory 24 hours / 会话记忆 24 小时
 
 

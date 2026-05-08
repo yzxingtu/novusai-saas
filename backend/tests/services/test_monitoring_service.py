@@ -911,10 +911,7 @@ class TestConversationQueries:
                 }
             ],
         }
-        assert (
-            detail.message_list[0]["turn_flow"]["timeline"][-1]["type"] == "completed"
-        )
-        assert detail.message_list[0]["turn_flow"]["completion_reason"] == "completed"
+        assert "turn_flow" not in detail.message_list[0]
 
     @pytest.mark.asyncio
     async def test_get_conversation_detail_strips_legacy_conversation_metadata(
@@ -1080,7 +1077,7 @@ class TestConversationQueries:
         assert turn_flow["error_surface"]["message"]
 
     @pytest.mark.asyncio
-    async def test_get_conversation_detail_projects_turn_flow_and_strips_legacy_assistant_fields(
+    async def test_get_conversation_detail_strips_legacy_assistant_fields_without_projecting_turn_flow(
         self, mock_db
     ):
         from app.services.ai.monitoring_service import MonitoringService
@@ -1157,19 +1154,9 @@ class TestConversationQueries:
 
         assistant_payload = detail.message_list[0]
         assert "tool_calls" not in assistant_payload
-        assert "thinking_content" not in assistant_payload["metadata"]
-        assert "rag_sources" not in assistant_payload["metadata"]
-        assert (
-            assistant_payload["metadata"]["turn_flow"] == assistant_payload["turn_flow"]
-        )
-        assert any(
-            stage["type"] == "thinking"
-            for stage in assistant_payload["turn_flow"]["timeline"]
-        )
-        assert any(
-            item["tool_call_id"] == "tc_1"
-            for item in assistant_payload["turn_flow"]["evidence"]
-        )
+        assert "turn_flow" not in assistant_payload
+        assert "thinking_content" not in (assistant_payload.get("metadata") or {})
+        assert "rag_sources" not in (assistant_payload.get("metadata") or {})
 
     @pytest.mark.asyncio
     async def test_get_conversation_detail_raises_when_tenant_conversation_missing(

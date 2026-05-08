@@ -58,8 +58,6 @@ class CapabilityDescriptionBuilder:
     def build_skill_descriptions(
         self,
         skill_result: Any,
-        *,
-        selected_skill_names: list[str] | None = None,
     ) -> list[CapabilityDescription]:
         """
         Build skill descriptions from SkillResolveResult.
@@ -77,20 +75,9 @@ class CapabilityDescriptionBuilder:
         tools = list(activated_tools_for_turn(skill_result))
         descriptors = list(getattr(skill_result, "capability_descriptors", []) or [])
         activation = getattr(skill_result, "turn_activation", None)
-        explicit_selected_skill_names = self._stable_name_set(selected_skill_names)
         if activation is not None and not activation.applied:
-            if explicit_selected_skill_names:
-                tools = self._filter_tools_by_skill_names(
-                    tools,
-                    explicit_selected_skill_names,
-                )
-                descriptors = self._filter_descriptors_by_skill_names(
-                    descriptors,
-                    explicit_selected_skill_names,
-                )
-            else:
-                tools = []
-                descriptors = []
+            tools = []
+            descriptors = []
         elif activation is not None and activation.applied:
             activated_skill_names = {
                 str(name or "").strip()
@@ -106,15 +93,6 @@ class CapabilityDescriptionBuilder:
                 ]
             else:
                 descriptors = []
-        elif explicit_selected_skill_names:
-            tools = self._filter_tools_by_skill_names(
-                tools,
-                explicit_selected_skill_names,
-            )
-            descriptors = self._filter_descriptors_by_skill_names(
-                descriptors,
-                explicit_selected_skill_names,
-            )
 
         if not tools and not descriptors:
             return []
@@ -439,38 +417,6 @@ class CapabilityDescriptionBuilder:
         if not label:
             return "Skills"
         return label if label.endswith("Skills") else f"{label} Skills"
-
-    @staticmethod
-    def _stable_name_set(values: list[Any] | None) -> set[str]:
-        return {
-            text for value in list(values or []) if (text := str(value or "").strip())
-        }
-
-    @staticmethod
-    def _filter_descriptors_by_skill_names(
-        descriptors: list[Any],
-        skill_names: set[str],
-    ) -> list[Any]:
-        if not skill_names:
-            return []
-        return [
-            descriptor
-            for descriptor in descriptors
-            if str(getattr(descriptor, "name", "") or "").strip() in skill_names
-        ]
-
-    @staticmethod
-    def _filter_tools_by_skill_names(
-        tools: list[Any],
-        skill_names: set[str],
-    ) -> list[Any]:
-        if not skill_names:
-            return []
-        return [
-            tool
-            for tool in tools
-            if str(getattr(tool, "source_skill_name", "") or "").strip() in skill_names
-        ]
 
     @staticmethod
     def _normalize_skill_family(value: Any) -> str:

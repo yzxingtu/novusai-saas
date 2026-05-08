@@ -1,9 +1,8 @@
 """
 Execution engine types.
 
-This module keeps the runtime request/result contracts stable for the legacy
-engines while also carrying the structured orchestration state introduced by
-the 666 rebuild.
+This module keeps the runtime request/result contracts stable for the active
+engine while also carrying the structured orchestration state.
 """
 
 from __future__ import annotations
@@ -242,8 +241,8 @@ class ToolUsePolicy:
     """
     Tool-use policy for the current turn.
 
-    The legacy engine still consumes this shape heavily, so it remains the
-    runtime projection of the currently active intent/tool subset.
+    This remains the runtime projection of the currently active intent/tool
+    subset.
     """
 
     family: str = "none"

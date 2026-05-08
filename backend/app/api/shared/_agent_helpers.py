@@ -12,17 +12,6 @@ from typing import Any
 from app.repositories.ai.retired_skill_catalog_filters import is_retired_skill_instance
 
 
-def _normalize_input_variables(value: Any) -> list[Any]:
-    """
-    Normalize persisted input_variables to a list shape.
-    将持久化的 input_variables 统一归一化为 list 形态。
-
-    Old/bad historical records may contain `{}` instead of `[]`.
-    历史脏数据里可能出现 `{}`，前端按数组消费时会直接报错。
-    """
-    return value if isinstance(value, list) else []
-
-
 def _extract_agent_relations(
     agent: Any,
 ) -> tuple[str | None, dict | None, list[dict], list[int], list[dict]]:
@@ -159,7 +148,7 @@ def build_agent_base_item(agent: Any) -> dict[str, Any]:
         "published_version": agent.published_version,
         "welcome_message": agent.welcome_message,
         "suggested_questions": agent.suggested_questions,
-        "input_variables": _normalize_input_variables(agent.input_variables),
+        "input_variables": agent.input_variables,
         "created_at": agent.created_at,
         "updated_at": agent.updated_at,
     }

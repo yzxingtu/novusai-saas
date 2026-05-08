@@ -121,21 +121,13 @@ class AgentChatRequest(BaseModel):
         max_length=32000,
         description=_("agent_chat.field.message"),
     )
-    messages: list[str] | None = Field(
-        None,
-        max_length=10,
-        description=_("agent_chat.field.messages_batch"),
-    )
 
     @model_validator(mode="after")
-    def require_message_or_messages(self) -> AgentChatRequest:
-        msgs = self.messages or []
+    def require_message_or_interaction(self) -> AgentChatRequest:
         single = (self.message or "").strip()
         has_interaction = bool(self.interaction_updates)
-        if not msgs and not single and not has_interaction:
-            raise ValueError("message, messages, or interaction_updates required")
-        if msgs and any(not (m or "").strip() for m in msgs):
-            raise ValueError("messages must not contain empty strings")
+        if not single and not has_interaction:
+            raise ValueError("message or interaction_updates required")
         ensure_no_disallowed_ai_runtime_input(self.variables)
         for update in self.interaction_updates or []:
             _ensure_valid_runtime_tool_name(update.tool_name)

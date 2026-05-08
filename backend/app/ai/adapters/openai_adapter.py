@@ -97,7 +97,7 @@ class OpenAIAdapter(
         Chat conversation (synchronous mode) / 聊天对话（同步模式）
 
         The public facade is protocol-safe by default and must not implicitly
-        re-enter the legacy planner/fallback path.
+        bypass runtime protocol planning.
         """
         _ = stream
         return await self.chat_protocol_safe(
@@ -127,7 +127,7 @@ class OpenAIAdapter(
         Chat conversation (streaming mode) / 聊天对话（流式模式）
 
         The public facade is protocol-safe by default and must not implicitly
-        re-enter the legacy planner/fallback path.
+        bypass runtime protocol planning.
         """
         async for chunk in self.stream_chat_protocol_safe(
             messages=messages,

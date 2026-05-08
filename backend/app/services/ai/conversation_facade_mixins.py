@@ -100,9 +100,6 @@ from app.services.ai.conversation_timeline_service import (
     ConversationTimelineService,
 )
 from app.services.ai.execution_decision_service import ExecutionDecisionService
-from app.services.ai.execution_trust_policy_service import (
-    ExecutionTrustPolicyService,
-)
 
 if TYPE_CHECKING:
     from app.ai.engine.types import ExecutionResult
@@ -228,7 +225,6 @@ class ConversationDependencyFacade:
                 message_repo=self.message_repo,
                 memory_tenant_id=self._get_memory_tenant_id(),
                 decision_service_cls=ExecutionDecisionService,
-                trust_policy_service_cls=ExecutionTrustPolicyService,
                 write_ai_action_log_fn=write_ai_action_log,
                 resolve_action_level_fn=resolve_action_level,
             )

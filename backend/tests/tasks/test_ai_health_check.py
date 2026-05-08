@@ -14,10 +14,10 @@ from redis.exceptions import RedisError
 
 from app.ai.failover import FailoverService
 from app.tasks.ai_health_check import (
-    ai_provider_health_check,
     _check_provider_health,
     _provider_needs_responses_tool_probe,
     _send_base_health_probe,
+    ai_provider_health_check,
 )
 
 

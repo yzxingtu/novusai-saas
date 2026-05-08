@@ -312,13 +312,9 @@ class LifecycleDependencyRuntimeMixin:
         from packaging.version import Version
 
         def _module_candidates(req_name: str, dist=None) -> list[str]:
-            """根据 requirement 名构建可能的 import 模块名 / Build likely import module names for a requirement."""
+            """根据 wheel 元数据构建 import 模块名 / Build import module names from wheel metadata."""
+            _ = req_name
             names: list[str] = []
-
-            # Heuristic fallback: `foo-bar` -> `foo_bar` / 启发式回退：包名转模块名
-            fallback = req_name.replace("-", "_").replace(".", "_").strip()
-            if fallback and fallback.isidentifier():
-                names.append(fallback)
 
             # Preferred source: top_level.txt from wheel metadata / 优先来源：wheel 元数据中的 top_level.txt
             if dist is not None:

@@ -6,7 +6,7 @@ Defines endpoint-internal access control for agents. One-to-one with Agent per t
 """
 
 from sqlalchemy import JSON, ForeignKey, Index, Integer, String
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
 from app.core.base_model import TenantModel
 from app.core.i18n import _
@@ -17,14 +17,14 @@ class AgentAccess(TenantModel):
     智能体访问权限配置 / Agent access config.
 
     仅负责端内组织/角色限制：
-    - admin_role_ids: 平台管理员组织节点限制（字段名为兼容保留）
+    - admin_role_ids: 平台管理员组织节点限制（数据库列名沿用既有名称）
     - tenant_role_ids: 企业管理员角色限制
 
     用户端发布规则已迁移到 TenantAgentPublication。
 
-    历史库表仍保留 access_type 等列（NOT NULL + 默认 all_users）；ORM 必须映射，
+    退役库表列 access_type 仍是 NOT NULL + 默认 all_users；ORM 必须映射，
     否则新建行 INSERT 会漏列并触发约束错误。
-    Legacy DB columns include access_type (NOT NULL); must be mapped so INSERT is valid.
+    Retired DB column access_type is NOT NULL and mapped so INSERT remains valid.
     """
 
     __tablename__ = "agent_access"
@@ -51,7 +51,7 @@ class AgentAccess(TenantModel):
         comment=_("agent_access.agent_id"),
     )
 
-    # 管理端组织节点 ID 列表（沿用 admin_role_ids 字段名做兼容） / Admin org role ids (legacy name)
+    # 管理端组织节点 ID 列表（数据库列名为 admin_role_ids） / Admin org-node ids stored in admin_role_ids
     admin_role_ids: Mapped[list | None] = mapped_column(
         JSON,
         nullable=True,
@@ -67,7 +67,8 @@ class AgentAccess(TenantModel):
         comment=_("agent_access.tenant_role_ids"),
     )
 
-    # 旧版访问类型（org_node / all_users 等）；终端用户可见性已用 TenantAgentPublication
+    # 退役访问类型列；终端用户可见性使用 TenantAgentPublication /
+    # Retired access type column; tenant-user visibility uses TenantAgentPublication.
     access_type: Mapped[str] = mapped_column(
         String(20),
         nullable=False,
@@ -85,6 +86,15 @@ class AgentAccess(TenantModel):
         "Agent",
         lazy="noload",
     )
+
+    @validates("access_type")
+    def _reject_retired_access_type_write(self, key: str, _value: str) -> str:
+        """中文: access_type 只为库表约束映射，应用层不得再写入。
+
+        EN: access_type is mapped only for the table constraint; application
+        writes are rejected.
+        """
+        raise ValueError(f"agent_access.{key} is retired; use TenantAgentPublication")
 
     def __repr__(self) -> str:
         return (

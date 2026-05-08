@@ -82,3 +82,23 @@ def test_extract_turn_diagnostics_derives_elapsed_budget_exit_from_usage() -> No
     assert payload["budget_exit_reason"] == "elapsed_budget_exceeded"
     assert payload["budget"]["usage"]["elapsed_over_limit"] is True
     assert payload["budget"]["usage"]["elapsed_over_limit_ms"] == 75500
+
+
+def test_extract_turn_diagnostics_does_not_backfill_turn_flow_from_legacy_metadata() -> (
+    None
+):
+    metadata = {
+        "thinking_content": "raw reasoning must not create a public stage",
+        "rag_sources": [
+            {
+                "source": "KB",
+                "chunk_id": "legacy-kb",
+                "title": "Legacy KB",
+            }
+        ],
+    }
+
+    payload = extract_turn_diagnostics_from_metadata(metadata)
+
+    assert "turn_flow" not in metadata
+    assert "turn_flow" not in payload

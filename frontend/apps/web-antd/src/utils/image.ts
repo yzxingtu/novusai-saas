@@ -156,23 +156,6 @@ export function toCanonicalAttachmentImageValue(value: unknown): string {
 }
 
 /**
- * Detect historical URL values that may only be used for read-only display.
- * 识别只能用于只读展示的历史 URL 值。
- */
-export function isReadOnlyLegacyImageValue(value: unknown): boolean {
-  if (typeof value !== 'string') {
-    return false;
-  }
-  const normalized = value.trim();
-  return Boolean(
-    normalized &&
-      !normalizeAttachmentIdString(normalized) &&
-      !/^-?\d+(?:\.\d+)?$/.test(normalized) &&
-      /^(?:blob:|data:image\/|https?:\/\/|\/\/|\/)/i.test(normalized),
-  );
-}
-
-/**
  * Resolve a canonical attachment image value to a displayable URL.
  * 将规范附件图片值解析为可显示 URL。
  */
@@ -187,26 +170,6 @@ export function toAttachmentImageUrl(
   return '';
 }
 
-/**
- * Resolve a stored image value for read-only display, including historical URLs.
- * 解析存量图片值用于只读展示，包括历史 URL。
- */
-export function toReadOnlyAttachmentImageDisplayUrl(
-  value: AttachmentImageValue,
-  options: ImageProcessOptions = {},
-): string {
-  const attachmentUrl = toAttachmentImageUrl(value, options);
-  if (attachmentUrl) {
-    return attachmentUrl;
-  }
-  if (typeof value !== 'string') {
-    return '';
-  }
-
-  const normalized = value.trim();
-  return isReadOnlyLegacyImageValue(normalized) ? normalized : '';
-}
-
 interface AttachmentLike {
   id: number;
   previewUrl?: null | string;
@@ -214,18 +177,16 @@ interface AttachmentLike {
 }
 
 /**
- * Convert avatar value to display URL; legacy URLs are read-only display only.
- * 将头像值转为展示 URL；历史 URL 仅用于只读展示。
+ * Convert canonical avatar attachment ID to display URL.
+ * 将规范头像附件 ID 转为展示 URL。
  *
  * - Number → attachment ID → generate URL via image processing endpoint
- * - Historical URL → return directly for read-only display
  * - Empty value → return empty string
  * - 纯数字 → 附件 ID → 通过图片处理端点生成 URL
- * - 历史 URL → 仅为只读展示直接返回
  * - 空值 → 返回空字符串
  */
 export function toAvatarDisplayUrl(val: null | string | undefined): string {
-  return toReadOnlyAttachmentImageDisplayUrl(val, { preset: 'avatar' });
+  return toAttachmentImageUrl(val, { preset: 'avatar' });
 }
 
 /**
@@ -236,12 +197,10 @@ export function toAvatarDisplayUrl(val: null | string | undefined): string {
  * - Storage driver routing (local / cloud storage)
  * - Path prefix concatenation
  * - Signed URL / CDN URL selection
- * - Storage migration compatibility (config mismatch fallback)
  * 始终通过后端 API 端点生成 URL，由后端处理：
  * - 存储驱动路由（local / 各云存储）
  * - 路径 prefix 拼接
  * - 签名 URL / CDN URL 选择
- * - 存储迁移兼容（config mismatch fallback）
  *
  * Backend returns 302 redirect to CDN for cloud storage; browser follows and caches.
  * 后端对云存储返回 302 重定向到 CDN，浏览器自动跟随并缓存。

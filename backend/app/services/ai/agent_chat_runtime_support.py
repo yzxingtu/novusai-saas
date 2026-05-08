@@ -258,11 +258,9 @@ class AgentChatRuntimeSupport:
     @staticmethod
     def build_trust_policy_ref_from_interaction_updates(
         interaction_updates: list[dict[str, Any]] | None,
-        trust_policy_service_cls: type | None = None,
     ) -> dict[str, Any] | None:
         return _build_trust_policy_ref_from_interaction_updates_impl(
             interaction_updates,
-            trust_policy_service_cls=trust_policy_service_cls,
         )
 
     @staticmethod

@@ -779,6 +779,8 @@ def _should_surface_exception_partial_output(
     normalized_failure_kind = str(provider_failure_kind or "").strip()
     if normalized_failure_kind == "budget_exit":
         return True
+    if normalized_failure_kind == "provider_timeout":
+        return True
     if generated_partial_output:
         return False
     return had_visible_output
@@ -896,6 +898,12 @@ async def _build_stream_exception_artifacts(
         generated_partial_output = bool(str(partial_output or "").strip())
 
     partial_output = str(partial_output or "").strip()
+    if not partial_output:
+        partial_output = _resolve_completion_reason_public_error_message(
+            completion_reason=completion_reason,
+            fallback_message=public_error_message,
+        )
+        generated_partial_output = bool(partial_output)
     state = getattr(handler, "_state", None)
     recovered_from_provider_failure = False
     if state is not None:

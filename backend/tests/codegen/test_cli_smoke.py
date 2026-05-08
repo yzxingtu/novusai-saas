@@ -5,11 +5,13 @@ CLI 冒烟测试 / CLI smoke tests.
 """
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
 from click.testing import CliRunner
 
 from app.exceptions import ConflictException, NotFoundException
@@ -99,6 +101,40 @@ def _patch_codegen_paths(monkeypatch, *, backend_dir: Path, project_root: Path) 
         "app.cli_commands.codegen_manage._CODEGEN_PROJECT_ROOT",
         project_root,
     )
+
+
+def _venv_python_path(backend_dir: Path) -> Path:
+    scripts_dir = "Scripts" if os.name == "nt" else "bin"
+    python_name = "python.exe" if os.name == "nt" else "python"
+    return backend_dir / ".venv" / scripts_dir / python_name
+
+
+def test_get_venv_python_uses_project_virtualenv(tmp_path: Path) -> None:
+    """中文: Test type: structural. CLI runtime 命令必须使用项目 .venv。
+
+    EN: Test type: structural. CLI runtime commands must use the project .venv.
+    """
+    from app.cli_runtime_helpers import get_venv_python
+
+    backend_dir = tmp_path / "backend"
+    venv_python = _venv_python_path(backend_dir)
+    venv_python.parent.mkdir(parents=True)
+    venv_python.write_text("", encoding="utf-8")
+
+    assert get_venv_python(backend_dir) == str(venv_python)
+
+
+def test_get_venv_python_fails_when_project_virtualenv_missing(
+    tmp_path: Path,
+) -> None:
+    """中文: Test type: behavioral. 缺少项目 .venv 时不得回退到当前解释器。
+
+    EN: Test type: behavioral. Missing project .venv must not fall back to the current interpreter.
+    """
+    from app.cli_runtime_helpers import get_venv_python
+
+    with pytest.raises(RuntimeError, match="Backend virtualenv Python not found"):
+        get_venv_python(tmp_path / "backend")
 
 
 def test_codegen_delete_not_found_returns_clean_json(monkeypatch) -> None:

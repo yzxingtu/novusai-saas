@@ -13,10 +13,9 @@ from app.core.base_schema import BaseSchema
 
 
 def _validate_writable_avatar_value(value: object) -> str | None:
-    """中文: 写入边界只接受附件 ID，历史 URL 仅允许响应只读展示。
+    """中文: 写入边界只接受附件 ID。
 
-    EN: Write boundaries accept attachment IDs only; legacy URLs are read-only
-    response display values.
+    EN: Write boundaries accept attachment IDs only.
     """
     if value is None:
         return None
@@ -37,6 +36,17 @@ def _validate_writable_avatar_value(value: object) -> str | None:
     raise ValueError("avatar must be a positive attachment ID")
 
 
+def _normalize_readable_avatar_value(value: object) -> str | None:
+    """中文: 响应边界隐藏非附件 ID 的存量头像值。
+
+    EN: Response boundaries hide stored avatar values that are not attachment IDs.
+    """
+    try:
+        return _validate_writable_avatar_value(value)
+    except ValueError:
+        return None
+
+
 class TenantAdminLoginRequest(BaseSchema):
     """企业管理员登录请求 / Tenant admin login request."""
 
@@ -44,8 +54,8 @@ class TenantAdminLoginRequest(BaseSchema):
         ..., min_length=1, max_length=50, description="用户名或邮箱 / Username or email"
     )
     password: str = Field(..., min_length=1, description="密码")
-    tenant_code: str | None = Field(
-        None, max_length=50, description="企业编码（用于限定登录范围）"
+    tenant_code: str = Field(
+        ..., min_length=1, max_length=50, description="企业编码（用于限定登录范围）"
     )
     captcha_challenge_id: str | None = Field(None, description="验证码挑战 ID")
     captcha_solution: str | None = Field(None, description="验证码答案")
@@ -61,7 +71,7 @@ class TenantAdminResponse(BaseSchema):
     email: str = Field(..., description="邮箱")
     phone: str | None = Field(None, description="手机号")
     nickname: str | None = Field(None, description="昵称")
-    avatar: str | None = Field(None, description="头像附件 ID（历史 URL 仅只读展示）")
+    avatar: str | None = Field(None, description="头像附件 ID")
     is_active: bool = Field(..., description="是否激活")
     ai_enabled: bool = Field(True, description="账号级 AI 对话开关")
     is_owner: bool = Field(..., description="是否企业所有者")
@@ -113,6 +123,11 @@ class TenantAdminResponse(BaseSchema):
             last_login_at=admin.last_login_at,
             created_at=admin.created_at,
         )
+
+    @field_validator("avatar", mode="before")
+    @classmethod
+    def normalize_avatar(cls, value: object) -> str | None:
+        return _normalize_readable_avatar_value(value)
 
 
 class TenantAdminCreateRequest(BaseSchema):

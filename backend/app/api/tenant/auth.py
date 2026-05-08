@@ -13,7 +13,6 @@ from app.core.i18n import _
 from app.core.logging import ImpersonateLoggerMixin
 from app.core.rate_limit import check_login_rate_limit
 from app.core.response import success
-from app.middleware.tenant import get_tenant_context
 from app.rbac.decorators import auth_only, public
 from app.schemas.common import (
     DevBootstrapRequest,
@@ -48,13 +47,6 @@ def _client_ip(request: Request) -> str | None:
     return request.client.host if request.client else None
 
 
-def _resolve_tenant_id_from_context(request: Request) -> int | None:
-    tenant_ctx = get_tenant_context(request)
-    if tenant_ctx and tenant_ctx.is_resolved:
-        return tenant_ctx.tenant_id
-    return None
-
-
 @router.post("/login", summary="企业管理员登录")
 @public
 async def tenant_admin_login(
@@ -76,7 +68,6 @@ async def tenant_admin_login(
         username=login_data.username,
         password=login_data.password,
         tenant_code=login_data.tenant_code,
-        tenant_id_from_ctx=_resolve_tenant_id_from_context(request),
         client_ip=_client_ip(request),
         captcha_challenge_id=login_data.captcha_challenge_id,
         captcha_solution=login_data.captcha_solution,

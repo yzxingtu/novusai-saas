@@ -6,7 +6,6 @@ Defines directory menu structure for tenant business user; leaf menus declared v
 定义企业业务用户端的目录型菜单结构，叶子菜单通过控制器装饰器声明。
 
 Menu hierarchy example / 菜单层级示例:
-- Home / 首页 (legacy dashboard resource code)
 - Agents / 智能体广场
 - AI Chat / AI 对话 (ai_chat)
 - Help / 帮助中心
@@ -27,21 +26,6 @@ from app.rbac.decorators import PermissionMeta
 
 # User directory menus / 用户端目录菜单
 USER_DIRECTORY_MENUS: list[PermissionMeta] = [
-    # ========================================
-    # Home (legacy dashboard resource code, canonical route=/) / 首页（保留 dashboard 资源码，规范路由=/）
-    # ========================================
-    PermissionMeta(
-        code="menu:user.dashboard",
-        name="menu.user.dashboard",
-        type=PermissionType.MENU,
-        scope=PermissionScope.USER,
-        resource="menu",
-        action="user.dashboard",
-        icon="lucide:home",
-        path="/",
-        component="user/home/Index",
-        sort_order=0,
-    ),
     # ========================================
     # Agents / 智能体广场
     # ========================================

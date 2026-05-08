@@ -17,6 +17,9 @@ from app.models.ai.execution_decision import ExecutionDecision
 from app.services.ai.agent_chat_interaction_support import (
     strip_legacy_interaction_mode_fields,
 )
+from app.services.ai.conversation_payload_sanitizer import (
+    strip_assistant_legacy_turn_projection_fields,
+)
 
 
 class ConversationTimelineService:
@@ -44,6 +47,10 @@ class ConversationTimelineService:
             metadata = strip_legacy_interaction_mode_fields(
                 dict(getattr(message, "metadata_", {}) or {})
             )
+            message_payload = strip_assistant_legacy_turn_projection_fields(
+                {"role": message.role, "metadata": metadata}
+            )
+            metadata = message_payload.get("metadata")
             items.append(
                 {
                     "type": f"message:{message.role}",

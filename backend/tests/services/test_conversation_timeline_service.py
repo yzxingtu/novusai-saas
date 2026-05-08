@@ -107,3 +107,53 @@ async def test_conversation_timeline_service_build_call_log_summary(mock_db):
         "total_cost": 12.5,
         "last_call_at": datetime(2026, 4, 10, 10, 0, tzinfo=timezone.utc),
     }
+
+
+@pytest.mark.asyncio
+async def test_conversation_timeline_strips_legacy_assistant_projection_metadata(
+    mock_db,
+):
+    now = datetime(2026, 4, 10, 10, 0, tzinfo=timezone.utc)
+    empty_scalars = SimpleNamespace(
+        scalars=lambda: SimpleNamespace(all=lambda: []),
+    )
+    mock_db.execute = AsyncMock(
+        side_effect=[
+            empty_scalars,
+            empty_scalars,
+            empty_scalars,
+            SimpleNamespace(one_or_none=lambda: None),
+        ],
+    )
+    svc = ConversationTimelineService(
+        mock_db,
+        memory_tenant_id=1,
+        format_dt=lambda value: value.isoformat() if value else None,
+    )
+    message = SimpleNamespace(
+        id=1,
+        role="assistant",
+        content="最终答复",
+        created_at=now,
+        tool_name=None,
+        tool_call_id=None,
+        metadata_={
+            "topic": "kept",
+            "thinking_content": "raw reasoning",
+            "rag_sources": [{"chunk_id": "legacy"}],
+            "turn_record": {
+                "metadata": {
+                    "canonical_tool_calls": [{"id": "legacy-tool"}],
+                }
+            },
+        },
+    )
+
+    timeline = await svc.get_conversation_timeline(
+        conversation_id=10,
+        conversation=SimpleNamespace(id=10),
+        messages=[message],
+    )
+
+    metadata = timeline[0]["detail_payload"]["metadata"]
+    assert metadata == {"topic": "kept", "turn_record": {"metadata": {}}}

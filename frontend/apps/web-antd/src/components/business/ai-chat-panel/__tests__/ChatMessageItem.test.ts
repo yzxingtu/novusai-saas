@@ -2,11 +2,7 @@
 // Test type: behavioral
 // Verifies: assistant chat messages render canonical turnFlow process UX,
 // hidden thinking content, tool content, and final-answer transitions without stale process artifacts.
-import type {
-  AgentItem,
-  ChatMessage,
-  ToolCallEvent,
-} from '../types';
+import type { AgentItem, ChatMessage, ToolCallEvent } from '../types';
 
 /**
  * ChatMessageItem component tests: executing, 8s hint, error_type mapping.
@@ -598,7 +594,7 @@ describe('chatMessageItem', () => {
           role: 'assistant',
           content: '已经整理好了答案。',
           agent_id: 2,
-          agent_avatar: '/uploads/avatars/cat-agent.png',
+          agent_avatar: '42',
           agent_name: '猫娘智能体',
           agent_description: '负责轻量问答与工具调用。',
           model_name: 'gpt-5.4-mini',
@@ -700,12 +696,12 @@ describe('chatMessageItem', () => {
       wrapper
         .findAll('[data-testid="agent-profile-skill-package-chip"]')
         .map((chip) => chip.text()),
-      ).toEqual(['数据工具包', '编辑工具包', '检索工具包']);
+    ).toEqual(['数据工具包', '编辑工具包', '检索工具包']);
     expect(
       wrapper
         .findAll('[data-testid="agent-profile-skill-entry-chip"]')
         .map((chip) => chip.text()),
-      ).toEqual(['数据查询', '内容整理', '知识检索']);
+    ).toEqual(['数据查询', '内容整理', '知识检索']);
     expect(
       wrapper
         .findAll('[data-testid="agent-profile-kb-chip"]')
@@ -2350,6 +2346,22 @@ describe('chatMessageItem', () => {
           content: '',
           streaming: true,
           turnFlow: createTurnFlow({
+            evidence: [
+              {
+                id: 'source-1',
+                kind: 'knowledge_base',
+                snippet: '资料来源一摘要',
+                sourceRef: 'source-1',
+                title: '资料来源一',
+              },
+              {
+                id: 'source-2',
+                kind: 'document',
+                snippet: '资料来源二摘要',
+                sourceRef: 'source-2',
+                title: '资料来源二',
+              },
+            ],
             timeline: [
               {
                 id: 'stage-tool-execution',
@@ -2366,6 +2378,7 @@ describe('chatMessageItem', () => {
                 metrics: {
                   source_count: 2,
                 },
+                sourceRefs: ['source-1', 'source-2'],
               },
             ],
           }),
@@ -2481,7 +2494,9 @@ describe('chatMessageItem', () => {
       wrapper.find('[data-testid="chat-message-kernel-header"]').exists(),
     ).toBe(true);
     expect(
-      wrapper.find('[data-testid="chat-message-kernel-overview-toggle"]').exists(),
+      wrapper
+        .find('[data-testid="chat-message-kernel-overview-toggle"]')
+        .exists(),
     ).toBe(false);
     expect(
       wrapper.get('[data-testid="turn-process-body"]').attributes('style') ??
@@ -2704,9 +2719,7 @@ describe('chatMessageItem', () => {
     const html = wrapper.html();
     expect(
       html.indexOf('data-testid="chat-message-kernel-header"'),
-    ).toBeLessThan(
-      html.indexOf('data-testid="markdown-render-content"'),
-    );
+    ).toBeLessThan(html.indexOf('data-testid="markdown-render-content"'));
   });
 
   it('hides persisted body text when the turn failed with untrusted final output', async () => {

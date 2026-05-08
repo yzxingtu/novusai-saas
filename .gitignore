@@ -80,6 +80,7 @@ celerybeat.pid
 backend/var/celerybeat/
 
 # Plugin backups (auto-created before uninstall/upgrade, should not be committed)
+backend/backups/
 backend/plugins/.backups/
 backend/plugins/.versions/
 backend/plugins/*.zip

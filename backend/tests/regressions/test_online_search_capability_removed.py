@@ -15,6 +15,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from app.ai.adapters.openai_compatible.request_payload_builders import (
+    build_chat_completions_request,
     build_responses_request,
 )
 from app.ai.engine.intent_planner import IntentPlanner
@@ -233,11 +234,16 @@ async def test_responses_payload_surface_does_not_forward_hosted_search_tools() 
         tools=[
             {"type": "web_search"},
             {"type": "web_search_preview"},
+            {"type": "function", "function": {"name": "web_search", "parameters": {}}},
             {"type": "function", "function": {"name": "crm_lookup", "parameters": {}}},
         ],
         tool_choice="required",
         kwargs={
             "_runtime_native_search_probe": True,
+            "tools": [
+                {"type": "function", "function": {"name": "web_search"}},
+            ],
+            "tool_choice": "required",
             "web_search_options": {"enabled": True},
             "search_provider": "SearchProvider",
         },
@@ -255,3 +261,52 @@ async def test_responses_payload_surface_does_not_forward_hosted_search_tools() 
     serialized = json.dumps(request, sort_keys=True)
     assert all(name not in serialized for name in REMOVED_ONLINE_SEARCH_NAMES)
     assert all(name not in serialized for name in REMOVED_PROVIDER_CONFIG_KEYS)
+
+
+def test_chat_completions_payload_surface_does_not_forward_search_payloads() -> None:
+    """中文: Chat Completions 请求构造同样不得转发联网搜索工具或嵌套开关。
+
+    EN: Chat Completions request construction must not forward online-search
+    tools or nested search switches either.
+    """
+    request = build_chat_completions_request(
+        adapter=_ResponsesPayloadAdapterStub(),
+        openai_messages=[{"role": "user", "content": "hello"}],
+        model="gpt-4.1",
+        temperature=0.7,
+        max_tokens=None,
+        top_p=1.0,
+        tools=[
+            {"type": "web_search"},
+            {"type": "function", "function": {"name": "web_search", "parameters": {}}},
+            {"type": "function", "function": {"name": "crm_lookup", "parameters": {}}},
+        ],
+        tool_choice="required",
+        stream=False,
+        kwargs={
+            "_runtime_native_search_probe": True,
+            "tools": [
+                {"type": "function", "function": {"name": "web_search"}},
+            ],
+            "tool_choice": "required",
+            "extra_body": {
+                "web_search_options": {"enabled": True},
+                "safe": "kept",
+            },
+            "metadata": {
+                "provider/SearchProvider": True,
+                "safe": "kept",
+            },
+            "search_provider": "SearchProvider",
+        },
+    )
+
+    assert request["tools"] == [
+        {"type": "function", "function": {"name": "crm_lookup", "parameters": {}}}
+    ]
+    assert request["extra_body"] == {"safe": "kept"}
+    assert request["metadata"] == {"safe": "kept"}
+    serialized = json.dumps(request, sort_keys=True)
+    assert all(name not in serialized for name in REMOVED_ONLINE_SEARCH_NAMES)
+    assert all(name not in serialized for name in REMOVED_PROVIDER_CONFIG_KEYS)
+    assert "SearchProvider" not in serialized

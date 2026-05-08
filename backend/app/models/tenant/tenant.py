@@ -6,10 +6,10 @@ Multi-tenant SaaS tenant entity.
 """
 
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
 from app.core.base_model import BaseModel
 from app.core.deletion import DeletionDep, DeletionStrategy
@@ -120,15 +120,13 @@ class Tenant(BaseModel):
         comment="是否启用 / Active",
     )
 
-    # 套餐/配额 / Plan and quota
-    # @deprecated: plan 字段已废弃，请使用 plan_id 关联 TenantPlan
-    # Deprecated: use plan_id -> TenantPlan
-    # 保留字段以兼容旧数据，迁移后删除 / Kept for legacy data migration
+    # 退役存储列：仅映射现有库表形态，应用写入会拒绝 /
+    # Retired storage column: mapped for the existing table shape; app writes are rejected.
     plan: Mapped[str | None] = mapped_column(
         String(50),
         nullable=True,
         default=None,
-        comment="套餐类型(已废弃) / Legacy plan (deprecated)",
+        comment="退役套餐文本列 / Retired plan text column",
     )
 
     # 套餐外键关联 / FK to TenantPlan
@@ -161,15 +159,12 @@ class Tenant(BaseModel):
         comment="备注 / Remark",
     )
 
-    # 企业设置（JSON 格式） / Tenant settings JSON
-    # @deprecated: 已废弃，请使用 ConfigService.get_tenant_config() 获取配置
-    # Deprecated: use ConfigService.get_tenant_config()
-    # 数据已迁移到 system_config_values 表 / Data moved to system_config_values
-    # 保留字段以兼容旧数据，但不再使用 / Legacy column retained
+    # 退役存储列：配置读取统一走 ConfigService /
+    # Retired storage column: config reads go through ConfigService.
     settings: Mapped[dict | None] = mapped_column(
         JSON,
         nullable=True,
-        comment="企业设置(已废弃) / Legacy settings (deprecated)",
+        comment="退役企业设置列 / Retired tenant settings column",
     )
 
     # ==================== 关系 ==================== / Relationships
@@ -208,12 +203,16 @@ class Tenant(BaseModel):
             and bool(getattr(plan, "is_active", False))
         )
 
-    # 以下属性已废弃，请使用 ConfigService.get_tenant_config() 代替 /
-    # Deprecated properties; use ConfigService.get_tenant_config()
-    # - logo_url -> tenant_logo
-    # - favicon_url -> tenant_favicon
-    # - captcha_enabled -> tenant_captcha_enabled
-    # - login_methods -> tenant_login_methods
+    @validates("plan", "settings")
+    def _reject_retired_storage_write(self, key: str, value: Any) -> Any:
+        """中文: 退役列只允许清空，新写入必须走 plan_id 或 ConfigService。
+
+        EN: Retired columns may only be cleared; new writes must use plan_id or
+        ConfigService.
+        """
+        if value is None:
+            return None
+        raise ValueError(f"tenants.{key} is retired; use plan_id or ConfigService")
 
     @property
     def max_custom_domains(self) -> int:

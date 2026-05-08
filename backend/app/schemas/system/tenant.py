@@ -13,6 +13,22 @@ from pydantic import Field, model_validator
 from app.core.base_schema import BaseSchema
 from app.schemas.tenant.domain import TenantDomainSimpleResponse
 
+_RETIRED_TENANT_INPUT_FIELDS = frozenset({"plan", "settings"})
+
+
+def _reject_retired_tenant_input_fields(data: Any) -> Any:
+    """中文: 企业写入只接受新契约字段，退役字段进入请求即拒绝。
+
+    EN: Tenant writes accept only new-contract fields; retired fields are
+    rejected on input.
+    """
+    if isinstance(data, dict):
+        retired = _RETIRED_TENANT_INPUT_FIELDS & set(data.keys())
+        if retired:
+            fields = ", ".join(sorted(retired))
+            raise ValueError(f"{fields} is retired; use plan_id or ConfigService")
+    return data
+
 
 class TenantPlanInfo(BaseSchema):
     """企业套餐信息（简略） / Tenant plan info (brief)."""
@@ -142,6 +158,11 @@ class TenantCreateRequest(BaseSchema):
         ..., min_length=6, max_length=100, description="管理员密码"
     )
 
+    @model_validator(mode="before")
+    @classmethod
+    def reject_retired_fields(cls, data: Any) -> Any:
+        return _reject_retired_tenant_input_fields(data)
+
 
 class TenantUpdateRequest(BaseSchema):
     """更新企业请求 / Update tenant request."""
@@ -160,14 +181,8 @@ class TenantUpdateRequest(BaseSchema):
 
     @model_validator(mode="before")
     @classmethod
-    def reject_legacy_plan_field(cls, data: Any) -> Any:
-        """中文: 新套餐契约只接受 plan_id，旧 plan 字段进入请求即拒绝。
-
-        EN: The new plan contract only accepts plan_id; reject legacy plan on input.
-        """
-        if isinstance(data, dict) and "plan" in data:
-            raise ValueError("plan is retired; use plan_id")
-        return data
+    def reject_retired_fields(cls, data: Any) -> Any:
+        return _reject_retired_tenant_input_fields(data)
 
 
 class TenantStatusRequest(BaseSchema):

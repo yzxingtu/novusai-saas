@@ -48,7 +48,8 @@ class SourceReference:
     chunk_index: int = 0
     knowledge_base_id: int | None = None
     knowledge_base_name: str | None = None
-    # Formal knowledge-base citation marker. Historical payloads may contain legacy values.
+    # 中文: 新写入只使用规范知识库引用类型；读取侧不从旧值推导运行事实。
+    # EN: New writes use the canonical knowledge-base source type only; readers do not infer runtime facts from old values.
     source_kind: str = "formal_kb"
 
     def to_dict(self) -> dict:

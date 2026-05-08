@@ -30,7 +30,9 @@ def test_project_from_metadata_maps_elapsed_budget_exit_to_failed_terminal() -> 
     assert answer_assembly["status"] == "error"
 
 
-def test_project_from_metadata_hides_raw_thinking_summary_from_user_timeline() -> None:
+def test_project_from_metadata_ignores_legacy_thinking_content_without_turn_flow() -> (
+    None
+):
     turn_flow = ConversationTurnFlowProjector.project_from_metadata(
         {
             "thinking_content": (
@@ -40,16 +42,11 @@ def test_project_from_metadata_hides_raw_thinking_summary_from_user_timeline() -
         },
     )
 
-    thinking_stage = next(
-        stage for stage in turn_flow["timeline"] if stage["type"] == "thinking"
-    )
-    assert thinking_stage["summary"] == "已完成思考与规划"
-    assert thinking_stage["detail_lines"] == []
+    assert [stage["type"] for stage in turn_flow["timeline"]] == ["completed"]
+    assert turn_flow["evidence"] == []
 
 
-def test_project_from_metadata_uses_legacy_rag_sources_without_context_source_evidence() -> (
-    None
-):
+def test_project_from_metadata_ignores_legacy_rag_sources_without_turn_flow() -> None:
     turn_flow = ConversationTurnFlowProjector.project_from_metadata(
         {
             "rag_sources": [
@@ -63,19 +60,8 @@ def test_project_from_metadata_uses_legacy_rag_sources_without_context_source_ev
         content="已读取旧消息证据。",
     )
 
-    assert turn_flow["evidence"] == [
-        {
-            "id": "legacy-retrieval",
-            "kind": "knowledge_base",
-            "title": "Legacy retrieval source",
-            "url": None,
-            "snippet": None,
-            "badge": None,
-            "score": None,
-            "tool_call_id": None,
-            "source_ref": "legacy-retrieval",
-        }
-    ]
+    assert turn_flow["evidence"] == []
+    assert "retrieval" not in {stage["type"] for stage in turn_flow["timeline"]}
 
 
 def test_project_from_metadata_ignores_unknown_provider_progress() -> None:
@@ -542,7 +528,7 @@ def test_normalize_turn_flow_preserves_existing_tool_evidence_detail_fields() ->
     assert turn_flow["evidence"][0]["summary_payload"] == {"temperature_c": 18}
 
 
-def test_project_from_metadata_reads_legacy_canonical_tool_calls_only_for_historical_messages() -> (
+def test_project_from_metadata_ignores_legacy_canonical_tool_calls_without_turn_flow() -> (
     None
 ):
     turn_flow = ConversationTurnFlowProjector.project_from_metadata(
@@ -569,29 +555,50 @@ def test_project_from_metadata_reads_legacy_canonical_tool_calls_only_for_histor
         content="北京当前天气如下。",
     )
 
-    assert turn_flow["evidence"] == [
+    assert turn_flow["evidence"] == []
+    assert "tool_execution" not in {stage["type"] for stage in turn_flow["timeline"]}
+
+
+def test_project_from_message_payload_rejects_legacy_fields_without_canonical_turn_flow() -> (
+    None
+):
+    turn_flow = ConversationTurnFlowProjector.project_from_message_payload(
         {
-            "id": "ev_tool_tc_weather_1",
-            "kind": "tool",
-            "title": "天气查询",
-            "url": None,
-            "snippet": "北京晴，18°C",
-            "badge": None,
-            "score": None,
-            "tool_call_id": "tc_weather_1",
-            "source_ref": "get_current_weather",
-            "tool_name": "get_current_weather",
-            "status": "success",
-            "arguments": {"city": "北京"},
-            "display_name": "天气查询",
-            "output": "北京晴，18°C",
-            "summary_payload": {"temperature_c": 18},
+            "role": "assistant",
+            "content": "最终答复",
+            "tool_calls": [
+                {
+                    "id": "tc_legacy",
+                    "name": "query_records",
+                    "summary": "legacy tool projection",
+                }
+            ],
+            "metadata": {
+                "thinking_content": "raw reasoning must not become a stage",
+                "rag_sources": [
+                    {
+                        "source": "KB",
+                        "chunk_id": "legacy-kb",
+                        "title": "Legacy KB",
+                    }
+                ],
+                "turn_record": {
+                    "turn_outcome": "success",
+                    "termination_reason": "completed",
+                    "metadata": {
+                        "canonical_tool_calls": [
+                            {
+                                "id": "tc_nested_legacy",
+                                "name": "query_records",
+                            }
+                        ]
+                    },
+                },
+            },
         }
-    ]
-    tool_execution = next(
-        stage for stage in turn_flow["timeline"] if stage["type"] == "tool_execution"
     )
-    assert tool_execution["tool_call_ids"] == ["tc_weather_1"]
+
+    assert turn_flow is None
 
 
 def test_normalize_turn_flow_does_not_use_legacy_canonical_tool_calls_when_canonical_turn_flow_exists() -> (

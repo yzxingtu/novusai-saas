@@ -1,9 +1,8 @@
 """
 Context capability assembler / 上下文能力装配器
 
-Builds a unified CapabilityBundle for runtime-v2 while staying compatible with
-legacy execution flow.
-为 runtime-v2 构建统一 CapabilityBundle，同时保持旧执行链路兼容。
+Builds a unified CapabilityBundle for the active execution flow.
+为当前执行链路构建统一 CapabilityBundle。
 """
 
 from __future__ import annotations

@@ -448,10 +448,7 @@ class TestGetConversationDetail:
         assert detail["last_run_summary"]["termination_reason"] == (
             "tool_round_budget_exceeded"
         )
-        assert (
-            detail["message_list"][0]["turn_flow"]["timeline"][-1]["type"]
-            == "completed"
-        )
+        assert "turn_flow" not in detail["message_list"][0]
 
     @pytest.mark.asyncio
     async def test_conversation_detail_normalizes_provider_failure_after_partial_progress_turn_flow(
@@ -530,7 +527,7 @@ class TestGetConversationDetail:
         assert turn_flow["error_surface"]["message"]
 
     @pytest.mark.asyncio
-    async def test_conversation_detail_projects_turn_flow_and_strips_legacy_assistant_fields(
+    async def test_conversation_detail_strips_legacy_assistant_fields_without_projecting_turn_flow(
         self, mock_db
     ):
         from app.services.ai.conversation_service import ConversationService
@@ -577,23 +574,9 @@ class TestGetConversationDetail:
 
         assistant_payload = detail["message_list"][0]
         assert "tool_calls" not in assistant_payload
-        assert "thinking_content" not in assistant_payload["metadata"]
-        assert "rag_sources" not in assistant_payload["metadata"]
-        assert (
-            assistant_payload["metadata"]["turn_flow"] == assistant_payload["turn_flow"]
-        )
-        assert any(
-            stage["type"] == "thinking"
-            for stage in assistant_payload["turn_flow"]["timeline"]
-        )
-        assert any(
-            stage["type"] == "retrieval"
-            for stage in assistant_payload["turn_flow"]["timeline"]
-        )
-        assert any(
-            item["tool_call_id"] == "tc_1"
-            for item in assistant_payload["turn_flow"]["evidence"]
-        )
+        assert "turn_flow" not in assistant_payload
+        assert "thinking_content" not in (assistant_payload.get("metadata") or {})
+        assert "rag_sources" not in (assistant_payload.get("metadata") or {})
 
 
 class TestGetServiceForConversation:
@@ -1021,7 +1004,7 @@ class TestExportConversation:
         assert "token=" in attachments[0]["url"]
 
     @pytest.mark.asyncio
-    async def test_export_conversation_projects_turn_flow_and_strips_legacy_assistant_fields(
+    async def test_export_conversation_strips_legacy_assistant_fields_without_projecting_turn_flow(
         self, mock_db
     ):
         from app.services.ai.conversation_service import ConversationService
@@ -1071,20 +1054,10 @@ class TestExportConversation:
         assistant_payload = payload["messages"][0]
 
         assert "tool_calls" not in assistant_payload
-        assert "thinking_content" not in assistant_payload["metadata"]
-        assert "rag_sources" not in assistant_payload["metadata"]
+        assert "thinking_content" not in (assistant_payload.get("metadata") or {})
+        assert "rag_sources" not in (assistant_payload.get("metadata") or {})
         assert "turn_flow" not in assistant_payload
-        assert assistant_payload["metadata"]["turn_flow"]["answer_card"]["summary"] == (
-            "最终答复"
-        )
-        assert any(
-            stage["type"] == "thinking"
-            for stage in assistant_payload["metadata"]["turn_flow"]["timeline"]
-        )
-        assert any(
-            item["tool_call_id"] == "tc_export_1"
-            for item in assistant_payload["metadata"]["turn_flow"]["evidence"]
-        )
+        assert "turn_flow" not in (assistant_payload.get("metadata") or {})
 
     def test_serializers_preserve_message_agent_metadata(self):
         from app.services.ai.conversation_service import ConversationService
@@ -1371,7 +1344,7 @@ class TestThinkingPersistence:
         assert history[0].reasoning_content == "先查询数据库。"
 
     @pytest.mark.asyncio
-    async def test_persist_chat_messages_stores_thinking_content_metadata(
+    async def test_persist_chat_messages_does_not_project_reasoning_content_as_legacy_thinking_stage(
         self, mock_db
     ):
         from app.services.ai.conversation_service import ConversationService
@@ -1418,12 +1391,10 @@ class TestThinkingPersistence:
         assistant_payload = create_calls[1].args[0]
         assert assistant_payload["tool_calls"] == result.messages[1]["tool_calls"]
         assert "thinking_content" not in assistant_payload["metadata_"]
-        thinking_stage = next(
-            stage
+        assert "thinking" not in {
+            stage["type"]
             for stage in assistant_payload["metadata_"]["turn_flow"]["timeline"]
-            if stage["type"] == "thinking"
-        )
-        assert thinking_stage["summary"] == "已完成思考与规划"
+        }
         assert (
             assistant_payload["metadata_"]["turn_flow"]["answer_card"]["summary"]
             == "最终答复"
@@ -1584,10 +1555,12 @@ class TestThinkingPersistence:
             "preview": {"sql": "SELECT 1"},
             "table": "ai_call_logs",
         }
-        assert not any(
-            stage["type"] == "tool_execution"
+        tool_execution = next(
+            stage
             for stage in assistant_payload["metadata_"]["turn_flow"]["timeline"]
+            if stage["type"] == "tool_execution"
         )
+        assert tool_execution["tool_call_ids"] == ["tc_data_1"]
         tool_evidence = next(
             item
             for item in assistant_payload["metadata_"]["turn_flow"]["evidence"]

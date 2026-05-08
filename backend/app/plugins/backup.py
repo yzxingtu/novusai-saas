@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING
 from app.core.base_model import utc_now
 from app.core.logging import get_logger
 from app.core.response import serialize_datetime_for_api
+from app.plugins.exceptions import PluginError
 from app.plugins.loader import PLUGINS_DIR, PluginLoader
 
 if TYPE_CHECKING:
@@ -51,17 +52,19 @@ def _get_plugin_table_prefixes(plugin_name: str) -> tuple[str, ...]:
     prefixes: list[str] = [own_prefix]
     try:
         manifest = PluginLoader().load_manifest(plugin_name)
-        extra_prefixes = getattr(manifest, "db_table_prefixes", None) or []
-        for prefix in extra_prefixes:
-            normalized = (prefix or "").strip()
-            if normalized:
-                prefixes.append(normalized)
     except Exception as exc:
-        logger.warning(
-            "Failed to resolve custom table prefixes for {}, fallback to default: {}",
-            plugin_name,
-            exc,
-        )
+        raise PluginError(
+            message=(
+                f"Cannot resolve table prefixes for plugin '{plugin_name}'. "
+                "Fix plugin.yaml before backup or export."
+            )
+        ) from exc
+
+    extra_prefixes = getattr(manifest, "db_table_prefixes", None) or []
+    for prefix in extra_prefixes:
+        normalized = (prefix or "").strip()
+        if normalized:
+            prefixes.append(normalized)
     return tuple(dict.fromkeys(prefixes))
 
 

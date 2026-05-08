@@ -76,7 +76,7 @@ class TestLogRecord:
             == "plugin"
         )
 
-    def test_resolve_operation_log_module_backfills_legacy_w_module_from_path(
+    def test_resolve_operation_log_module_rejects_invalid_module_without_path_repair(
         self,
     ) -> None:
         from app.operation_log_module_resolution import resolve_operation_log_module
@@ -87,7 +87,21 @@ class TestLogRecord:
                 resource=None,
                 path="/admin/ws/presence",
             )
-            == "presence"
+            is None
+        )
+
+    def test_resolve_operation_log_module_rejects_invalid_module_without_resource_repair(
+        self,
+    ) -> None:
+        from app.operation_log_module_resolution import resolve_operation_log_module
+
+        assert (
+            resolve_operation_log_module(
+                module="w",
+                resource="plugin:read",
+                path="/admin/plugins/weather-widget/api/hourly",
+            )
+            is None
         )
 
     def test_resolve_operation_log_module_maps_public_platform_config_path(
@@ -281,7 +295,7 @@ class TestLogQuery:
         assert payloads[0]["is_owner"] is True
 
     @pytest.mark.asyncio
-    async def test_serialize_logs_backfills_legacy_module_from_path(self, mock_db):
+    async def test_serialize_logs_infers_missing_module_from_path(self, mock_db):
         from app.services.system.operation_log_service import OperationLogService
 
         service = OperationLogService.__new__(OperationLogService)
@@ -426,7 +440,7 @@ class TestLogQuery:
         assert payloads[0]["action_label"] == "回收站"
 
     @pytest.mark.asyncio
-    async def test_serialize_logs_backfills_presence_module_from_legacy_w_value(
+    async def test_serialize_logs_does_not_repair_invalid_legacy_module_from_path(
         self,
         mock_db,
     ):
@@ -461,8 +475,8 @@ class TestLogQuery:
 
         payloads = await service.serialize_logs([log])
 
-        assert payloads[0]["module"] == "presence"
-        assert payloads[0]["module_label"] == "在线状态"
+        assert payloads[0]["module"] is None
+        assert payloads[0]["module_label"] is None
 
     @pytest.mark.asyncio
     async def test_get_admin_operators_select_returns_remote_identity_options(

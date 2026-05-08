@@ -20,10 +20,7 @@ import { Button, Form, Image } from 'ant-design-vue';
 
 import { FilePicker } from '#/components/business/file-picker';
 import { $t } from '#/locales';
-import {
-  isReadOnlyLegacyImageValue,
-  toReadOnlyAttachmentImageDisplayUrl,
-} from '#/utils/image';
+import { toAttachmentImageUrl } from '#/utils/image';
 
 const props = withDefaults(
   defineProps<{
@@ -31,7 +28,7 @@ const props = withDefaults(
     accept?: string;
     /** Whether to show only image type files / 是否仅显示图片类型文件 */
     imageOnly?: boolean;
-    /** Current value: attachment ID; historical URL values are read-only display only / 当前值：附件 ID；历史 URL 值仅用于只读展示 */
+    /** Current value: canonical attachment ID / 当前值：规范附件 ID */
     modelValue?: string;
   }>(),
   {
@@ -46,28 +43,10 @@ const emit = defineEmits<{ (e: 'update:modelValue', v: string): void }>();
 const filePickerRef = ref<InstanceType<typeof FilePicker>>();
 const previewVisible = ref(false);
 
-const isLegacyReadonly = computed(() =>
-  isReadOnlyLegacyImageValue(props.modelValue),
+const thumbnailUrl = computed(() =>
+  toAttachmentImageUrl(props.modelValue, { preset: 'medium' }),
 );
-
-/**
- * Convert stored image value to thumbnail URL; legacy URLs stay read-only.
- * 将存储的附件 ID 转换为缩略图 URL（用于列表/卡片预览）
- * 历史 URL 仅用于只读展示
- */
-function toDisplayUrl(val: string | undefined): string {
-  return toReadOnlyAttachmentImageDisplayUrl(val, { preset: 'medium' });
-}
-
-/**
- * Convert stored attachment ID to original image URL (for zoom preview)
- * No preset parameter, returns original size image
- * 将存储的附件 ID 转换为原图 URL（用于放大镜查看大图）
- * 不传 preset 参数，返回原始尺寸图片
- */
-function toPreviewUrl(val: string | undefined): string {
-  return toReadOnlyAttachmentImageDisplayUrl(val);
-}
+const previewUrl = computed(() => toAttachmentImageUrl(props.modelValue));
 
 /** Open attachment manager modal / 打开附件管理器弹窗 */
 function openPicker() {
@@ -84,9 +63,6 @@ function handleSelect(files: AttachmentInfo[]) {
 
 /** Remove selected image, clear value / 移除已选图片，清空值 */
 function handleRemove() {
-  if (isLegacyReadonly.value) {
-    return;
-  }
   emit('update:modelValue', '');
 }
 </script>
@@ -95,12 +71,11 @@ function handleRemove() {
   <div class="flex items-start gap-3">
     <!-- Selected image preview card / 已选图片预览卡片 -->
     <div
-      v-if="modelValue"
+      v-if="thumbnailUrl"
       class="group relative size-[120px] overflow-hidden rounded-lg border border-border"
-      :data-readonly-legacy-image="isLegacyReadonly ? 'true' : undefined"
     >
       <img
-        :src="toDisplayUrl(modelValue)"
+        :src="thumbnailUrl"
         :alt="$t('shared.common.preview')"
         class="size-full cursor-pointer object-contain"
         @click="previewVisible = true"
@@ -110,7 +85,6 @@ function handleRemove() {
         class="absolute inset-0 flex items-center justify-center gap-2 bg-black/40 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
       >
         <Button
-          v-if="!isLegacyReadonly"
           type="text"
           size="small"
           class="!size-8 !min-w-0 !rounded-full !bg-white/20 !text-white hover:!bg-white/40"
@@ -134,7 +108,9 @@ function handleRemove() {
       <template #icon>
         <IconifyIcon icon="lucide:image-plus" />
       </template>
-      {{ modelValue ? $t('shared.common.change') : $t('shared.common.select') }}
+      {{
+        thumbnailUrl ? $t('shared.common.change') : $t('shared.common.select')
+      }}
     </Button>
 
     <!--
@@ -154,8 +130,8 @@ function handleRemove() {
 
       <!-- Hidden Image component, only used to control antd image preview modal / 隐藏的 Image 组件，仅用于控制 antd 图片预览弹窗 -->
       <Image
-        v-if="modelValue"
-        :src="toPreviewUrl(modelValue)"
+        v-if="previewUrl"
+        :src="previewUrl"
         :preview="{
           visible: previewVisible,
           onVisibleChange: (v: boolean) => (previewVisible = v),

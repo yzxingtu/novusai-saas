@@ -2,8 +2,8 @@
 ModelRouter — AI Multi-Model Routing Engine / AI 多模型路由引擎
 
 Routing priority (high to low) / 路由优先级（从高到低）：
-1. routing_config.enable_routing=False → Directly return agent's original provider+model (backward compatible)
-   routing_config.enable_routing=False → 直接返回 agent 原始 provider+model（向后兼容）
+1. routing_config.enable_routing=False → Directly return the agent's pinned provider+model
+   routing_config.enable_routing=False → 直接返回智能体固定的 provider+model
 2. Has modality-sensitive attachments → Prioritize capability-matched model, otherwise find a capable tier fallback
    有能力敏感附件 → 优先匹配能力的模型，否则按 tier 查找可用兜底模型
 3. Has tools and target model doesn't support FC → Upgrade to FC-capable model in same tier
@@ -14,8 +14,8 @@ Routing priority (high to low) / 路由优先级（从高到低）：
 6. Query model from DB by tier (same provider first + price ASC)
    按 tier 从 DB 查询模型（同 provider 优先 + 价格 ASC）
 7. Provider health check → Downgrade tier if unhealthy / Provider 健康检查 → 不健康则降 tier
-8. Fallback to agent.model_id when routing has no better option
-   当路由没有更优模型时兜底回 agent.model_id
+8. Use agent.model_id when routing has no better option
+   当路由没有更优模型时使用 agent.model_id
 
 routing_config fields (effective after T4 migration, accessed safely via getattr here)
 routing_config 字段（T4 迁移后生效，此处通过 getattr 安全访问）：

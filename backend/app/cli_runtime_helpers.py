@@ -11,10 +11,18 @@ from urllib.parse import SplitResult, urlsplit, urlunsplit
 
 
 def get_venv_python(backend_dir: Path) -> str:
-    """Resolve backend .venv Python executable with fallback to current Python."""
+    """中文: 解析 backend/.venv 的 Python；缺失时显式失败。
+
+    EN: Resolve backend/.venv Python and fail explicitly when it is missing.
+    """
     venv_dir = backend_dir / ".venv" / ("Scripts" if os.name == "nt" else "bin")
     venv_py = venv_dir / ("python.exe" if os.name == "nt" else "python")
-    return str(venv_py) if venv_py.exists() else sys.executable
+    if venv_py.exists():
+        return str(venv_py)
+    raise RuntimeError(
+        f"Backend virtualenv Python not found at {venv_py}. "
+        "Create backend/.venv before running runtime CLI commands."
+    )
 
 
 def run_celery(backend_dir: Path, celery_app: str, args: list[str]) -> None:

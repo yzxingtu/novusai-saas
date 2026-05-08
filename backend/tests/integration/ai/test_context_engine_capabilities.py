@@ -332,12 +332,12 @@ async def test_context_engine_handles_mapping_description_inputs() -> None:
 
 
 @pytest.mark.asyncio
-async def test_context_engine_injects_live_selected_skill_capability_descriptions() -> (
+async def test_context_engine_ignores_request_selected_skill_names_capability_descriptions() -> (
     None
 ):
     """
-    中文: 测试类型 behavioral；本轮显式选择的 live skill 会通过真实 builder 注入能力块。
-    EN: Test type behavioral; live selected skills reach the capability block through the real builder.
+    中文: 测试类型 behavioral；request.selected_skill_names 不能作为正向技能激活入口。
+    EN: Test type behavioral; request.selected_skill_names cannot activate skill capability descriptions.
     中文: Mock 的是配置、知识库、RAG、模型能力 IO 与 intent fixture；builder 与 activation 走真实逻辑。
     EN: Config, KB, RAG, model-capability IO, and intent fixture are mocked; builder and activation are real.
     """
@@ -362,6 +362,57 @@ async def test_context_engine_injects_live_selected_skill_capability_description
         request=_build_request(
             messages=[ChatMessage(role="user", content="帮我规划这轮任务")],
             selected_skill_names=["intent_mapper"],
+        ),
+        skill_result=skill_result,
+        settings=TenantCapabilityAwarenessSettings(),
+        intent_plan=_build_intent_plan("assistant_response"),
+    )
+
+    assert "[RUNTIME CAPABILITIES METADATA]" not in assembly.messages[0].content
+    assert "General Skills" not in assembly.messages[0].content
+    assert (
+        "intent_mapper: Map intents to capabilities" not in assembly.messages[0].content
+    )
+    assert "catalog_only" not in assembly.messages[0].content
+    assert assembly.diagnostics["dynamic_capability_awareness_injected"] is False
+    assert assembly.diagnostics["dynamic_capability_awareness_categories"] == []
+
+
+@pytest.mark.asyncio
+async def test_context_engine_injects_skill_descriptions_after_authorized_metadata_mention() -> (
+    None
+):
+    """
+    中文: 测试类型 behavioral；用户提到已授权技能元数据时，真实 activation 驱动能力块注入。
+    EN: Test type behavioral; mentioning authorized skill metadata lets real activation drive capability injection.
+    中文: Mock 的是配置、知识库、RAG、模型能力 IO 与 intent fixture；builder 与 activation 走真实逻辑。
+    EN: Config, KB, RAG, model-capability IO, and intent fixture are mocked; builder and activation are real.
+    """
+    skill_result = _build_skill_result(
+        CapabilityDescriptor(
+            name="intent_mapper",
+            kind="capability_pack",
+            source="skill_package:mapper",
+            description="Map intents to capabilities",
+            metadata={"family": "general", "has_execution_tools": True},
+        ),
+        CapabilityDescriptor(
+            name="catalog_only",
+            kind="capability_pack",
+            source="skill_package:catalog",
+            description="Catalog metadata only",
+            metadata={"family": "general", "has_execution_tools": False},
+        ),
+    )
+
+    assembly = await _assemble_context(
+        request=_build_request(
+            messages=[
+                ChatMessage(
+                    role="user",
+                    content="请使用 intent_mapper 技能帮我规划这轮任务",
+                )
+            ],
         ),
         skill_result=skill_result,
         settings=TenantCapabilityAwarenessSettings(),

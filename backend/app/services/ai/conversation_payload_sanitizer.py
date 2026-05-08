@@ -8,12 +8,19 @@ from app.ai.exceptions import looks_like_html_document_text
 from app.core.i18n import _
 
 _ASSISTANT_LEGACY_MESSAGE_KEYS = {
+    "canonicalToolCalls",
+    "canonical_tool_calls",
+    "rag_sources",
+    "thinking_content",
     "tool_calls",
 }
 
 _ASSISTANT_LEGACY_METADATA_KEYS = {
+    "canonicalToolCalls",
+    "canonical_tool_calls",
     "rag_sources",
     "thinking_content",
+    "tool_calls",
 }
 
 
@@ -120,6 +127,20 @@ def sanitize_assistant_error_payload(
     return message_payload
 
 
+def _strip_legacy_projection_metadata(value: Any) -> Any:
+    if isinstance(value, dict):
+        stripped: dict[str, Any] = {}
+        for raw_key, raw_value in value.items():
+            key = str(raw_key)
+            if key in _ASSISTANT_LEGACY_METADATA_KEYS:
+                continue
+            stripped[raw_key] = _strip_legacy_projection_metadata(raw_value)
+        return stripped
+    if isinstance(value, list):
+        return [_strip_legacy_projection_metadata(item) for item in value]
+    return value
+
+
 def strip_assistant_legacy_turn_projection_fields(
     payload: dict[str, Any] | None,
 ) -> dict[str, Any]:
@@ -134,9 +155,7 @@ def strip_assistant_legacy_turn_projection_fields(
     if not isinstance(raw_metadata, dict):
         return message_payload
 
-    metadata_payload = dict(raw_metadata)
-    for key in _ASSISTANT_LEGACY_METADATA_KEYS:
-        metadata_payload.pop(key, None)
+    metadata_payload = _strip_legacy_projection_metadata(dict(raw_metadata))
 
     if metadata_payload:
         message_payload["metadata"] = metadata_payload

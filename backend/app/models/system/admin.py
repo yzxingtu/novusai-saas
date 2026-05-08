@@ -111,7 +111,7 @@ class Admin(BaseModel):
         String(100), nullable=True, comment="昵称"
     )
     avatar: Mapped[str | None] = mapped_column(
-        String(500), nullable=True, comment="头像附件 ID（兼容旧 URL 值）"
+        String(500), nullable=True, comment="头像附件 ID / Avatar attachment id"
     )
 
     # 登录信息 / Login audit

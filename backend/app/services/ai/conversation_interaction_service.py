@@ -12,6 +12,10 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.json_safe import normalize_json_safe, normalize_json_safe_dict
+from app.ai.runtime.execution_trust_policy import (
+    tool_family_for_name,
+    tool_risk_level,
+)
 from app.core.logging import LogManager
 from app.enums.agent import ActionLevelEnum, MessageRoleEnum
 from app.enums.execution import (
@@ -26,9 +30,6 @@ from app.repositories.ai.conversation_message_repository import (
 )
 from app.services.ai.action_log_service import resolve_action_level, write_ai_action_log
 from app.services.ai.execution_decision_service import ExecutionDecisionService
-from app.services.ai.execution_trust_policy_service import (
-    ExecutionTrustPolicyService,
-)
 
 logger = LogManager.get_logger("ai.conversation_interaction_service")
 
@@ -41,9 +42,6 @@ class ConversationInteractionService:
         message_repo: ConversationMessageRepository,
         memory_tenant_id: int,
         decision_service_cls: type[ExecutionDecisionService] = ExecutionDecisionService,
-        trust_policy_service_cls: type[
-            ExecutionTrustPolicyService
-        ] = ExecutionTrustPolicyService,
         write_ai_action_log_fn=write_ai_action_log,
         resolve_action_level_fn=resolve_action_level,
     ) -> None:
@@ -51,7 +49,6 @@ class ConversationInteractionService:
         self.message_repo = message_repo
         self.memory_tenant_id = memory_tenant_id
         self.decision_service_cls = decision_service_cls
-        self.trust_policy_service_cls = trust_policy_service_cls
         self.write_ai_action_log_fn = write_ai_action_log_fn
         self.resolve_action_level_fn = resolve_action_level_fn
 
@@ -414,11 +411,9 @@ class ConversationInteractionService:
                                 if auto_approved
                                 else ExecutionDecisionScopeEnum.ONCE.value
                             ),
-                            "risk_level": self.trust_policy_service_cls.tool_risk_level(
+                            "risk_level": tool_risk_level(
                                 tool_name=tool_name,
-                                tool_family=self.trust_policy_service_cls.tool_family_for_name(
-                                    tool_name
-                                ),
+                                tool_family=tool_family_for_name(tool_name),
                             ),
                             "auto_approved": auto_approved,
                             "tool_call_id": tool_call_id,

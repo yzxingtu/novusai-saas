@@ -141,8 +141,8 @@ def inject_valves(
         return
 
     try:
-        # 中文: Valves 配置只接受 canonical 字段名，避免旧 key 大小写兼容继续改写运行时契约。
-        # EN: Valves config accepts only canonical field names so legacy key casing cannot rewrite the runtime contract.
+        # 中文: Valves 配置只接受规范字段名，非规范 key 直接失败而不是被静默改写。
+        # EN: Valves config accepts only canonical field names; non-canonical keys fail instead of being rewritten.
         _validate_valves_config_keys(valves_cls, valves_config)
         valves_instance = valves_cls(**valves_config)
         tools_instance.valves = valves_instance

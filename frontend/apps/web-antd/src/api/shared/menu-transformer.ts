@@ -8,26 +8,20 @@ import type { RouteRecordStringComponent } from '@vben/types';
 import type { ApiEndpoint } from './types';
 
 /**
- * Backend menu item raw format (snake_case) / 后端菜单项原始格式
- * Defined per RBAC permission management spec / 根据 RBAC 权限管理规范定义
+ * Current backend MenuResponse contract / 当前后端 MenuResponse 契约
  */
 export interface BackendMenuItemRaw {
-  id?: number | string;
-  code?: string;
+  id: number | string;
+  code: string;
   name: string;
-  path: string;
-  component?: string;
-  redirect?: string;
-  parent_id?: null | number | string;
-  sort_order?: number;
-  icon?: string;
-  title?: string;
+  path?: null | string;
+  component?: null | string;
   hidden?: boolean;
+  icon?: null | string;
+  sort_order?: number;
   /** Permission codes associated with this menu / 菜单关联的权限码列表 */
   permissions?: string[];
-  // meta field can be nested object or flat fields / meta 字段可能是嵌套对象或扁平字段
-  meta?: {
-    affix_tab?: boolean;
+  meta?: null | {
     ai?: {
       capabilities?: string[];
       category?: string;
@@ -35,27 +29,9 @@ export interface BackendMenuItemRaw {
       keywords?: string[];
       mode?: string;
     };
-    authority?: string[];
-    badge?: string;
-    badge_type?: string;
-    badge_variants?: string;
-    hide_in_breadcrumb?: boolean;
-    hide_in_menu?: boolean;
-    hide_in_tab?: boolean;
-    icon?: string;
-    iframe_src?: string;
-    keep_alive?: boolean;
-    link?: string;
-    order?: number;
-    title?: string;
   };
   children?: BackendMenuItemRaw[];
 }
-
-const PLUGIN_STANDALONE_ROUTE_PREFIXES = [
-  '/admin/plugins/',
-  '/tenant/plugins/',
-] as const;
 
 /**
  * Recursively extract all permission codes from menu data / 从菜单数据中递归提取所有权限码
@@ -100,7 +76,7 @@ export function extractPermissionsFromMenus(
  * @returns Frontend component path / 前端组件路径
  */
 function transformComponentPath(
-  component: string | undefined,
+  component: null | string | undefined,
   endpoint: ApiEndpoint,
 ): string {
   if (!component) return '';
@@ -152,7 +128,10 @@ function transformComponentPath(
  * @param endpoint Endpoint type / 端类型
  * @returns Prefixed path, e.g. /admin/system/admins / 带前缀的路径
  */
-function transformRoutePath(path: string, endpoint: ApiEndpoint): string {
+function transformRoutePath(
+  path: null | string | undefined,
+  endpoint: ApiEndpoint,
+): string {
   if (!path) return '';
 
   // Ensure path starts with / / 确保路径以 / 开头
@@ -179,9 +158,8 @@ function transformMenuItem(
   item: BackendMenuItemRaw,
   endpoint: ApiEndpoint,
 ): RouteRecordStringComponent {
-  // Build meta object / 构建 meta 对象
-  // Backend 'name' is display name, used as meta.title (required for framework $t()) / 后端 name 为展示名，用作 meta.title
-  // 后端 name 是显示名称，作为 meta.title（框架 $t() 必须）
+  // Backend `name` is the translated display title consumed by Vben route meta.
+  // 后端 `name` 是 Vben route meta 使用的已翻译展示标题。
   const meta: Record<
     string,
     boolean | number | string | string[] | undefined
@@ -189,60 +167,39 @@ function transformMenuItem(
     title: item.name,
   };
 
-  // Process meta fields (may come from nested object or flat fields) / 处理 meta 字段
-  if (item.meta) {
-    // Backend meta object (explicit title overrides default) / 后端 meta 对象
-    if (item.meta.title) meta.title = item.meta.title;
-    if (item.meta.icon) meta.icon = item.meta.icon;
-    if (item.meta.order !== undefined) meta.order = item.meta.order;
-    if (item.meta.hide_in_menu) meta.hideInMenu = item.meta.hide_in_menu;
-    if (item.meta.hide_in_tab) meta.hideInTab = item.meta.hide_in_tab;
-    if (item.meta.hide_in_breadcrumb)
-      meta.hideInBreadcrumb = item.meta.hide_in_breadcrumb;
-    if (item.meta.affix_tab) meta.affixTab = item.meta.affix_tab;
-    if (item.meta.keep_alive) meta.keepAlive = item.meta.keep_alive;
-    if (item.meta.badge) meta.badge = item.meta.badge;
-    if (item.meta.badge_type) meta.badgeType = item.meta.badge_type;
-    if (item.meta.badge_variants) meta.badgeVariants = item.meta.badge_variants;
-    if (item.meta.authority) meta.authority = item.meta.authority;
-    if (item.meta.iframe_src) meta.iframeSrc = item.meta.iframe_src;
-    if (item.meta.link) meta.link = item.meta.link;
-    if (item.meta.ai) {
-      const aiMeta: Record<string, unknown> = {};
-      if (item.meta.ai.description)
-        aiMeta.description = item.meta.ai.description;
-      if (item.meta.ai.category) aiMeta.category = item.meta.ai.category;
-      if (item.meta.ai.keywords) aiMeta.keywords = item.meta.ai.keywords;
-      if (item.meta.ai.capabilities) {
-        aiMeta.capabilities = item.meta.ai.capabilities;
-      }
-      if (item.meta.ai.mode) aiMeta.mode = item.meta.ai.mode;
-      if (Object.keys(aiMeta).length > 0) {
-        (meta as Record<string, unknown>).ai = aiMeta;
-      }
-    }
-  }
-
-  // Process flat fields (compat with different backend formats) / 处理扁平字段
-  if (item.title && item.title !== meta.title) meta.title = item.title;
-  if (item.icon && !meta.icon) meta.icon = item.icon;
-  if (item.sort_order !== undefined && meta.order === undefined)
-    meta.order = item.sort_order;
+  if (item.icon) meta.icon = item.icon;
+  if (item.sort_order !== undefined) meta.order = item.sort_order;
   if (item.hidden) meta.hideInMenu = item.hidden;
 
-  // Generate route name (use code field or generate from path) / 生成路由名称
-  // Route name must be a unique identifier, no Chinese / 路由名称必须是唯一标识符
-  const routeName = item.code || generateRouteName(item.path, endpoint);
+  if (item.meta?.ai) {
+    const aiMeta: Record<string, unknown> = {};
+    if (item.meta.ai.description) {
+      aiMeta.description = item.meta.ai.description;
+    }
+    if (item.meta.ai.category) {
+      aiMeta.category = item.meta.ai.category;
+    }
+    if (item.meta.ai.keywords) {
+      aiMeta.keywords = item.meta.ai.keywords;
+    }
+    if (item.meta.ai.capabilities) {
+      aiMeta.capabilities = item.meta.ai.capabilities;
+    }
+    if (item.meta.ai.mode) {
+      aiMeta.mode = item.meta.ai.mode;
+    }
+    if (Object.keys(aiMeta).length > 0) {
+      (meta as Record<string, unknown>).ai = aiMeta;
+    }
+  }
 
   // Transform route path (add endpoint prefix) / 转换路由路径
   const routePath = transformRoutePath(item.path, endpoint);
 
   // Build route item / 构建路由项
-  const transformedComponent = isPluginStandalonePageMenu(item)
-    ? ''
-    : transformComponentPath(item.component, endpoint);
+  const transformedComponent = transformComponentPath(item.component, endpoint);
   const route: RouteRecordStringComponent = {
-    name: routeName,
+    name: item.code,
     path: routePath,
     // Empty component path (e.g. plugin menus) uses undefined instead of '' to avoid Vue Router warning / 空组件路径用 undefined 避免 Vue Router 警告
     // 空组件路径用 undefined 而非 '' 避免 Vue Router 警告
@@ -250,26 +207,7 @@ function transformMenuItem(
     meta,
   };
 
-  // Add optional fields (redirect also needs prefix) / 添加可选字段
-  if (item.redirect) {
-    route.redirect = transformRoutePath(item.redirect, endpoint);
-  }
-
-  // Recursively process child menus / 递归处理子菜单
-  if (item.children && item.children.length > 0) {
-    route.children = item.children.map((child) =>
-      transformMenuItem(child, endpoint),
-    );
-  }
-
   return route;
-}
-
-function isPluginStandalonePageMenu(item: BackendMenuItemRaw): boolean {
-  const path = item.path ?? '';
-  return PLUGIN_STANDALONE_ROUTE_PREFIXES.some((prefix) =>
-    path.startsWith(prefix),
-  );
 }
 
 /** Missing component info for logging / 缺失组件提示信息 */
@@ -408,18 +346,6 @@ function printMissingComponentsWarning(
 }
 
 /**
- * Generate route name from path / 根据路径生成路由名称
- * @param path Route path / 路由路径
- * @param endpoint Endpoint type / 端类型
- * @returns Route name / 路由名称
- */
-function generateRouteName(path: string, endpoint: ApiEndpoint): string {
-  // Convert path to route name, e.g. /system/admins -> admin.system.admins / 路径转路由名
-  const cleanPath = path.replace(/^\//, '').replaceAll('/', '.');
-  return `${endpoint}.${cleanPath || 'index'}`;
-}
-
-/**
  * Recursively collect all component paths from transformed menu routes.
  * 从转换后的菜单路由中递归收集所有组件路径。
  */
@@ -506,26 +432,9 @@ function getEndpointDisplayName(
 }
 
 /**
- * Check if backend menu data needs transformation / 判断菜单是否需要转换
- * If data is already in camelCase format, no conversion needed
- * @param menus Menu data / 菜单数据
- * @returns Whether transformation is needed / 是否需要转换
+ * Current backend menu arrays always flow through the MenuResponse transformer.
+ * 当前后端菜单数组统一走 MenuResponse 转换器。
  */
 export function needsTransform(menus: unknown[]): boolean {
-  if (!Array.isArray(menus) || menus.length === 0) {
-    return false;
-  }
-
-  const firstItem = menus[0] as Record<string, unknown>;
-
-  // Check for snake_case fields / 检查 snake_case 字段
-  return (
-    'parent_id' in firstItem ||
-    'sort_order' in firstItem ||
-    (typeof firstItem.meta === 'object' &&
-      firstItem.meta !== null &&
-      ('hide_in_menu' in (firstItem.meta as Record<string, unknown>) ||
-        'hide_in_tab' in (firstItem.meta as Record<string, unknown>) ||
-        'affix_tab' in (firstItem.meta as Record<string, unknown>)))
-  );
+  return Array.isArray(menus) && menus.length > 0;
 }

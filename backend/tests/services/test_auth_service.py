@@ -559,7 +559,7 @@ class TestTenantAdminLogin:
             await service.authenticate_tenant_admin(
                 "tenant_admin",
                 "password",
-                tenant_id_from_ctx=tenant_admin.tenant_id,
+                tenant_code="acme",
             )
 
     @pytest.mark.asyncio
@@ -865,7 +865,7 @@ class TestTenantUserLogin:
             await service.authenticate_tenant_user(
                 "tenant_user",
                 "wrong_password",
-                tenant_id_from_ctx=3,
+                tenant_code="acme",
                 client_ip="127.0.0.1",
                 captcha_challenge_id="challenge-1",
                 captcha_solution="solution-1",
@@ -934,7 +934,7 @@ class TestTenantUserLogin:
             await service.authenticate_tenant_user(
                 "tenant_user_2",
                 "wrong_password",
-                tenant_id_from_ctx=5,
+                tenant_code="acme",
                 client_ip="127.0.0.1",
             )
 
@@ -950,6 +950,7 @@ class TestTenantUserCodeLogin:
         from app.services.common.auth_service import AuthService
 
         service = AuthService(mock_db)
+        mock_db.execute.return_value = make_scalar_result(_make_tenant())
         service._config_service.get_tenant_config = AsyncMock(
             side_effect=lambda _tenant_id, key, default=None: {
                 "tenant_login_methods": ["password", "email"],
@@ -961,7 +962,7 @@ class TestTenantUserCodeLogin:
             await service.send_tenant_user_login_code(
                 channel="email",
                 email="user@example.com",
-                tenant_id_from_ctx=1,
+                tenant_code="acme",
                 client_ip="127.0.0.1",
             )
 
@@ -978,7 +979,10 @@ class TestTenantUserCodeLogin:
                 "user_login_captcha_enabled": False,
             }.get(key, default)
         )
-        mock_db.execute.return_value = make_scalar_result(None)
+        mock_db.execute.side_effect = [
+            make_scalar_result(_make_tenant()),
+            make_scalar_result(None),
+        ]
 
         with (
             patch(
@@ -994,7 +998,7 @@ class TestTenantUserCodeLogin:
             result = await service.send_tenant_user_login_code(
                 channel="email",
                 email="missing@example.com",
-                tenant_id_from_ctx=1,
+                tenant_code="acme",
                 client_ip="127.0.0.1",
             )
 
@@ -1013,7 +1017,10 @@ class TestTenantUserCodeLogin:
                 "user_login_captcha_enabled": False,
             }.get(key, default)
         )
-        mock_db.execute.return_value = make_scalar_result(user)
+        mock_db.execute.side_effect = [
+            make_scalar_result(_make_tenant(id=user.tenant_id)),
+            make_scalar_result(user),
+        ]
 
         with (
             patch(
@@ -1036,7 +1043,7 @@ class TestTenantUserCodeLogin:
             result = await service.send_tenant_user_login_code(
                 channel="email",
                 email="user@example.com",
-                tenant_id_from_ctx=1,
+                tenant_code="acme",
                 client_ip="127.0.0.1",
             )
 
@@ -1067,7 +1074,10 @@ class TestTenantUserCodeLogin:
                 "tenant_login_methods": ["password", "email"],
             }.get(key, default)
         )
-        mock_db.execute.return_value = make_scalar_result(user)
+        mock_db.execute.side_effect = [
+            make_scalar_result(_make_tenant(id=user.tenant_id)),
+            make_scalar_result(user),
+        ]
 
         with (
             patch(
@@ -1101,7 +1111,7 @@ class TestTenantUserCodeLogin:
                 channel="email",
                 code="123456",
                 email="user@example.com",
-                tenant_id_from_ctx=1,
+                tenant_code="acme",
                 client_ip="127.0.0.1",
             )
 
@@ -1120,13 +1130,14 @@ class TestTenantUserCodeLogin:
                 "tenant_login_methods": ["password", "email"],
             }.get(key, default)
         )
+        mock_db.execute.return_value = make_scalar_result(_make_tenant())
 
         with pytest.raises(BusinessException):
             await service.authenticate_tenant_user_by_code(
                 channel="sms",
                 code="123456",
                 phone="13800000000",
-                tenant_id_from_ctx=1,
+                tenant_code="acme",
             )
 
 

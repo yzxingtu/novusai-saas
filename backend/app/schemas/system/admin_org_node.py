@@ -7,10 +7,14 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from app.core.base_schema import BaseSchema
 from app.enums.role import DataScope, RoleType
+from app.schemas.system.admin import (
+    _normalize_readable_avatar_value,
+    _validate_writable_avatar_value,
+)
 
 AdminOrgNodeType = Literal["department", "position"]
 
@@ -23,6 +27,11 @@ class AdminOrgNodeLeaderResponse(BaseSchema):
     nickname: str | None = Field(None, description="Leader nickname")
     real_name: str | None = Field(None, description="Leader display name")
     avatar: str | None = Field(None, description="Leader avatar")
+
+    @field_validator("avatar", mode="before")
+    @classmethod
+    def normalize_avatar(cls, value: object) -> str | None:
+        return _normalize_readable_avatar_value(value)
 
 
 class AdminOrgNodeResponse(BaseSchema):
@@ -190,6 +199,11 @@ class AdminOrgNodeUpdateMemberRequest(BaseSchema):
     ai_enabled: bool | None = Field(None, description="Whether AI chat is enabled")
     org_node_id: int | None = Field(None, description="New organization node ID")
 
+    @field_validator("avatar", mode="before")
+    @classmethod
+    def validate_avatar(cls, value: object) -> str | None:
+        return _validate_writable_avatar_value(value)
+
 
 class AdminOrgNodeResetPasswordRequest(BaseSchema):
     """Reset organization node member password / 重置组织节点成员密码请求"""
@@ -234,6 +248,11 @@ class AdminOrgNodeMemberResponse(BaseSchema):
     permission_role_name: str | None = Field(None, description="Permission role name")
     created_at: datetime | None = Field(None, description="Created at")
     updated_at: datetime | None = Field(None, description="Updated at")
+
+    @field_validator("avatar", mode="before")
+    @classmethod
+    def normalize_avatar(cls, value: object) -> str | None:
+        return _normalize_readable_avatar_value(value)
 
 
 __all__ = [

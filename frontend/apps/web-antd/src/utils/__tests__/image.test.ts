@@ -6,9 +6,8 @@ vi.mock('../api-url', () => ({
 
 describe('image utilities', () => {
   it('normalizes only positive integer attachment IDs as canonical writable values', async () => {
-    const { parseAttachmentId, toCanonicalAttachmentImageValue } = await import(
-      '../image'
-    );
+    const { parseAttachmentId, toCanonicalAttachmentImageValue } =
+      await import('../image');
 
     expect(parseAttachmentId('42')).toBe(42);
     expect(parseAttachmentId(42)).toBe(42);
@@ -17,29 +16,24 @@ describe('image utilities', () => {
 
     expect(parseAttachmentId('42.7')).toBeNull();
     expect(parseAttachmentId('/api/public/attachments/42/image')).toBeNull();
-    expect(toCanonicalAttachmentImageValue('https://cdn.example.test/a.png')).toBe(
-      '',
-    );
+    expect(
+      toCanonicalAttachmentImageValue('https://cdn.example.test/a.png'),
+    ).toBe('');
     expect(toCanonicalAttachmentImageValue('0')).toBe('');
   });
 
-  it('keeps legacy URLs isolated to read-only display helpers', async () => {
-    const {
-      isReadOnlyLegacyImageValue,
-      toAttachmentImageUrl,
-      toReadOnlyAttachmentImageDisplayUrl,
-    } = await import('../image');
+  it('does not display historical URL values in image or avatar helpers', async () => {
+    const { toAttachmentImageUrl, toAvatarDisplayUrl } =
+      await import('../image');
 
     expect(toAttachmentImageUrl('42', { preset: 'avatar' })).toBe(
       'https://api.example.test/api/public/attachments/42/image?p=avatar',
     );
-    expect(toAttachmentImageUrl('/uploads/legacy.png')).toBe('');
-    expect(isReadOnlyLegacyImageValue('/uploads/legacy.png')).toBe(true);
-    expect(toReadOnlyAttachmentImageDisplayUrl('/uploads/legacy.png')).toBe(
-      '/uploads/legacy.png',
-    );
-    expect(toReadOnlyAttachmentImageDisplayUrl('42')).toBe(
-      'https://api.example.test/api/public/attachments/42/image',
+    expect(toAttachmentImageUrl('/uploads/old-url.png')).toBe('');
+    expect(toAttachmentImageUrl('https://cdn.example.test/a.png')).toBe('');
+    expect(toAvatarDisplayUrl('/uploads/old-url.png')).toBe('');
+    expect(toAvatarDisplayUrl('42')).toBe(
+      'https://api.example.test/api/public/attachments/42/image?p=avatar',
     );
   });
 });

@@ -1,8 +1,8 @@
 """
 AI 数据查询审计日志模型 / AI Data Query Audit Log Model
 
-历史上用于记录 AI 查询链路的审计信息，现主要作为兼容性与审计留存模型。
-Historically used for AI query-chain auditing and now retained mainly for compatibility and audit records.
+用于记录 AI 查询链路的审计信息，现作为审计留存模型。
+Records AI query-chain audit details and is retained for audit records.
 """
 
 from sqlalchemy import Index, Integer, String, Text

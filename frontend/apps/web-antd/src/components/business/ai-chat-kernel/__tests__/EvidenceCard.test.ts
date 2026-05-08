@@ -35,7 +35,7 @@ function mountEvidenceCard(msg: ChatMessage) {
   });
 }
 
-describe('EvidenceCard', () => {
+describe('evidence card', () => {
   it('suppresses redundant live answer summaries already visible in assistant content', async () => {
     const duplicateAnswer =
       '近7天拉萨天气整体偏晴朗、昼夜温差大，白天注意防晒，早晚加厚外套。';
@@ -91,6 +91,8 @@ describe('EvidenceCard', () => {
     expect(
       wrapper.find('[data-testid="chat-message-kernel-evidence"]').exists(),
     ).toBe(true);
-    expect(wrapper.text()).toContain('common.globalAiChat.turnStageStatus.running');
+    expect(wrapper.text()).toContain(
+      'common.globalAiChat.turnStageStatus.running',
+    );
   });
 });

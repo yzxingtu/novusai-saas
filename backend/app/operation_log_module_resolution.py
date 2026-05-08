@@ -1,4 +1,9 @@
-"""Shared module-resolution helpers for operation log rows."""
+"""Operation-log module resolution helpers.
+
+中文: 操作日志模块解析只在字段缺失时推断，显式坏值不做路径或资源修复。
+EN: Operation-log module resolution only infers missing fields; explicit bad
+values are not repaired from paths or resources.
+"""
 
 from __future__ import annotations
 
@@ -171,10 +176,13 @@ def resolve_operation_log_module(
     resource: str | None,
     path: str | None,
 ) -> str | None:
-    """Resolve the most useful module code for writes and legacy-row display."""
+    """Resolve the module code for current operation-log writes and projections."""
     normalized_module = normalize_operation_log_module(module)
-    if normalized_module and normalized_module not in _INVALID_MODULE_VALUES:
-        return normalized_module
+    module_was_provided = module is not None and str(module).strip() != ""
+    if module_was_provided:
+        if normalized_module and normalized_module not in _INVALID_MODULE_VALUES:
+            return normalized_module
+        return None
 
     if resource:
         resource_prefix = normalize_operation_log_module(resource.partition(":")[0])

@@ -131,17 +131,22 @@ class LabeledStrEnum(LabeledEnum):
         return obj
 
 
-# 别名（兼容旧代码） / Aliases (backward compat)
-BaseEnum = LabeledEnum
-IntEnum = LabeledIntEnum
-StrEnum = LabeledStrEnum
+class BaseEnum(LabeledEnum):
+    """短名称枚举基类 / Short-name enum base class."""
+
+
+class IntEnum(LabeledIntEnum):
+    """短名称整数枚举基类 / Short-name integer enum base class."""
+
+
+class StrEnum(LabeledStrEnum):
+    """短名称字符串枚举基类 / Short-name string enum base class."""
 
 
 __all__ = [
     "LabeledEnum",
     "LabeledIntEnum",
     "LabeledStrEnum",
-    # 别名 / Aliases
     "BaseEnum",
     "IntEnum",
     "StrEnum",

@@ -437,6 +437,60 @@ async def test_dispatch_allows_success_streaming_response_passthrough(
 
 
 @pytest.mark.asyncio
+async def test_dispatch_rejects_non_standard_handler_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """中文: Test type: behavioral. 插件 handler 非规范返回不得被猜测包装为成功。
+
+    EN: Test type: behavioral. Plugin handlers must not be success-wrapped by guesswork.
+    """
+    manifest = {
+        "extensions": {
+            "api": {
+                "admin_routes": [
+                    {
+                        "path": "ping",
+                        "method": "GET",
+                        "handler": "handlers.demo.ping",
+                        "auth": "none",
+                    },
+                ],
+                "tenant_routes": [],
+                "public_routes": [],
+            }
+        }
+    }
+    db = AsyncMock()
+
+    def _handler(request=None, ctx=None):  # noqa: ANN001
+        _ = (request, ctx)
+        return "ok"
+
+    monkeypatch.setattr(
+        "app.plugins.api_dispatcher.evaluate_plugin_runtime_gate",
+        AsyncMock(return_value=_gate_result(manifest)),
+    )
+    monkeypatch.setattr(
+        "app.plugins.api_dispatcher.load_plugin_handler", lambda *_: _handler
+    )
+    monkeypatch.setattr(
+        "app.plugins.api_dispatcher._build_plugin_context", lambda **_: _CtxWithoutCap()
+    )
+
+    with pytest.raises(Exception) as exc_info:
+        await _dispatch_plugin_api(
+            plugin_name="demo",
+            path="ping",
+            request=_build_request(path="/admin/plugins/demo/api/ping"),
+            db=db,
+        )
+
+    assert getattr(exc_info.value, "code", None) == 5001
+    assert getattr(exc_info.value, "status_code", None) == 500
+    assert getattr(exc_info.value, "data", {}) == {"result_type": "str"}
+
+
+@pytest.mark.asyncio
 async def test_dispatch_uses_scope_trace_id_for_plugin_context_request_id(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -1,3 +1,9 @@
+"""
+Test type: structural
+Scope: shared agent list-item projection contract.
+Mock strategy: SimpleNamespace fixtures only; assertions inspect projected fields.
+"""
+
 from __future__ import annotations
 
 import importlib.util
@@ -16,13 +22,14 @@ _SPEC.loader.exec_module(_MODULE)
 build_agent_base_item = _MODULE.build_agent_base_item
 
 
-def test_build_agent_base_item_normalizes_legacy_input_variables_dict():
+def test_build_agent_base_item_preserves_input_variables_list():
+    input_variables = [{"name": "customer", "type": "string"}]
     agent = SimpleNamespace(
         id=1,
         tenant_id=None,
-        name="legacy-agent",
+        name="agent",
         avatar=None,
-        description="legacy",
+        description="current",
         status="published",
         scope="admin_only",
         execution_mode="conversation",
@@ -30,7 +37,7 @@ def test_build_agent_base_item_normalizes_legacy_input_variables_dict():
         published_version=None,
         welcome_message=None,
         suggested_questions=None,
-        input_variables={},
+        input_variables=input_variables,
         created_at=None,
         updated_at=None,
         model=None,
@@ -39,7 +46,7 @@ def test_build_agent_base_item_normalizes_legacy_input_variables_dict():
 
     item = build_agent_base_item(agent)
 
-    assert item["input_variables"] == []
+    assert item["input_variables"] == input_variables
 
 
 def test_build_agent_base_item_filters_deleted_and_inactive_skills():
@@ -62,9 +69,9 @@ def test_build_agent_base_item_filters_deleted_and_inactive_skills():
     agent = SimpleNamespace(
         id=1,
         tenant_id=None,
-        name="legacy-agent",
+        name="active-agent",
         avatar=None,
-        description="legacy",
+        description="current",
         status="published",
         scope="admin_only",
         execution_mode="conversation",
@@ -82,6 +89,36 @@ def test_build_agent_base_item_filters_deleted_and_inactive_skills():
     item = build_agent_base_item(agent)
 
     assert item["skills"] == [{"id": 10, "name": "active"}]
+
+
+def test_build_agent_base_item_derives_owner_type_from_owner_tenant_id_only():
+    agent = SimpleNamespace(
+        id=1,
+        tenant_id=None,
+        owner_tenant_id=None,
+        owner_type="tenant",
+        name="platform-agent",
+        avatar=None,
+        description=None,
+        status="published",
+        scope="admin_only",
+        execution_mode="conversation",
+        is_system=False,
+        published_version=None,
+        welcome_message=None,
+        suggested_questions=None,
+        input_variables=[],
+        created_at=None,
+        updated_at=None,
+        model=None,
+        skill_grants=[],
+    )
+
+    item = build_agent_base_item(agent)
+
+    assert item["owner_type"] == "platform"
+    assert item["tenant_id"] is None
+    assert item["owner_tenant_id"] is None
 
 
 def test_build_agent_base_item_includes_skill_package_summary():

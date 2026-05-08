@@ -589,7 +589,7 @@ async def test_tenant_user_menu_hides_ai_pages_when_plan_ai_disabled(mock_db) ->
                 [
                     SimpleNamespace(
                         id=1,
-                        code="menu:user.dashboard",
+                        code="menu:user.help",
                         parent_id=None,
                         type="menu",
                     ),
@@ -605,7 +605,7 @@ async def test_tenant_user_menu_hides_ai_pages_when_plan_ai_disabled(mock_db) ->
     mock_db.execute = AsyncMock(side_effect=[_TenantResult(), _PermissionResult()])
 
     all_permissions = [
-        SimpleNamespace(id=1, code="menu:user.dashboard", parent_id=None, type="menu"),
+        SimpleNamespace(id=1, code="menu:user.help", parent_id=None, type="menu"),
         SimpleNamespace(id=2, code="menu:user.ai_chat", parent_id=None, type="menu"),
     ]
     captured_codes: list[str] = []
@@ -627,5 +627,5 @@ async def test_tenant_user_menu_hides_ai_pages_when_plan_ai_disabled(mock_db) ->
         SimpleNamespace(tenant_id=5, role_id=3)
     )
 
-    assert menus == ["menu:user.dashboard"]
+    assert menus == ["menu:user.help"]
     assert "menu:user.ai_chat" not in captured_codes
