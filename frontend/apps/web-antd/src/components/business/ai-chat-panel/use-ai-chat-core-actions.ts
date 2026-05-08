@@ -177,12 +177,19 @@ export function createAIChatCoreActions(
     const userMessage = chatMessages.value[userMsgIndex];
     if (!userMessage || userMessage.role !== 'user') return;
 
+    const shouldKeepConversationBinding =
+      msgIndex === chatMessages.value.length - 1;
+
     chatMessages.value.splice(msgIndex);
     bumpMessagesRequestSeq();
-    clearConversationAnchor();
-    activeConversationId.value = null;
-    activeConversationAgentId.value =
-      typeof selectedAgentId.value === 'number' ? selectedAgentId.value : null;
+    if (!shouldKeepConversationBinding) {
+      clearConversationAnchor();
+      activeConversationId.value = null;
+      activeConversationAgentId.value =
+        typeof selectedAgentId.value === 'number'
+          ? selectedAgentId.value
+          : null;
+    }
 
     inputMessage.value = userMessage.content;
     clearPendingAttachments();
