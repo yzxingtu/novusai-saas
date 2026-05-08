@@ -503,6 +503,43 @@ def test_finalize_completed_output_scopes_duplicate_check_to_current_turn() -> N
     assert assistant_messages[-1].content == "OK"
 
 
+def test_finalize_completed_output_does_not_replay_same_text_with_trailing_whitespace_for_conversation_2364() -> (
+    None
+):
+    streamed_output = "北京当前实时天气来啦喵~\n\n- 城市：北京市- 温度：16.5°C"
+    final_output = f"{streamed_output}  \n\n"
+    delegate = SimpleNamespace(
+        _visible_stream_content=streamed_output,
+        extract_action_buttons=lambda output: (output, None),
+        should_preserve_streamed_assistant_output=lambda **_kwargs: False,
+        reasoning_output="",
+        current_turn_has_finalized_output=lambda **_kwargs: False,
+        chunk_text_for_streaming=lambda text, _chunk_size=32: [text],
+    )
+    handler = SimpleNamespace(
+        _stream_generation_view=lambda: build_stream_generation_view(delegate),
+    )
+    messages = [ChatMessage(role="user", content="使用 实时天气查询")]
+
+    output, chunks, final_output_source = _finalize_completed_output(
+        handler,
+        messages=messages,
+        turn_start_message_index=0,
+        output=final_output,
+        response=SimpleNamespace(
+            message=ChatMessage(role="assistant", content=final_output)
+        ),
+        tool_results=None,
+        action_buttons=None,
+        final_output_source="assistant",
+    )
+
+    assert output == final_output
+    assert chunks == []
+    assert final_output_source == "assistant"
+    assert messages[-1].content == final_output
+
+
 def test_finalize_completed_output_drops_untrusted_tool_evidence_finalization() -> None:
     delegate = SimpleNamespace(
         _visible_stream_content="",

@@ -580,7 +580,9 @@ def _finalize_completed_output(
         reasoning_content=reasoning_content,
     )
 
-    if output != streamed_output:
+    # 中文: 可见正文比较要忽略首尾空白，避免已流出的答案因最终落库尾部空白被完整 replay。
+    # EN: Compare visible text without edge whitespace so persisted trailing whitespace does not replay an already streamed answer.
+    if str(output or "").strip() != streamed_output:
         return output, view.chunk_text_for_streaming(output), final_output_source
     return output, [], final_output_source
 
