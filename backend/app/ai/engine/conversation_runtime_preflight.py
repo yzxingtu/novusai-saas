@@ -7,6 +7,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from app.ai.routing.routing_capabilities import (
+    detect_audio_video_attachments,
+    detect_image_attachments,
+)
 from app.ai.runtime.usage_metrics import TokenCounter
 from app.ai.types import ChatMessage, messages_to_dicts
 from app.configs.service import PLATFORM_TENANT_ID
@@ -31,6 +35,9 @@ class ConversationRuntimeContext:
     runtime_info: dict[str, Any] = field(default_factory=dict)
     routed_model_id: int | None = None
     route_reason: str | None = None
+    request_needs_vision: bool = False
+    request_needs_audio: bool = False
+    request_needs_video: bool = False
 
 
 class ConversationRuntimePreflight:
@@ -61,6 +68,11 @@ class ConversationRuntimePreflight:
         ) = await self._resolve_model_context(
             agent=agent,
             route_result=route_result,
+        )
+        request_needs_vision = detect_image_attachments(None, messages)
+        request_needs_audio, request_needs_video = detect_audio_video_attachments(
+            None,
+            messages,
         )
         self._filter_unsupported_attachments(
             messages=messages,
@@ -114,6 +126,9 @@ class ConversationRuntimePreflight:
                 ai_model=ai_model,
                 model_code=model_code,
             ),
+            request_needs_vision=request_needs_vision,
+            request_needs_audio=request_needs_audio,
+            request_needs_video=request_needs_video,
         )
 
     async def _resolve_model_context(

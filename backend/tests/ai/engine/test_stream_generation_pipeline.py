@@ -343,15 +343,15 @@ def test_build_terminal_result_hides_provider_state_when_disabled() -> None:
 
 
 @pytest.mark.asyncio
-async def test_build_stream_exception_artifacts_hides_generated_provider_failure_partial_output() -> (
+async def test_conversation_2361_provider_failure_hides_generated_direct_reply_partial_output() -> (
     None
 ):
     state = _StateStub({})
-    state.provider_failure_kind = "provider_http_5xx"
-    state.provider_events = [{"kind": "provider_http_5xx"}]
+    state.provider_failure_kind = "provider_unavailable"
+    state.provider_events = [{"kind": "provider_unavailable"}]
 
     async def _finalize_partial_output(**_kwargs):
-        return "我先把已完成部分整理给你：这部分。", 18, 9
+        return "我先把已完成部分整理给你：direct_reply。", 18, 9
 
     handler = SimpleNamespace(
         request=SimpleNamespace(conversation_id=66, input_variables={}),
@@ -392,13 +392,13 @@ async def test_build_stream_exception_artifacts_hides_generated_provider_failure
         output="",
         total_tokens=0,
         all_tool_results=[],
-        public_error_message="upstream failed",
-        completion_reason="provider_error",
+        public_error_message="无法连接到 AI 供应商",
+        completion_reason="provider_unavailable",
     )
 
-    assert artifacts.result.output.strip()
-    assert artifacts.replay_events
-    assert len(messages) == 2
+    assert artifacts.result.output == ""
+    assert artifacts.replay_events == []
+    assert len(messages) == 1
     assert artifacts.result.turn_record["final_output_source"] == "partial_output"
     assert (
         artifacts.result.turn_record["turn_flow"]["error_surface"]["error_type"]

@@ -135,9 +135,9 @@ async def _resolve_runtime_model_failover(
 
     fallback_model = await failover.get_fallback_model(
         model_id,
-        needs_vision=bool(runtime_context.is_vision),
-        needs_audio=bool(runtime_context.is_audio),
-        needs_video=bool(runtime_context.is_video),
+        needs_vision=bool(getattr(runtime_context, "request_needs_vision", False)),
+        needs_audio=bool(getattr(runtime_context, "request_needs_audio", False)),
+        needs_video=bool(getattr(runtime_context, "request_needs_video", False)),
         needs_fc=bool(tools),
         min_context_window=int(runtime_context.estimated_input or 0) or None,
     )

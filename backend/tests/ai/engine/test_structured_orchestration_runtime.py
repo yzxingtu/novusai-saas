@@ -915,6 +915,70 @@ async def test_stream_llm_chunks_retries_with_runtime_failover_before_first_chun
 
 
 @pytest.mark.asyncio
+async def test_runtime_failover_uses_request_modalities_not_source_model_caps(
+    monkeypatch,
+) -> None:
+    from app.ai.engine import conversation_runtime_bridge as bridge
+
+    captured_requirements: dict[str, object] = {}
+
+    class _Failover:
+        def __init__(self, db):
+            self.db = db
+
+        @staticmethod
+        def should_record_runtime_failure(error):
+            return isinstance(error, AIGatewayError)
+
+        async def record_provider_runtime_failure(self, provider_id, **kwargs):
+            captured_requirements["recorded_provider_id"] = provider_id
+            captured_requirements["recorded_model_id"] = kwargs.get("model_id")
+
+        async def get_fallback_model(self, model_id, **kwargs):
+            captured_requirements.update(kwargs)
+            captured_requirements["model_id"] = model_id
+            return SimpleNamespace(
+                id=2,
+                code="fallback-model",
+                provider_id=20,
+                provider=SimpleNamespace(code="fallback-provider"),
+                tier="standard",
+            )
+
+    monkeypatch.setattr(bridge, "FailoverService", _Failover)
+
+    selection = await bridge._resolve_runtime_model_failover(
+        SimpleNamespace(db=SimpleNamespace()),
+        runtime_context=SimpleNamespace(
+            provider=SimpleNamespace(id=10, code="primary-provider"),
+            ai_model=SimpleNamespace(id=9),
+            model_code="gpt-5.5",
+            is_vision=True,
+            is_audio=True,
+            is_video=True,
+            request_needs_vision=False,
+            request_needs_audio=False,
+            request_needs_video=False,
+            estimated_input=381,
+        ),
+        tools=None,
+        error=AIGatewayError("bad gateway", status_code=502),
+        logger=None,
+    )
+
+    assert selection is not None
+    assert selection.route_result.model_code == "fallback-model"
+    assert captured_requirements["recorded_provider_id"] == 10
+    assert captured_requirements["recorded_model_id"] == 9
+    assert captured_requirements["model_id"] == 9
+    assert captured_requirements["needs_vision"] is False
+    assert captured_requirements["needs_audio"] is False
+    assert captured_requirements["needs_video"] is False
+    assert captured_requirements["needs_fc"] is False
+    assert captured_requirements["min_context_window"] == 381
+
+
+@pytest.mark.asyncio
 async def test_stream_llm_chunks_allows_runtime_failover_after_reasoning_only_chunk(
     monkeypatch,
 ) -> None:

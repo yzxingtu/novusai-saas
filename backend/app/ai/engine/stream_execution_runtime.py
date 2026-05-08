@@ -774,13 +774,14 @@ def _should_surface_exception_partial_output(
     provider_failure_kind: str,
     final_output_source: str | None,
 ) -> bool:
-    if not generated_partial_output:
-        return True
-    if not had_visible_output:
-        return True
     if is_trusted_assistant_final_output_source(final_output_source):
         return True
-    return str(provider_failure_kind or "").strip() == "budget_exit"
+    normalized_failure_kind = str(provider_failure_kind or "").strip()
+    if normalized_failure_kind == "budget_exit":
+        return True
+    if generated_partial_output:
+        return False
+    return had_visible_output
 
 
 def _resolve_exception_final_output_source(
