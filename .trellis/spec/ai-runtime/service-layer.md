@@ -143,7 +143,8 @@ Diagnostics data flows through stable read-model channels:
 
 ## Required Split
 
-- compatibility facades that preserve stable public service names
+- stable public facades that preserve supported service names without retaining
+  retired live behavior
 - command services for chat execution, streaming, and memory persistence
 - query services for conversation history, monitoring, and runtime diagnostics
 - projection services for read models and operator-friendly diagnostics

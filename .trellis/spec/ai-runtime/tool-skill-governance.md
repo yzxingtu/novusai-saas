@@ -44,10 +44,26 @@ backend boundary instead of page perception:
 - Builtin runtime tools may cover platform-owned capabilities such as current
   time, memory, variables, and knowledge retrieval. Online search is not a
   supported builtin capability.
+- Skill-pack invocation is LLM-facing metadata driven: the runtime exposes only
+  the currently authorized tool names, descriptions, JSON schemas, semantic
+  family, tags, ownership, and availability diagnostics, then lets the model
+  decide when to call those tools within the normal tool-use contract.
+- Public chat requests must not use `selected_skill_names`, legacy aliases, or
+  frontend-side selection chips as positive skill activation input. Clients may
+  pass user content, variables, attachments, KB selection, trust policy, and
+  explicit domain operation payloads; skill activation is derived from the
+  authorized metadata exposed to the model and server-side deny policies.
+- Main runtime code must not hardcode plugin-owned skill-pack names, tool names,
+  prompt snippets, business descriptions, or domain-specific routing branches
+  such as weather/search/provider packages. A plugin-owned skill must express
+  that behavior through its manifest, resolver, executor, and tool metadata.
+  Platform-owned generic controls may still enforce authorization, tenant
+  isolation, quotas, budgeting, schema conversion, provider safety guards, and
+  retired capability deny lists.
 - Skill/package defects in new-system live paths must be corrected at the owner
   contract boundary rather than papered over in downstream diagnostics,
-  read-models, or frontend compatibility logic. Temporary compatibility patches
-  need an explicit removal plan and must not become the primary behavior.
+  read-models, or frontend compatibility logic. Do not add temporary
+  compatibility exceptions that keep retired capability behavior alive.
 - Catalog/package previews and agent runtime resolution must share the same
   resolver failure semantics. Catalog preview metadata is a read-only
   `catalog_resolution` view, not runtime truth, but plugin-owned skills that
@@ -84,10 +100,11 @@ backend boundary instead of page perception:
   allowed by the editor-domain schema, user instruction, target language, and
   bounded local chat history.
 - Editor-local rich-text chat is not a shortcut around runtime governance. It
-  must resolve the same `system.ai_writing` assignment, use the same
-  `novusdoc.rich_text_ai.actions` selected-skill provenance, enforce the same
-  tenant access/quota guards, and reject `page_context`, `page_session_id`,
-  `ui_*`, `pageop_*`, DOM snapshot, or active-surface fields.
+  must resolve the same `system.ai_writing` assignment, enforce the same tenant
+  access/quota guards, and reject `page_context`, `page_session_id`, `ui_*`,
+  `pageop_*`, DOM snapshot, or active-surface fields. It must not hardcode a
+  plugin-owned or platform-owned skill name into the generic chat runtime as a
+  positive activation signal.
 - The model-facing prompt for editor-local chat must include the explicit
   editor-domain context that the request body carried: selected text, cursor
   before/after text, document title/id/type when available, the user's current

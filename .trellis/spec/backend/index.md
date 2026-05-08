@@ -72,9 +72,10 @@
   `thin facade + mixin/parts`:
   keep the public import/entry module stable, move real logic into focused
   sibling modules or a package, and preserve command names/routes/public imports.
-- Once a facade is compatibility-only glue, keep new behavior out of it and
-  continue splitting the heavier inner parts instead of reopening the facade
-  for line-count-only churn.
+- Stable public facades may preserve supported route, CLI, or import contracts,
+  but they must not keep retired live behavior, old parameters, or fail-open
+  fallback chains alive. Put new behavior in focused inner parts instead of
+  reopening a facade for line-count-only churn.
 - Do not return ad-hoc dict shapes; use `success()`, `created()`, `paginated()`,
   `deleted()`, or `error()`.
 - Do not use `print()`, `logging.getLogger()`, or raw `loguru.logger`; use
@@ -186,15 +187,15 @@ backend modules:
 - Plugin platform backend: split by runtime concern
   (`lifecycle`, `registry`, `manifest/context`, read-model service, admin write workflow, cleanup service),
   avoid one module owning install/enable/migration/sync/audit simultaneously.
-  已落地样例：`backend/app/plugins/lifecycle.py` 作为兼容 facade（443 行），
+  已落地样例：`backend/app/plugins/lifecycle.py` 作为稳定 public facade（443 行），
   `backend/app/plugins/lifecycle_orchestrator.py` 作为生命周期编排 parts（987 行）。
   `backend/app/api/admin/plugins.py` 的推荐写侧分层是：
   read routes -> `plugin_admin_contracts.py` / `plugin_read_model_service.py`；
   write routes -> `plugin_admin_workflow_service.py` / `plugin_cleanup_service.py` / `PluginService`。
   install-preview workflow 保持在 `plugin_install_preview_service.py`
   （token 编解码、marketplace/upload preview/confirm、package identity 校验）；
-  `plugin_install_preview.py` 仅做路由/兼容导出，不回收进 `plugins.py`。
-  `context.py` 可以保留 `PluginContext` 兼容入口，但 `RequestContext`、
+  `plugin_install_preview.py` 仅做路由/稳定导出，不回收进 `plugins.py`。
+  `context.py` 可以保留 `PluginContext` 稳定入口，但 `RequestContext`、
   `PluginDbProxy`、`_NamespacedStorageProxy` 等共享原语应下沉到 companion
   modules（例如 `context_primitives.py`），调用方继续从
   `app.plugins.context` 获取稳定导出。

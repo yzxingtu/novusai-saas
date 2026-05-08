@@ -49,9 +49,10 @@ context assembly, and service-facing workflows can evolve independently.
   callers consume that contract.
 - Thin facades may preserve public imports/routes/commands, but new behavior
   belongs behind the facade in the focused owner module.
-- Do not add compatibility flags, fallback branches, or read-model-only patches
-  for new-system AI dialogue live paths unless they are explicitly temporary,
-  named as governance debt, and paired with a removal/refactor plan.
+- Do not add compatibility flags, fallback branches, temporary exceptions, or
+  read-model-only patches that keep retired behavior alive in new-system AI
+  dialogue live paths. Thin public facades may preserve stable imports, routes,
+  and commands, but live behavior must move to the canonical owner contract.
 - Diagnostics and monitoring may expose producer facts; they must not convert a
   bad producer result into success by reinterpreting evidence downstream.
 - Historical data repair is read-only unless an explicit migration/repair
@@ -85,8 +86,8 @@ context assembly, and service-facing workflows can evolve independently.
   reported by a user or observed in a real conversation.
 - Behavioral tests must exercise the owning contract, not only the downstream
   facade or diagnostics projection.
-- Keep a route/CLI/read-model sentinel only as secondary coverage for public
-  compatibility.
+- Keep a route/CLI/read-model sentinel only as secondary coverage for stable
+  public contracts.
 - For AI dialogue live paths, follow `testing-discipline.md`: annotate test
   type, avoid self-fulfilling mocks, and document whether any browser validation
   is read-only or a real-dialogue smoke.
@@ -107,8 +108,8 @@ context assembly, and service-facing workflows can evolve independently.
   internal path, and update all callers.
 - Preserve public routes/imports/commands through a thin facade only when the
   external surface is stable.
-- Record any unavoidable temporary compatibility path as governance debt with a
-  removal trigger.
+- Record any unavoidable public-contract migration path as governance debt with
+  a removal trigger; it must not preserve retired live behavior.
 
 ## Runtime Layers (Stable Ownership)
 

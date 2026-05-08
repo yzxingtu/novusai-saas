@@ -98,7 +98,7 @@ Examples:
 ## Bilingual Comment Convention
 
 - Comments are mandatory when the logic is complex, easy to misread, subtly
-  ordered, compatibility-sensitive, repetitive enough to hide intent, or likely
+  ordered, public-contract-sensitive, repetitive enough to hide intent, or likely
   to be forgotten during later maintenance.
 - Every retained code comment, inline documentation note, `TODO`, and `FIXME`
   must include both Chinese and English. Prefer Chinese first, then English,
@@ -128,8 +128,8 @@ Examples:
 - Use this shape for follow-up notes:
 
 ```ts
-// TODO: 中文: 旧弹窗迁移完成后删除这个适配分支。
-// TODO: EN: Remove this adapter branch after the legacy modal migration lands.
+// TODO: 中文: 临时弹窗迁移完成后删除这个稳定入口分支。
+// TODO: EN: Remove this stable-entry branch after the temporary modal migration lands.
 ```
 
 ## Governance Refactor Acceptance Gates
@@ -145,7 +145,7 @@ should require:
 - Coupling gate:
   sections/components consume narrow contracts and do not depend on another
   surface/page internal state shape.
-- Compatibility gate:
+- Public contract gate:
   route path, visible entry points, and permission behavior remain stable unless
   migration notes explicitly declare a change.
 - Validation gate:
@@ -161,17 +161,19 @@ should require:
 - Local bootstrap credentials should only be activated when
   `APP_ENV=development` and `DEV_BOOTSTRAP_AUTH_ENABLED=true` is present;
   browser-based prod/CI runs must never trigger this pathway.
-- Playwright/local helpers should prefer this fast path when running suites against
-  a developer workstation, but keep the legacy `/auth/login` experience as a
-  fallback whenever the bootstrap flag is missing or tests run elsewhere.
+- Playwright/local helpers must use this fast path when running authenticated
+  smoke suites. Missing bootstrap flags or secrets make the smoke blocked or
+  skipped; helpers must not fall back to legacy `/auth/login` routes.
 - Ensure frontend helpers only call bootstrap endpoints from loopback hosts
   or local-dev hosts (`localhost`, `127.0.0.1`, `::1`, `*.local`) and require
   developer-specific secrets pulled from a local `backend/.env` entry:
   `DEV_ADMIN_BOOTSTRAP_SECRET` and `DEV_TENANT_BOOTSTRAP_SECRET`. Track only
   placeholders in `.env.example` or docs so no real secrets are committed.
-- Helpers should prefer `POST /admin/auth/dev/bootstrap` and
-  `POST /tenant/auth/dev/bootstrap`, while still allowing `/auth/login`
-  fallback for CI or non-local environments.
+- Helpers should use `POST /admin/auth/dev/bootstrap` and
+  `POST /tenant/auth/dev/bootstrap` for authenticated admin and tenant smoke.
+  User-surface smoke should use the matching dev bootstrap endpoint for seeded
+  tenant-user sessions. CI or non-local environments must provide bootstrap
+  secrets or treat the authenticated smoke as blocked.
 - Bootstrap JWTs must honor the same expiration/refresh expectations as regular
   login tokens; shipping never-expiring tokens is forbidden.
 - Document the feature flag, host allowlist, and `.env` secret expectation in the
@@ -278,12 +280,9 @@ Examples:
 - New page/browser regression coverage should be added to
   `frontend/apps/web-antd/__tests__/e2e/*.spec.ts` and be runnable through
   `pnpm exec playwright test ...`.
-- Playwright auth helpers should prefer backend dev bootstrap APIs:
+- Playwright auth helpers should use backend dev bootstrap APIs only:
   - `POST /admin/auth/dev/bootstrap`
   - `POST /tenant/auth/dev/bootstrap`
-    and fall back to:
-  - `POST /admin/auth/login`
-  - `POST /tenant/auth/login`
 - Session helpers must seed namespaced localStorage keys instead of dragging UI
   captcha flows into every smoke test:
   - `${namespace}_admin_token`
@@ -293,13 +292,11 @@ Examples:
 - Preferred local env for smoke:
   - `DEV_ADMIN_BOOTSTRAP_SECRET`
   - `DEV_TENANT_BOOTSTRAP_SECRET`
-- Fallback env for tenant smoke:
-  - `TENANT_ADMIN_USERNAME`
-  - `TENANT_ADMIN_PASSWORD`
-  - `TENANT_ADMIN_TENANT_CODE`
-- Fallback env for admin smoke:
-  - `ADMIN_USERNAME` / `PLATFORM_ADMIN_USERNAME`
-  - `ADMIN_PASSWORD` / `PLATFORM_ADMIN_PASSWORD`
+- Legacy login credential env such as `TENANT_ADMIN_USERNAME`,
+  `TENANT_ADMIN_PASSWORD`, `TENANT_ADMIN_TENANT_CODE`, `ADMIN_USERNAME`,
+  `PLATFORM_ADMIN_USERNAME`, and `ADMIN_PASSWORD` must not activate smoke
+  sessions. They may exist for manual local debugging, but checked-in smoke
+  helpers must not use them as auth fallback.
 - Identity smoke assertions should target stable page anchors plus
   `.identity-display`, `.member-panel`, `.monitoring-grid`, or `.vxe-table`
   instead of brittle label internals.
@@ -309,9 +306,7 @@ Examples:
 | Condition                                      | Expected Behavior                                                          |
 | ---------------------------------------------- | -------------------------------------------------------------------------- |
 | Valid dev bootstrap secret                     | Matching smoke suite passes with API-seeded session and no manual login UI |
-| Valid admin credentials                        | Admin dashboard / profile smoke passes with API-seeded session             |
-| Valid tenant credentials + tenant code         | Tenant dashboard / profile / organization / logs smoke passes              |
-| Missing tenant code                            | Tenant smoke skips instead of hanging on login UI                          |
+| Missing bootstrap secret                       | Authenticated smoke is skipped/blocked with an explicit reason             |
 | Tenant domain env absent                       | Suite still runs against localhost                                         |
 | Page text shifts from “最近活动” to “近期活动” | Spec should assert the real page anchor, not an outdated copy guess        |
 
@@ -348,8 +343,8 @@ Examples:
 
 #### Correct
 
-- Use backend login APIs to create tokens and seed the namespaced browser
-  session before `page.goto(...)`.
+- Use backend dev bootstrap APIs to create tokens and seed the namespaced
+  browser session before `page.goto(...)`.
 - Assert the shared identity container and the page's real visible anchor text /
   table shell.
 - Treat MCP browser tools as debugging aids, while the checked-in Playwright

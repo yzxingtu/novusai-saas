@@ -1,5 +1,15 @@
 # Architecture Notes
 
+> [!WARNING]
+> SUPERSEDED: This historical task is not live AI-runtime guidance. It is
+> superseded by `.trellis/tasks/05-05-remove-online-search-capability`,
+> `.trellis/tasks/05-08-05-08-online-search-retirement-cleanup`, and
+> `.trellis/spec/ai-runtime/tool-skill-governance.md`. New-system AI dialogue
+> must not expose WebResearch, provider-hosted/native search, public URL fetch,
+> or builtin/skill `web_search` + `fetch_url`. Skill packs are invoked from
+> authorized model-facing metadata; main runtime must not hardcode weather,
+> search, or plugin skill names.
+
 ## Target Shape
 
 ```text

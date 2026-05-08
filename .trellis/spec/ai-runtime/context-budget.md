@@ -75,8 +75,8 @@ diagnostics.
   vector recall on ordinary turns, while profile snapshots still stay behind
   explicit memory-recall semantics.
 - Current live skill-descriptor behavior is also bounded: runtime producers emit
-  `capability_pack` descriptors, while `prompt_skill` remains compatibility-only
-  input during migration.
+  `capability_pack` descriptors, while retired `prompt_skill` inputs are
+  historical diagnostics only and must not drive new-turn capability context.
 - Treat the full `ContextContribution` contract as the target-state schema; do
   not hardcode new contributor fields into caller code until the pipeline
   upgrade lands.

@@ -18,8 +18,10 @@ Produce explicit, ordered intents before tool routing or context injection.
 - `direct_reply` for pure text responses and capability self-report prompts.
 - `memory_save` and `memory_recall` under the `memory` family.
 - `knowledge_query` for KB-backed retrieval.
-- `time_query` and `weather_query` for tool families that are explicitly
-available.
+- `time_query` for the platform-owned current-time tool family.
+- `weather_query` only when the active capability bundle contains executable
+  plugin-owned weather tool metadata. Weather is not a platform builtin, and
+  planner keyword matching must not manufacture weather availability.
 - Page operation routing is not valid. Do not emit `page_workflow`, `page_*`, or
   `page_ops` intents for live AI dialogue.
 - Online search routing is not valid. Do not emit `web_research` or any
@@ -38,8 +40,11 @@ available.
 - Codeword save prompts such as `把这个代号写入长期记忆` stay in
   `memory_save`; placeholder tokens like `CASE-*` / `SAVED_*` and caveats such
   as `不要使用页面内容` must not create `page_form_write` or `memory_recall`.
-- `weather_query` without a detectable location may set `allow_text_response`
-  with `missing_args=["city"]` instead of failing tool routing.
+- If an executable plugin-owned weather tool is already available,
+  `weather_query` without a detectable location may set `allow_text_response`
+  with `missing_args=["city"]` instead of failing tool routing. Without that
+  plugin metadata, weather prompts stay text-capable and must not receive a
+  builtin/runtime weather tool.
 - `knowledge_query` is only emitted when a KB is bound and the user signal is
   explicit (definition-like or KB-specific). KB binding alone is not enough.
 - Requests to browse, search, check live/current public information, fetch a

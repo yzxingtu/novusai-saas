@@ -25,7 +25,7 @@ transport adapters) instead of one giant plugin platform module.
 
 Landed reference for this pattern:
 
-- `backend/app/plugins/lifecycle.py` as compatibility facade (`443` lines)
+- `backend/app/plugins/lifecycle.py` as stable public facade (`443` lines)
 - `backend/app/plugins/lifecycle_orchestrator.py` as lifecycle orchestration parts (`987` lines)
 
 ## Read Order
@@ -45,6 +45,9 @@ Landed reference for this pattern:
 ### Manifest As Truth
 
 - Pages live in `extensions.frontend.pages[*]`
+- Skill resolvers live in `extensions.skills[*].entry_point`
+- Plugin-owned custom skill executors live in
+  `extensions.skills[*].executor_entry_point`
 - Menu definitions live in `pages[*].menu`
 - Page title comes from `pages[*].title`
 - Menu title comes from `pages[*].menu.title`
@@ -54,6 +57,11 @@ Landed reference for this pattern:
 Do not introduce or revive legacy fields such as `frontend.menus`,
 `frontend.standalone_pages`, `frontend.admin.entry`, `frontend.tenant.entry`, or
 `frontend.npm_dependencies`.
+
+Plugin handler and executor loading is exact-manifest driven. The host may load
+the declared module path or the documented convention path for generic runtime
+types, but it must not guess via `main.py` attribute chains or scan sibling
+executor files after a declaration misses.
 
 ### Assets And Scope
 
@@ -99,7 +107,7 @@ Do not skip validation just because the plugin uses a slimmer standalone toolcha
 ## Recommended Split Seams (Host + Plugin)
 
 - Host backend plugin platform:
-  - facade/entry: route/CLI/runtime registration and compatibility exports only
+  - facade/entry: route/CLI/runtime registration and supported exports only
   - mixin/parts: lifecycle concern slices and orchestrator flows
   - registry/read layer: discover + snapshot + query
   - schema/context companion modules: keep stable `context.py` / `manifest.py`
@@ -108,7 +116,7 @@ Do not skip validation just because the plugin uses a slimmer standalone toolcha
     `context_primitives.py` / `manifest_helpers.py`; if manifest metadata
     schemas (feature/dependency/pricing/resources) keep growing, move them into
     a companion schema module such as `manifest_metadata_schemas.py` while
-    preserving `PluginManifest` and legacy import roots
+    preserving `PluginManifest` and stable import roots
   - admin write workflow layer: notification/menu-override/license/cleanup
     orchestration for host plugin admin routes
   - lifecycle layer: install/enable/disable/sync orchestration
@@ -147,7 +155,7 @@ At minimum, verify:
 - Treating visible menu entry as proof the runtime gate is correct
 - Reusing public asset paths for authenticated pages
 - Shipping a plugin without validate/build/pack regression
-- Depending on a deleted compatibility playbook instead of this guide
+- Depending on a retired playbook instead of this guide
 - Letting one plugin host file own install, enable, migration, sync, rollback,
   and audit logic all at once
 - Letting one host controller file own marketplace transport, zip extraction,

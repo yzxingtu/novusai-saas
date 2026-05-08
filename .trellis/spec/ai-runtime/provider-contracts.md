@@ -8,9 +8,8 @@ kernel, not by adapter-local heuristics.
 ## Canonical Inputs
 
 - `protocol_capabilities` in provider config:
-  `primary_wire_api`, `wire_api` (alias), `allowed_wire_apis`,
+  `primary_wire_api`, `allowed_wire_apis`,
   `allowed_cross_protocol_fallbacks`, `allow_adapter_cross_protocol_fallback`.
-- Legacy `wire_api` at the provider config root (compat seed only).
 - Runtime guard keys carried via ProtocolGuardContract:
   `_runtime_disable_cross_protocol_fallback`, `_runtime_disable_sync_rescue`.
 - Runtime-selected protocol path injected as `_runtime_force_wire_api`.
@@ -19,13 +18,11 @@ kernel, not by adapter-local heuristics.
 
 - When `protocol_capabilities` exists, it is the source of truth. Invalid
 protocol tokens raise `ProviderError(invalid_protocol_contract)`.
-- `protocol_capabilities.wire_api` is a transitional alias for
-`primary_wire_api`. It may seed a missing primary but must not widen or override
-the contract.
 - `primary_wire_api` must be included in `allowed_wire_apis` when an explicit
 `allowed_wire_apis` list is provided.
-- Legacy top-level `wire_api` is only a seed when the protocol contract is
-absent or incomplete. It must not override an explicit contract.
+- Top-level `wire_api` is retired for new runtime config. Provider setup must
+publish `protocol_capabilities.primary_wire_api`; runtime code must not infer a
+live protocol contract from old root-level fields.
 - Runtime overrides that request a protocol outside `allowed_wire_apis` raise
 `ProviderError(unsupported_protocol)`.
 - Responses-only providers must publish `allowed_wire_apis=["responses"]` and
@@ -38,16 +35,15 @@ protocol.
 - `allow_adapter_cross_protocol_fallback` remains a hard gate. If it is false,
 the runtime planner must keep a single-step chain even when a fallback map is
 present.
-- Adapter-level compatibility may still allow cross-protocol fallback when
-`allow_adapter_cross_protocol_fallback` is true and multiple wire APIs are
-listed, even if no fallback map is present. This is transitional behavior and
-must not be treated as the runtime planner rule.
+- Adapter-level cross-protocol fallback is retired. Adapters execute only the
+runtime-planned protocol step; multi-protocol chains require an explicit
+runtime `allowed_cross_protocol_fallbacks` plan.
 - Runtime guard keys are enforced by protocol-safe adapter entrypoints. If a
 caller tries to set either guard to false, adapters must raise
 `ProviderError(invalid_runtime_guard)`.
 - Public OpenAI-compatible adapter entrypoints expose only protocol-safe
-  chat/stream surfaces. Explicit legacy compat entrypoints and package-level
-  re-export facades are not part of the supported public contract.
+  chat/stream surfaces. Retired compat entrypoints and package-level re-export
+  shims are not part of the supported public contract.
 - `_runtime_force_wire_api` and guard keys are consumed at the adapter boundary
 and must not be forwarded downstream as ordinary provider kwargs.
 - Responses follow-up turns must preserve structured `function_call` /
@@ -90,8 +86,9 @@ and must not be forwarded downstream as ordinary provider kwargs.
   retry, or replace that removed capability.
 - Guard semantics are defined by the runtime kernel and must not be redefined
 per adapter.
-- Transitional low-level compat helpers may remain internal implementation
-  details, but they must not be promoted as package-level entrypoints again.
+- Low-level helpers may remain only for serialization, parsing, and historical
+  diagnostics. They must not preserve retired live behavior or be promoted as
+  package-level entrypoints again.
 
 ## Required Diagnostics
 
@@ -107,7 +104,7 @@ from adapter-local metadata.
 - Hosted/native web search enabled for OpenAI-compatible gateways.
 - Treating stale hosted-search config or provider search-progress events as a
   runtime capability.
-- Treating the legacy no-contract fallback chain as the canonical rule.
+- Treating a no-contract fallback chain as a valid runtime rule.
 - Allowing callers to disable runtime guards at adapter entrypoints.
-- Using top-level `wire_api` to override an explicit protocol contract.
+- Using top-level `wire_api` to create or override a runtime protocol contract.
 - Mixing multiple protocols inside a single adapter call.

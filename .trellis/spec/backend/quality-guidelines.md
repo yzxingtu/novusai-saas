@@ -128,7 +128,7 @@ $env:PYTHONPATH='.'; alembic heads
 | Symptom | Allowed Fix | Forbidden Fix | Required Check |
 |---|---|---|---|
 | pytest import mismatch from same-named tests | Add package `__init__.py` files or rename one test module while preserving both tests | Delete one test, narrow `testpaths`, or add broad `--ignore` | `python -m pytest -q` plus targeted duplicate-module tests |
-| pytest references a retired structural seam | Update the structural test to the current public facade, or add a compatibility facade only if the import is still a supported contract | Reintroduce deprecated runtime behavior only for tests | Targeted structural test and full pytest |
+| pytest references a retired structural seam | Update the structural test to the current public facade, or add a stable facade only if the import is still a supported contract | Reintroduce deprecated runtime behavior only for tests | Targeted structural test and full pytest |
 | Ruff unused imports in files with registration side effects | Replace long import lists with explicit registration/facade contracts that still trigger side effects | Blind `ruff --fix` that removes registration imports without proving behavior | `python -m ruff check .` plus subsystem structural check |
 | Formatter drift across many files | Run `python -m ruff format .` as a mechanical pass, then inspect non-format semantic files separately | Mix broad format with unrelated product refactors | `python -m ruff format --check .` and `git diff --check` |
 | Windows temp permission errors in pytest | Use repo-local ignored `--basetemp=.pytest-tmp` | Skip affected tests or mark global warnings as ignored | Full pytest from `backend/` |
@@ -272,7 +272,7 @@ dialogue milestone is green without behavioral and smoke evidence.
   `plugin_install_preview.py` and `admin/plugins.py` transport-only, and
   preserve `test_admin_plugin_marketplace_contract.py` as the route sentinel.
 - For plugin lifecycle/runtime governance, prefer `facade + mixin/parts`:
-  facade keeps compatibility exports and assembly, while orchestrator parts own
+  facade keeps supported exports and assembly, while orchestrator parts own
   lifecycle execution paths. Current reference shape:
   `lifecycle.py(443)` + `lifecycle_orchestrator.py(987)`.
 - Plugin platform and codegen backend changes should follow responsibility seams
@@ -360,8 +360,8 @@ def resolve_quota_boundary(...):
 - Use this shape for follow-up notes:
 
 ```python
-# TODO: 中文: 收敛旧导入路径后删除这个兼容分支。
-# TODO: EN: Remove this compatibility branch after legacy imports converge.
+# TODO: 中文: 收敛临时导入迁移后删除这个稳定入口分支。
+# TODO: EN: Remove this stable-entry branch after the temporary import migration converges.
 ```
 
 ## Dev-only Bootstrap Credential for Local E2E
@@ -382,11 +382,11 @@ def resolve_quota_boundary(...):
 - Bootstrap JWTs must expire and align with existing session TTL/refresh
   guarantees; never ship a forever token or drop the `exp` claim so these
   credentials cannot live indefinitely.
-- Playwright/local browser helpers should prefer this dev bootstrap path for
-  local e2e suites through `POST /admin/auth/dev/bootstrap` and
-  `POST /tenant/auth/dev/bootstrap`, yet the legacy `/auth/login` workflow
-  remains the fallback when the bootstrap flag is disabled or the suite runs
-  outside a developer workstation.
+- Playwright/local browser helpers must use this dev bootstrap path for
+  authenticated local e2e suites through `POST /admin/auth/dev/bootstrap`,
+  `POST /tenant/auth/dev/bootstrap`, or the matching user-surface dev bootstrap
+  endpoint. Missing bootstrap configuration makes the smoke blocked or skipped;
+  checked-in smoke helpers must not fall back to legacy `/auth/login` routes.
 - Document the feature flag, allowlisted hosts, target selectors, and required
   local secrets in repo guides so every developer can reproduce the handshake
   without sharing real secrets.
@@ -471,9 +471,10 @@ see all of the following:
 - Controller query boundary check:
   no new direct DB query assembly in touched `backend/app/api/**` modules.
   Any exception requires explicit infrastructure-endpoint waiver in task docs.
-- Facade compatibility check:
-  public route names, CLI command names/options, and import-visible helpers stay
-  backward compatible unless migration notes are explicitly recorded.
+- Public contract check:
+  public route names, CLI command names/options, and supported import-visible
+  helpers stay stable unless migration notes explicitly record a breaking
+  contract change.
 - Split-seam check:
   refactor uses responsibility seams (facade + mixin/parts), not arbitrary
   line-count chunking or a new miscellaneous helper sink.

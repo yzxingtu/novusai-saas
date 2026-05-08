@@ -50,7 +50,7 @@ done.
 - Umbrella task docs/spec backfill is its own write set. Keep it under the
   umbrella owner or a docs-only worker; do not silently attach `.trellis/**`
   to a product workstream such as control-plane.
-- If a file has already been reduced to a thin compatibility facade, mark the
+- If a file has already been reduced to a thin stable facade, mark the
   hotspot as closed in the umbrella notes and move the remaining work to the
   heavier extracted parts. Do not keep reopening the facade just because an
   older checklist still names that original file.
@@ -74,15 +74,15 @@ When the repo-wide effort exists to reduce oversized files:
   of leaving command parsing, templates, and runtime checks tangled together
 - for plugin lifecycle/runtime governance, prefer `facade + mixin/parts`
   (example baseline: `lifecycle.py(443)` + `lifecycle_orchestrator.py(987)`)
-- keep public import paths, routes, CLI command names, and runtime contracts
-  compatible unless the umbrella task explicitly declares a migration
+- keep supported public import paths, routes, CLI command names, and runtime
+  contracts stable unless the umbrella task explicitly declares a migration
 
 ### Recommended Seams For Plugin Platform And Codegen
 
 When these domains are in-scope, default seam map is:
 
 - plugin platform backend:
-  facade/compat entry, lifecycle mixin/parts orchestration, registry/read model,
+  facade/stable entry, lifecycle mixin/parts orchestration, registry/read model,
   cleanup/safety, transport adapters
 - codegen backend:
   generator core, config/read-model manager, migration hook, transport adapters

@@ -70,7 +70,7 @@ For each layer pair, answer:
   entrypoint kept thin with stable command names/options, and is heavy logic
   split into focused command/runtime modules?
 - **Plugin lifecycle/runtime governance**: If plugin platform files are touched,
-  is shape kept as `facade + mixin/parts` with compatibility preserved
+  is shape kept as `facade + mixin/parts` with the supported public contract preserved
   (reference: `lifecycle.py(443)` + `lifecycle_orchestrator.py(987)`)?
 - **Governance test seam**: If package-level imports would drag unrelated
   out-of-scope modules into a route/controller test, can the test isolate the
@@ -137,7 +137,7 @@ Checklist:
 9. If frontend page/component files changed, did you explicitly confirm the page
    is not acting as a cross-domain business orchestrator?
 10. If CLI/platform governance files changed, did you confirm `thin facade +
-    focused parts` with compatibility preserved?
+    focused parts` with the supported public contract preserved?
 11. If plugin lifecycle/runtime files changed, did you confirm
     `facade + mixin/parts` and avoid re-converging orchestration into one giant
     module?

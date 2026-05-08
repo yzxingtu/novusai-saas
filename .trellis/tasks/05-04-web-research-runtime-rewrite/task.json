@@ -1,9 +1,9 @@
 {
   "id": "05-04-web-research-runtime-rewrite",
   "name": "05-04-web-research-runtime-rewrite",
-  "title": "Rewrite WebResearch runtime around provider-neutral search/fetch evidence pipeline",
-  "description": "Replace native-first web search orchestration with a platform-owned WebResearch pipeline: search provider -> fetch provider -> unified evidence -> answer/recovery. Builtin web_search + fetch_url are the default path; hosted/native search is optional provider capability only.",
-  "status": "completed",
+  "title": "SUPERSEDED - Rewrite WebResearch runtime around provider-neutral search/fetch evidence pipeline",
+  "description": "SUPERSEDED by 05-05-remove-online-search-capability and 05-08-05-08-online-search-retirement-cleanup. Historical evidence only; new-system AI dialogue must not expose WebResearch, builtin web_search/fetch_url, or hosted/native search as live capabilities.",
+  "status": "superseded",
   "dev_type": "ai",
   "scope": "AI runtime web_research orchestration, provider search contracts, evidence projection, CLI diagnostics, tests, and canonical specs",
   "priority": "P0",
@@ -79,8 +79,15 @@
     "backend/tests/ai",
     "backend/tests/regressions"
   ],
-  "notes": "User explicitly requested deep refactor, no legacy compatibility preservation, old code may be deleted, and six subagents may implement while main thread audits. The earlier 2284 smoke only proved builtin search/fetch execution and is superseded for final acceptance by BUG-2026-05-05-2285. Final acceptance now requires query-relevance gating: historical 2285 and fresh real-dialogue 2290 both reject low-relevance evidence, keep fetched_urls empty, set answer_source=none, and project partial/error instead of completed/success.",
+  "notes": "SUPERSEDED AS LIVE GUIDANCE by .trellis/tasks/05-05-remove-online-search-capability, .trellis/tasks/05-08-05-08-online-search-retirement-cleanup, and .trellis/spec/ai-runtime/tool-skill-governance.md. Preserve this task only as historical evidence of the retired WebResearch repair attempt; do not restore builtin search/fetch, hosted/native search, SearchProvider, or WebResearch runtime paths. Previous note: User explicitly requested deep refactor, no legacy compatibility preservation, old code may be deleted, and six subagents may implement while main thread audits. The earlier 2284 smoke only proved builtin search/fetch execution and is superseded for final acceptance by BUG-2026-05-05-2285. Final acceptance now requires query-relevance gating: historical 2285 and fresh real-dialogue 2290 both reject low-relevance evidence, keep fetched_urls empty, set answer_source=none, and project partial/error instead of completed/success.",
   "meta": {
+    "superseded_by": [
+      ".trellis/tasks/05-05-remove-online-search-capability",
+      ".trellis/tasks/05-08-05-08-online-search-retirement-cleanup",
+      ".trellis/spec/ai-runtime/tool-skill-governance.md"
+    ],
+    "superseded_at": "2026-05-08",
+    "live_guidance": "online_search_removed; WebResearch/search/fetch/hosted-native search are unsupported live AI capabilities; skill invocation is LLM-facing authorized metadata driven; main runtime must not hardcode weather/search/plugin skill names",
     "web_research_default": "builtin_web_search_fetch_url",
     "hosted_native_search": "optional_search_provider_only",
     "openai_compatible_hosted_search_default": "disabled",
