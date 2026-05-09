@@ -30,6 +30,8 @@ async def filter_router_candidates(
     candidates: list[Agent],
     has_image_attachments: bool,
     agent_can_handle_images: Callable[[Agent], Awaitable[bool]],
+    agent_supports_families_fn: Callable[[Agent, list[str]], Awaitable[bool]]
+    | None = None,
 ) -> CandidateFilterResult:
     requested_families = requested_tool_families(message)
     family_coverage_filtered = False
@@ -50,11 +52,15 @@ async def filter_router_candidates(
         )
 
     if requested_families:
-        coverage_candidates = [
-            agent
-            for agent in candidates
-            if agent_supports_families(agent, requested_families)
-        ]
+        coverage_candidates: list[Agent] = []
+        for agent in candidates:
+            supports_families = (
+                await agent_supports_families_fn(agent, requested_families)
+                if agent_supports_families_fn is not None
+                else agent_supports_families(agent, requested_families)
+            )
+            if supports_families:
+                coverage_candidates.append(agent)
         if coverage_candidates:
             if len(coverage_candidates) < len(candidates):
                 family_coverage_filtered = True

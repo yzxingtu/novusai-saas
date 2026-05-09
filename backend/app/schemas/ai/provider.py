@@ -5,7 +5,9 @@ AI 供应商相关 Schema / AI Provider Schema
 Defines AI provider request and response data structures.
 """
 
-from pydantic import Field
+from typing import Any
+
+from pydantic import ConfigDict, Field, field_validator
 
 from app.core.base_schema import (
     BaseCreateSchema,
@@ -13,10 +15,21 @@ from app.core.base_schema import (
     BaseUpdateSchema,
 )
 from app.core.i18n import _
+from app.schemas.ai.invalid_ai_runtime_input import (
+    ensure_no_disallowed_ai_runtime_input,
+)
+
+
+def _validate_provider_config(value: dict[str, Any] | None) -> dict[str, Any] | None:
+    if value is not None:
+        ensure_no_disallowed_ai_runtime_input(value)
+    return value
 
 
 class AIProviderCreate(BaseCreateSchema):
     """创建 AI 供应商请求 / Create AI provider request."""
+
+    model_config = ConfigDict(extra="forbid")
 
     name: str = Field(..., max_length=100, description=_("enum.ai_provider.name"))
     code: str | None = Field(
@@ -32,11 +45,17 @@ class AIProviderCreate(BaseCreateSchema):
     )
     is_active: bool = Field(True, description=_("enum.ai_provider.is_active"))
     sort_order: int = Field(0, description=_("enum.ai_provider.sort_order"))
-    config: dict | None = Field(None, description=_("enum.ai_provider.config"))
+    config: dict[str, Any] | None = Field(
+        None, description=_("enum.ai_provider.config")
+    )
+
+    _reject_retired_config = field_validator("config")(_validate_provider_config)
 
 
 class AIProviderUpdate(BaseUpdateSchema):
     """更新 AI 供应商请求 / Update AI provider request."""
+
+    model_config = ConfigDict(extra="forbid")
 
     name: str | None = Field(
         None, max_length=100, description=_("enum.ai_provider.name")
@@ -56,7 +75,11 @@ class AIProviderUpdate(BaseUpdateSchema):
     )
     is_active: bool | None = Field(None, description=_("enum.ai_provider.is_active"))
     sort_order: int | None = Field(None, description=_("enum.ai_provider.sort_order"))
-    config: dict | None = Field(None, description=_("enum.ai_provider.config"))
+    config: dict[str, Any] | None = Field(
+        None, description=_("enum.ai_provider.config")
+    )
+
+    _reject_retired_config = field_validator("config")(_validate_provider_config)
 
 
 class AIProviderResponse(BaseResponseSchema):

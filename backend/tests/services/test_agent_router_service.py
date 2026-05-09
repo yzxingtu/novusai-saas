@@ -1,12 +1,14 @@
 """
-Test type: behavioral
+Test type: structural / behavioral
 Scope: AgentRouterService routing hardening / AgentRouterService 路由硬约束
-Mock strategy: service collaborators are mocked where needed, but routing-policy
-classification helpers execute real logic.
+Mock strategy: route-service collaborators and resolver outputs are mocked where
+needed, while routing-policy classification and fail-close helper logic execute
+real code. These tests do not claim real-dialogue smoke acceptance.
 """
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -14,7 +16,9 @@ import pytest
 from app.enums.common import UserRoleEnum
 from app.exceptions import BusinessException
 from app.services.ai.agent_router_capability_support import (
+    agent_supports_executable_families,
     agent_supports_families,
+    executable_skill_names_for_router,
 )
 from app.services.ai.agent_router_policy import requested_tool_families
 from app.services.ai.agent_router_service import (
@@ -96,7 +100,7 @@ def _make_conversation(
     return conversation
 
 
-def test_agent_supports_families_treats_time_as_runtime_baseline() -> None:
+def test_agent_supports_families_does_not_trust_preview_metadata() -> None:
     agent = _make_agent(
         agent_id=62,
         name="Weather Descriptor Agent",
@@ -109,9 +113,141 @@ def test_agent_supports_families_treats_time_as_runtime_baseline() -> None:
         ),
     ]
 
-    assert agent_supports_families(
+    assert agent_supports_families(agent, ["time_ops"])
+    assert (
+        agent_supports_families(
+            agent,
+            ["weather"],
+        )
+        is False
+    )
+
+
+@pytest.mark.asyncio
+async def test_router_capabilities_require_resolved_execution_tools(
+    monkeypatch,
+) -> None:
+    agent = _make_agent(
+        agent_id=62,
+        name="Weather Agent",
+        supports_vision=False,
+    )
+
+    async def _fake_resolve_for_agent(**_kwargs):
+        descriptor_without_tools = MagicMock()
+        descriptor_without_tools.name = "Weather Preview"
+        descriptor_without_tools.metadata = {
+            "has_execution_tools": False,
+            "resolved_tool_names": [],
+            "startup_preview_tool_names": ["get_current_weather"],
+        }
+        descriptor_with_tools = MagicMock()
+        descriptor_with_tools.name = "CRM"
+        descriptor_with_tools.metadata = {
+            "has_execution_tools": True,
+            "resolved_tool_names": ["crm_lookup"],
+            "resolved_tool_count": 1,
+        }
+        return MagicMock(
+            capability_descriptors=[
+                descriptor_without_tools,
+                descriptor_with_tools,
+            ],
+            tools=[SimpleNamespace(name="crm_lookup", semantic_family="data_ops")],
+        )
+
+    monkeypatch.setattr(
+        "app.ai.skills.resolver.resolve_for_agent",
+        _fake_resolve_for_agent,
+    )
+
+    assert await executable_skill_names_for_router(
+        object(),
         agent,
-        ["weather", "time_ops"],
+        tenant_id=1,
+    ) == ["CRM"]
+
+
+@pytest.mark.asyncio
+async def test_router_capabilities_reject_descriptor_metadata_without_live_tools(
+    monkeypatch,
+) -> None:
+    agent = _make_agent(
+        agent_id=63,
+        name="Stale Descriptor Agent",
+        supports_vision=False,
+    )
+
+    async def _fake_resolve_for_agent(**_kwargs):
+        descriptor = MagicMock()
+        descriptor.name = "Weather"
+        descriptor.metadata = {
+            "has_execution_tools": True,
+            "resolved_tool_names": ["get_current_weather"],
+            "resolved_tool_count": 1,
+        }
+        return MagicMock(capability_descriptors=[descriptor], tools=[])
+
+    monkeypatch.setattr(
+        "app.ai.skills.resolver.resolve_for_agent",
+        _fake_resolve_for_agent,
+    )
+
+    assert (
+        await executable_skill_names_for_router(
+            object(),
+            agent,
+            tenant_id=1,
+        )
+        == []
+    )
+    assert not await agent_supports_executable_families(
+        object(),
+        agent,
+        ["weather"],
+        tenant_id=1,
+    )
+
+
+@pytest.mark.asyncio
+async def test_agent_supports_executable_families_uses_resolved_tool_semantics(
+    monkeypatch,
+) -> None:
+    agent = _make_agent(
+        agent_id=59,
+        name="Data Agent",
+        supports_vision=False,
+    )
+
+    async def _fake_resolve_for_agent(**_kwargs):
+        descriptor = MagicMock()
+        descriptor.name = "CRM"
+        descriptor.metadata = {
+            "has_execution_tools": True,
+            "resolved_tool_names": ["crm_lookup"],
+            "resolved_tool_count": 1,
+        }
+        return MagicMock(
+            capability_descriptors=[descriptor],
+            tools=[SimpleNamespace(name="crm_lookup", semantic_family="data_ops")],
+        )
+
+    monkeypatch.setattr(
+        "app.ai.skills.resolver.resolve_for_agent",
+        _fake_resolve_for_agent,
+    )
+
+    assert await agent_supports_executable_families(
+        object(),
+        agent,
+        ["data_ops"],
+        tenant_id=1,
+    )
+    assert not await agent_supports_executable_families(
+        object(),
+        agent,
+        ["weather"],
+        tenant_id=1,
     )
 
 
@@ -748,6 +884,7 @@ async def test_route_does_not_direct_select_plugin_weather_without_router_judgme
     service._fallback_to_default.assert_not_awaited()
 
 
+@pytest.mark.asyncio
 async def test_route_does_not_use_data_candidate_pool_for_fallback(mock_db):
     service = AgentRouterService(mock_db)
     general_agent = _make_agent(

@@ -26,6 +26,7 @@ from app.models.system.agent_assignment import SystemAgentAssignment
 from app.services.ai.agent_router_candidate_support import filter_router_candidates
 from app.services.ai.agent_router_capability_support import (
     agent_can_handle_images,
+    agent_supports_executable_families,
 )
 from app.services.ai.agent_router_query_service import AgentRouterQueryService
 from app.services.ai.agent_router_runtime_support import (
@@ -212,6 +213,17 @@ class AgentRouterService:
             candidates=candidates,
             has_image_attachments=has_image_attachments,
             agent_can_handle_images=self._agent_can_handle_images,
+            agent_supports_families_fn=lambda agent, families: (
+                self._agent_supports_families(
+                    agent,
+                    families,
+                    tenant_id=(
+                        PLATFORM_TENANT_ID
+                        if user_role == UserRoleEnum.PLATFORM_ADMIN.value
+                        else tenant_id
+                    ),
+                )
+            ),
         )
         candidates = filter_result.candidates
 
@@ -403,6 +415,20 @@ class AgentRouterService:
                 user_role=execution_user_role,
             ),
             timeout_seconds=ROUTER_TIMEOUT_SECONDS,
+        )
+
+    async def _agent_supports_families(
+        self,
+        agent: Agent,
+        families: list[str],
+        *,
+        tenant_id: int | None,
+    ) -> bool:
+        return await agent_supports_executable_families(
+            self.db,
+            agent,
+            families,
+            tenant_id=tenant_id,
         )
 
     # ========================================

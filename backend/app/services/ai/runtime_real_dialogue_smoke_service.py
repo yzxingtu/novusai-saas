@@ -37,6 +37,11 @@ AI_REAL_DIALOGUE_SMOKE_EXECUTION_KIND = "real_dialogue"
 _STATUS_PASSED = "passed"
 _STATUS_FAILED = "failed"
 _STATUS_BLOCKED = "blocked"
+AI_REAL_DIALOGUE_SMOKE_EXIT_CODES = {
+    _STATUS_PASSED: 0,
+    _STATUS_FAILED: 2,
+    _STATUS_BLOCKED: 3,
+}
 _SCENARIO_MAX_ATTEMPTS = 2
 _SCENARIO_RETRY_DELAY_SECONDS = 1.0
 _CALL_LOG_LOOKUP_MAX_ATTEMPTS = 30
@@ -349,6 +354,19 @@ def _resolve_overall_status(scenario_results: list[dict[str, Any]]) -> str:
     return _STATUS_BLOCKED
 
 
+def real_dialogue_smoke_exit_code(status: Any) -> int:
+    return AI_REAL_DIALOGUE_SMOKE_EXIT_CODES.get(str(status or "").lower(), 3)
+
+
+def _finalize_report_command_exit_code(report: dict[str, Any]) -> dict[str, Any]:
+    command = report.setdefault("command", {})
+    if isinstance(command, dict):
+        command["exit_code"] = real_dialogue_smoke_exit_code(
+            report.get("overall_status")
+        )
+    return report
+
+
 def _summarize_results(scenario_results: list[dict[str, Any]]) -> dict[str, int]:
     must_pass = [item for item in scenario_results if bool(item.get("must_pass"))]
     return {
@@ -431,7 +449,7 @@ class RuntimeRealDialogueSmokeService:
             "generated_at": _now_iso(),
             "command": {
                 "argv": ["python", "-m", "app.cli", "ai", "real-dialogue-smoke"],
-                "exit_code": 0,
+                "exit_code": AI_REAL_DIALOGUE_SMOKE_EXIT_CODES[_STATUS_BLOCKED],
             },
             "repo": _git_metadata(repo_path),
             "ledger": {
@@ -479,7 +497,7 @@ class RuntimeRealDialogueSmokeService:
                 }
             ]
             report["summary"] = _summarize_results(report["scenario_results"])
-            return report
+            return _finalize_report_command_exit_code(report)
 
         try:
             agent = await RuntimeInventoryService(self.db)._resolve_agent(
@@ -511,7 +529,7 @@ class RuntimeRealDialogueSmokeService:
                 report["scenario_results"]
             )
             report["summary"] = _summarize_results(report["scenario_results"])
-            return report
+            return _finalize_report_command_exit_code(report)
 
         scenario_results: list[dict[str, Any]] = []
         for scenario in scenarios:
@@ -563,7 +581,7 @@ class RuntimeRealDialogueSmokeService:
                 "model": first_provider.get("model_name"),
             }
         )
-        return report
+        return _finalize_report_command_exit_code(report)
 
     @staticmethod
     def _select_scenarios(
@@ -871,7 +889,9 @@ class RuntimeRealDialogueSmokeService:
 
 __all__ = [
     "AI_REAL_DIALOGUE_SMOKE_EXECUTION_KIND",
+    "AI_REAL_DIALOGUE_SMOKE_EXIT_CODES",
     "AI_REAL_DIALOGUE_SMOKE_REPORT_TYPE",
     "AI_REAL_DIALOGUE_SMOKE_SCHEMA_VERSION",
     "RuntimeRealDialogueSmokeService",
+    "real_dialogue_smoke_exit_code",
 ]

@@ -47,6 +47,11 @@ _SMOKE_SCENARIO_MARKERS = (
 AI_REAL_DIALOGUE_SMOKE_SCHEMA_VERSION = "ai-real-dialogue-smoke/v1"
 AI_REAL_DIALOGUE_SMOKE_REPORT_TYPE = "ai_real_dialogue_smoke"
 AI_REAL_DIALOGUE_SMOKE_EXECUTION_KIND = "real_dialogue"
+AI_REAL_DIALOGUE_SMOKE_EXIT_CODES = {
+    STATUS_PASSED: 0,
+    STATUS_FAILED: 2,
+    STATUS_BLOCKED: 3,
+}
 _NETWORK_BLOCK_MARKERS = (
     "ERR_PNPM_AUDIT_ENDPOINT_NOT_EXISTS",
     "CERTIFICATE_VERIFY_FAILED",
@@ -891,6 +896,10 @@ def _report_status_text(payload: dict[str, Any]) -> str:
     return str(payload.get("overall_status") or payload.get("status") or "").lower()
 
 
+def _real_dialogue_smoke_expected_exit_code(status: str) -> int | None:
+    return AI_REAL_DIALOGUE_SMOKE_EXIT_CODES.get(str(status or "").lower())
+
+
 def _smoke_report_status(
     path: Path | None,
     *,
@@ -938,12 +947,19 @@ def _smoke_report_status(
     command = payload.get("command")
     if not isinstance(command, dict):
         blocking_errors.append("command_missing")
-    elif command.get("exit_code") != 0:
-        failure_errors.append("command_exit_code_nonzero")
-    elif "real-dialogue-smoke" not in {
-        str(part) for part in command.get("argv", []) if part is not None
-    }:
-        blocking_errors.append("command_argv_not_real_dialogue_smoke")
+    else:
+        expected_exit_code = _real_dialogue_smoke_expected_exit_code(raw_status)
+        if expected_exit_code is None:
+            blocking_errors.append("command_status_exit_contract_unknown_status")
+        elif command.get("exit_code") != expected_exit_code:
+            error_bucket = (
+                failure_errors if raw_status == STATUS_PASSED else blocking_errors
+            )
+            error_bucket.append("command_exit_code_status_mismatch")
+        if "real-dialogue-smoke" not in {
+            str(part) for part in command.get("argv", []) if part is not None
+        }:
+            blocking_errors.append("command_argv_not_real_dialogue_smoke")
 
     provider = payload.get("provider")
     provider_evidence_passed = False

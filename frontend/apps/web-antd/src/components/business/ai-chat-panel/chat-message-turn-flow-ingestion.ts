@@ -201,25 +201,33 @@ function canonicalTurnFlowPayload(
     'turn_flow_complete',
     'turn_outcome',
   ]);
+  let hasCanonicalPayload = false;
   const timeline = normalizeObjectRecordList(record.timeline)
     .map((item) => canonicalStageRecord(item))
     .filter((item): item is Record<string, unknown> => !!item);
   if (timeline.length > 0) {
+    hasCanonicalPayload = true;
     out.timeline = timeline;
   }
   const evidence = normalizeObjectRecordList(record.evidence)
     .map((item) => canonicalEvidenceRecord(item))
     .filter((item): item is Record<string, unknown> => !!item);
   if (evidence.length > 0) {
+    hasCanonicalPayload = true;
     out.evidence = evidence;
   }
   const answerCard = canonicalAnswerCardPayload(record.answer_card);
   if (answerCard) {
+    hasCanonicalPayload = true;
     out.answer_card = answerCard;
   }
   const errorSurface = canonicalErrorSurfacePayload(record.error_surface);
   if (errorSurface) {
+    hasCanonicalPayload = true;
     out.error_surface = errorSurface;
+  }
+  if (!hasCanonicalPayload) {
+    return null;
   }
   return out;
 }
@@ -581,7 +589,37 @@ export function applyCanonicalDoneEvent(
 ): void {
   const turnRecord = normalizeObjectRecord(event.turn_record);
   const incomingTurnFlow = nestedTurnFlowFromDone(event, turnRecord);
-  const baseFlow = getOrCreateCanonicalTurnFlow(message);
+  const existingFlow = normalizeTurnFlowViewModel(message.turnFlow);
+  if (!incomingTurnFlow && !existingFlow) {
+    const completionReason =
+      normalizeOptionalString(event.completion_reason) ??
+      normalizeOptionalString(event.termination_reason) ??
+      inferCompletionReason(message);
+    if (completionReason && !message.completionReason) {
+      message.completionReason = completionReason;
+    }
+    const turnOutcome = normalizeFailureSignal(
+      event.turn_outcome ?? turnRecord?.turn_outcome,
+    );
+    if (turnOutcome) {
+      message.turnOutcome = message.turnOutcome || turnOutcome;
+    }
+    const finalStageStatus = stageStatusFromDone(event);
+    if (finalStageStatus === 'error') {
+      message.turnOutcome = message.turnOutcome || 'failed';
+      message.requestFailedRetry = true;
+      message.terminationReason =
+        message.terminationReason || completionReason || 'error';
+    } else if (finalStageStatus === 'interrupted') {
+      message.interrupted = true;
+      message.partial = true;
+      message.turnOutcome = message.turnOutcome || 'partial';
+      message.terminationReason =
+        message.terminationReason || completionReason || 'interrupted';
+    }
+    return;
+  }
+  const baseFlow = existingFlow ?? getOrCreateCanonicalTurnFlow(message);
   const flow = incomingTurnFlow
     ? (mergeTurnFlow(baseFlow, incomingTurnFlow) ?? baseFlow)
     : baseFlow;
@@ -655,7 +693,10 @@ export function getRunningToolExecutionRefs(
 export function settleTurnFlowAfterLifecycleFinalize(
   message: ChatMessage,
 ): void {
-  const flow = getOrCreateCanonicalTurnFlow(message);
+  const flow = normalizeTurnFlowViewModel(message.turnFlow);
+  if (!flow) {
+    return;
+  }
   const completionReason = inferCompletionReason(message);
   if (completionReason) {
     flow.completionReason = completionReason;

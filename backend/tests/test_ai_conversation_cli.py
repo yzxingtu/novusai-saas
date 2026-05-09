@@ -535,10 +535,49 @@ def test_ai_real_dialogue_smoke_raw_json_outputs_archivable_report(monkeypatch) 
         ],
     )
 
-    assert result.exit_code == 0
+    assert result.exit_code == 3
     payload = json.loads(result.output)
     assert payload["schema_version"] == "ai-real-dialogue-smoke/v1"
     assert "success" not in payload
+
+
+def test_ai_real_dialogue_smoke_json_blocked_uses_failure_envelope(
+    monkeypatch,
+) -> None:
+    # 中文: 结构化 JSON 可以归档 blocked 报告，但不能伪装成 shell 成功。
+    # EN: Structured JSON may archive a blocked report, but must not fake shell success.
+    from app.cli import cli
+
+    report = {
+        "schema_version": "ai-real-dialogue-smoke/v1",
+        "report_type": "ai_real_dialogue_smoke",
+        "execution_kind": "real_dialogue",
+        "overall_status": "blocked",
+        "scenario_results": [],
+    }
+    monkeypatch.setattr(
+        "app.cli_commands.ai_commands._run_async", _return_value(report)
+    )
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "ai",
+            "real-dialogue-smoke",
+            "--agent-id",
+            "59",
+            "--message",
+            "ping",
+            "--json",
+        ],
+    )
+
+    assert result.exit_code == 3
+    payload = json.loads(result.output)
+    assert payload["success"] is False
+    assert payload["error"]["code"] == "ai_real_dialogue_smoke_not_passed"
+    assert payload["data"]["result"]["overall_status"] == "blocked"
 
 
 def test_ai_real_dialogue_smoke_cli_operation_initializes_redis_when_cold(

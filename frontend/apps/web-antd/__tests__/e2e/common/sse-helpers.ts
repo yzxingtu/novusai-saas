@@ -462,7 +462,6 @@ function appendCanonicalToolEvidenceFromTurnFlow(
     return;
   }
   appendCanonicalToolEvidenceList(toolCalls, value.evidence);
-  appendCanonicalToolEvidenceList(toolCalls, value.sources);
 }
 
 function appendCanonicalToolEvidenceFromPayload(

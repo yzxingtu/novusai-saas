@@ -18,7 +18,9 @@ from app.configs.service import PLATFORM_TENANT_ID
 from app.core.logging import LogManager
 from app.enums.agent import AgentExecutionModeEnum
 from app.models.ai.agent import Agent
-from app.services.ai.agent_router_capability_support import grant_skill_name_if_active
+from app.services.ai.agent_router_capability_support import (
+    executable_skill_names_for_router,
+)
 
 logger = LogManager.get_logger("ai")
 
@@ -60,15 +62,13 @@ class AgentRouterRuntimeSupport:
                 "description": candidate.description or "",
             }
             entry["supports_vision"] = await agent_can_handle_images_fn(candidate)
-            skill_grants = getattr(candidate, "skill_grants", None)
-            if skill_grants:
-                skill_names = []
-                for grant in skill_grants:
-                    skill_name = grant_skill_name_if_active(grant)
-                    if skill_name:
-                        skill_names.append(skill_name)
-                if skill_names:
-                    entry["capabilities"] = skill_names
+            skill_names = await executable_skill_names_for_router(
+                self.db,
+                candidate,
+                tenant_id=execution_tenant_id,
+            )
+            if skill_names:
+                entry["capabilities"] = skill_names
             agent_list.append(entry)
 
         vision_preamble = ""

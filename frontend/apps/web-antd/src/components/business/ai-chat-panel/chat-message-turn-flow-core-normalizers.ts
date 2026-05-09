@@ -420,10 +420,7 @@ export function hasTurnFlowData(value?: TurnFlowViewModel): boolean {
     value.timeline.length > 0 ||
     value.evidence.length > 0 ||
     !!value.answerCard ||
-    !!value.completionReason ||
-    !!value.errorSurface ||
-    value.interrupted === true ||
-    value.complete === true
+    !!value.errorSurface
   );
 }
 

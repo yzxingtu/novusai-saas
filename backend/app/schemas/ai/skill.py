@@ -7,7 +7,7 @@ Defines skill request and response data structures.
 
 from typing import Any
 
-from pydantic import Field, model_validator
+from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from app.ai.skills.spec import validate_skill_markdown
 from app.core.base_schema import (
@@ -18,10 +18,30 @@ from app.core.base_schema import (
 )
 from app.core.i18n import _
 from app.enums.skill import SkillSourceTypeEnum, SkillStatusEnum
+from app.schemas.ai.invalid_ai_runtime_input import (
+    ensure_no_disallowed_ai_runtime_input,
+    is_retired_online_search_catalog_reference,
+)
+
+
+def _validate_skill_runtime_payload(
+    value: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    if value is not None:
+        ensure_no_disallowed_ai_runtime_input(value)
+    return value
+
+
+def _validate_toolkit_content(value: str | None) -> str | None:
+    if value is not None and is_retired_online_search_catalog_reference(value):
+        raise ValueError(_("skill.error.retired_online_search"))
+    return value
 
 
 class SkillCreate(BaseCreateSchema):
     """创建技能请求 / Create skill request."""
+
+    model_config = ConfigDict(extra="forbid")
 
     package_id: int = Field(..., description=_("skill.field.package_id"))
     name: str = Field(..., max_length=100, description=_("skill.field.name"))
@@ -59,6 +79,20 @@ class SkillCreate(BaseCreateSchema):
         None, description=_("skill.field.toolkit_meta")
     )
 
+    _reject_retired_config = field_validator("config")(_validate_skill_runtime_payload)
+    _reject_retired_input_schema = field_validator("input_schema")(
+        _validate_skill_runtime_payload
+    )
+    _reject_retired_output_schema = field_validator("output_schema")(
+        _validate_skill_runtime_payload
+    )
+    _reject_retired_toolkit_meta = field_validator("toolkit_meta")(
+        _validate_skill_runtime_payload
+    )
+    _reject_retired_toolkit_content = field_validator("toolkit_content")(
+        _validate_toolkit_content
+    )
+
     @model_validator(mode="after")
     def validate_agentscope_skill_spec(self) -> "SkillCreate":
         if not self.skill_md:
@@ -73,6 +107,8 @@ class SkillCreate(BaseCreateSchema):
 
 class SkillUpdate(BaseUpdateSchema):
     """更新技能请求 / Update skill request."""
+
+    model_config = ConfigDict(extra="forbid")
 
     name: str | None = Field(None, max_length=100, description=_("skill.field.name"))
     key: str | None = Field(None, max_length=100, description="Stable skill key")
@@ -106,6 +142,20 @@ class SkillUpdate(BaseUpdateSchema):
     )
     toolkit_meta: dict[str, Any] | None = Field(
         None, description=_("skill.field.toolkit_meta")
+    )
+
+    _reject_retired_config = field_validator("config")(_validate_skill_runtime_payload)
+    _reject_retired_input_schema = field_validator("input_schema")(
+        _validate_skill_runtime_payload
+    )
+    _reject_retired_output_schema = field_validator("output_schema")(
+        _validate_skill_runtime_payload
+    )
+    _reject_retired_toolkit_meta = field_validator("toolkit_meta")(
+        _validate_skill_runtime_payload
+    )
+    _reject_retired_toolkit_content = field_validator("toolkit_content")(
+        _validate_toolkit_content
     )
 
     @model_validator(mode="after")

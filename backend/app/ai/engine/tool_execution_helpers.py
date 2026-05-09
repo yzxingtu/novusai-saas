@@ -67,7 +67,9 @@ def synthesize_tool_results_from_calls(
             ToolResult(
                 tool_call_id=tool_call_id,
                 name=tool_name,
-                success=True,
+                success=False,
+                error="Tool execution did not return a result.",
+                error_type="missing_tool_result",
             )
         )
     return synthesized

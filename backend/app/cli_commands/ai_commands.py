@@ -222,15 +222,28 @@ def ai_real_dialogue_smoke(
             repo_root=str(_BACKEND_DIR.parent),
         ),
     )
+    from app.services.ai.runtime_real_dialogue_smoke_service import (
+        real_dialogue_smoke_exit_code,
+    )
+
+    exit_code = real_dialogue_smoke_exit_code(payload.get("overall_status"))
     if raw_json:
         _echo_json(payload)
-        return
+        sys.exit(exit_code)
     if output_json:
-        _echo_json(
+        envelope = (
             _json_success({"operation": "real-dialogue-smoke", "result": payload})
+            if exit_code == 0
+            else _json_error(
+                "AI real-dialogue smoke did not pass.",
+                code="ai_real_dialogue_smoke_not_passed",
+                data={"operation": "real-dialogue-smoke", "result": payload},
+            )
         )
-        return
+        _echo_json(envelope)
+        sys.exit(exit_code)
     click.echo(_render_ai_runtime_section("AI Real Dialogue Smoke", payload))
+    sys.exit(exit_code)
 
 
 @ai_cmd.command("root-cause")

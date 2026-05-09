@@ -336,7 +336,11 @@ def _strict_ai_smoke_report_payload(
         "overall_status": overall_status,
         "command": {
             "argv": ["python", "-m", "app.cli", "ai", "real-dialogue-smoke"],
-            "exit_code": 0,
+            "exit_code": {
+                "passed": 0,
+                "failed": 2,
+                "blocked": 3,
+            }.get(overall_status, 3),
         },
         "ledger": {"sha256": ledger_hash, "scenario_ids": ["S1"]},
         "repo": repo

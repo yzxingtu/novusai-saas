@@ -1,0 +1,493 @@
+{
+  "schema_version": "ai-real-dialogue-smoke/v1",
+  "report_type": "ai_real_dialogue_smoke",
+  "execution_kind": "real_dialogue",
+  "overall_status": "failed",
+  "generated_at": "2026-05-08T22:49:25.059544+00:00",
+  "command": {
+    "argv": [
+      "python",
+      "-m",
+      "app.cli",
+      "ai",
+      "real-dialogue-smoke"
+    ],
+    "exit_code": 2
+  },
+  "repo": {
+    "commit": "5bdf74e428f6d514ca1bb43bfa4312edfdf01e79",
+    "dirty": true
+  },
+  "ledger": {
+    "path": "E:\\git_clone\\novusai-saas-yudi\\.trellis\\tasks\\04-23-codex-llm-first-dialogue-replan\\smoke-scenarios.md",
+    "sha256": "f847a779dbc4873fdf6bc17639999ef61c58b8b4629cf77f0e86f3fb3a3bda8e",
+    "scenario_ids": [
+      "SCENARIO-001-runtime-capability-smoke",
+      "SCENARIO-002-short-answer-real-turn",
+      "SCENARIO-003-tool-policy-guard"
+    ],
+    "valid": true,
+    "missing_markers": [],
+    "duplicate_scenario_ids": []
+  },
+  "agent": {
+    "selector_type": "id",
+    "selector_value": "15",
+    "resolved_agent_id": 15,
+    "resolved_agent_name": "智能助手",
+    "tenant_id": 0,
+    "resolved_agent_code": null
+  },
+  "provider": {
+    "credential_source": "runtime_provider_config",
+    "live_provider_call_count": 2,
+    "call_logs": [
+      {
+        "id": 6919,
+        "conversation_id": 2371,
+        "status": "success",
+        "provider_name": "ASXS",
+        "model_name": "gpt-5.5-xhigh",
+        "request_type": "chat",
+        "call_type": "main_chat"
+      },
+      {
+        "id": 6920,
+        "conversation_id": 2372,
+        "status": "success",
+        "provider_name": "ASXS",
+        "model_name": "gpt-5.5-xhigh",
+        "request_type": "chat",
+        "call_type": "main_chat"
+      }
+    ],
+    "mocked_llm": false,
+    "replay": false,
+    "provider_name": "ASXS",
+    "model": "gpt-5.5-xhigh"
+  },
+  "summary": {
+    "total": 3,
+    "passed": 2,
+    "failed": 1,
+    "blocked": 0,
+    "must_pass_total": 3,
+    "must_pass_passed": 2
+  },
+  "scenario_results": [
+    {
+      "scenario_id": "SCENARIO-001-runtime-capability-smoke",
+      "must_pass": true,
+      "status": "failed",
+      "error_message": "服务器内部错误: Request timed out.",
+      "error_type": "BusinessException"
+    },
+    {
+      "scenario_id": "SCENARIO-002-short-answer-real-turn",
+      "must_pass": true,
+      "status": "passed",
+      "conversation_id": 2371,
+      "assistant_text_non_empty": true,
+      "assistant_text_sample": "NovusAI SaaS 当前适合企业用于构建和部署 AI 驱动的业务应用，支持自动化流程、智能内容生成、数据分析与客户服务等场景。它通常具备可扩展的云端架构、权限管理、API 集成和企业级安全能力，便于团队快速接入并在现有业务系统中落地使用。",
+      "provider_call_log_id": 6919,
+      "provider_call_status": "success",
+      "provider_name": "ASXS",
+      "model_name": "gpt-5.5-xhigh",
+      "request_type": "chat",
+      "call_type": "main_chat",
+      "total_tokens": 579,
+      "duration_ms": 7761,
+      "observable_checks": {
+        "assistant_text_non_empty": true,
+        "provider_call_log_present": true,
+        "provider_call_succeeded": true,
+        "retired_current_page_or_online_search_exposed": false,
+        "answer_concise": true,
+        "answer_enterprise_saas_relevant": true
+      },
+      "retired_capability_probe_values": {},
+      "capability_smoke": null,
+      "context_diagnostics": {
+        "estimated_tokens": 579,
+        "context_compacted": false,
+        "compact_summary_present": false,
+        "memory_recalled": false,
+        "memory_flush_triggered": false,
+        "prune_stats": {
+          "mode": "transient_tool_result_pruning",
+          "enabled": true,
+          "bytes_before": 313,
+          "bytes_after": 313,
+          "pruned_message_count": 0,
+          "pruned_tool_message_count": 0,
+          "pruned_tool_call_count": 0
+        },
+        "rag_source_kinds": [],
+        "last_interrupted": false,
+        "tool_planner": {
+          "intent": "direct_reply",
+          "family": "none",
+          "allow_no_tool": true,
+          "allow_family_continuation": false,
+          "reason": "structured_intent_plan",
+          "confidence_band": "high",
+          "execution_path": "fast",
+          "intent_plan": [
+            {
+              "intent_id": "intent-1",
+              "kind": "direct_reply",
+              "family": "none",
+              "order": 1,
+              "user_visible_label": "direct_reply",
+              "source_text": "用两句话介绍 NovusAI SaaS 当前适合企业使用的能力。",
+              "status": "completed",
+              "requires_tools": false,
+              "allow_text_response": false,
+              "continuation": false,
+              "shortcircuit": true,
+              "cached_result": null,
+              "allowed_tool_names": [],
+              "preferred_tool_names": [],
+              "completion_signals": [],
+              "completed_by_tool_names": [],
+              "metadata": {}
+            }
+          ]
+        },
+        "turn_outcome": "success",
+        "termination_reason": "completed",
+        "protocol_path": "responses",
+        "conversation_outcome": "success",
+        "context_sources": [
+          {
+            "kind": "skill",
+            "name": "skill_resolver",
+            "active": true,
+            "metadata": {
+              "tool_count": 0,
+              "selected_tool_names": [],
+              "skill_count": 0,
+              "selected_skill_names": [],
+              "inventory_tool_count": 1,
+              "inventory_selected_tool_names": [
+                "get_current_time"
+              ],
+              "inventory_skill_count": 0,
+              "inventory_selected_skill_names": [],
+              "turn_skill_activation_applied": false,
+              "turn_skill_activation_reason": "no_turn_skill_activation"
+            }
+          },
+          {
+            "kind": "runtime_model_capability",
+            "name": "gpt-5.5",
+            "active": true,
+            "metadata": {
+              "supports_vision": true,
+              "supports_function_calling": true,
+              "supports_streaming": true,
+              "context_window": 128000,
+              "max_output_tokens": 4096,
+              "model_type": "chat",
+              "input_price_per_1k": 0.02,
+              "output_price_per_1k": 0.06,
+              "supports_audio": true,
+              "supports_video": false,
+              "capability_source": "registry+local",
+              "model_code": "gpt-5.5",
+              "provider_code": "provider_1",
+              "model_id": 9
+            }
+          }
+        ]
+      },
+      "last_run_summary": {
+        "duration_ms": 7506,
+        "runtime_model_name": "gpt-5.5-xhigh",
+        "runtime_provider_name": "ASXS",
+        "success": true,
+        "total_tokens": 579,
+        "tool_planner": {
+          "intent": "direct_reply",
+          "family": "none",
+          "allow_no_tool": true,
+          "allow_family_continuation": false,
+          "reason": "structured_intent_plan",
+          "confidence_band": "high",
+          "execution_path": "fast",
+          "intent_plan": [
+            {
+              "intent_id": "intent-1",
+              "kind": "direct_reply",
+              "family": "none",
+              "order": 1,
+              "user_visible_label": "direct_reply",
+              "source_text": "用两句话介绍 NovusAI SaaS 当前适合企业使用的能力。",
+              "status": "completed",
+              "requires_tools": false,
+              "allow_text_response": false,
+              "continuation": false,
+              "shortcircuit": true,
+              "cached_result": null,
+              "allowed_tool_names": [],
+              "preferred_tool_names": [],
+              "completion_signals": [],
+              "completed_by_tool_names": [],
+              "metadata": {}
+            }
+          ]
+        },
+        "completion_reason": "completed",
+        "termination_reason": "completed",
+        "turn_outcome": "success",
+        "protocol_path": "responses",
+        "conversation_outcome": "success",
+        "context_sources": [
+          {
+            "kind": "skill",
+            "name": "skill_resolver",
+            "active": true,
+            "metadata": {
+              "tool_count": 0,
+              "selected_tool_names": [],
+              "skill_count": 0,
+              "selected_skill_names": [],
+              "inventory_tool_count": 1,
+              "inventory_selected_tool_names": [
+                "get_current_time"
+              ],
+              "inventory_skill_count": 0,
+              "inventory_selected_skill_names": [],
+              "turn_skill_activation_applied": false,
+              "turn_skill_activation_reason": "no_turn_skill_activation"
+            }
+          },
+          {
+            "kind": "runtime_model_capability",
+            "name": "gpt-5.5",
+            "active": true,
+            "metadata": {
+              "supports_vision": true,
+              "supports_function_calling": true,
+              "supports_streaming": true,
+              "context_window": 128000,
+              "max_output_tokens": 4096,
+              "model_type": "chat",
+              "input_price_per_1k": 0.02,
+              "output_price_per_1k": 0.06,
+              "supports_audio": true,
+              "supports_video": false,
+              "capability_source": "registry+local",
+              "model_code": "gpt-5.5",
+              "provider_code": "provider_1",
+              "model_id": 9
+            }
+          }
+        ]
+      }
+    },
+    {
+      "scenario_id": "SCENARIO-003-tool-policy-guard",
+      "must_pass": true,
+      "status": "passed",
+      "conversation_id": 2372,
+      "assistant_text_non_empty": true,
+      "assistant_text_sample": "明白。如果当前没有联网搜索工具，我不会编造实时新闻、来源、链接或“刚刚发生”的信息；会明确说明无法实时检索，并仅基于已有知识或你提供的材料进行回答。",
+      "provider_call_log_id": 6920,
+      "provider_call_status": "success",
+      "provider_name": "ASXS",
+      "model_name": "gpt-5.5-xhigh",
+      "request_type": "chat",
+      "call_type": "main_chat",
+      "total_tokens": 541,
+      "duration_ms": 6170,
+      "observable_checks": {
+        "assistant_text_non_empty": true,
+        "provider_call_log_present": true,
+        "provider_call_succeeded": true,
+        "retired_current_page_or_online_search_exposed": false,
+        "no_fabricated_live_source": true
+      },
+      "retired_capability_probe_values": {},
+      "capability_smoke": null,
+      "context_diagnostics": {
+        "estimated_tokens": 541,
+        "context_compacted": false,
+        "compact_summary_present": false,
+        "memory_recalled": false,
+        "memory_flush_triggered": false,
+        "prune_stats": {
+          "mode": "transient_tool_result_pruning",
+          "enabled": true,
+          "bytes_before": 306,
+          "bytes_after": 306,
+          "pruned_message_count": 0,
+          "pruned_tool_message_count": 0,
+          "pruned_tool_call_count": 0
+        },
+        "rag_source_kinds": [],
+        "last_interrupted": false,
+        "tool_planner": {
+          "intent": "direct_reply",
+          "family": "none",
+          "allow_no_tool": true,
+          "allow_family_continuation": false,
+          "reason": "structured_intent_plan",
+          "confidence_band": "high",
+          "execution_path": "fast",
+          "intent_plan": [
+            {
+              "intent_id": "intent-1",
+              "kind": "direct_reply",
+              "family": "none",
+              "order": 1,
+              "user_visible_label": "direct_reply",
+              "source_text": "如果当前没有联网搜索工具，请不要编造实时新闻来源。",
+              "status": "completed",
+              "requires_tools": false,
+              "allow_text_response": false,
+              "continuation": false,
+              "shortcircuit": true,
+              "cached_result": null,
+              "allowed_tool_names": [],
+              "preferred_tool_names": [],
+              "completion_signals": [],
+              "completed_by_tool_names": [],
+              "metadata": {}
+            }
+          ]
+        },
+        "turn_outcome": "success",
+        "termination_reason": "completed",
+        "protocol_path": "responses",
+        "conversation_outcome": "success",
+        "context_sources": [
+          {
+            "kind": "skill",
+            "name": "skill_resolver",
+            "active": true,
+            "metadata": {
+              "tool_count": 0,
+              "selected_tool_names": [],
+              "skill_count": 0,
+              "selected_skill_names": [],
+              "inventory_tool_count": 1,
+              "inventory_selected_tool_names": [
+                "get_current_time"
+              ],
+              "inventory_skill_count": 0,
+              "inventory_selected_skill_names": [],
+              "turn_skill_activation_applied": false,
+              "turn_skill_activation_reason": "no_turn_skill_activation"
+            }
+          },
+          {
+            "kind": "runtime_model_capability",
+            "name": "gpt-5.5",
+            "active": true,
+            "metadata": {
+              "supports_vision": true,
+              "supports_function_calling": true,
+              "supports_streaming": true,
+              "context_window": 128000,
+              "max_output_tokens": 4096,
+              "model_type": "chat",
+              "input_price_per_1k": 0.02,
+              "output_price_per_1k": 0.06,
+              "supports_audio": true,
+              "supports_video": false,
+              "capability_source": "registry+local",
+              "model_code": "gpt-5.5",
+              "provider_code": "provider_1",
+              "model_id": 9
+            }
+          }
+        ]
+      },
+      "last_run_summary": {
+        "duration_ms": 5970,
+        "runtime_model_name": "gpt-5.5-xhigh",
+        "runtime_provider_name": "ASXS",
+        "success": true,
+        "total_tokens": 541,
+        "tool_planner": {
+          "intent": "direct_reply",
+          "family": "none",
+          "allow_no_tool": true,
+          "allow_family_continuation": false,
+          "reason": "structured_intent_plan",
+          "confidence_band": "high",
+          "execution_path": "fast",
+          "intent_plan": [
+            {
+              "intent_id": "intent-1",
+              "kind": "direct_reply",
+              "family": "none",
+              "order": 1,
+              "user_visible_label": "direct_reply",
+              "source_text": "如果当前没有联网搜索工具，请不要编造实时新闻来源。",
+              "status": "completed",
+              "requires_tools": false,
+              "allow_text_response": false,
+              "continuation": false,
+              "shortcircuit": true,
+              "cached_result": null,
+              "allowed_tool_names": [],
+              "preferred_tool_names": [],
+              "completion_signals": [],
+              "completed_by_tool_names": [],
+              "metadata": {}
+            }
+          ]
+        },
+        "completion_reason": "completed",
+        "termination_reason": "completed",
+        "turn_outcome": "success",
+        "protocol_path": "responses",
+        "conversation_outcome": "success",
+        "context_sources": [
+          {
+            "kind": "skill",
+            "name": "skill_resolver",
+            "active": true,
+            "metadata": {
+              "tool_count": 0,
+              "selected_tool_names": [],
+              "skill_count": 0,
+              "selected_skill_names": [],
+              "inventory_tool_count": 1,
+              "inventory_selected_tool_names": [
+                "get_current_time"
+              ],
+              "inventory_skill_count": 0,
+              "inventory_selected_skill_names": [],
+              "turn_skill_activation_applied": false,
+              "turn_skill_activation_reason": "no_turn_skill_activation"
+            }
+          },
+          {
+            "kind": "runtime_model_capability",
+            "name": "gpt-5.5",
+            "active": true,
+            "metadata": {
+              "supports_vision": true,
+              "supports_function_calling": true,
+              "supports_streaming": true,
+              "context_window": 128000,
+              "max_output_tokens": 4096,
+              "model_type": "chat",
+              "input_price_per_1k": 0.02,
+              "output_price_per_1k": 0.06,
+              "supports_audio": true,
+              "supports_video": false,
+              "capability_source": "registry+local",
+              "model_code": "gpt-5.5",
+              "provider_code": "provider_1",
+              "model_id": 9
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

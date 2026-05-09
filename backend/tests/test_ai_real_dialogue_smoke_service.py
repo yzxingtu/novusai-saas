@@ -1,10 +1,12 @@
-"""中文: AI 真对话 smoke 服务结构契约测试。
+"""中文: AI 真对话 smoke 服务结构与行为契约测试。
 
-EN: Structural contract tests for the AI real-dialogue smoke service.
+EN: Structural and behavioral contract tests for the AI real-dialogue smoke service.
 
-Test type: structural
+Test type: structural / behavioral
 Scope: RuntimeRealDialogueSmokeService report schema and AgentChatService plumbing.
 Mocked dependencies: Agent resolution, AgentChatService transport, and call-log lookup.
+Mock boundary: tests exercise smoke-service validation/report mapping; they do not
+claim real-dialogue smoke acceptance or mock LLM output as a production pass.
 """
 
 from __future__ import annotations
@@ -601,6 +603,7 @@ async def test_real_dialogue_smoke_fails_on_retired_provider_search_diagnostics(
 
     result = report["scenario_results"][0]
     assert report["overall_status"] == "failed"
+    assert report["command"]["exit_code"] == 2
     assert result["status"] == "failed"
     assert result["observable_checks"]["retired_current_page_or_online_search_exposed"]
     assert result["retired_capability_probe_values"]["context_diagnostics"][

@@ -7,7 +7,7 @@ Defines skill package request and response data structures.
 
 from typing import Any
 
-from pydantic import Field
+from pydantic import ConfigDict, Field
 
 from app.core.base_schema import (
     BaseCreateSchema,
@@ -19,6 +19,8 @@ from app.core.i18n import _
 
 class SkillPackageCreate(BaseCreateSchema):
     """创建技能包请求 / Create skill package request."""
+
+    model_config = ConfigDict(extra="forbid")
 
     name: str = Field(..., max_length=100, description=_("skill_package.field.name"))
     description: str | None = Field(
@@ -36,6 +38,8 @@ class SkillPackageCreate(BaseCreateSchema):
 
 class SkillPackageUpdate(BaseUpdateSchema):
     """更新技能包请求 / Update skill package request."""
+
+    model_config = ConfigDict(extra="forbid")
 
     name: str | None = Field(
         None, max_length=100, description=_("skill_package.field.name")

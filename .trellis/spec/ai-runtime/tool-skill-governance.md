@@ -60,6 +60,10 @@ backend boundary instead of page perception:
   Platform-owned generic controls may still enforce authorization, tenant
   isolation, quotas, budgeting, schema conversion, provider safety guards, and
   retired capability deny lists.
+- Agent routing may show the LLM skill names/descriptions only after the runtime
+  resolver has produced executable tools for that agent and tenant. Active grant
+  rows, catalog preview tool names, and manifest preview semantic families are
+  not enough to advertise a capability or to direct-select an agent.
 - Skill/package defects in new-system live paths must be corrected at the owner
   contract boundary rather than papered over in downstream diagnostics,
   read-models, or frontend compatibility logic. Do not add temporary

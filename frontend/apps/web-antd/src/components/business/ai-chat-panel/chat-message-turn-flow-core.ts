@@ -85,17 +85,11 @@ export function normalizeTurnFlowViewModel(
     if (Array.isArray(record.timeline)) {
       return record.timeline;
     }
-    if (Array.isArray(record.stages)) {
-      return record.stages;
-    }
     return [];
   })();
   const evidenceRaw = (() => {
     if (Array.isArray(record.evidence)) {
       return record.evidence;
-    }
-    if (Array.isArray(record.sources)) {
-      return record.sources;
     }
     return [];
   })();

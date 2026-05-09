@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from typing import Any
 
 from app.ai.routing.router import ModelRouter
@@ -10,7 +9,10 @@ from app.ai.tools.semantic_defaults import tool_family_from_name
 from app.models.ai.agent import Agent
 from app.models.ai.agent_skill_grant import AgentSkillGrant
 from app.repositories.ai.retired_skill_catalog_filters import is_retired_skill_instance
-from app.schemas.ai.invalid_ai_runtime_input import filter_invalid_ai_runtime_references
+from app.schemas.ai.invalid_ai_runtime_input import (
+    filter_invalid_ai_runtime_references,
+    filter_invalid_ai_runtime_tools,
+)
 
 BASELINE_RUNTIME_FAMILIES = frozenset({"time_ops"})
 
@@ -45,91 +47,6 @@ def _stable_unique(values: list[Any]) -> list[str]:
         if text and text not in normalized:
             normalized.append(text)
     return normalized
-
-
-def _manifest_skill_candidate_names(entry: Mapping[str, Any]) -> list[str]:
-    names = [
-        entry.get("name"),
-        entry.get("entry_point"),
-        entry.get("description"),
-    ]
-    display_name = entry.get("display_name")
-    if isinstance(display_name, str):
-        names.append(display_name)
-    elif isinstance(display_name, Mapping):
-        names.extend(display_name.values())
-    return _stable_unique(names)
-
-
-def _match_manifest_skill_preview(grant: AgentSkillGrant | Any) -> Mapping[str, Any]:
-    skill = getattr(grant, "skill", None)
-    package = getattr(skill, "package", None)
-    manifest = getattr(package, "manifest", None)
-    if not isinstance(manifest, Mapping):
-        return {}
-    extensions = manifest.get("extensions")
-    if not isinstance(extensions, Mapping):
-        return {}
-    skills = extensions.get("skills")
-    if not isinstance(skills, list):
-        return {}
-
-    candidates = {
-        str(getattr(skill, "name", "") or "").strip().lower(),
-        str(getattr(skill, "key", "") or "").strip().lower(),
-    }
-    candidates.discard("")
-    for item in skills:
-        if not isinstance(item, Mapping):
-            continue
-        entry_names = {
-            name.lower()
-            for name in _manifest_skill_candidate_names(item)
-            if isinstance(name, str) and name.strip()
-        }
-        if entry_names & candidates:
-            return item
-    return {}
-
-
-def _grant_preview_tool_names(grant: AgentSkillGrant | Any) -> list[str]:
-    preview_names: list[str] = []
-    skill_name = grant_skill_name_if_active(grant)
-    skill = getattr(grant, "skill", None)
-    if skill_name and tool_family_from_name(skill_name) != "none":
-        preview_names.append(skill_name)
-    skill_key = str(getattr(skill, "key", "") or "").strip()
-    if skill_key and tool_family_from_name(skill_key) != "none":
-        preview_names.append(skill_key)
-
-    skill_config = getattr(skill, "config", None)
-    if isinstance(skill_config, Mapping):
-        preview_names.extend(list(skill_config.get("preview_tool_names") or []))
-        for item in list(skill_config.get("tools") or []):
-            if not isinstance(item, Mapping):
-                continue
-            tool_name = item.get("name")
-            if str(tool_name or "").strip():
-                preview_names.append(tool_name)
-
-    manifest_preview = _match_manifest_skill_preview(grant)
-    preview_names.extend(list(manifest_preview.get("preview_tool_names") or []))
-    return _stable_unique(filter_invalid_ai_runtime_references(preview_names))
-
-
-def _grant_preview_families(grant: AgentSkillGrant | Any) -> list[str]:
-    families: list[str] = []
-    skill = getattr(grant, "skill", None)
-    skill_config = getattr(skill, "config", None)
-    if isinstance(skill_config, Mapping):
-        families.extend(list(skill_config.get("preview_semantic_families") or []))
-    manifest_preview = _match_manifest_skill_preview(grant)
-    families.extend(list(manifest_preview.get("preview_semantic_families") or []))
-    for tool_name in _grant_preview_tool_names(grant):
-        family = tool_family_from_name(tool_name)
-        if family != "none":
-            families.append(family)
-    return _stable_unique(filter_invalid_ai_runtime_references(families))
 
 
 def agent_skill_names(agent: Agent | None) -> set[str]:
@@ -185,7 +102,130 @@ def agent_supports_families(agent: Agent | None, families: list[str]) -> bool:
         family = tool_family_from_name(skill_name)
         if family and family != "none":
             supported.add(family)
-        supported.update(_grant_preview_families(grant))
+    return all(family in supported for family in normalized_families)
+
+
+def _families_from_tool_names(values: list[Any]) -> set[str]:
+    families: set[str] = set()
+    for value in filter_invalid_ai_runtime_references(values):
+        family = tool_family_from_name(value)
+        if family and family != "none":
+            families.add(family)
+    return families
+
+
+def _live_tool_names_from_result(result: Any) -> list[str]:
+    return _stable_unique(
+        filter_invalid_ai_runtime_references(
+            [
+                getattr(tool, "name", None)
+                for tool in filter_invalid_ai_runtime_tools(
+                    getattr(result, "tools", []) or []
+                )
+            ]
+        )
+    )
+
+
+def _descriptor_live_tool_names(
+    descriptor: Any, live_tool_names: list[str]
+) -> list[str]:
+    metadata = dict(getattr(descriptor, "metadata", {}) or {})
+    if metadata.get("has_execution_tools") is not True:
+        return []
+    live_tool_name_set = set(live_tool_names)
+    if not live_tool_name_set:
+        return []
+    resolved_tool_names = filter_invalid_ai_runtime_references(
+        list(metadata.get("resolved_tool_names") or [])
+    )
+    return [name for name in resolved_tool_names if name in live_tool_name_set]
+
+
+def _descriptor_has_execution_tools(
+    descriptor: Any,
+    live_tool_names: list[str],
+) -> bool:
+    return bool(_descriptor_live_tool_names(descriptor, live_tool_names))
+
+
+async def executable_skill_names_for_router(
+    db: Any,
+    agent: Agent | None,
+    *,
+    tenant_id: int | None,
+) -> list[str]:
+    """Return skill names only when the resolver produced executable tools."""
+
+    if agent is None:
+        return []
+    from app.ai.skills.resolver import resolve_for_agent
+
+    try:
+        result = await resolve_for_agent(
+            db=db,
+            agent=agent,
+            tenant_id=tenant_id,
+            request=None,
+        )
+    except Exception:
+        return []
+    live_tool_names = _live_tool_names_from_result(result)
+    names: list[Any] = []
+    for descriptor in list(getattr(result, "capability_descriptors", []) or []):
+        if not _descriptor_has_execution_tools(descriptor, live_tool_names):
+            continue
+        names.append(getattr(descriptor, "name", None))
+    return _stable_unique(filter_invalid_ai_runtime_references(names))
+
+
+async def agent_supports_executable_families(
+    db: Any,
+    agent: Agent | None,
+    families: list[str],
+    *,
+    tenant_id: int | None,
+) -> bool:
+    if agent is None or not families:
+        return False
+    normalized_families = [str(family or "").strip() for family in families]
+    if not normalized_families or any(not family for family in normalized_families):
+        return False
+
+    supported: set[str] = set(BASELINE_RUNTIME_FAMILIES)
+    if all(family in supported for family in normalized_families):
+        return True
+
+    from app.ai.skills.resolver import resolve_for_agent
+
+    try:
+        result = await resolve_for_agent(
+            db=db,
+            agent=agent,
+            tenant_id=tenant_id,
+            request=None,
+        )
+    except Exception:
+        return all(family in supported for family in normalized_families)
+
+    live_tools = filter_invalid_ai_runtime_tools(getattr(result, "tools", []) or [])
+    live_tool_names = _stable_unique(
+        filter_invalid_ai_runtime_references(
+            [getattr(tool, "name", None) for tool in live_tools]
+        )
+    )
+    for tool in live_tools:
+        supported.update(_families_from_tool_names([getattr(tool, "name", None)]))
+        semantic_family = str(getattr(tool, "semantic_family", "") or "").strip()
+        if semantic_family and semantic_family != "none":
+            supported.add(semantic_family)
+
+    for descriptor in list(getattr(result, "capability_descriptors", []) or []):
+        descriptor_tool_names = _descriptor_live_tool_names(descriptor, live_tool_names)
+        if not descriptor_tool_names:
+            continue
+        supported.update(_families_from_tool_names([getattr(descriptor, "name", None)]))
+        supported.update(_families_from_tool_names(descriptor_tool_names))
     return all(family in supported for family in normalized_families)
 
 
@@ -194,7 +234,9 @@ __all__ = [
     "agent_can_handle_images",
     "agent_needs_function_calling",
     "agent_skill_names",
+    "agent_supports_executable_families",
     "agent_supports_families",
     "agent_supports_images",
+    "executable_skill_names_for_router",
     "grant_skill_name_if_active",
 ]
