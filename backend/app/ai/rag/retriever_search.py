@@ -13,6 +13,11 @@ from app.ai.rag.query_embedding import QueryEmbeddingResolver
 from app.ai.rag.retriever_keyword import KeywordSearcher
 from app.ai.rag.retriever_types import ChunkSearchResult, SearchKBContext
 from app.ai.rag.retriever_vector import VectorSearcher
+from app.ai.rag.unavailable import is_rag_unavailable_error
+from app.core.logging import LogManager
+from app.exceptions import BusinessException
+
+logger = LogManager.get_logger("ai.rag.retriever")
 
 
 class RetrieverSearchExecutor:
@@ -121,10 +126,20 @@ class RetrieverSearchExecutor:
         async def _search_vector_for_context(
             context: SearchKBContext,
         ) -> tuple[SearchKBContext, str, list[ChunkSearchResult]]:
-            query_embedding = await self._embedding_resolver.resolve_for_context(
-                query=query,
-                context=context,
-            )
+            try:
+                query_embedding = await self._embedding_resolver.resolve_for_context(
+                    query=query,
+                    context=context,
+                )
+            except BusinessException as exc:
+                if not is_rag_unavailable_error(exc):
+                    raise
+                logger.warning(
+                    "Hybrid RAG vector branch unavailable for kb_id={}, using keyword branch only: {}",
+                    context.kb_id,
+                    str(exc),
+                )
+                return context, "vector_unavailable", []
             results = await self.vector_searcher.search(
                 kb_ids=[context.kb_id],
                 query=query,

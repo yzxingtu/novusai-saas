@@ -177,17 +177,23 @@ export type TurnFlowEvidenceKind =
 export interface TurnFlowEvidenceItem {
   arguments?: Record<string, unknown>;
   badge?: string;
+  chunkId?: number;
   displayName?: string;
+  docId?: number;
+  docName?: string;
   durationMs?: number;
   error?: string;
   errorType?: string;
   id: string;
   kind: TurnFlowEvidenceKind;
+  knowledgeBaseId?: number;
+  knowledgeBaseName?: null | string;
   output?: string;
   resultLink?: string;
   score?: number;
   skillName?: string;
   skillType?: string;
+  sourceKind?: 'ephemeral_doc' | 'formal_kb' | string;
   snippet?: string;
   startedAt?: number;
   status?: 'error' | 'running' | 'success';
@@ -252,6 +258,14 @@ export interface TurnFlowStagePayload extends Partial<TurnFlowStage> {
 }
 
 export interface TurnFlowEvidenceItemPayload extends Partial<TurnFlowEvidenceItem> {
+  chunk_id?: number;
+  doc_id?: number;
+  doc_name?: string;
+  document_id?: number;
+  document_name?: string;
+  knowledge_base_id?: number;
+  knowledge_base_name?: null | string;
+  source_kind?: string;
   source_ref?: string;
   tool_call_id?: string;
 }

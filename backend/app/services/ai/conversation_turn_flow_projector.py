@@ -392,7 +392,7 @@ def _map_source_kind(raw_kind: Any) -> str:
 
 
 def _is_user_facing_evidence_item(item: dict[str, Any]) -> bool:
-    kind = _map_source_kind(item.get("kind"))
+    kind = _map_source_kind(item.get("kind") or item.get("source_kind"))
     if kind == "tool":
         return bool(
             _to_non_empty_str(item.get("tool_call_id"))
@@ -408,6 +408,8 @@ def _is_user_facing_evidence_item(item: dict[str, Any]) -> bool:
         or _to_non_empty_str(item.get("snippet"))
         or _to_non_empty_str(item.get("badge"))
         or _to_non_empty_str(item.get("source_ref"))
+        or _to_non_empty_str(item.get("doc_name"))
+        or _to_non_empty_str(item.get("knowledge_base_name"))
         or _normalize_optional_float(item.get("score")) is not None
     )
 
@@ -617,12 +619,23 @@ def _normalize_evidence_item(item: Any) -> dict[str, Any] | None:
         return None
     payload = {
         "id": evidence_id,
-        "kind": _map_source_kind(item.get("kind")),
+        "kind": _map_source_kind(item.get("kind") or item.get("source_kind")),
         "title": _to_non_empty_str(item.get("title")) or "Source",
         "url": _to_non_empty_str(item.get("url")),
         "snippet": _to_non_empty_str(item.get("snippet")),
         "badge": _to_non_empty_str(item.get("badge")),
         "score": _normalize_optional_float(item.get("score")),
+        "source_kind": _to_non_empty_str(item.get("source_kind")),
+        "doc_id": _normalize_optional_int(
+            item.get("doc_id")
+            if item.get("doc_id") is not None
+            else item.get("document_id")
+        ),
+        "doc_name": _to_non_empty_str(item.get("doc_name"))
+        or _to_non_empty_str(item.get("document_name")),
+        "chunk_id": _normalize_optional_int(item.get("chunk_id")),
+        "knowledge_base_id": _normalize_optional_int(item.get("knowledge_base_id")),
+        "knowledge_base_name": _to_non_empty_str(item.get("knowledge_base_name")),
         "tool_call_id": _to_non_empty_str(item.get("tool_call_id")),
         "source_ref": _to_non_empty_str(item.get("source_ref")),
     }

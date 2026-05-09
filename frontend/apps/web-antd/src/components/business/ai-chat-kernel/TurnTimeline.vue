@@ -23,11 +23,11 @@ import {
   getMeaningfulStageSummary,
   getMeaningfulStageTitle,
   getProcessHeadlineForStage,
-  isTechnicalProcessErrorCopy,
-  isNoopSkippedStage,
   getStageStatusLabel,
   getStageSummary,
   getStageTypeLabel,
+  isNoopSkippedStage,
+  isTechnicalProcessErrorCopy,
   normalizeComparableStageCopy,
   normalizeMeaningfulTranscriptCopy,
   readMetricNumber,
@@ -36,8 +36,8 @@ import {
 const props = withDefaults(
   defineProps<{
     compact?: boolean;
-    inline?: boolean;
     index?: number;
+    inline?: boolean;
     msg: ChatMessage;
     state: TurnFlowState;
   }>(),
@@ -77,26 +77,34 @@ function toDisplayRagSource(
 ): RagSource {
   return {
     doc_id: index + 1,
+    ...(typeof evidence.docId === 'number' ? { doc_id: evidence.docId } : {}),
     doc_name:
+      evidence.docName ||
       evidence.title ||
       evidence.sourceRef ||
       $t('common.globalAiChat.turnSourceFallback', {
         index: index + 1,
       }),
+    ...(typeof evidence.knowledgeBaseId === 'number'
+      ? { knowledge_base_id: evidence.knowledgeBaseId }
+      : {}),
+    ...(evidence.knowledgeBaseName
+      ? { knowledge_base_name: evidence.knowledgeBaseName }
+      : {}),
     score:
       typeof evidence.score === 'number' && Number.isFinite(evidence.score)
         ? evidence.score
         : 0,
     snippet: evidence.snippet || '',
     source_kind:
-      evidence.kind === 'knowledge_base'
+      evidence.sourceKind === 'formal_kb' || evidence.kind === 'knowledge_base'
         ? ('formal_kb' as const)
         : ('ephemeral_doc' as const),
   };
 }
 
 function getDisplayRagSourcesForStage(stage: TurnFlowStageForDisplay) {
-  const sourceRefs = new Set(stage.sourceRefs ?? []);
+  const sourceRefs = new Set(stage.sourceRefs);
   const evidence = props.state.evidence.filter((item) => {
     if (!isDisplayRagEvidenceKind(item.kind)) {
       return false;
@@ -108,14 +116,13 @@ function getDisplayRagSourcesForStage(stage: TurnFlowStageForDisplay) {
 
 function hasReadableAnswerText(msg: ChatMessage) {
   return Boolean(
-    normalizeOptionalString(normalizeMergedTextPart(msg.content) || msg.content),
+    normalizeOptionalString(
+      normalizeMergedTextPart(msg.content) || msg.content,
+    ),
   );
 }
 
-function isRecoverableProcessFailure(
-  msg: ChatMessage,
-  state: TurnFlowState,
-) {
+function isRecoverableProcessFailure(msg: ChatMessage, state: TurnFlowState) {
   if (!hasReadableAnswerText(msg) || msg.error || msg.streaming) {
     return false;
   }
@@ -158,7 +165,9 @@ function hasTerminalFailureState(msg: ChatMessage, state: TurnFlowState) {
   ) {
     return true;
   }
-  const turnOutcome = normalizeOptionalString(state.flow.turnOutcome)?.toLocaleLowerCase();
+  const turnOutcome = normalizeOptionalString(
+    state.flow.turnOutcome,
+  )?.toLocaleLowerCase();
   const failureKind = normalizeOptionalString(state.flow.failureKind);
   if (turnOutcome === 'failed') {
     return true;
@@ -384,8 +393,8 @@ function shouldRenderStage(stage: TurnFlowStageForDisplay) {
   if (stage.type === 'thinking') {
     return Boolean(
       isLiveMessage.value ||
-        normalizeOptionalString(getMeaningfulStageSummary(stage)) ||
-        normalizeOptionalString(getMeaningfulStageTitle(stage)),
+      normalizeOptionalString(getMeaningfulStageSummary(stage)) ||
+      normalizeOptionalString(getMeaningfulStageTitle(stage)),
     );
   }
   return !shouldHideMeaninglessStage(stage);
@@ -586,7 +595,7 @@ onBeforeUnmount(() => {
         }}
       </span>
 
-      <span :class="['turn-process-status', processStatusClass]">
+      <span class="turn-process-status" :class="[processStatusClass]">
         <IconifyIcon
           :icon="processStatusIcon"
           class="turn-process-status-icon size-3"
@@ -638,7 +647,7 @@ onBeforeUnmount(() => {
                 class="block rounded-full"
                 :class="[
                   compact ? 'size-[6px]' : 'size-[6px]',
-                  stage.status === 'running' ? 'bg-primary tc-dot-pulse' : '',
+                  stage.status === 'running' ? 'tc-dot-pulse bg-primary' : '',
                   stage.status === 'completed' ? 'bg-emerald-500' : '',
                   stage.status === 'interrupted' ? 'bg-amber-500' : '',
                   stage.status === 'skipped' ? 'bg-muted-foreground/35' : '',
@@ -665,7 +674,7 @@ onBeforeUnmount(() => {
               </div>
 
               <p
-                class="text-muted-foreground/60 mt-0.5"
+                class="mt-0.5 text-muted-foreground/60"
                 :class="
                   compact
                     ? 'text-[9px] leading-[1rem]'
@@ -685,14 +694,17 @@ onBeforeUnmount(() => {
                 }"
               >
                 <div class="min-h-0 overflow-hidden">
-                  <div class="mt-1.5 min-w-0" :class="compact ? 'pl-0.5' : 'pl-1'">
+                  <div
+                    class="mt-1.5 min-w-0"
+                    :class="compact ? 'pl-0.5' : 'pl-1'"
+                  >
                     <div
                       class="turn-stage-detail-surface min-w-0 rounded-[14px] border"
                       :class="compact ? 'px-2.5 py-2' : 'px-2.5 py-2.5'"
                     >
                       <div
                         v-if="hasToolSelectionBody(stage)"
-                        class="inline-flex max-w-full items-center gap-1.5 rounded-[12px] bg-muted/[0.05] px-2.5 py-2 text-muted-foreground/72"
+                        class="text-muted-foreground/72 inline-flex max-w-full items-center gap-1.5 rounded-[12px] bg-muted/[0.05] px-2.5 py-2"
                         :class="compact ? 'text-[9.75px]' : 'text-[10px]'"
                       >
                         <IconifyIcon
@@ -750,7 +762,7 @@ onBeforeUnmount(() => {
                               </div>
                               <p
                                 v-if="source.snippet"
-                                class="mt-0.5 line-clamp-2 text-[9.5px] leading-5 text-muted-foreground/62"
+                                class="text-muted-foreground/62 mt-0.5 line-clamp-2 text-[9.5px] leading-5"
                               >
                                 {{ source.snippet }}
                               </p>
@@ -773,10 +785,10 @@ onBeforeUnmount(() => {
 <style scoped>
 .turn-process-toggle {
   min-height: 1.8rem;
-  border: 1px solid transparent;
-  border-top-color: hsl(var(--border) / 0.14);
-  border-bottom-color: hsl(var(--border) / 0.08);
   background: transparent;
+  border: 1px solid transparent;
+  border-top-color: hsl(var(--border) / 14%);
+  border-bottom-color: hsl(var(--border) / 8%);
   transition:
     background-color 160ms ease,
     border-color 160ms ease,
@@ -784,82 +796,82 @@ onBeforeUnmount(() => {
 }
 
 .turn-process-toggle:hover {
-  border-color: hsl(var(--border) / 0.08);
-  background: hsl(var(--muted) / 0.12);
+  background: hsl(var(--muted) / 12%);
+  border-color: hsl(var(--border) / 8%);
 }
 
 .turn-process-pill {
-  color: hsl(var(--primary) / 0.74);
-  border: 1px solid hsl(var(--border) / 0.12);
-  background: hsl(var(--background) / 0.72);
-  border-radius: 9999px;
   padding: 0.2rem 0.45rem;
   font-size: 0.52rem;
   font-weight: 600;
-  letter-spacing: 0.06em;
+  color: hsl(var(--primary) / 74%);
   text-transform: uppercase;
+  letter-spacing: 0.06em;
+  background: hsl(var(--background) / 72%);
+  border: 1px solid hsl(var(--border) / 12%);
+  border-radius: 9999px;
 }
 
 .turn-process-copy {
-  color: hsl(var(--foreground) / 0.72);
+  color: hsl(var(--foreground) / 72%);
   letter-spacing: 0;
 }
 
 .turn-process-count {
-  color: hsl(var(--muted-foreground) / 0.56);
-  border: 1px solid hsl(var(--border) / 0.08);
-  background: hsl(var(--muted) / 0.16);
-  border-radius: 9999px;
   padding: 0.14rem 0.42rem;
   font-size: 0.55rem;
   line-height: 0.8rem;
+  color: hsl(var(--muted-foreground) / 56%);
+  background: hsl(var(--muted) / 16%);
+  border: 1px solid hsl(var(--border) / 8%);
+  border-radius: 9999px;
 }
 
 .turn-process-status {
   display: inline-flex;
-  max-width: 8.8rem;
-  align-items: center;
   gap: 0.32rem;
-  border: 1px solid transparent;
-  border-radius: 9999px;
+  align-items: center;
+  max-width: 8.8rem;
   padding: 0.18rem 0.44rem;
   font-size: 0.54rem;
   font-weight: 600;
   line-height: 0.8rem;
+  border: 1px solid transparent;
+  border-radius: 9999px;
 }
 
 .turn-process-status-running {
-  color: hsl(var(--primary) / 0.82);
-  border-color: hsl(var(--primary) / 0.16);
-  background: hsl(var(--primary) / 0.08);
+  color: hsl(var(--primary) / 82%);
+  background: hsl(var(--primary) / 8%);
+  border-color: hsl(var(--primary) / 16%);
 }
 
 .turn-process-status-completed {
-  color: rgb(4 120 87 / 0.92);
-  border-color: rgb(16 185 129 / 0.16);
-  background: rgb(16 185 129 / 0.08);
+  color: rgb(4 120 87 / 92%);
+  background: rgb(16 185 129 / 8%);
+  border-color: rgb(16 185 129 / 16%);
 }
 
 .turn-process-status-interrupted {
-  color: rgb(180 83 9 / 0.88);
-  border-color: rgb(245 158 11 / 0.18);
-  background: rgb(245 158 11 / 0.1);
+  color: rgb(180 83 9 / 88%);
+  background: rgb(245 158 11 / 10%);
+  border-color: rgb(245 158 11 / 18%);
 }
 
 .turn-process-status-skipped {
-  color: hsl(var(--muted-foreground) / 0.62);
-  border-color: hsl(var(--border) / 0.12);
-  background: hsl(var(--muted) / 0.14);
+  color: hsl(var(--muted-foreground) / 62%);
+  background: hsl(var(--muted) / 14%);
+  border-color: hsl(var(--border) / 12%);
 }
 
 .turn-process-status-error {
-  color: rgb(220 38 38 / 0.88);
-  border-color: rgb(239 68 68 / 0.16);
-  background: rgb(239 68 68 / 0.08);
+  color: rgb(220 38 38 / 88%);
+  background: rgb(239 68 68 / 8%);
+  border-color: rgb(239 68 68 / 16%);
 }
 
 .turn-process-track {
-  border-color: hsl(var(--border) / 0.16);
+  border-color: hsl(var(--border) / 16%);
 }
 
 .turn-process-inline .turn-process-track {
@@ -875,18 +887,18 @@ onBeforeUnmount(() => {
 }
 
 .turn-process-chevron {
-  color: hsl(var(--muted-foreground) / 0.46);
+  color: hsl(var(--muted-foreground) / 46%);
 }
 
 .turn-stage-card {
   padding: 0.28rem 0.42rem 0.32rem;
-  border-color: transparent;
   background: transparent;
+  border-color: transparent;
   transition: background-color 140ms ease;
 }
 
 .turn-stage-card:hover {
-  background: hsl(var(--muted) / 0.08);
+  background: hsl(var(--muted) / 8%);
 }
 
 .turn-stage-status {
@@ -894,48 +906,48 @@ onBeforeUnmount(() => {
 }
 
 .stage-status-running {
-  color: hsl(var(--primary) / 0.82);
-  border-color: hsl(var(--primary) / 0.16);
-  background: hsl(var(--primary) / 0.08);
+  color: hsl(var(--primary) / 82%);
+  background: hsl(var(--primary) / 8%);
+  border-color: hsl(var(--primary) / 16%);
 }
 
 .stage-status-completed {
-  color: rgb(4 120 87 / 0.92);
-  border-color: rgb(16 185 129 / 0.16);
-  background: rgb(16 185 129 / 0.08);
+  color: rgb(4 120 87 / 92%);
+  background: rgb(16 185 129 / 8%);
+  border-color: rgb(16 185 129 / 16%);
 }
 
 .stage-status-interrupted {
-  color: rgb(180 83 9 / 0.88);
-  border-color: rgb(245 158 11 / 0.18);
-  background: rgb(245 158 11 / 0.1);
+  color: rgb(180 83 9 / 88%);
+  background: rgb(245 158 11 / 10%);
+  border-color: rgb(245 158 11 / 18%);
 }
 
 .stage-status-skipped {
-  color: hsl(var(--muted-foreground) / 0.6);
-  border-color: hsl(var(--border) / 0.12);
-  background: hsl(var(--muted) / 0.16);
+  color: hsl(var(--muted-foreground) / 60%);
+  background: hsl(var(--muted) / 16%);
+  border-color: hsl(var(--border) / 12%);
 }
 
 .stage-status-error {
-  color: rgb(220 38 38 / 0.88);
-  border-color: rgb(239 68 68 / 0.16);
-  background: rgb(239 68 68 / 0.08);
+  color: rgb(220 38 38 / 88%);
+  background: rgb(239 68 68 / 8%);
+  border-color: rgb(239 68 68 / 16%);
 }
 
 .turn-stage-detail-surface {
-  border-color: hsl(var(--border) / 0.12);
-  border-left-color: hsl(var(--primary) / 0.2);
+  background: hsl(var(--muted) / 8%);
+  border-color: hsl(var(--border) / 12%);
+  border-left-color: hsl(var(--primary) / 20%);
   border-radius: 10px;
-  background: hsl(var(--muted) / 0.08);
   box-shadow: none;
 }
 
 .turn-stage-inline-markdown {
   min-width: 0;
-  color: hsl(var(--foreground) / 0.7);
   font-size: 0.8rem;
   line-height: 1.3rem;
+  color: hsl(var(--foreground) / 70%);
 }
 
 .turn-stage-inline-markdown :deep(p:first-child) {
@@ -948,8 +960,8 @@ onBeforeUnmount(() => {
 
 .turn-stage-inline-markdown :deep(ul),
 .turn-stage-inline-markdown :deep(ol) {
-  margin: 0.5rem 0 0;
   padding-inline-start: 1.1rem;
+  margin: 0.5rem 0 0;
 }
 
 .turn-stage-inline-markdown :deep(li + li) {

@@ -183,6 +183,11 @@ is cached for reuse.
 
 - Context diagnostics include `rag_sources`, `rag_source_kinds`,
 `memory_recalled`, `memory_recall_slice`, and `session_memory_injected`.
+- Knowledge-base bindings, `context_sources.kind=knowledge_base`, and
+  `knowledge_base_ids` only prove capability availability. User-facing chat
+  citations must come from explicit RAG evidence/source payloads that preserve
+  real retrieval identity such as `knowledge_base_id`, `knowledge_base_name`,
+  `doc_id`, `doc_name`, `chunk_id`, snippet, or score.
 - Capability bundles publish `knowledge_base`, `session_memory`, and
 `long_term_memory` context sources when active.
 - Assistant-turn persistence must carry `memory_runtime_policy`, and

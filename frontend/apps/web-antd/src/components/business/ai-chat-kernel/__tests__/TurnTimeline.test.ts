@@ -138,7 +138,9 @@ describe('turnTimeline', () => {
       wrapper.get('[data-testid="turn-process-body"]').attributes('style') ??
         '',
     ).toContain('grid-template-rows: 1fr');
-    expect(wrapper.get('[data-testid="turn-process-toggle"]').attributes()).toMatchObject({
+    expect(
+      wrapper.get('[data-testid="turn-process-toggle"]').attributes(),
+    ).toMatchObject({
       'aria-expanded': 'true',
     });
     expect(
@@ -175,7 +177,9 @@ describe('turnTimeline', () => {
       wrapper.get('[data-testid="turn-process-body"]').attributes('style') ??
         '',
     ).toContain('grid-template-rows: 0fr');
-    expect(wrapper.get('[data-testid="turn-process-toggle"]').attributes()).toMatchObject({
+    expect(
+      wrapper.get('[data-testid="turn-process-toggle"]').attributes(),
+    ).toMatchObject({
       'aria-expanded': 'false',
     });
   });
@@ -221,6 +225,44 @@ describe('turnTimeline', () => {
       'common.globalAiChat.turnRetrievalSummary',
     );
     expect(wrapper.text()).not.toContain('common.globalAiChat.optimizingTools');
+  });
+
+  it('shows knowledge base names for retrieval evidence details', async () => {
+    const wrapper = mountTimeline(
+      createAssistantMessage({
+        turnFlow: {
+          evidence: [
+            {
+              chunkId: 301,
+              docId: 21,
+              docName: 'test_doc.txt',
+              id: 'kb-chunk-301',
+              kind: 'knowledge_base',
+              knowledgeBaseId: 1,
+              knowledgeBaseName: '测试知识库',
+              score: 0.82,
+              snippet: 'NovusAI 平台支持知识库 RAG。',
+              sourceKind: 'formal_kb',
+              title: 'test_doc.txt',
+            },
+          ],
+          timeline: [
+            {
+              id: 'stage-retrieval-kb-name',
+              sourceRefs: ['kb-chunk-301'],
+              status: 'completed',
+              type: 'retrieval',
+            },
+          ],
+        },
+      }),
+    );
+
+    await wrapper.get('[data-testid="turn-process-toggle"]').trigger('click');
+
+    expect(wrapper.text()).toContain('test_doc.txt');
+    expect(wrapper.text()).toContain('测试知识库');
+    expect(wrapper.text()).toContain('NovusAI 平台支持知识库 RAG。');
   });
 
   it('does not render raw runtime context diagnostics in expanded retrieval details', async () => {
@@ -401,7 +443,9 @@ describe('turnTimeline', () => {
 
     await wrapper.vm.$nextTick();
 
-    expect(wrapper.text()).toContain('common.globalAiChat.turnStageType.thinking');
+    expect(wrapper.text()).toContain(
+      'common.globalAiChat.turnStageType.thinking',
+    );
     expect(wrapper.text()).toContain(
       'common.globalAiChat.turnStageSummary.thinking',
     );
@@ -454,7 +498,9 @@ describe('turnTimeline', () => {
     await wrapper.vm.$nextTick();
 
     expect(wrapper.text()).toContain('正在思考');
-    expect(wrapper.text()).not.toContain('先分析当前用户问题，再整理下一步动作');
+    expect(wrapper.text()).not.toContain(
+      '先分析当前用户问题，再整理下一步动作',
+    );
     expect(wrapper.find('[data-testid="stub-thinking-block"]').exists()).toBe(
       false,
     );
@@ -497,7 +543,9 @@ describe('turnTimeline', () => {
     expect(wrapper.findAll('[data-testid="stub-thinking-block"]')).toHaveLength(
       0,
     );
-    expect(wrapper.findAll('[data-testid^="turn-stage-body-"]')).toHaveLength(0);
+    expect(wrapper.findAll('[data-testid^="turn-stage-body-"]')).toHaveLength(
+      0,
+    );
   });
 
   it('shows tool call fallback content for canonical tool execution stages without detail lines', async () => {
@@ -528,11 +576,11 @@ describe('turnTimeline', () => {
     await wrapper.vm.$nextTick();
 
     expect(wrapper.find('[data-testid="stub-tool-calls"]').exists()).toBe(true);
-    expect(wrapper.get('[data-testid="stub-tool-calls"]').attributes()).toMatchObject(
-      {
-        'data-embedded': 'true',
-      },
-    );
+    expect(
+      wrapper.get('[data-testid="stub-tool-calls"]').attributes(),
+    ).toMatchObject({
+      'data-embedded': 'true',
+    });
     expect(
       wrapper.get('[data-testid="turn-stage-body-0"]').attributes('style') ??
         '',

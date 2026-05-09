@@ -117,6 +117,12 @@ def test_build_turn_flow_view_model_uses_rag_sources_not_context_diagnostics() -
             "score": None,
             "skill_name": None,
             "skill_type": None,
+            "source_kind": None,
+            "doc_id": None,
+            "doc_name": None,
+            "chunk_id": None,
+            "knowledge_base_id": None,
+            "knowledge_base_name": None,
             "snippet": "Should not be primary",
             "source_ref": "fallback_kb_source",
             "started_at": None,
@@ -191,6 +197,12 @@ def test_build_turn_flow_view_model_projects_tool_results_into_canonical_evidenc
             "score": None,
             "skill_name": None,
             "skill_type": None,
+            "source_kind": None,
+            "doc_id": None,
+            "doc_name": None,
+            "chunk_id": None,
+            "knowledge_base_id": None,
+            "knowledge_base_name": None,
             "snippet": "已查询北京天气",
             "source_ref": "get_current_weather",
             "started_at": None,
@@ -223,6 +235,35 @@ def test_build_turn_evidence_events_emits_retrieval_and_items() -> None:
     assert [event["evidence"]["kind"] for event in evidence_events] == [
         "knowledge_base",
     ]
+
+
+def test_build_turn_evidence_events_preserves_formal_kb_identity() -> None:
+    events = build_turn_evidence_events(
+        [
+            {
+                "chunk_id": 301,
+                "doc_id": 21,
+                "doc_name": "test_doc.txt",
+                "knowledge_base_id": 1,
+                "knowledge_base_name": "测试知识库",
+                "score": 0.82,
+                "snippet": "NovusAI 平台支持知识库 RAG。",
+                "source_kind": "formal_kb",
+            },
+        ]
+    )
+
+    evidence_event = next(
+        event for event in events if event.get("event") == "turn_evidence"
+    )
+    evidence = evidence_event["evidence"]
+    assert evidence["kind"] == "knowledge_base"
+    assert evidence["source_kind"] == "formal_kb"
+    assert evidence["knowledge_base_id"] == 1
+    assert evidence["knowledge_base_name"] == "测试知识库"
+    assert evidence["doc_id"] == 21
+    assert evidence["doc_name"] == "test_doc.txt"
+    assert evidence["chunk_id"] == 301
 
 
 def test_build_turn_evidence_events_drops_retired_page_search_and_url_sources() -> None:

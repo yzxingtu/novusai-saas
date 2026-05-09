@@ -67,4 +67,45 @@ describe('buildTurnFlowState', () => {
     expect(retrievalStage?.status).toBe('skipped');
     expect(retrievalStage?.metrics?.source_count).toBe(0);
   });
+
+  it('uses knowledge base name in selected evidence labels when RAG evidence is present', () => {
+    const state = buildTurnFlowState({
+      clientKey: 'conversation-kb-evidence',
+      content: 'NovusAI 平台支持知识库 RAG。',
+      role: 'assistant',
+      turnFlow: {
+        answerCard: {
+          sourceChipIds: ['kb-chunk-301'],
+          summary: 'NovusAI 平台支持知识库 RAG。',
+        },
+        evidence: [
+          {
+            chunkId: 301,
+            docId: 21,
+            docName: 'test_doc.txt',
+            id: 'kb-chunk-301',
+            kind: 'knowledge_base',
+            knowledgeBaseId: 1,
+            knowledgeBaseName: '测试知识库',
+            score: 0.82,
+            snippet: 'NovusAI 平台支持知识库 RAG。',
+            sourceKind: 'formal_kb',
+            title: 'test_doc.txt',
+          },
+        ],
+        timeline: [
+          {
+            id: 'retrieval',
+            sourceRefs: ['kb-chunk-301'],
+            status: 'completed',
+            type: 'retrieval',
+          },
+        ],
+      },
+    } as ChatMessage);
+
+    expect(state.selectedEvidence).toHaveLength(1);
+    expect(state.selectedEvidence[0]?.label).toBe('测试知识库 / test_doc.txt');
+    expect(state.evidence[0]?.knowledgeBaseName).toBe('测试知识库');
+  });
 });

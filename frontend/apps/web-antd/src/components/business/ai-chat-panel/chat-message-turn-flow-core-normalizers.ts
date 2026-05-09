@@ -110,7 +110,9 @@ export function normalizeStageStatus(
   return fallback;
 }
 
-function normalizeEvidenceKind(value: unknown): TurnFlowEvidenceKind | undefined {
+function normalizeEvidenceKind(
+  value: unknown,
+): TurnFlowEvidenceKind | undefined {
   const normalized = normalizeOptionalString(value);
   if (
     normalized &&
@@ -202,6 +204,23 @@ export function normalizeEvidence(
   const sourceRef =
     normalizeOptionalString(record.source_ref) ??
     normalizeOptionalString(record.sourceRef);
+  const sourceKind =
+    normalizeOptionalString(record.source_kind) ??
+    normalizeOptionalString(record.sourceKind);
+  const docId = normalizeNumber(
+    record.doc_id ?? record.docId ?? record.document_id,
+  );
+  const docName =
+    normalizeOptionalString(record.doc_name) ??
+    normalizeOptionalString(record.docName) ??
+    normalizeOptionalString(record.document_name);
+  const chunkId = normalizeNumber(record.chunk_id ?? record.chunkId);
+  const knowledgeBaseId = normalizeNumber(
+    record.knowledge_base_id ?? record.knowledgeBaseId,
+  );
+  const knowledgeBaseName =
+    normalizeOptionalString(record.knowledge_base_name) ??
+    normalizeOptionalString(record.knowledgeBaseName);
   const toolCallId =
     normalizeOptionalString(record.tool_call_id) ??
     normalizeOptionalString(record.toolCallId);
@@ -265,6 +284,12 @@ export function normalizeEvidence(
     ...(summaryPayload ? { summaryPayload } : {}),
     ...(durationMs === undefined ? {} : { durationMs }),
     ...(startedAt === undefined ? {} : { startedAt }),
+    ...(sourceKind ? { sourceKind } : {}),
+    ...(docId === undefined ? {} : { docId }),
+    ...(docName ? { docName } : {}),
+    ...(chunkId === undefined ? {} : { chunkId }),
+    ...(knowledgeBaseId === undefined ? {} : { knowledgeBaseId }),
+    ...(knowledgeBaseName ? { knowledgeBaseName } : {}),
     ...(toolCallId ? { toolCallId } : {}),
     ...(sourceRef ? { sourceRef } : {}),
   };

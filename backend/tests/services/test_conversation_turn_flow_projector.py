@@ -64,6 +64,91 @@ def test_project_from_metadata_ignores_legacy_rag_sources_without_turn_flow() ->
     assert "retrieval" not in {stage["type"] for stage in turn_flow["timeline"]}
 
 
+def test_project_from_metadata_preserves_knowledge_base_evidence_identity() -> None:
+    turn_flow = ConversationTurnFlowProjector.project_from_metadata(
+        {
+            "turn_flow": {
+                "answer_card": {
+                    "source_chip_ids": ["kb-chunk-301"],
+                    "summary": "NovusAI 平台支持知识库 RAG。",
+                },
+                "completion_reason": "completed",
+                "evidence": [
+                    {
+                        "chunk_id": 301,
+                        "doc_id": 21,
+                        "doc_name": "test_doc.txt",
+                        "id": "kb-chunk-301",
+                        "kind": "knowledge_base",
+                        "knowledge_base_id": 1,
+                        "knowledge_base_name": "测试知识库",
+                        "score": 0.82,
+                        "snippet": "NovusAI 平台支持知识库 RAG。",
+                        "source_kind": "formal_kb",
+                        "title": "test_doc.txt",
+                    }
+                ],
+                "timeline": [
+                    {
+                        "id": "retrieval",
+                        "source_refs": ["kb-chunk-301"],
+                        "status": "completed",
+                        "type": "retrieval",
+                    }
+                ],
+            }
+        },
+        content="NovusAI 平台支持知识库 RAG。",
+    )
+
+    evidence = turn_flow["evidence"][0]
+    assert evidence["kind"] == "knowledge_base"
+    assert evidence["knowledge_base_id"] == 1
+    assert evidence["knowledge_base_name"] == "测试知识库"
+    assert evidence["doc_id"] == 21
+    assert evidence["doc_name"] == "test_doc.txt"
+    assert evidence["chunk_id"] == 301
+    assert evidence["source_kind"] == "formal_kb"
+
+
+def test_project_from_metadata_does_not_treat_source_kind_as_kb_citation() -> None:
+    turn_flow = ConversationTurnFlowProjector.project_from_metadata(
+        {
+            "turn_flow": {
+                "answer_card": {
+                    "source_chip_ids": ["kb-capability-only"],
+                    "summary": "未检索到知识库证据。",
+                },
+                "evidence": [
+                    {
+                        "id": "kb-capability-only",
+                        "kind": "knowledge_base",
+                        "source_kind": "formal_kb",
+                        "title": "Source",
+                    }
+                ],
+                "timeline": [
+                    {
+                        "id": "retrieval",
+                        "source_refs": ["kb-capability-only"],
+                        "status": "completed",
+                        "type": "retrieval",
+                    }
+                ],
+            }
+        },
+        content="未检索到知识库证据。",
+    )
+
+    assert turn_flow["evidence"] == []
+    assert turn_flow["answer_card"]["source_chip_ids"] == []
+    retrieval_stage = next(
+        stage for stage in turn_flow["timeline"] if stage["type"] == "retrieval"
+    )
+    assert retrieval_stage["status"] == "skipped"
+    assert retrieval_stage["source_refs"] == []
+
+
 def test_project_from_metadata_ignores_unknown_provider_progress() -> None:
     turn_flow = ConversationTurnFlowProjector.project_from_metadata(
         {

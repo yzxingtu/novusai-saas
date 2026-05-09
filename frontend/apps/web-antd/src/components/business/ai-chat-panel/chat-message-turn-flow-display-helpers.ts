@@ -24,7 +24,7 @@ import {
   normalizeOptionalString,
 } from './use-ai-chat-message-normalizers';
 
-export interface TurnFlowStageForDisplay extends TurnFlowStage {}
+export type TurnFlowStageForDisplay = TurnFlowStage;
 
 export interface TurnFlowForDisplay extends TurnFlowViewModel {
   failureKind?: string;
@@ -136,9 +136,13 @@ function createDisplayFlowFromCanonical(
     evidence: flow.evidence.map((item) => cloneEvidence(item)),
     timeline: flow.timeline.map((stage) => toDisplayStage(stage)),
     ...(answerCard ? { answerCard } : {}),
-    ...(flow.completionReason ? { completionReason: flow.completionReason } : {}),
+    ...(flow.completionReason
+      ? { completionReason: flow.completionReason }
+      : {}),
     ...(failureKind ? { failureKind } : {}),
-    ...(flow.finalStageStatus ? { finalStageStatus: flow.finalStageStatus } : {}),
+    ...(flow.finalStageStatus
+      ? { finalStageStatus: flow.finalStageStatus }
+      : {}),
     ...(flow.interrupted ? { interrupted: true } : {}),
     ...(flow.errorSurface ? { errorSurface: { ...flow.errorSurface } } : {}),
     ...(flow.traceId ? { traceId: flow.traceId } : {}),
@@ -417,12 +421,14 @@ export function getThinkingContentForDisplay(
   msg: ChatMessage,
 ): string | undefined {
   const flow = normalizeTurnFlowViewModel(msg.turnFlow);
-  return flow ? normalizeThinkingStageText(resolveThinkingStage(flow)) : undefined;
+  return flow
+    ? normalizeThinkingStageText(resolveThinkingStage(flow))
+    : undefined;
 }
 
 export function getOptimizingToolsForDisplay(
   msg: ChatMessage,
-): { selected: number; total: number } | undefined {
+): undefined | { selected: number; total: number } {
   const flow = normalizeTurnFlowViewModel(msg.turnFlow);
   const selectionStage = flow?.timeline.findLast(
     (stage) => stage.type === 'tool_selection',
@@ -503,7 +509,10 @@ function getToolCallDisplayKey(toolCall: ToolCallEvent): string {
   ].join('\u001F');
 }
 
-function preferDisplayValue<T>(current: T | undefined, incoming: T | undefined) {
+function preferDisplayValue<T>(
+  current: T | undefined,
+  incoming: T | undefined,
+) {
   return current === undefined || current === null ? incoming : current;
 }
 
@@ -532,7 +541,9 @@ function mergeToolCallForDisplay(
   };
 }
 
-function dedupeToolCallsForDisplay(toolCalls: ToolCallEvent[]): ToolCallEvent[] {
+function dedupeToolCallsForDisplay(
+  toolCalls: ToolCallEvent[],
+): ToolCallEvent[] {
   const byKey = new Map<string, ToolCallEvent>();
   for (const toolCall of toolCalls) {
     const key = getToolCallDisplayKey(toolCall);
@@ -568,10 +579,12 @@ function hasUserFacingRetrievalEvidence(
   }
   return Boolean(
     normalizeOptionalString(item.url) ||
-      normalizeOptionalString(item.snippet) ||
-      normalizeOptionalString(item.badge) ||
-      typeof item.score === 'number' ||
-      normalizeOptionalString(item.sourceRef),
+    normalizeOptionalString(item.snippet) ||
+    normalizeOptionalString(item.badge) ||
+    normalizeOptionalString(item.docName) ||
+    normalizeOptionalString(item.knowledgeBaseName) ||
+    typeof item.score === 'number' ||
+    normalizeOptionalString(item.sourceRef),
   );
 }
 
@@ -590,19 +603,27 @@ export function getRagSourcesForDisplay(
     )
     .map((item, index) => ({
       doc_id: index + 1,
+      ...(typeof item.docId === 'number' ? { doc_id: item.docId } : {}),
       doc_name:
+        item.docName ||
         item.title ||
         item.sourceRef ||
         $t('common.globalAiChat.turnSourceFallback', {
           index: index + 1,
         }),
+      ...(typeof item.knowledgeBaseId === 'number'
+        ? { knowledge_base_id: item.knowledgeBaseId }
+        : {}),
+      ...(item.knowledgeBaseName
+        ? { knowledge_base_name: item.knowledgeBaseName }
+        : {}),
       score:
         typeof item.score === 'number' && Number.isFinite(item.score)
           ? item.score
           : 0,
       snippet: item.snippet || '',
       source_kind:
-        item.kind === 'knowledge_base'
+        item.sourceKind === 'formal_kb' || item.kind === 'knowledge_base'
           ? ('formal_kb' as const)
           : ('ephemeral_doc' as const),
     }));

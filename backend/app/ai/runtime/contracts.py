@@ -87,6 +87,12 @@ class TurnEvidenceItem:
     result_link: str | None = None
     skill_name: str | None = None
     skill_type: str | None = None
+    source_kind: str | None = None
+    doc_id: int | None = None
+    doc_name: str | None = None
+    chunk_id: int | None = None
+    knowledge_base_id: int | None = None
+    knowledge_base_name: str | None = None
     started_at: int | None = None
     status: Literal["error", "running", "success"] | None = None
     summary_payload: dict[str, Any] | None = None
@@ -112,6 +118,12 @@ class TurnEvidenceItem:
             "result_link": self.result_link,
             "skill_name": self.skill_name,
             "skill_type": self.skill_type,
+            "source_kind": self.source_kind,
+            "doc_id": self.doc_id,
+            "doc_name": self.doc_name,
+            "chunk_id": self.chunk_id,
+            "knowledge_base_id": self.knowledge_base_id,
+            "knowledge_base_name": self.knowledge_base_name,
             "started_at": self.started_at,
             "status": self.status,
             "summary_payload": (

@@ -333,7 +333,12 @@ function extractTailReferences(content: string): MessageReferenceExtraction {
 
 function toEvidenceReference(item: TurnEvidenceItem): DisplayReferenceLink {
   const href = normalizeOptionalString(item.url);
-  const explicitTitle = normalizeOptionalString(item.title);
+  const knowledgeBaseName = normalizeOptionalString(item.knowledgeBaseName);
+  const docName = normalizeOptionalString(item.docName);
+  const explicitTitle =
+    knowledgeBaseName && docName
+      ? `${knowledgeBaseName} / ${docName}`
+      : knowledgeBaseName || docName || normalizeOptionalString(item.title);
   const label = href
     ? getUrlDisplayLabel(href, explicitTitle)
     : explicitTitle || getUrlDisplayLabel('', explicitTitle);
@@ -362,11 +367,11 @@ export function isUserFacingTurnEvidence(item: TurnEvidenceItem): boolean {
   if (item.kind === 'tool') {
     return Boolean(
       normalizeOptionalString(item.toolCallId) ||
-        normalizeOptionalString(item.toolName) ||
-        normalizeOptionalString(item.output) ||
-        normalizeOptionalString(item.error) ||
-        normalizeOptionalString(item.resultLink) ||
-        normalizeOptionalString(item.status),
+      normalizeOptionalString(item.toolName) ||
+      normalizeOptionalString(item.output) ||
+      normalizeOptionalString(item.error) ||
+      normalizeOptionalString(item.resultLink) ||
+      normalizeOptionalString(item.status),
     );
   }
 
@@ -381,10 +386,12 @@ export function isUserFacingTurnEvidence(item: TurnEvidenceItem): boolean {
 
   return Boolean(
     normalizeOptionalString(item.url) ||
-      normalizeOptionalString(item.snippet) ||
-      normalizeOptionalString(item.badge) ||
-      typeof item.score === 'number' ||
-      (item.kind !== 'memory' && sourceRef),
+    normalizeOptionalString(item.snippet) ||
+    normalizeOptionalString(item.badge) ||
+    normalizeOptionalString(item.docName) ||
+    normalizeOptionalString(item.knowledgeBaseName) ||
+    typeof item.score === 'number' ||
+    (item.kind !== 'memory' && sourceRef),
   );
 }
 
@@ -830,10 +837,7 @@ export function prepareMessageContent(
   const preparedBody = stripModelFunctionCallMarkup(
     resolvePreparedBodyMarkdown(msg),
   );
-  const residualCleanup = sanitizeSuspiciousResidualBody(
-    flow,
-    preparedBody,
-  );
+  const residualCleanup = sanitizeSuspiciousResidualBody(flow, preparedBody);
   if (
     shouldSuppressUntrustedFailureBody(flow) ||
     shouldSuppressGenericFailureBody(flow, preparedBody) ||

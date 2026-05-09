@@ -9,14 +9,13 @@ import type {
 } from '#/components/business/ai-chat-panel/types';
 import type { ChatMessage } from '#/types/ai-chat';
 
-import { $t } from '#/locales';
-
 import {
   isUserFacingTurnEvidence,
   prepareMessageContent,
   selectAnswerCardReferences,
 } from '#/components/business/ai-chat-panel/chat-message-display-preparation';
 import { getTurnFlowForDisplay } from '#/components/business/ai-chat-panel/chat-message-turn-flow';
+import { $t } from '#/locales';
 
 export interface KernelPendingActionState {
   action?: string;
@@ -57,6 +56,11 @@ function toFallbackReference(
   index: number,
 ): DisplayReferenceLink {
   const fallbackLabel =
+    (evidence.knowledgeBaseName && evidence.docName
+      ? `${evidence.knowledgeBaseName} / ${evidence.docName}`
+      : undefined) ??
+    normalizeOptionalString(evidence.knowledgeBaseName) ??
+    normalizeOptionalString(evidence.docName) ??
     normalizeOptionalString(evidence.title) ??
     normalizeOptionalString(evidence.sourceRef) ??
     $t('common.globalAiChat.turnEvidenceFallback', { index: index + 1 });
@@ -98,14 +102,12 @@ function sanitizeTimelineEvidenceRefs(
       displayRetrievalEvidenceIds.has(id),
     );
     const sourceRefs =
-      explicitRefs.length > 0
-        ? explicitRefs
-        : Array.from(displayRetrievalEvidenceIds);
+      explicitRefs.length > 0 ? explicitRefs : [...displayRetrievalEvidenceIds];
     const sourceCount = sourceRefs.length;
     return {
       ...stage,
       metrics: {
-        ...(stage.metrics ?? {}),
+        ...stage.metrics,
         evidence_count: sourceCount,
         source_count: sourceCount,
       },
@@ -119,7 +121,9 @@ function sanitizeTimelineEvidenceRefs(
   });
 }
 
-function buildPendingActionState(msg: ChatMessage): KernelPendingActionState | undefined {
+function buildPendingActionState(
+  msg: ChatMessage,
+): KernelPendingActionState | undefined {
   if (msg.pendingConfirmation) {
     return {
       action: msg.pendingConfirmation.action,

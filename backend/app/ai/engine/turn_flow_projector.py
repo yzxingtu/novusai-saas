@@ -99,6 +99,22 @@ def _as_int(value: Any, default: int = 0) -> int:
         return int(default)
 
 
+def _as_positive_int_or_none(value: Any) -> int | None:
+    try:
+        normalized = int(value)
+    except (TypeError, ValueError):
+        return None
+    return normalized if normalized > 0 else None
+
+
+def _first_positive_int(*values: Any) -> int | None:
+    for value in values:
+        normalized = _as_positive_int_or_none(value)
+        if normalized is not None:
+            return normalized
+    return None
+
+
 def _as_float(value: Any) -> float | None:
     try:
         return float(value)
@@ -192,7 +208,7 @@ def _evidence_kind_from_source(source: Mapping[str, Any]) -> str | None:
         .strip()
         .lower()
     )
-    if raw_kind in {"kb", "knowledge_base", "knowledge"}:
+    if raw_kind in {"formal_kb", "kb", "knowledge_base", "knowledge"}:
         return "knowledge_base"
     if raw_kind in {"doc", "document", "file"}:
         return "document"
@@ -245,11 +261,39 @@ def build_turn_evidence_items(
         evidence_kind = _evidence_kind_from_source(source)
         if evidence_kind is None:
             continue
+        source_kind = _as_text(source.get("source_kind")) or _as_text(
+            source_metadata.get("source_kind")
+        )
+        doc_id = _first_positive_int(
+            source.get("doc_id"),
+            source.get("document_id"),
+            source_metadata.get("doc_id"),
+            source_metadata.get("document_id"),
+        )
+        doc_name = (
+            _as_text(source.get("doc_name"))
+            or _as_text(source.get("document_name"))
+            or _as_text(source_metadata.get("doc_name"))
+            or _as_text(source_metadata.get("document_name"))
+        )
+        chunk_id = _first_positive_int(
+            source.get("chunk_id"),
+            source_metadata.get("chunk_id"),
+        )
+        knowledge_base_id = _first_positive_int(
+            source.get("knowledge_base_id"),
+            source_metadata.get("knowledge_base_id"),
+        )
+        knowledge_base_name = _as_text(source.get("knowledge_base_name")) or _as_text(
+            source_metadata.get("knowledge_base_name")
+        )
         title = (
             _as_text(source.get("title"))
             or _as_text(source.get("name"))
             or _as_text(source_metadata.get("title"))
             or _as_text(source_metadata.get("name"))
+            or doc_name
+            or knowledge_base_name
             or _as_text(source.get("snippet"))
             or _as_text(source_metadata.get("snippet"))
             or f"Source {index + 1}"
@@ -274,6 +318,12 @@ def build_turn_evidence_items(
                     or source_metadata.get("label")
                 ),
                 score=_as_float(source.get("score") or source_metadata.get("score")),
+                source_kind=source_kind,
+                doc_id=doc_id,
+                doc_name=doc_name,
+                chunk_id=chunk_id,
+                knowledge_base_id=knowledge_base_id,
+                knowledge_base_name=knowledge_base_name,
                 tool_call_id=_as_text(
                     source.get("tool_call_id")
                     or source.get("toolCallId")

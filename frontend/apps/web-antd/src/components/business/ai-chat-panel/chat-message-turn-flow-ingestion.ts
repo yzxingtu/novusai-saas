@@ -98,17 +98,25 @@ const CANONICAL_STAGE_KEYS = [
 const CANONICAL_EVIDENCE_KEYS = [
   'arguments',
   'badge',
+  'chunk_id',
   'display_name',
+  'doc_id',
+  'doc_name',
+  'document_id',
+  'document_name',
   'duration_ms',
   'error',
   'error_type',
   'id',
   'kind',
+  'knowledge_base_id',
+  'knowledge_base_name',
   'output',
   'result_link',
   'score',
   'skill_name',
   'skill_type',
+  'source_kind',
   'snippet',
   'source_ref',
   'started_at',
@@ -134,9 +142,7 @@ function pickCanonicalFields(
   return out;
 }
 
-function canonicalStageRecord(
-  value: unknown,
-): null | Record<string, unknown> {
+function canonicalStageRecord(value: unknown): null | Record<string, unknown> {
   const record = normalizeObjectRecord(value);
   return record ? pickCanonicalFields(record, CANONICAL_STAGE_KEYS) : null;
 }
@@ -347,9 +353,7 @@ function inferCompletionReason(message: ChatMessage): string | undefined {
 function buildStageFromCanonicalEvent(
   event: Record<string, unknown>,
 ): TurnFlowStage | undefined {
-  const stageRecord =
-    normalizeObjectRecord(event.stage_payload) ??
-    null;
+  const stageRecord = normalizeObjectRecord(event.stage_payload) ?? null;
   const candidate = {
     ...event,
     ...stageRecord,
@@ -364,9 +368,7 @@ function buildStageFromCanonicalEvent(
 function buildEvidenceFromCanonicalEvent(
   event: Record<string, unknown>,
 ): TurnFlowEvidenceItem | undefined {
-  const evidenceRecord =
-    normalizeObjectRecord(event.evidence) ??
-    null;
+  const evidenceRecord = normalizeObjectRecord(event.evidence) ?? null;
   const candidate = {
     ...event,
     ...evidenceRecord,
@@ -422,9 +424,7 @@ function stageStatusFromDone(
       nestedFlow?.completionReason,
   );
   const turnOutcome = normalizeFailureSignal(
-    event.turn_outcome ??
-      turnRecord?.turn_outcome ??
-      nestedFlow?.turnOutcome,
+    event.turn_outcome ?? turnRecord?.turn_outcome ?? nestedFlow?.turnOutcome,
   );
   const failureKind =
     normalizeFailureSignal(event.failure_kind) ??
@@ -590,9 +590,8 @@ export function applyCanonicalDoneEvent(
     extractCanonicalFailureKind(turnRecord) ??
     failureKindFromFlow(flow);
   const turnOutcome =
-    normalizeFailureSignal(
-      event.turn_outcome ?? turnRecord?.turn_outcome,
-    ) ?? normalizeFailureSignal(flow.turnOutcome);
+    normalizeFailureSignal(event.turn_outcome ?? turnRecord?.turn_outcome) ??
+    normalizeFailureSignal(flow.turnOutcome);
   if (failureKind) {
     flow.failureKind = failureKind;
   }
@@ -617,8 +616,7 @@ export function applyCanonicalDoneEvent(
     (completionReason === 'interrupted' ||
       finalStageStatus === 'interrupted' ||
       message.interrupted === true);
-  const traceId =
-    normalizeOptionalString(event.trace_id);
+  const traceId = normalizeOptionalString(event.trace_id);
   if (traceId) {
     flow.traceId = traceId;
   }
