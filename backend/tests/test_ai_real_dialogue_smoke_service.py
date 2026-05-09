@@ -265,6 +265,92 @@ async def test_real_dialogue_smoke_retries_retryable_provider_auth_block(
 
 
 @pytest.mark.asyncio
+async def test_real_dialogue_smoke_waits_for_async_call_log_visibility(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """中文: provider 已成功但异步 call log 稍后可见时，smoke 等待证据落库。
+
+    EN: Smoke waits for durable evidence when async call logs become visible later.
+    """
+    lookup_count = 0
+
+    async def fake_resolve_agent(
+        self,
+        *,
+        tenant_id: int | None,
+        agent_id: int | None,
+        agent_code: str | None,
+    ):
+        del self, tenant_id, agent_code
+        return SimpleNamespace(id=agent_id, name="Smoke Agent")
+
+    class FakeAgentChatService:
+        def __init__(self, db: Any, tenant_id: int) -> None:
+            _ = db, tenant_id
+
+        async def chat(self, **kwargs: Any):
+            _ = kwargs
+            return SimpleNamespace(
+                conversation_id=101,
+                message="NovusAI SaaS 支持企业知识管理。它适合企业使用。",
+                context_diagnostics={
+                    "selected_tool_names": [],
+                    "selected_skill_names": [],
+                },
+                total_tokens=12,
+                duration_ms=34,
+                last_run_summary={"finish": "ok"},
+            )
+
+    async def fake_latest_call_log(self, **kwargs: Any):
+        nonlocal lookup_count
+        _ = self, kwargs
+        lookup_count += 1
+        if lookup_count == 1:
+            return None
+        return SimpleNamespace(
+            id=303,
+            status="success",
+            provider_name_snapshot="provider",
+            model_name_snapshot="model",
+            request_type="chat",
+            call_type="main_chat",
+        )
+
+    monkeypatch.setattr(RuntimeInventoryService, "_resolve_agent", fake_resolve_agent)
+    monkeypatch.setattr(smoke_module, "AgentChatService", FakeAgentChatService)
+    monkeypatch.setattr(
+        RuntimeRealDialogueSmokeService,
+        "_latest_call_log",
+        fake_latest_call_log,
+    )
+    monkeypatch.setattr(smoke_module, "_CALL_LOG_LOOKUP_DELAY_SECONDS", 0)
+
+    ledger = tmp_path / "smoke-scenarios.md"
+    _write_ledger(ledger)
+    service = RuntimeRealDialogueSmokeService(db=object())
+
+    report = await service.run(
+        tenant_id=7,
+        agent_id=59,
+        agent_code=None,
+        ledger_path=str(ledger),
+        scenario_ids=["SCENARIO-002-short-answer-real-turn"],
+        message=None,
+        user_id=3,
+        user_role="platform_admin",
+        user_role_id=None,
+        repo_root=None,
+    )
+
+    result = report["scenario_results"][0]
+    assert report["overall_status"] == "passed"
+    assert result["provider_call_log_id"] == 303
+    assert result["provider_call_log_lookup_attempts"] == 2
+
+
+@pytest.mark.asyncio
 async def test_real_dialogue_smoke_accepts_nonblocking_capability_degradation(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

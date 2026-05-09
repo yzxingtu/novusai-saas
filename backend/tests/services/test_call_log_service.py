@@ -1,6 +1,9 @@
 """CallLogService 单元测试 / CallLogService tests.
 
-覆盖：调用日志查询、统计聚合。"""
+Test type: structural
+Scope: CallLogService query/write contracts and async task dispatch metadata.
+Mocked dependencies: Celery task transport and identity snapshot loading.
+"""
 
 from __future__ import annotations
 
@@ -372,6 +375,50 @@ class TestCallLogCreate:
             )
 
         assert delay_mock.call_args.kwargs["conversation_id"] is None
+
+    @pytest.mark.asyncio
+    async def test_log_call_async_waits_for_active_transaction_commit(self):
+        """中文: 有事务时延后投递，避免 worker 抢跑写入未提交会话外键。
+
+        EN: Defers enqueue during active transactions so workers see committed FKs.
+        """
+        from sqlalchemy.orm import Session
+
+        from app.services.ai.call_log_service import CallLogService
+
+        session = Session()
+        transaction = session.begin()
+        service = CallLogService.__new__(CallLogService)
+        service.db = session
+        service.tenant_id = 1
+
+        try:
+            with patch("app.tasks.ai.log_ai_call_task.delay") as delay_mock:
+                await service.log_call_async(
+                    tenant_id=1,
+                    model_id=2,
+                    provider_id=3,
+                    request_type="chat",
+                    request_data={"messages": []},
+                    response_data={"ok": True},
+                    input_tokens=0,
+                    output_tokens=0,
+                    total_tokens=0,
+                    cost=0.0,
+                    latency_ms=100,
+                    status="success",
+                    conversation_id=88,
+                )
+
+                delay_mock.assert_not_called()
+                transaction.commit()
+
+            delay_mock.assert_called_once()
+            assert delay_mock.call_args.kwargs["conversation_id"] == 88
+        finally:
+            if session.in_transaction():
+                session.rollback()
+            session.close()
 
     @pytest.mark.asyncio
     async def test_log_call_persists_json_safe_request_metadata(self, mock_db):

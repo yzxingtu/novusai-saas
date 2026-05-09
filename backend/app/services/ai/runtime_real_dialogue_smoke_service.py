@@ -39,6 +39,8 @@ _STATUS_FAILED = "failed"
 _STATUS_BLOCKED = "blocked"
 _SCENARIO_MAX_ATTEMPTS = 2
 _SCENARIO_RETRY_DELAY_SECONDS = 1.0
+_CALL_LOG_LOOKUP_MAX_ATTEMPTS = 10
+_CALL_LOG_LOOKUP_DELAY_SECONDS = 0.5
 _LEDGER_MARKERS = (
     "scenario_id",
     "user_input",
@@ -373,6 +375,9 @@ def _scenario_attempt_summary(result: dict[str, Any]) -> dict[str, Any]:
         "status": result.get("status"),
         "conversation_id": result.get("conversation_id"),
         "provider_call_log_id": result.get("provider_call_log_id"),
+        "provider_call_log_lookup_attempts": result.get(
+            "provider_call_log_lookup_attempts"
+        ),
         "error_type": result.get("error_type"),
         "error_message": result.get("error_message"),
     }
@@ -620,7 +625,7 @@ class RuntimeRealDialogueSmokeService:
                 memory_source="real_dialogue_smoke",
                 interaction_mode="trusted_auto",
             )
-            call_log = await self._latest_call_log(
+            call_log, call_log_lookup_attempts = await self._wait_for_call_log(
                 conversation_id=response.conversation_id,
                 agent_id=agent_id,
                 created_after=started_at,
@@ -675,6 +680,7 @@ class RuntimeRealDialogueSmokeService:
                 "assistant_text_non_empty": bool(assistant_text),
                 "assistant_text_sample": assistant_text[:500],
                 "provider_call_log_id": getattr(call_log, "id", None),
+                "provider_call_log_lookup_attempts": call_log_lookup_attempts,
                 "provider_call_status": provider_status or None,
                 "provider_name": getattr(call_log, "provider_name_snapshot", None),
                 "model_name": getattr(call_log, "model_name_snapshot", None),
@@ -828,6 +834,25 @@ class RuntimeRealDialogueSmokeService:
             .limit(1)
         )
         return result.scalar_one_or_none()
+
+    async def _wait_for_call_log(
+        self,
+        *,
+        conversation_id: int,
+        agent_id: int,
+        created_after: datetime,
+    ) -> tuple[AICallLog | None, int]:
+        for attempt in range(1, _CALL_LOG_LOOKUP_MAX_ATTEMPTS + 1):
+            call_log = await self._latest_call_log(
+                conversation_id=conversation_id,
+                agent_id=agent_id,
+                created_after=created_after,
+            )
+            if call_log is not None:
+                return call_log, attempt
+            if attempt < _CALL_LOG_LOOKUP_MAX_ATTEMPTS:
+                await asyncio.sleep(_CALL_LOG_LOOKUP_DELAY_SECONDS)
+        return None, _CALL_LOG_LOOKUP_MAX_ATTEMPTS
 
 
 __all__ = [

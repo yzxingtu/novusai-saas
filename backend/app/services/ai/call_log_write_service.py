@@ -6,12 +6,41 @@ from __future__ import annotations
 
 from typing import Any
 
+from sqlalchemy import event
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
+
 from app.configs.service import PLATFORM_TENANT_ID
 from app.core.logging import LogManager
 from app.enums.ai import CallStatusEnum, CallTypeEnum
 from app.models.ai import AICallLog
 
 logger = LogManager.get_logger("ai.call_log")
+
+
+def _active_transaction_event_target(db: Any) -> Session | None:
+    if isinstance(db, AsyncSession):
+        return db.sync_session if db.in_transaction() else None
+    if isinstance(db, Session):
+        return db if db.in_transaction() else None
+    return None
+
+
+def _enqueue_call_log_task(task: Any, task_kwargs: dict[str, Any], db: Any) -> None:
+    event_target = _active_transaction_event_target(db)
+    if event_target is None:
+        task.delay(**task_kwargs)
+        return
+
+    # 中文: 等当前事务提交后再投递任务，避免 worker 先于会话/消息外键可见性写入日志。
+    # EN: Queue after commit so the worker never writes call logs before FK rows are visible.
+    def _after_commit(_session: Session) -> None:
+        try:
+            task.delay(**task_kwargs)
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Deferred AI call log enqueue failed: {}", str(exc))
+
+    event.listen(event_target, "after_commit", _after_commit, once=True)
 
 
 class CallLogWriteServiceMixin:
@@ -282,30 +311,34 @@ class CallLogWriteServiceMixin:
             self._truncate_response(response_data)
         )
 
-        log_ai_call_task.delay(
-            tenant_id=tenant_id,
-            model_id=model_id,
-            provider_id=provider_id,
-            request_type=request_type,
-            request_data=safe_request_payload,
-            response_data=safe_response_data,
-            input_tokens=input_tokens,
-            output_tokens=output_tokens,
-            total_tokens=total_tokens,
-            cost=float(cost),
-            latency_ms=normalized_latency_ms,
-            status=status,
-            error_message=error_message,
-            user_id=normalized_user_id,
-            user_type=user_type,
-            agent_id=normalized_agent_id,
-            conversation_id=normalized_conversation_id,
-            billing_context=billing_context,
-            routed_model_id=normalized_routed_model_id,
-            route_reason=route_reason,
-            trace_id=eff_trace,
-            tool_call_id=eff_tool,
-            call_type=eff_call_type,
+        _enqueue_call_log_task(
+            log_ai_call_task,
+            {
+                "tenant_id": tenant_id,
+                "model_id": model_id,
+                "provider_id": provider_id,
+                "request_type": request_type,
+                "request_data": safe_request_payload,
+                "response_data": safe_response_data,
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
+                "total_tokens": total_tokens,
+                "cost": float(cost),
+                "latency_ms": normalized_latency_ms,
+                "status": status,
+                "error_message": error_message,
+                "user_id": normalized_user_id,
+                "user_type": user_type,
+                "agent_id": normalized_agent_id,
+                "conversation_id": normalized_conversation_id,
+                "billing_context": billing_context,
+                "routed_model_id": normalized_routed_model_id,
+                "route_reason": route_reason,
+                "trace_id": eff_trace,
+                "tool_call_id": eff_tool,
+                "call_type": eff_call_type,
+            },
+            self.db,
         )
 
         logger.debug(
