@@ -5,6 +5,7 @@ EN: AI real-dialogue smoke execution service.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import re
 import subprocess
@@ -36,6 +37,8 @@ AI_REAL_DIALOGUE_SMOKE_EXECUTION_KIND = "real_dialogue"
 _STATUS_PASSED = "passed"
 _STATUS_FAILED = "failed"
 _STATUS_BLOCKED = "blocked"
+_SCENARIO_MAX_ATTEMPTS = 2
+_SCENARIO_RETRY_DELAY_SECONDS = 1.0
 _LEDGER_MARKERS = (
     "scenario_id",
     "user_input",
@@ -54,6 +57,16 @@ _BLOCKED_ERROR_MARKERS = (
     "未配置",
     "没有配置",
     "不存在",
+)
+_RETRYABLE_BLOCKED_ERROR_MARKERS = (
+    "api key",
+    "credential",
+    "provider",
+    "auth",
+    "rate limit",
+    "temporarily",
+    "认证失败",
+    "登录状态",
 )
 _RETIRED_CAPABILITY_MARKERS = (
     "current_page",
@@ -354,6 +367,25 @@ def _summarize_results(scenario_results: list[dict[str, Any]]) -> dict[str, int]
     }
 
 
+def _scenario_attempt_summary(result: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "scenario_id": result.get("scenario_id"),
+        "status": result.get("status"),
+        "conversation_id": result.get("conversation_id"),
+        "provider_call_log_id": result.get("provider_call_log_id"),
+        "error_type": result.get("error_type"),
+        "error_message": result.get("error_message"),
+    }
+
+
+def _should_retry_blocked_scenario(result: dict[str, Any]) -> bool:
+    if result.get("status") != _STATUS_BLOCKED:
+        return False
+    text = f"{result.get('error_type') or ''} {result.get('error_message') or ''}"
+    normalized = text.lower()
+    return any(marker in normalized for marker in _RETRYABLE_BLOCKED_ERROR_MARKERS)
+
+
 class RuntimeRealDialogueSmokeService:
     """中文: 运行真实 AgentChatService 对话并生成生产验收报告。
 
@@ -479,7 +511,7 @@ class RuntimeRealDialogueSmokeService:
         scenario_results: list[dict[str, Any]] = []
         for scenario in scenarios:
             scenario_results.append(
-                await self._run_scenario(
+                await self._run_scenario_with_retry(
                     tenant_id=resolved_tenant_id,
                     agent_id=resolved_agent_id,
                     scenario=scenario,
@@ -671,6 +703,48 @@ class RuntimeRealDialogueSmokeService:
                 "error_message": str(exc),
                 "error_type": type(exc).__name__,
             }
+
+    async def _run_scenario_with_retry(
+        self,
+        *,
+        tenant_id: int,
+        agent_id: int,
+        scenario: RealDialogueSmokeScenario,
+        user_id: int | None,
+        user_role: str,
+        user_role_id: int | None,
+    ) -> dict[str, Any]:
+        attempts: list[dict[str, Any]] = []
+        for attempt_index in range(_SCENARIO_MAX_ATTEMPTS):
+            result = await self._run_scenario(
+                tenant_id=tenant_id,
+                agent_id=agent_id,
+                scenario=scenario,
+                user_id=user_id,
+                user_role=user_role,
+                user_role_id=user_role_id,
+            )
+            attempts.append(_scenario_attempt_summary(result))
+
+            is_last_attempt = attempt_index >= _SCENARIO_MAX_ATTEMPTS - 1
+            if is_last_attempt or not _should_retry_blocked_scenario(result):
+                if len(attempts) > 1:
+                    result["retry_count"] = len(attempts) - 1
+                    result["attempts"] = attempts
+                return result
+
+            # 中文: 真 provider smoke 会受上游瞬时鉴权/网关抖动影响，重试需留痕。
+            # EN: Real-provider smoke can hit transient auth/gateway flaps; retry with evidence.
+            logger.warning(
+                "Retrying AI real-dialogue smoke scenario: scenario={} attempt={} status={} err={}",
+                scenario.scenario_id,
+                attempt_index + 1,
+                result.get("status"),
+                result.get("error_message"),
+            )
+            await asyncio.sleep(_SCENARIO_RETRY_DELAY_SECONDS)
+
+        return attempts[-1]
 
     async def _run_capability_smoke(
         self,
