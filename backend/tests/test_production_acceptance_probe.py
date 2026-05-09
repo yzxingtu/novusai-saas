@@ -101,6 +101,37 @@ def _command_pass(*args, **kwargs):
     return {"exit_code": 0, "stdout_tail": "", "stderr_tail": ""}
 
 
+def _capacity_runner_missing() -> dict:
+    return {
+        "available": False,
+        "required_any": ["k6", "locust"],
+        "tools": {"k6": None, "locust_binary": None, "locust_module": False},
+    }
+
+
+def _capacity_runner_locust_module() -> dict:
+    return {
+        "available": True,
+        "required_any": ["k6", "locust"],
+        "tools": {"k6": None, "locust_binary": None, "locust_module": True},
+    }
+
+
+def _capacity_runner_k6() -> dict:
+    return {
+        "available": True,
+        "required_any": ["k6", "locust"],
+        "tools": {"k6": "k6", "locust_binary": None, "locust_module": False},
+    }
+
+
+def _write_capacity_plans(root: Path) -> None:
+    capacity_dir = root / "ops" / "production-acceptance" / "capacity"
+    capacity_dir.mkdir(parents=True, exist_ok=True)
+    (capacity_dir / "locust_ready.py").write_text("from locust import HttpUser\n")
+    (capacity_dir / "k6_ready.js").write_text("export default function () {}\n")
+
+
 def test_request_helpers_reject_non_http_urls() -> None:
     with pytest.raises(ValueError, match="http or https"):
         probe._request_status("file:///etc/passwd", timeout=1)
@@ -688,15 +719,7 @@ def test_local_load_smoke_blocks_when_target_is_unavailable(monkeypatch) -> None
 
 
 def test_capacity_acceptance_blocks_without_formal_runner(monkeypatch) -> None:
-    monkeypatch.setattr(
-        probe,
-        "_capacity_runner_state",
-        lambda: {
-            "available": False,
-            "required_any": ["k6", "locust"],
-            "tools": {"k6": None, "locust_binary": None, "locust_module": False},
-        },
-    )
+    monkeypatch.setattr(probe, "_capacity_runner_state", _capacity_runner_missing)
 
     result = probe.run_capacity_benchmark(
         "http://localhost:8000",
@@ -710,6 +733,190 @@ def test_capacity_acceptance_blocks_without_formal_runner(monkeypatch) -> None:
     assert result.status == probe.STATUS_BLOCKED
     assert result.details["runner"]["required_any"] == ["k6", "locust"]
     assert "Python readiness smoke" in result.details["scope"]
+
+
+def test_parse_locust_stats_csv_reads_aggregated_row(tmp_path: Path) -> None:
+    stats = tmp_path / "capacity_stats.csv"
+    stats.write_text(
+        "Type,Name,Request Count,Failure Count,Median Response Time,"
+        "Average Response Time,Min Response Time,Max Response Time,"
+        "Average Content Size,Requests/s,Failures/s,50%,66%,75%,80%,90%,95%,98%,99%"
+        ",99.9%,99.99%,100%\n"
+        "GET,/ready,4,0,10,11,5,20,0,2,0,10,11,12,13,14,15,16,17,18,19,20\n"
+        "None,Aggregated,8,1,12,13,5,30,0,3,0.1,12,13,14,15,16,17,18,19,20,21,30\n",
+        encoding="utf-8",
+    )
+
+    metrics = probe._parse_locust_stats_csv(stats)
+
+    assert metrics.runner == "locust"
+    assert metrics.request_count == 8
+    assert metrics.failure_count == 1
+    assert metrics.error_ratio == 0.125
+    assert metrics.p95_ms == 17
+
+
+def test_capacity_acceptance_passes_with_locust_stats_inside_budgets(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    _write_capacity_plans(tmp_path)
+    monkeypatch.setattr(probe, "_capacity_runner_state", _capacity_runner_locust_module)
+    captured_command: list[str] = []
+
+    def command(args, **kwargs):
+        del kwargs
+        captured_command.extend(args)
+        prefix = Path(args[args.index("--csv") + 1])
+        prefix.with_name(f"{prefix.name}_stats.csv").write_text(
+            "Type,Name,Request Count,Failure Count,Median Response Time,"
+            "Average Response Time,Min Response Time,Max Response Time,"
+            "Average Content Size,Requests/s,Failures/s,50%,66%,75%,80%,90%,95%,98%,99%"
+            ",99.9%,99.99%,100%\n"
+            "None,Aggregated,8,0,12,13,5,30,0,3,0,12,13,14,15,16,17,18,19,20,21,30\n",
+            encoding="utf-8",
+        )
+        return {"exit_code": 0, "stdout_tail": "", "stderr_tail": ""}
+
+    monkeypatch.setattr(probe, "_run_command", command)
+
+    result = probe.run_capacity_benchmark(
+        "http://localhost:8000",
+        concurrency=2,
+        requests=8,
+        timeout=5,
+        p95_budget_ms=100,
+        error_budget_ratio=0,
+        repo_root=tmp_path,
+        artifact_dir=Path("artifacts"),
+    )
+
+    assert result.status == probe.STATUS_PASSED
+    assert captured_command[:3] == [probe.sys.executable, "-m", "locust"]
+    assert result.details["runner"] == "locust"
+    assert result.details["metrics"]["request_count"] == 8
+    assert result.details["threshold_failures"] == []
+
+
+def test_capacity_acceptance_fails_when_locust_p95_exceeds_budget(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    _write_capacity_plans(tmp_path)
+    monkeypatch.setattr(probe, "_capacity_runner_state", _capacity_runner_locust_module)
+
+    def command(args, **kwargs):
+        del kwargs
+        prefix = Path(args[args.index("--csv") + 1])
+        prefix.with_name(f"{prefix.name}_stats.csv").write_text(
+            "Type,Name,Request Count,Failure Count,95%,Max Response Time,Requests/s\n"
+            "None,Aggregated,8,0,750,900,3\n",
+            encoding="utf-8",
+        )
+        return {"exit_code": 0, "stdout_tail": "", "stderr_tail": ""}
+
+    monkeypatch.setattr(probe, "_run_command", command)
+
+    result = probe.run_capacity_benchmark(
+        "http://localhost:8000",
+        concurrency=2,
+        requests=8,
+        timeout=5,
+        p95_budget_ms=100,
+        error_budget_ratio=0,
+        repo_root=tmp_path,
+        artifact_dir=Path("artifacts"),
+    )
+
+    assert result.status == probe.STATUS_FAILED
+    assert "p95_above_budget" in result.details["threshold_failures"]
+
+
+def test_capacity_acceptance_blocks_when_locust_target_unavailable(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    _write_capacity_plans(tmp_path)
+    monkeypatch.setattr(probe, "_capacity_runner_state", _capacity_runner_locust_module)
+
+    def command(args, **kwargs):
+        del kwargs
+        prefix = Path(args[args.index("--csv") + 1])
+        prefix.with_name(f"{prefix.name}_stats.csv").write_text(
+            "Type,Name,Request Count,Failure Count,95%,Max Response Time,Requests/s\n"
+            "None,Aggregated,8,8,0,0,0\n",
+            encoding="utf-8",
+        )
+        prefix.with_name(f"{prefix.name}_failures.csv").write_text(
+            "Method,Name,Error,Occurrences\nGET,/ready,ConnectionRefusedError,8\n",
+            encoding="utf-8",
+        )
+        return {"exit_code": 0, "stdout_tail": "", "stderr_tail": ""}
+
+    monkeypatch.setattr(probe, "_run_command", command)
+
+    result = probe.run_capacity_benchmark(
+        "http://localhost:8000",
+        concurrency=2,
+        requests=8,
+        timeout=5,
+        p95_budget_ms=100,
+        error_budget_ratio=0,
+        repo_root=tmp_path,
+        artifact_dir=Path("artifacts"),
+    )
+
+    assert result.status == probe.STATUS_BLOCKED
+    assert result.summary == "capacity benchmark target is unavailable"
+
+
+def test_capacity_acceptance_passes_with_k6_summary_inside_budgets(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    _write_capacity_plans(tmp_path)
+    monkeypatch.setattr(probe, "_capacity_runner_state", _capacity_runner_k6)
+    captured_env: dict[str, str] = {}
+
+    def command(args, **kwargs):
+        captured_env.update(kwargs["env"])
+        summary_path = Path(args[args.index("--summary-export") + 1])
+        summary_path.write_text(
+            json.dumps(
+                {
+                    "metrics": {
+                        "http_reqs": {"values": {"count": 8, "rate": 4}},
+                        "http_req_failed": {
+                            "values": {"rate": 0, "fails": 0, "passes": 8}
+                        },
+                        "http_req_duration": {
+                            "values": {"p(95)": 42, "max": 80, "avg": 20, "med": 18}
+                        },
+                        "checks": {"values": {"passes": 16, "fails": 0}},
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        return {"exit_code": 0, "stdout_tail": "", "stderr_tail": ""}
+
+    monkeypatch.setattr(probe, "_run_command", command)
+
+    result = probe.run_capacity_benchmark(
+        "http://localhost:8000",
+        concurrency=2,
+        requests=8,
+        timeout=5,
+        p95_budget_ms=100,
+        error_budget_ratio=0,
+        repo_root=tmp_path,
+        artifact_dir=Path("artifacts"),
+    )
+
+    assert result.status == probe.STATUS_PASSED
+    assert captured_env["API_BASE_URL"] == "http://localhost:8000"
+    assert result.details["runner"] == "k6"
+    assert result.details["metrics"]["check_failure_count"] == 0
 
 
 def test_dast_tooling_blocks_when_only_zap_cli_exists(monkeypatch) -> None:

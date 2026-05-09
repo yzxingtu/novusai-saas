@@ -116,6 +116,7 @@ dev = [
     "pygments>=2.20.0",
     "pytest-asyncio>=0.23.3",
     "pytest-cov>=4.1.0",
+    "locust>=2.43.4",
 
     # Linting & Formatting
     "ruff>=0.1.14",

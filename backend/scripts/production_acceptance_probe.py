@@ -7,6 +7,7 @@ gates.
 from __future__ import annotations
 
 import argparse
+import csv
 import hashlib
 import importlib.util
 import json
@@ -73,6 +74,19 @@ _DAST_BLOCK_MARKERS = (
     "timed out",
 )
 _UNAVAILABLE_HTTP_STATUS_CODES = {502, 503, 504}
+_CAPACITY_BLOCK_MARKERS = (
+    *_DAST_BLOCK_MARKERS,
+    "All connection attempts failed",
+    "ConnectionError",
+    "ConnectionRefusedError",
+    "ECONNREFUSED",
+    "NameResolutionError",
+    "No connection could be made",
+    "connection refused",
+)
+_CAPACITY_PLAN_DIR = Path("ops") / "production-acceptance" / "capacity"
+_K6_CAPACITY_SCRIPT = _CAPACITY_PLAN_DIR / "k6_ready.js"
+_LOCUST_CAPACITY_FILE = _CAPACITY_PLAN_DIR / "locust_ready.py"
 
 
 @dataclass(frozen=True, slots=True)
@@ -93,6 +107,23 @@ class SmokeScenarioLedger:
     valid: bool
     missing_markers: list[str]
     duplicate_scenario_ids: list[str]
+
+
+@dataclass(frozen=True, slots=True)
+class CapacityBenchmarkMetrics:
+    runner: str
+    request_count: int
+    failure_count: int
+    error_ratio: float
+    p95_ms: float
+    max_ms: float | None = None
+    avg_ms: float | None = None
+    median_ms: float | None = None
+    requests_per_second: float | None = None
+    check_pass_count: int | None = None
+    check_failure_count: int | None = None
+    artifact_path: str | None = None
+    failure_artifact_path: str | None = None
 
 
 def _normalize_base_url(value: str) -> str:
@@ -191,19 +222,33 @@ def _tail_text(value: str | None, limit: int = 4000) -> str:
     return value[-limit:]
 
 
+def _subprocess_text(value: str | bytes | None) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return value
+
+
 def _run_command(
     args: list[str],
     *,
     cwd: Path | None = None,
+    env: Mapping[str, str] | None = None,
     stdout_path: Path | None = None,
     stderr_path: Path | None = None,
     timeout: float,
 ) -> dict[str, Any]:
     started_at = time.perf_counter()
+    process_env = None
+    if env is not None:
+        process_env = os.environ.copy()
+        process_env.update(env)
     try:
         completed = subprocess.run(
             args,
             cwd=str(cwd) if cwd else None,
+            env=process_env,
             text=True,
             capture_output=True,
             timeout=timeout,
@@ -218,8 +263,8 @@ def _run_command(
             "error": f"{type(exc).__name__}: {exc}",
         }
     except subprocess.TimeoutExpired as exc:
-        stdout = exc.stdout.decode("utf-8", errors="replace") if exc.stdout else ""
-        stderr = exc.stderr.decode("utf-8", errors="replace") if exc.stderr else ""
+        stdout = _subprocess_text(exc.stdout)
+        stderr = _subprocess_text(exc.stderr)
         return {
             "command": args,
             "cwd": str(cwd) if cwd else None,
@@ -339,6 +384,32 @@ def _capacity_runner_state() -> dict[str, Any]:
             "locust_module": locust_module,
         },
     }
+
+
+def _resolve_artifact_root(repo_root: Path, artifact_dir: Path) -> Path:
+    artifact_root = artifact_dir
+    if not artifact_root.is_absolute():
+        artifact_root = repo_root / artifact_root
+    artifact_root.mkdir(parents=True, exist_ok=True)
+    return artifact_root
+
+
+def _command_combined_output(command: Mapping[str, Any]) -> str:
+    return "\n".join(
+        str(command.get(key) or "") for key in ("stdout_tail", "stderr_tail", "error")
+    )
+
+
+def _capacity_target_unavailable(text: str) -> bool:
+    lowered = text.lower()
+    return any(marker.lower() in lowered for marker in _CAPACITY_BLOCK_MARKERS)
+
+
+def _artifact_prefix(artifact_root: Path, runner: str) -> Path:
+    capacity_root = artifact_root / "capacity"
+    capacity_root.mkdir(parents=True, exist_ok=True)
+    stamp = time.strftime("%Y%m%dT%H%M%S", time.gmtime())
+    return capacity_root / f"{runner}-{stamp}-{uuid.uuid4().hex[:8]}"
 
 
 def _current_repo_state(repo_root: Path) -> dict[str, Any]:
@@ -1304,6 +1375,434 @@ def probe_ai_smoke_readiness(
     ]
 
 
+def _coerce_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    if isinstance(value, int | float):
+        return float(value)
+    text = str(value).strip().replace(",", "")
+    if not text:
+        return None
+    try:
+        return float(text)
+    except ValueError:
+        return None
+
+
+def _coerce_int(value: Any) -> int | None:
+    number = _coerce_float(value)
+    if number is None:
+        return None
+    return int(round(number))
+
+
+def _mapping_value(mapping: Mapping[str, Any], keys: tuple[str, ...]) -> Any:
+    for key in keys:
+        if key in mapping and mapping[key] not in {None, ""}:
+            return mapping[key]
+    return None
+
+
+def _parse_k6_summary_json(path: Path) -> CapacityBenchmarkMetrics:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(f"k6 summary is not readable JSON: {exc}") from exc
+
+    metrics = payload.get("metrics")
+    if not isinstance(metrics, Mapping):
+        raise ValueError("k6 summary does not contain a metrics object")
+
+    def values_for(name: str) -> Mapping[str, Any]:
+        metric = metrics.get(name)
+        if not isinstance(metric, Mapping):
+            return {}
+        values = metric.get("values")
+        return values if isinstance(values, Mapping) else {}
+
+    http_reqs = values_for("http_reqs")
+    failures = values_for("http_req_failed")
+    durations = values_for("http_req_duration")
+    checks = values_for("checks")
+
+    request_count = _coerce_int(http_reqs.get("count"))
+    p95_ms = _coerce_float(durations.get("p(95)"))
+    error_ratio = _coerce_float(failures.get("rate"))
+    if request_count is None or request_count < 0:
+        raise ValueError("k6 summary is missing http_reqs.values.count")
+    if p95_ms is None:
+        raise ValueError("k6 summary is missing http_req_duration.values.p(95)")
+    if error_ratio is None:
+        raise ValueError("k6 summary is missing http_req_failed.values.rate")
+
+    failure_count = _coerce_int(failures.get("fails"))
+    if failure_count is None:
+        failure_count = int(round(request_count * error_ratio))
+    return CapacityBenchmarkMetrics(
+        runner="k6",
+        request_count=request_count,
+        failure_count=failure_count,
+        error_ratio=error_ratio,
+        p95_ms=p95_ms,
+        max_ms=_coerce_float(durations.get("max")),
+        avg_ms=_coerce_float(durations.get("avg")),
+        median_ms=_coerce_float(durations.get("med")),
+        requests_per_second=_coerce_float(http_reqs.get("rate")),
+        check_pass_count=_coerce_int(checks.get("passes")),
+        check_failure_count=_coerce_int(checks.get("fails")),
+        artifact_path=str(path),
+    )
+
+
+def _parse_locust_stats_csv(
+    stats_path: Path, *, failures_path: Path | None = None
+) -> CapacityBenchmarkMetrics:
+    try:
+        with stats_path.open(newline="", encoding="utf-8-sig") as file:
+            rows = list(csv.DictReader(file))
+    except OSError as exc:
+        raise ValueError(f"Locust stats CSV is not readable: {exc}") from exc
+    if not rows:
+        raise ValueError("Locust stats CSV is empty")
+
+    aggregate_row = next(
+        (row for row in rows if str(row.get("Name", "")).strip() == "Aggregated"),
+        None,
+    )
+    ready_row = next(
+        (
+            row
+            for row in rows
+            if str(row.get("Name", "")).strip().rstrip("/") in {"", "ready", "/ready"}
+        ),
+        None,
+    )
+    row = aggregate_row or ready_row or rows[-1]
+
+    request_count = _coerce_int(
+        _mapping_value(row, ("Request Count", "# requests", "Requests"))
+    )
+    failure_count = _coerce_int(
+        _mapping_value(row, ("Failure Count", "# failures", "Failures"))
+    )
+    p95_ms = _coerce_float(_mapping_value(row, ("95%", "95")))
+    if request_count is None or request_count < 0:
+        raise ValueError("Locust stats CSV is missing Request Count")
+    if failure_count is None or failure_count < 0:
+        raise ValueError("Locust stats CSV is missing Failure Count")
+    if p95_ms is None:
+        raise ValueError("Locust stats CSV is missing 95% latency")
+
+    return CapacityBenchmarkMetrics(
+        runner="locust",
+        request_count=request_count,
+        failure_count=failure_count,
+        error_ratio=(failure_count / request_count) if request_count else 1.0,
+        p95_ms=p95_ms,
+        max_ms=_coerce_float(_mapping_value(row, ("Max Response Time", "Max"))),
+        avg_ms=_coerce_float(_mapping_value(row, ("Average Response Time", "Average"))),
+        median_ms=_coerce_float(
+            _mapping_value(row, ("Median Response Time", "Median"))
+        ),
+        requests_per_second=_coerce_float(_mapping_value(row, ("Requests/s",))),
+        artifact_path=str(stats_path),
+        failure_artifact_path=str(failures_path) if failures_path else None,
+    )
+
+
+def _capacity_result_from_metrics(
+    *,
+    metrics: CapacityBenchmarkMetrics,
+    command_result: Mapping[str, Any],
+    api_base_url: str,
+    requested: int,
+    concurrency: int,
+    p95_budget_ms: float,
+    error_budget_ratio: float,
+) -> ProbeResult:
+    threshold_failures: list[str] = []
+    if metrics.request_count < requested:
+        threshold_failures.append("request_count_below_requested")
+    if metrics.error_ratio > error_budget_ratio:
+        threshold_failures.append("error_ratio_above_budget")
+    if metrics.p95_ms > p95_budget_ms:
+        threshold_failures.append("p95_above_budget")
+    if metrics.check_failure_count not in {None, 0}:
+        threshold_failures.append("runner_check_failures")
+    if command_result.get("exit_code") != 0:
+        threshold_failures.append("runner_exit_code_nonzero")
+
+    details = {
+        "url": f"{_normalize_base_url(api_base_url)}/ready",
+        "runner": metrics.runner,
+        "requests": requested,
+        "concurrency": concurrency,
+        "p95_budget_ms": p95_budget_ms,
+        "error_budget_ratio": error_budget_ratio,
+        "metrics": asdict(metrics),
+        "threshold_failures": threshold_failures,
+        "command_result": dict(command_result),
+        "scope": (
+            "formal capacity benchmark using a checked-in k6/Locust plan; "
+            "local Python /ready smoke is reported separately"
+        ),
+    }
+    return ProbeResult(
+        area="capacity",
+        name="capacity_acceptance_benchmark",
+        status=STATUS_FAILED if threshold_failures else STATUS_PASSED,
+        summary="capacity benchmark breached acceptance thresholds"
+        if threshold_failures
+        else "capacity benchmark passed",
+        details=details,
+    )
+
+
+def _capacity_blocked_result(
+    *,
+    summary: str,
+    runner: Mapping[str, Any],
+    requests: int,
+    concurrency: int,
+    details: dict[str, Any] | None = None,
+) -> ProbeResult:
+    payload = {
+        "requests": requests,
+        "concurrency": concurrency,
+        "runner": dict(runner),
+        "scope": (
+            "real capacity acceptance requires k6 or Locust benchmark evidence; "
+            "the Python readiness smoke is not accepted as capacity"
+        ),
+    }
+    if details:
+        payload.update(details)
+    return ProbeResult(
+        area="capacity",
+        name="capacity_acceptance_benchmark",
+        status=STATUS_BLOCKED,
+        summary=summary,
+        details=payload,
+    )
+
+
+def _run_k6_capacity_benchmark(
+    api_base_url: str,
+    *,
+    k6_path: str,
+    repo_root: Path,
+    artifact_root: Path,
+    concurrency: int,
+    requests: int,
+    timeout: float,
+    p95_budget_ms: float,
+    error_budget_ratio: float,
+) -> ProbeResult:
+    script_path = repo_root / _K6_CAPACITY_SCRIPT
+    runner = _capacity_runner_state()
+    if not script_path.exists():
+        return _capacity_blocked_result(
+            summary="k6 capacity plan file is missing",
+            runner=runner,
+            requests=requests,
+            concurrency=concurrency,
+            details={"plan_path": str(script_path)},
+        )
+
+    prefix = _artifact_prefix(artifact_root, "k6")
+    summary_path = prefix.with_name(f"{prefix.name}-summary.json")
+    stdout_path = prefix.with_name(f"{prefix.name}-stdout.txt")
+    stderr_path = prefix.with_name(f"{prefix.name}-stderr.txt")
+    command = [
+        k6_path,
+        "run",
+        "--vus",
+        str(concurrency),
+        "--iterations",
+        str(requests),
+        "--summary-export",
+        str(summary_path),
+        str(script_path),
+    ]
+    command_result = _run_command(
+        command,
+        cwd=repo_root,
+        env={
+            "API_BASE_URL": _normalize_base_url(api_base_url),
+            "CAPACITY_TARGET_PATH": "/ready",
+            "K6_NO_CLOUD": "1",
+        },
+        stdout_path=stdout_path,
+        stderr_path=stderr_path,
+        timeout=timeout,
+    )
+    output = _command_combined_output(command_result)
+    if command_result.get("exit_code") != 0 and _capacity_target_unavailable(output):
+        return _capacity_blocked_result(
+            summary="capacity benchmark target is unavailable",
+            runner=runner,
+            requests=requests,
+            concurrency=concurrency,
+            details={"command_result": command_result, "artifact": str(summary_path)},
+        )
+    if not summary_path.exists():
+        return _capacity_blocked_result(
+            summary="k6 capacity benchmark did not produce a summary artifact",
+            runner=runner,
+            requests=requests,
+            concurrency=concurrency,
+            details={"command_result": command_result, "artifact": str(summary_path)},
+        )
+    try:
+        metrics = _parse_k6_summary_json(summary_path)
+    except ValueError as exc:
+        return _capacity_blocked_result(
+            summary="k6 capacity benchmark summary is not parseable",
+            runner=runner,
+            requests=requests,
+            concurrency=concurrency,
+            details={
+                "command_result": command_result,
+                "artifact": str(summary_path),
+                "parse_error": str(exc),
+            },
+        )
+    return _capacity_result_from_metrics(
+        metrics=metrics,
+        command_result=command_result,
+        api_base_url=api_base_url,
+        requested=requests,
+        concurrency=concurrency,
+        p95_budget_ms=p95_budget_ms,
+        error_budget_ratio=error_budget_ratio,
+    )
+
+
+def _run_locust_capacity_benchmark(
+    api_base_url: str,
+    *,
+    locust_command: list[str],
+    repo_root: Path,
+    artifact_root: Path,
+    concurrency: int,
+    requests: int,
+    timeout: float,
+    p95_budget_ms: float,
+    error_budget_ratio: float,
+) -> ProbeResult:
+    locust_file = repo_root / _LOCUST_CAPACITY_FILE
+    runner = _capacity_runner_state()
+    if not locust_file.exists():
+        return _capacity_blocked_result(
+            summary="Locust capacity plan file is missing",
+            runner=runner,
+            requests=requests,
+            concurrency=concurrency,
+            details={"plan_path": str(locust_file)},
+        )
+
+    prefix = _artifact_prefix(artifact_root, "locust")
+    stdout_path = prefix.with_name(f"{prefix.name}-stdout.txt")
+    stderr_path = prefix.with_name(f"{prefix.name}-stderr.txt")
+    stats_path = prefix.with_name(f"{prefix.name}_stats.csv")
+    failures_path = prefix.with_name(f"{prefix.name}_failures.csv")
+    target_duration = max(
+        5, (requests + max(1, concurrency) - 1) // max(1, concurrency)
+    )
+    max_duration = max(1, int(timeout) - 1)
+    run_time_seconds = max(1, min(target_duration, max_duration))
+    command = [
+        *locust_command,
+        "-f",
+        str(locust_file),
+        "--headless",
+        "-u",
+        str(concurrency),
+        "-r",
+        str(concurrency),
+        "--host",
+        _normalize_base_url(api_base_url),
+        "--run-time",
+        f"{run_time_seconds}s",
+        "--csv",
+        str(prefix),
+        "--only-summary",
+    ]
+    command_result = _run_command(
+        command,
+        cwd=repo_root,
+        env={
+            "CAPACITY_REQUESTS": str(requests),
+            "CAPACITY_TARGET_PATH": "/ready",
+        },
+        stdout_path=stdout_path,
+        stderr_path=stderr_path,
+        timeout=timeout,
+    )
+    output = _command_combined_output(command_result)
+    failure_text = ""
+    if failures_path.exists():
+        failure_text = failures_path.read_text(encoding="utf-8", errors="replace")
+    if command_result.get("exit_code") != 0 and _capacity_target_unavailable(
+        output + "\n" + failure_text
+    ):
+        return _capacity_blocked_result(
+            summary="capacity benchmark target is unavailable",
+            runner=runner,
+            requests=requests,
+            concurrency=concurrency,
+            details={"command_result": command_result, "artifact": str(stats_path)},
+        )
+    if not stats_path.exists():
+        return _capacity_blocked_result(
+            summary="Locust capacity benchmark did not produce a stats artifact",
+            runner=runner,
+            requests=requests,
+            concurrency=concurrency,
+            details={"command_result": command_result, "artifact": str(stats_path)},
+        )
+    try:
+        metrics = _parse_locust_stats_csv(stats_path, failures_path=failures_path)
+    except ValueError as exc:
+        return _capacity_blocked_result(
+            summary="Locust capacity benchmark stats are not parseable",
+            runner=runner,
+            requests=requests,
+            concurrency=concurrency,
+            details={
+                "command_result": command_result,
+                "artifact": str(stats_path),
+                "parse_error": str(exc),
+            },
+        )
+    if (
+        metrics.request_count > 0
+        and metrics.failure_count >= metrics.request_count
+        and _capacity_target_unavailable(failure_text)
+    ):
+        return _capacity_blocked_result(
+            summary="capacity benchmark target is unavailable",
+            runner=runner,
+            requests=requests,
+            concurrency=concurrency,
+            details={
+                "command_result": command_result,
+                "metrics": asdict(metrics),
+                "artifact": str(stats_path),
+                "failure_artifact": str(failures_path),
+            },
+        )
+    return _capacity_result_from_metrics(
+        metrics=metrics,
+        command_result=command_result,
+        api_base_url=api_base_url,
+        requested=requests,
+        concurrency=concurrency,
+        p95_budget_ms=p95_budget_ms,
+        error_budget_ratio=error_budget_ratio,
+    )
+
+
 def run_capacity_benchmark(
     api_base_url: str,
     *,
@@ -1312,6 +1811,8 @@ def run_capacity_benchmark(
     timeout: float,
     p95_budget_ms: float,
     error_budget_ratio: float,
+    repo_root: Path | None = None,
+    artifact_dir: Path = DEFAULT_ARTIFACT_DIR,
 ) -> ProbeResult:
     if requests <= 0:
         return ProbeResult(
@@ -1326,26 +1827,55 @@ def run_capacity_benchmark(
             },
         )
 
-    del api_base_url, concurrency, timeout, p95_budget_ms, error_budget_ratio
     runner = _capacity_runner_state()
-    return ProbeResult(
-        area="capacity",
-        name="capacity_acceptance_benchmark",
-        status=STATUS_BLOCKED,
-        summary=(
-            "capacity acceptance needs an approved k6/Locust load plan"
-            if runner["available"]
-            else "capacity acceptance is blocked because k6/Locust is missing"
-        ),
-        details={
-            "requests": requests,
-            "runner": runner,
-            "run_with": "k6 run <script> or locust with an approved SLO plan",
-            "scope": (
-                "real capacity acceptance is not satisfied by the built-in "
-                "Python readiness smoke"
-            ),
-        },
+    if not runner["available"]:
+        return _capacity_blocked_result(
+            summary="capacity acceptance is blocked because k6/Locust is missing",
+            runner=runner,
+            requests=requests,
+            concurrency=concurrency,
+            details={"run_with": "uv sync --extra dev or install k6"},
+        )
+
+    resolved_repo_root = repo_root or Path(__file__).resolve().parents[2]
+    artifact_root = _resolve_artifact_root(resolved_repo_root, artifact_dir)
+    tools = runner["tools"]
+    locust_binary = tools.get("locust_binary")
+    if locust_binary or tools.get("locust_module"):
+        locust_command = (
+            [locust_binary] if locust_binary else [sys.executable, "-m", "locust"]
+        )
+        return _run_locust_capacity_benchmark(
+            api_base_url,
+            locust_command=locust_command,
+            repo_root=resolved_repo_root,
+            artifact_root=artifact_root,
+            concurrency=concurrency,
+            requests=requests,
+            timeout=timeout,
+            p95_budget_ms=p95_budget_ms,
+            error_budget_ratio=error_budget_ratio,
+        )
+
+    k6_path = tools.get("k6")
+    if k6_path:
+        return _run_k6_capacity_benchmark(
+            api_base_url,
+            k6_path=k6_path,
+            repo_root=resolved_repo_root,
+            artifact_root=artifact_root,
+            concurrency=concurrency,
+            requests=requests,
+            timeout=timeout,
+            p95_budget_ms=p95_budget_ms,
+            error_budget_ratio=error_budget_ratio,
+        )
+
+    return _capacity_blocked_result(
+        summary="capacity acceptance has no runnable k6/Locust command",
+        runner=runner,
+        requests=requests,
+        concurrency=concurrency,
     )
 
 
@@ -2012,6 +2542,8 @@ def build_report(
             timeout=timeout,
             p95_budget_ms=capacity_p95_budget_ms,
             error_budget_ratio=capacity_error_budget_ratio,
+            repo_root=repo_root,
+            artifact_dir=artifact_dir,
         )
     )
     results.append(

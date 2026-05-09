@@ -57,9 +57,9 @@ Current expected local status without fresh external evidence: `blocked`
 
 Blocked gates:
 
-- Capacity acceptance now requires a real k6/Locust/equivalent load plan. The
-  built-in `/ready` load smoke remains useful, but it is not capacity
-  acceptance.
+- Capacity acceptance now runs the checked-in Locust/k6 plan described below.
+  It remains `blocked` only when no runner is installed or the benchmark cannot
+  produce parseable evidence.
 - AI real-dialogue smoke reports must include repo evidence matching the current
   `git rev-parse HEAD` and must be generated from a clean worktree.
 
@@ -104,6 +104,70 @@ New-Item -ItemType Directory -Force -Path $smokeDir | Out-Null
 The older `python -m app.cli ai smoke` command remains useful as a runtime
 capability/manifest check, but it is not a real-dialogue smoke because it does
 not send a prompt through `AgentChatService` or prove a live provider call.
+
+## Capacity Benchmark
+
+Capacity acceptance is a real runner gate, separate from the lightweight
+Python `/ready` load smoke. The canonical checked-in plans are:
+
+- `ops/production-acceptance/capacity/locust_ready.py`
+- `ops/production-acceptance/capacity/k6_ready.js`
+
+The probe prefers Locust when the Python module or `locust` binary is available
+and falls back to `k6` when only `k6` is installed. The benchmark targets
+`GET /ready`, validates `200` plus `data.ready=true`, writes artifacts under
+`ops/acceptance-artifacts/capacity/`, and parses the runner output before
+classifying the gate.
+
+Accepted local release baseline. `--capacity-requests` is the minimum completed
+request count required by the probe, not a hard stop for the runner:
+
+- `--capacity-requests 96`
+- `--capacity-concurrency 16`
+- `--capacity-p95-budget-ms 1500`
+- `--capacity-error-budget-ratio 0`
+
+Pass / fail / blocked rules:
+
+- `passed`: a checked-in Locust or k6 plan ran against the target stack,
+  produced parseable metrics, completed at least the requested count, stayed
+  within the p95 budget, and stayed within the error budget.
+- `failed`: the runner produced metrics but p95, error ratio, semantic checks,
+  runner exit status, or completed request count breached the configured
+  thresholds.
+- `blocked`: Locust/k6 is absent, the target stack is unavailable, the plan file
+  is missing, or the runner could not produce parseable artifacts.
+
+Reproducible direct Locust command:
+
+```powershell
+cd <repo-root>
+$env:CAPACITY_TARGET_PATH = "/ready"
+
+.\backend\.venv\Scripts\python.exe -m locust `
+  -f ops\production-acceptance\capacity\locust_ready.py `
+  --headless `
+  -u 16 `
+  -r 16 `
+  --host http://localhost:8000 `
+  --run-time 5s `
+  --csv ops\acceptance-artifacts\capacity\manual-locust `
+  --only-summary
+```
+
+Reproducible direct k6 command:
+
+```powershell
+cd <repo-root>
+$env:API_BASE_URL = "http://localhost:8000"
+$env:CAPACITY_TARGET_PATH = "/ready"
+
+k6 run `
+  --vus 16 `
+  --iterations 96 `
+  --summary-export ops\acceptance-artifacts\capacity\manual-k6-summary.json `
+  ops\production-acceptance\capacity\k6_ready.js
+```
 
 ## Artifact Policy
 
