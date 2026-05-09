@@ -157,6 +157,13 @@ test.describe('Admin AI Health Monitor smoke', () => {
     ).toHaveCount(60);
     expect(historyRequestLimits).toEqual(['60', '60']);
 
+    const firstHistoryBarBox = await firstCard
+      .locator('[data-testid="health-history-point"]')
+      .first()
+      .boundingBox();
+    expect(firstHistoryBarBox?.width).toBeLessThanOrEqual(3);
+    expect(firstHistoryBarBox?.height).toBeLessThanOrEqual(24);
+
     const historyColorState = await firstCard
       .locator('[data-testid="health-history-point"]')
       .evaluateAll((points) => {

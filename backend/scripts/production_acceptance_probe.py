@@ -49,15 +49,31 @@ AI_REAL_DIALOGUE_SMOKE_REPORT_TYPE = "ai_real_dialogue_smoke"
 AI_REAL_DIALOGUE_SMOKE_EXECUTION_KIND = "real_dialogue"
 _NETWORK_BLOCK_MARKERS = (
     "ERR_PNPM_AUDIT_ENDPOINT_NOT_EXISTS",
+    "CERTIFICATE_VERIFY_FAILED",
+    "Connection aborted",
+    "Connection reset by peer",
+    "ConnectionError",
     "ECONNRESET",
     "ETIMEDOUT",
     "ENOTFOUND",
+    "Failed to establish a new connection",
+    "HTTP Error 502",
+    "HTTP Error 503",
+    "HTTP Error 504",
     "HTTPSConnectionPool",
     "Max retries exceeded",
+    "Name or service not known",
+    "NewConnectionError",
+    "ProxyError",
+    "Read timed out",
+    "ReadTimeout",
+    "Remote end closed connection",
     "SSLError",
+    "TLSV1_ALERT",
     "UNEXPECTED_EOF",
     "Could not fetch URL",
     "ServiceUnavailable",
+    "Temporary failure",
     "temporary failure",
 )
 _DAST_BLOCK_MARKERS = (
@@ -87,6 +103,7 @@ _CAPACITY_BLOCK_MARKERS = (
 _CAPACITY_PLAN_DIR = Path("ops") / "production-acceptance" / "capacity"
 _K6_CAPACITY_SCRIPT = _CAPACITY_PLAN_DIR / "k6_ready.js"
 _LOCUST_CAPACITY_FILE = _CAPACITY_PLAN_DIR / "locust_ready.py"
+_PIP_AUDIT_MAX_ATTEMPTS = 2
 
 
 @dataclass(frozen=True, slots=True)
@@ -306,19 +323,10 @@ def _command_probe_result(
     block_markers: tuple[str, ...] = (),
     extra_details: dict[str, Any] | None = None,
 ) -> ProbeResult:
-    combined_output = (
-        str(command.get("stdout_tail") or "")
-        + "\n"
-        + str(command.get("stderr_tail") or "")
-        + "\n"
-        + str(command.get("error") or "")
-    )
     if command.get("exit_code") == 0:
         status = STATUS_PASSED
         summary = summary_passed
-    elif command.get("error") or any(
-        marker in combined_output for marker in block_markers
-    ):
+    elif command.get("error") or _command_has_markers(command, block_markers):
         status = STATUS_BLOCKED
         summary = summary_blocked
     else:
@@ -398,6 +406,11 @@ def _command_combined_output(command: Mapping[str, Any]) -> str:
     return "\n".join(
         str(command.get(key) or "") for key in ("stdout_tail", "stderr_tail", "error")
     )
+
+
+def _command_has_markers(command: Mapping[str, Any], markers: tuple[str, ...]) -> bool:
+    output = _command_combined_output(command).lower()
+    return any(marker.lower() in output for marker in markers)
 
 
 def _capacity_target_unavailable(text: str) -> bool:
@@ -2198,6 +2211,128 @@ def run_postgres_backup_restore_drill(
     )
 
 
+def _pip_audit_vulnerability_count(artifact: Path) -> int | None:
+    if not artifact.exists():
+        return None
+    try:
+        payload = json.loads(artifact.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return None
+    dependencies = payload.get("dependencies")
+    if not isinstance(dependencies, list):
+        return None
+    count = 0
+    for dependency in dependencies:
+        if not isinstance(dependency, dict):
+            continue
+        vulns = dependency.get("vulns")
+        if isinstance(vulns, list):
+            count += len(vulns)
+    return count
+
+
+def _run_pip_audit_scan(
+    *, backend_dir: Path, artifact_root: Path, timeout: float
+) -> ProbeResult:
+    artifact_root.mkdir(parents=True, exist_ok=True)
+    canonical_artifact = artifact_root / "pip-audit.json"
+    if canonical_artifact.exists():
+        canonical_artifact.unlink()
+
+    attempts: list[dict[str, Any]] = []
+    last_artifact: Path | None = None
+    final_command: dict[str, Any] | None = None
+    for attempt_number in range(1, _PIP_AUDIT_MAX_ATTEMPTS + 1):
+        attempt_artifact = artifact_root / f"pip-audit-attempt-{attempt_number}.json"
+        if attempt_artifact.exists():
+            attempt_artifact.unlink()
+        stdout_path = artifact_root / f"pip-audit-attempt-{attempt_number}.stdout.log"
+        stderr_path = artifact_root / f"pip-audit-attempt-{attempt_number}.stderr.log"
+        command = _run_command(
+            [
+                sys.executable,
+                "-m",
+                "pip_audit",
+                "--local",
+                "--skip-editable",
+                "--progress-spinner",
+                "off",
+                "--format",
+                "json",
+                "--output",
+                str(attempt_artifact),
+            ],
+            cwd=backend_dir,
+            stdout_path=stdout_path,
+            stderr_path=stderr_path,
+            timeout=timeout,
+        )
+        final_command = command
+        vulnerability_count = _pip_audit_vulnerability_count(attempt_artifact)
+        blocked = bool(
+            command.get("error")
+            or command.get("timed_out")
+            or _command_has_markers(command, _NETWORK_BLOCK_MARKERS)
+        )
+        attempt_details = {
+            "attempt": attempt_number,
+            "artifact": str(attempt_artifact),
+            "stdout_path": str(stdout_path),
+            "stderr_path": str(stderr_path),
+            "exit_code": command.get("exit_code"),
+            "blocked": blocked,
+            "vulnerability_count": vulnerability_count,
+        }
+        attempts.append(attempt_details)
+        if attempt_artifact.exists():
+            last_artifact = attempt_artifact
+            shutil.copyfile(attempt_artifact, canonical_artifact)
+        if command.get("exit_code") == 0:
+            return ProbeResult(
+                area="security",
+                name="python_dependency_audit_scan",
+                status=STATUS_PASSED,
+                summary="pip-audit passed",
+                details={
+                    "artifact": str(canonical_artifact),
+                    "attempts": attempts,
+                    "command_result": command,
+                    "retry_count": attempt_number - 1,
+                },
+            )
+        if not blocked:
+            return ProbeResult(
+                area="security",
+                name="python_dependency_audit_scan",
+                status=STATUS_FAILED,
+                summary="pip-audit found vulnerabilities"
+                if vulnerability_count
+                else "pip-audit failed",
+                details={
+                    "artifact": str(canonical_artifact),
+                    "attempts": attempts,
+                    "command_result": command,
+                    "retry_count": attempt_number - 1,
+                    "vulnerability_count": vulnerability_count,
+                },
+            )
+
+    if last_artifact and not canonical_artifact.exists():
+        shutil.copyfile(last_artifact, canonical_artifact)
+    return ProbeResult(
+        area="security",
+        name="python_dependency_audit_scan",
+        status=STATUS_BLOCKED,
+        summary="pip-audit could not reach audit data after retry",
+        details={
+            "artifact": str(canonical_artifact),
+            "attempts": attempts,
+            "command_result": final_command or {},
+            "retry_count": max(0, len(attempts) - 1),
+        },
+    )
+
+
 def run_security_scans(
     *, repo_root: Path, artifact_dir: Path, timeout: float
 ) -> list[ProbeResult]:
@@ -2210,34 +2345,11 @@ def run_security_scans(
     artifact_root.mkdir(parents=True, exist_ok=True)
 
     if _module_available("pip_audit"):
-        pip_audit_artifact = artifact_root / "pip-audit.json"
-        pip_audit = _run_command(
-            [
-                sys.executable,
-                "-m",
-                "pip_audit",
-                "--local",
-                "--skip-editable",
-                "--progress-spinner",
-                "off",
-                "--format",
-                "json",
-                "--output",
-                str(pip_audit_artifact),
-            ],
-            cwd=backend_dir,
-            timeout=timeout,
-        )
         results.append(
-            _command_probe_result(
-                area="security",
-                name="python_dependency_audit_scan",
-                command=pip_audit,
-                summary_passed="pip-audit passed",
-                summary_failed="pip-audit found vulnerabilities",
-                summary_blocked="pip-audit could not reach audit data",
-                block_markers=_NETWORK_BLOCK_MARKERS,
-                extra_details={"artifact": str(pip_audit_artifact)},
+            _run_pip_audit_scan(
+                backend_dir=backend_dir,
+                artifact_root=artifact_root,
+                timeout=timeout,
             )
         )
     else:

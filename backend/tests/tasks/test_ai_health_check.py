@@ -88,6 +88,16 @@ class _FakeRedis:
         _ = (key, ttl)
 
 
+class _AsyncHistoryRedis:
+    def __init__(self, entries: list[str]):
+        self.entries = entries
+        self.calls: list[tuple[str, int, int]] = []
+
+    async def zrevrange(self, key: str, start: int, end: int) -> list[str]:
+        self.calls.append((key, start, end))
+        return self.entries[start : end + 1]
+
+
 def _healthy_probe(**_kwargs):
     return (True, None)
 
@@ -467,6 +477,37 @@ async def test_failover_service_fails_closed_when_redis_unavailable(
     service = FailoverService(db=MagicMock())
 
     assert await service.is_provider_healthy(10) is False
+
+
+@pytest.mark.asyncio
+async def test_failover_provider_health_history_reads_latest_sixty_without_padding(
+    monkeypatch,
+) -> None:
+    entries = [
+        json.dumps(
+            {
+                "is_healthy": index % 2 == 0,
+                "checked_at": f"2026-05-08T15:{index:02d}:35Z",
+            }
+        )
+        for index in range(70)
+    ]
+    redis = _AsyncHistoryRedis(entries)
+
+    async def _fake_get_redis():
+        return redis
+
+    monkeypatch.setattr("app.ai.failover.get_redis", _fake_get_redis)
+
+    history = await FailoverService.get_provider_health_history(
+        provider_id=10,
+        limit=60,
+    )
+
+    assert redis.calls == [("ai:provider:10:health_history", 0, 59)]
+    assert len(history) == 60
+    assert history[0]["checked_at"] == "2026-05-08T15:00:35+00:00"
+    assert history[-1]["checked_at"] == "2026-05-08T15:59:35+00:00"
 
 
 @pytest.mark.asyncio

@@ -180,6 +180,13 @@ reports should be archived with the owning Trellis task under
 `smoke-runs/<milestone>/` or uploaded as CI/release artifacts; do not use
 `ops/acceptance-artifacts/` as the authoritative acceptance archive.
 
+`pip-audit` is retried once when the command output indicates transient network,
+TLS, proxy, or remote service unavailability. Each attempt writes separate
+stdout/stderr logs and an attempt JSON path under the artifact directory; the
+canonical `pip-audit.json` is refreshed only from the current run. Network-only
+exhaustion remains `blocked`, while a parseable vulnerability result remains
+`failed` and is not retried into a softer status.
+
 ## Historical Plugin Backup Scope
 
 Historical plugin backup packages under `backend/plugins/.backups/` are not part

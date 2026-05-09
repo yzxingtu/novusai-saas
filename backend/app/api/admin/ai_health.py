@@ -9,7 +9,6 @@ import importlib
 from typing import Any
 
 from fastapi import Body, Query, Request
-from sqlalchemy import select
 
 from app.ai.failover import FailoverService
 from app.core.base_controller import GlobalController
@@ -18,7 +17,6 @@ from app.core.i18n import _
 from app.core.response import success
 from app.enums.rbac import PermissionScope
 from app.exceptions import ServiceUnavailableException
-from app.models.ai.provider import AIProvider
 from app.rbac.decorators import (
     MenuConfig,
     action_create,
@@ -26,6 +24,7 @@ from app.rbac.decorators import (
     permission_resource,
 )
 from app.schemas.ai.runtime_diagnostics import RuntimeSmokeRequest
+from app.services.ai.health_read_model_service import AIHealthReadModelService
 
 
 def _is_missing_module(exc: ModuleNotFoundError, module_path: str) -> bool:
@@ -94,22 +93,9 @@ class AdminAIHealthController(GlobalController):
 
             权限 / Permission: ai_health:list
             """
-            statuses = await FailoverService.get_all_provider_health()
-
-            # Enrich with provider icon / 补充供应商图标
-            pid_set = {s.get("provider_id") for s in statuses if s.get("provider_id")}
-            icon_map: dict[int, str | None] = {}
-            if pid_set:
-                rows = (
-                    await db.execute(
-                        select(AIProvider.id, AIProvider.icon).where(
-                            AIProvider.id.in_(pid_set)
-                        )
-                    )
-                ).all()
-                icon_map = {r.id: r.icon for r in rows}
-            for s in statuses:
-                s["provider_icon"] = icon_map.get(s.get("provider_id"))
+            statuses = await AIHealthReadModelService(
+                db
+            ).list_provider_health_statuses()
 
             return success(data=statuses, message=_("common.success"))
 

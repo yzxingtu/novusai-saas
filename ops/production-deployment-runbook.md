@@ -36,6 +36,37 @@ docker compose --env-file $envFile -f docker-compose.prod.yml run --rm productio
 
 The checked-in example is intentionally rejected by `production-guard`.
 
+## Host Ports
+
+Production Compose publishes only the API and frontend to loopback by default:
+
+```text
+127.0.0.1:${BACKEND_HTTP_PORT:-18000} -> backend-api:8000
+127.0.0.1:${FRONTEND_HTTP_PORT:-18080} -> frontend:8080
+```
+
+No production service publishes host port `9090`. Keep `9090` free for an
+external monitoring stack, or use a monitoring-specific compose file that maps
+Prometheus to an alternate host port such as `19090`.
+
+Set these values in the private production env file only when the host ports
+are known to be available:
+
+```powershell
+BACKEND_HTTP_PORT=18000
+FRONTEND_HTTP_PORT=18080
+```
+
+Before startup on Windows, verify the chosen ports are free:
+
+```powershell
+Get-NetTCPConnection -LocalPort 18000,18080 -State Listen -ErrorAction SilentlyContinue
+```
+
+If the command returns rows, choose different `BACKEND_HTTP_PORT` and
+`FRONTEND_HTTP_PORT` values in the private env file. Do not use `9090` for the
+production API or frontend bind.
+
 ## Build
 
 Backend image targets are built from the `backend/` context:
@@ -83,6 +114,14 @@ $envFile = "C:\secure\novusai-prod.env"
 docker compose --env-file $envFile -f docker-compose.prod.yml up -d --build --wait
 ```
 
+If another process owns one of the loopback ports, edit the private env file and
+rerun the same command, for example:
+
+```powershell
+BACKEND_HTTP_PORT=18001
+FRONTEND_HTTP_PORT=18081
+```
+
 The production compose graph starts in this order:
 
 - `production-guard` validates required production env values and refuses the
@@ -111,10 +150,12 @@ Do not bypass this with API startup migrations in production.
 After startup, verify the runtime surface:
 
 ```powershell
+$backendPort = 18000
+$frontendPort = 18080
 docker compose --env-file $envFile -f docker-compose.prod.yml ps -a
-Invoke-RestMethod http://127.0.0.1:<BACKEND_HTTP_PORT>/ready
-Invoke-RestMethod http://127.0.0.1:<BACKEND_HTTP_PORT>/health
-Invoke-WebRequest http://127.0.0.1:<FRONTEND_HTTP_PORT>/ -UseBasicParsing
+Invoke-RestMethod "http://127.0.0.1:$backendPort/ready"
+Invoke-RestMethod "http://127.0.0.1:$backendPort/health"
+Invoke-WebRequest "http://127.0.0.1:$frontendPort/" -UseBasicParsing
 docker compose --env-file $envFile -f docker-compose.prod.yml exec -T backend-worker `
   python -m celery -A app.celery_app:celery_app inspect ping --timeout=5
 docker compose --env-file $envFile -f docker-compose.prod.yml exec -T backend-beat `

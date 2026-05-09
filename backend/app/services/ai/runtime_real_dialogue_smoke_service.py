@@ -39,8 +39,8 @@ _STATUS_FAILED = "failed"
 _STATUS_BLOCKED = "blocked"
 _SCENARIO_MAX_ATTEMPTS = 2
 _SCENARIO_RETRY_DELAY_SECONDS = 1.0
-_CALL_LOG_LOOKUP_MAX_ATTEMPTS = 10
-_CALL_LOG_LOOKUP_DELAY_SECONDS = 0.5
+_CALL_LOG_LOOKUP_MAX_ATTEMPTS = 30
+_CALL_LOG_LOOKUP_DELAY_SECONDS = 1.0
 _LEDGER_MARKERS = (
     "scenario_id",
     "user_input",
@@ -818,18 +818,20 @@ class RuntimeRealDialogueSmokeService:
         *,
         conversation_id: int,
         agent_id: int,
-        created_after: datetime,
+        created_after: datetime | None,
     ) -> AICallLog | None:
+        filters = [
+            AICallLog.conversation_id == conversation_id,
+            AICallLog.agent_id == agent_id,
+            AICallLog.request_type == RequestTypeEnum.CHAT.value,
+            AICallLog.call_type == CallTypeEnum.MAIN_CHAT.value,
+            AICallLog.is_deleted.is_(False),
+        ]
+        if created_after is not None:
+            filters.append(AICallLog.created_at >= created_after)
         result = await self.db.execute(
             select(AICallLog)
-            .where(
-                AICallLog.conversation_id == conversation_id,
-                AICallLog.agent_id == agent_id,
-                AICallLog.created_at >= created_after,
-                AICallLog.request_type == RequestTypeEnum.CHAT.value,
-                AICallLog.call_type == CallTypeEnum.MAIN_CHAT.value,
-                AICallLog.is_deleted.is_(False),
-            )
+            .where(*filters)
             .order_by(AICallLog.created_at.desc(), AICallLog.id.desc())
             .limit(1)
         )
@@ -852,7 +854,19 @@ class RuntimeRealDialogueSmokeService:
                 return call_log, attempt
             if attempt < _CALL_LOG_LOOKUP_MAX_ATTEMPTS:
                 await asyncio.sleep(_CALL_LOG_LOOKUP_DELAY_SECONDS)
-        return None, _CALL_LOG_LOOKUP_MAX_ATTEMPTS
+
+        # 中文: Celery worker 与 smoke 进程可能存在轻微时钟/精度偏差；严格时间窗耗尽后，
+        # EN: Celery worker and smoke process clocks/precision may drift slightly; after the strict window is exhausted,
+        # 中文: 用同一新建 conversation 的主调用日志作证据回查，避免把已成功落库的 provider call 误报为缺失。
+        # EN: use the same fresh conversation's main call log as evidence so a persisted successful provider call is not reported missing.
+        call_log = await self._latest_call_log(
+            conversation_id=conversation_id,
+            agent_id=agent_id,
+            created_after=None,
+        )
+        if call_log is not None:
+            return call_log, _CALL_LOG_LOOKUP_MAX_ATTEMPTS + 1
+        return None, _CALL_LOG_LOOKUP_MAX_ATTEMPTS + 1
 
 
 __all__ = [

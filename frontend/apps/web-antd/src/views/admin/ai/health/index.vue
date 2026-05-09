@@ -270,7 +270,7 @@ watch(
     <div data-testid="admin-ai-health-page" class="flex flex-col gap-4">
       <section
         data-testid="health-runtime-actions"
-        class="rounded-[24px] border border-border/70 bg-card/90 px-5 py-4 shadow-sm dark:border-white/[0.08]"
+        class="rounded-lg border border-border/70 bg-card/90 px-4 py-3 shadow-sm dark:border-white/[0.08]"
       >
         <div
           class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"
@@ -361,19 +361,19 @@ watch(
         <div
           v-if="statuses.length > 0"
           data-testid="health-provider-cards"
-          class="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3"
+          class="grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-3"
         >
           <article
             v-for="status in statuses"
             :key="status.provider_id"
             data-testid="health-provider-card"
-            class="overflow-hidden rounded-[20px] border border-border/70 bg-gradient-to-br from-background via-background to-muted/25 shadow-sm transition-shadow duration-200 hover:shadow-md dark:border-white/[0.08] dark:from-card dark:via-card dark:to-primary/[0.04]"
+            class="overflow-hidden rounded-lg border border-border/70 bg-gradient-to-br from-background via-background to-muted/25 shadow-sm transition-shadow duration-200 hover:shadow-md dark:border-white/[0.08] dark:from-card dark:via-card dark:to-primary/[0.04]"
           >
-            <div class="space-y-3 px-3.5 py-3.5">
+            <div class="space-y-2.5 px-3 py-3">
               <div class="flex items-start justify-between gap-3">
                 <div class="flex min-w-0 items-center gap-2.5">
                   <div
-                    class="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border/70 bg-background/90 text-foreground dark:border-white/[0.08]"
+                    class="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border/70 bg-background/90 text-foreground dark:border-white/[0.08]"
                   >
                     <img
                       v-if="
@@ -420,7 +420,7 @@ watch(
 
               <div class="grid gap-2 sm:grid-cols-2">
                 <div
-                  class="rounded-xl border border-border/70 bg-background/80 px-3 py-2.5 dark:border-white/[0.08] dark:bg-background/40"
+                  class="rounded-md border border-border/70 bg-background/80 px-2.5 py-2 dark:border-white/[0.08] dark:bg-background/40"
                 >
                   <div
                     class="flex items-center gap-1.5 text-[11px] uppercase text-muted-foreground"
@@ -428,12 +428,12 @@ watch(
                     <IconifyIcon icon="lucide:waves" class="size-3.5" />
                     {{ $t('admin.ai.health.ttfb') }}
                   </div>
-                  <div class="mt-1.5 text-xl font-semibold text-foreground">
+                  <div class="mt-1 text-lg font-semibold text-foreground">
                     {{ status.response_time_ms }} ms
                   </div>
                 </div>
                 <div
-                  class="rounded-xl border border-border/70 bg-background/80 px-3 py-2.5 dark:border-white/[0.08] dark:bg-background/40"
+                  class="rounded-md border border-border/70 bg-background/80 px-2.5 py-2 dark:border-white/[0.08] dark:bg-background/40"
                 >
                   <div
                     class="flex items-center gap-1.5 text-[11px] uppercase text-muted-foreground"
@@ -495,7 +495,7 @@ watch(
                   >
                     <span
                       data-testid="health-history-point"
-                      class="h-8 w-[2px] justify-self-center rounded-full"
+                      class="h-6 w-[2px] justify-self-center rounded-full"
                       :class="getHistoryPointClass(point)"
                     ></span>
                   </Tooltip>

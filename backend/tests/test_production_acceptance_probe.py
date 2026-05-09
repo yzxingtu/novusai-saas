@@ -1153,6 +1153,153 @@ def test_security_scan_execution_passes_when_commands_pass(monkeypatch, tmp_path
     )
 
 
+def test_pip_audit_retries_transient_network_block_and_preserves_evidence(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    backend_dir = tmp_path / "backend"
+    artifact_root = tmp_path / "artifacts"
+    backend_dir.mkdir()
+    calls: list[Path] = []
+
+    def command(args, **kwargs):
+        artifact = Path(args[args.index("--output") + 1])
+        stdout_path = Path(kwargs["stdout_path"])
+        stderr_path = Path(kwargs["stderr_path"])
+        stdout_path.parent.mkdir(parents=True, exist_ok=True)
+        stderr_path.parent.mkdir(parents=True, exist_ok=True)
+        stdout_path.write_text("", encoding="utf-8")
+        calls.append(artifact)
+        if len(calls) == 1:
+            stderr_path.write_text(
+                "HTTPSConnectionPool: Max retries exceeded",
+                encoding="utf-8",
+            )
+            return {
+                "exit_code": 1,
+                "stdout_tail": "",
+                "stderr_tail": "HTTPSConnectionPool: Max retries exceeded",
+                "stdout_path": str(stdout_path),
+                "stderr_path": str(stderr_path),
+            }
+        artifact.write_text(json.dumps({"dependencies": []}), encoding="utf-8")
+        stderr_path.write_text("", encoding="utf-8")
+        return {
+            "exit_code": 0,
+            "stdout_tail": "",
+            "stderr_tail": "",
+            "stdout_path": str(stdout_path),
+            "stderr_path": str(stderr_path),
+        }
+
+    monkeypatch.setattr(probe, "_run_command", command)
+
+    result = probe._run_pip_audit_scan(
+        backend_dir=backend_dir,
+        artifact_root=artifact_root,
+        timeout=1,
+    )
+
+    assert result.status == probe.STATUS_PASSED
+    assert result.details["retry_count"] == 1
+    assert len(result.details["attempts"]) == 2
+    assert result.details["attempts"][0]["blocked"] is True
+    assert Path(result.details["artifact"]).exists()
+    assert Path(result.details["attempts"][0]["stderr_path"]).read_text(
+        encoding="utf-8"
+    )
+
+
+def test_pip_audit_vulnerabilities_fail_without_retry(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    backend_dir = tmp_path / "backend"
+    artifact_root = tmp_path / "artifacts"
+    backend_dir.mkdir()
+    calls = 0
+
+    def command(args, **kwargs):
+        nonlocal calls
+        calls += 1
+        artifact = Path(args[args.index("--output") + 1])
+        artifact.parent.mkdir(parents=True, exist_ok=True)
+        artifact.write_text(
+            json.dumps(
+                {
+                    "dependencies": [
+                        {"name": "demo", "version": "1", "vulns": [{"id": "X"}]}
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        return {
+            "exit_code": 1,
+            "stdout_tail": "",
+            "stderr_tail": "",
+            "stdout_path": str(kwargs["stdout_path"]),
+            "stderr_path": str(kwargs["stderr_path"]),
+        }
+
+    monkeypatch.setattr(probe, "_run_command", command)
+
+    result = probe._run_pip_audit_scan(
+        backend_dir=backend_dir,
+        artifact_root=artifact_root,
+        timeout=1,
+    )
+
+    assert result.status == probe.STATUS_FAILED
+    assert result.summary == "pip-audit found vulnerabilities"
+    assert result.details["vulnerability_count"] == 1
+    assert result.details["retry_count"] == 0
+    assert calls == 1
+
+
+def test_pip_audit_blocks_after_retry_and_discards_stale_canonical_artifact(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    backend_dir = tmp_path / "backend"
+    artifact_root = tmp_path / "artifacts"
+    backend_dir.mkdir()
+    artifact_root.mkdir()
+    stale = artifact_root / "pip-audit.json"
+    stale.write_text('{"stale": true}', encoding="utf-8")
+
+    def command(_args, **kwargs):
+        stdout_path = Path(kwargs["stdout_path"])
+        stderr_path = Path(kwargs["stderr_path"])
+        stdout_path.parent.mkdir(parents=True, exist_ok=True)
+        stdout_path.write_text("", encoding="utf-8")
+        stderr_path.write_text("ReadTimeout: Read timed out", encoding="utf-8")
+        return {
+            "exit_code": 1,
+            "stdout_tail": "",
+            "stderr_tail": "ReadTimeout: Read timed out",
+            "stdout_path": str(stdout_path),
+            "stderr_path": str(stderr_path),
+        }
+
+    monkeypatch.setattr(probe, "_run_command", command)
+
+    result = probe._run_pip_audit_scan(
+        backend_dir=backend_dir,
+        artifact_root=artifact_root,
+        timeout=1,
+    )
+
+    assert result.status == probe.STATUS_BLOCKED
+    assert result.summary == "pip-audit could not reach audit data after retry"
+    assert result.details["retry_count"] == 1
+    assert len(result.details["attempts"]) == 2
+    assert not stale.exists()
+    assert Path(result.details["attempts"][1]["stderr_path"]).read_text(
+        encoding="utf-8"
+    )
+
+
 def test_build_report_stays_blocked_when_optional_gates_are_not_run(
     tmp_path: Path,
     monkeypatch,

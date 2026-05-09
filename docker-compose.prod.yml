@@ -248,7 +248,7 @@ services:
       start_period: 60s
       retries: 3
     ports:
-      - "127.0.0.1:${BACKEND_HTTP_PORT:-8000}:8000"
+      - "127.0.0.1:${BACKEND_HTTP_PORT:-18000}:8000"
     restart: unless-stopped
     networks:
       - novusai-prod
@@ -330,7 +330,7 @@ services:
       backend-api:
         condition: service_healthy
     ports:
-      - "127.0.0.1:${FRONTEND_HTTP_PORT:-8080}:8080"
+      - "127.0.0.1:${FRONTEND_HTTP_PORT:-18080}:8080"
     restart: unless-stopped
     networks:
       - novusai-prod
