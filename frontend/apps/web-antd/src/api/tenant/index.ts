@@ -7,7 +7,6 @@ export * from './configs';
 export * from './domain';
 
 export * from './menu';
-export * from './operation-log';
 export * from './organization';
 export * from './permission';
 export * from './role';

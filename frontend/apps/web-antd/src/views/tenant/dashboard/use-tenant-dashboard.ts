@@ -40,7 +40,6 @@ const DASHBOARD_ROUTE_ACCESS: Record<string, string[]> = {
   '/tenant/ai/agents': ['agent:list'],
   '/tenant/ai/knowledge-bases': ['knowledge_base:list'],
   '/tenant/ai/usage': ['ai_tenant_usage:summary'],
-  '/tenant/system/operation-logs': ['operation_log:list'],
   '/tenant/system/storage': ['tenant_config:groups'],
   '/tenant/system/user-architecture': ['tenant_user:list'],
 };
@@ -255,7 +254,9 @@ export function useTenantDashboard() {
     return !codes || hasAccessByCodes(codes);
   }
 
-  function filterAccessibleRouteItems<T extends { route?: string }>(items: T[]) {
+  function filterAccessibleRouteItems<T extends { route?: string }>(
+    items: T[],
+  ) {
     return items.filter((item) => hasDashboardRouteAccess(item.route));
   }
 
@@ -405,13 +406,6 @@ export function useTenantDashboard() {
         key: 'storage',
         route: '/tenant/system/storage',
         title: $t('tenant.dashboard.cockpit.actions.storageTitle'),
-      },
-      {
-        description: $t('tenant.dashboard.cockpit.actions.logsDesc'),
-        icon: 'lucide:scroll-text',
-        key: 'logs',
-        route: '/tenant/system/operation-logs',
-        title: $t('tenant.dashboard.cockpit.actions.logsTitle'),
       },
     ]),
   );

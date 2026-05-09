@@ -1,8 +1,8 @@
 """
 Execution decision API (tenant) / 执行决策 API（企业端）
 
-No standalone menu entry; the detail endpoint is consumed by action-logs'
-linkedDecision card. / 无独立菜单入口；详情接口供 action-logs 关联决策卡片调用。
+No standalone menu entry; the detail endpoint supports tenant-side execution
+decision review. / 无独立菜单入口；详情接口服务企业端执行决策审计查看。
 """
 
 from fastapi import Request

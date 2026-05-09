@@ -218,10 +218,11 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
         parent_code="menu:admin.system_maintenance",
     ),
     # Child menus declared by controllers / 子菜单由控制器声明:
-    # - menu:admin.operation_log (Operation Log / 操作日志)
     # - menu:admin.system_log (System Log / 系统日志)
     # - menu:admin.task_log (Task Log / 任务日志)
     # - menu:admin.email_log (Email Log / 邮件日志)
+    # 中文: 独立操作日志页面已退役；保留的审计证据仍作为内部能力使用。
+    # EN: The standalone operation-log page is retired; retained evidence stays internal.
     # Other child menus declared by controllers / 其他子菜单由控制器声明:
     # - menu:admin.periodic_task (Periodic Task / 定时任务)
     # - menu:admin.plugin (Plugin Management / 插件管理)

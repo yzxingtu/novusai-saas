@@ -413,7 +413,7 @@ export function useAdminDashboard() {
           : $t('admin.dashboard.controlTower.signals.healthAttention'),
       icon: 'lucide:shield-check',
       key: 'health',
-      route: '/admin/system/operation-logs',
+      route: '/admin/system/system-logs',
       title: $t('admin.dashboard.controlTower.signals.healthTitle'),
       value: health.value.status || $t('admin.dashboard.controlTower.unknown'),
     },
@@ -424,7 +424,7 @@ export function useAdminDashboard() {
           : $t('admin.dashboard.controlTower.signals.pluginHealthy'),
       icon: 'lucide:puzzle',
       key: 'plugins',
-      route: '/admin/system/operation-logs',
+      route: '/admin/plugins',
       title: $t('admin.dashboard.controlTower.signals.pluginTitle'),
       value: formatCompactNumber(pluginOverview.value.enabled),
     },
@@ -486,13 +486,6 @@ export function useAdminDashboard() {
       key: 'tasks',
       route: '/admin/system/periodic-tasks',
       title: $t('admin.dashboard.controlTower.actions.tasksTitle'),
-    },
-    {
-      description: $t('admin.dashboard.controlTower.actions.logsDesc'),
-      icon: 'lucide:scroll-text',
-      key: 'logs',
-      route: '/admin/system/operation-logs',
-      title: $t('admin.dashboard.controlTower.actions.logsTitle'),
     },
   ]);
 

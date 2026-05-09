@@ -188,7 +188,8 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
     # - menu:tenant.ai_usage (Usage Statistics / 用量统计)
     # - menu:tenant.ai_call_log (Call Log / 调用日志)
     # - menu:tenant.agent_conversation (Conversation Management / 对话管理)
-    # - menu:tenant.ai_action_log (Action Audit / 操作审计)
+    # 中文: 独立 AI 操作审计页面已退役；操作证据账本仍继续保留。
+    # EN: The standalone AI action-audit page is retired; the action ledger remains retained.
     # ========================================
     # System Maintenance (directory) / 系统维护（目录）
     # ========================================
@@ -217,8 +218,9 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
         parent_code="menu:tenant.system_maintenance",
     ),
     # Child menus declared by controllers / 子菜单由控制器声明:
-    # - menu:tenant.operation_log (Operation Log / 操作日志)
     # - menu:tenant.task_log (Task Log / 任务日志)
+    # 中文: 独立操作日志页面已退役；保留的审计证据仍作为内部能力使用。
+    # EN: The standalone operation-log page is retired; retained evidence stays internal.
     # Other child menus declared by controllers / 其他子菜单由控制器声明:
     # - menu:tenant.periodic_task (Periodic Task / 定时任务)
     # ========================================

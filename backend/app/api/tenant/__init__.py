@@ -16,8 +16,6 @@ from app.api.tenant.agent_chat import TenantAgentChatController
 from app.api.tenant.agent_chat import router as agent_chat_router
 from app.api.tenant.agents import TenantAgentController
 from app.api.tenant.agents import router as agents_router
-from app.api.tenant.ai_action_logs import TenantAIActionLogController
-from app.api.tenant.ai_action_logs import router as ai_action_logs_router
 from app.api.tenant.ai_call_logs import TenantAICallLogController
 from app.api.tenant.ai_call_logs import router as ai_call_logs_router
 from app.api.tenant.ai_config import TenantAIConfigController
@@ -49,8 +47,6 @@ from app.api.tenant.notification_preferences import (
     router as notification_preferences_router,
 )
 from app.api.tenant.notifications import router as notifications_router
-from app.api.tenant.operation_logs import TenantOperationLogController
-from app.api.tenant.operation_logs import router as operation_logs_router
 from app.api.tenant.organization import TenantOrganizationController
 from app.api.tenant.organization import router as organization_router
 from app.api.tenant.permission_roles import TenantPermissionRoleController
@@ -75,7 +71,6 @@ tenant_router.include_router(dashboard_router)
 tenant_router.include_router(configs_router)
 tenant_router.include_router(attachments_router)
 tenant_router.include_router(domains_router)
-tenant_router.include_router(operation_logs_router)
 tenant_router.include_router(permissions_router)
 tenant_router.include_router(permission_roles_router)
 tenant_router.include_router(organization_router)
@@ -100,8 +95,6 @@ tenant_router.include_router(ai_writing_router)
 tenant_router.include_router(plain_text_input_ai_router)
 # 功能分配 resolve / Feature assignment resolve
 tenant_router.include_router(agent_assignments_router)
-# AI 操作审计 / AI action logs
-tenant_router.include_router(ai_action_logs_router)
 # 知识库 / Knowledge bases
 tenant_router.include_router(knowledge_bases_router)
 # WebSocket 在线状态 / WebSocket online status
@@ -128,7 +121,6 @@ __all__ = [
     "TenantConfigController",
     "TenantAttachmentController",
     "TenantDomainController",
-    "TenantOperationLogController",
     "TenantPermissionController",
     "TenantPermissionRoleController",
     "TenantOrganizationController",
@@ -146,8 +138,6 @@ __all__ = [
     "TenantConversationController",
     # AI 对话 / AI chat
     "TenantAgentChatController",
-    # AI 操作审计 / AI action logs
-    "TenantAIActionLogController",
     # 知识库 / Knowledge bases
     "TenantKnowledgeBaseController",
     # 公告管理 / Announcement management
