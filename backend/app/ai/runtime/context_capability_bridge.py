@@ -76,6 +76,66 @@ def _last_user_text(request: Any) -> str:
     return ""
 
 
+def _binding_kb_id(binding: dict[str, Any]) -> int:
+    try:
+        return int(binding.get("knowledge_base_id") or binding.get("kb_id") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _coerce_non_negative_int(value: Any) -> int:
+    try:
+        return max(int(value), 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _knowledge_context_from_bindings(
+    *,
+    kb_bindings: list[dict[str, Any]],
+    knowledge_base_ids: list[int],
+    rag_attempted: bool,
+    rag_retrieval_status: str | None,
+    rag_no_hit_reason: str | None,
+    rag_matched_chunk_count: int,
+) -> dict[str, Any] | None:
+    effective_ids = {int(kb_id) for kb_id in knowledge_base_ids if int(kb_id) > 0}
+    knowledge_bases: list[dict[str, Any]] = []
+    seen_ids: set[int] = set()
+    for binding in kb_bindings:
+        kb_id = _binding_kb_id(binding)
+        if kb_id <= 0 or kb_id not in effective_ids or kb_id in seen_ids:
+            continue
+        name = str(binding.get("kb_name") or "").strip()
+        if not name:
+            continue
+        seen_ids.add(kb_id)
+        knowledge_bases.append(
+            {
+                "id": kb_id,
+                "name": name,
+                "description": str(binding.get("kb_description") or "").strip(),
+                "document_count": _coerce_non_negative_int(
+                    binding.get("kb_document_count")
+                ),
+            }
+        )
+    if not knowledge_bases and not knowledge_base_ids:
+        return None
+    return {
+        "knowledge_bases": knowledge_bases,
+        "knowledge_base_ids": list(knowledge_base_ids or []),
+        "knowledge_base_names": [item["name"] for item in knowledge_bases],
+        "retrieval": {
+            "attempted": bool(rag_attempted),
+            "status": str(rag_retrieval_status or "").strip() or None,
+            "source_count": max(int(rag_matched_chunk_count or 0), 0),
+            "matched_chunk_count": max(int(rag_matched_chunk_count or 0), 0),
+            "no_hit_reason": str(rag_no_hit_reason or "").strip() or None,
+        },
+    }
+
+
 @dataclass
 class DefaultContextCapabilityBridge(ContextCapabilityBridge):
     context_assembler: ContextAssembler
@@ -148,6 +208,10 @@ class DefaultContextCapabilityBridge(ContextCapabilityBridge):
         skill_result: Any | None,
         intent_flags: dict[str, bool],
         knowledge_base_ids: list[int],
+        rag_attempted: bool,
+        rag_retrieval_status: str | None,
+        rag_no_hit_reason: str | None,
+        rag_matched_chunk_count: int,
         long_term_memory_enabled: bool,
     ) -> ContextCapabilityAwareness:
         try:
@@ -161,6 +225,35 @@ class DefaultContextCapabilityBridge(ContextCapabilityBridge):
             capability_reporting_query = is_capability_reporting_query(
                 _last_user_text(request),
             )
+            include_kb_context = bool(
+                (intent_flags.get("has_knowledge_intent") or capability_reporting_query)
+                and knowledge_base_ids
+            )
+            kb_bindings: list[dict[str, Any]] = []
+            if include_kb_context:
+                from app.services.ai.agent_kb_binding_service import (
+                    AgentKBBindingService,
+                )
+
+                kb_service = AgentKBBindingService(db, request.tenant_id)
+                raw_bindings = await kb_service.get_agent_kb_bindings_with_metadata(
+                    agent.id,
+                    merge_platform_bindings=True,
+                )
+                effective_kb_ids = {int(kb_id) for kb_id in knowledge_base_ids}
+                kb_bindings = [
+                    binding
+                    for binding in raw_bindings
+                    if _binding_kb_id(binding) in effective_kb_ids
+                ]
+                awareness.knowledge_context = _knowledge_context_from_bindings(
+                    kb_bindings=kb_bindings,
+                    knowledge_base_ids=knowledge_base_ids,
+                    rag_attempted=rag_attempted,
+                    rag_retrieval_status=rag_retrieval_status,
+                    rag_no_hit_reason=rag_no_hit_reason,
+                    rag_matched_chunk_count=rag_matched_chunk_count,
+                )
             if not awareness.enabled or (
                 intent_flags.get("all_shortcircuit", False)
                 and not capability_reporting_query
@@ -183,24 +276,6 @@ class DefaultContextCapabilityBridge(ContextCapabilityBridge):
                 and knowledge_base_ids
             )
             if include_kb_awareness:
-                from app.services.ai.agent_kb_binding_service import (
-                    AgentKBBindingService,
-                )
-
-                kb_service = AgentKBBindingService(db, request.tenant_id)
-                kb_bindings = await kb_service.get_agent_kb_bindings_with_metadata(
-                    agent.id,
-                    merge_platform_bindings=True,
-                )
-                effective_kb_ids = set(knowledge_base_ids)
-                kb_bindings = [
-                    binding
-                    for binding in kb_bindings
-                    if int(
-                        binding.get("knowledge_base_id") or binding.get("kb_id") or 0
-                    )
-                    in effective_kb_ids
-                ]
                 kb_description = capability_builder.build_knowledge_base_descriptions(
                     kb_bindings
                 )
@@ -286,8 +361,22 @@ class DefaultContextCapabilityBridge(ContextCapabilityBridge):
                 for source in capability_bundle.context_sources
                 if bool(getattr(source, "active", True))
             }
+            kb_context_injected = any(
+                str(source.kind or "").strip() == "knowledge_base"
+                and (
+                    _coerce_non_negative_int(
+                        (source.metadata or {}).get("rag_source_count")
+                    )
+                    > 0
+                    or str(
+                        (source.metadata or {}).get("rag_retrieval_status") or ""
+                    ).strip()
+                    == "injected"
+                )
+                for source in capability_bundle.context_sources
+            )
             decision["kb_injected"] = bool(
-                decision.get("kb_injected") or "knowledge_base" in context_source_kinds
+                decision.get("kb_injected") or kb_context_injected
             )
             decision["memory_injected"] = bool(
                 decision.get("memory_injected")

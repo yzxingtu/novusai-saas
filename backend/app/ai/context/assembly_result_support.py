@@ -28,6 +28,11 @@ class ContextDiagnosticsInputs:
     requested_knowledge_base_ids: list[int] = field(default_factory=list)
     effective_knowledge_base_ids: list[int] = field(default_factory=list)
     dropped_knowledge_base_ids: list[int] = field(default_factory=list)
+    knowledge_context: dict[str, Any] | None = None
+    rag_attempted: bool = False
+    rag_retrieval_status: str | None = None
+    rag_no_hit_reason: str | None = None
+    rag_matched_chunk_count: int = 0
     context_budget: dict[str, Any] = field(default_factory=dict)
     budget_usage: dict[str, Any] = field(default_factory=dict)
     capability_injection_decision: dict[str, Any] = field(default_factory=dict)
@@ -105,6 +110,11 @@ def build_context_diagnostics(
         "requested_knowledge_base_ids": list(inputs.requested_knowledge_base_ids or []),
         "effective_knowledge_base_ids": list(inputs.effective_knowledge_base_ids or []),
         "dropped_knowledge_base_ids": list(inputs.dropped_knowledge_base_ids or []),
+        "knowledge_context": dict(inputs.knowledge_context or {}),
+        "rag_attempted": bool(inputs.rag_attempted),
+        "rag_retrieval_status": inputs.rag_retrieval_status,
+        "rag_no_hit_reason": inputs.rag_no_hit_reason,
+        "rag_matched_chunk_count": int(inputs.rag_matched_chunk_count or 0),
         "context_budget": build_context_budget_diagnostics(
             context_budget=inputs.context_budget,
             budget_usage=inputs.budget_usage,

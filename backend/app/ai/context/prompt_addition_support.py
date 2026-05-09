@@ -87,7 +87,75 @@ def build_visible_output_locale_hint(request: Any) -> str:
     )
 
 
-def build_runtime_capability_block(sections: list[dict[str, Any]]) -> str:
+def _normalize_knowledge_base_items(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        return []
+    normalized: list[dict[str, Any]] = []
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        try:
+            kb_id = int(item.get("id") or item.get("knowledge_base_id") or 0)
+        except (TypeError, ValueError):
+            kb_id = 0
+        name = str(
+            item.get("name")
+            or item.get("knowledge_base_name")
+            or item.get("kb_name")
+            or ""
+        ).strip()
+        if kb_id <= 0 and not name:
+            continue
+        try:
+            document_count = int(item.get("document_count") or 0)
+        except (TypeError, ValueError):
+            document_count = 0
+        normalized.append(
+            {
+                "id": kb_id or None,
+                "name": name,
+                "description": str(item.get("description") or "").strip(),
+                "document_count": max(document_count, 0),
+            }
+        )
+    return normalized
+
+
+def _normalize_knowledge_context(value: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not isinstance(value, dict):
+        return None
+    knowledge_bases = _normalize_knowledge_base_items(
+        value.get("knowledge_bases") or value.get("bound_knowledge_bases")
+    )
+    retrieval = value.get("retrieval")
+    retrieval = dict(retrieval or {}) if isinstance(retrieval, dict) else {}
+    if not knowledge_bases and not retrieval:
+        return None
+    return {
+        "knowledge_bases": knowledge_bases,
+        "retrieval": {
+            "attempted": bool(retrieval.get("attempted")),
+            "status": str(retrieval.get("status") or "").strip() or None,
+            "source_count": _coerce_non_negative_int(
+                retrieval.get("source_count"),
+                0,
+            ),
+            "matched_chunk_count": _coerce_non_negative_int(
+                retrieval.get("matched_chunk_count"),
+                0,
+            ),
+            "no_hit_reason": (
+                str(retrieval.get("no_hit_reason") or "").strip() or None
+            ),
+        },
+    }
+
+
+def build_runtime_capability_block(
+    sections: list[dict[str, Any]],
+    *,
+    knowledge_context: dict[str, Any] | None = None,
+) -> str:
     normalized_sections = []
     for section in sections or []:
         if not isinstance(section, dict):
@@ -119,12 +187,14 @@ def build_runtime_capability_block(sections: list[dict[str, Any]]) -> str:
                 "omitted_count": omitted_count,
             }
         )
-    if not normalized_sections:
+    normalized_knowledge_context = _normalize_knowledge_context(knowledge_context)
+    if not normalized_sections and not normalized_knowledge_context:
         return ""
     return render_prompt_contract(
         "turn_capabilities",
         selected_skill_names="",
         capability_sections=normalized_sections,
+        knowledge_context=normalized_knowledge_context,
     )
 
 

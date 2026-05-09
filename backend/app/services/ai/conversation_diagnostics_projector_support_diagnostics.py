@@ -40,6 +40,7 @@ _DIAGNOSTIC_NAME_LIST_KEYS = frozenset(
         "completed_by_tool_names",
         "inventory_selected_skill_names",
         "inventory_selected_tool_names",
+        "knowledge_base_names",
         "leaked_tool_names",
         "resolved_tool_names",
         "selected_skill_names",

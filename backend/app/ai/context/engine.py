@@ -205,6 +205,10 @@ class ConversationContextEngine(ContextEngine):
         )
         rag_sources = None
         rag_source_kinds: list[str] = []
+        rag_attempted = False
+        rag_retrieval_status: str | None = None
+        rag_no_hit_reason: str | None = None
+        rag_matched_chunk_count = 0
 
         rag_contribution = await self.rag_contributor.contribute(
             db=self.db,
@@ -222,6 +226,21 @@ class ConversationContextEngine(ContextEngine):
         messages = list(rag_contribution.messages or messages)
         rag_sources = rag_contribution.rag_sources
         rag_source_kinds = list(rag_contribution.rag_source_kinds or [])
+        rag_attempted = bool(getattr(rag_contribution, "rag_attempted", False))
+        rag_retrieval_status = (
+            str(getattr(rag_contribution, "rag_retrieval_status", "") or "").strip()
+            or None
+        )
+        rag_no_hit_reason = (
+            str(getattr(rag_contribution, "rag_no_hit_reason", "") or "").strip()
+            or None
+        )
+        try:
+            rag_matched_chunk_count = int(
+                getattr(rag_contribution, "rag_matched_chunk_count", 0) or 0
+            )
+        except (TypeError, ValueError):
+            rag_matched_chunk_count = 0
         capability_injection_decision["kb_injected"] = bool(
             rag_contribution.kb_injected
         )
@@ -274,6 +293,10 @@ class ConversationContextEngine(ContextEngine):
             skill_result=skill_result,
             intent_flags=intent_flags,
             knowledge_base_ids=list(merged_kb_ids or []),
+            rag_attempted=rag_attempted,
+            rag_retrieval_status=rag_retrieval_status,
+            rag_no_hit_reason=rag_no_hit_reason,
+            rag_matched_chunk_count=rag_matched_chunk_count,
             long_term_memory_enabled=long_term_memory_enabled,
         )
         dynamic_capability_awareness_enabled = bool(capability_awareness.enabled)
@@ -282,6 +305,7 @@ class ConversationContextEngine(ContextEngine):
         capability_awareness_block = (
             prompt_addition_support.build_runtime_capability_block(
                 list(capability_awareness.sections or []),
+                knowledge_context=capability_awareness.knowledge_context,
             )
         )
         if capability_awareness_block:
@@ -408,18 +432,40 @@ class ConversationContextEngine(ContextEngine):
                 requested_knowledge_base_ids=requested_kb_ids,
                 effective_knowledge_base_ids=merged_kb_ids,
                 dropped_knowledge_base_ids=dropped_kb_ids,
+                knowledge_context=capability_awareness.knowledge_context,
+                rag_attempted=rag_attempted,
+                rag_retrieval_status=rag_retrieval_status,
+                rag_no_hit_reason=rag_no_hit_reason,
+                rag_matched_chunk_count=rag_matched_chunk_count,
                 context_budget=context_budget,
                 budget_usage=budget_usage,
                 capability_injection_decision=capability_injection_decision,
             )
         )
+        knowledge_context = dict(capability_awareness.knowledge_context or {})
+        knowledge_bases = [
+            dict(item)
+            for item in (knowledge_context.get("knowledge_bases") or [])
+            if isinstance(item, dict)
+        ]
+        knowledge_base_names = [
+            str(item.get("name") or "").strip()
+            for item in knowledge_bases
+            if str(item.get("name") or "").strip()
+        ]
 
         capability_inputs = ContextCapabilityInputs(
             knowledge_base_ids=list(merged_kb_ids or []),
             requested_knowledge_base_ids=requested_kb_ids,
             dropped_knowledge_base_ids=dropped_kb_ids,
+            knowledge_bases=knowledge_bases,
+            knowledge_base_names=knowledge_base_names,
             rag_sources=list(rag_sources or []),
             rag_source_kinds=list(rag_source_kinds or []),
+            rag_attempted=rag_attempted,
+            rag_retrieval_status=rag_retrieval_status,
+            rag_no_hit_reason=rag_no_hit_reason,
+            rag_matched_chunk_count=rag_matched_chunk_count,
             memory_recalled=memory_recalled,
             session_memory_injected=bool(
                 getattr(request, "session_memory_injected", False)

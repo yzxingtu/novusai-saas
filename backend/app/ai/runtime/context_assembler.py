@@ -45,8 +45,14 @@ class ContextAssemblerState:
     knowledge_base_ids: list[int] = field(default_factory=list)
     requested_knowledge_base_ids: list[int] = field(default_factory=list)
     dropped_knowledge_base_ids: list[int] = field(default_factory=list)
+    knowledge_bases: list[dict[str, Any]] = field(default_factory=list)
+    knowledge_base_names: list[str] = field(default_factory=list)
     rag_sources: list[dict[str, Any]] = field(default_factory=list)
     rag_source_kinds: list[str] = field(default_factory=list)
+    rag_attempted: bool = False
+    rag_retrieval_status: str | None = None
+    rag_no_hit_reason: str | None = None
+    rag_matched_chunk_count: int = 0
     memory_recalled: bool = False
     session_memory_injected: bool = False
     memory_recall_slice: dict[str, Any] | None = None
@@ -59,8 +65,14 @@ class ContextAssemblerState:
                 self.requested_knowledge_base_ids or []
             ),
             "dropped_knowledge_base_ids": list(self.dropped_knowledge_base_ids or []),
+            "knowledge_bases": list(self.knowledge_bases or []),
+            "knowledge_base_names": list(self.knowledge_base_names or []),
             "rag_sources": list(self.rag_sources or []),
             "rag_source_kinds": list(self.rag_source_kinds or []),
+            "rag_attempted": bool(self.rag_attempted),
+            "rag_retrieval_status": self.rag_retrieval_status,
+            "rag_no_hit_reason": self.rag_no_hit_reason,
+            "rag_matched_chunk_count": int(self.rag_matched_chunk_count or 0),
             "memory_recalled": bool(self.memory_recalled),
             "session_memory_injected": bool(self.session_memory_injected),
             "memory_recall_slice": dict(self.memory_recall_slice or {}),
@@ -190,6 +202,25 @@ class ContextAssembler:
             if text and text not in normalized:
                 normalized.append(text)
         return normalized
+
+    @classmethod
+    def _knowledge_base_names_from_sources(
+        cls,
+        rag_sources: list[Any],
+    ) -> list[str]:
+        names: list[Any] = []
+        for raw_source in rag_sources or []:
+            if not isinstance(raw_source, dict):
+                continue
+            metadata = raw_source.get("metadata")
+            metadata = metadata if isinstance(metadata, dict) else {}
+            names.append(
+                raw_source.get("knowledge_base_name")
+                or raw_source.get("knowledgeBaseName")
+                or metadata.get("knowledge_base_name")
+                or metadata.get("knowledgeBaseName")
+            )
+        return cls._stable_unique_names(names)
 
     @classmethod
     def _apply_skill_result_selection_contract(
@@ -396,6 +427,27 @@ class ContextAssembler:
         ]
         rag_sources = list(state.get("rag_sources") or [])
         rag_source_kinds = list(state.get("rag_source_kinds") or [])
+        knowledge_bases = [
+            dict(item)
+            for item in (state.get("knowledge_bases") or [])
+            if isinstance(item, dict)
+        ]
+        knowledge_base_names = ContextAssembler._stable_unique_names(
+            list(state.get("knowledge_base_names") or [])
+        )
+        if not knowledge_base_names:
+            knowledge_base_names = ContextAssembler._knowledge_base_names_from_sources(
+                rag_sources
+            )
+        rag_attempted = bool(state.get("rag_attempted"))
+        rag_retrieval_status = (
+            str(state.get("rag_retrieval_status") or "").strip() or None
+        )
+        rag_no_hit_reason = str(state.get("rag_no_hit_reason") or "").strip() or None
+        try:
+            rag_matched_chunk_count = int(state.get("rag_matched_chunk_count") or 0)
+        except (TypeError, ValueError):
+            rag_matched_chunk_count = 0
 
         if (
             not kb_ids
@@ -403,23 +455,37 @@ class ContextAssembler:
             and not dropped_kb_ids
             and not rag_sources
             and not rag_source_kinds
+            and not knowledge_bases
+            and not knowledge_base_names
+            and not rag_retrieval_status
         ):
             return CapabilityFragment()
 
         metadata = {
             "knowledge_base_ids": kb_ids,
             "knowledge_base_count": len(kb_ids),
+            "knowledge_bases": knowledge_bases,
+            "knowledge_base_names": knowledge_base_names,
             "requested_knowledge_base_ids": requested_kb_ids,
             "dropped_knowledge_base_ids": dropped_kb_ids,
             "binding_restriction_applied": bool(requested_kb_ids and dropped_kb_ids),
             "rag_source_count": len(rag_sources),
             "rag_source_kinds": rag_source_kinds,
+            "rag_attempted": rag_attempted,
+            "rag_retrieval_status": rag_retrieval_status,
+            "rag_no_hit_reason": rag_no_hit_reason,
+            "rag_matched_chunk_count": rag_matched_chunk_count,
         }
+        display_name = (
+            knowledge_base_names[0]
+            if len(knowledge_base_names) == 1
+            else "knowledge_base"
+        )
 
         return CapabilityFragment(
             capability_descriptors=[
                 CapabilityDescriptor(
-                    name="knowledge_base",
+                    name=display_name,
                     kind="context_provider",
                     source="agent.rag_config",
                     description="Knowledge base retrieval and RAG context injection.",
@@ -429,7 +495,7 @@ class ContextAssembler:
             context_sources=[
                 ContextSource(
                     kind="knowledge_base",
-                    name="knowledge_base",
+                    name=display_name,
                     active=bool(kb_ids or rag_sources),
                     metadata=metadata,
                 )

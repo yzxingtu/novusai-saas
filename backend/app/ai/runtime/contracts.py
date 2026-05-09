@@ -327,8 +327,14 @@ class ContextCapabilityInputs:
     knowledge_base_ids: list[int] = field(default_factory=list)
     requested_knowledge_base_ids: list[int] = field(default_factory=list)
     dropped_knowledge_base_ids: list[int] = field(default_factory=list)
+    knowledge_bases: list[dict[str, Any]] = field(default_factory=list)
+    knowledge_base_names: list[str] = field(default_factory=list)
     rag_sources: list[dict[str, Any]] = field(default_factory=list)
     rag_source_kinds: list[str] = field(default_factory=list)
+    rag_attempted: bool = False
+    rag_retrieval_status: str | None = None
+    rag_no_hit_reason: str | None = None
+    rag_matched_chunk_count: int = 0
     memory_recalled: bool = False
     session_memory_injected: bool = False
     memory_recall_slice: dict[str, Any] | None = None
@@ -341,8 +347,14 @@ class ContextCapabilityInputs:
                 self.requested_knowledge_base_ids or []
             ),
             "dropped_knowledge_base_ids": list(self.dropped_knowledge_base_ids or []),
+            "knowledge_bases": list(self.knowledge_bases or []),
+            "knowledge_base_names": list(self.knowledge_base_names or []),
             "rag_sources": list(self.rag_sources or []),
             "rag_source_kinds": list(self.rag_source_kinds or []),
+            "rag_attempted": bool(self.rag_attempted),
+            "rag_retrieval_status": self.rag_retrieval_status,
+            "rag_no_hit_reason": self.rag_no_hit_reason,
+            "rag_matched_chunk_count": int(self.rag_matched_chunk_count or 0),
             "memory_recalled": bool(self.memory_recalled),
             "session_memory_injected": bool(self.session_memory_injected),
             "memory_recall_slice": dict(self.memory_recall_slice or {}),
@@ -360,6 +372,7 @@ class ContextCapabilityAwareness:
     enabled: bool = False
     categories: list[str] = field(default_factory=list)
     sections: list[dict[str, Any]] = field(default_factory=list)
+    knowledge_context: dict[str, Any] | None = None
     error: str | None = None
 
 
@@ -401,6 +414,10 @@ class ContextCapabilityBridge(Protocol):
         skill_result: Any | None,
         intent_flags: dict[str, bool],
         knowledge_base_ids: list[int],
+        rag_attempted: bool,
+        rag_retrieval_status: str | None,
+        rag_no_hit_reason: str | None,
+        rag_matched_chunk_count: int,
         long_term_memory_enabled: bool,
     ) -> ContextCapabilityAwareness: ...
 

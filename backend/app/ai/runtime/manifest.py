@@ -280,18 +280,46 @@ class AIRuntimeInventoryService:
         kb_ids = list(state.knowledge_base_ids or [])
         requested_kb_ids = list(state.requested_knowledge_base_ids or [])
         dropped_kb_ids = list(state.dropped_knowledge_base_ids or [])
+        knowledge_bases = [
+            dict(item)
+            for item in (state.knowledge_bases or [])
+            if isinstance(item, dict)
+        ]
+        knowledge_base_names = cls._stable_unique(
+            list(state.knowledge_base_names or [])
+        )
+        if not knowledge_base_names:
+            knowledge_base_names = cls._stable_unique(
+                [
+                    item.get("knowledge_base_name")
+                    or item.get("knowledgeBaseName")
+                    or item.get("name")
+                    for item in (state.rag_sources or [])
+                    if isinstance(item, dict)
+                ]
+            )
         kb_status: RuntimeCapabilityStatus = "available" if kb_ids else "unavailable"
         kb_reason = None if kb_ids else "no_effective_knowledge_base_binding"
         kb_metadata = {
             "knowledge_base_ids": kb_ids,
+            "knowledge_bases": knowledge_bases,
+            "knowledge_base_names": knowledge_base_names,
             "requested_knowledge_base_ids": requested_kb_ids,
             "dropped_knowledge_base_ids": dropped_kb_ids,
             "rag_source_kinds": list(state.rag_source_kinds or []),
             "rag_source_count": len(state.rag_sources or []),
+            "rag_attempted": bool(state.rag_attempted),
+            "rag_retrieval_status": state.rag_retrieval_status,
+            "rag_no_hit_reason": state.rag_no_hit_reason,
+            "rag_matched_chunk_count": int(state.rag_matched_chunk_count or 0),
         }
         knowledge_items = [
             RuntimeCapabilityItem(
-                name="knowledge_base",
+                name=(
+                    knowledge_base_names[0]
+                    if len(knowledge_base_names) == 1
+                    else "knowledge_base"
+                ),
                 kind="context_provider",
                 status=kb_status,
                 reason=kb_reason,
@@ -426,6 +454,14 @@ class AIRuntimeInventoryService:
         context_source_kinds = cls._stable_unique(
             [source.get("kind") for source in active_context_sources]
         )
+        knowledge_base_names = cls._stable_unique(
+            [
+                name
+                for item in manifest.knowledge_bases
+                if item.status == "available"
+                for name in list(item.metadata.get("knowledge_base_names") or [])
+            ]
+        )
         turn_skill_activation = cls._turn_skill_activation_summary(manifest)
         selection_contract = cls._selection_contract(manifest)
         context_line = ", ".join(
@@ -447,6 +483,7 @@ class AIRuntimeInventoryService:
             "live_turn_bound": selection_contract["live_turn_bound"],
             "context_line": context_line,
             "context_source_kinds": context_source_kinds,
+            "knowledge_base_names": knowledge_base_names,
             "tool_families": cls._stable_unique(
                 [
                     item.metadata.get("family")

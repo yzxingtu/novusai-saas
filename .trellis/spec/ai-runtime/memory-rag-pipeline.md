@@ -178,6 +178,14 @@ search to expand recall.
 - Optional rerank runs after merge to re-score results, then the filtered list
 is cached for reuse.
 - RAG sources and kinds are recorded in diagnostics and capability context.
+- Knowledge turns must publish a prompt-visible, machine-readable KB status
+  contract when effective KB bindings exist. The contract includes bound KB
+  names/document counts plus retrieval state (`injected`,
+  `attempted_no_results`, `skipped_not_knowledge_intent`, or
+  `no_effective_knowledge_base`) so the model can distinguish "bound but no
+  matching snippets" from "cited KB evidence". Bound KB metadata must not be
+  treated as user-facing citation evidence unless explicit RAG sources preserve
+  chunk/document identity.
 
 ## Diagnostics Requirements
 
