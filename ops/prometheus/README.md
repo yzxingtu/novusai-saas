@@ -4,9 +4,10 @@ Date: 2026-05-08
 
 ## Scope
 
-This runbook verifies the local production-monitoring acceptance gate for the
+This runbook verifies the local development monitoring acceptance gate for the
 NovusAI backend. It proves that the application exposes Prometheus metrics and
-that a local Prometheus server can scrape the backend.
+that a local Prometheus server can scrape the backend through the development
+API port.
 
 This does not replace a full production observability rollout. Capacity tests,
 backup/restore drills, DAST, and AI real-dialogue smoke remain separate gates.
@@ -45,6 +46,12 @@ Prometheus scrapes the host backend through:
 ```text
 host.docker.internal:8000
 ```
+
+For a production Compose smoke stack, use `http://127.0.0.1:18000` when
+probing the backend directly. If Prometheus should scrape the production
+Compose API instead of the development API, point a dedicated smoke config at
+`host.docker.internal:18000`; do not treat this development scrape config as a
+production-stack default.
 
 Verify the local Prometheus server:
 

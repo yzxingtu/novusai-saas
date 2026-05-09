@@ -2,7 +2,8 @@
 Thin bridge for AI runtime CLI commands.
 
 This module intentionally avoids owning business logic. It only routes CLI
-requests to unified runtime services when those services are available.
+requests to unified runtime services and fails closed when a required service
+cannot be loaded.
 """
 
 from __future__ import annotations
@@ -34,18 +35,23 @@ class RuntimeCliDependencyMissing(RuntimeError):
         self,
         operation: str,
         candidates: list[str],
+        detail: str | None = None,
     ) -> None:
         joined = ", ".join(candidates)
-        super().__init__(
+        message = (
             f"Runtime CLI operation '{operation}' is not available yet. "
             f"Expected one of: {joined}"
         )
+        if detail:
+            message = f"{message}. Detail: {detail}"
+        super().__init__(message)
         self.operation = operation
         self.candidates = candidates
+        self.detail = detail
 
 
 class AIRuntimeCliBridge:
-    """Dispatches CLI operations to unified services when present."""
+    """Dispatches CLI operations to required unified services."""
 
     def __init__(self, db: Any) -> None:
         self.db = db
@@ -66,7 +72,6 @@ class AIRuntimeCliBridge:
                     "get_manifest",
                 ),
             ],
-            fallback={"status": "not_available", "scope": scope.as_dict()},
         )
 
     async def run_doctor(self, scope: RuntimeCliScope) -> dict[str, Any]:
@@ -80,7 +85,6 @@ class AIRuntimeCliBridge:
                     "run_doctor",
                 ),
             ],
-            fallback={"status": "not_available", "scope": scope.as_dict()},
         )
 
     async def run_smoke(self, scope: RuntimeCliScope) -> dict[str, Any]:
@@ -94,7 +98,6 @@ class AIRuntimeCliBridge:
                     "run_smoke",
                 ),
             ],
-            fallback={"status": "not_available", "scope": scope.as_dict()},
         )
 
     async def run_real_dialogue_smoke(
@@ -113,7 +116,6 @@ class AIRuntimeCliBridge:
                     "run_real_dialogue_smoke",
                 ),
             ],
-            fallback={"status": "not_available", "scope": scope.as_dict()},
         )
 
     async def run_root_cause(
@@ -140,7 +142,6 @@ class AIRuntimeCliBridge:
                     "run_root_cause",
                 ),
             ],
-            fallback={"status": "not_available", "request": request_payload},
         )
 
     async def sync_starter_pack(self) -> dict[str, Any]:
@@ -153,10 +154,6 @@ class AIRuntimeCliBridge:
                     "sync_official_starter_pack",
                 ),
             ],
-            fallback={
-                "status": "not_available",
-                "message": "starter-pack service is not wired yet",
-            },
         )
 
     async def _dispatch(
@@ -166,16 +163,28 @@ class AIRuntimeCliBridge:
         candidates: list[tuple[str, str, str]],
         scope: RuntimeCliScope | None = None,
         payload: dict[str, Any] | None = None,
-        fallback: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        available = [f"{m}.{c}.{fn}" for m, c, fn in candidates]
         for module_name, class_name, method_name in candidates:
-            service_cls = self._load_class(module_name, class_name)
+            try:
+                service_cls = self._load_class(module_name, class_name)
+            except Exception as exc:
+                raise RuntimeCliDependencyMissing(
+                    operation,
+                    available,
+                    detail=f"failed to load {module_name}.{class_name}: {exc}",
+                ) from exc
             if service_cls is None:
                 continue
 
-            service_obj = self._instantiate_service(service_cls)
-            if service_obj is None:
-                continue
+            try:
+                service_obj = service_cls(self.db)
+            except Exception as exc:
+                raise RuntimeCliDependencyMissing(
+                    operation,
+                    available,
+                    detail=f"failed to initialize {module_name}.{class_name}: {exc}",
+                ) from exc
 
             method = getattr(service_obj, method_name, None)
             if not callable(method):
@@ -189,31 +198,13 @@ class AIRuntimeCliBridge:
                 return result
             return {"result": result}
 
-        if fallback is not None:
-            return fallback
-
-        available = [f"{m}.{c}.{fn}" for m, c, fn in candidates]
         raise RuntimeCliDependencyMissing(operation, available)
 
     @staticmethod
     def _load_class(module_name: str, class_name: str) -> type | None:
-        try:
-            module = import_module(module_name)
-        except Exception:
-            return None
+        module = import_module(module_name)
         value = getattr(module, class_name, None)
         return value if isinstance(value, type) else None
-
-    def _instantiate_service(self, service_cls: type) -> Any | None:
-        try:
-            return service_cls(self.db)
-        except TypeError:
-            try:
-                return service_cls(db=self.db)
-            except Exception:
-                return None
-        except Exception:
-            return None
 
     @staticmethod
     def _build_call_kwargs(

@@ -14,14 +14,14 @@ from pydantic import BaseModel, Field, field_validator
 from app.core.i18n import _
 from app.schemas.ai.invalid_ai_runtime_input import (
     ensure_no_disallowed_ai_runtime_input,
-    is_invalid_ai_runtime_tool_name,
+    is_invalid_ai_runtime_reference,
 )
 
 
 def _validate_tool_function(function: dict[str, Any]) -> dict[str, Any]:
     ensure_no_disallowed_ai_runtime_input(function)
     tool_name = str(function.get("name") or "").strip()
-    if tool_name and is_invalid_ai_runtime_tool_name(tool_name):
+    if tool_name and is_invalid_ai_runtime_reference(tool_name):
         raise ValueError(
             _(
                 "agent_chat.error.invalid_ai_runtime_input_tool",

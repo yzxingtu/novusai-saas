@@ -261,6 +261,16 @@ ehthumbs_vista.db
 !/.trellis/
 /.trellis/*
 # Limited Trellis authority-root whitelist (exact files only; do not broaden to all of .trellis)
+!/.trellis/workflow.md
+!/.trellis/spec/
+/.trellis/spec/*
+!/.trellis/spec/guides/
+/.trellis/spec/guides/*
+!/.trellis/spec/guides/trellis-paths.md
+!/.trellis/spec/ai-runtime/
+/.trellis/spec/ai-runtime/*
+!/.trellis/spec/ai-runtime/index.md
+!/.trellis/spec/ai-runtime/testing-discipline.md
 !/.trellis/tasks/
 /.trellis/tasks/*
 !/.trellis/tasks/04-28-ai-dialogue-execution-task-index/

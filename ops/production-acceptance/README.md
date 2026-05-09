@@ -4,7 +4,7 @@ This runbook records the executable local acceptance gates used before claiming
 SaaS delivery readiness. The probe reports each gate as `passed`, `failed`, or
 `blocked`.
 
-## Command
+## Local Development Stack Command
 
 Run from `backend/` while the local API, frontend, PostgreSQL, Redis, and Docker
 are available:
@@ -30,14 +30,37 @@ are available:
   --timeout 5
 ```
 
-When the target is the production Docker Compose smoke stack, pass the matching
-PostgreSQL container and database identity from the compose environment, for
-example:
+The command above targets the local development stack: backend on `8000` and
+frontend on `5666`.
+
+## Production Compose Smoke Command
+
+When the target is the production Docker Compose smoke stack, target the
+production compose host ports and pass the matching PostgreSQL container and
+database identity from the compose environment:
 
 ```powershell
+.\.venv\Scripts\python.exe scripts\production_acceptance_probe.py `
+  --api-base-url http://127.0.0.1:18000 `
+  --frontend-base-url http://127.0.0.1:18080 `
+  --load-smoke-requests 32 `
+  --load-smoke-concurrency 8 `
+  --capacity-requests 96 `
+  --capacity-concurrency 16 `
+  --capacity-p95-budget-ms 1500 `
+  --capacity-error-budget-ratio 0 `
+  --run-backup-restore-drill `
+  --run-security-scans `
+  --run-dast-baseline `
+  --dast-target-url http://127.0.0.1:18000 `
   --postgres-container novusai-prod-smoke-postgres-1 `
   --postgres-db novusai_saas `
-  --postgres-user novusai
+  --postgres-user novusai `
+  --ai-smoke-agent-id <id> `
+  --ai-smoke-report ..\.trellis\tasks\05-08-production-acceptance-gates\smoke-runs\<run-id>\report.json `
+  --artifact-dir ops\acceptance-artifacts `
+  --allow-blocked `
+  --timeout 5
 ```
 
 `--allow-blocked` only allows automation to exit 0 when no gate failed. It does
@@ -155,6 +178,9 @@ $env:CAPACITY_TARGET_PATH = "/ready"
   --only-summary
 ```
 
+For the production compose smoke stack, replace the Locust host with
+`http://127.0.0.1:18000`.
+
 Reproducible direct k6 command:
 
 ```powershell
@@ -168,6 +194,9 @@ k6 run `
   --summary-export ops\acceptance-artifacts\capacity\manual-k6-summary.json `
   ops\production-acceptance\capacity\k6_ready.js
 ```
+
+For the production compose smoke stack, set `$env:API_BASE_URL` to
+`http://127.0.0.1:18000`.
 
 ## Artifact Policy
 

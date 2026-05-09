@@ -20,6 +20,17 @@ from app.schemas.ai.agent_chat import AgentChatRequest, AgentRouteRequest
 from app.schemas.ai.batch_run import BatchRunCreate
 from app.schemas.ai.gateway import ChatRequest
 
+RETIRED_ONLINE_SEARCH_TOOL_NAMES = (
+    "web_search",
+    "fetch_url",
+    "web_research",
+    "online_search",
+    "hosted_web_search",
+    "native_web_search",
+    "SearchProvider",
+    "联网搜索",
+)
+
 
 def test_agent_chat_request_rejects_invalid_runtime_fields() -> None:
     with pytest.raises(ValidationError):
@@ -301,6 +312,48 @@ def test_direct_gateway_rejects_invalid_runtime_tool_definitions() -> None:
         )
 
 
+@pytest.mark.parametrize("tool_name", RETIRED_ONLINE_SEARCH_TOOL_NAMES)
+def test_direct_gateway_rejects_retired_online_search_tool_definitions(
+    tool_name: str,
+) -> None:
+    with pytest.raises(ValidationError):
+        ChatRequest.model_validate(
+            {
+                "model_code": "openai/gpt-test",
+                "messages": [{"role": "user", "content": "hello"}],
+                "tools": [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": tool_name,
+                            "description": "retired online-search tool",
+                        },
+                    }
+                ],
+            }
+        )
+
+    with pytest.raises(ValidationError):
+        ChatRequest.model_validate(
+            {
+                "model_code": "openai/gpt-test",
+                "messages": [
+                    {
+                        "role": "assistant",
+                        "content": "",
+                        "tool_calls": [
+                            {
+                                "id": "call-retired",
+                                "type": "function",
+                                "function": {"name": tool_name},
+                            }
+                        ],
+                    }
+                ],
+            }
+        )
+
+
 @pytest.mark.asyncio
 async def test_tool_sandbox_rejects_invalid_runtime_tools() -> None:
     sandbox = ToolSandbox(
@@ -345,6 +398,28 @@ def test_openai_tool_schema_filters_invalid_runtime_tools() -> None:
                 source_package_name="百度公开搜索",
                 source_plugin="baidu_public_search",
             ),
+        ]
+    )
+
+    assert [tool["function"]["name"] for tool in tools] == ["crm_lookup"]
+
+
+@pytest.mark.parametrize("tool_name", RETIRED_ONLINE_SEARCH_TOOL_NAMES)
+def test_openai_tool_schema_rejects_retired_online_search_tool_names(
+    tool_name: str,
+) -> None:
+    with pytest.raises(ValueError):
+        ToolDefinition(name=tool_name, description="retired search").to_openai_schema()
+
+
+def test_openai_tools_filter_retired_online_search_tool_names() -> None:
+    tools = to_openai_tools(
+        [
+            ToolDefinition(name="crm_lookup", description="valid"),
+            *[
+                ToolDefinition(name=tool_name, description="retired search")
+                for tool_name in RETIRED_ONLINE_SEARCH_TOOL_NAMES
+            ],
         ]
     )
 

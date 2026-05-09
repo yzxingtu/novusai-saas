@@ -20,6 +20,21 @@ reported → reproduced_locally → red_test_written → fix_in_progress → fix
 任何声称"修复 bug"的 PR，必须在 PR body 引用至少一条本文件的 bug_id，并提交对应的 RED→GREEN 测试
 commits。PR 审核（parent agent 或人类 reviewer）必须核对这条引用确实存在且测试真的红过。
 
+## Retired Online-Search Supersession
+
+本文件中早期含 `web_search`、`fetch_url`、`web_research`、WebResearch、
+hosted/native search、`SearchProvider` 或类似联网搜索能力名的条目，只能作为
+历史症状和历史排障背景读取。它们的旧 `expected_behavior` 不再是当前系统的
+实现目标，不得被用来恢复搜索、抓取、联网浏览、provider-hosted search、或
+`web_search -> fetch_url` 链路。
+
+当前新系统的验收标准以
+`.trellis/spec/ai-runtime/tool-skill-governance.md` 为准：新对话必须拒绝或隐藏
+退役联网搜索能力，`ToolDefinition`、gateway schema、skill resolver、provider
+payload、sandbox 和 diagnostics 都必须 fail closed。相关历史条目的 GREEN 证据应
+改指当前存在的退役 guard / diagnostics suppression / invalid runtime input 测试，
+不得再引用已删除的 WebResearch 正向测试作为上线依据。
+
 ---
 
 ## 当前条目

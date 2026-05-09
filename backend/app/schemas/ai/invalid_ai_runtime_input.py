@@ -286,6 +286,7 @@ def is_invalid_ai_runtime_tool_name(name: Any) -> bool:
         normalized.startswith("ui_")
         or normalized.startswith("pageop_")
         or normalized in INVALID_AI_RUNTIME_TOOL_NAMES
+        or is_retired_online_search_catalog_reference(name)
     )
 
 
