@@ -1,4 +1,4 @@
-import type { ChatMessage, TurnFlowViewModel } from './types';
+import type { ChatMessage, TurnEvidenceItem, TurnFlowViewModel } from './types';
 
 import {
   hasCanonicalRagEvidence,
@@ -102,9 +102,9 @@ export function normalizeTurnFlowViewModel(
   const timeline = normalizeObjectRecordList(timelineRaw).map((item, index) =>
     normalizeStage(item, index),
   );
-  const evidence = normalizeObjectRecordList(evidenceRaw).map((item, index) =>
-    normalizeEvidence(item, index),
-  );
+  const evidence = normalizeObjectRecordList(evidenceRaw)
+    .map((item, index) => normalizeEvidence(item, index))
+    .filter((item): item is TurnEvidenceItem => !!item);
   const answerCard = normalizeAnswerCard(
     record.answer_card ?? record.answerCard,
   );

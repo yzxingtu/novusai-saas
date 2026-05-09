@@ -177,7 +177,10 @@ def _is_terminal_failure(
     return bool(turn_outcome == "partial" and normalized_failure_kind)
 
 
-def _evidence_kind_from_source(source: Mapping[str, Any]) -> str:
+_RETIRED_RAG_EVIDENCE_KINDS = {"page", "web", "search", "url"}
+
+
+def _evidence_kind_from_source(source: Mapping[str, Any]) -> str | None:
     raw_kind = (
         str(
             source.get("kind")
@@ -191,17 +194,15 @@ def _evidence_kind_from_source(source: Mapping[str, Any]) -> str:
     )
     if raw_kind in {"kb", "knowledge_base", "knowledge"}:
         return "knowledge_base"
+    if raw_kind in {"doc", "document", "file"}:
+        return "document"
     if raw_kind in {"tool", "tool_result", "function"}:
         return "tool"
-    if raw_kind == "page":
-        return "page"
     if raw_kind in {"memory", "long_term_memory", "session_memory"}:
         return "memory"
-    if raw_kind in {"web", "search", "url"}:
-        return "web"
-    if _as_text(source.get("url")):
-        return "web"
-    return "knowledge_base"
+    if raw_kind in _RETIRED_RAG_EVIDENCE_KINDS:
+        return None
+    return None
 
 
 def _has_user_facing_source_payload(source: Mapping[str, Any]) -> bool:
@@ -241,6 +242,9 @@ def build_turn_evidence_items(
             or _as_text(source_metadata.get("source_ref"))
             or _as_text(source_metadata.get("id"))
         )
+        evidence_kind = _evidence_kind_from_source(source)
+        if evidence_kind is None:
+            continue
         title = (
             _as_text(source.get("title"))
             or _as_text(source.get("name"))
@@ -253,7 +257,7 @@ def build_turn_evidence_items(
         evidence_items.append(
             TurnEvidenceItem(
                 id=_as_text(source.get("id")) or f"evidence_{index + 1}",
-                kind=_evidence_kind_from_source(source),  # type: ignore[arg-type]
+                kind=evidence_kind,
                 title=title,
                 url=url,
                 snippet=_as_text(

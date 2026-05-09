@@ -337,6 +337,7 @@ export const LUCIDE_ICON_NAMES = [
   "wallet",
   "wand-2",
   "wand-sparkles",
+  "waves",
   "waypoints",
   "webhook",
   "wifi",
@@ -684,6 +685,7 @@ export const LUCIDE_ICON_IDS = [
   "lucide:wallet",
   "lucide:wand-2",
   "lucide:wand-sparkles",
+  "lucide:waves",
   "lucide:waypoints",
   "lucide:webhook",
   "lucide:wifi",
@@ -1764,6 +1766,9 @@ export const LUCIDE_ICON_SUBSET = {
     },
     "wand-sparkles": {
       "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"m21.64 3.64l-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72M14 7l3 3M5 6v4m14 4v4M10 2v2M7 8H3m18 8h-4M11 3H9\"/>"
+    },
+    "waves": {
+      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M2 6c.6.5 1.2 1 2.5 1C7 7 7 5 9.5 5c2.6 0 2.4 2 5 2c2.5 0 2.5-2 5-2c1.3 0 1.9.5 2.5 1M2 12c.6.5 1.2 1 2.5 1c2.5 0 2.5-2 5-2c2.6 0 2.4 2 5 2c2.5 0 2.5-2 5-2c1.3 0 1.9.5 2.5 1M2 18c.6.5 1.2 1 2.5 1c2.5 0 2.5-2 5-2c2.6 0 2.4 2 5 2c2.5 0 2.5-2 5-2c1.3 0 1.9.5 2.5 1\"/>"
     },
     "waypoints": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"m10.586 5.414l-5.172 5.172m13.172 2.828l-5.172 5.172M6 12h12\"/><circle cx=\"12\" cy=\"20\" r=\"2\"/><circle cx=\"12\" cy=\"4\" r=\"2\"/><circle cx=\"20\" cy=\"12\" r=\"2\"/><circle cx=\"4\" cy=\"12\" r=\"2\"/></g>"

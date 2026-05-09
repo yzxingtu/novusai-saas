@@ -437,7 +437,7 @@ def test_done_payload_marks_partial_provider_failure_as_error_terminal() -> None
         total_tokens=21,
         duration_ms=34,
         tool_results=[],
-        rag_sources=[{"id": "src_9", "kind": "web", "title": "Evidence"}],
+        rag_sources=[{"id": "src_9", "kind": "knowledge_base", "title": "Evidence"}],
         include_provider_state=True,
     )
     artifacts = stream_finalization_pipeline.StreamFinalizationArtifacts(

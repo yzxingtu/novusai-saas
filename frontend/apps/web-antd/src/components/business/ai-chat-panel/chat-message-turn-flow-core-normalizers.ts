@@ -110,7 +110,7 @@ export function normalizeStageStatus(
   return fallback;
 }
 
-function normalizeEvidenceKind(value: unknown): TurnFlowEvidenceKind {
+function normalizeEvidenceKind(value: unknown): TurnFlowEvidenceKind | undefined {
   const normalized = normalizeOptionalString(value);
   if (
     normalized &&
@@ -121,7 +121,7 @@ function normalizeEvidenceKind(value: unknown): TurnFlowEvidenceKind {
   if (normalized === 'kb') {
     return 'knowledge_base';
   }
-  return 'tool';
+  return undefined;
 }
 
 function normalizeStageDetailLines(record: Record<string, unknown>): string[] {
@@ -185,7 +185,7 @@ export function normalizeStage(
 export function normalizeEvidence(
   record: Record<string, unknown>,
   index: number,
-): TurnFlowEvidenceItem {
+): TurnFlowEvidenceItem | undefined {
   const id =
     normalizeOptionalString(record.id) ??
     normalizeOptionalString(record.source_ref) ??
@@ -240,9 +240,13 @@ export function normalizeEvidence(
     undefined;
   const durationMs = normalizeNumber(record.duration_ms ?? record.durationMs);
   const startedAt = normalizeNumber(record.started_at ?? record.startedAt);
+  const kind = normalizeEvidenceKind(record.kind);
+  if (!kind) {
+    return undefined;
+  }
   return {
     id,
-    kind: normalizeEvidenceKind(record.kind),
+    kind,
     ...(title ? { title } : {}),
     ...(url ? { url } : {}),
     ...(resultLink ? { resultLink } : {}),

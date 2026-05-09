@@ -208,12 +208,6 @@ def test_build_turn_evidence_events_emits_retrieval_and_items() -> None:
     events = build_turn_evidence_events(
         [
             {
-                "id": "src_web_1",
-                "kind": "web",
-                "title": "Web result",
-                "url": "https://example.com/a",
-            },
-            {
                 "id": "src_kb_1",
                 "kind": "knowledge_base",
                 "title": "KB result",
@@ -225,7 +219,27 @@ def test_build_turn_evidence_events_emits_retrieval_and_items() -> None:
     evidence_events = [
         event for event in events if event.get("event") == "turn_evidence"
     ]
-    assert len(evidence_events) == 2
+    assert len(evidence_events) == 1
+    assert [event["evidence"]["kind"] for event in evidence_events] == [
+        "knowledge_base",
+    ]
+
+
+def test_build_turn_evidence_events_drops_retired_page_search_and_url_sources() -> None:
+    events = build_turn_evidence_events(
+        [
+            {"id": "page-source", "kind": "page", "title": "Page source"},
+            {"id": "search-source", "kind": "search", "title": "Search source"},
+            {"id": "url-source", "kind": "url", "title": "URL source"},
+            {"id": "url-only-source", "title": "URL only", "url": "https://e.test"},
+        ]
+    )
+
+    evidence_events = [
+        event for event in events if event.get("event") == "turn_evidence"
+    ]
+
+    assert evidence_events == []
 
 
 def test_build_turn_flow_view_model_marks_partial_failure_as_error_terminal() -> None:
@@ -272,8 +286,7 @@ def test_build_turn_flow_view_model_marks_partial_failure_as_error_terminal() ->
     assert (turn_flow["error_surface"] or {}).get(
         "failure_kind"
     ) == "provider_unavailable"
-    assert len(turn_flow["evidence"]) == 1
-    assert turn_flow["evidence"][0]["id"] == "src_2"
+    assert turn_flow["evidence"] == []
 
 
 def test_build_turn_flow_view_model_marks_elapsed_budget_exit_as_error_terminal() -> (

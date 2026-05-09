@@ -904,6 +904,52 @@ describe('useAIChat interrupted stream recovery', () => {
     );
   });
 
+  it('drops retired web evidence kind from SSE instead of showing it as knowledge-base', async () => {
+    apiMocks.sendChatStreamApi.mockImplementation(
+      async (
+        _prefix: string,
+        _agentId: number,
+        _body: Record<string, unknown>,
+        options: {
+          onMessage: (chunk: string) => Promise<void>;
+        },
+      ) => {
+        await options.onMessage(
+          sseEvent({ event: 'conversation', conversation_id: 42 }),
+        );
+        await options.onMessage(
+          sseEvent({
+            event: 'turn_evidence',
+            id: 'legacy-web-source',
+            kind: 'web',
+            title: 'Approved KB URL source',
+            url: 'https://example.com/source',
+          }),
+        );
+        await options.onMessage(sseEvent({ event: 'done', total_tokens: 9 }));
+      },
+    );
+
+    const chat = createChat();
+
+    await chat.loadAgents();
+    chat.inputMessage.value = '根据已授权资料回答';
+
+    await chat.sendMessage();
+    await flushStreamSend();
+
+    const assistantMessage = chat.chatMessages.value.find(
+      (msg) => msg.role === 'assistant',
+    );
+    expect(assistantMessage).toBeDefined();
+    if (!assistantMessage) {
+      throw new Error('assistant message missing');
+    }
+    expect(assistantMessage.turnFlow?.evidence).toEqual([]);
+    expect(getToolCallsForDisplay(assistantMessage)).toBeUndefined();
+    expect(getRagSourcesForDisplay(assistantMessage)).toBeUndefined();
+  });
+
   it('ignores live legacy semantic SSE events on tenant streams while keeping canonical cards', async () => {
     apiMocks.sendChatStreamApi.mockImplementation(
       async (

@@ -162,20 +162,7 @@ function getStatusAccentClass(status: AIHealthStatus): string {
 
 function getProviderHistory(status: AIHealthStatus): AIHealthHistoryEntry[] {
   const history = healthHistoryMap.value[status.provider_id] ?? [];
-  const points = history.slice(0, HISTORY_SLOT_COUNT).toReversed();
-  if (points.length > 0) return points;
-  return [
-    {
-      primary_wire_api: status.primary_wire_api,
-      is_healthy: status.is_healthy,
-      is_available: status.is_available,
-      base_connectivity_healthy: status.base_connectivity_healthy,
-      tool_calling_healthy: status.tool_calling_healthy,
-      response_time_ms: status.response_time_ms,
-      error_message: status.error_message,
-      checked_at: status.checked_at,
-    },
-  ];
+  return history.slice(0, HISTORY_SLOT_COUNT).toReversed();
 }
 
 function getHistoryDisplayPoints(
@@ -374,7 +361,7 @@ watch(
         <div
           v-if="statuses.length > 0"
           data-testid="health-provider-cards"
-          class="grid grid-cols-1 gap-4 xl:grid-cols-2 2xl:grid-cols-3"
+          class="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3"
         >
           <article
             v-for="status in statuses"
@@ -508,7 +495,7 @@ watch(
                   >
                     <span
                       data-testid="health-history-point"
-                      class="h-8 w-full rounded-full"
+                      class="h-8 w-[2px] justify-self-center rounded-full"
                       :class="getHistoryPointClass(point)"
                     ></span>
                   </Tooltip>

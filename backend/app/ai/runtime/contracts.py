@@ -30,7 +30,7 @@ TurnFlowStageStatus = Literal[
     "error",
     "interrupted",
 ]
-TurnEvidenceKind = Literal["web", "knowledge_base", "tool", "memory"]
+TurnEvidenceKind = Literal["document", "knowledge_base", "tool", "memory"]
 
 
 @dataclass
