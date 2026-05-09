@@ -289,6 +289,11 @@ ehthumbs_vista.db
 !/.trellis/tasks/04-29-ai-dialogue-governance-reset/smoke-runs/20260430-071900-search-page-memory-kb/
 /.trellis/tasks/04-29-ai-dialogue-governance-reset/smoke-runs/20260430-071900-search-page-memory-kb/*
 !/.trellis/tasks/04-29-ai-dialogue-governance-reset/smoke-runs/20260430-071900-search-page-memory-kb/report.md
+!/.trellis/tasks/04-28-w5-pkg-04-regression-carry-forward-discipline/
+/.trellis/tasks/04-28-w5-pkg-04-regression-carry-forward-discipline/*
+!/.trellis/tasks/04-28-w5-pkg-04-regression-carry-forward-discipline/task.json
+!/.trellis/tasks/04-28-w5-pkg-04-regression-carry-forward-discipline/prd.md
+!/.trellis/tasks/04-28-w5-pkg-04-regression-carry-forward-discipline/info.md
 !/.trellis/tasks/05-08-05-08-online-search-retirement-cleanup/
 /.trellis/tasks/05-08-05-08-online-search-retirement-cleanup/*
 !/.trellis/tasks/05-08-05-08-online-search-retirement-cleanup/task.json

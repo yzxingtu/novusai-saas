@@ -1,3 +1,9 @@
+# Historical Only
+
+This smoke report is superseded by the 05-05 and 05-08 online-search
+retirement work. Do not use it as current acceptance, current smoke
+expectation, or evidence to restore WebResearch, `web_search`, or `fetch_url`.
+
 # WebResearch 2326/2327 AI News Depth And Digest Quality Smoke
 
 Test type: smoke

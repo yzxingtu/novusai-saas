@@ -10,6 +10,14 @@
 > authorized model-facing metadata; main runtime must not hardcode weather,
 > search, or plugin skill names.
 
+## Current Interpretation
+
+The architecture notes below are historical only. They describe a superseded
+WebResearch implementation attempt and must not be used as current acceptance,
+worker assignment input, or evidence to reintroduce search/fetch runtime paths.
+Use `.trellis/spec/ai-runtime/tool-skill-governance.md` and the 05-08 online
+search retirement task as the executable source of truth.
+
 ## Target Shape
 
 ```text

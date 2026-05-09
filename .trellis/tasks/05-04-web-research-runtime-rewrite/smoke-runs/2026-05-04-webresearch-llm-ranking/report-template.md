@@ -1,3 +1,9 @@
+# Historical Only
+
+This smoke report template is superseded by the 05-05 and 05-08 online-search
+retirement work. Do not use it as current acceptance, current smoke
+expectation, or evidence to restore WebResearch, `web_search`, or `fetch_url`.
+
 # Smoke / Replay Report (Superseded For Final Acceptance)
 
 > 2026-05-05 update: this 2284 run is retained as historical evidence that the

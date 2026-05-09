@@ -10,6 +10,15 @@
 > authorized model-facing metadata; main runtime must not hardcode weather,
 > search, or plugin skill names.
 
+## Current Interpretation
+
+Everything below this point is a historical record of a rejected repair path.
+Do not implement these requirements, do not run the old check matrix as current
+acceptance, and do not restore WebResearch/search/fetch capabilities from this
+document. The current executable rule lives in
+`.trellis/spec/ai-runtime/tool-skill-governance.md` and
+`.trellis/tasks/05-08-05-08-online-search-retirement-cleanup/`.
+
 ## Problem
 
 The current AI dialogue web-research path has accumulated several incompatible decisions:

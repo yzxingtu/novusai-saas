@@ -1,3 +1,10 @@
+# Historical Only
+
+This smoke report is superseded by the 05-05 and 05-08 online-search
+retirement work. Do not use it as current acceptance, current smoke
+expectation, or evidence to restore WebResearch, provider-hosted/native search,
+`web_search`, or `fetch_url`.
+
 # Native Web Search Cross-Audit Follow-up
 
 Date: 2026-05-03

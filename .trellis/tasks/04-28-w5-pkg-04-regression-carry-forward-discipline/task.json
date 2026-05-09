@@ -1,0 +1,78 @@
+{
+  "id": "04-28-w5-pkg-04-regression-carry-forward-discipline",
+  "name": "04-28-w5-pkg-04-regression-carry-forward-discipline",
+  "title": "W5-PKG-04 regression carry-forward discipline",
+  "description": "Planning-only child task for freezing how each milestone carries forward prior must-pass scenarios, retained UI smoke, screenshot artifacts, and fixed bug chains so later packages cannot claim green on stale evidence.",
+  "status": "plan",
+  "path": "deep",
+  "priority": "P0",
+  "scope": [
+    "acceptance governance",
+    "carry-forward tables",
+    "stale-evidence rejection",
+    "frontend smoke inheritance"
+  ],
+  "classification": [
+    "execution-governance",
+    "child-task",
+    "planning-only"
+  ],
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-04-28",
+  "completedAt": null,
+  "parent": "04-27-ai-dialogue-architecture-rewrite",
+  "implementation_authorized": false,
+  "smoke_rerun_authorized": false,
+  "push_authorized": false,
+  "cleanup_authorized": false,
+  "non_goals": [
+    "no milestone green claim",
+    "no smoke rerun",
+    "no cleanup permission",
+    "no replacement of 04-23 authority without explicit successor adoption"
+  ],
+  "dependencies": [
+    "04-28-w5-pkg-01-successor-smoke-scenario-ledger",
+    "04-28-w5-pkg-02-successor-known-bug-ledger",
+    "04-28-w5-pkg-03-smoke-harness-artifact-schema"
+  ],
+  "file_touch_expectations": [
+    ".trellis/tasks/04-27-ai-dialogue-architecture-rewrite/acceptance-matrix.md",
+    ".trellis/tasks/04-27-ai-dialogue-architecture-rewrite/info.md",
+    ".trellis/tasks/04-27-ai-dialogue-architecture-rewrite/smoke-scenarios.md",
+    ".trellis/tasks/04-27-ai-dialogue-architecture-rewrite/known-bug-scenarios.md",
+    ".trellis/tasks/04-27-ai-dialogue-architecture-rewrite/smoke-runs/README.md"
+  ],
+  "acceptance_gates": {
+    "structural": [
+      "carry-forward table format exists for package id, touched surfaces, must-pass scenarios, must-stay-green scenarios, bug ids, screenshot manifests, and same-batch source status"
+    ],
+    "behavioral": [
+      "touched surfaces cannot inherit green status after a newer upstream FAIL",
+      "frontend retained smoke and screenshot artifacts must be explicitly referenced instead of assumed from prior packages"
+    ],
+    "smoke": [
+      "no retained smoke may advance status without same-batch source PASS and archived screenshot/video/log artifacts"
+    ],
+    "known_bug": [
+      "a bug remains green only when its regression file, linked scenario, and linked UI smoke all remain green"
+    ]
+  },
+  "stop_conditions": [
+    "any package claims progress from stale retained evidence after newer source FAIL",
+    "bug chains are considered green without linked smoke staying green",
+    "frontend screenshot artifacts are treated as optional for retained-surface acceptance"
+  ],
+  "relatedFiles": [
+    ".trellis/tasks/04-27-ai-dialogue-architecture-rewrite/acceptance-matrix.md",
+    ".trellis/tasks/04-27-ai-dialogue-architecture-rewrite/smoke-scenarios.md",
+    ".trellis/tasks/04-27-ai-dialogue-architecture-rewrite/known-bug-scenarios.md",
+    ".trellis/tasks/04-27-ai-dialogue-architecture-rewrite/smoke-runs/README.md",
+    "frontend/apps/web-antd/__tests__/e2e/ai-chat-shell-cross-surface.spec.ts",
+    "backend/tests/test_admin_operation_log_routes_contract.py",
+    "backend/tests/migrations/test_log_product_surface_retirement_migration.py",
+    "frontend/apps/web-antd/__tests__/e2e/ai-call-logs.spec.ts"
+  ],
+  "notes": "This governance package is the acceptance gatekeeper for later W4 work. It does not authorize new smoke runs; it defines how current and prior smoke/screenshot evidence must be carried forward and judged. 2026-05-09 update: standalone operation-log and tenant AI action-log product pages are retired. Do not recreate frontend/apps/web-antd/__tests__/e2e/operation-log.spec.ts or ai-action-logs.spec.ts to satisfy this ledger; use the backend retirement contract and RBAC migration tests listed in relatedFiles."
+}
