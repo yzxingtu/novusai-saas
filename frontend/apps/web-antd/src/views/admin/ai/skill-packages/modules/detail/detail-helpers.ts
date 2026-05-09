@@ -1,7 +1,7 @@
 import type {
   AdminSkillPackageInfo,
-  SkillPackageResolvedToolsInfo,
   SkillPackageResolvedToolInfo,
+  SkillPackageResolvedToolsInfo,
   SkillPackageValvesInfo,
 } from '#/api/admin/skill-packages';
 

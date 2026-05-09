@@ -2,14 +2,14 @@
 // Verifies: identity select option helpers preserve account AI availability.
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('#/locales', () => ({
-  $t: (key: string) => key,
-}));
-
 import {
   identityModelFromOption,
   normalizeIdentitySelectOption,
 } from '../types';
+
+vi.mock('#/locales', () => ({
+  $t: (key: string) => key,
+}));
 
 describe('identity select option AI availability mapping', () => {
   it('preserves snake_case ai_enabled=false from remote select extras', () => {

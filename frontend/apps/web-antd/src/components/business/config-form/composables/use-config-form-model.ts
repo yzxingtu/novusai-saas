@@ -279,20 +279,17 @@ export function useConfigFormModel(options: UseConfigFormModelOptions) {
     return [];
   }
 
-  function setTagValue(
-    key: string,
-    value: unknown,
-    separator = ',',
-  ): void {
+  function setTagValue(key: string, value: unknown, separator = ','): void {
     const resolvedSeparator = separator || ',';
-    const values = Array.isArray(value)
-      ? value.map((item) => String(item).trim()).filter(Boolean)
-      : typeof value === 'string'
-        ? value
-            .split(resolvedSeparator)
-            .map((item) => item.trim())
-            .filter((item) => item.length > 0)
-      : [];
+    let values: string[] = [];
+    if (Array.isArray(value)) {
+      values = value.map((item) => String(item).trim()).filter(Boolean);
+    } else if (typeof value === 'string') {
+      values = value
+        .split(resolvedSeparator)
+        .map((item) => item.trim())
+        .filter((item) => item.length > 0);
+    }
     formModel[key] = values.join(resolvedSeparator);
   }
 

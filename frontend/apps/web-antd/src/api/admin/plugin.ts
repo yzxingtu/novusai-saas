@@ -135,25 +135,18 @@ const TENANT_EXPOSURE_COLORS: Record<PluginTenantExposureMode, string> = {
   selected_tenants: 'cyan',
 };
 
-const CANONICAL_COMPATIBILITY_EDITIONS: readonly PluginCompatibilityEdition[] = [
-  'saas',
-  'single_management',
-];
+const CANONICAL_COMPATIBILITY_EDITIONS: readonly PluginCompatibilityEdition[] =
+  ['saas', 'single_management'];
 
-const CANONICAL_COMPATIBILITY_SURFACES: readonly PluginCompatibilitySurface[] = [
-  'admin',
-  'global',
-  'platform',
-  'tenant',
-  'user',
-];
+const CANONICAL_COMPATIBILITY_SURFACES: readonly PluginCompatibilitySurface[] =
+  ['admin', 'global', 'platform', 'tenant', 'user'];
 
-const CANONICAL_TENANT_EXPOSURE_MODES: readonly PluginTenantExposureMode[] = [
+const CANONICAL_TENANT_EXPOSURE_MODES = new Set<PluginTenantExposureMode>([
   'all_tenants',
   'none',
   'scope_default',
   'selected_tenants',
-];
+]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -181,18 +174,16 @@ function getCanonicalStringList<T extends string>(
   if (!Array.isArray(values)) {
     return [];
   }
-  return Array.from(
-    new Set(
+  return [
+    ...new Set(
       values.filter((value): value is T => allowed.includes(value as T)),
     ),
-  );
+  ];
 }
 
-function normalizeTenantExposureMode(
-  value: unknown,
-): PluginTenantExposureMode {
+function normalizeTenantExposureMode(value: unknown): PluginTenantExposureMode {
   return typeof value === 'string' &&
-    CANONICAL_TENANT_EXPOSURE_MODES.includes(value as PluginTenantExposureMode)
+    CANONICAL_TENANT_EXPOSURE_MODES.has(value as PluginTenantExposureMode)
     ? (value as PluginTenantExposureMode)
     : DEFAULT_COMPATIBILITY_PROFILE.tenantExposureMode;
 }
@@ -229,7 +220,8 @@ export function resolvePluginCompatibilityProfile(
   const explicitAssignmentRequired = getBoolean(profile, [
     'tenant_assignment_required',
   ]);
-  const assignmentModeRequiresTenants = tenantExposureMode === 'selected_tenants';
+  const assignmentModeRequiresTenants =
+    tenantExposureMode === 'selected_tenants';
   const tenantAssignmentRequired =
     explicitAssignmentRequired === true || assignmentModeRequiresTenants;
 

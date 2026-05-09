@@ -201,7 +201,9 @@ describe('usePublicConfigStore tenant config guard', () => {
 
     expect(result).toBeNull();
     expect(store.platformConfigLoaded).toBe(false);
-    expect(store.error).toBe('Configured platform captcha plugin is unavailable');
+    expect(store.error).toBe(
+      'Configured platform captcha plugin is unavailable',
+    );
   });
 
   it('fails closed when the tenant captcha plugin is not available', async () => {

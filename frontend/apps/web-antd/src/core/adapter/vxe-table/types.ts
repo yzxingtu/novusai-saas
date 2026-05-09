@@ -216,7 +216,6 @@ export interface UseCrudPageOptions<T extends BaseRow = BaseRow> {
    * @example { expandConfig: { lazy: true, accordion: true } }
    */
   gridOptions?: Record<string, unknown>;
-
 }
 
 /**

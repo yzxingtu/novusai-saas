@@ -65,8 +65,7 @@ const {
   pageSize: 12,
   recycleBin: true,
   customActions: {
-    edit: (row) =>
-      kbFormRef.value?.openEdit(row, buildFormExtraData()),
+    edit: (row) => kbFormRef.value?.openEdit(row, buildFormExtraData()),
   },
 });
 

@@ -38,12 +38,12 @@ export function useAdminFormSchema(options: {
   isEdit?: boolean;
   /** Whether to lock assignment to the current node (create mode) / 是否在新建时锁定组织节点 */
   lockOrgNode?: boolean;
-  /** Org node change hook / 组织节点变更回调 */
-  onOrgNodeChange?: (value: unknown) => void;
   /** Current org node ID (for default selection) / 当前组织节点 ID（用于默认选中） */
   nodeId?: null | number;
   /** Org node name (for default display) / 组织节点名称（用于默认显示） */
   nodeName?: string;
+  /** Org node change hook / 组织节点变更回调 */
+  onOrgNodeChange?: (value: unknown) => void;
   /** Org tree API (for node selection) / 组织树 API（可选择节点） */
   orgTreeApi?: OrgTreeApi;
   /** Permission role options / 权限角色选项 */

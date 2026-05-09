@@ -45,7 +45,12 @@ describe('skill package rich text ai visibility contract', () => {
     expect(actions).not.toContain('goToRichTextAiConfig');
     expect(actions).not.toContain("tab: 'richTextAi'");
     expect(
-      existsSync(resolve(skillPackagesDir, 'modules/detail/SkillPackageRichTextAiTab.vue')),
+      existsSync(
+        resolve(
+          skillPackagesDir,
+          'modules/detail/SkillPackageRichTextAiTab.vue',
+        ),
+      ),
     ).toBe(false);
   });
 

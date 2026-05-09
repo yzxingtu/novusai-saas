@@ -29,12 +29,15 @@ describe('recycle bin api', () => {
       globalRetentionDays: 45,
     });
 
-    expect(requestDeleteMock).toHaveBeenCalledWith('/admin/recycle-bin/cleanup', {
-      params: {
-        module_retention_days: 15,
-        global_retention_days: 45,
+    expect(requestDeleteMock).toHaveBeenCalledWith(
+      '/admin/recycle-bin/cleanup',
+      {
+        params: {
+          module_retention_days: 15,
+          global_retention_days: 45,
+        },
       },
-    });
+    );
   });
 
   it('does not send retired retention_days parameter', async () => {
@@ -42,9 +45,12 @@ describe('recycle bin api', () => {
 
     await triggerRecycleBinCleanupApi();
 
-    expect(requestDeleteMock).toHaveBeenCalledWith('/admin/recycle-bin/cleanup', {
-      params: {},
-    });
+    expect(requestDeleteMock).toHaveBeenCalledWith(
+      '/admin/recycle-bin/cleanup',
+      {
+        params: {},
+      },
+    );
     expect(
       JSON.stringify(requestDeleteMock.mock.calls[0]?.[1] ?? {}),
     ).not.toContain('retention_days');

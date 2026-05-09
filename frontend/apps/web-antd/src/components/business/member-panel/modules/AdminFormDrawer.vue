@@ -30,12 +30,12 @@ const props = withDefaults(
   defineProps<{
     /** API prefix / API 前缀 */
     apiPrefix?: 'admin' | 'tenant';
+    /** Whether current operator can manage AI switches in current node / 当前操作者是否可管理当前节点 AI 开关 */
+    canManageAi?: boolean;
     /** Current node ID / 当前节点 ID */
     nodeId?: null | number;
     /** Node name (for display) / 节点名称 */
     nodeName?: string;
-    /** Whether current operator can manage AI switches in current node / 当前操作者是否可管理当前节点 AI 开关 */
-    canManageAi?: boolean;
     /** Org tree API (select node in edit mode) / 组织树 API */
     orgTreeApi?: OrgTreeApi;
   }>(),
@@ -238,9 +238,7 @@ const [Drawer, drawerApi] = useVbenDrawer({
       phone: values.phone || null,
       nickname: values.nickname || null,
       is_active: values.is_active ?? true,
-      ...(canSubmitMemberAi
-        ? { ai_enabled: values.ai_enabled ?? true }
-        : {}),
+      ...(canSubmitMemberAi ? { ai_enabled: values.ai_enabled ?? true } : {}),
       ...(isEdit.value && avatarValue.value
         ? { avatar: avatarValue.value }
         : {}),

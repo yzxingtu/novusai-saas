@@ -18,7 +18,10 @@ import {
   TreeSelect,
 } from 'ant-design-vue';
 
-import { getAIAgentAccessApi, updateAIAgentAccessApi } from '#/api/admin/ai-agents';
+import {
+  getAIAgentAccessApi,
+  updateAIAgentAccessApi,
+} from '#/api/admin/ai-agents';
 import { getOrganizationTreeApi } from '#/api/admin/organization';
 import { $t } from '#/locales';
 

@@ -67,7 +67,7 @@ const USER_E2E_TENANT_CODE =
   getBackendEnvValue('USER_E2E_TENANT_CODE') ||
   getBackendEnvValue('DEV_TENANT_BOOTSTRAP_TENANT_CODE');
 
-function buildEphemeralUserCredentials(): UserCredentials | null {
+function buildEphemeralUserCredentials(): null | UserCredentials {
   if (!USER_E2E_TENANT_CODE) {
     return null;
   }
@@ -81,16 +81,16 @@ function buildEphemeralUserCredentials(): UserCredentials | null {
   };
 }
 
-function resolveUserCredentials(): UserCredentials | null {
+function resolveUserCredentials(): null | UserCredentials {
   return buildEphemeralUserCredentials();
 }
 
 export function hasUserCredentials() {
   return Boolean(
     resolveUserCredentials() &&
-      USER_E2E_TENANT_CODE &&
-      getDevBootstrapSecret('tenant') &&
-      getDevBootstrapSecret('user'),
+    USER_E2E_TENANT_CODE &&
+    getDevBootstrapSecret('tenant') &&
+    getDevBootstrapSecret('user'),
   );
 }
 
@@ -184,8 +184,14 @@ async function ensureTenantUserProvisioned(
       'Expected to resolve an existing tenant user after duplicate create failure.',
     ).toEqual(expect.any(Number));
 
+    const existingUserId = existingUser?.id;
+    if (typeof existingUserId !== 'number') {
+      throw new TypeError(
+        'Expected existing tenant user id after duplicate create failure.',
+      );
+    }
     const resetResponse = await api.put(
-      `/tenant/users/${existingUser!.id}/reset-password`,
+      `/tenant/users/${existingUserId}/reset-password`,
       {
         data: {
           new_password: password,
@@ -197,7 +203,6 @@ async function ensureTenantUserProvisioned(
       'Expected tenant user password reset API to succeed for user e2e provisioning.',
     ).toBe(true);
     await ensureTenantUserAccessibleAgent(api);
-    return;
   } finally {
     await api.dispose();
   }
@@ -224,16 +229,21 @@ async function ensureTenantUserAccessibleAgent(api: APIRequestContext) {
         item.id > 0 &&
         item.status === 'published' &&
         item.execution_mode !== 'router',
-    ) ??
-    items.find((item) => item.id > 0 && item.status === 'published');
+    ) ?? items.find((item) => item.id > 0 && item.status === 'published');
 
   expect(
     candidate?.id,
     'Expected at least one published tenant agent for user e2e provisioning.',
   ).toEqual(expect.any(Number));
 
+  const candidateId = candidate?.id;
+  if (typeof candidateId !== 'number') {
+    throw new TypeError(
+      'Expected published tenant agent id for user e2e provisioning.',
+    );
+  }
   const publicationResponse = await api.get(
-    `/tenant/ai/agents/${candidate!.id}/publication`,
+    `/tenant/ai/agents/${candidateId}/publication`,
   );
   expect(
     publicationResponse.ok(),
@@ -249,7 +259,7 @@ async function ensureTenantUserAccessibleAgent(api: APIRequestContext) {
   }
 
   const updateResponse = await api.put(
-    `/tenant/ai/agents/${candidate!.id}/publication`,
+    `/tenant/ai/agents/${candidateId}/publication`,
     {
       data: {
         access_type: 'all_users',
@@ -266,9 +276,7 @@ async function ensureTenantUserAccessibleAgent(api: APIRequestContext) {
   ).toBe(true);
 }
 
-async function loginUser(
-  credentials: UserCredentials,
-) {
+async function loginUser(credentials: UserCredentials) {
   const api = await request.newContext({
     baseURL: API_BASE_URL,
     extraHTTPHeaders: {

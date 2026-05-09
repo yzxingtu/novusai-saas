@@ -94,10 +94,7 @@ function transformEffectivePreview(
   raw: NotificationTemplateEffectivePreviewRaw | null | undefined,
   fallback: Pick<
     NotificationTemplateInfoRaw,
-    | 'body_template'
-    | 'channels'
-    | 'priority'
-    | 'title_template'
+    'body_template' | 'channels' | 'priority' | 'title_template'
   >,
 ): NotificationTemplateEffectivePreview {
   return {

@@ -13,8 +13,10 @@ const mocks = vi.hoisted(() => ({
   createMemberApi: vi.fn(),
   currentDrawerData: undefined as Record<string, unknown> | undefined,
   formValues: {} as Record<string, unknown>,
-  onConfirm: undefined as undefined | (() => Promise<void> | void),
-  onOpenChange: undefined as undefined | ((open: boolean) => Promise<void> | void),
+  onConfirm: undefined as (() => Promise<void> | void) | undefined,
+  onOpenChange: undefined as
+    | ((open: boolean) => Promise<void> | void)
+    | undefined,
   updateMemberApi: vi.fn(),
 }));
 
@@ -67,7 +69,7 @@ vi.mock('#/adapter/form', () => {
         getValues: vi.fn(async () => ({ ...mocks.formValues })),
         resetForm: vi.fn(async () => {
           Object.keys(mocks.formValues).forEach((key) => {
-            delete mocks.formValues[key];
+            Reflect.deleteProperty(mocks.formValues, key);
           });
         }),
         setState: vi.fn(),
@@ -220,7 +222,7 @@ async function openEditAndSubmit(options: {
   await flushPromises();
 }
 
-describe('AdminFormDrawer AI switch permission', () => {
+describe('adminFormDrawer AI switch permission', () => {
   beforeEach(() => {
     mocks.hasManageAiPermission = false;
     mocks.createMemberApi.mockReset();
@@ -231,7 +233,7 @@ describe('AdminFormDrawer AI switch permission', () => {
     mocks.onConfirm = undefined;
     mocks.onOpenChange = undefined;
     Object.keys(mocks.formValues).forEach((key) => {
-      delete mocks.formValues[key];
+      Reflect.deleteProperty(mocks.formValues, key);
     });
   });
 

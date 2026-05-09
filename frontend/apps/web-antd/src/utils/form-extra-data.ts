@@ -19,10 +19,7 @@ function mergeOptionalRecords(
 export function buildFormExtraData(
   options: FormExtraDataOptions = {},
 ): Record<string, unknown> {
-  const defaults = mergeOptionalRecords(
-    options.baseDefaults,
-    options.defaults,
-  );
+  const defaults = mergeOptionalRecords(options.baseDefaults, options.defaults);
 
   return {
     ...(options.resource ? { _resource: options.resource } : {}),

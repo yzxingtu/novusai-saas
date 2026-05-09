@@ -169,7 +169,6 @@ export interface UseCrudDrawerOptions<T = any> {
    * @default 'id'
    */
   idField?: string;
-
 }
 
 /**
@@ -336,7 +335,6 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
           formApi.setValues(defaultValues);
         }
       }
-
     },
   });
 

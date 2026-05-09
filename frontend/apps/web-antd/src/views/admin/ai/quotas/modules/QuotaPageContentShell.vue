@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import type { QuotaPageTab } from '../composables/use-ai-quota-page';
+
 import type {
   AIQuotaDiagnosticInfo,
   AIRateLimitDiagnosticInfo,

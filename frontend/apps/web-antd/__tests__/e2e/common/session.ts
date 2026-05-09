@@ -141,18 +141,15 @@ export async function seedAuthSession(
 ) {
   await page.addInitScript(
     ({ accessToken, endpoint, namespace, refreshToken }) => {
-      const tokenKey =
-        endpoint === 'tenant'
-          ? `${namespace}_tenant_admin_token`
-          : endpoint === 'user'
-            ? `${namespace}_tenant_user_token`
-            : `${namespace}_admin_token`;
-      const refreshKey =
-        endpoint === 'tenant'
-          ? `${namespace}_tenant_admin_refresh_token`
-          : endpoint === 'user'
-            ? `${namespace}_tenant_user_refresh_token`
-            : `${namespace}_admin_refresh_token`;
+      let tokenKey = `${namespace}_admin_token`;
+      let refreshKey = `${namespace}_admin_refresh_token`;
+      if (endpoint === 'tenant') {
+        tokenKey = `${namespace}_tenant_admin_token`;
+        refreshKey = `${namespace}_tenant_admin_refresh_token`;
+      } else if (endpoint === 'user') {
+        tokenKey = `${namespace}_tenant_user_token`;
+        refreshKey = `${namespace}_tenant_user_refresh_token`;
+      }
       localStorage.setItem(tokenKey, accessToken);
       if (refreshToken) {
         localStorage.setItem(refreshKey, refreshToken);
@@ -167,16 +164,12 @@ export async function seedAuthSession(
   );
 }
 
-export async function createAdminSession(
-  page: Page,
-) {
+export async function createAdminSession(page: Page) {
   const tokens = await fetchTokens('admin');
   await seedAuthSession(page, 'admin', tokens);
 }
 
-export async function createTenantSession(
-  page: Page,
-) {
+export async function createTenantSession(page: Page) {
   const tokens = await fetchTokens('tenant');
   await seedAuthSession(page, 'tenant', tokens);
 }

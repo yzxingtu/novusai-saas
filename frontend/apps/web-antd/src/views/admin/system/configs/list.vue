@@ -348,7 +348,10 @@ onActivated(() => {
   }
 });
 watch(
-  () => [route.query[CONFIG_GROUP_QUERY_KEY], route.query[CONFIG_ITEM_QUERY_KEY]],
+  () => [
+    route.query[CONFIG_GROUP_QUERY_KEY],
+    route.query[CONFIG_ITEM_QUERY_KEY],
+  ],
   () => {
     void applyRouteSelection();
   },

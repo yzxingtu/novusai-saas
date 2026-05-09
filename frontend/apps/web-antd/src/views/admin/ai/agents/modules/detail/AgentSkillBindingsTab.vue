@@ -6,14 +6,7 @@ import { computed, ref, watch } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
-import {
-  Button,
-  message,
-  Popconfirm,
-  Spin,
-  Switch,
-  Tag,
-} from 'ant-design-vue';
+import { Button, message, Popconfirm, Spin, Switch, Tag } from 'ant-design-vue';
 
 import {
   batchBindAIAgentSkillsApi,

@@ -45,7 +45,9 @@ function getProviderProtocolCapabilities(
     : null;
 }
 
-function isProviderConfigRecord(value: unknown): value is Record<string, unknown> {
+function isProviderConfigRecord(
+  value: unknown,
+): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
@@ -133,7 +135,9 @@ function stripRetiredProviderConfigValue(value: unknown): unknown {
 
   const cleanedConfig: Record<string, unknown> = {};
   for (const [key, nestedValue] of Object.entries(value)) {
-    if (RETIRED_PROVIDER_CONFIG_KEY_TOKENS.has(normalizeProviderConfigKey(key))) {
+    if (
+      RETIRED_PROVIDER_CONFIG_KEY_TOKENS.has(normalizeProviderConfigKey(key))
+    ) {
       continue;
     }
     cleanedConfig[key] = stripRetiredProviderConfigValue(nestedValue);
@@ -164,7 +168,7 @@ export function buildProviderConfigWithPrimaryWireApi(
     const effectivePrimaryWireApi =
       normalizeWireApi(primaryWireApi) || currentPrimaryWireApi;
     const nextProtocolCapabilities: AIProviderProtocolCapabilities = {
-      ...(getProviderProtocolCapabilities(nextConfig) ?? {}),
+      ...getProviderProtocolCapabilities(nextConfig),
     };
 
     if (effectivePrimaryWireApi) {

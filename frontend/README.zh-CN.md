@@ -1,7 +1,6 @@
 # NovusAI 前端
 
-本目录是 NovusAI 前端 workspace。它基于 Vben Admin，但本仓正式产品应用是
-`apps/web-antd`，不是上游 playground。
+本目录是 NovusAI 前端 workspace。它基于 Vben Admin，但本仓正式产品应用是 `apps/web-antd`，不是上游 playground。
 
 ## 入口
 
@@ -24,8 +23,7 @@ pnpm install
 pnpm dev:antd
 ```
 
-默认开发端口由 `apps/web-antd/.env.development` 配置（`VITE_PORT=5666`）。
-默认 API 地址为 `VITE_GLOB_API_URL=http://localhost:8000`。
+默认开发端口由 `apps/web-antd/.env.development` 配置（`VITE_PORT=5666`）。默认 API 地址为 `VITE_GLOB_API_URL=http://localhost:8000`。
 
 ## 检查命令
 
@@ -44,5 +42,4 @@ pnpm exec vue-tsc --noEmit --skipLibCheck --pretty false -p apps/web-antd/tsconf
 
 ## 上游参考
 
-Vben 上游文档仍可作为框架行为参考，但 NovusAI 的本地命令、路由、权限和页面模式
-以 Trellis 前端规范与当前 `apps/web-antd` 代码为准。
+Vben 上游文档仍可作为框架行为参考，但 NovusAI 的本地命令、路由、权限和页面模式以 Trellis 前端规范与当前 `apps/web-antd` 代码为准。

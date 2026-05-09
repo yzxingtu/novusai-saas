@@ -75,7 +75,7 @@ describe('menu-navigation', () => {
       path: '/admin/ai/agents',
     });
 
-    expect(Object.keys(entries[0] ?? {}).sort()).toEqual([
+    expect(Object.keys(entries[0] ?? {}).toSorted()).toEqual([
       'breadcrumb',
       'capabilities',
       'category',

@@ -727,9 +727,7 @@ onUnmounted(() => {
               class="!m-0 !rounded-md !border-0 !text-[11px]"
             >
               {{
-                $t(
-                  'admin.plugin.compatibility.tenantExposure.explicitRequired',
-                )
+                $t('admin.plugin.compatibility.tenantExposure.explicitRequired')
               }}
             </Tag>
             <Tag

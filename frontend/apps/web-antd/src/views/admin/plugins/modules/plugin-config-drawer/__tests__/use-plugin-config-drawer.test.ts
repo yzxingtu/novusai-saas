@@ -61,10 +61,10 @@ const mockRefs = vi.hoisted(() => {
     routerPush: vi.fn(),
     resolvePluginCompatibilityProfile: vi.fn(
       (source: {
-        compatibility_profile?: {
+        compatibility_profile?: null | {
           tenant_assignment_required?: boolean;
           tenant_exposure?: string;
-        } | null;
+        };
       }) => {
         const tenantExposure = source.compatibility_profile?.tenant_exposure;
         const tenantExposureMode =
@@ -242,10 +242,10 @@ describe('usePluginConfigDrawer', () => {
     mockRefs.listPluginBackupsApi.mockResolvedValue([]);
     mockRefs.resolvePluginCompatibilityProfile.mockImplementation(
       (source: {
-        compatibility_profile?: {
+        compatibility_profile?: null | {
           tenant_assignment_required?: boolean;
           tenant_exposure?: string;
-        } | null;
+        };
       }) => {
         const tenantExposure = source.compatibility_profile?.tenant_exposure;
         const tenantExposureMode =
@@ -408,9 +408,9 @@ describe('usePluginConfigDrawer', () => {
     expect(mockRefs.getTenantListApi).toHaveBeenCalledWith({
       'page[size]': 200,
     });
-    expect(drawer.tenantAssignments.value.map((item) => item.tenant_id)).toEqual(
-      [3],
-    );
+    expect(
+      drawer.tenantAssignments.value.map((item) => item.tenant_id),
+    ).toEqual([3]);
     expect(drawer.availableTenants.value.map((tenant) => tenant.id)).toEqual([
       4,
     ]);

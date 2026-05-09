@@ -224,11 +224,7 @@ useAutoTableDragSort(() => gridApi.grid, {
 
         <!-- API 协议列 -->
         <template #wireApi_cell="{ row }">
-          <Tag
-            v-if="getRowPrimaryWireApi(row)"
-            color="processing"
-            class="m-0"
-          >
+          <Tag v-if="getRowPrimaryWireApi(row)" color="processing" class="m-0">
             {{ getProviderWireApiText(getRowPrimaryWireApi(row)) }}
           </Tag>
           <span v-else class="text-xs text-muted-foreground">-</span>

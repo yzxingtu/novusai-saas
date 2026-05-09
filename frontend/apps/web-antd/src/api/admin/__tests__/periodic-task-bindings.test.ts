@@ -5,8 +5,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
-  getPeriodicTaskListApi,
   getPeriodicTaskBindingsApi,
+  getPeriodicTaskListApi,
   syncPeriodicTaskBindingsApi,
   updatePeriodicTaskBindingApi,
 } from '../periodic-task';

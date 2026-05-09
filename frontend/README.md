@@ -1,7 +1,6 @@
 # NovusAI Frontend
 
-This directory is the NovusAI frontend workspace. It is based on Vben Admin,
-but the checked-in product app is `apps/web-antd`, not the upstream playground.
+This directory is the NovusAI frontend workspace. It is based on Vben Admin, but the checked-in product app is `apps/web-antd`, not the upstream playground.
 
 ## Entry Points
 
@@ -24,9 +23,7 @@ pnpm install
 pnpm dev:antd
 ```
 
-The default dev server port is configured by
-`apps/web-antd/.env.development` (`VITE_PORT=5666`). The default API base is
-`VITE_GLOB_API_URL=http://localhost:8000`.
+The default dev server port is configured by `apps/web-antd/.env.development` (`VITE_PORT=5666`). The default API base is `VITE_GLOB_API_URL=http://localhost:8000`.
 
 ## Checks
 
@@ -45,6 +42,4 @@ pnpm exec vue-tsc --noEmit --skipLibCheck --pretty false -p apps/web-antd/tsconf
 
 ## Upstream Reference
 
-The Vben upstream docs remain useful for framework behavior, but NovusAI local
-commands, routes, permissions, and page patterns are governed by the Trellis
-frontend spec and the current `apps/web-antd` code.
+The Vben upstream docs remain useful for framework behavior, but NovusAI local commands, routes, permissions, and page patterns are governed by the Trellis frontend spec and the current `apps/web-antd` code.

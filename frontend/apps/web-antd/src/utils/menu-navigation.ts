@@ -457,7 +457,10 @@ export function resolveMenuNavigationTarget(
   const currentPath = normalizeSearchText(
     normalizeComparablePath(options.currentPath ?? ''),
   );
-  if (currentPageKey && currentPageKey === normalizeNavigationKey(top.pageKey)) {
+  if (
+    currentPageKey &&
+    currentPageKey === normalizeNavigationKey(top.pageKey)
+  ) {
     return { entry: top, kind: 'already_on_page' };
   }
   if (

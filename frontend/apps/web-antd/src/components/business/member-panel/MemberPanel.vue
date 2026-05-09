@@ -36,10 +36,10 @@ const props = withDefaults(
   defineProps<{
     /** Whether to allow adding members / 是否允许添加成员 */
     allowMembers?: boolean;
-    /** Whether current operator can manage AI switches in current node / 当前操作者是否可管理当前节点 AI 开关 */
-    canManageAi?: boolean;
     /** API prefix (admin or tenant) / API 前缀 */
     apiPrefix?: 'admin' | 'tenant';
+    /** Whether current operator can manage AI switches in current node / 当前操作者是否可管理当前节点 AI 开关 */
+    canManageAi?: boolean;
     /** Leader ID / 负责人 ID */
     leaderId?: null | number;
     /** Currently selected node ID / 当前选中的节点 ID */

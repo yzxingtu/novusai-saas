@@ -19,9 +19,7 @@ import {
   getTenantPublicConfigApi,
 } from '#/api/public/config';
 import { overridesPreferences } from '#/preferences';
-import {
-  ensureCaptchaPluginReady,
-} from '#/utils/captcha-plugin';
+import { ensureCaptchaPluginReady } from '#/utils/captcha-plugin';
 import { mergeBrandConfig } from '#/utils/public-branding';
 
 /**

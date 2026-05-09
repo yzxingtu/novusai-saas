@@ -38,7 +38,8 @@ vi.mock('ant-design-vue', () => {
   const Button = defineComponent({
     name: 'ButtonStub',
     emits: ['click'],
-    template: '<button type="button" @click="$emit(\'click\')"><slot /></button>',
+    template:
+      '<button type="button" @click="$emit(\'click\')"><slot /></button>',
   });
   const Drawer = defineComponent({
     name: 'DrawerStub',
@@ -123,10 +124,10 @@ function findButtonByText(wrapper: ReturnType<typeof mount>, text: string) {
   if (!button) {
     throw new Error(`Expected button with text ${text}`);
   }
-  return button!;
+  return button;
 }
 
-describe('TenantAdminForm AI switch permission', () => {
+describe('tenantAdminForm AI switch permission', () => {
   beforeEach(() => {
     mocks.canManageAi = false;
     mocks.createTenantAdminApi.mockReset();
@@ -137,9 +138,11 @@ describe('TenantAdminForm AI switch permission', () => {
 
   it('omits ai_enabled when current admin lacks tenant_admin:manage_ai', async () => {
     const wrapper = mount(TenantAdminForm);
-    (wrapper.vm as typeof wrapper.vm & {
-      open: (tenantId: number, tenantName: string) => void;
-    }).open(9, 'Tenant');
+    (
+      wrapper.vm as typeof wrapper.vm & {
+        open: (tenantId: number, tenantName: string) => void;
+      }
+    ).open(9, 'Tenant');
     await flushPromises();
     await fillCreateForm(wrapper);
     await findButtonByText(wrapper, 'shared.common.confirm').trigger('click');
@@ -156,9 +159,11 @@ describe('TenantAdminForm AI switch permission', () => {
   it('submits ai_enabled=false when current admin has tenant_admin:manage_ai', async () => {
     mocks.canManageAi = true;
     const wrapper = mount(TenantAdminForm);
-    (wrapper.vm as typeof wrapper.vm & {
-      open: (tenantId: number, tenantName: string) => void;
-    }).open(9, 'Tenant');
+    (
+      wrapper.vm as typeof wrapper.vm & {
+        open: (tenantId: number, tenantName: string) => void;
+      }
+    ).open(9, 'Tenant');
     await flushPromises();
     await fillCreateForm(wrapper);
     await wrapper.find('[data-testid="ai-switch"]').trigger('click');

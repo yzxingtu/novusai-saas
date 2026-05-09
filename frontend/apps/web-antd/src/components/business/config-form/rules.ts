@@ -32,9 +32,8 @@ function formatTemplate(
   template: string,
   params: Record<string, number | string>,
 ): string {
-  return template.replaceAll(
-    /\{(\w+)\}/g,
-    (_, key: string) => String(params[key] ?? ''),
+  return template.replaceAll(/\{(\w+)\}/g, (_, key: string) =>
+    String(params[key] ?? ''),
   );
 }
 

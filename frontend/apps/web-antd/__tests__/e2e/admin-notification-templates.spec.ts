@@ -1,4 +1,6 @@
-import { expect, test, type Response } from '@playwright/test';
+import type { Response } from '@playwright/test';
+
+import { expect, test } from '@playwright/test';
 
 import { hasAdminCredentials, loginAsAdmin } from './common/admin-auth';
 
@@ -92,9 +94,9 @@ test.describe('Admin Notification Templates smoke', () => {
     expect(hasGovernanceKey(first, 'plugin_name', 'pluginName')).toBe(true);
     expect(hasGovernanceKey(first, 'source', 'source')).toBe(true);
     expect(hasGovernanceKey(first, 'is_override', 'isOverride')).toBe(true);
-    expect(hasGovernanceKey(first, 'effective_preview', 'effectivePreview')).toBe(
-      true,
-    );
+    expect(
+      hasGovernanceKey(first, 'effective_preview', 'effectivePreview'),
+    ).toBe(true);
 
     expect(consoleErrors).toEqual([]);
   });

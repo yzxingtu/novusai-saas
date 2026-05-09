@@ -51,22 +51,20 @@ const { Drawer, isEdit } = useCrudDrawer<AIApiKeyInfo>({
       provider_id: data.provider_id,
       is_active: data.is_active,
       usage_limit: data.usage_limit,
-      ...extractScopeFormValues(
-        {
-          ...(data as unknown as {
-            [k: string]: unknown;
-            assigned_tenant_ids?: number[];
-            owner_tenant_id?: null | number;
-            scope?: string;
-          }),
-          tenant_id: data.owner_tenant_id,
-        } as {
+      ...extractScopeFormValues({
+        ...(data as unknown as {
           [k: string]: unknown;
           assigned_tenant_ids?: number[];
+          owner_tenant_id?: null | number;
           scope?: string;
-          tenant_id?: null | number;
-        },
-      ),
+        }),
+        tenant_id: data.owner_tenant_id,
+      } as {
+        [k: string]: unknown;
+        assigned_tenant_ids?: number[];
+        scope?: string;
+        tenant_id?: null | number;
+      }),
     };
   },
   onSuccess: () => {

@@ -5,7 +5,10 @@
  *
  * 功能：版本列表、回滚 / Version list, rollback
  */
-import type { AIAgentVersionDiff, AIAgentVersionItem } from '#/api/admin/ai-agents';
+import type {
+  AIAgentVersionDiff,
+  AIAgentVersionItem,
+} from '#/api/admin/ai-agents';
 
 import { computed, ref } from 'vue';
 

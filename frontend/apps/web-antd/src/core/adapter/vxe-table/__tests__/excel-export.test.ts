@@ -1,6 +1,9 @@
 // 中文: 测试类型 structural，覆盖 Excel 导出封装的文件名、sheet 名和单元格转换合同。
 // EN: Test type structural, covering the Excel export wrapper file name, sheet name, and cell conversion contract.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import writeXlsxFile from 'write-excel-file/browser';
+
+import { writeRecordsToExcel } from '../excel-export';
 
 const writeToFileMock = vi.hoisted(() => vi.fn());
 
@@ -9,10 +12,6 @@ vi.mock('write-excel-file/browser', () => ({
     toFile: writeToFileMock,
   })),
 }));
-
-import writeXlsxFile from 'write-excel-file/browser';
-
-import { writeRecordsToExcel } from '../excel-export';
 
 describe('writeRecordsToExcel', () => {
   beforeEach(() => {
@@ -35,8 +34,6 @@ describe('writeRecordsToExcel', () => {
       ],
       { sheet: 'Templates' },
     );
-    expect(writeToFileMock).toHaveBeenCalledWith(
-      'notification-templates.xlsx',
-    );
+    expect(writeToFileMock).toHaveBeenCalledWith('notification-templates.xlsx');
   });
 });

@@ -7,6 +7,7 @@ import type {
 
 import { computed, onMounted, ref } from 'vue';
 
+import { getAIModelSelectApi } from '#/api/admin/ai-models';
 import {
   deleteAIQuotaApi,
   deleteAIRateLimitApi,
@@ -14,7 +15,6 @@ import {
   getAIQuotaSummaryApi,
   getAIRateLimitListApi,
 } from '#/api/admin/ai-quotas';
-import { getAIModelSelectApi } from '#/api/admin/ai-models';
 import { getTenantSelectApi } from '#/api/admin/tenant';
 import { useCrudList } from '#/composables';
 import { $t } from '#/locales';
