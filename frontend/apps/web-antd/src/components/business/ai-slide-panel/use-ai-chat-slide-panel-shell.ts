@@ -139,6 +139,7 @@ export function useAIChatSlidePanelShell(
     applyVariables,
     loadAgentKBBindings,
     loadAgentSkillBindings,
+    resetComposerEndpointState,
   } = chat;
 
   const exportMenuItems = computed(() => [
@@ -193,6 +194,7 @@ export function useAIChatSlidePanelShell(
     sending,
     sendMessage: ({ agentId }) => sendMessage({ agentId }),
     startNewConversation,
+    resetEndpointCaches: resetComposerEndpointState,
     storePendingAgentId: toRef(aiPanelStore, 'pendingAgentId'),
     storePendingConversationId: toRef(aiPanelStore, 'pendingConversationId'),
     storePendingMessage: toRef(aiPanelStore, 'pendingMessage'),

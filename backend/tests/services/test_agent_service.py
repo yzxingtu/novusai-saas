@@ -34,6 +34,52 @@ def _make_agent(**overrides):
 
 class TestBeforeCreate:
     @pytest.mark.asyncio
+    @pytest.mark.parametrize("field", ("tenant_id", "owner_tenant_id"))
+    async def test_tenant_create_rejects_retired_tenant_owner_fields(
+        self,
+        field,
+        mock_db,
+    ):
+        from app.core.i18n import _
+        from app.exceptions import BusinessException
+        from app.services.ai import agent_service_lifecycle
+
+        service = MagicMock()
+        service.db = mock_db
+        service.tenant_id = 7
+        service.repo = AsyncMock()
+        service.repo.get_by_name = AsyncMock(return_value=None)
+        data = {"name": "Tenant Agent", field: 99}
+
+        with pytest.raises(BusinessException) as exc_info:
+            await agent_service_lifecycle.tenant_before_create(service, data)
+
+        expected = _("agent.error.rejected_legacy_field").format(field=field)
+        assert exc_info.value.message == expected
+        assert field in exc_info.value.message
+        assert data[field] == 99
+
+    @pytest.mark.asyncio
+    async def test_tenant_create_preserves_new_scope_field(self, mock_db):
+        from app.enums.common import ResourceScopeEnum
+        from app.services.ai import agent_service_lifecycle
+
+        service = MagicMock()
+        service.db = mock_db
+        service.tenant_id = 7
+        service.repo = AsyncMock()
+        service.repo.get_by_name = AsyncMock(return_value=None)
+        data = {
+            "name": "Tenant Agent",
+            "scope": ResourceScopeEnum.ALL_TENANTS.value,
+        }
+
+        await agent_service_lifecycle.tenant_before_create(service, data)
+
+        assert data["owner_tenant_id"] == 7
+        assert data["scope"] == ResourceScopeEnum.ALL_TENANTS.value
+
+    @pytest.mark.asyncio
     async def test_duplicate_name_raises(self, mock_db):
         from app.exceptions import BusinessException
         from app.services.ai.agent_service import AgentService
@@ -92,6 +138,64 @@ class TestBeforeCreate:
             )
 
         assert "4096" in str(exc_info.value)
+
+
+class TestBeforeUpdate:
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("field", ("tenant_id", "owner_tenant_id"))
+    async def test_tenant_update_rejects_retired_tenant_owner_fields(
+        self,
+        field,
+        mock_db,
+    ):
+        from app.core.i18n import _
+        from app.exceptions import BusinessException
+        from app.services.ai import agent_service_lifecycle
+
+        service = MagicMock()
+        service.db = mock_db
+        service.tenant_id = 7
+        service.repo = AsyncMock()
+        service.repo.get_by_id = AsyncMock(
+            return_value=_make_agent(
+                owner_tenant_id=7,
+                is_system=False,
+                model_id=None,
+                max_tokens=None,
+            ),
+        )
+        data = {"description": "Updated", field: 99}
+
+        with pytest.raises(BusinessException) as exc_info:
+            await agent_service_lifecycle.tenant_before_update(service, 1, data)
+
+        expected = _("agent.error.rejected_legacy_field").format(field=field)
+        assert exc_info.value.message == expected
+        assert field in exc_info.value.message
+        assert data[field] == 99
+
+    @pytest.mark.asyncio
+    async def test_tenant_update_preserves_new_scope_field(self, mock_db):
+        from app.enums.common import ResourceScopeEnum
+        from app.services.ai import agent_service_lifecycle
+
+        service = MagicMock()
+        service.db = mock_db
+        service.tenant_id = 7
+        service.repo = AsyncMock()
+        service.repo.get_by_id = AsyncMock(
+            return_value=_make_agent(
+                owner_tenant_id=7,
+                is_system=False,
+                model_id=None,
+                max_tokens=None,
+            ),
+        )
+        data = {"scope": ResourceScopeEnum.ALL_TENANTS.value}
+
+        await agent_service_lifecycle.tenant_before_update(service, 1, data)
+
+        assert data == {"scope": ResourceScopeEnum.ALL_TENANTS.value}
 
 
 class TestAgentQuery:

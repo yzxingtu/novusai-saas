@@ -45,7 +45,10 @@ interface SingleTurnScenario extends ChatTurnOptions {
   verify: (metrics: ChatTurnMetrics) => void;
 }
 
-const BLOCKED_RUNTIME_TOOL_PREFIXES = [`${'u'}${'i'}_`, `${'page'}op_`] as const;
+const BLOCKED_RUNTIME_TOOL_PREFIXES = [
+  `${'u'}${'i'}_`,
+  `${'page'}op_`,
+] as const;
 const BLOCKED_RUNTIME_TOOL_NAMES = new Set([
   `get_${'page'}_context`,
   `invoke_${'page'}_operation`,
@@ -76,9 +79,47 @@ const DIAGNOSTIC_LABELS = [
   '上下文来源',
 ] as const;
 const RETIRED_ONLINE_SEARCH_TOOL_NAMES = new Set([
+  'baidu_public_search',
+  'baidu_search',
   'fetch_url',
+  'hosted_web_search',
+  'internet_search',
   'native_web_search',
+  'online_search',
+  'onlinesearch',
+  'public_search',
+  'search_provider',
+  'searchprovider',
+  'supports_hosted_web_search',
+  'web_research',
+  'webresearch',
   'web_search',
+  'web_search_options',
+  'web_search_runtime',
+]);
+const RETIRED_ONLINE_SEARCH_NAME_FRAGMENTS = [
+  'hosted_web_search',
+  'native_web_search',
+  'response_web_search_call',
+  'search_provider',
+  'web_research',
+  'web_search_call',
+  'web_search_in_progress',
+  '在线搜索',
+  '网络搜索',
+  '联网搜索',
+  '网页搜索',
+  '公开搜索',
+  '百度公开搜索',
+  '原生搜索',
+];
+const RETIRED_ONLINE_SEARCH_EVENT_KEYS = new Set([
+  'event',
+  'kind',
+  'name',
+  'state',
+  'status',
+  'type',
 ]);
 
 function normalizeCompactText(value: string) {
@@ -90,7 +131,54 @@ function readToolNames(metrics: ChatTurnMetrics) {
 }
 
 function normalizeToolName(name: string) {
-  return name;
+  return name
+    .trim()
+    .toLowerCase()
+    .replaceAll(/[.\-:\s]+/g, '_');
+}
+
+function readSelectedToolNames(metrics: ChatTurnMetrics) {
+  return metrics.donePayload?.selected_tool_names ?? [];
+}
+
+function readRetiredOnlineSearchEventStatuses(metrics: ChatTurnMetrics) {
+  const statuses: string[] = [];
+
+  const collectStatusTokens = (value: unknown, key?: string) => {
+    if (typeof value === 'string') {
+      if (!key || RETIRED_ONLINE_SEARCH_EVENT_KEYS.has(key)) {
+        statuses.push(value);
+      }
+      return;
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        collectStatusTokens(item, key);
+      }
+      return;
+    }
+    if (!value || typeof value !== 'object') {
+      return;
+    }
+    for (const [childKey, childValue] of Object.entries(
+      value as Record<string, unknown>,
+    )) {
+      collectStatusTokens(childValue, childKey);
+    }
+  };
+
+  for (const event of metrics.events) {
+    if (event.event) {
+      statuses.push(event.event);
+    }
+    try {
+      collectStatusTokens(JSON.parse(event.data) as unknown);
+    } catch {
+      // Ignore non-JSON SSE payloads such as [DONE].
+    }
+  }
+
+  return statuses;
 }
 
 function responseContainsAny(
@@ -116,14 +204,21 @@ function isTimeTool(name: string) {
 
 function isRetiredOnlineSearchTool(name: string) {
   const normalized = normalizeToolName(name);
-  return RETIRED_ONLINE_SEARCH_TOOL_NAMES.has(normalized);
+  return (
+    RETIRED_ONLINE_SEARCH_TOOL_NAMES.has(normalized) ||
+    RETIRED_ONLINE_SEARCH_NAME_FRAGMENTS.some((fragment) =>
+      normalized.includes(fragment),
+    )
+  );
 }
 
 function isBlockedRuntimeTool(name: string) {
   const normalized = normalizeToolName(name);
   return (
     BLOCKED_RUNTIME_TOOL_NAMES.has(normalized) ||
-    BLOCKED_RUNTIME_TOOL_PREFIXES.some((prefix) => normalized.startsWith(prefix))
+    BLOCKED_RUNTIME_TOOL_PREFIXES.some((prefix) =>
+      normalized.startsWith(prefix),
+    )
   );
 }
 
@@ -139,15 +234,6 @@ function isRetiredEditorTool(name: string) {
     normalized.startsWith('replace_') ||
     normalized.startsWith('update_title')
   );
-}
-
-function resolveToolFamily(name: string) {
-  if (isWeatherTool(name)) return 'weather';
-  if (isTimeTool(name)) return 'time';
-  if (isRetiredOnlineSearchTool(name)) return 'retired_online_search';
-  if (isRetiredEditorTool(name)) return 'retired_editor';
-  if (isBlockedRuntimeTool(name)) return 'blocked_runtime';
-  return 'other';
 }
 
 function expectNoSSEErrors(metrics: ChatTurnMetrics) {
@@ -219,9 +305,30 @@ function expectNoRetiredOnlineSearchTool(
 ) {
   expectNoTool(metrics, isRetiredOnlineSearchTool, message);
   expect(
-    metrics.events.some((event) => event.data.includes('web_search_in_progress')),
-    `${message}. Retired online-search progress event was observed.`,
+    metrics.selectedSkillNames.some((skillName) =>
+      isRetiredOnlineSearchTool(skillName),
+    ),
+    `${message}. Selected skills: ${metrics.selectedSkillNames.join(', ') || 'none'}`,
   ).toBe(false);
+  const selectedToolNames = readSelectedToolNames(metrics);
+  expect(
+    selectedToolNames.some((toolName) => isRetiredOnlineSearchTool(toolName)),
+    `${message}. Selected tools: ${selectedToolNames.join(', ') || 'none'}`,
+  ).toBe(false);
+  expect(
+    metrics.toolStarts.some((toolStart) =>
+      isRetiredOnlineSearchTool(toolStart.name),
+    ),
+    `${message}. Tool starts: ${metrics.toolStarts.map(({ name }) => name).join(', ') || 'none'}`,
+  ).toBe(false);
+  const retiredEventStatuses =
+    readRetiredOnlineSearchEventStatuses(metrics).filter((status) =>
+      isRetiredOnlineSearchTool(status),
+    );
+  expect(
+    retiredEventStatuses,
+    `${message}. Retired online-search event statuses: ${retiredEventStatuses.join(', ') || 'none'}`,
+  ).toHaveLength(0);
 }
 
 function expectOptimizingTools(metrics: ChatTurnMetrics) {
@@ -235,9 +342,12 @@ function expectOptimizingTools(metrics: ChatTurnMetrics) {
     metrics.optimizingTools?.execution_path === null ||
       typeof metrics.optimizingTools?.execution_path === 'string',
   ).toBe(true);
-  expect(metrics.optimizingTools!.selected).toBeLessThanOrEqual(
-    metrics.optimizingTools!.total,
-  );
+  const optimizingTools = metrics.optimizingTools;
+  expect(optimizingTools).toBeTruthy();
+  if (!optimizingTools) {
+    return;
+  }
+  expect(optimizingTools.selected).toBeLessThanOrEqual(optimizingTools.total);
 }
 
 function expectWeatherPromptHandledWithoutBuiltinRequirement(
@@ -841,10 +951,6 @@ test.describe('AI Chat E2E', () => {
       const kernelBody = assistantSurface.locator(
         '[data-testid="chat-message-kernel-body"]',
       );
-      const processBody = assistantSurface.locator(
-        '[data-testid="turn-process-body"]',
-      );
-
       expectWeatherPromptHandledWithoutBuiltinRequirement(metrics, 8);
       await expectTranscriptFirst(assistantSurface);
       await expectDiagnosticsHiddenByDefault(assistantSurface);
@@ -872,7 +978,7 @@ test.describe('AI Chat E2E', () => {
           await expect(expandedKernelOverviewToggle).toHaveAttribute(
             'aria-expanded',
             'true',
-            { timeout: 4_000 },
+            { timeout: 4000 },
           );
           overviewExpanded = true;
           break;
@@ -2024,7 +2130,9 @@ test.describe('AI Chat E2E', () => {
         expectGracefulResponse(turn, 4);
       }
       if (!finalTurn) {
-        throw new Error('Expected final turn after long conversation sequence.');
+        throw new Error(
+          'Expected final turn after long conversation sequence.',
+        );
       }
       expectDonePayload(finalTurn);
       expect(typeof finalTurn.donePayload?.context_compacted).toBe('boolean');

@@ -1,7 +1,6 @@
 import type { Ref } from 'vue';
 
-import type { AgentSkillBindingSummary } from './types';
-import type { MentionCandidate } from './types';
+import type { AgentSkillBindingSummary, MentionCandidate } from './types';
 import type { UseAIChatOptions } from './use-ai-chat-options';
 
 import type {
@@ -47,6 +46,7 @@ export function useAIChatComposer(deps: UseAIChatComposerDeps) {
     number,
     Promise<AgentSkillBindingSummary[]>
   >();
+  let endpointGeneration = 0;
 
   function skillPackageSelectionValue(
     binding: Pick<AgentSkillBindingSummary, 'package_name' | 'skill_name'>,
@@ -168,6 +168,19 @@ export function useAIChatComposer(deps: UseAIChatComposerDeps) {
     );
   }
 
+  function resetComposerEndpointState() {
+    endpointGeneration += 1;
+    pendingAgentKBBindingLoads.clear();
+    pendingAgentSkillBindingLoads.clear();
+    inputMessage.value = '';
+    mentionQuery.value = '';
+    mentionActiveIndex.value = 0;
+    selectedKBIds.value = [];
+    agentKBBindings.value = [];
+    agentKBBindingsByAgentId.value = {};
+    agentSkillBindingsByAgentId.value = {};
+  }
+
   function clearMentionDraft() {
     mentionQuery.value = '';
     mentionActiveIndex.value = 0;
@@ -241,16 +254,23 @@ export function useAIChatComposer(deps: UseAIChatComposerDeps) {
     if (pending) {
       return pending;
     }
+    const generation = endpointGeneration;
 
     const request = (async () => {
       try {
         const prefix = unref(options.apiPrefix) as string;
         const items = await getChatAgentKBBindingsApi(prefix, agentId);
+        if (generation !== endpointGeneration) {
+          return [];
+        }
         return updateAgentKBBindings(
           agentId,
           items.filter((binding) => binding.enabled),
         );
       } catch {
+        if (generation !== endpointGeneration) {
+          return [];
+        }
         return updateAgentKBBindings(agentId, []);
       } finally {
         pendingAgentKBBindingLoads.delete(agentId);
@@ -271,11 +291,15 @@ export function useAIChatComposer(deps: UseAIChatComposerDeps) {
     if (pending) {
       return pending;
     }
+    const generation = endpointGeneration;
 
     const request = (async () => {
       try {
         const prefix = unref(options.apiPrefix) as string;
         const items = await getChatAgentSkillsApi(prefix, agentId);
+        if (generation !== endpointGeneration) {
+          return [];
+        }
         return updateAgentSkillBindings(
           agentId,
           items
@@ -283,6 +307,9 @@ export function useAIChatComposer(deps: UseAIChatComposerDeps) {
             .map((binding) => normalizeAgentSkillBinding(binding)),
         );
       } catch {
+        if (generation !== endpointGeneration) {
+          return [];
+        }
         return updateAgentSkillBindings(agentId, []);
       } finally {
         pendingAgentSkillBindingLoads.delete(agentId);
@@ -374,6 +401,7 @@ export function useAIChatComposer(deps: UseAIChatComposerDeps) {
     mentionCandidates,
     mentionOpen,
     removeSelectedKnowledgeBase,
+    resetComposerEndpointState,
     selectMentionKnowledgeBase,
     selectMentionSkillPackage,
     selectedKBIds,

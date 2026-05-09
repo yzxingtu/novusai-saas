@@ -1,6 +1,10 @@
 """SkillPackageService + SkillService 单元测试 / Test.
 
-覆盖：技能包 CRUD、技能绑定/解绑、版本管理、系统技能包保护。"""
+Test type: behavioral.
+Scope: skill package CRUD, binding/select contracts, version/status guards,
+and retired online-search write-time rejection.
+Mock strategy: service/repository seams are mocked; no LLM/tool executor mocks.
+"""
 
 from __future__ import annotations
 

@@ -44,6 +44,7 @@ interface UsePanelShellContextOptions {
     consumeMention?: boolean;
   }) => Promise<boolean>;
   startNewConversation: (forceReset?: boolean) => void;
+  resetEndpointCaches: () => void;
   storePendingAgentId: Ref<number | undefined>;
   storePendingConversationId: Ref<null | number>;
   storePendingMessage: Ref<null | string>;
@@ -93,6 +94,7 @@ export function usePanelShellContext(options: UsePanelShellContextOptions) {
     sending: options.sending,
     sendMessage: options.sendMessage,
     startNewConversation: options.startNewConversation,
+    resetEndpointCaches: options.resetEndpointCaches,
     storePendingAgentId: options.storePendingAgentId,
     storePendingConversationId: options.storePendingConversationId,
     storePendingMessage: options.storePendingMessage,

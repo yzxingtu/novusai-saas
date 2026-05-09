@@ -50,6 +50,7 @@ interface UsePanelShellHeaderContextOptions {
     consumeMention?: boolean;
   }) => Promise<unknown> | unknown;
   startNewConversation: (forceReset?: boolean) => void;
+  resetEndpointCaches: () => void;
   storePendingAgentId: Ref<number | undefined>;
   storePendingConversationId: Ref<null | number>;
   storePendingMessage: Ref<null | string>;
@@ -111,6 +112,7 @@ export function usePanelShellHeaderContext(
     agents: options.agents,
     activeConversationId: options.activeConversationId,
     allAgentsVariables: options.allAgentsVariables,
+    apiPrefix: options.apiPrefix,
     applyVariables: options.applyVariables,
     clearMentionedAgent: () => {},
     chatMessages: options.chatMessages,
@@ -132,6 +134,7 @@ export function usePanelShellHeaderContext(
     showHistory,
     showMemoryPanel,
     startNewConversation: options.startNewConversation,
+    resetEndpointCaches: options.resetEndpointCaches,
     storePendingAgentId: options.storePendingAgentId,
     storePendingConversationId: options.storePendingConversationId,
     storePendingMessage: options.storePendingMessage,

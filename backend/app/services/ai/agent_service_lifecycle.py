@@ -20,6 +20,19 @@ from app.services.ai.agent_service_support import (
 logger = LogManager.get_logger("ai.agent_service")
 
 
+def _reject_legacy_fields(data: dict[str, Any]) -> None:
+    for rejected in (
+        "tenant_id",
+        "owner_tenant_id",
+        "owner_type",
+        "distribution_mode",
+    ):
+        if rejected in data:
+            raise BusinessException(
+                message=_("agent.error.rejected_legacy_field").format(field=rejected)
+            )
+
+
 async def tenant_before_create(svc: Any, data: dict[str, Any]) -> None:
     """创建前校验：名称唯一性 + 插件钩子 / Before create: name uniqueness + plugin hooks."""
     from app.ai.events.hooks import HookPoint, get_hook_registry
@@ -37,13 +50,8 @@ async def tenant_before_create(svc: Any, data: dict[str, Any]) -> None:
             )
         data.update(ctx.get("agent_data", data))
 
+    _reject_legacy_fields(data)
     data["owner_tenant_id"] = svc.tenant_id
-    for rejected in ("owner_type", "distribution_mode"):
-        if rejected in data:
-            raise BusinessException(
-                message=_("agent.error.rejected_legacy_field").format(field=rejected)
-            )
-    data.pop("tenant_id", None)
     scope_val = data.get("scope") or ResourceScopeEnum.ALL_TENANTS.value
     if scope_val not in {e.value for e in ResourceScopeEnum}:
         raise BusinessException(message=_("agent.error.invalid_scope"))
@@ -107,13 +115,7 @@ async def tenant_before_update(
     if agent.owner_tenant_id != svc.tenant_id:
         raise BusinessException(message=_("agent.error.system_protected"))
 
-    for rejected in ("owner_type", "distribution_mode"):
-        if rejected in data:
-            raise BusinessException(
-                message=_("agent.error.rejected_legacy_field").format(field=rejected)
-            )
-    data.pop("tenant_id", None)
-    data.pop("owner_tenant_id", None)
+    _reject_legacy_fields(data)
     if (
         "scope" in data
         and data["scope"] is not None

@@ -65,6 +65,11 @@ export function useAgentRouter(options: UseAgentRouterOptions) {
     routeCache.clear();
   }
 
+  watch(
+    () => unref(options.apiPrefix),
+    () => clearRouteCache(),
+  );
+
   if (options.activeConversationId) {
     watch(options.activeConversationId, () => clearRouteCache());
   }
@@ -107,11 +112,7 @@ export function useAgentRouter(options: UseAgentRouterOptions) {
       };
     }
 
-    return await _callRouteApi(
-      message,
-      attachmentFlags,
-      forceReroute,
-    );
+    return await _callRouteApi(message, attachmentFlags, forceReroute);
   }
 
   async function _callRouteApi(
@@ -135,7 +136,8 @@ export function useAgentRouter(options: UseAgentRouterOptions) {
       `vid${normalizedAttachmentFlags.hasVideoAttachments ? '1' : '0'}`,
       `file${normalizedAttachmentFlags.hasFileAttachments ? '1' : '0'}`,
     ].join('-');
-    const cacheKey = `global-${convId ?? 'new'}-${msgHash}-${attachmentKey}`;
+    const prefix = unref(options.apiPrefix);
+    const cacheKey = `global-${prefix}-${convId ?? 'new'}-${msgHash}-${attachmentKey}`;
 
     const now = Date.now();
     if (!forceReroute) {
@@ -145,7 +147,6 @@ export function useAgentRouter(options: UseAgentRouterOptions) {
       }
     }
 
-    const prefix = unref(options.apiPrefix);
     const pinId = unref(options.pinnedAgentId);
     const response: AgentRouteResponse = await routeMessageApi(prefix, {
       message,

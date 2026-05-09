@@ -137,6 +137,10 @@ function isJsonRecord(value: unknown): value is JsonRecord {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+function filterJsonRecord(value: unknown): value is JsonRecord {
+  return isJsonRecord(value);
+}
+
 function readBoolean(value: unknown, fallback = false) {
   return typeof value === 'boolean' ? value : fallback;
 }
@@ -236,7 +240,7 @@ function detectRedundantSteps(toolCalls: ToolCallAudit[]) {
 }
 
 function normalizeDomTranscriptText(value: string) {
-  return value.replace(/\s+/g, ' ').trim();
+  return value.replaceAll(/\s+/g, ' ').trim();
 }
 
 function normalizeDonePayload(payload: JsonRecord): SSEDonePayload {
@@ -264,19 +268,44 @@ function resolveApiPrefixFromPath(pathname: string) {
   if (pathname.startsWith('/admin')) {
     return '/admin';
   }
-  if (pathname.startsWith('/api/user') || pathname.startsWith('/user')) {
+  if (
+    pathname === '/' ||
+    pathname.startsWith('/agents') ||
+    pathname.startsWith('/ai-chat') ||
+    pathname.startsWith('/api/user') ||
+    pathname.startsWith('/help') ||
+    pathname.startsWith('/settings') ||
+    pathname.startsWith('/user')
+  ) {
     return '/api/user';
   }
   return '/tenant';
 }
 
+function resolveApiPrefixFromRequestUrl(requestUrl: string) {
+  const pathname = new URL(requestUrl, 'http://localhost').pathname;
+  if (pathname.includes('/api/user/')) {
+    return '/api/user';
+  }
+  if (pathname.includes('/admin/')) {
+    return '/admin';
+  }
+  if (pathname.includes('/tenant/')) {
+    return '/tenant';
+  }
+  return null;
+}
+
 async function fetchPersistedConversationSnapshot(
   page: Page,
   conversationId: number,
+  streamUrl?: string,
   suffix = '',
 ) {
   const pageUrl = new URL(page.url());
-  const apiPrefix = resolveApiPrefixFromPath(pageUrl.pathname);
+  const apiPrefix =
+    (streamUrl ? resolveApiPrefixFromRequestUrl(streamUrl) : null) ??
+    resolveApiPrefixFromPath(pageUrl.pathname);
   const response = await page
     .context()
     .request.get(
@@ -325,6 +354,215 @@ function mergeToolCallWithStart(
     summary: readString(payload.summary),
     summary_payload: payload.summary_payload,
   } satisfies ToolCallAudit;
+}
+
+function readCanonicalEvidenceName(evidence: JsonRecord) {
+  return (
+    readString(evidence.tool_name) ??
+    readString(evidence.toolName) ??
+    readString(evidence.source_ref) ??
+    readString(evidence.sourceRef) ??
+    readString(evidence.display_name) ??
+    readString(evidence.displayName) ??
+    readString(evidence.title)
+  );
+}
+
+function appendCanonicalToolEvidence(
+  toolCalls: ToolCallAudit[],
+  evidence: unknown,
+) {
+  if (!isJsonRecord(evidence)) {
+    return;
+  }
+  if (readString(evidence.kind) !== 'tool') {
+    return;
+  }
+  const name = readCanonicalEvidenceName(evidence);
+  if (!name) {
+    return;
+  }
+
+  const argumentsValue = isJsonRecord(evidence.arguments)
+    ? evidence.arguments
+    : null;
+  const status = readString(evidence.status);
+  const error = readString(evidence.error);
+  const output = readString(evidence.output);
+  const summary =
+    readString(evidence.snippet) ??
+    readString(evidence.summary) ??
+    readString(evidence.title);
+  const summaryPayload =
+    evidence.summary_payload ?? evidence.summaryPayload ?? null;
+  const evidenceId =
+    readString(evidence.tool_call_id) ??
+    readString(evidence.toolCallId) ??
+    readString(evidence.id);
+  const key = [
+    evidenceId ? `id:${evidenceId}` : 'shape',
+    name,
+    JSON.stringify(argumentsValue ?? {}),
+    output ?? summary ?? error ?? '',
+  ].join('\u001F');
+  const existingKey = (toolCall: ToolCallAudit) =>
+    [
+      toolCall.summary_payload &&
+      isJsonRecord(toolCall.summary_payload) &&
+      readString(toolCall.summary_payload.evidence_id)
+        ? `id:${readString((toolCall.summary_payload as JsonRecord).evidence_id)}`
+        : 'shape',
+      toolCall.name,
+      JSON.stringify(toolCall.arguments ?? {}),
+      toolCall.output ?? toolCall.summary ?? toolCall.error ?? '',
+    ].join('\u001F');
+  if (toolCalls.some((toolCall) => existingKey(toolCall) === key)) {
+    return;
+  }
+
+  toolCalls.push({
+    arguments: argumentsValue,
+    duration_ms: readNumber(evidence.duration_ms ?? evidence.durationMs),
+    error,
+    error_type: readString(evidence.error_type ?? evidence.errorType),
+    name,
+    output,
+    package_name: null,
+    skill_name: readString(evidence.skill_name ?? evidence.skillName),
+    success: status ? status === 'success' : !error,
+    summary,
+    summary_payload: isJsonRecord(summaryPayload)
+      ? {
+          ...summaryPayload,
+          ...(evidenceId ? { evidence_id: evidenceId } : {}),
+        }
+      : evidenceId
+        ? { evidence_id: evidenceId }
+        : summaryPayload,
+  });
+}
+
+function appendCanonicalToolEvidenceList(
+  toolCalls: ToolCallAudit[],
+  value: unknown,
+) {
+  if (!Array.isArray(value)) {
+    return;
+  }
+  for (const item of value) {
+    appendCanonicalToolEvidence(toolCalls, item);
+  }
+}
+
+function appendCanonicalToolEvidenceFromTurnFlow(
+  toolCalls: ToolCallAudit[],
+  value: unknown,
+) {
+  if (!isJsonRecord(value)) {
+    return;
+  }
+  appendCanonicalToolEvidenceList(toolCalls, value.evidence);
+  appendCanonicalToolEvidenceList(toolCalls, value.sources);
+}
+
+function appendCanonicalToolEvidenceFromPayload(
+  toolCalls: ToolCallAudit[],
+  payload: JsonRecord,
+) {
+  const evidence = payload.evidence;
+  if (Array.isArray(evidence)) {
+    appendCanonicalToolEvidenceList(toolCalls, evidence);
+  } else {
+    appendCanonicalToolEvidence(toolCalls, evidence ?? payload);
+  }
+
+  appendCanonicalToolEvidenceList(toolCalls, payload.evidences);
+  appendCanonicalToolEvidenceList(toolCalls, payload.evidence_items);
+  appendCanonicalToolEvidenceFromTurnFlow(
+    toolCalls,
+    payload.turn_flow ?? payload.turnFlow,
+  );
+
+  const turnRecord = readRecord(payload.turn_record ?? payload.turnRecord);
+  appendCanonicalToolEvidenceFromTurnFlow(
+    toolCalls,
+    turnRecord.turn_flow ?? turnRecord.turnFlow,
+  );
+  const turnRecordMetadata = readRecord(turnRecord.metadata);
+  appendCanonicalToolEvidenceFromTurnFlow(
+    toolCalls,
+    turnRecordMetadata.turn_flow ?? turnRecordMetadata.turnFlow,
+  );
+}
+
+function appendNestedCanonicalToolEvidenceFromPayload(
+  toolCalls: ToolCallAudit[],
+  payload: JsonRecord,
+) {
+  const evidence = payload.evidence;
+  if (Array.isArray(evidence)) {
+    appendCanonicalToolEvidenceList(toolCalls, evidence);
+  } else {
+    appendCanonicalToolEvidence(toolCalls, evidence);
+  }
+
+  appendCanonicalToolEvidenceList(toolCalls, payload.evidences);
+  appendCanonicalToolEvidenceList(toolCalls, payload.evidence_items);
+  appendCanonicalToolEvidenceFromTurnFlow(
+    toolCalls,
+    payload.turn_flow ?? payload.turnFlow,
+  );
+}
+
+function appendCanonicalToolEvidenceFromEventPayload(
+  toolCalls: ToolCallAudit[],
+  payload: JsonRecord,
+  payloadEvent: null | string,
+) {
+  if (payloadEvent === 'turn_evidence' || payloadEvent === 'turn_flow') {
+    appendCanonicalToolEvidenceFromPayload(toolCalls, payload);
+    return true;
+  }
+  if (payloadEvent === 'turn_stage' || payloadEvent === 'turn_stage_update') {
+    appendNestedCanonicalToolEvidenceFromPayload(toolCalls, payload);
+    return true;
+  }
+  return false;
+}
+
+/**
+ * 中文: Test type: smoke. 仅从 canonical turn-flow 证据提取 smoke 工具指标。
+ * EN: Test type: smoke. Extract smoke tool metrics only from canonical turn-flow evidence.
+ *
+ * 中文: Mock strategy: 不 mock LLM 或工具执行器，调用方传入已捕获的 SSE 事件。
+ * EN: Mock strategy: no LLM/tool mocks; callers provide captured SSE events.
+ */
+export function collectCanonicalToolCallsFromEvents(events: SSEEvent[]) {
+  const toolCalls: ToolCallAudit[] = [];
+  for (const event of events) {
+    if (event.data === '[DONE]') continue;
+    let payload: JsonRecord;
+    try {
+      const parsed = JSON.parse(event.data) as unknown;
+      if (!isJsonRecord(parsed)) {
+        continue;
+      }
+      payload = parsed;
+    } catch {
+      continue;
+    }
+    const payloadEvent = readString(payload.event) ?? event.event ?? null;
+    if (payloadEvent === 'done') {
+      appendCanonicalToolEvidenceFromPayload(toolCalls, payload);
+    } else {
+      appendCanonicalToolEvidenceFromEventPayload(
+        toolCalls,
+        payload,
+        payloadEvent,
+      );
+    }
+  }
+  return toolCalls;
 }
 
 function installChatStreamCapture() {
@@ -407,21 +645,7 @@ function installChatStreamCapture() {
       const clonedResponse = response.clone();
       const streamReader = clonedResponse.body?.getReader();
 
-      if (!streamReader) {
-        clonedResponse
-          .text()
-          .then((body) => {
-            record.body = body;
-            record.lastUpdatedAt = Date.now();
-            record.done = true;
-          })
-          .catch((error: unknown) => {
-            record.error =
-              error instanceof Error ? error.message : String(error);
-            record.lastUpdatedAt = Date.now();
-            record.done = true;
-          });
-      } else {
+      if (streamReader) {
         const decoder = new TextDecoder();
         (async () => {
           try {
@@ -448,6 +672,20 @@ function installChatStreamCapture() {
             record.done = true;
           }
         })();
+      } else {
+        clonedResponse
+          .text()
+          .then((body) => {
+            record.body = body;
+            record.lastUpdatedAt = Date.now();
+            record.done = true;
+          })
+          .catch((error: unknown) => {
+            record.error =
+              error instanceof Error ? error.message : String(error);
+            record.lastUpdatedAt = Date.now();
+            record.done = true;
+          });
       }
     }
 
@@ -632,7 +870,7 @@ export async function interceptChatSSE(
       }
 
       if (payloadEvent === 'tool_call') {
-        toolCalls.push(mergeToolCallWithStart(payload, pendingStarts));
+        mergeToolCallWithStart(payload, pendingStarts);
         continue;
       }
 
@@ -666,6 +904,16 @@ export async function interceptChatSSE(
         continue;
       }
 
+      if (
+        appendCanonicalToolEvidenceFromEventPayload(
+          toolCalls,
+          payload,
+          payloadEvent,
+        )
+      ) {
+        continue;
+      }
+
       if (payloadEvent === 'done') {
         donePayload = normalizeDonePayload(payload);
         conversationId = donePayload.conversation_id || conversationId;
@@ -677,6 +925,7 @@ export async function interceptChatSSE(
           donePayload.completion_reason ??
           donePayload.termination_reason ??
           completionReason;
+        appendCanonicalToolEvidenceFromPayload(toolCalls, payload);
         continue;
       }
 
@@ -689,32 +938,6 @@ export async function interceptChatSSE(
       }
     }
 
-    const seenToolNames = new Set(toolCalls.map((toolCall) => toolCall.name));
-    for (const toolName of donePayload?.selected_tool_names ?? []) {
-      if (seenToolNames.has(toolName)) {
-        continue;
-      }
-      seenToolNames.add(toolName);
-      toolCalls.push({
-        arguments: null,
-        duration_ms: 0,
-        error: errors[0] ?? null,
-        error_type:
-          completionReason && completionReason !== 'completed'
-            ? completionReason
-            : null,
-        name: toolName,
-        output: null,
-        package_name: null,
-        skill_name: null,
-        success: completionReason === 'completed' && errors.length === 0,
-        summary: 'selected_without_execution_event',
-        summary_payload: {
-          status: 'selected_without_execution_event',
-        },
-      });
-    }
-
     const ttfb = Math.max(0, responseAt - requestAt);
     const ttft = messageEventCount > 0 ? ttfb : 0;
     const totalMs = Math.max(0, finishedAt - requestAt);
@@ -722,52 +945,34 @@ export async function interceptChatSSE(
       const persistedSnapshot = await fetchPersistedConversationSnapshot(
         page,
         conversationId,
+        capture.url,
       ).catch(() => null);
       const persistedMessages = Array.isArray(persistedSnapshot?.message_list)
-        ? persistedSnapshot.message_list.filter(isJsonRecord)
+        ? persistedSnapshot.message_list.filter((item) =>
+            filterJsonRecord(item),
+          )
         : [];
       for (
         let messageIndex = persistedMessages.length - 1;
         messageIndex >= 0;
         messageIndex -= 1
       ) {
-        const persistedMessage = persistedMessages[messageIndex]!;
+        const persistedMessage = persistedMessages[messageIndex];
+        if (!persistedMessage) {
+          continue;
+        }
         if (readString(persistedMessage.role) !== 'assistant') {
           continue;
         }
         const metadata = readRecord(persistedMessage.metadata);
         const turnRecord = readRecord(metadata.turn_record);
-        const persistedSelectedToolNames = [
-          ...readStringArray(metadata.selected_tool_names),
-          ...readStringArray(turnRecord.selected_tool_names),
-        ];
-        const seenPersistedToolNames = new Set(
-          toolCalls.map((toolCall) => toolCall.name),
+        appendCanonicalToolEvidenceFromPayload(toolCalls, persistedMessage);
+        appendCanonicalToolEvidenceFromPayload(
+          toolCalls,
+          readRecord(persistedMessage.turn_record),
         );
-        for (const toolName of persistedSelectedToolNames) {
-          if (seenPersistedToolNames.has(toolName)) {
-            continue;
-          }
-          seenPersistedToolNames.add(toolName);
-          toolCalls.push({
-            arguments: null,
-            duration_ms: 0,
-            error: errors[0] ?? null,
-            error_type:
-              completionReason && completionReason !== 'completed'
-                ? completionReason
-                : null,
-            name: toolName,
-            output: null,
-            package_name: null,
-            skill_name: null,
-            success: completionReason === 'completed' && errors.length === 0,
-            summary: 'persisted_selected_tool',
-            summary_payload: {
-              status: 'persisted_selected_tool',
-            },
-          });
-        }
+        appendCanonicalToolEvidenceFromPayload(toolCalls, metadata);
+        appendCanonicalToolEvidenceFromPayload(toolCalls, turnRecord);
         if (!fullResponse.trim()) {
           const persistedContent = readString(persistedMessage.content);
           if (persistedContent) {
@@ -780,41 +985,21 @@ export async function interceptChatSSE(
         const timelineSnapshot = await fetchPersistedConversationSnapshot(
           page,
           conversationId,
+          capture.url,
           '/timeline',
         ).catch(() => null);
-        const timelineItems = Array.isArray(timelineSnapshot)
-          ? timelineSnapshot.filter(isJsonRecord)
-          : Array.isArray(timelineSnapshot?.items)
-            ? timelineSnapshot.items.filter(isJsonRecord)
-            : [];
-        const seenPersistedToolNames = new Set(
-          toolCalls.map((toolCall) => toolCall.name),
-        );
+        let timelineItems: JsonRecord[] = [];
+        if (Array.isArray(timelineSnapshot)) {
+          timelineItems = timelineSnapshot.filter((item) =>
+            filterJsonRecord(item),
+          );
+        } else if (Array.isArray(timelineSnapshot?.items)) {
+          timelineItems = timelineSnapshot.items.filter((item) =>
+            filterJsonRecord(item),
+          );
+        }
         for (const item of timelineItems) {
-          const toolName = readString(item.tool_name);
-          if (!toolName || seenPersistedToolNames.has(toolName)) {
-            continue;
-          }
-          seenPersistedToolNames.add(toolName);
-          toolCalls.push({
-            arguments: null,
-            duration_ms: 0,
-            error: errors[0] ?? null,
-            error_type:
-              completionReason && completionReason !== 'completed'
-                ? completionReason
-                : null,
-            name: toolName,
-            output: null,
-            package_name: null,
-            skill_name: null,
-            success: completionReason === 'completed' && errors.length === 0,
-            summary: readString(item.summary) ?? 'persisted_timeline_tool',
-            summary_payload: {
-              status: readString(item.status) ?? 'persisted_timeline_tool',
-              type: readString(item.type),
-            },
-          });
+          appendNestedCanonicalToolEvidenceFromPayload(toolCalls, item);
         }
       }
     }
@@ -827,9 +1012,9 @@ export async function interceptChatSSE(
           if (!panel) {
             return '';
           }
-          const surfaces = Array.from(
-            panel.querySelectorAll('.assistant-message-surface'),
-          );
+          const surfaces = [
+            ...panel.querySelectorAll('.assistant-message-surface'),
+          ];
           for (let index = surfaces.length - 1; index >= 0; index -= 1) {
             const surface = surfaces[index] as HTMLElement | undefined;
             if (!surface) {

@@ -35,6 +35,11 @@ payload、sandbox 和 diagnostics 都必须 fail closed。相关历史条目的 
 改指当前存在的退役 guard / diagnostics suppression / invalid runtime input 测试，
 不得再引用已删除的 WebResearch 正向测试作为上线依据。
 
+If any single historical WebResearch / `web_search` / `fetch_url` entry below
+is copied without this header, treat its `expected_behavior` as superseded
+incident history only. It must not be used as implementation guidance for new
+runtime code, tests, prompt contracts, provider options, or UI diagnostics.
+
 ---
 
 ## 当前条目

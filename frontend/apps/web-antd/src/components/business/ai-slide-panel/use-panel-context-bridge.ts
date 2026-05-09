@@ -23,6 +23,7 @@ interface UsePanelContextBridgeOptions {
   agents: Ref<Array<{ id: number }>>;
   activeConversationId: Ref<null | number>;
   allAgentsVariables: Ref<Record<number, Record<string, string>>>;
+  apiPrefix: Ref<string>;
   applyVariables: (
     agentId: number,
     values: Record<string, string>,
@@ -53,6 +54,7 @@ interface UsePanelContextBridgeOptions {
   showHistory: Ref<boolean>;
   showMemoryPanel: Ref<boolean>;
   startNewConversation: (forceReset?: boolean) => void;
+  resetEndpointCaches: () => void;
   storePendingAgentId: Ref<number | undefined>;
   storePendingConversationId: Ref<null | number>;
   storePendingMessage: Ref<null | string>;
@@ -92,6 +94,32 @@ export function usePanelContextBridge(options: UsePanelContextBridgeOptions) {
   function resetAuxiliaryPanels() {
     options.showHistory.value = false;
     options.showMemoryPanel.value = false;
+  }
+
+  function clearVarsFormValues() {
+    Object.keys(varsFormValues).forEach((key) => {
+      delete varsFormValues[key];
+    });
+  }
+
+  function resetEndpointScopedState() {
+    options.startNewConversation(false);
+    options.resetEndpointCaches();
+    options.agents.value = [];
+    options.allAgentsVariables.value = {};
+    options.selectedAgentId.value = null;
+    options.manualNewConversationAgentId.value = null;
+    options.forceRerouteNextTurn.value = false;
+    options.inputMessage.value = '';
+    options.storePendingAgentId.value = undefined;
+    options.storePendingConversationId.value = null;
+    options.storePendingMessage.value = null;
+    pendingSendContext.value = null;
+    varsModalAgent.value = null;
+    varsModalVisible.value = false;
+    varsPersist.value = false;
+    clearVarsFormValues();
+    resetAuxiliaryPanels();
   }
 
   function peekQueuedPendingAgentId(): null | number {
@@ -204,7 +232,8 @@ export function usePanelContextBridge(options: UsePanelContextBridgeOptions) {
       return;
     }
 
-    const { agentId: pendingAgentId, consumeMention } = pendingSendContext.value;
+    const { agentId: pendingAgentId, consumeMention } =
+      pendingSendContext.value;
     pendingSendContext.value = null;
 
     if (consumeMention) {
@@ -358,6 +387,21 @@ export function usePanelContextBridge(options: UsePanelContextBridgeOptions) {
       void applyExternalContext();
     },
     { flush: 'post' },
+  );
+
+  watch(
+    options.apiPrefix,
+    async (nextPrefix, previousPrefix) => {
+      if (nextPrefix === previousPrefix) {
+        return;
+      }
+
+      resetEndpointScopedState();
+      if (options.visible.value) {
+        await hydrateVisiblePanel();
+      }
+    },
+    { flush: 'sync' },
   );
 
   watch(options.visible, (visible) => {
