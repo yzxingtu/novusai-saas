@@ -1,8 +1,8 @@
-"""中文: 生产验收探针结构测试。
+"""中文: 生产验收探针结构与行为测试。
 
-EN: Structural tests for the production acceptance probe.
+EN: Structural and behavioral tests for the production acceptance probe.
 
-Test type: structural
+Test type: structural / behavioral
 """
 
 from __future__ import annotations
@@ -83,6 +83,15 @@ def _zap_pass_command(*args, **kwargs):
     return {
         "exit_code": 0,
         "stdout_tail": "FAIL-NEW: 0\tWARN-NEW: 1",
+        "stderr_tail": "",
+    }
+
+
+def _zap_missing_fail_count_command(*args, **kwargs):
+    del args, kwargs
+    return {
+        "exit_code": 0,
+        "stdout_tail": "ZAP completed without the expected summary marker",
         "stderr_tail": "",
     }
 
@@ -285,6 +294,7 @@ def _strict_ai_smoke_report_payload(
     ledger_hash: str,
     *,
     provider: dict | None = None,
+    repo: dict | None = None,
     scenario_results: list[dict] | None = None,
     overall_status: str = "passed",
 ) -> dict:
@@ -298,6 +308,9 @@ def _strict_ai_smoke_report_payload(
             "exit_code": 0,
         },
         "ledger": {"sha256": ledger_hash, "scenario_ids": ["S1"]},
+        "repo": repo
+        if repo is not None
+        else {"commit": "current-head", "dirty": False},
         "agent": {
             "selector_type": "id",
             "selector_value": "59",
@@ -339,6 +352,10 @@ def _strict_ai_smoke_report_payload(
             }
         ],
     }
+
+
+def _clean_repo_state() -> dict:
+    return {"available": True, "commit": "current-head", "dirty": False}
 
 
 def test_ai_smoke_minimal_passed_json_is_not_execution_evidence(
@@ -384,6 +401,9 @@ def test_ai_smoke_strict_report_can_satisfy_credential_and_execution_evidence(
     monkeypatch,
 ) -> None:
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setattr(
+        probe, "_current_repo_state", lambda _repo_root: _clean_repo_state()
+    )
     cli_dir = tmp_path / "backend" / "app" / "cli_commands"
     cli_dir.mkdir(parents=True)
     (cli_dir / "ai_commands.py").write_text(
@@ -419,6 +439,88 @@ def test_ai_smoke_strict_report_can_satisfy_credential_and_execution_evidence(
     )
     assert results["ai_smoke_agent_selector"].status == probe.STATUS_PASSED
     assert results["ai_real_dialogue_smoke_execution"].status == probe.STATUS_PASSED
+
+
+def test_ai_smoke_env_agent_selector_must_match_strict_report(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setenv("AI_SMOKE_AGENT_ID", "60")
+    monkeypatch.setattr(
+        probe, "_current_repo_state", lambda _repo_root: _clean_repo_state()
+    )
+    cli_dir = tmp_path / "backend" / "app" / "cli_commands"
+    cli_dir.mkdir(parents=True)
+    (cli_dir / "ai_commands.py").write_text(
+        '@ai_cmd.command("smoke")\ndef ai_smoke():\n    pass\n'
+        '@ai_cmd.command("real-dialogue-smoke")\ndef ai_real_dialogue_smoke():\n    pass\n',
+        encoding="utf-8",
+    )
+    ledger = tmp_path / "ops" / "ai-smoke" / "smoke-scenarios.md"
+    ledger_hash = _write_smoke_ledger(ledger)
+    report = tmp_path / "smoke-report.json"
+    report.write_text(
+        json.dumps(_strict_ai_smoke_report_payload(ledger_hash)),
+        encoding="utf-8",
+    )
+
+    results = {
+        result.name: result
+        for result in probe.probe_ai_smoke_readiness(
+            tmp_path,
+            smoke_report_path=report,
+        )
+    }
+
+    assert results["ai_smoke_agent_selector"].status == probe.STATUS_PASSED
+    assert results["ai_smoke_agent_selector"].details["expected_agent_id"] == 60
+    assert results["ai_real_dialogue_smoke_execution"].status == probe.STATUS_FAILED
+    assert (
+        "agent_id_mismatch"
+        in results["ai_real_dialogue_smoke_execution"].details["report"][
+            "failure_errors"
+        ]
+    )
+
+
+def test_ai_smoke_report_rejects_provider_summary_failure_status(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    cli_dir = tmp_path / "backend" / "app" / "cli_commands"
+    cli_dir.mkdir(parents=True)
+    (cli_dir / "ai_commands.py").write_text(
+        '@ai_cmd.command("smoke")\ndef ai_smoke():\n    pass\n'
+        '@ai_cmd.command("real-dialogue-smoke")\ndef ai_real_dialogue_smoke():\n    pass\n',
+        encoding="utf-8",
+    )
+    ledger_hash = _write_smoke_ledger(
+        tmp_path / "ops" / "ai-smoke" / "smoke-scenarios.md"
+    )
+    provider = _strict_ai_smoke_report_payload(ledger_hash)["provider"]
+    provider["call_logs"][0]["status"] = "failed"
+    report = tmp_path / "smoke-report.json"
+    report.write_text(
+        json.dumps(_strict_ai_smoke_report_payload(ledger_hash, provider=provider)),
+        encoding="utf-8",
+    )
+
+    results = {
+        result.name: result
+        for result in probe.probe_ai_smoke_readiness(
+            tmp_path,
+            ai_smoke_agent_id=59,
+            smoke_report_path=report,
+        )
+    }
+
+    report_details = results["ai_real_dialogue_smoke_execution"].details["report"]
+    assert results["ai_real_dialogue_smoke_execution"].status == probe.STATUS_BLOCKED
+    assert "provider_call_log_status_not_success" in report_details["blocking_errors"]
+    assert report_details["provider_log_status_mismatches"] == ["S1"]
+    assert not report_details["provider_evidence_passed"]
 
 
 def test_ai_smoke_markdown_passed_report_is_blocked(
@@ -585,10 +687,16 @@ def test_local_load_smoke_blocks_when_target_is_unavailable(monkeypatch) -> None
     assert result.details["error_count"] == 4
 
 
-def test_capacity_benchmark_passes_when_thresholds_are_met(monkeypatch) -> None:
-    monkeypatch.setattr(probe, "_request_status", _status_ok)
-    monkeypatch.setattr(probe, "_request_json", _ready_health_request_json)
-    monkeypatch.setattr(probe, "_request_text", _metrics_ok)
+def test_capacity_acceptance_blocks_without_formal_runner(monkeypatch) -> None:
+    monkeypatch.setattr(
+        probe,
+        "_capacity_runner_state",
+        lambda: {
+            "available": False,
+            "required_any": ["k6", "locust"],
+            "tools": {"k6": None, "locust_binary": None, "locust_module": False},
+        },
+    )
 
     result = probe.run_capacity_benchmark(
         "http://localhost:8000",
@@ -599,8 +707,88 @@ def test_capacity_benchmark_passes_when_thresholds_are_met(monkeypatch) -> None:
         error_budget_ratio=0,
     )
 
-    assert result.status == probe.STATUS_PASSED
-    assert result.details["success_count"] == 8
+    assert result.status == probe.STATUS_BLOCKED
+    assert result.details["runner"]["required_any"] == ["k6", "locust"]
+    assert "Python readiness smoke" in result.details["scope"]
+
+
+def test_dast_tooling_blocks_when_only_zap_cli_exists(monkeypatch) -> None:
+    monkeypatch.setattr(
+        probe,
+        "_tool_map",
+        lambda tool_names: dict.fromkeys(tool_names),
+    )
+    monkeypatch.setattr(probe, "_docker_image_available", _zap_image_missing)
+
+    result = probe._dast_tooling_result(
+        dast_image="zaproxy/zap-stable:latest",
+        timeout=1,
+    )
+
+    assert result.status == probe.STATUS_BLOCKED
+    assert result.details["native_required_any"] == ["zap-baseline.py"]
+
+
+def test_ai_smoke_report_blocks_when_report_commit_mismatches_current_head(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    ledger = tmp_path / "ledger" / "smoke-scenarios.md"
+    ledger_hash = _write_smoke_ledger(ledger)
+    report = tmp_path / "smoke-report.json"
+    report.write_text(
+        json.dumps(
+            _strict_ai_smoke_report_payload(
+                ledger_hash,
+                repo={"commit": "old-head", "dirty": False},
+            )
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        probe, "_current_repo_state", lambda _repo_root: _clean_repo_state()
+    )
+
+    status, details = probe._smoke_report_status(
+        report,
+        ledger=probe._parse_smoke_scenario_ledger(ledger),
+        expected_agent_id=59,
+        repo_root=tmp_path,
+    )
+
+    assert status == probe.STATUS_BLOCKED
+    assert "repo_commit_mismatch" in details["blocking_errors"]
+
+
+def test_ai_smoke_report_blocks_when_report_was_generated_from_dirty_worktree(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    ledger = tmp_path / "ledger" / "smoke-scenarios.md"
+    ledger_hash = _write_smoke_ledger(ledger)
+    report = tmp_path / "smoke-report.json"
+    report.write_text(
+        json.dumps(
+            _strict_ai_smoke_report_payload(
+                ledger_hash,
+                repo={"commit": "current-head", "dirty": True},
+            )
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        probe, "_current_repo_state", lambda _repo_root: _clean_repo_state()
+    )
+
+    status, details = probe._smoke_report_status(
+        report,
+        ledger=probe._parse_smoke_scenario_ledger(ledger),
+        expected_agent_id=59,
+        repo_root=tmp_path,
+    )
+
+    assert status == probe.STATUS_BLOCKED
+    assert "repo_report_dirty_worktree" in details["blocking_errors"]
 
 
 def test_postgres_restore_drill_is_blocked_until_explicitly_requested() -> None:
@@ -629,6 +817,46 @@ def test_postgres_restore_drill_rejects_unsafe_identifiers() -> None:
 
     assert result.status == probe.STATUS_FAILED
     assert "safe PostgreSQL identifier" in result.details["error"]
+
+
+def test_postgres_restore_drill_blocks_when_target_database_is_unavailable(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        probe.shutil, "which", lambda name: "docker" if name == "docker" else None
+    )
+
+    def command(*args, **kwargs):
+        del kwargs
+        joined = " ".join(str(part) for part in args[0])
+        if "pg_isready" in joined:
+            return {
+                "exit_code": 2,
+                "stdout_tail": "",
+                "stderr_tail": "pg_isready: no response",
+            }
+        if "DROP DATABASE" in joined:
+            return {
+                "exit_code": 2,
+                "stdout_tail": "",
+                "stderr_tail": 'FATAL: database "postgres" does not exist',
+            }
+        return {"exit_code": 0, "stdout_tail": "", "stderr_tail": ""}
+
+    monkeypatch.setattr(probe, "_run_command", command)
+
+    result = probe.run_postgres_backup_restore_drill(
+        requested=True,
+        postgres_container="missing-postgres",
+        source_db="novusai_saas",
+        postgres_user="novusai",
+        restore_db_prefix="novusai_restore_drill",
+        timeout=1,
+    )
+
+    assert result.status == probe.STATUS_BLOCKED
+    assert result.details["unavailable"] is True
+    assert result.details["failed_step"] == "pg_isready_source"
 
 
 def test_dast_baseline_blocks_when_zap_image_is_missing(monkeypatch, tmp_path: Path):
@@ -671,6 +899,29 @@ def test_dast_baseline_passes_when_zap_reports_no_failures(monkeypatch, tmp_path
     assert result.details["docker_target_url"] == "http://host.docker.internal:8000"
 
 
+def test_dast_baseline_blocks_when_zap_summary_has_no_fail_count(
+    monkeypatch,
+    tmp_path: Path,
+):
+    monkeypatch.setattr(
+        probe.shutil, "which", lambda name: "docker" if name == "docker" else None
+    )
+    monkeypatch.setattr(probe, "_docker_image_available", _zap_image_available)
+    monkeypatch.setattr(probe, "_run_command", _zap_missing_fail_count_command)
+
+    result = probe.run_dast_baseline(
+        target_url="http://localhost:8000",
+        repo_root=tmp_path,
+        artifact_dir=Path("artifacts"),
+        dast_image="zaproxy/zap-stable:latest",
+        allow_pull=False,
+        timeout=1,
+    )
+
+    assert result.status == probe.STATUS_BLOCKED
+    assert result.details["fail_new"] is None
+
+
 def test_security_scan_execution_passes_when_commands_pass(monkeypatch, tmp_path: Path):
     (tmp_path / "backend").mkdir()
     (tmp_path / "frontend").mkdir()
@@ -689,6 +940,10 @@ def test_security_scan_execution_passes_when_commands_pass(monkeypatch, tmp_path
     assert results["python_dependency_audit_scan"].status == probe.STATUS_PASSED
     assert results["python_sast_scan"].status == probe.STATUS_PASSED
     assert results["frontend_dependency_audit_scan"].status == probe.STATUS_PASSED
+    assert (
+        results["frontend_production_dependency_audit_scan"].status
+        == probe.STATUS_PASSED
+    )
 
 
 def test_build_report_stays_blocked_when_optional_gates_are_not_run(

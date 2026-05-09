@@ -103,6 +103,15 @@ sync_session_factory = sessionmaker(
 )
 
 
+def dispose_database_engines_after_fork() -> None:
+    """中文: Celery prefork 子进程启动后重建数据库连接池。
+
+    EN: Recreate database pools after a Celery prefork worker child starts.
+    """
+    sync_engine.dispose(close=False)
+    async_engine.sync_engine.dispose(close=False)
+
+
 # ============================================
 # 依赖注入 / Dependency Injection
 # ============================================
@@ -537,6 +546,7 @@ __all__ = [
     "async_session_factory",
     "sync_engine",
     "sync_session_factory",
+    "dispose_database_engines_after_fork",
     "managed_async_session",
     "get_db",
     "get_db_context",

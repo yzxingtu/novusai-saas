@@ -195,6 +195,9 @@ register_core_adapters()
 
 @worker_process_init.connect
 def _log_worker_runtime_identity(*_args, **_kwargs) -> None:
+    from app.core.database import dispose_database_engines_after_fork
+
+    dispose_database_engines_after_fork()
     logger.info("Celery worker runtime identity: {}", get_runtime_identity_tag())
 
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import sys
 from contextlib import contextmanager
 from pathlib import Path
@@ -17,7 +18,42 @@ logger = LogManager.get_logger("cli")
 runtime_helpers = _runtime_helpers
 settings = _settings
 
-_BACKEND_DIR = Path(__file__).resolve().parents[2]
+
+def _looks_like_backend_dir(path: Path) -> bool:
+    return (
+        (path / "app").is_dir()
+        and (path / "migrations").is_dir()
+        and (path / "alembic.ini").is_file()
+    )
+
+
+def _resolve_backend_dir(
+    *,
+    package_backend_dir: Path | None = None,
+    cwd: Path | None = None,
+) -> Path:
+    """中文: 定位源码/容器运行时后端根目录。
+
+    EN: Locate the backend root for both source-tree and container runtime CLI.
+    """
+    inferred_package_backend_dir = (
+        package_backend_dir or Path(__file__).resolve().parents[2]
+    )
+    candidates: list[Path] = []
+    env_backend_dir = os.environ.get("NOVUSAI_BACKEND_DIR")
+    if env_backend_dir:
+        candidates.append(Path(env_backend_dir))
+    candidates.extend([cwd or Path.cwd(), inferred_package_backend_dir])
+
+    for candidate in candidates:
+        resolved = candidate.resolve()
+        if _looks_like_backend_dir(resolved):
+            return resolved
+
+    return inferred_package_backend_dir
+
+
+_BACKEND_DIR = _resolve_backend_dir()
 _CELERY_APP = "app.celery_app:celery_app"
 _ALL_QUEUES = "default,high_priority,ai_gateway,scheduled,notification"
 _CODEGEN_PROJECT_ROOT = _BACKEND_DIR.parent

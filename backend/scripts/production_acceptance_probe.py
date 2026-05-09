@@ -20,6 +20,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
+from collections.abc import Mapping
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -57,6 +58,19 @@ _NETWORK_BLOCK_MARKERS = (
     "Could not fetch URL",
     "ServiceUnavailable",
     "temporary failure",
+)
+_DAST_BLOCK_MARKERS = (
+    *_NETWORK_BLOCK_MARKERS,
+    "Connection refused",
+    "Failed to access",
+    "Failed to connect",
+    "No route to host",
+    "Target URL is not reachable",
+    "TimeoutError",
+    "target URL is not reachable",
+    "Unable to access",
+    "connection refused",
+    "timed out",
 )
 _UNAVAILABLE_HTTP_STATUS_CODES = {502, 503, 504}
 
@@ -115,6 +129,10 @@ def _has_env_value(
         if (os.environ.get(name) or env_file_values.get(name) or "").strip()
     ]
     return bool(configured), configured
+
+
+def _configured_env_value(name: str, *, env_file_values: dict[str, str]) -> str:
+    return (os.environ.get(name) or env_file_values.get(name) or "").strip()
 
 
 def _request_json(url: str, *, timeout: float) -> dict[str, Any]:
@@ -308,13 +326,78 @@ def _module_available(module_name: str) -> bool:
     return importlib.util.find_spec(module_name) is not None
 
 
+def _capacity_runner_state() -> dict[str, Any]:
+    k6_path = shutil.which("k6")
+    locust_binary = shutil.which("locust")
+    locust_module = _module_available("locust")
+    return {
+        "available": bool(k6_path or locust_binary or locust_module),
+        "required_any": ["k6", "locust"],
+        "tools": {
+            "k6": k6_path,
+            "locust_binary": locust_binary,
+            "locust_module": locust_module,
+        },
+    }
+
+
+def _current_repo_state(repo_root: Path) -> dict[str, Any]:
+    head = _run_command(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo_root,
+        timeout=5,
+    )
+    status = _run_command(
+        ["git", "status", "--porcelain"],
+        cwd=repo_root,
+        timeout=5,
+    )
+    if head.get("exit_code") != 0 or status.get("exit_code") != 0:
+        return {
+            "available": False,
+            "head_command": head,
+            "status_command": status,
+        }
+    commits = str(head.get("stdout_tail") or "").strip().splitlines()
+    return {
+        "available": bool(commits),
+        "commit": commits[-1] if commits else None,
+        "dirty": bool(str(status.get("stdout_tail") or "").strip()),
+        "head_command": head,
+        "status_command": status,
+    }
+
+
 def _is_unavailable_probe_error(message: str) -> bool:
     return (
         "HTTPError: HTTP Error 502" in message
         or "HTTPError: HTTP Error 503" in message
         or "HTTPError: HTTP Error 504" in message
         or "URLError" in message
+        or "ConnectionRefusedError" in message
+        or "TimeoutError" in message
+        or "timed out" in message
     )
+
+
+def _is_postgres_drill_unavailable(step: Mapping[str, Any] | None) -> bool:
+    if not step:
+        return False
+    text = (
+        str(step.get("stdout_tail") or "") + "\n" + str(step.get("stderr_tail") or "")
+    ).lower()
+    unavailable_markers = (
+        "no such container",
+        "container is not running",
+        "connection refused",
+        "could not connect",
+        "does not exist",
+        "role",
+        "fatal:",
+        "is the server running",
+        "pg_isready:",
+    )
+    return any(marker in text for marker in unavailable_markers)
 
 
 def _docker_image_available(image: str, *, timeout: float) -> dict[str, Any]:
@@ -572,7 +655,7 @@ def _postgres_tooling_result(*, postgres_container: str, timeout: float) -> Prob
 
 
 def _dast_tooling_result(*, dast_image: str, timeout: float) -> ProbeResult:
-    native = _tool_map(("zap-baseline.py", "zap-cli"))
+    native = _tool_map(("zap-baseline.py",))
     native_present = [name for name, path in native.items() if path]
     image = _docker_image_available(dast_image, timeout=timeout)
     passed = bool(native_present or image["available"])
@@ -582,9 +665,9 @@ def _dast_tooling_result(*, dast_image: str, timeout: float) -> ProbeResult:
         status=STATUS_PASSED if passed else STATUS_BLOCKED,
         summary="OWASP ZAP tooling is available"
         if passed
-        else "OWASP ZAP command or local Docker image is missing",
+        else "OWASP ZAP baseline command or local Docker image is missing",
         details={
-            "native_required_any": ["zap-baseline.py", "zap-cli"],
+            "native_required_any": ["zap-baseline.py"],
             "native_present": native_present,
             "docker_image": dast_image,
             "docker_image_available": image["available"],
@@ -605,21 +688,24 @@ def probe_external_tooling(
     )
     bandit_present = _module_available("bandit") or bool(shutil.which("bandit"))
     pnpm_present = bool(shutil.which("pnpm"))
-    k6_present = bool(shutil.which("k6"))
-    locust_present = bool(shutil.which("locust")) or _module_available("locust")
+    capacity_runner = _capacity_runner_state()
 
     return [
         ProbeResult(
             area="capacity",
             name="capacity_benchmark_harness",
-            status=STATUS_PASSED,
-            summary="built-in HTTP capacity benchmark harness is available",
+            status=(STATUS_PASSED if capacity_runner["available"] else STATUS_BLOCKED),
+            summary=(
+                "formal capacity benchmark runner is available"
+                if capacity_runner["available"]
+                else "formal capacity runner is missing"
+            ),
             details={
-                "mode": "python-stdlib",
-                "external_tools": {
-                    "k6": k6_present,
-                    "locust": locust_present,
-                },
+                **capacity_runner,
+                "scope": (
+                    "capacity acceptance requires k6, Locust, or an approved "
+                    "equivalent runner; local /ready smoke is reported separately"
+                ),
             },
         ),
         _postgres_tooling_result(
@@ -727,6 +813,7 @@ def _smoke_report_status(
     ledger: SmokeScenarioLedger | None = None,
     expected_agent_id: int | None = None,
     expected_agent_code: str | None = None,
+    repo_root: Path | None = None,
 ) -> tuple[str, dict[str, Any]]:
     if path is None:
         return STATUS_BLOCKED, {"path": None}
@@ -819,6 +906,11 @@ def _smoke_report_status(
                     blocking_errors.append("provider_call_log_request_type_invalid")
                 if call_log.get("call_type") != "main_chat":
                     blocking_errors.append("provider_call_log_call_type_invalid")
+                if str(call_log.get("status") or "").lower() not in {
+                    "success",
+                    STATUS_PASSED,
+                }:
+                    blocking_errors.append("provider_call_log_status_not_success")
             provider_summary_duplicate_log_ids = sorted(
                 {
                     log_id
@@ -840,6 +932,28 @@ def _smoke_report_status(
         blocking_errors.append("ledger_evidence_missing")
     elif ledger and ledger.valid and report_ledger.get("sha256") != ledger.sha256:
         blocking_errors.append("ledger_sha256_mismatch")
+
+    repo_details: dict[str, Any] = {"required": repo_root is not None}
+    if repo_root is not None:
+        current_repo = _current_repo_state(repo_root)
+        report_repo = payload.get("repo")
+        repo_details.update({"current": current_repo, "report": report_repo})
+        if not current_repo.get("available"):
+            blocking_errors.append("repo_current_state_unavailable")
+        elif current_repo.get("dirty") is True:
+            blocking_errors.append("repo_current_worktree_dirty")
+        if not isinstance(report_repo, dict):
+            blocking_errors.append("repo_evidence_missing")
+        else:
+            report_commit = str(report_repo.get("commit") or "").strip()
+            if not report_commit:
+                blocking_errors.append("repo_commit_missing")
+            elif current_repo.get("available") and report_commit != str(
+                current_repo.get("commit") or ""
+            ):
+                blocking_errors.append("repo_commit_mismatch")
+            if report_repo.get("dirty") is not False:
+                blocking_errors.append("repo_report_dirty_worktree")
 
     scenario_results = payload.get("scenario_results")
     if not isinstance(scenario_results, list) or not scenario_results:
@@ -942,6 +1056,17 @@ def _smoke_report_status(
     )
     if provider_log_conversation_mismatches:
         blocking_errors.append("provider_call_log_conversation_mismatch")
+    provider_log_status_mismatches = sorted(
+        {
+            scenario_id
+            for scenario_id, log_id, _conversation_id in must_pass_provider_links
+            if log_id in provider_call_log_by_id
+            and str(provider_call_log_by_id[log_id].get("status") or "").lower()
+            not in {"success", STATUS_PASSED}
+        }
+    )
+    if provider_log_status_mismatches:
+        blocking_errors.append("provider_call_log_status_mismatch")
 
     agent = payload.get("agent")
     if not isinstance(agent, dict):
@@ -989,10 +1114,12 @@ def _smoke_report_status(
         "duplicate_provider_summary_log_ids": provider_summary_duplicate_log_ids,
         "missing_provider_log_summaries": missing_provider_log_summaries,
         "provider_log_conversation_mismatches": provider_log_conversation_mismatches,
+        "provider_log_status_mismatches": provider_log_status_mismatches,
         "provider_evidence_passed": provider_evidence_passed
         and not validation_errors
         and not failure_errors
         and not blocking_errors,
+        "repo": repo_details,
         "schema_version": payload.get("schema_version"),
         "report_type": payload.get("report_type"),
         "execution_kind": payload.get("execution_kind"),
@@ -1029,13 +1156,33 @@ def probe_ai_smoke_readiness(
         env_file_values=backend_env,
     )
     expected_agent_id = ai_smoke_agent_id
-    expected_agent_code = ai_smoke_agent_code
+    expected_agent_code = str(ai_smoke_agent_code or "").strip() or None
+    selector_validation_errors: list[str] = []
+    env_agent_id = _configured_env_value(
+        "AI_SMOKE_AGENT_ID", env_file_values=backend_env
+    )
+    env_agent_code = _configured_env_value(
+        "AI_SMOKE_AGENT_CODE", env_file_values=backend_env
+    )
+    if ai_smoke_agent_id is not None and expected_agent_code:
+        selector_validation_errors.append("agent_selector_argument_ambiguous")
+    elif ai_smoke_agent_id is None and expected_agent_code is None:
+        if env_agent_id and env_agent_code:
+            selector_validation_errors.append("agent_selector_env_ambiguous")
+        if env_agent_id:
+            try:
+                expected_agent_id = int(env_agent_id)
+            except ValueError:
+                selector_validation_errors.append("ai_smoke_agent_id_invalid")
+        elif env_agent_code:
+            expected_agent_code = env_agent_code
     if ai_smoke_agent_id is not None:
         has_agent_selector = True
         selectors.append("--ai-smoke-agent-id")
-    if ai_smoke_agent_code:
+    if expected_agent_code and ai_smoke_agent_code:
         has_agent_selector = True
         selectors.append("--ai-smoke-agent-code")
+    agent_selector_passed = has_agent_selector and not selector_validation_errors
 
     scenario_paths = [
         repo_root
@@ -1059,6 +1206,7 @@ def probe_ai_smoke_readiness(
         ledger=primary_ledger,
         expected_agent_id=expected_agent_id,
         expected_agent_code=expected_agent_code,
+        repo_root=repo_root,
     )
     smoke_passed = smoke_report_status == STATUS_PASSED
     report_provider_evidence = bool(
@@ -1123,11 +1271,18 @@ def probe_ai_smoke_readiness(
         ProbeResult(
             area="ai_runtime",
             name="ai_smoke_agent_selector",
-            status=STATUS_PASSED if has_agent_selector else STATUS_BLOCKED,
+            status=STATUS_PASSED if agent_selector_passed else STATUS_BLOCKED,
             summary="AI smoke agent selector is configured"
-            if has_agent_selector
+            if agent_selector_passed
+            else "AI smoke agent selector is invalid or ambiguous"
+            if selector_validation_errors
             else "AI smoke agent selector is not configured",
-            details={"configured_variable_names": selectors},
+            details={
+                "configured_variable_names": selectors,
+                "expected_agent_id": expected_agent_id,
+                "expected_agent_code": expected_agent_code,
+                "validation_errors": selector_validation_errors,
+            },
         ),
         ProbeResult(
             area="ai_runtime",
@@ -1171,68 +1326,24 @@ def run_capacity_benchmark(
             },
         )
 
-    base = _normalize_base_url(api_base_url)
-    targets = [f"{base}/", f"{base}/ready", f"{base}/health", f"{base}/metrics"]
-    latencies: list[float] = []
-    errors: list[str] = []
-
-    def hit_target(target_url: str) -> None:
-        started_at = time.perf_counter()
-        try:
-            if target_url.endswith("/metrics"):
-                result = _request_text(target_url, timeout=timeout)
-            elif target_url.endswith("/health") or target_url.endswith("/ready"):
-                result = _request_json(target_url, timeout=timeout)
-            else:
-                result = _request_status(target_url, timeout=timeout)
-            if not 200 <= result["status_code"] < 400:
-                errors.append(f"{target_url}:status={result['status_code']}")
-        except Exception as exc:
-            errors.append(f"{target_url}:{type(exc).__name__}: {exc}")
-        finally:
-            latencies.append(round((time.perf_counter() - started_at) * 1000, 2))
-
-    started = time.perf_counter()
-    with ThreadPoolExecutor(max_workers=max(1, concurrency)) as executor:
-        futures = [
-            executor.submit(hit_target, targets[index % len(targets)])
-            for index in range(requests)
-        ]
-        for future in as_completed(futures):
-            future.result()
-    elapsed_ms = round((time.perf_counter() - started) * 1000, 2)
-    sorted_latencies = sorted(latencies)
-    p95_index = max(
-        0, min(len(sorted_latencies) - 1, int(len(sorted_latencies) * 0.95))
-    )
-    success_count = requests - len(errors)
-    error_ratio = (len(errors) / requests) if requests else 1.0
-    p95_ms = sorted_latencies[p95_index] if sorted_latencies else None
-    passed = error_ratio <= error_budget_ratio and (
-        p95_ms is not None and p95_ms <= p95_budget_ms
-    )
+    del api_base_url, concurrency, timeout, p95_budget_ms, error_budget_ratio
+    runner = _capacity_runner_state()
     return ProbeResult(
         area="capacity",
         name="capacity_acceptance_benchmark",
-        status=STATUS_PASSED if passed else STATUS_FAILED,
-        summary="capacity benchmark passed"
-        if passed
-        else "capacity benchmark exceeded latency or error budgets",
+        status=STATUS_BLOCKED,
+        summary=(
+            "capacity acceptance needs an approved k6/Locust load plan"
+            if runner["available"]
+            else "capacity acceptance is blocked because k6/Locust is missing"
+        ),
         details={
-            "targets": targets,
             "requests": requests,
-            "concurrency": concurrency,
-            "elapsed_ms": elapsed_ms,
-            "success_count": success_count,
-            "error_count": len(errors),
-            "error_ratio": round(error_ratio, 4),
-            "p95_ms": p95_ms,
-            "p95_budget_ms": p95_budget_ms,
-            "error_budget_ratio": error_budget_ratio,
-            "errors": errors[:10],
+            "runner": runner,
+            "run_with": "k6 run <script> or locust with an approved SLO plan",
             "scope": (
-                "local benchmark across public app, readiness, health, and "
-                "metrics endpoints; production signoff still needs target-env SLOs"
+                "real capacity acceptance is not satisfied by the built-in "
+                "Python readiness smoke"
             ),
         },
     )
@@ -1291,8 +1402,10 @@ def run_load_smoke(
         "errors": errors[:10],
         "scope": "local readiness smoke only, not a capacity benchmark",
     }
-    unavailable_only = bool(errors) and all(
-        _is_unavailable_probe_error(error) for error in errors
+    unavailable_only = (
+        requests == len(errors)
+        and bool(errors)
+        and all(_is_unavailable_probe_error(error) for error in errors)
     )
     return ProbeResult(
         area="capacity",
@@ -1518,13 +1631,22 @@ def run_postgres_backup_restore_drill(
         not source_head or source_head != restore_head or not restored_table_count
     )
     passed = failed_step is None and cleanup_failed is None and not validation_failed
+    unavailable = _is_postgres_drill_unavailable(failed_step)
+    if cleanup_failed and _is_postgres_drill_unavailable(cleanup_failed):
+        unavailable = True
 
     return ProbeResult(
         area="backup_restore",
         name="postgres_backup_restore_drill",
-        status=STATUS_PASSED if passed else STATUS_FAILED,
+        status=STATUS_PASSED
+        if passed
+        else STATUS_BLOCKED
+        if unavailable
+        else STATUS_FAILED,
         summary="PostgreSQL backup/restore disposable drill passed"
         if passed
+        else "PostgreSQL backup/restore disposable drill is blocked because the target is unavailable"
+        if unavailable
         else "PostgreSQL backup/restore disposable drill failed",
         details={
             "container": postgres_container,
@@ -1539,6 +1661,7 @@ def run_postgres_backup_restore_drill(
             "cleanup_failed_step": cleanup_failed.get("step")
             if cleanup_failed
             else None,
+            "unavailable": unavailable,
             "steps": steps,
             "cleanup_steps": cleanup_steps,
         },
@@ -1641,35 +1764,55 @@ def run_security_scans(
             )
         )
 
-    pnpm_artifact = artifact_root / "pnpm-audit-prod.json"
     pnpm_cmd = shutil.which("pnpm") or "pnpm"
-    pnpm = _run_command(
-        [
-            pnpm_cmd,
-            "audit",
-            "--prod",
-            "--audit-level",
-            "high",
-            "--registry",
-            "https://registry.npmjs.org",
-            "--json",
-        ],
-        cwd=frontend_dir,
-        stdout_path=pnpm_artifact,
-        timeout=timeout,
-    )
-    results.append(
-        _command_probe_result(
-            area="security",
-            name="frontend_dependency_audit_scan",
-            command=pnpm,
-            summary_passed="pnpm audit passed",
-            summary_failed="pnpm audit found high/critical vulnerabilities",
-            summary_blocked="pnpm audit registry or command is unavailable",
-            block_markers=_NETWORK_BLOCK_MARKERS,
-            extra_details={"artifact": str(pnpm_artifact)},
+    frontend_audit_specs = [
+        (
+            "frontend_dependency_audit_scan",
+            artifact_root / "pnpm-audit-all.json",
+            [
+                pnpm_cmd,
+                "audit",
+                "--audit-level",
+                "high",
+                "--registry",
+                "https://registry.npmjs.org",
+                "--json",
+            ],
+        ),
+        (
+            "frontend_production_dependency_audit_scan",
+            artifact_root / "pnpm-audit-prod.json",
+            [
+                pnpm_cmd,
+                "audit",
+                "--prod",
+                "--audit-level",
+                "high",
+                "--registry",
+                "https://registry.npmjs.org",
+                "--json",
+            ],
+        ),
+    ]
+    for name, pnpm_artifact, command in frontend_audit_specs:
+        pnpm = _run_command(
+            command,
+            cwd=frontend_dir,
+            stdout_path=pnpm_artifact,
+            timeout=timeout,
         )
-    )
+        results.append(
+            _command_probe_result(
+                area="security",
+                name=name,
+                command=pnpm,
+                summary_passed=f"{name} passed",
+                summary_failed=f"{name} found high/critical vulnerabilities",
+                summary_blocked=f"{name} registry or command is unavailable",
+                block_markers=_NETWORK_BLOCK_MARKERS,
+                extra_details={"artifact": str(pnpm_artifact)},
+            )
+        )
     return results
 
 
@@ -1777,6 +1920,7 @@ def run_dast_baseline(
         summary_passed="OWASP ZAP baseline passed",
         summary_failed="OWASP ZAP baseline reported failures",
         summary_blocked="OWASP ZAP baseline could not start",
+        block_markers=_DAST_BLOCK_MARKERS,
         extra_details={
             "target_url": target_url,
             "docker_target_url": _docker_visible_url(target_url),
@@ -1794,6 +1938,14 @@ def run_dast_baseline(
             name=status_result.name,
             status=STATUS_FAILED,
             summary="OWASP ZAP baseline reported FAIL alerts",
+            details=status_result.details,
+        )
+    if status_result.status == STATUS_PASSED and fail_new is None:
+        return ProbeResult(
+            area=status_result.area,
+            name=status_result.name,
+            status=STATUS_BLOCKED,
+            summary="OWASP ZAP baseline did not report a parseable FAIL-NEW count",
             details=status_result.details,
         )
     return status_result
