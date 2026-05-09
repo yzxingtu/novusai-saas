@@ -241,7 +241,13 @@ In typical **production** settings, these URLs are disabled (`None` when `DEBUG`
 
 ## Deployment
 
-Production and environment-specific assets are owned by the active operations runbooks and task records. This README stays focused on local development and canonical code/spec entry points.
+Production and environment-specific assets are owned by the active operations
+runbooks and task records. Start with
+[`ops/production-deployment-runbook.md`](ops/production-deployment-runbook.md)
+for Docker/Compose deployment, then use
+[`ops/production-acceptance/README.md`](ops/production-acceptance/README.md)
+for release acceptance gates. This README stays focused on local development
+and canonical code/spec entry points.
 
 ## Contributing
 

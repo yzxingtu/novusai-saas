@@ -207,7 +207,11 @@ pnpm build:antd
 
 ## 部署
 
-生产与运维入口以当前运维 runbook 和任务记录为准；本 README 只保留本地开发与正式 code/spec 入口。
+生产与运维入口以当前运维 runbook 和任务记录为准。Docker/Compose 部署从
+[`ops/production-deployment-runbook.md`](ops/production-deployment-runbook.md)
+开始，发布验收门禁见
+[`ops/production-acceptance/README.md`](ops/production-acceptance/README.md)。
+本 README 只保留本地开发与正式 code/spec 入口。
 
 ## 参与贡献
 

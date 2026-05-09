@@ -74,6 +74,28 @@ services:
               ;;
           esac
         }
+        require_https_url() {
+          require_public_value "$$1"
+          value="$$(printenv "$$1" || true)"
+          case "$$value" in
+            https://*)
+              ;;
+            *)
+              fail "$$1 must start with https://"
+              ;;
+          esac
+        }
+        require_https_origin_list() {
+          require_public_value "$$1"
+          value="$$(printenv "$$1" || true)"
+          lower="$$(printf '%s' "$$value" | tr '[:upper:]' '[:lower:]')"
+          printf '%s' "$$lower" | grep -q 'https://' || fail "$$1 must contain HTTPS production origins"
+          case "$$lower" in
+            *http://*)
+              fail "$$1 must not contain HTTP origins"
+              ;;
+          esac
+        }
         require_public_email() {
           require_value "$$1"
           value="$$(printenv "$$1" || true)"
@@ -98,9 +120,9 @@ services:
         require_real_secret REDIS_PASSWORD
         require_real_secret SECRET_KEY
         require_real_secret FRONTEND_VITE_APP_STORE_SECURE_KEY
-        require_public_value CORS_ORIGINS
+        require_https_origin_list CORS_ORIGINS
         require_public_value PLATFORM_DOMAINS
-        require_public_value FRONTEND_VITE_GLOB_API_URL
+        require_https_url FRONTEND_VITE_GLOB_API_URL
         require_public_value FRONTEND_VITE_PLATFORM_DOMAINS
         custom_domain_enabled="$$(bool_value "$${ALLOW_CUSTOM_DOMAIN:-false}")"
         case "$$custom_domain_enabled" in
@@ -293,11 +315,12 @@ services:
 
   frontend:
     build:
-      context: ./frontend
-      dockerfile: scripts/deploy/Dockerfile
+      context: .
+      dockerfile: frontend/scripts/deploy/Dockerfile
       args:
         VITE_GLOB_API_URL: ${FRONTEND_VITE_GLOB_API_URL:?set FRONTEND_VITE_GLOB_API_URL}
         VITE_PLATFORM_DOMAINS: ${FRONTEND_VITE_PLATFORM_DOMAINS:?set FRONTEND_VITE_PLATFORM_DOMAINS}
+        VITE_APP_TITLE: ${FRONTEND_VITE_APP_TITLE:-NovusAI SaaS}
         VITE_APP_NAMESPACE: ${FRONTEND_VITE_APP_NAMESPACE:-novusai-web-saas}
         VITE_APP_STORE_SECURE_KEY: ${FRONTEND_VITE_APP_STORE_SECURE_KEY:?set FRONTEND_VITE_APP_STORE_SECURE_KEY}
     image: novusai/frontend-web-antd:${NOVUSAI_IMAGE_TAG:?set NOVUSAI_IMAGE_TAG}

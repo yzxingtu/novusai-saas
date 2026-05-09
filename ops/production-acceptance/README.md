@@ -23,9 +23,21 @@ are available:
   --run-security-scans `
   --run-dast-baseline `
   --dast-target-url http://localhost:8000 `
+  --ai-smoke-agent-id <id> `
+  --ai-smoke-report ..\.trellis\tasks\05-08-production-acceptance-gates\smoke-runs\<run-id>\report.json `
   --artifact-dir ops\acceptance-artifacts `
   --allow-blocked `
   --timeout 5
+```
+
+When the target is the production Docker Compose smoke stack, pass the matching
+PostgreSQL container and database identity from the compose environment, for
+example:
+
+```powershell
+  --postgres-container novusai-prod-smoke-postgres-1 `
+  --postgres-db novusai_saas `
+  --postgres-user novusai
 ```
 
 `--allow-blocked` only allows automation to exit 0 when no gate failed. It does
@@ -36,38 +48,24 @@ be claimed as passed.
 
 ## Latest Local Result
 
-Last local run: 2026-05-08, Asia/Shanghai.
+The previous 2026-05-09 local Compose run is no longer sufficient evidence
+after the probe was hardened. Its capacity result used the built-in readiness
+benchmark, and its archived AI smoke report was generated from an older dirty
+worktree. Treat that artifact as historical only.
 
-Overall status: `blocked`
-
-Summary: `19 passed`, `3 blocked`, `0 failed`.
-
-Passed gates:
-
-- API readiness: `/ready` returned `ready=true`.
-- API health: `/health` returned `healthy` with Redis connected.
-- Prometheus metrics: `/metrics` returned the expected exposition.
-- Frontend root: `http://localhost:5666` returned success.
-- Capacity harness: built-in Python HTTP benchmark available.
-- Capacity benchmark: 96 requests, concurrency 16, zero errors, p95 under the
-  1500 ms budget.
-- PostgreSQL backup/restore: Docker `pg_dump`, `pg_restore`, and `psql` were
-  available; disposable restore completed, Alembic heads matched, and 94 public
-  tables were restored.
-- Python dependency audit: `pip-audit --local --skip-editable` completed with
-  no known vulnerabilities.
-- Python SAST: `bandit -ll` completed with no medium/high findings.
-- Frontend dependency audit: both `pnpm audit --audit-level high` and
-  `pnpm audit --prod --audit-level high` completed with zero high/critical
-  findings.
-- OWASP ZAP baseline: Docker ZAP scan completed with `FAIL-NEW: 0`.
+Current expected local status without fresh external evidence: `blocked`
 
 Blocked gates:
 
-- AI provider credentials are not configured in this environment.
-- AI smoke agent selector is not configured (`AI_SMOKE_AGENT_ID` or
-  `AI_SMOKE_AGENT_CODE`).
-- Real-dialogue smoke execution has no archived passed report.
+- Capacity acceptance now requires a real k6/Locust/equivalent load plan. The
+  built-in `/ready` load smoke remains useful, but it is not capacity
+  acceptance.
+- AI real-dialogue smoke reports must include repo evidence matching the current
+  `git rev-parse HEAD` and must be generated from a clean worktree.
+
+The archived real-dialogue report used for this run exists at
+`.trellis/tasks/05-08-production-acceptance-gates/smoke-runs/20260509-ai-real-dialogue/report.json`
+but it no longer satisfies the hardened current-commit smoke requirement.
 
 ## AI Real-Dialogue Smoke
 
@@ -111,7 +109,20 @@ not send a prompt through `AgentChatService` or prove a live provider call.
 
 Generated local artifacts live under `ops/acceptance-artifacts/` and are ignored
 by Git. Regenerate them during release verification instead of treating one
-developer machine's scan output as source. AI real-dialogue smoke raw reports
-should be archived with the owning Trellis task under `smoke-runs/<milestone>/`
-or uploaded as CI/release artifacts; do not use `ops/acceptance-artifacts/` as
-the authoritative acceptance archive.
+developer machine's scan output as source. The probe writes security scan
+artifacts such as `pip-audit.json`, `bandit.json`, `pnpm-audit-all.json`,
+`pnpm-audit-prod.json`, and ZAP reports there. AI real-dialogue smoke raw
+reports should be archived with the owning Trellis task under
+`smoke-runs/<milestone>/` or uploaded as CI/release artifacts; do not use
+`ops/acceptance-artifacts/` as the authoritative acceptance archive.
+
+## Historical Plugin Backup Scope
+
+Historical plugin backup packages under `backend/plugins/.backups/` are not part
+of the new-system production delivery surface. They must not create skipped
+release gates when the fixture files are absent. Supported plugin validation is
+covered by the current plugin CLI, manifest, lifecycle, startup, package, and
+runtime tests against active plugin contracts. If a historical backup plugin is
+reintroduced as a supported package, restore it through the normal plugin source
+tree and add current-contract tests instead of reviving backup-fixture
+compatibility baselines.

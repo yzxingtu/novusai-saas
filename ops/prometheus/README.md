@@ -19,6 +19,15 @@ Start the shared local infrastructure and Prometheus from the repo root:
 docker compose -f docker-compose.dev.yml up -d postgres redis prometheus
 ```
 
+Prometheus binds to `127.0.0.1:19090` by default because Windows commonly
+reserves or blocks low monitoring ports such as `9090`. Override it only when
+the host port is known to be available:
+
+```powershell
+$env:PROMETHEUS_HTTP_PORT = "19091"
+docker compose -f docker-compose.dev.yml up -d prometheus
+```
+
 Start the backend by the normal project flow, then verify direct application
 metrics:
 
@@ -40,8 +49,8 @@ host.docker.internal:8000
 Verify the local Prometheus server:
 
 ```powershell
-Invoke-WebRequest http://localhost:9090/-/ready -UseBasicParsing
-Invoke-RestMethod "http://localhost:9090/api/v1/query?query=up%7Bjob%3D%22novusai-api%22%7D"
+Invoke-WebRequest http://127.0.0.1:19090/-/ready -UseBasicParsing
+Invoke-RestMethod "http://127.0.0.1:19090/api/v1/query?query=up%7Bjob%3D%22novusai-api%22%7D"
 ```
 
 ## Backend Metrics Contract
