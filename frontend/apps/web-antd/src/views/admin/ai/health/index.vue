@@ -486,7 +486,8 @@ watch(
                   <span>{{ $t('admin.ai.health.historyNow') }}</span>
                 </div>
                 <div
-                  class="grid grid-cols-[repeat(60,minmax(0,1fr))] items-center gap-[3px]"
+                  data-testid="health-history-chart"
+                  class="flex items-center gap-[3px]"
                 >
                   <Tooltip
                     v-for="(point, index) in getHistoryDisplayPoints(status)"
@@ -495,7 +496,7 @@ watch(
                   >
                     <span
                       data-testid="health-history-point"
-                      class="h-6 w-[2px] justify-self-center rounded-full"
+                      class="h-7 min-w-0 flex-1 rounded-full"
                       :class="getHistoryPointClass(point)"
                     ></span>
                   </Tooltip>

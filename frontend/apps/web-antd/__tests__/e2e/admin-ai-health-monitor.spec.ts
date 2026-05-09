@@ -153,16 +153,38 @@ test.describe('Admin AI Health Monitor smoke', () => {
     await expect(firstCard.getByText(/45\/60\s*(成功|success)/)).toBeVisible();
     await expect(firstCard.getByText('HISTORY (60 PTS)')).toBeVisible();
     await expect(
+      firstCard.locator('[data-testid="health-history-chart"]'),
+    ).toBeVisible();
+    await expect(
       firstCard.locator('[data-testid="health-history-point"]'),
     ).toHaveCount(60);
     expect(historyRequestLimits).toEqual(['60', '60']);
 
-    const firstHistoryBarBox = await firstCard
+    const historyPointSizes = await firstCard
       .locator('[data-testid="health-history-point"]')
-      .first()
-      .boundingBox();
-    expect(firstHistoryBarBox?.width).toBeLessThanOrEqual(3);
-    expect(firstHistoryBarBox?.height).toBeLessThanOrEqual(24);
+      .evaluateAll((points) =>
+        points.map((point) => {
+          const rect = point.getBoundingClientRect();
+          return {
+            className: point.getAttribute('class') ?? '',
+            height: rect.height,
+            width: rect.width,
+          };
+        }),
+      );
+    const historyPointWidths = historyPointSizes.map((item) => item.width);
+    const historyPointHeights = historyPointSizes.map((item) => item.height);
+    expect(Math.min(...historyPointWidths)).toBeGreaterThan(4);
+    expect(
+      Math.max(...historyPointWidths) - Math.min(...historyPointWidths),
+    ).toBeLessThanOrEqual(1);
+    expect(new Set(historyPointHeights)).toEqual(new Set([28]));
+    expect(
+      historyPointSizes.every(
+        (item) =>
+          item.className.includes('flex-1') && item.className.includes('h-7'),
+      ),
+    ).toBe(true);
 
     const historyColorState = await firstCard
       .locator('[data-testid="health-history-point"]')
