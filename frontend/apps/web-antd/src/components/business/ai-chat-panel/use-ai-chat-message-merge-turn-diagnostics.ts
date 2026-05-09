@@ -1,8 +1,8 @@
 import type { AssistantTurnMergeState } from './use-ai-chat-message-merge-turn-state';
 
 import {
-  normalizeRuntimeDiagnosticTokens,
   normalizeContextSources,
+  normalizeRuntimeDiagnosticTokens,
   normalizeTurnRecord,
 } from './use-ai-chat-message-context';
 import {

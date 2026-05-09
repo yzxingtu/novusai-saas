@@ -24,7 +24,10 @@ describe('chat-message-turn-flow canonical ownership', () => {
     const message: ChatMessage = {
       clientKey: 'assistant-lifecycle-only',
       content: 'partial answer',
-      error: 'transport closed',
+      error: {
+        message: 'transport closed',
+        source: 'sse',
+      },
       partial: true,
       role: 'assistant',
       streaming: false,
@@ -55,11 +58,15 @@ describe('chat-message-turn-flow canonical ownership', () => {
 
     settleTurnFlowAfterLifecycleFinalize(message);
 
-    expect(message.turnFlow).toEqual(expect.objectContaining({
-      complete: true,
-      finalStageStatus: 'completed',
-    }));
-    expect(message.turnFlow?.timeline[0]).toEqual(
+    const turnFlow = message.turnFlow;
+    expect(turnFlow).toBeDefined();
+    expect(message.turnFlow).toEqual(
+      expect.objectContaining({
+        complete: true,
+        finalStageStatus: 'completed',
+      }),
+    );
+    expect(turnFlow?.timeline?.[0]).toEqual(
       expect.objectContaining({
         id: 'thinking-1',
         status: 'completed',

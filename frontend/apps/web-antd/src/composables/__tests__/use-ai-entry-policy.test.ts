@@ -4,9 +4,8 @@
 // Mock strategy: permission and route refs are mocked; policy computation runs real.
 import { effectScope, nextTick } from 'vue';
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
 import { createPinia, setActivePinia } from 'pinia';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockRefs = vi.hoisted(() => ({
   canChat: { value: true },

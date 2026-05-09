@@ -65,13 +65,13 @@ const showDebugError = computed(
 
 <style scoped>
 .chat-error-card {
-  border-color: hsl(var(--destructive) / 0.22);
-  background: hsl(var(--background) / 0.99);
-  box-shadow: 0 10px 20px -28px hsl(var(--destructive) / 0.18);
+  background: hsl(var(--background) / 99%);
+  border-color: hsl(var(--destructive) / 22%);
+  box-shadow: 0 10px 20px -28px hsl(var(--destructive) / 18%);
 }
 
 .chat-error-trace {
-  border: 1px solid hsl(var(--destructive) / 0.16);
-  background: hsl(var(--destructive) / 0.04);
+  background: hsl(var(--destructive) / 4%);
+  border: 1px solid hsl(var(--destructive) / 16%);
 }
 </style>

@@ -10,8 +10,8 @@ import {
 } from '#/components/business/ai-chat-panel/display-formatters';
 import { $t } from '#/locales';
 
-import ToolCallDetails from './ToolCallDetails.vue';
 import { getToolActionErrorHintKey } from './toolActionErrorHints';
+import ToolCallDetails from './ToolCallDetails.vue';
 import { useChatMessageToolCalls } from './use-chat-message-tool-calls';
 
 const props = withDefaults(
@@ -634,34 +634,34 @@ function getEmbeddedToolHint(toolItem: ToolDisplayItem): string {
 
 <style scoped>
 .tool-group-toggle {
-  border-color: hsl(var(--border) / 0.12);
-  background: hsl(var(--muted) / 0.08);
+  background: hsl(var(--muted) / 8%);
+  border-color: hsl(var(--border) / 12%);
   box-shadow: none;
 }
 
 .tool-group-toggle:hover {
-  border-color: hsl(var(--border) / 0.2);
-  background: hsl(var(--muted) / 0.14);
+  background: hsl(var(--muted) / 14%);
+  border-color: hsl(var(--border) / 20%);
 }
 
 .tool-group-icon {
-  border: 1px solid hsl(var(--border) / 0.12);
-  background: hsl(var(--background) / 0.72);
+  background: hsl(var(--background) / 72%);
+  border: 1px solid hsl(var(--border) / 12%);
 }
 
 .tool-group-count {
-  border: 1px solid hsl(var(--border) / 0.12);
-  background: hsl(var(--muted) / 0.18);
+  background: hsl(var(--muted) / 18%);
+  border: 1px solid hsl(var(--border) / 12%);
 }
 
 .tool-call-card {
-  background: hsl(var(--background) / 0.62);
-  border-color: hsl(var(--border) / 0.1);
+  background: hsl(var(--background) / 62%);
+  border-color: hsl(var(--border) / 10%);
   box-shadow: none;
 }
 
 .tool-call-inline {
-  border-bottom: 1px solid hsl(var(--border) / 0.08);
+  border-bottom: 1px solid hsl(var(--border) / 8%);
 }
 
 .tool-call-inline:last-child {

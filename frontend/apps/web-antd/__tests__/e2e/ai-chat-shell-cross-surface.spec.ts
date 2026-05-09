@@ -3,6 +3,7 @@
 // shell, keep diagnostics gated, expose avatar profile details after a real SSE turn,
 // and invalid runtime tools stay absent from ordinary chat turns.
 import type { Locator, Page } from '@playwright/test';
+
 import type { ChatTurnMetrics } from './common/sse-helpers';
 
 import { expect, test } from '@playwright/test';
@@ -217,8 +218,8 @@ async function expectAgentProfilePopover(page: Page) {
   for (let attempt = 0; attempt < 3; attempt += 1) {
     await avatar.click();
     try {
-      await expect(skillSection.last()).toBeVisible({ timeout: 4_000 });
-      await expect(kbSection.last()).toBeVisible({ timeout: 4_000 });
+      await expect(skillSection.last()).toBeVisible({ timeout: 4000 });
+      await expect(kbSection.last()).toBeVisible({ timeout: 4000 });
       popoverVisible = true;
       break;
     } catch (error) {
@@ -372,17 +373,15 @@ async function assertSharedAssistantShell(
   await expectSharedHeaderCopy(page, options);
   await expectDiagnosticsHiddenByDefault(assistantSurface);
   await expectHeaderDiagnosticsHiddenByDefault(page);
-  if (await overviewToggle.count()) {
-    await expect(overviewToggle).toHaveAttribute('aria-expanded', 'false', {
-      timeout: 10_000,
-    });
-  } else {
-    await expect(processBody).toHaveAttribute(
-      'style',
-      /grid-template-rows:\s*0fr/i,
-      { timeout: 10_000 },
-    );
-  }
+  await ((await overviewToggle.count())
+    ? expect(overviewToggle).toHaveAttribute('aria-expanded', 'false', {
+        timeout: 10_000,
+      })
+    : expect(processBody).toHaveAttribute(
+        'style',
+        /grid-template-rows:\s*0fr/i,
+        { timeout: 10_000 },
+      ));
   await expectAgentProfilePopover(page);
 }
 

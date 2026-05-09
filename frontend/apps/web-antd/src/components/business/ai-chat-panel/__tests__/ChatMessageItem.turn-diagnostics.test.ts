@@ -17,9 +17,7 @@ const mockPublicConfigStore = {
 
 vi.mock('#/locales', () => ({
   $t: (key: string, params?: Record<string, unknown>) =>
-    params && 'traceId' in params
-      ? `${key}:${String(params.traceId)}`
-      : key,
+    params && 'traceId' in params ? `${key}:${String(params.traceId)}` : key,
 }));
 
 vi.mock('@vben/icons', () => ({
@@ -297,9 +295,9 @@ describe('chatMessageItem turn diagnostics', () => {
 
     const rendered = wrapper.text();
     expect(rendered).toContain('服务器内部错误');
-    expect(wrapper.get('[data-testid="assistant-error-trace-id"]').text()).toContain(
-      'trace-chat-error',
-    );
+    expect(
+      wrapper.get('[data-testid="assistant-error-trace-id"]').text(),
+    ).toContain('trace-chat-error');
     expect(rendered).not.toContain(
       'common.globalAiChat.diagnosticTurnOutcomeLabel',
     );

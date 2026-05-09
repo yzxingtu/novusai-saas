@@ -7,9 +7,7 @@ import { IconifyIcon } from '@vben/icons';
 
 import { $t } from '#/locales';
 
-import {
-  buildToolCallDetailsViewModel,
-} from './chat-message-tool-call-details-helpers';
+import { buildToolCallDetailsViewModel } from './chat-message-tool-call-details-helpers';
 
 const props = defineProps<{
   compact: boolean;
@@ -20,7 +18,9 @@ const emit = defineEmits<{
   copy: [content: string];
 }>();
 
-const detailView = computed(() => buildToolCallDetailsViewModel(props.toolItem));
+const detailView = computed(() =>
+  buildToolCallDetailsViewModel(props.toolItem),
+);
 </script>
 
 <template>
@@ -63,7 +63,7 @@ const detailView = computed(() => buildToolCallDetailsViewModel(props.toolItem))
                 <li
                   v-for="(line, lineIndex) in field.lines"
                   :key="`${field.key}-line-${lineIndex}`"
-                  class="rounded-[10px] bg-accent/18 px-1.5 py-1 leading-4 text-foreground/80"
+                  class="bg-accent/18 rounded-[10px] px-1.5 py-1 leading-4 text-foreground/80"
                 >
                   {{ line }}
                 </li>
@@ -188,7 +188,7 @@ const detailView = computed(() => buildToolCallDetailsViewModel(props.toolItem))
                 <li
                   v-for="(line, lineIndex) in field.lines"
                   :key="`${field.key}-line-${lineIndex}`"
-                  class="rounded-[10px] bg-accent/18 px-1.5 py-1 leading-4 text-foreground/80"
+                  class="bg-accent/18 rounded-[10px] px-1.5 py-1 leading-4 text-foreground/80"
                 >
                   {{ line }}
                 </li>
@@ -230,7 +230,7 @@ const detailView = computed(() => buildToolCallDetailsViewModel(props.toolItem))
 
     <section
       v-if="toolItem.tc.error"
-      class="rounded-[14px] border border-red-500/16 bg-red-50/75 px-2 py-1.5 text-red-600 dark:bg-red-950/24 dark:text-red-200"
+      class="border-red-500/16 dark:bg-red-950/24 rounded-[14px] border bg-red-50/75 px-2 py-1.5 text-red-600 dark:text-red-200"
     >
       <div class="whitespace-pre-wrap break-all leading-4">
         {{ toolItem.tc.error }}
@@ -248,7 +248,7 @@ const detailView = computed(() => buildToolCallDetailsViewModel(props.toolItem))
       :href="toolItem.tc.resultLink"
       target="_blank"
       rel="noopener noreferrer"
-      class="inline-flex items-center gap-1 rounded-full border border-border/16 bg-background/64 px-2 py-1 text-[10px] text-primary transition-colors hover:border-primary/18 hover:bg-background/76 hover:underline"
+      class="border-border/16 bg-background/64 hover:border-primary/18 hover:bg-background/76 inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] text-primary transition-colors hover:underline"
     >
       <IconifyIcon icon="lucide:external-link" class="size-2.5" />
       {{ $t('common.globalAiChat.viewResult') }}
@@ -261,25 +261,25 @@ const detailView = computed(() => buildToolCallDetailsViewModel(props.toolItem))
   background:
     radial-gradient(
       circle at top left,
-      hsl(var(--primary) / 0.03),
+      hsl(var(--primary) / 3%),
       transparent 34%
     ),
-    hsl(var(--background) / 0.62);
-  border: 1px solid hsl(var(--border) / 0.1);
+    hsl(var(--background) / 62%);
+  border: 1px solid hsl(var(--border) / 10%);
   border-radius: 0.95rem;
 }
 
 .tool-detail-card {
-  background: hsl(var(--muted) / 0.12);
-  border: 1px solid hsl(var(--border) / 0.1);
+  background: hsl(var(--muted) / 12%);
+  border: 1px solid hsl(var(--border) / 10%);
   border-radius: 0.8rem;
 }
 
 .tool-detail-label {
-  color: hsl(var(--muted-foreground) / 0.58);
   font-size: 9px;
   font-weight: 600;
-  letter-spacing: 0.08em;
+  color: hsl(var(--muted-foreground) / 58%);
   text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 </style>

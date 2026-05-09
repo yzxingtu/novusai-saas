@@ -36,7 +36,9 @@ withDefaults(
   <div
     data-testid="agent-identity-rail"
     class="agent-identity-rail"
-    :class="compact ? 'agent-identity-rail-compact' : 'agent-identity-rail-relaxed'"
+    :class="
+      compact ? 'agent-identity-rail-compact' : 'agent-identity-rail-relaxed'
+    "
   >
     <div class="agent-identity-orbit" :class="compact ? 'p-0.5' : 'p-[3px]'">
       <ChatMessageAgentAvatar
@@ -83,9 +85,9 @@ withDefaults(
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid hsl(var(--border) / 0.16);
+  background: hsl(var(--background) / 72%);
+  border: 1px solid hsl(var(--border) / 16%);
   border-radius: 999px;
-  background: hsl(var(--background) / 0.72);
   box-shadow: none;
 }
 

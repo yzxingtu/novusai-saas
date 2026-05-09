@@ -106,7 +106,9 @@ describe('userAIChatMobileDrawer', () => {
   it('shows the same history search affordance as desktop when enough conversations exist', async () => {
     const wrapper = mount(UserAIChatMobileDrawer);
 
-    const searchInput = wrapper.get('[data-testid="mobile-history-search"] input');
+    const searchInput = wrapper.get(
+      '[data-testid="mobile-history-search"] input',
+    );
     expect((searchInput.element as HTMLInputElement).value).toBe('');
 
     await searchInput.setValue('trip');

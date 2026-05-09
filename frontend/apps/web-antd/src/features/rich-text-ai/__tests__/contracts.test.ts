@@ -69,7 +69,7 @@ describe('rich text ai structural contract', () => {
       surface: 'rich_text_editor',
     } satisfies RichTextAiOperationPayload;
 
-    expect(Object.keys(payload).sort()).toEqual([
+    expect(Object.keys(payload).toSorted()).toEqual([
       'after_text',
       'before_text',
       'document_id',

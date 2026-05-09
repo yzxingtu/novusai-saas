@@ -51,9 +51,7 @@ function visibleDiagnosticText(value: unknown): string {
 }
 
 function formatVisibleTagValue(...values: unknown[]): string {
-  const visibleValue = values
-    .map((value) => asString(value))
-    .find((value) => value);
+  const visibleValue = values.map((value) => asString(value)).find(Boolean);
   return visibleValue ? formatTagValue(visibleValue) : '';
 }
 
@@ -346,7 +344,9 @@ const diagnosticsDetailRows = computed(() => {
                   </div>
                 </div>
                 <div
-                  v-if="visibleDiagnosticTokens(intent.allowed_tools).length > 0"
+                  v-if="
+                    visibleDiagnosticTokens(intent.allowed_tools).length > 0
+                  "
                   class="monitoring-diagnostics-line"
                 >
                   <span class="monitoring-overview-label">
@@ -354,7 +354,9 @@ const diagnosticsDetailRows = computed(() => {
                   </span>
                   <div class="monitoring-tag-list">
                     <Tag
-                      v-for="tool in visibleDiagnosticTokens(intent.allowed_tools)"
+                      v-for="tool in visibleDiagnosticTokens(
+                        intent.allowed_tools,
+                      )"
                       :key="tool"
                       color="geekblue"
                     >

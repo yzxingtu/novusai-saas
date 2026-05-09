@@ -154,9 +154,9 @@ describe('turn flow cross-surface normalization', () => {
     const sharedUserFlow = getTurnFlowForDisplay(normalizedUser);
     const sharedMonitoringFlow = getTurnFlowForDisplay(normalizedMonitoring);
 
-    expect(sharedUserFlow.timeline.some((stage) => stage.type === 'tool_execution')).toBe(
-      true,
-    );
+    expect(
+      sharedUserFlow.timeline.some((stage) => stage.type === 'tool_execution'),
+    ).toBe(true);
     expect(sharedMonitoringFlow.timeline.at(-1)).toMatchObject({
       status: 'error',
       type: 'failed',

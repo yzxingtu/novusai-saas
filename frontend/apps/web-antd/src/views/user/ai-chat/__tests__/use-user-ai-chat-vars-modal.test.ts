@@ -1,3 +1,5 @@
+import type { AgentItem } from '#/types/ai-chat';
+
 // Test type: behavioral
 // Verifies: user-page vars editing follows the shared slide-panel rules by
 // preferring a conversation-wide editor when multiple agents in the transcript
@@ -5,8 +7,6 @@
 import { ref } from 'vue';
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-import type { AgentItem } from '#/types/ai-chat';
 
 import { useUserAIChatVarsModal } from '../use-user-ai-chat-vars-modal';
 
@@ -46,7 +46,9 @@ describe('useUserAIChatVarsModal', () => {
         avatar: null,
         description: null,
         id: 2,
-        input_variables: [{ label: 'Project', name: 'project', type: 'string' }],
+        input_variables: [
+          { label: 'Project', name: 'project', type: 'string' },
+        ],
         name: 'Analyst',
         status: 'active',
         tenant_id: 0,

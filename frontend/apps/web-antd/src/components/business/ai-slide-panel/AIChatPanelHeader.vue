@@ -45,9 +45,7 @@ const emit = defineEmits<{
       </div>
       <div class="min-w-0 flex-1 leading-none">
         <div class="flex min-w-0 items-center gap-1.5">
-          <span
-            class="text-foreground/88 truncate text-[12px] font-semibold"
-          >
+          <span class="text-foreground/88 truncate text-[12px] font-semibold">
             {{ panelTitle }}
           </span>
         </div>
@@ -170,9 +168,9 @@ const emit = defineEmits<{
 
 <style scoped>
 .ai-panel-header {
-  background: hsl(var(--background) / 0.96);
+  background: hsl(var(--background) / 96%);
+  box-shadow: 0 1px 0 hsl(var(--background) / 80%) inset;
   backdrop-filter: blur(10px);
-  box-shadow: 0 1px 0 hsl(var(--background) / 0.8) inset;
 }
 
 .ai-panel-header-mark {
@@ -183,23 +181,23 @@ const emit = defineEmits<{
 
 .ai-panel-header-dot {
   display: inline-flex;
-  width: 1.3rem;
-  height: 1.3rem;
   align-items: center;
   justify-content: center;
-  border: 1px solid hsl(var(--border) / 0.28);
-  border-radius: 10px;
+  width: 1.3rem;
+  height: 1.3rem;
   color: hsl(var(--primary));
-  background: hsl(var(--muted) / 0.18);
+  background: hsl(var(--muted) / 18%);
+  border: 1px solid hsl(var(--border) / 28%);
+  border-radius: 10px;
 }
 
 .ai-panel-header-actions {
-  border: 1px solid hsl(var(--border) / 0.14);
-  background: hsl(var(--background) / 0.7);
+  background: hsl(var(--background) / 70%);
+  border: 1px solid hsl(var(--border) / 14%);
   box-shadow: none;
 }
 
 .ai-panel-route-note {
-  color: hsl(var(--muted-foreground) / 0.66);
+  color: hsl(var(--muted-foreground) / 66%);
 }
 </style>

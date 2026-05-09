@@ -3,10 +3,7 @@ import type {
   MonitoringTurnFlowPayload,
 } from '../../api';
 
-import type {
-  ChatAttachment,
-  ChatMessage,
-} from '#/types/ai-chat';
+import type { ChatAttachment, ChatMessage } from '#/types/ai-chat';
 
 import { toTurnFlowFirstChatMessage } from '#/components/business/ai-chat-panel/turn-flow-first-message';
 import { $t } from '#/locales';

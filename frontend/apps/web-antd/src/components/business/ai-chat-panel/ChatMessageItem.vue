@@ -1,9 +1,9 @@
 <script lang="ts" setup>
 import type {
+  AgentItem,
   AgentKnowledgeBaseBindingsByAgentId,
   AgentKnowledgeBaseBindingSummary,
   AgentSkillBindingsByAgentId,
-  AgentItem,
   ChatMessage,
 } from './types';
 
@@ -15,13 +15,13 @@ defineOptions({ name: 'ChatMessageItem' });
 
 const props = withDefaults(
   defineProps<{
+    agentKnowledgeBaseMap?: AgentKnowledgeBaseBindingsByAgentId | null;
+    agentKnowledgeBases?: AgentKnowledgeBaseBindingSummary[] | null;
     agents?: AgentItem[];
+    agentSkillMap?: AgentSkillBindingsByAgentId | null;
     apiPrefix?: string;
     compact?: boolean;
     forceShowDiagnostics?: boolean;
-    agentKnowledgeBases?: AgentKnowledgeBaseBindingSummary[] | null;
-    agentKnowledgeBaseMap?: AgentKnowledgeBaseBindingsByAgentId | null;
-    agentSkillMap?: AgentSkillBindingsByAgentId | null;
     index: number;
     kernelState?: null | TurnFlowState;
     msg: ChatMessage;

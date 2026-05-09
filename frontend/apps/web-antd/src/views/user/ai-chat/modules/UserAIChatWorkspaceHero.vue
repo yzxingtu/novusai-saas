@@ -15,12 +15,15 @@ const { showWorkspaceHero, workspaceHighlights, chat, onStartNewChat } =
 const { selectedAgent } = chat;
 
 const selectedAgentSkillCount = computed(
-  () => selectedAgent.value?.skills?.filter((item) => item.enabled !== false).length ?? 0,
+  () =>
+    selectedAgent.value?.skills?.filter((item) => item.enabled !== false)
+      .length ?? 0,
 );
 const selectedKnowledgeBaseCount = computed(
   () =>
-    selectedAgent.value?.knowledge_bases?.filter((item) => item.enabled !== false)
-      .length ??
+    selectedAgent.value?.knowledge_bases?.filter(
+      (item) => item.enabled !== false,
+    ).length ??
     selectedAgent.value?.knowledge_base_ids?.length ??
     0,
 );
@@ -40,7 +43,7 @@ const selectedAgentLead = computed(
       class="absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-primary/70 to-transparent"
     ></div>
     <div
-      class="absolute -right-20 top-0 size-64 rounded-full bg-primary/12 blur-3xl"
+      class="bg-primary/12 absolute -right-20 top-0 size-64 rounded-full blur-3xl"
     ></div>
     <div
       class="absolute left-0 top-1/2 size-44 -translate-y-1/2 rounded-full bg-sky-500/10 blur-3xl"
@@ -51,7 +54,7 @@ const selectedAgentLead = computed(
     >
       <div class="space-y-3.5">
         <div
-          class="inline-flex items-center gap-2 rounded-full border border-primary/18 bg-primary/[0.07] px-2.5 py-0.5 text-[10px] font-medium tracking-[0.08em] text-primary"
+          class="border-primary/18 inline-flex items-center gap-2 rounded-full border bg-primary/[0.07] px-2.5 py-0.5 text-[10px] font-medium tracking-[0.08em] text-primary"
         >
           <IconifyIcon icon="lucide:messages-square" class="size-3.5" />
           {{ $t('user.aiChat.workspace.badge') }}
@@ -80,7 +83,7 @@ const selectedAgentLead = computed(
             <IconifyIcon icon="lucide:arrow-up-right" class="size-3.5" />
           </button>
           <button
-            class="inline-flex items-center gap-2 rounded-full border border-border/60 bg-background/92 px-3.5 py-2 text-[12px] font-medium text-foreground transition-colors hover:border-primary/22 hover:text-primary"
+            class="bg-background/92 hover:border-primary/22 inline-flex items-center gap-2 rounded-full border border-border/60 px-3.5 py-2 text-[12px] font-medium text-foreground transition-colors hover:text-primary"
             type="button"
             @click="onStartNewChat"
           >
@@ -100,7 +103,7 @@ const selectedAgentLead = computed(
 
       <div class="space-y-3">
         <div
-          class="rounded-[22px] border border-border/55 bg-background/76 px-3.5 py-3.5 shadow-[0_18px_36px_-34px_hsl(var(--foreground)/0.18)]"
+          class="bg-background/76 rounded-[22px] border border-border/55 px-3.5 py-3.5 shadow-[0_18px_36px_-34px_hsl(var(--foreground)/0.18)]"
         >
           <div class="flex items-start gap-3">
             <div class="shrink-0">
@@ -117,44 +120,53 @@ const selectedAgentLead = computed(
               />
               <span
                 v-else
-                class="flex size-8 items-center justify-center rounded-2xl border border-border/35 bg-primary/8 text-[11px] font-semibold text-primary"
+                class="bg-primary/8 flex size-8 items-center justify-center rounded-2xl border border-border/35 text-[11px] font-semibold text-primary"
               >
                 AI
               </span>
             </div>
             <div class="min-w-0 flex-1">
               <div
-                class="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground/78"
+                class="text-muted-foreground/78 text-[10px] font-medium uppercase tracking-[0.16em]"
               >
                 {{ $t('user.aiChat.workspace.signals.agent') }}
               </div>
-              <p class="mt-1.5 text-[12.5px] leading-6 text-foreground/78">
+              <p class="text-foreground/78 mt-1.5 text-[12.5px] leading-6">
                 {{ selectedAgentLead }}
               </p>
 
               <div class="mt-2 flex flex-wrap gap-1.5">
                 <span
-                  class="inline-flex items-center gap-1 rounded-full border border-border/45 bg-card/78 px-2 py-1 text-[10px] text-muted-foreground/78"
+                  class="bg-card/78 text-muted-foreground/78 inline-flex items-center gap-1 rounded-full border border-border/45 px-2 py-1 text-[10px]"
                 >
-                  <IconifyIcon icon="lucide:package" class="size-3 text-primary/75" />
+                  <IconifyIcon
+                    icon="lucide:package"
+                    class="size-3 text-primary/75"
+                  />
                   {{ $t('common.globalAiChat.skillPackages') }}
-                  <strong class="font-semibold text-foreground/82">
+                  <strong class="text-foreground/82 font-semibold">
                     {{ selectedAgentSkillCount }}
                   </strong>
                 </span>
                 <span
-                  class="inline-flex items-center gap-1 rounded-full border border-border/45 bg-card/78 px-2 py-1 text-[10px] text-muted-foreground/78"
+                  class="bg-card/78 text-muted-foreground/78 inline-flex items-center gap-1 rounded-full border border-border/45 px-2 py-1 text-[10px]"
                 >
-                  <IconifyIcon icon="lucide:book-open" class="size-3 text-primary/75" />
+                  <IconifyIcon
+                    icon="lucide:book-open"
+                    class="size-3 text-primary/75"
+                  />
                   {{ $t('common.globalAiChat.mentionSectionKbs') }}
-                  <strong class="font-semibold text-foreground/82">
+                  <strong class="text-foreground/82 font-semibold">
                     {{ selectedKnowledgeBaseCount }}
                   </strong>
                 </span>
                 <span
-                  class="inline-flex items-center gap-1 rounded-full border border-border/45 bg-card/78 px-2 py-1 text-[10px] text-muted-foreground/78"
+                  class="bg-card/78 text-muted-foreground/78 inline-flex items-center gap-1 rounded-full border border-border/45 px-2 py-1 text-[10px]"
                 >
-                  <IconifyIcon icon="lucide:cpu" class="size-3 text-primary/75" />
+                  <IconifyIcon
+                    icon="lucide:cpu"
+                    class="size-3 text-primary/75"
+                  />
                   {{
                     selectedAgent?.model_name ||
                     $t('user.aiChat.workspace.noAgentSelected')
@@ -168,20 +180,22 @@ const selectedAgentLead = computed(
             <div
               v-for="signal in workspaceHighlights"
               :key="signal.key"
-              class="flex items-start gap-2.5 rounded-[18px] border border-border/45 bg-card/72 px-2.5 py-2"
+              class="bg-card/72 flex items-start gap-2.5 rounded-[18px] border border-border/45 px-2.5 py-2"
             >
               <span
-                class="mt-0.5 flex size-7.5 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary"
+                class="size-7.5 mt-0.5 flex shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary"
               >
                 <IconifyIcon :icon="signal.icon" class="size-3.5" />
               </span>
               <div class="min-w-0 flex-1">
                 <div
-                  class="text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground/76"
+                  class="text-muted-foreground/76 text-[10px] font-medium uppercase tracking-[0.14em]"
                 >
                   {{ signal.label }}
                 </div>
-                <div class="mt-1 text-[12px] font-medium leading-5 text-foreground/84">
+                <div
+                  class="text-foreground/84 mt-1 text-[12px] font-medium leading-5"
+                >
                   {{ signal.value }}
                 </div>
               </div>

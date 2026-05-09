@@ -11,16 +11,16 @@ import type { AppErrorInfo } from '#/utils/request';
 
 import { $t } from '#/locales';
 
+import {
+  mergeTurnFlow,
+  normalizeTurnFlowViewModel,
+} from './chat-message-turn-flow-ingestion';
 import { collectTurnContentMetadata } from './use-ai-chat-message-merge-turn-content';
 import { collectTurnDiagnostics } from './use-ai-chat-message-merge-turn-diagnostics';
 import {
   normalizeObjectRecord,
   normalizeOptionalString,
 } from './use-ai-chat-message-normalizers';
-import {
-  mergeTurnFlow,
-  normalizeTurnFlowViewModel,
-} from './chat-message-turn-flow-ingestion';
 
 function resolvePersistedAssistantError(
   metadata: null | Record<string, unknown>,

@@ -9,13 +9,13 @@ import { computed } from 'vue';
 
 import { describe, expect, it, vi } from 'vitest';
 
+import { buildTurnFlowState } from '../../ai-chat-kernel/TurnFlowState';
 import { getRagSourcesForDisplay } from '../chat-message-turn-flow';
 import {
   createEmptyTurnFlow,
   settleTurnFlowFinalState,
 } from '../chat-message-turn-flow-core';
 import ChatMessageDiagnostics from '../ChatMessageDiagnostics.vue';
-import { buildTurnFlowState } from '../../ai-chat-kernel/TurnFlowState';
 
 vi.mock('#/locales', () => ({
   $t: (key: string, params?: Record<string, unknown>) => {
@@ -23,7 +23,7 @@ vi.mock('#/locales', () => ({
       return key;
     }
     const suffix = Object.entries(params)
-      .sort(([left], [right]) => left.localeCompare(right))
+      .toSorted(([left], [right]) => left.localeCompare(right))
       .map(([name, value]) => `${name}=${String(value)}`)
       .join(',');
     return `${key}:${suffix}`;
@@ -67,9 +67,7 @@ describe('process i18n helpers', () => {
     const ragSources = getRagSourcesForDisplay(
       createAssistantMessage({
         turnFlow: {
-          evidence: [
-            { id: 'kb-1', kind: 'knowledge_base', score: 0.8 },
-          ],
+          evidence: [{ id: 'kb-1', kind: 'knowledge_base', score: 0.8 }],
           timeline: [],
         },
       }),
@@ -85,7 +83,11 @@ describe('process i18n helpers', () => {
       createAssistantMessage({
         turnFlow: {
           evidence: [
-            { id: 'evidence-1', kind: 'knowledge_base', title: 'skill_resolver' },
+            {
+              id: 'evidence-1',
+              kind: 'knowledge_base',
+              title: 'skill_resolver',
+            },
             { id: 'evidence-2', kind: 'memory', title: 'long_term_memory' },
             { id: 'evidence-3', kind: 'knowledge_base', title: 'gpt-5.5' },
           ],

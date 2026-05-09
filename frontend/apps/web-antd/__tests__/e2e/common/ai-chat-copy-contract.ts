@@ -50,7 +50,7 @@ function toVariants(zhValue: string, enValue: string) {
 }
 
 function escapeRegex(value: string) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return value.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
 }
 
 export function buildLocaleVariantPattern(variants: readonly string[]) {

@@ -1,3 +1,5 @@
+import type { MaybeRefOrGetter } from 'vue';
+
 import type {
   AgentItem,
   AgentKnowledgeBaseBindingsByAgentId,
@@ -8,7 +10,6 @@ import type {
 } from './types';
 
 import type { TurnFlowState } from '#/components/business/ai-chat-kernel/TurnFlowState';
-import type { MaybeRefOrGetter } from 'vue';
 
 import { computed, toValue } from 'vue';
 
@@ -55,7 +56,9 @@ export function useAssistantMessageViewModel(
   const currentAgentSkillMap = computed(
     () => toValue(options.agentSkillMap) ?? null,
   );
-  const currentKernelState = computed(() => toValue(options.kernelState) ?? null);
+  const currentKernelState = computed(
+    () => toValue(options.kernelState) ?? null,
+  );
   const currentMessage = computed(() => toValue(options.msg));
   const currentSelectedAgent = computed(
     () => toValue(options.selectedAgent) ?? null,
@@ -105,7 +108,9 @@ export function useAssistantMessageViewModel(
     if (typeof messageAgentId !== 'number') {
       return null;
     }
-    return currentAgents.value.find((agent) => agent.id === messageAgentId) ?? null;
+    return (
+      currentAgents.value.find((agent) => agent.id === messageAgentId) ?? null
+    );
   });
 
   const fallbackAgent = computed(() =>
@@ -163,17 +168,19 @@ export function useAssistantMessageViewModel(
     return currentAgentSkillMap.value[agentId] ?? null;
   });
 
-  const selectedAgentSkills = computed<AgentSkillBindingSummary[] | null>(() => {
-    const resolvedAgentId =
-      currentMessage.value.agent_id ?? resolvedAgentSource.value?.id ?? null;
-    if (
-      resolvedAgentId === null ||
-      resolvedAgentId !== currentSelectedAgent.value?.id
-    ) {
-      return null;
-    }
-    return currentSelectedAgent.value?.skills ?? null;
-  });
+  const selectedAgentSkills = computed<AgentSkillBindingSummary[] | null>(
+    () => {
+      const resolvedAgentId =
+        currentMessage.value.agent_id ?? resolvedAgentSource.value?.id ?? null;
+      if (
+        resolvedAgentId === null ||
+        resolvedAgentId !== currentSelectedAgent.value?.id
+      ) {
+        return null;
+      }
+      return currentSelectedAgent.value?.skills ?? null;
+    },
+  );
 
   const resolvedMessageAgent = computed<AssistantMessageResolvedAgent>(() => {
     const source = resolvedAgentSource.value;

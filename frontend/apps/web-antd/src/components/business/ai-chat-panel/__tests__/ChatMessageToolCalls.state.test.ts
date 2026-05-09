@@ -52,7 +52,7 @@ function createStreamingMessage(status: 'running' | 'success'): ChatMessage {
   };
 }
 
-describe('ChatMessageToolCalls state', () => {
+describe('chatMessageToolCalls state', () => {
   it('keeps running tool details open during streaming and folds the group after completion', async () => {
     const wrapper = mount(ChatMessageToolCalls, {
       props: {

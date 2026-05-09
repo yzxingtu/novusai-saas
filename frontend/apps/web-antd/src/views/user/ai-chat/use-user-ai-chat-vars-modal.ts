@@ -1,17 +1,15 @@
 import type { Ref } from 'vue';
 
-import type { AgentItem } from '#/types/ai-chat';
-
 import type { VarsModalAgent } from './modules/ai-chat-context';
 
-import type { InputVariable } from '#/types/ai-chat';
+import type { AgentItem, InputVariable } from '#/types/ai-chat';
 
 import { computed, reactive, ref } from 'vue';
 
 import { message } from 'ant-design-vue';
 
-import { usePanelVarsEditor } from '#/components/business/ai-slide-panel/use-panel-vars-editor';
 import { formatLocalizedList } from '#/components/business/ai-chat-panel/display-formatters';
+import { usePanelVarsEditor } from '#/components/business/ai-slide-panel/use-panel-vars-editor';
 import { $t } from '#/locales';
 import { getAgentInputVariables } from '#/types/ai-chat';
 

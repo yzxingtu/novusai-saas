@@ -124,7 +124,7 @@ function onUserAttachmentImageError(event: Event, att: ChatAttachment) {
       >
         <span
           v-if="msg.created_at"
-          class="mr-1 text-[9px] tabular-nums text-muted-foreground/42"
+          class="text-muted-foreground/42 mr-1 text-[9px] tabular-nums"
         >
           {{ formatTimeOnly(msg.created_at) }}
         </span>
@@ -151,28 +151,28 @@ function onUserAttachmentImageError(event: Event, att: ChatAttachment) {
 
 <style scoped>
 .user-message-bubble {
-  background: hsl(var(--primary) / 0.88);
-  border-color: hsl(var(--primary) / 0.16);
-  box-shadow: 0 10px 18px -24px hsl(var(--primary) / 0.18);
+  background: hsl(var(--primary) / 88%);
+  border-color: hsl(var(--primary) / 16%);
+  box-shadow: 0 10px 18px -24px hsl(var(--primary) / 18%);
 }
 
 .user-attachment {
-  border: 1px solid hsl(var(--border) / 0.28);
   background: hsl(var(--background));
-  box-shadow: 0 12px 20px -24px hsl(var(--foreground) / 0.1);
+  border: 1px solid hsl(var(--border) / 28%);
+  box-shadow: 0 12px 20px -24px hsl(var(--foreground) / 10%);
 }
 
 .user-file-chip {
-  color: hsl(var(--foreground) / 0.82);
-  background: hsl(var(--background) / 0.94);
-  border: 1px solid hsl(var(--border) / 0.26);
-  box-shadow: 0 8px 16px -22px hsl(var(--foreground) / 0.1);
+  color: hsl(var(--foreground) / 82%);
+  background: hsl(var(--background) / 94%);
+  border: 1px solid hsl(var(--border) / 26%);
+  box-shadow: 0 8px 16px -22px hsl(var(--foreground) / 10%);
 }
 
 .user-action-button {
-  color: hsl(var(--muted-foreground) / 0.58);
-  background: hsl(var(--background) / 0.7);
-  border: 1px solid hsl(var(--border) / 0.1);
+  color: hsl(var(--muted-foreground) / 58%);
+  background: hsl(var(--background) / 70%);
+  border: 1px solid hsl(var(--border) / 10%);
   transition:
     background-color 160ms ease,
     border-color 160ms ease,
@@ -181,8 +181,8 @@ function onUserAttachmentImageError(event: Event, att: ChatAttachment) {
 }
 
 .user-action-button:hover {
-  color: hsl(var(--foreground) / 0.84);
-  background: hsl(var(--primary) / 0.08);
-  border-color: hsl(var(--primary) / 0.16);
+  color: hsl(var(--foreground) / 84%);
+  background: hsl(var(--primary) / 8%);
+  border-color: hsl(var(--primary) / 16%);
 }
 </style>

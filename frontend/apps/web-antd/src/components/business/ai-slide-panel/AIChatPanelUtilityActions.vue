@@ -73,7 +73,7 @@ const effectiveHeaderMoreMenuItems = computed(
     <span
       v-if="forceRerouteNextTurn && !compact"
       data-testid="ai-panel-header-status"
-      class="inline-flex items-center gap-1 rounded-full border border-amber-500/14 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-700"
+      class="border-amber-500/14 inline-flex items-center gap-1 rounded-full border bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-700"
     >
       <IconifyIcon icon="lucide:compass" class="size-2.5" />
       {{ $t('common.globalAiChat.rerouteArmed') }}
@@ -119,10 +119,10 @@ const effectiveHeaderMoreMenuItems = computed(
           :class="
             compact
               ? forceRerouteNextTurn
-                ? 'size-[26px] rounded-[12px] bg-amber-500/12 text-amber-700'
+                ? 'bg-amber-500/12 size-[26px] rounded-[12px] text-amber-700'
                 : 'size-[26px] rounded-[12px] text-muted-foreground hover:bg-muted hover:text-foreground'
               : forceRerouteNextTurn
-                ? 'ai-panel-utility-chip h-8 rounded-full border border-amber-500/24 bg-amber-500/10 px-2.5 text-[10.5px] text-amber-700'
+                ? 'ai-panel-utility-chip border-amber-500/24 h-8 rounded-full border bg-amber-500/10 px-2.5 text-[10.5px] text-amber-700'
                 : 'ai-panel-utility-chip h-8 rounded-full border px-2.5 text-[10.5px] text-muted-foreground'
           "
           :aria-label="$t('common.globalAiChat.rerouteThisTurn')"
@@ -246,8 +246,8 @@ const effectiveHeaderMoreMenuItems = computed(
 
 <style scoped>
 .ai-panel-utility-chip {
-  border-color: hsl(var(--border) / 0.18);
-  background: hsl(var(--background) / 0.74);
+  background: hsl(var(--background) / 74%);
+  border-color: hsl(var(--border) / 18%);
   box-shadow: none;
 }
 </style>

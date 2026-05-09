@@ -465,8 +465,8 @@ const summaryStats = computed(() => {
 .agent-profile-avatar {
   position: relative;
   overflow: hidden;
-  background: hsl(var(--background) / 0.88);
-  border: 1px solid hsl(var(--border) / 0.24);
+  background: hsl(var(--background) / 88%);
+  border: 1px solid hsl(var(--border) / 24%);
   box-shadow: none;
   transition:
     transform 160ms ease,
@@ -481,28 +481,28 @@ const summaryStats = computed(() => {
 
 .assistant-agent-avatar:hover,
 .assistant-agent-avatar:focus-visible {
+  border-color: hsl(var(--primary) / 20%);
   transform: translateY(-1px);
-  border-color: hsl(var(--primary) / 0.2);
 }
 
 .assistant-agent-avatar:focus-visible {
   outline: none;
   box-shadow:
-    0 0 0 3px hsl(var(--primary) / 0.14),
-    0 8px 18px -24px hsl(var(--foreground) / 0.1);
+    0 0 0 3px hsl(var(--primary) / 14%),
+    0 8px 18px -24px hsl(var(--foreground) / 10%);
 }
 
 .agent-profile-popover {
-  color: hsl(var(--foreground) / 0.86);
+  color: hsl(var(--foreground) / 86%);
 }
 
 .agent-profile-panel {
   max-height: min(64vh, 30rem);
   overflow-y: auto;
-  border: 1px solid hsl(var(--border) / 0.2);
+  background: hsl(var(--background) / 98%);
+  border: 1px solid hsl(var(--border) / 20%);
   border-radius: 18px;
-  background: hsl(var(--background) / 0.98);
-  box-shadow: 0 18px 30px -38px hsl(var(--foreground) / 0.1);
+  box-shadow: 0 18px 30px -38px hsl(var(--foreground) / 10%);
 }
 
 .agent-profile-summary {
@@ -513,40 +513,40 @@ const summaryStats = computed(() => {
 
 .agent-profile-stat-pill {
   display: flex;
-  min-width: 0;
   flex-direction: column;
-  align-items: flex-start;
   gap: 0.15rem;
+  align-items: flex-start;
+  min-width: 0;
   padding: 0.45rem 0.55rem;
-  border: 1px solid hsl(var(--border) / 0.14);
+  background: hsl(var(--muted) / 12%);
+  border: 1px solid hsl(var(--border) / 14%);
   border-radius: 12px;
-  background: hsl(var(--muted) / 0.12);
 }
 
 .agent-profile-stat-label {
-  color: hsl(var(--muted-foreground) / 0.68);
   font-size: 9px;
   line-height: 1rem;
+  color: hsl(var(--muted-foreground) / 68%);
 }
 
 .agent-profile-stat-value {
-  color: hsl(var(--foreground) / 0.9);
   font-size: 11px;
   line-height: 1rem;
+  color: hsl(var(--foreground) / 90%);
 }
 
 .agent-model-chip {
-  color: hsl(var(--foreground) / 0.7);
-  border: 1px solid hsl(var(--border) / 0.16);
-  background: hsl(var(--muted) / 0.12);
+  color: hsl(var(--foreground) / 70%);
+  background: hsl(var(--muted) / 12%);
+  border: 1px solid hsl(var(--border) / 16%);
 }
 
 .agent-profile-description {
-  color: hsl(var(--muted-foreground) / 0.76);
   display: -webkit-box;
   overflow: hidden;
-  -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
+  color: hsl(var(--muted-foreground) / 76%);
+  -webkit-box-orient: vertical;
 }
 
 .agent-profile-section {
@@ -557,19 +557,19 @@ const summaryStats = computed(() => {
 .agent-profile-row + .agent-profile-row,
 .agent-profile-section + .agent-profile-section {
   padding-top: 0.65rem;
-  border-top: 1px solid hsl(var(--border) / 0.18);
+  border-top: 1px solid hsl(var(--border) / 18%);
 }
 
 .agent-profile-section-title {
   display: flex;
+  gap: 0.75rem;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
-  color: hsl(var(--muted-foreground) / 0.74);
   font-size: 10px;
   font-weight: 600;
-  letter-spacing: 0.08em;
+  color: hsl(var(--muted-foreground) / 74%);
   text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 
 .agent-profile-count-badge {
@@ -578,11 +578,11 @@ const summaryStats = computed(() => {
   justify-content: center;
   min-width: 1.5rem;
   padding: 0.1rem 0.45rem;
-  border-radius: 999px;
-  color: hsl(var(--muted-foreground) / 0.72);
-  background: hsl(var(--muted) / 0.16);
   font-size: 9px;
   font-weight: 700;
+  color: hsl(var(--muted-foreground) / 72%);
+  background: hsl(var(--muted) / 16%);
+  border-radius: 999px;
 }
 
 .agent-profile-chip-list {
@@ -594,38 +594,38 @@ const summaryStats = computed(() => {
 
 .agent-profile-chip {
   display: inline-flex;
+  align-items: center;
   min-width: 0;
   max-width: 100%;
-  align-items: center;
   padding: 2px 7px;
   overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 10px;
   line-height: 17px;
-  color: hsl(var(--foreground) / 0.82);
-  text-overflow: ellipsis;
+  color: hsl(var(--foreground) / 82%);
   white-space: nowrap;
-  background: hsl(var(--muted) / 0.12);
-  border: 1px solid hsl(var(--border) / 0.16);
+  background: hsl(var(--muted) / 12%);
+  border: 1px solid hsl(var(--border) / 16%);
   border-radius: 999px;
 }
 
 .agent-profile-empty {
-  color: hsl(var(--muted-foreground) / 0.48);
   font-size: 10px;
   font-style: italic;
+  color: hsl(var(--muted-foreground) / 48%);
 }
 
 .agent-profile-footer {
-  color: hsl(var(--muted-foreground) / 0.64);
   padding-top: 0.65rem;
-  border-top: 1px solid hsl(var(--border) / 0.18);
   font-size: 9.5px;
+  color: hsl(var(--muted-foreground) / 64%);
+  border-top: 1px solid hsl(var(--border) / 18%);
 }
 
 .agent-profile-id {
-  color: hsl(var(--foreground) / 0.7);
   font-family:
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
     'Courier New', monospace;
+  color: hsl(var(--foreground) / 70%);
 }
 </style>

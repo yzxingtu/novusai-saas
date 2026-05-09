@@ -45,7 +45,8 @@ export const DEFAULT_RICH_TEXT_AI_ACTION_TEMPLATES = [
     action: 'insert',
     defaultApplyMode: 'insert_at_cursor',
     defaultFormatPreset: 'structured_sections',
-    descriptionKey: 'admin.ai.skillPackage.richTextAi.actions.insert.description',
+    descriptionKey:
+      'admin.ai.skillPackage.richTextAi.actions.insert.description',
     endpointFeature: 'insert',
     icon: 'lucide:file-plus-2',
     labelKey: 'admin.ai.skillPackage.richTextAi.actions.insert.label',
@@ -61,7 +62,8 @@ export const DEFAULT_RICH_TEXT_AI_ACTION_TEMPLATES = [
     action: 'format',
     defaultApplyMode: 'replace_selection',
     defaultFormatPreset: 'structured_sections',
-    descriptionKey: 'admin.ai.skillPackage.richTextAi.actions.format.description',
+    descriptionKey:
+      'admin.ai.skillPackage.richTextAi.actions.format.description',
     endpointFeature: 'format',
     icon: 'lucide:paintbrush-vertical',
     labelKey: 'admin.ai.skillPackage.richTextAi.actions.format.label',
@@ -218,7 +220,8 @@ export const DEFAULT_RICH_TEXT_AI_FORMAT_TEMPLATES = [
     formatInstructionKey:
       'admin.ai.skillPackage.richTextAi.formatPresets.bullet_list.instruction',
     icon: 'lucide:list',
-    labelKey: 'admin.ai.skillPackage.richTextAi.formatPresets.bullet_list.label',
+    labelKey:
+      'admin.ai.skillPackage.richTextAi.formatPresets.bullet_list.label',
     preset: 'bullet_list',
   },
   {
@@ -241,13 +244,20 @@ const TEMPLATE_BY_ACTION = new Map<
 export function getRichTextAiActionTemplate(
   action: RichTextAiActionType,
 ): RichTextAiActionTemplate {
-  return TEMPLATE_BY_ACTION.get(action) ?? TEMPLATE_BY_ACTION.get('custom')!;
+  const template =
+    TEMPLATE_BY_ACTION.get(action) ?? TEMPLATE_BY_ACTION.get('custom');
+  if (!template) {
+    throw new Error('Missing custom rich-text AI action template.');
+  }
+  return template;
 }
 
-export function getRichTextAiContextMenuActions(options: {
-  enabledActions?: readonly RichTextAiActionType[];
-  includeAssistActions?: boolean;
-} = {}): RichTextAiActionTemplate[] {
+export function getRichTextAiContextMenuActions(
+  options: {
+    enabledActions?: readonly RichTextAiActionType[];
+    includeAssistActions?: boolean;
+  } = {},
+): RichTextAiActionTemplate[] {
   const enabled = options.enabledActions
     ? new Set<RichTextAiActionType>(options.enabledActions)
     : null;
@@ -264,8 +274,7 @@ export function getRichTextAiContextMenuActions(options: {
 }
 
 export function groupRichTextAiActionsByKind(
-  templates: readonly RichTextAiActionTemplate[] =
-    DEFAULT_RICH_TEXT_AI_ACTION_TEMPLATES,
+  templates: readonly RichTextAiActionTemplate[] = DEFAULT_RICH_TEXT_AI_ACTION_TEMPLATES,
 ): RichTextAiActionGroup[] {
   const groups = new Map<RichTextAiOperationKind, RichTextAiActionTemplate[]>();
 

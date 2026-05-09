@@ -2,8 +2,8 @@
 // Verifies: tool call detail helpers build input and output view models from canonical tool evidence.
 import { describe, expect, it, vi } from 'vitest';
 
-import { buildToolDisplayItems } from '../chat-message-tool-call-display-helpers';
 import { buildToolCallDetailsViewModel } from '../chat-message-tool-call-details-helpers';
+import { buildToolDisplayItems } from '../chat-message-tool-call-display-helpers';
 
 vi.mock('#/locales', () => ({
   $t: (key: string, params?: Record<string, unknown>) => {
@@ -11,7 +11,7 @@ vi.mock('#/locales', () => ({
       return key;
     }
     const suffix = Object.entries(params)
-      .sort(([left], [right]) => left.localeCompare(right))
+      .toSorted(([left], [right]) => left.localeCompare(right))
       .map(([name, value]) => `${name}=${String(value)}`)
       .join(',');
     return `${key}:${suffix}`;

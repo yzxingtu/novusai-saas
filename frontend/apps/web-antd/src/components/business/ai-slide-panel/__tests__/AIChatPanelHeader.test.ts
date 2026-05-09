@@ -29,7 +29,7 @@ vi.mock('ant-design-vue', () => ({
   }),
 }));
 
-describe('AIChatPanelHeader', () => {
+describe('aIChatPanelHeader', () => {
   it('keeps the panel title visible while route context stays secondary', () => {
     const wrapper = mount(AIChatPanelHeader, {
       props: {
@@ -71,10 +71,16 @@ describe('AIChatPanelHeader', () => {
       'common.aiPanel.close',
     ]);
 
-    await actionButtons[0]!.trigger('click');
-    await actionButtons[1]!.trigger('click');
-    await actionButtons[2]!.trigger('click');
-    await actionButtons[3]!.trigger('click');
+    const [undockButton, minimizeButton, fullscreenButton, closeButton] =
+      actionButtons;
+    if (!undockButton || !minimizeButton || !fullscreenButton || !closeButton) {
+      throw new Error('Expected all panel action buttons to be rendered.');
+    }
+
+    await undockButton.trigger('click');
+    await minimizeButton.trigger('click');
+    await fullscreenButton.trigger('click');
+    await closeButton.trigger('click');
 
     expect(wrapper.emitted('toggleDock')).toHaveLength(1);
     expect(wrapper.emitted('minimize')).toHaveLength(1);

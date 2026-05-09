@@ -6,9 +6,10 @@
  */
 
 import type { AnyExtension, Editor, JSONContent } from '@tiptap/core';
-import type { RichTextAiActionType } from '#/features/rich-text-ai';
 
 import type { Ref, ShallowRef } from 'vue';
+
+import type { RichTextAiActionType } from '#/features/rich-text-ai';
 
 export interface RichTextEditorAiWritingOptions {
   /** Whether the editor-domain AI writing UI is enabled. */
@@ -82,7 +83,7 @@ export interface RichTextEditorSelectionSnapshot {
 export interface RichTextEditorApplyContentOptions {
   emitUpdate?: boolean;
   mode?: RichTextEditorApplyContentMode;
-  selection?: RichTextEditorSelectionSnapshot | null;
+  selection?: null | RichTextEditorSelectionSnapshot;
 }
 
 export interface RichTextEditorExposed {
@@ -96,7 +97,7 @@ export interface RichTextEditorExposed {
   getText(): string;
   getSelectionSnapshot(): RichTextEditorSelectionSnapshot;
   validateSelectionSnapshot(
-    selection: RichTextEditorSelectionSnapshot | null | undefined,
+    selection: null | RichTextEditorSelectionSnapshot | undefined,
   ): boolean;
   setContent(
     content: JSONContent | string,
@@ -118,7 +119,7 @@ export interface MountedEditor {
   getText(): string;
   getSelectionSnapshot(): RichTextEditorSelectionSnapshot;
   validateSelectionSnapshot(
-    selection: RichTextEditorSelectionSnapshot | null | undefined,
+    selection: null | RichTextEditorSelectionSnapshot | undefined,
   ): boolean;
   setContent(
     content: JSONContent | string,

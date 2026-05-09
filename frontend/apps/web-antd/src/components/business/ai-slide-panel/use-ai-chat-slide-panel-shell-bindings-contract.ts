@@ -9,10 +9,10 @@ import type {
 } from '#/api/shared/ai-chat';
 import type { useAIPanelStore } from '#/store';
 import type {
+  AgentItem,
   AgentKnowledgeBaseBindingsByAgentId,
   AgentSkillBindingsByAgentId,
   AgentSkillBindingSummary,
-  AgentItem,
   ChatAttachment,
   ChatMessage,
   ConversationItem,
@@ -93,7 +93,7 @@ export interface UseAIChatSlidePanelShellBindingsOptions {
   onDeleteConversation: (conversationId: number) => void;
   onDocumentClick: (event: MouseEvent) => void;
   onEditHeaderVars: () => void;
-  onToggleMemory: () => void | Promise<void>;
+  onToggleMemory: () => Promise<void> | void;
   onSelectConversation: (conversationId: number) => void;
   onStartNewChat: () => void;
   onToggleForceReroute: () => void;

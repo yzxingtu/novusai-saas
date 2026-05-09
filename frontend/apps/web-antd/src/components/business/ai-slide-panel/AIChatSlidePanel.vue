@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import AIChatSlidePanelShell from './AIChatSlidePanelShell.vue';
 
-defineOptions({ inheritAttrs: false, name: 'AIChatSlidePanel' });
+defineOptions({ name: 'AIChatSlidePanel', inheritAttrs: false });
 
 const props = withDefaults(
   defineProps<{

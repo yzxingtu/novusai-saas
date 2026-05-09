@@ -86,15 +86,13 @@ export function useAIChatSlidePanelShellBindings(
     uploading: options.uploading,
   });
 
-  const {
-    mentionEmptyHint,
-    resolvedAttachmentAccept,
-  } = usePanelShellComputedUI({
-    agentKBBindings: options.agentKBBindings,
-    agentsLoading: options.agentsLoading,
-    chatAcceptAttribute: options.chatAcceptAttribute,
-    mentionCandidates: options.mentionCandidates,
-  });
+  const { mentionEmptyHint, resolvedAttachmentAccept } =
+    usePanelShellComputedUI({
+      agentKBBindings: options.agentKBBindings,
+      agentsLoading: options.agentsLoading,
+      chatAcceptAttribute: options.chatAcceptAttribute,
+      mentionCandidates: options.mentionCandidates,
+    });
 
   const overlayBindings = usePanelShellRuntimeVisuals({
     aiPanelStore: options.aiPanelStore,

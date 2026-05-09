@@ -37,7 +37,7 @@ function collectNodes(
 
 function collectText(node: JSONContent | null | undefined): string {
   if (!node) return '';
-  return `${node.text ?? ''}${(node.content ?? []).map(collectText).join('')}`;
+  return `${node.text ?? ''}${(node.content ?? []).map((item) => collectText(item)).join('')}`;
 }
 
 function collectMarkedText(
@@ -100,7 +100,9 @@ describe('useRichTextEditor applyContent', () => {
 
     const json = editor.getJSON();
     const html = editor.getHTML();
-    const paragraphTexts = collectNodes(json, 'paragraph').map(collectText);
+    const paragraphTexts = collectNodes(json, 'paragraph').map((item) =>
+      collectText(item),
+    );
     const bulletLists = collectNodes(json, 'bulletList');
     const blockquotes = collectNodes(json, 'blockquote');
     const boldTexts = collectMarkedText(json, 'bold');
@@ -109,7 +111,9 @@ describe('useRichTextEditor applyContent', () => {
       '正确做法胡萝卜仅可作为极少量、偶尔的零食，绝不能当作主食。',
     );
     expect(bulletLists).toHaveLength(1);
-    expect((bulletLists[0]?.content ?? []).map(collectText)).toEqual([
+    expect(
+      (bulletLists[0]?.content ?? []).map((item) => collectText(item)),
+    ).toEqual([
       '频率：每周 ≤1 次',
       '单次量：每次 ≤10 克',
       '核心原则：少量、低频、非日常化',
@@ -145,7 +149,9 @@ describe('useRichTextEditor applyContent', () => {
     editor.applyContent(aiFormatOutput, { emitUpdate: false, mode: 'insert' });
 
     const json = editor.getJSON();
-    const paragraphTexts = collectNodes(json, 'paragraph').map(collectText);
+    const paragraphTexts = collectNodes(json, 'paragraph').map((item) =>
+      collectText(item),
+    );
     const bulletLists = collectNodes(json, 'bulletList');
     const blockquotes = collectNodes(json, 'blockquote');
     const boldTexts = collectMarkedText(json, 'bold');
@@ -169,7 +175,9 @@ describe('useRichTextEditor applyContent', () => {
     editor.applyContent(aiFormatOutput, { emitUpdate: false, mode: 'insert' });
 
     const json = editor.getJSON();
-    const paragraphTexts = collectNodes(json, 'paragraph').map(collectText);
+    const paragraphTexts = collectNodes(json, 'paragraph').map((item) =>
+      collectText(item),
+    );
 
     expect(paragraphTexts).toContain(aiFormatOutput);
     expect(collectMarkedText(json, 'bold')).toEqual([]);

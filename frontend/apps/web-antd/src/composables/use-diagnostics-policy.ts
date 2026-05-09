@@ -31,9 +31,7 @@ function readDiagnosticsFeature(
   return undefined;
 }
 
-export function useDiagnosticsPolicy(
-  options: DiagnosticsPolicyOptions = {},
-) {
+export function useDiagnosticsPolicy(options: DiagnosticsPolicyOptions = {}) {
   let publicConfigStore: null | ReturnType<typeof usePublicConfigStore> = null;
   try {
     publicConfigStore = usePublicConfigStore();

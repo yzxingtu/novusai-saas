@@ -452,9 +452,7 @@ describe('chatMessageContentBlock', () => {
   it('continues to render a contextual final leaderboard answer body', async () => {
     const finalAnswer =
       '截至 2026 年，建议用 Artificial Analysis LLM Leaderboard 这类可验证榜单，按 intelligence、price、speed 与 TTFT 维度比较 GPT-5.5、Gemini 3 Pro、Claude Opus 4.6。';
-    const wrapper = mountContentBlock(
-      createMetricsDigestMessage(finalAnswer),
-    );
+    const wrapper = mountContentBlock(createMetricsDigestMessage(finalAnswer));
 
     await wrapper.vm.$nextTick();
 

@@ -113,7 +113,7 @@ const emit = defineEmits<{
                 activeConversationId === conv.id &&
                 editingConversationId !== conv.id
                   ? 'history-conversation-item-active text-foreground ring-1 ring-primary/15'
-                  : 'text-muted-foreground hover:bg-muted/72'
+                  : 'hover:bg-muted/72 text-muted-foreground'
               "
               @click="
                 editingConversationId !== conv.id &&
@@ -201,7 +201,7 @@ const emit = defineEmits<{
 }
 
 .history-pane-header {
-  border-bottom: 1px solid hsl(var(--border) / 0.42);
+  border-bottom: 1px solid hsl(var(--border) / 42%);
 }
 
 .history-conversation-item {
@@ -209,12 +209,12 @@ const emit = defineEmits<{
 }
 
 .history-conversation-item:hover {
-  border-color: hsl(var(--border) / 0.36);
+  border-color: hsl(var(--border) / 36%);
 }
 
 .history-conversation-item-active {
-  border-color: hsl(var(--primary) / 0.14);
-  background: hsl(var(--primary) / 0.06);
-  box-shadow: 0 8px 16px -18px hsl(var(--primary) / 0.14);
+  background: hsl(var(--primary) / 6%);
+  border-color: hsl(var(--primary) / 14%);
+  box-shadow: 0 8px 16px -18px hsl(var(--primary) / 14%);
 }
 </style>

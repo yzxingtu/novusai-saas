@@ -97,11 +97,11 @@ const emit = defineEmits<{
 
 <style scoped>
 .assistant-footer-chip {
-  color: hsl(var(--muted-foreground) / 0.62);
+  color: hsl(var(--muted-foreground) / 62%);
 }
 
 .assistant-footer-memory {
-  color: hsl(var(--primary) / 0.78);
+  color: hsl(var(--primary) / 78%);
 }
 
 .assistant-footer-actions {
@@ -109,7 +109,7 @@ const emit = defineEmits<{
 }
 
 .assistant-footer-action {
-  color: hsl(var(--muted-foreground) / 0.5);
+  color: hsl(var(--muted-foreground) / 50%);
   transition:
     color 140ms ease,
     background-color 140ms ease,
@@ -117,7 +117,7 @@ const emit = defineEmits<{
 }
 
 .assistant-footer-action:hover {
-  color: hsl(var(--foreground) / 0.82);
-  background: hsl(var(--muted) / 0.4);
+  color: hsl(var(--foreground) / 82%);
+  background: hsl(var(--muted) / 40%);
 }
 </style>

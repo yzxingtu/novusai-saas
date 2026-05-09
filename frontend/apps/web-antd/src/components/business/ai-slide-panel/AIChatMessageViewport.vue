@@ -435,22 +435,22 @@ watch(
 }
 
 .ai-chat-empty-mark {
-  background: hsl(var(--primary) / 0.075);
-  border: 1px solid hsl(var(--primary) / 0.12);
+  background: hsl(var(--primary) / 7.5%);
+  border: 1px solid hsl(var(--primary) / 12%);
 }
 
 .ai-chat-empty-question {
-  background: hsl(var(--background) / 0.82);
-  border-color: hsl(var(--border) / 0.24);
-  box-shadow: 0 8px 20px -24px hsl(var(--foreground) / 0.16);
+  background: hsl(var(--background) / 82%);
+  border-color: hsl(var(--border) / 24%);
+  box-shadow: 0 8px 20px -24px hsl(var(--foreground) / 16%);
 }
 
 .routing-card {
   background: linear-gradient(
     180deg,
-    hsl(var(--background) / 0.98) 0%,
-    hsl(var(--primary) / 0.024) 100%
+    hsl(var(--background) / 98%) 0%,
+    hsl(var(--primary) / 2.4%) 100%
   );
-  box-shadow: 0 12px 22px -28px hsl(var(--foreground) / 0.1);
+  box-shadow: 0 12px 22px -28px hsl(var(--foreground) / 10%);
 }
 </style>

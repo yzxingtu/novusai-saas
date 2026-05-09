@@ -203,7 +203,9 @@ function onSendClick() {
     </div>
 
     <div
-      v-if="selectedKnowledgeBases.length > 0 || selectedSkillPackages.length > 0"
+      v-if="
+        selectedKnowledgeBases.length > 0 || selectedSkillPackages.length > 0
+      "
       class="mb-1 flex flex-wrap items-center gap-1"
     >
       <span
@@ -431,17 +433,17 @@ function onSendClick() {
 
 <style scoped>
 .ai-composer-shell {
-  border-color: hsl(var(--border) / 0.34);
-  background: hsl(var(--background) / 0.98);
-  box-shadow: 0 12px 24px -24px hsl(var(--foreground) / 0.1);
+  background: hsl(var(--background) / 98%);
+  border-color: hsl(var(--border) / 34%);
+  box-shadow: 0 12px 24px -24px hsl(var(--foreground) / 10%);
 }
 
 .ai-composer-shell:focus-within {
-  border-color: hsl(var(--foreground) / 0.18);
   background: hsl(var(--background));
+  border-color: hsl(var(--foreground) / 18%);
   box-shadow:
-    0 14px 28px -24px hsl(var(--foreground) / 0.12),
-    0 0 0 3px hsl(var(--foreground) / 0.04);
+    0 14px 28px -24px hsl(var(--foreground) / 12%),
+    0 0 0 3px hsl(var(--foreground) / 4%);
 }
 
 .ai-chat-textarea :deep(.ant-input) {

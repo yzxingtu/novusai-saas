@@ -16,14 +16,14 @@ import { $t } from '#/locales';
 
 import ActionConsentGate from './ActionConsentGate.vue';
 import EvidenceCard from './EvidenceCard.vue';
+import {
+  getProcessHeadlineForStage,
+  getSafeErrorSurfaceMessage,
+  isNoopSkippedStage,
+  isTechnicalProcessErrorCopy,
+} from './turn-stage-presentation';
 import { buildTurnFlowState } from './TurnFlowState';
 import TurnTimeline from './TurnTimeline.vue';
-import {
-  getSafeErrorSurfaceMessage,
-  getProcessHeadlineForStage,
-  isTechnicalProcessErrorCopy,
-  isNoopSkippedStage,
-} from './turn-stage-presentation';
 
 const props = withDefaults(
   defineProps<{
@@ -94,8 +94,7 @@ const visibleKernelTimeline = computed(() =>
         (stage.status === 'error' &&
           isRecoverableProcessFailure(props.msg, resolvedState.value.flow))) &&
       Boolean(
-        resolvedState.value.answerCard ||
-          hasReadableAnswerText(props.msg),
+        resolvedState.value.answerCard || hasReadableAnswerText(props.msg),
       )
     ) {
       return false;
@@ -136,8 +135,9 @@ function hasTerminalFailureState(
   ) {
     return true;
   }
-  const turnOutcome = normalizeOptionalString(flow.turnOutcome)
-    ?.toLocaleLowerCase();
+  const turnOutcome = normalizeOptionalString(
+    flow.turnOutcome,
+  )?.toLocaleLowerCase();
   const failureKind = normalizeOptionalString(flow.failureKind);
   if (turnOutcome === 'failed') {
     return true;
@@ -261,7 +261,9 @@ function truncatePreview(value: string, limit: number) {
 
 const messageIdentity = computed(() => resolveMessageIdentity(props.msg));
 const isKernelExpanded = ref(false);
-let kernelAutoCollapseTimer: ReturnType<typeof globalThis.setTimeout> | undefined;
+let kernelAutoCollapseTimer:
+  | ReturnType<typeof globalThis.setTimeout>
+  | undefined;
 const showKernelBody = computed(
   () => !canCollapseKernel.value || isKernelExpanded.value,
 );
@@ -540,7 +542,10 @@ function handleReject() {
         </div>
 
         <div class="flex shrink-0 items-start gap-1.5">
-          <span :class="['kernel-status-chip shrink-0', kernelStatusClass]">
+          <span
+            class="kernel-status-chip shrink-0"
+            :class="[kernelStatusClass]"
+          >
             <IconifyIcon
               :icon="kernelStatusIcon"
               class="kernel-status-icon size-3"
@@ -576,7 +581,7 @@ function handleReject() {
           :data-layout="kernelBodyLayout"
           :class="[
             compact ? 'px-2.5 pb-2.5 pt-2' : 'px-3.5 pb-3.5 pt-2.5',
-            canCollapseKernel ? 'border-t border-border/12' : '',
+            canCollapseKernel ? 'border-border/12 border-t' : '',
             kernelBodyLayout === 'split'
               ? 'kernel-body-layout-split'
               : 'space-y-2.5',
@@ -656,8 +661,8 @@ function handleReject() {
 <style scoped>
 .chat-message-kernel-shell {
   position: relative;
-  border-color: hsl(var(--border) / 0.1);
-  background: hsl(var(--muted) / 0.045);
+  background: hsl(var(--muted) / 4.5%);
+  border-color: hsl(var(--border) / 10%);
   box-shadow: none;
 }
 
@@ -673,80 +678,80 @@ function handleReject() {
 }
 
 .chat-message-kernel-overview:hover {
-  background: hsl(var(--muted) / 0.1);
+  background: hsl(var(--muted) / 10%);
 }
 
 .kernel-overview-pill {
   display: inline-flex;
-  align-items: center;
   gap: 0.35rem;
+  align-items: center;
   padding: 0;
-  border-radius: 9999px;
-  border: 0;
-  background: transparent;
-  color: hsl(var(--muted-foreground) / 0.62);
   font-size: 0.58rem;
   font-weight: 600;
-  letter-spacing: 0;
+  color: hsl(var(--muted-foreground) / 62%);
   text-transform: none;
+  letter-spacing: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 9999px;
 }
 
 .kernel-overview-pill-primary {
-  color: hsl(var(--primary) / 0.78);
+  color: hsl(var(--primary) / 78%);
 }
 
 .kernel-overview-headline {
-  color: hsl(var(--foreground) / 0.76);
   font-weight: 500;
+  color: hsl(var(--foreground) / 76%);
   letter-spacing: 0;
 }
 
 .kernel-overview-meta-chip {
-  color: hsl(var(--muted-foreground) / 0.56);
-  border: 0;
-  background: transparent;
-  border-radius: 9999px;
   padding: 0;
   font-size: 0.55rem;
   line-height: 0.8rem;
+  color: hsl(var(--muted-foreground) / 56%);
+  background: transparent;
+  border: 0;
+  border-radius: 9999px;
 }
 
 .kernel-overview-subcopy {
   min-width: 0;
-  color: hsl(var(--muted-foreground) / 0.58);
   font-size: 0.6rem;
   line-height: 0.85rem;
+  color: hsl(var(--muted-foreground) / 58%);
 }
 
 .kernel-status-chip {
   display: inline-flex;
-  max-width: 9rem;
-  align-items: center;
   gap: 0.35rem;
+  align-items: center;
+  max-width: 9rem;
   padding: 0.22rem 0.46rem;
-  border-radius: 9999px;
-  border: 1px solid hsl(var(--border) / 0.1);
   font-size: 0.58rem;
   font-weight: 600;
   line-height: 0.8rem;
+  border: 1px solid hsl(var(--border) / 10%);
+  border-radius: 9999px;
 }
 
 .kernel-status-running {
-  color: hsl(var(--primary) / 0.82);
-  border-color: hsl(var(--primary) / 0.16);
-  background: hsl(var(--primary) / 0.08);
+  color: hsl(var(--primary) / 82%);
+  background: hsl(var(--primary) / 8%);
+  border-color: hsl(var(--primary) / 16%);
 }
 
 .kernel-status-completed {
-  color: rgb(4 120 87 / 0.92);
-  border-color: rgb(16 185 129 / 0.16);
-  background: rgb(16 185 129 / 0.08);
+  color: rgb(4 120 87 / 92%);
+  background: rgb(16 185 129 / 8%);
+  border-color: rgb(16 185 129 / 16%);
 }
 
 .kernel-status-error {
-  color: rgb(220 38 38 / 0.88);
-  border-color: rgb(239 68 68 / 0.16);
-  background: rgb(239 68 68 / 0.08);
+  color: rgb(220 38 38 / 88%);
+  background: rgb(239 68 68 / 8%);
+  border-color: rgb(239 68 68 / 16%);
 }
 
 .kernel-status-icon {
@@ -758,17 +763,17 @@ function handleReject() {
 }
 
 .kernel-overview-chevron {
-  color: hsl(var(--muted-foreground) / 0.46);
-  border: 0;
+  color: hsl(var(--muted-foreground) / 46%);
   background: transparent;
+  border: 0;
 }
 
 .kernel-section-caption {
-  color: hsl(var(--muted-foreground) / 0.54);
   font-size: 0.55rem;
   font-weight: 600;
-  letter-spacing: 0.08em;
+  color: hsl(var(--muted-foreground) / 54%);
   text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 
 .kernel-body-layout-split {
@@ -784,9 +789,9 @@ function handleReject() {
 
 .kernel-detail-panel-raised {
   padding: 0.62rem 0.68rem 0.68rem;
-  border: 1px solid hsl(var(--border) / 0.08);
+  background: hsl(var(--background) / 72%);
+  border: 1px solid hsl(var(--border) / 8%);
   border-radius: 12px;
-  background: hsl(var(--background) / 0.72);
   box-shadow: none;
 }
 

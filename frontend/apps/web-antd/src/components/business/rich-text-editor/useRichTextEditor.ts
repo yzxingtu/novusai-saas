@@ -15,8 +15,8 @@ import { onBeforeUnmount, ref } from 'vue';
 
 import { useEditor } from '@tiptap/vue-3';
 
-import { buildExtensions } from './extensions';
 import { createEditorInstanceId } from './editorInstanceId';
+import { buildExtensions } from './extensions';
 
 export interface UseRichTextEditorOptions {
   content?: JSONContent | null;
@@ -226,7 +226,7 @@ function isWhitespace(ch: string | undefined): boolean {
 }
 
 function isAsciiAlphanumeric(ch: string | undefined): boolean {
-  return ch === undefined ? false : /^[\dA-Za-z]$/.test(ch);
+  return ch === undefined ? false : /^[\dA-Z]$/i.test(ch);
 }
 
 function isCjk(ch: string | undefined): boolean {
@@ -272,7 +272,7 @@ function shouldBreakBeforeBlockquote(source: string, index: number): boolean {
 }
 
 function normalizeMarkdownBlockBoundaries(raw: string): string {
-  const source = raw.replace(/\r\n?/g, '\n');
+  const source = raw.replaceAll(/\r\n?/g, '\n');
   let normalized = '';
 
   for (let index = 0; index < source.length; index += 1) {
@@ -327,10 +327,12 @@ function buildSafeEditorContent(raw: string): JSONContent[] {
       continue;
     }
 
-    const headingMatch = /^(#{1,3})\s+(.+)$/.exec(line);
-    if (headingMatch) {
-      const headingMarks = headingMatch[1] ?? '#';
-      const headingText = headingMatch[2] ?? line;
+    const headingMarkMatch = /^(#{1,3})/.exec(line);
+    const headingMarks = headingMarkMatch?.[1];
+    const headingText = headingMarks
+      ? line.slice(headingMarks.length).trim()
+      : '';
+    if (headingMarks && headingText) {
       flushListBuffer(nodes, listType, listItems);
       flushBlockquoteBuffer(nodes, blockquoteLines);
       listType = null;
@@ -338,25 +340,32 @@ function buildSafeEditorContent(raw: string): JSONContent[] {
       continue;
     }
 
-    const bulletMatch = /^[-*•]\s+(.+)$/.exec(line);
-    if (bulletMatch) {
+    const bulletPrefix = line.length > 2 ? line.slice(0, 2) : '';
+    const bulletText =
+      bulletPrefix === '- ' || bulletPrefix === '* ' || bulletPrefix === '• '
+        ? line.slice(2).trim()
+        : '';
+    if (bulletText) {
       flushBlockquoteBuffer(nodes, blockquoteLines);
       if (listType !== 'bulletList') {
         flushListBuffer(nodes, listType, listItems);
         listType = 'bulletList';
       }
-      listItems.push(bulletMatch[1] ?? line);
+      listItems.push(bulletText);
       continue;
     }
 
-    const orderedMatch = /^\d+[.)]\s+(.+)$/.exec(line);
-    if (orderedMatch) {
+    const orderedMarkerMatch = /^\d+[.)]\s/.exec(line);
+    const orderedText = orderedMarkerMatch
+      ? line.slice(orderedMarkerMatch[0].length).trim()
+      : '';
+    if (orderedText) {
       flushBlockquoteBuffer(nodes, blockquoteLines);
       if (listType !== 'orderedList') {
         flushListBuffer(nodes, listType, listItems);
         listType = 'orderedList';
       }
-      listItems.push(orderedMatch[1] ?? line);
+      listItems.push(orderedText);
       continue;
     }
 
@@ -541,7 +550,7 @@ export function useRichTextEditor(options: UseRichTextEditorOptions = {}) {
   }
 
   function validateSelectionSnapshot(
-    selection: RichTextEditorSelectionSnapshot | null | undefined,
+    selection: null | RichTextEditorSelectionSnapshot | undefined,
   ): boolean {
     const ed = editor.value;
     if (!ed || !selection) return false;

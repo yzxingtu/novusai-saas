@@ -3,13 +3,13 @@ import type { ChatMessage, ToolCallEvent } from './types';
 
 import { computed, onUnmounted, ref, watch } from 'vue';
 
-import { getToolCallsForDisplay } from './chat-message-turn-flow';
 import {
   buildToolDisplayItems,
-  getToolDisplayState as resolveToolDisplayState,
   getToolGroupSummary,
+  getToolDisplayState as resolveToolDisplayState,
   shouldToolExpandByDefault,
 } from './chat-message-tool-call-display-helpers';
+import { getToolCallsForDisplay } from './chat-message-turn-flow';
 import { hasToolCardDetails } from './tool-call-utils';
 
 interface UseChatMessageToolCallsProps {

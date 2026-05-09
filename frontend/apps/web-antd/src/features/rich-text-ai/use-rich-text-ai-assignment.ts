@@ -39,8 +39,12 @@ export function useRichTextAiAssignment(
   const assignment = ref<AgentAssignmentResolveResult | null>(null);
   const loading = ref(false);
 
-  const status = computed(() => getRichTextAiAssignmentStatus(assignment.value));
-  const assignedAgentName = computed(() => assignment.value?.agent_name ?? null);
+  const status = computed(() =>
+    getRichTextAiAssignmentStatus(assignment.value),
+  );
+  const assignedAgentName = computed(
+    () => assignment.value?.agent_name ?? null,
+  );
   const assignedAgentId = computed(() => assignment.value?.agent_id ?? null);
   const resolvedFeatureCode = computed(
     () => assignment.value?.feature_code ?? RICH_TEXT_AI_FEATURE_CODE,

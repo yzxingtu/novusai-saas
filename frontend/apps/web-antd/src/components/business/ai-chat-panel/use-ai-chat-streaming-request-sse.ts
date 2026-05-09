@@ -72,7 +72,9 @@ function isDraftClearContentEventAllowed(messageItem: {
   );
 }
 
-function shouldIgnoreLegacyTurnFlowProjectionEvent(eventName?: string): boolean {
+function shouldIgnoreLegacyTurnFlowProjectionEvent(
+  eventName?: string,
+): boolean {
   return (
     eventName === 'optimizing_tools' ||
     eventName === 'tool_call' ||
@@ -251,9 +253,8 @@ export function createStreamSseHandler(
               selectedToolNamesFromEvent.length > 0
                 ? selectedToolNamesFromEvent
                 : (turnRecord?.selected_tool_names ?? []);
-            const selectedSkillNamesFromEvent = normalizeRuntimeDiagnosticTokens(
-              event.selected_skill_names,
-            );
+            const selectedSkillNamesFromEvent =
+              normalizeRuntimeDiagnosticTokens(event.selected_skill_names);
             const selectedSkillNames =
               selectedSkillNamesFromEvent.length > 0
                 ? selectedSkillNamesFromEvent

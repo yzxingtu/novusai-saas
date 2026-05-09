@@ -87,17 +87,22 @@ describe('rich text ai action template behavior', () => {
       'assist',
     ]);
     expect(
-      groups.find((group) => group.kind === 'transform')?.actions.map(
-        (action) => action.action,
-      ),
+      groups
+        .find((group) => group.kind === 'transform')
+        ?.actions.map((action) => action.action),
     ).toEqual(['rewrite', 'optimize', 'proofread', 'expand', 'custom']);
     expect(
-      groups.find((group) => group.kind === 'insert')?.actions.map(
-        (action) => action.action,
-      ),
+      groups
+        .find((group) => group.kind === 'insert')
+        ?.actions.map((action) => action.action),
     ).toEqual(['continue', 'insert']);
-    expect(DEFAULT_RICH_TEXT_AI_FORMAT_TEMPLATES.map((item) => item.preset)).toEqual(
-      ['preserve_structure', 'plain_text', 'bullet_list', 'structured_sections'],
-    );
+    expect(
+      DEFAULT_RICH_TEXT_AI_FORMAT_TEMPLATES.map((item) => item.preset),
+    ).toEqual([
+      'preserve_structure',
+      'plain_text',
+      'bullet_list',
+      'structured_sections',
+    ]);
   });
 });

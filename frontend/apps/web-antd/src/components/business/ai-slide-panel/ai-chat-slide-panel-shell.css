@@ -84,17 +84,17 @@
 }
 
 .ai-chat-slide-panel-shell {
-  background: hsl(var(--background) / 0.99);
+  background: hsl(var(--background) / 99%);
   backdrop-filter: blur(16px);
 }
 
 .ai-chat-slide-panel-shell.panel-mode-shell {
-  border-left: 1px solid hsl(var(--border) / 0.42);
+  border-left: 1px solid hsl(var(--border) / 42%);
   border-top-left-radius: 18px;
   border-bottom-left-radius: 18px;
   box-shadow:
-    -20px 0 42px -40px hsl(var(--foreground) / 0.28),
-    -6px 0 16px -18px hsl(var(--foreground) / 0.12);
+    -20px 0 42px -40px hsl(var(--foreground) / 28%),
+    -6px 0 16px -18px hsl(var(--foreground) / 12%);
 }
 
 .ai-chat-slide-panel-shell.full-mode-shell {

@@ -54,7 +54,7 @@ export function buildToolDisplayItems(
 export function getToolGroupSummary(
   tools: ToolCallEvent[],
 ): null | ToolGroupSummary {
-  if (!tools.length) return null;
+  if (tools.length === 0) return null;
   const success = tools.filter((tc) => tc.status === 'success').length;
   const error = tools.filter((tc) => tc.status === 'error').length;
   const running = tools.filter((tc) => tc.status === 'running').length;

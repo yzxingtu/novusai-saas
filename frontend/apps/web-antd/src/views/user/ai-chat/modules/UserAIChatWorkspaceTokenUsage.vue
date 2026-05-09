@@ -16,7 +16,7 @@ const { totalTokensUsed, streaming, chatMessages } = chat;
 <template>
   <div
     v-if="totalTokensUsed > 0 && !streaming"
-    class="flex items-center justify-center gap-1.5 border-t border-border/16 px-3 py-0.5 text-[10px] text-muted-foreground/66"
+    class="border-border/16 text-muted-foreground/66 flex items-center justify-center gap-1.5 border-t px-3 py-0.5 text-[10px]"
   >
     <IconifyIcon icon="lucide:activity" class="size-2.5 text-primary/60" />
     <span>

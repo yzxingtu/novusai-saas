@@ -34,12 +34,12 @@ const {
 <template>
   <div>
     <div
-      class="flex shrink-0 items-start justify-between gap-3 border-b border-border/16 px-3.5 py-2.5"
+      class="border-border/16 flex shrink-0 items-start justify-between gap-3 border-b px-3.5 py-2.5"
     >
       <div class="flex min-w-0 items-start gap-3">
         <button
           data-testid="user-ai-chat-mobile-sidebar-button"
-          class="flex size-7.5 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:hidden"
+          class="size-7.5 flex items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:hidden"
           @click="workspace.openMobileSidebar"
         >
           <IconifyIcon icon="lucide:panel-left" class="size-3.5" />
@@ -65,14 +65,14 @@ const {
           <div class="min-w-0">
             <div
               data-testid="user-ai-chat-workspace-title"
-              class="text-[13px] font-semibold text-foreground/86"
+              class="text-foreground/86 text-[13px] font-semibold"
             >
               {{ $t('user.aiChat.title') }}
             </div>
             <div
               v-if="chatHeaderSubtitle"
               data-testid="user-ai-chat-workspace-subtitle"
-              class="mt-0.5 truncate text-[10px] text-muted-foreground/68"
+              class="text-muted-foreground/68 mt-0.5 truncate text-[10px]"
             >
               {{ chatHeaderSubtitle }}
             </div>
@@ -130,7 +130,9 @@ const {
           >
             <Spin v-if="memoryLoading" size="small" />
             <IconifyIcon v-else icon="lucide:brain" class="size-3.25" />
-            <span class="hidden sm:inline">{{ $t('common.aiPanel.memory') }}</span>
+            <span class="hidden sm:inline">{{
+              $t('common.aiPanel.memory')
+            }}</span>
             <span
               v-if="lastMemoryUpdated && !showMemoryPanel"
               class="size-1.5 rounded-full bg-primary"

@@ -16,7 +16,7 @@ vi.mock('#/locales', () => ({
       return key;
     }
     const suffix = Object.entries(params)
-      .sort(([left], [right]) => left.localeCompare(right))
+      .toSorted(([left], [right]) => left.localeCompare(right))
       .map(([name, value]) => `${name}=${String(value)}`)
       .join(',');
     return `${key}:${suffix}`;

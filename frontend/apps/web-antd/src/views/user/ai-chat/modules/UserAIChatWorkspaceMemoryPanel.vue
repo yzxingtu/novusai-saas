@@ -136,7 +136,7 @@ const memorySections = computed(() =>
 }
 
 .user-memory-section {
-  border: 1px solid hsl(var(--border) / 0.18);
-  background: hsl(var(--muted) / 0.08);
+  background: hsl(var(--muted) / 8%);
+  border: 1px solid hsl(var(--border) / 18%);
 }
 </style>

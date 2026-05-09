@@ -96,7 +96,9 @@ export function cloneTurnFlow(flow: TurnFlowViewModel): TurnFlowViewModel {
     ...flow,
     timeline: flow.timeline.map((stage) => cloneStage(stage)),
     evidence: flow.evidence.map((evidence) => cloneEvidence(evidence)),
-    ...(flow.answerCard ? { answerCard: cloneAnswerCard(flow.answerCard) } : {}),
+    ...(flow.answerCard
+      ? { answerCard: cloneAnswerCard(flow.answerCard) }
+      : {}),
     ...(flow.errorSurface ? { errorSurface: { ...flow.errorSurface } } : {}),
   };
 }
@@ -278,7 +280,9 @@ export function buildToolEvidencePayload({
   return {
     id: toolCallId ?? `tool-${toolName}`,
     kind: 'tool',
-    ...(displayName ? { displayName, title: displayName } : { title: toolName }),
+    ...(displayName
+      ? { displayName, title: displayName }
+      : { title: toolName }),
     ...(toolCallId ? { toolCallId } : {}),
     ...(toolName ? { toolName, sourceRef: toolName } : {}),
     ...(status ? { status } : {}),
@@ -388,16 +392,16 @@ function ensureTerminalStage(flow: TurnFlowViewModel): void {
     finalStatus === 'error' || finalStatus === 'interrupted'
       ? 'failed'
       : 'completed';
-  const terminalTitle =
-    finalStatus === 'error'
-      ? $t('common.globalAiChat.turnStageType.failed')
-      : finalStatus === 'interrupted'
-        ? $t('common.globalAiChat.turnStageStatus.interrupted')
-        : $t('common.globalAiChat.turnStageType.completed');
+  let terminalTitle = $t('common.globalAiChat.turnStageType.completed');
+  if (finalStatus === 'error') {
+    terminalTitle = $t('common.globalAiChat.turnStageType.failed');
+  } else if (finalStatus === 'interrupted') {
+    terminalTitle = $t('common.globalAiChat.turnStageStatus.interrupted');
+  }
   const terminalIndex = flow.timeline.findLastIndex(
     (stage) => stage.type === 'completed' || stage.type === 'failed',
   );
-  if (terminalIndex >= 0) {
+  if (terminalIndex !== -1) {
     const stage = flow.timeline[terminalIndex];
     if (stage) {
       stage.status = finalStatus;

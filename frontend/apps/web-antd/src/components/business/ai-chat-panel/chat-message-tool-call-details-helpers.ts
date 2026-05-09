@@ -28,7 +28,7 @@ export interface ToolCallDetailsViewModel {
   errorHintKey?: string;
   hasStructuredOutputPreview: boolean;
   outputFields: ToolCallDetailField[];
-  outputPreview: ToolCallDetailPreview | null;
+  outputPreview: null | ToolCallDetailPreview;
   rawOutput?: string;
 }
 
@@ -55,8 +55,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function hasMeaningfulValue(value: unknown): boolean {
   if (value === null || value === undefined) return false;
   if (typeof value === 'string') return value.trim().length > 0;
-  if (Array.isArray(value)) return value.some((item) => hasMeaningfulValue(item));
-  if (isRecord(value)) return Object.values(value).some((item) => hasMeaningfulValue(item));
+  if (Array.isArray(value))
+    return value.some((item) => hasMeaningfulValue(item));
+  if (isRecord(value))
+    return Object.values(value).some((item) => hasMeaningfulValue(item));
   return true;
 }
 
@@ -205,7 +207,9 @@ function buildDetailField(key: string, value: unknown): ToolCallDetailField {
   };
 }
 
-function buildDetailFields(value?: Record<string, unknown>): ToolCallDetailField[] {
+function buildDetailFields(
+  value?: Record<string, unknown>,
+): ToolCallDetailField[] {
   if (!value) {
     return [];
   }
@@ -214,7 +218,7 @@ function buildDetailFields(value?: Record<string, unknown>): ToolCallDetailField
     .map(([key, fieldValue]) => buildDetailField(key, fieldValue));
 }
 
-function buildDetailPreview(value: unknown): ToolCallDetailPreview | null {
+function buildDetailPreview(value: unknown): null | ToolCallDetailPreview {
   if (!hasMeaningfulValue(value)) {
     return null;
   }
@@ -267,7 +271,8 @@ export function buildToolCallDetailsViewModel(
   return {
     argumentFields,
     errorHintKey: getToolActionErrorHintKey(toolItem.tc.errorType),
-    hasStructuredOutputPreview: outputFields.length > 0 || outputPreview !== null,
+    hasStructuredOutputPreview:
+      outputFields.length > 0 || outputPreview !== null,
     outputFields,
     outputPreview,
     rawOutput: structuredOutput.raw,

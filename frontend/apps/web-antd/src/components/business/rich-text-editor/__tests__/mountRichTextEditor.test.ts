@@ -124,10 +124,13 @@ describe('mountRichTextEditor', () => {
       mode: 'replace',
       selection,
     });
-    expect(richTextStub.exposed.applyContent).toHaveBeenCalledWith('AI result', {
-      mode: 'replace',
-      selection,
-    });
+    expect(richTextStub.exposed.applyContent).toHaveBeenCalledWith(
+      'AI result',
+      {
+        mode: 'replace',
+        selection,
+      },
+    );
 
     editor.destroy();
   });

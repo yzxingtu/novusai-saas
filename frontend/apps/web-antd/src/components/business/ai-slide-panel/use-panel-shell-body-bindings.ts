@@ -4,11 +4,11 @@ import type { ComputedRef, Ref } from 'vue';
 
 import type { ChatKBBindingInfo } from '#/api/shared/ai-chat';
 import type {
+  AgentItem,
   AgentKnowledgeBaseBindingsByAgentId,
   AgentKnowledgeBaseBindingSummary,
   AgentSkillBindingsByAgentId,
   AgentSkillBindingSummary,
-  AgentItem,
   ChatMessage,
 } from '#/types/ai-chat';
 

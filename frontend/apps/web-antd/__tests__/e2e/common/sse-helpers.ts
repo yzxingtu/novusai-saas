@@ -420,6 +420,16 @@ function appendCanonicalToolEvidence(
     return;
   }
 
+  let summaryPayloadWithEvidence: unknown = summaryPayload;
+  if (isJsonRecord(summaryPayload)) {
+    summaryPayloadWithEvidence = {
+      ...summaryPayload,
+      ...(evidenceId ? { evidence_id: evidenceId } : {}),
+    };
+  } else if (evidenceId) {
+    summaryPayloadWithEvidence = { evidence_id: evidenceId };
+  }
+
   toolCalls.push({
     arguments: argumentsValue,
     duration_ms: readNumber(evidence.duration_ms ?? evidence.durationMs),
@@ -431,14 +441,7 @@ function appendCanonicalToolEvidence(
     skill_name: readString(evidence.skill_name ?? evidence.skillName),
     success: status ? status === 'success' : !error,
     summary,
-    summary_payload: isJsonRecord(summaryPayload)
-      ? {
-          ...summaryPayload,
-          ...(evidenceId ? { evidence_id: evidenceId } : {}),
-        }
-      : evidenceId
-        ? { evidence_id: evidenceId }
-        : summaryPayload,
+    summary_payload: summaryPayloadWithEvidence,
   });
 }
 

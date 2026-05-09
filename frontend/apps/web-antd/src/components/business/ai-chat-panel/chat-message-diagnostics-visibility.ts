@@ -20,14 +20,12 @@ function hasActiveContextSources(msg: ChatMessage): boolean {
     const metadata = source.metadata ?? {};
     return Boolean(
       source.active !== false &&
-      (
-        normalizeDiagnosticText(source.kind) ||
+      (normalizeDiagnosticText(source.kind) ||
         normalizeDiagnosticText(source.name) ||
         normalizeDiagnosticText(metadata.name) ||
         normalizeDiagnosticText(metadata.title) ||
         normalizeDiagnosticText(metadata.knowledge_base_name) ||
-        normalizeDiagnosticText(metadata.source)
-      ),
+        normalizeDiagnosticText(metadata.source)),
     );
   });
 }
@@ -58,7 +56,9 @@ export function shouldRenderTurnDiagnostics(
     return true;
   }
 
-  const normalizedOutcome = normalizeDiagnosticText(msg.turnOutcome).toLowerCase();
+  const normalizedOutcome = normalizeDiagnosticText(
+    msg.turnOutcome,
+  ).toLowerCase();
   if (normalizedOutcome && !BENIGN_TURN_OUTCOMES.has(normalizedOutcome)) {
     return true;
   }

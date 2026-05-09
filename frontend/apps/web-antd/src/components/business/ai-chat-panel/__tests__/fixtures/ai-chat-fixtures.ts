@@ -199,7 +199,8 @@ export const buildThinkingDedupHistoryMessages = () => [
           ],
           id: 'turn-thinking',
           status: 'completed',
-          summary: '**Considering tool responses** I have the report details now.',
+          summary:
+            '**Considering tool responses** I have the report details now.',
           type: 'thinking',
         },
         {
@@ -240,7 +241,8 @@ export const buildThinkingDedupHistoryMessages = () => [
           ],
           id: 'turn-thinking',
           status: 'completed',
-          summary: '**Considering tool responses** I have the report details now.',
+          summary:
+            '**Considering tool responses** I have the report details now.',
           type: 'thinking',
         },
         {

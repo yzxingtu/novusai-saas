@@ -52,14 +52,14 @@ const workspaceContext = {
 function resetWorkspaceState() {
   selectedAgent.value = {
     avatar: '/avatars/navigator.png',
-      description: 'A routing specialist for travel planning',
-      id: 17,
-      knowledge_base_ids: [101],
-      knowledge_bases: [{ kb_name: 'Trips', knowledge_base_id: 101 }],
-      model_name: 'gpt-5.4-mini',
-      name: 'Navigator',
-      skills: [{ name: 'route-planner', skill_id: 21 }],
-    };
+    description: 'A routing specialist for travel planning',
+    id: 17,
+    knowledge_base_ids: [101],
+    knowledge_bases: [{ kb_name: 'Trips', knowledge_base_id: 101 }],
+    model_name: 'gpt-5.4-mini',
+    name: 'Navigator',
+    skills: [{ name: 'route-planner', skill_id: 21 }],
+  };
   activeConversationId.value = 42;
   streaming.value = false;
   memoryLoading.value = false;
@@ -108,23 +108,26 @@ vi.mock('ant-design-vue', () => ({
   }),
 }));
 
-vi.mock('#/components/business/ai-chat-panel/ChatMessageAgentAvatar.vue', () => ({
-  default: defineComponent({
-    name: 'ChatMessageAgentAvatarStub',
-    props: {
-      agentAvatar: { default: null, type: String },
-      agentDescription: { default: null, type: String },
-      agentId: { default: null, type: Number },
-      agentKnowledgeBaseIds: { default: null, type: Array },
-      agentKnowledgeBases: { default: null, type: Array },
-      agentName: { default: null, type: String },
-      agentSkills: { default: null, type: Array },
-      modelName: { default: null, type: String },
-    },
-    template:
-      '<div data-testid="agent-avatar-stub" :data-agent-avatar="agentAvatar || \'\'" :data-agent-description="agentDescription || \'\'" :data-agent-id="String(agentId ?? \'\')" :data-agent-kb-ids="JSON.stringify(agentKnowledgeBaseIds || [])" :data-agent-kbs="JSON.stringify(agentKnowledgeBases || [])" :data-agent-name="agentName || \'\'" :data-agent-skills="JSON.stringify(agentSkills || [])" :data-model-name="modelName || \'\'"></div>',
+vi.mock(
+  '#/components/business/ai-chat-panel/ChatMessageAgentAvatar.vue',
+  () => ({
+    default: defineComponent({
+      name: 'ChatMessageAgentAvatarStub',
+      props: {
+        agentAvatar: { default: null, type: String },
+        agentDescription: { default: null, type: String },
+        agentId: { default: null, type: Number },
+        agentKnowledgeBaseIds: { default: null, type: Array },
+        agentKnowledgeBases: { default: null, type: Array },
+        agentName: { default: null, type: String },
+        agentSkills: { default: null, type: Array },
+        modelName: { default: null, type: String },
+      },
+      template:
+        '<div data-testid="agent-avatar-stub" :data-agent-avatar="agentAvatar || \'\'" :data-agent-description="agentDescription || \'\'" :data-agent-id="String(agentId ?? \'\')" :data-agent-kb-ids="JSON.stringify(agentKnowledgeBaseIds || [])" :data-agent-kbs="JSON.stringify(agentKnowledgeBases || [])" :data-agent-name="agentName || \'\'" :data-agent-skills="JSON.stringify(agentSkills || [])" :data-model-name="modelName || \'\'"></div>',
+    }),
   }),
-}));
+);
 
 describe('userAIChatWorkspaceHeader', () => {
   beforeEach(() => {
@@ -160,26 +163,36 @@ describe('userAIChatWorkspaceHeader', () => {
     const wrapper = mount(UserAIChatWorkspaceHeader);
 
     expect(
-      wrapper.find(
-        '[data-tooltip-title="user.aiChat.varsModal.editVars"] [data-testid="user-ai-chat-vars-button"]',
-      ).exists(),
+      wrapper
+        .find(
+          '[data-tooltip-title="user.aiChat.varsModal.editVars"] [data-testid="user-ai-chat-vars-button"]',
+        )
+        .exists(),
     ).toBe(true);
     expect(
-      wrapper.find(
-        '[data-tooltip-title="common.aiPanel.newChat"] [data-testid="user-ai-chat-new-chat-button"]',
-      ).exists(),
+      wrapper
+        .find(
+          '[data-tooltip-title="common.aiPanel.newChat"] [data-testid="user-ai-chat-new-chat-button"]',
+        )
+        .exists(),
     ).toBe(true);
     expect(
-      wrapper.find(
-        '[data-tooltip-title="common.aiPanel.memory"] [data-testid="user-ai-chat-memory-button"]',
-      ).exists(),
+      wrapper
+        .find(
+          '[data-tooltip-title="common.aiPanel.memory"] [data-testid="user-ai-chat-memory-button"]',
+        )
+        .exists(),
     ).toBe(true);
 
-    await wrapper.get('[data-testid="user-ai-chat-vars-button"]').trigger('click');
+    await wrapper
+      .get('[data-testid="user-ai-chat-vars-button"]')
+      .trigger('click');
     await wrapper
       .get('[data-testid="user-ai-chat-new-chat-button"]')
       .trigger('click');
-    await wrapper.get('[data-testid="user-ai-chat-memory-button"]').trigger('click');
+    await wrapper
+      .get('[data-testid="user-ai-chat-memory-button"]')
+      .trigger('click');
 
     expect(workspaceActions.openHeaderVarsModal).toHaveBeenCalledTimes(1);
     expect(workspaceActions.onStartNewChat).toHaveBeenCalledTimes(1);

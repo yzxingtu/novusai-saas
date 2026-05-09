@@ -98,7 +98,7 @@ export function usePanelContextBridge(options: UsePanelContextBridgeOptions) {
 
   function clearVarsFormValues() {
     Object.keys(varsFormValues).forEach((key) => {
-      delete varsFormValues[key];
+      Reflect.deleteProperty(varsFormValues, key);
     });
   }
 

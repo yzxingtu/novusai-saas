@@ -49,7 +49,7 @@ vi.mock('ant-design-vue', () => ({
   }),
 }));
 
-describe('AIChatPanelUtilityActions', () => {
+describe('aIChatPanelUtilityActions', () => {
   it('shows readable labels in the regular shared toolbar', () => {
     const wrapper = mount(AIChatPanelUtilityActions, {
       props: {

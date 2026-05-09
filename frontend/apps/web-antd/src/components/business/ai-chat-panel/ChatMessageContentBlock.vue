@@ -329,7 +329,7 @@ function toggleExpand() {
 
 <style scoped>
 .assistant-content-body {
-  color: hsl(var(--foreground) / 0.9);
+  color: hsl(var(--foreground) / 90%);
 }
 
 .assistant-content-block :deep(.markdown-render) {
@@ -345,7 +345,7 @@ function toggleExpand() {
   margin: 0.95em 0 0.45em;
   font-weight: 600;
   line-height: 1.3;
-  color: hsl(var(--foreground) / 0.94);
+  color: hsl(var(--foreground) / 94%);
 }
 
 .assistant-content-block :deep(.markdown-render h1) {
@@ -367,8 +367,8 @@ function toggleExpand() {
 
 .assistant-content-block :deep(.markdown-render ul),
 .assistant-content-block :deep(.markdown-render ol) {
-  margin: 0.55em 0;
   padding-left: 1.2em;
+  margin: 0.55em 0;
 }
 
 .assistant-content-block :deep(.markdown-render li + li) {
@@ -377,44 +377,44 @@ function toggleExpand() {
 
 .assistant-content-block :deep(.markdown-render hr) {
   margin: 0.9em 0;
-  border-color: hsl(var(--border) / 0.42);
+  border-color: hsl(var(--border) / 42%);
 }
 
 .assistant-content-block :deep(.markdown-render blockquote) {
-  margin: 0.8em 0;
   padding: 0.72em 0.9em;
-  color: hsl(var(--muted-foreground) / 0.92);
+  margin: 0.8em 0;
+  color: hsl(var(--muted-foreground) / 92%);
+  background: hsl(var(--muted) / 18%);
+  border-left-color: hsl(var(--primary) / 22%);
   border-left-width: 2px;
-  border-left-color: hsl(var(--primary) / 0.22);
   border-radius: 0 10px 10px 0;
-  background: hsl(var(--muted) / 0.18);
 }
 
 .assistant-content-block :deep(.markdown-render a) {
   font-weight: 500;
-  box-shadow: inset 0 -1px 0 hsl(var(--primary) / 0.18);
+  box-shadow: inset 0 -1px 0 hsl(var(--primary) / 18%);
 }
 
 .assistant-content-block :deep(.md-code-block) {
-  border-color: hsl(var(--border) / 0.22);
+  background: hsl(var(--muted) / 8%);
+  border-color: hsl(var(--border) / 22%);
   border-radius: 12px;
-  background: hsl(var(--muted) / 0.08);
 }
 
 .assistant-content-block :deep(.md-code-header) {
   padding: 0.4rem 0.72rem;
-  background: hsl(var(--muted) / 0.22);
+  background: hsl(var(--muted) / 22%);
 }
 
 .assistant-content-block :deep(.md-code-block pre.hljs) {
   padding: 0.88rem 0.95rem;
-  background: hsl(var(--background) / 0.95);
+  background: hsl(var(--background) / 95%);
 }
 
 .assistant-content-block :deep(.markdown-render code:not(.hljs code)) {
   padding: 0.12rem 0.34rem;
+  background: hsl(var(--muted) / 38%);
   border-radius: 5px;
-  background: hsl(var(--muted) / 0.38);
 }
 
 .assistant-content-block :deep(.markdown-render table) {
@@ -422,6 +422,6 @@ function toggleExpand() {
 }
 
 .assistant-content-block :deep(.markdown-render th) {
-  background: hsl(var(--muted) / 0.34);
+  background: hsl(var(--muted) / 34%);
 }
 </style>

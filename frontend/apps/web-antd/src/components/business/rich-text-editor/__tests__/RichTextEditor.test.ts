@@ -430,7 +430,7 @@ describe('richTextEditor', () => {
         Record<string, unknown>,
       ]
     )[2];
-    expect(Object.keys(payload).sort()).toEqual(
+    expect(Object.keys(payload).toSorted()).toEqual(
       [
         'after_text',
         'before_text',
@@ -441,7 +441,7 @@ describe('richTextEditor', () => {
         'instruction',
         'selected_text',
         'surface',
-      ].sort(),
+      ].toSorted(),
     );
     expect(payload).not.toHaveProperty('selection_html');
     expect(payload).not.toHaveProperty('page_context');

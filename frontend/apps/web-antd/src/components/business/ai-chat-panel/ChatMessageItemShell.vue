@@ -1,9 +1,9 @@
 <script lang="ts" setup>
 import type {
+  AgentItem,
   AgentKnowledgeBaseBindingsByAgentId,
   AgentKnowledgeBaseBindingSummary,
   AgentSkillBindingsByAgentId,
-  AgentItem,
   ChatMessage,
 } from './types';
 
@@ -14,14 +14,14 @@ import ChatMessageUserMessage from './ChatMessageUserMessage.vue';
 
 const props = withDefaults(
   defineProps<{
+    agentKnowledgeBaseMap?: AgentKnowledgeBaseBindingsByAgentId | null;
+    agentKnowledgeBases?: AgentKnowledgeBaseBindingSummary[] | null;
     /** Agents list for resolving avatar/name by msg.agent_id (fix avatar mismatch) / 智能体列表，按 msg.agent_id 解析头像 */
     agents?: AgentItem[];
+    agentSkillMap?: AgentSkillBindingsByAgentId | null;
     apiPrefix?: string;
     compact?: boolean;
     forceShowDiagnostics?: boolean;
-    agentKnowledgeBases?: AgentKnowledgeBaseBindingSummary[] | null;
-    agentKnowledgeBaseMap?: AgentKnowledgeBaseBindingsByAgentId | null;
-    agentSkillMap?: AgentSkillBindingsByAgentId | null;
     index: number;
     kernelState?: null | TurnFlowState;
     msg: ChatMessage;

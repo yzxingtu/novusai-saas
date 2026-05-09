@@ -9,8 +9,13 @@ import { toAvatarDisplayUrl } from '#/utils/image';
 import { useUserAIChatContext } from './ai-chat-context';
 import UserAIChatConversationList from './UserAIChatConversationList.vue';
 
-const { conversationSearch, mobileSidebarOpen, onSelectAgent, onStartNewChat, chat } =
-  useUserAIChatContext();
+const {
+  conversationSearch,
+  mobileSidebarOpen,
+  onSelectAgent,
+  onStartNewChat,
+  chat,
+} = useUserAIChatContext();
 const { agents, conversations, selectedAgentId } = chat;
 
 function closeMobileSidebar() {

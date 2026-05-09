@@ -19,7 +19,7 @@ vi.mock('#/locales', () => ({
       return key;
     }
     const suffix = Object.entries(params)
-      .sort(([left], [right]) => left.localeCompare(right))
+      .toSorted(([left], [right]) => left.localeCompare(right))
       .map(([name, value]) => `${name}=${String(value)}`)
       .join(',');
     return `${key}:${suffix}`;
@@ -91,17 +91,19 @@ describe('chatMessageAgentAvatar', () => {
     });
 
     const rendered = wrapper.text();
-    expect(wrapper.get('[data-testid="assistant-agent-avatar"]').attributes()).toMatchObject(
-      {
-        'aria-label': 'common.globalAiChat.agentProfileAria:agent=Navigator',
-      },
-    );
+    expect(
+      wrapper.get('[data-testid="assistant-agent-avatar"]').attributes(),
+    ).toMatchObject({
+      'aria-label': 'common.globalAiChat.agentProfileAria:agent=Navigator',
+    });
     expect(rendered).toContain('common.globalAiChat.noDescription');
     expect(rendered).toContain('common.globalAiChat.skillPackages');
     expect(rendered).toContain('common.globalAiChat.skillEntries');
     expect(rendered).toContain('common.globalAiChat.mentionSectionKbs');
     expect(rendered).toContain('common.globalAiChat.agentProfileHint');
-    expect(rendered).toContain('common.globalAiChat.skillBindingFallback:id=21');
+    expect(rendered).toContain(
+      'common.globalAiChat.skillBindingFallback:id=21',
+    );
     expect(rendered).toContain(
       'common.globalAiChat.knowledgeBaseFallback:id=202',
     );

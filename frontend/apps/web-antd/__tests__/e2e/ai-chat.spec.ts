@@ -92,10 +92,10 @@ const RETIRED_ONLINE_SEARCH_TOOL_NAMES = new Set([
   'searchprovider',
   'supports_hosted_web_search',
   'web_research',
-  'webresearch',
   'web_search',
   'web_search_options',
   'web_search_runtime',
+  'webresearch',
 ]);
 const RETIRED_ONLINE_SEARCH_NAME_FRAGMENTS = [
   'hosted_web_search',
@@ -321,10 +321,9 @@ function expectNoRetiredOnlineSearchTool(
     ),
     `${message}. Tool starts: ${metrics.toolStarts.map(({ name }) => name).join(', ') || 'none'}`,
   ).toBe(false);
-  const retiredEventStatuses =
-    readRetiredOnlineSearchEventStatuses(metrics).filter((status) =>
-      isRetiredOnlineSearchTool(status),
-    );
+  const retiredEventStatuses = readRetiredOnlineSearchEventStatuses(
+    metrics,
+  ).filter((status) => isRetiredOnlineSearchTool(status));
   expect(
     retiredEventStatuses,
     `${message}. Retired online-search event statuses: ${retiredEventStatuses.join(', ') || 'none'}`,

@@ -51,10 +51,10 @@ function getThinkingPreview(content: string | undefined) {
   }
 
   const normalized = firstMeaningfulLine
-    .replace(/\[(.*?)\]\((.*?)\)/g, '$1')
-    .replace(/`{1,3}([^`]+)`{1,3}/g, '$1')
-    .replace(/[*_>#~-]/g, ' ')
-    .replace(/\s+/g, ' ')
+    .replaceAll(/\[(.*?)\]\(.*?\)/g, '$1')
+    .replaceAll(/`{1,3}([^`]+)`{1,3}/g, '$1')
+    .replaceAll(/[*_>#~-]/g, ' ')
+    .replaceAll(/\s+/g, ' ')
     .trim();
 
   if (!normalized) {
@@ -171,7 +171,7 @@ onUnmounted(clearAllThinkingAutoCollapseTimers);
       !toolCallsForDisplay?.length &&
       !thinkingContent
     "
-    class="thinking-skeleton rounded-[14px] border border-border/14 bg-background/62"
+    class="thinking-skeleton border-border/14 bg-background/62 rounded-[14px] border"
     :class="compact ? 'px-2.5 py-2' : 'px-3 py-2.5'"
   >
     <div class="flex items-center gap-2">
@@ -202,10 +202,12 @@ onUnmounted(clearAllThinkingAutoCollapseTimers);
     <div
       v-if="embedded"
       data-testid="thinking-embedded-body"
-      class="thinking-inline-body rounded-[13px] border border-border/12 bg-background/74"
+      class="thinking-inline-body border-border/12 bg-background/74 rounded-[13px] border"
       :class="compact ? 'px-2.5 py-2' : 'px-3 py-2.5'"
     >
-      <div class="thinking-markdown text-[10px] leading-[1.45rem] text-foreground/68">
+      <div
+        class="thinking-markdown text-foreground/68 text-[10px] leading-[1.45rem]"
+      >
         <MarkdownRender
           :content="thinkingContent"
           :streaming="!!msg.streaming && !msg.content"
@@ -220,8 +222,8 @@ onUnmounted(clearAllThinkingAutoCollapseTimers);
       class="thinking-chip group flex max-w-full cursor-pointer items-start gap-2.5 rounded-[16px] border text-left transition-all duration-200"
       :class="
         compact
-          ? 'px-2.5 py-1.5 hover:bg-background/78'
-          : 'px-3 py-2 hover:bg-background/78'
+          ? 'hover:bg-background/78 px-2.5 py-1.5'
+          : 'hover:bg-background/78 px-3 py-2'
       "
       :title="!isThinkingExpanded(index) ? thinkingPreview : undefined"
       @click="toggleThinkingExpand(index)"
@@ -232,7 +234,7 @@ onUnmounted(clearAllThinkingAutoCollapseTimers);
       >
         <IconifyIcon
           icon="lucide:brain"
-          class="size-3 text-muted-foreground/68"
+          class="text-muted-foreground/68 size-3"
           :class="msg.streaming ? 'thinking-glow text-primary/70' : ''"
         />
       </span>
@@ -242,7 +244,7 @@ onUnmounted(clearAllThinkingAutoCollapseTimers);
         :class="compact ? 'gap-0.5' : 'gap-1'"
       >
         <span class="flex min-w-0 items-center gap-1.5">
-          <span class="truncate text-[9.5px] font-semibold text-foreground/78">
+          <span class="text-foreground/78 truncate text-[9.5px] font-semibold">
             {{
               msg.streaming
                 ? $t('common.globalAiChat.thinking')
@@ -266,7 +268,7 @@ onUnmounted(clearAllThinkingAutoCollapseTimers);
         <span
           v-if="thinkingPreview && !isThinkingExpanded(index)"
           data-testid="thinking-preview"
-          class="pr-1 text-[9.5px] leading-[1.05rem] text-muted-foreground/64"
+          class="text-muted-foreground/64 pr-1 text-[9.5px] leading-[1.05rem]"
           :class="compact ? 'line-clamp-2' : 'line-clamp-3'"
         >
           {{ thinkingPreview }}
@@ -294,17 +296,17 @@ onUnmounted(clearAllThinkingAutoCollapseTimers);
     >
       <div class="min-h-0 overflow-hidden">
         <div
-          class="thinking-sheet-card mt-1.5 rounded-[13px] border border-border/12 transition-transform duration-200"
-          :class="
-            compact ? 'ml-1.5 px-3 py-2' : 'ml-2 px-3.5 py-2.5'
-          "
+          class="thinking-sheet-card border-border/12 mt-1.5 rounded-[13px] border transition-transform duration-200"
+          :class="compact ? 'ml-1.5 px-3 py-2' : 'ml-2 px-3.5 py-2.5'"
           :style="{
             transform: isThinkingExpanded(index)
               ? 'translateY(0)'
               : 'translateY(-4px)',
           }"
         >
-          <div class="thinking-markdown text-[10px] leading-[1.45rem] text-foreground/68">
+          <div
+            class="thinking-markdown text-foreground/68 text-[10px] leading-[1.45rem]"
+          >
             <MarkdownRender
               :content="thinkingContent"
               :streaming="!!msg.streaming && !msg.content"
@@ -318,19 +320,19 @@ onUnmounted(clearAllThinkingAutoCollapseTimers);
 
 <style scoped>
 .thinking-chip {
-  border-color: hsl(var(--border) / 0.14);
-  background: hsl(var(--muted) / 0.08);
+  background: hsl(var(--muted) / 8%);
+  border-color: hsl(var(--border) / 14%);
   box-shadow: none;
 }
 
 .thinking-sheet-card {
-  background: hsl(var(--muted) / 0.08);
+  background: hsl(var(--muted) / 8%);
   box-shadow: none;
 }
 
 .thinking-inline-body {
-  min-width: 0;
   position: relative;
+  min-width: 0;
   box-shadow: none;
 }
 
@@ -359,8 +361,8 @@ onUnmounted(clearAllThinkingAutoCollapseTimers);
 
 .thinking-markdown :deep(ul),
 .thinking-markdown :deep(ol) {
-  margin: 0.65rem 0 0;
   padding-inline-start: 1.1rem;
+  margin: 0.65rem 0 0;
 }
 
 .thinking-markdown :deep(li + li) {

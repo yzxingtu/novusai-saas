@@ -1,6 +1,7 @@
 <script lang="ts" setup>
-import type { MentionCandidate } from '#/types/ai-chat';
 import type { VNodeRef } from 'vue';
+
+import type { MentionCandidate } from '#/types/ai-chat';
 
 import { computed } from 'vue';
 
@@ -458,17 +459,17 @@ const setFileInputRef: VNodeRef = (element) => {
 }
 
 .user-composer-shell {
-  border-color: hsl(var(--border) / 0.34);
-  background: hsl(var(--background) / 0.98);
-  box-shadow: 0 12px 24px -24px hsl(var(--foreground) / 0.1);
+  background: hsl(var(--background) / 98%);
+  border-color: hsl(var(--border) / 34%);
+  box-shadow: 0 12px 24px -24px hsl(var(--foreground) / 10%);
 }
 
 .user-composer-shell:focus-within {
-  border-color: hsl(var(--foreground) / 0.18);
   background: hsl(var(--background));
+  border-color: hsl(var(--foreground) / 18%);
   box-shadow:
-    0 14px 28px -24px hsl(var(--foreground) / 0.12),
-    0 0 0 3px hsl(var(--foreground) / 0.04);
+    0 14px 28px -24px hsl(var(--foreground) / 12%),
+    0 0 0 3px hsl(var(--foreground) / 4%);
 }
 
 .ai-chat-textarea :deep(.ant-input) {

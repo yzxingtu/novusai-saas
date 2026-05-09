@@ -31,7 +31,6 @@ const {
 const setMessagesContainerRef = (element: HTMLDivElement | null) => {
   messagesContainer.value = element as HTMLElement | null;
 };
-
 </script>
 
 <template>

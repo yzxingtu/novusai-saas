@@ -32,7 +32,7 @@ vi.mock('@vben/icons', () => ({
   IconifyIcon: defineComponent({
     name: 'IconifyIconStub',
     props: {
-      icon: { type: String, required: false },
+      icon: { default: '', type: String },
     },
     template: '<span class="iconify-stub" :data-icon="icon" />',
   }),
@@ -52,7 +52,7 @@ vi.mock('../user-ai-chat-workspace-context', () => ({
   }),
 }));
 
-describe('UserAIChatWorkspaceMemoryPanel', () => {
+describe('userAIChatWorkspaceMemoryPanel', () => {
   it('renders long-term memory preview records', () => {
     const wrapper = mount(UserAIChatWorkspaceMemoryPanel, {
       global: {
@@ -63,6 +63,7 @@ describe('UserAIChatWorkspaceMemoryPanel', () => {
           }),
           Tooltip: defineComponent({
             name: 'TooltipStub',
+            inheritAttrs: false,
             template: '<span><slot /></span>',
           }),
         },
@@ -71,6 +72,8 @@ describe('UserAIChatWorkspaceMemoryPanel', () => {
 
     expect(wrapper.text()).toContain('common.globalAiChat.longTermMemories');
     expect(wrapper.text()).toContain('我的项目代号是 Phoenix');
-    expect(wrapper.text()).not.toContain('common.globalAiChat.clearMemoryEmpty');
+    expect(wrapper.text()).not.toContain(
+      'common.globalAiChat.clearMemoryEmpty',
+    );
   });
 });

@@ -277,7 +277,11 @@ describe('chatMessageKernel', () => {
             message: 'Connection error.',
           },
           evidence: [
-            { id: 'evidence_1', kind: 'knowledge_base', title: 'skill_resolver' },
+            {
+              id: 'evidence_1',
+              kind: 'knowledge_base',
+              title: 'skill_resolver',
+            },
             { id: 'evidence_2', kind: 'memory', title: 'long_term_memory' },
             { id: 'evidence_3', kind: 'knowledge_base', title: 'gpt-5.5' },
           ],

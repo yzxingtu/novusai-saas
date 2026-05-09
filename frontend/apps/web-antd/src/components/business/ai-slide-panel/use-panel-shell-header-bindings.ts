@@ -18,7 +18,7 @@ interface UsePanelShellHeaderBindingsOptions {
   hasHeaderVariableValues: Ref<boolean>;
   memoryLoading: Ref<boolean>;
   onEditHeaderVars: () => void;
-  onToggleMemory: () => void | Promise<void>;
+  onToggleMemory: () => Promise<void> | void;
   onToggleForceReroute: () => void;
   panelTitle: ComputedRef<string>;
   routeNotice: Ref<null | string>;

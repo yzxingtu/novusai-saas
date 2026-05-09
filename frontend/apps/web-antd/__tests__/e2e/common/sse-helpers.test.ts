@@ -10,7 +10,7 @@ function event(data: Record<string, unknown>) {
   return { data: JSON.stringify(data) };
 }
 
-describe('SSE smoke tool evidence extraction', () => {
+describe('sse smoke tool evidence extraction', () => {
   it('does not synthesize toolCalls from legacy tool events or selection diagnostics', () => {
     const toolCalls = collectCanonicalToolCallsFromEvents([
       event({

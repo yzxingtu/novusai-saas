@@ -19,8 +19,8 @@ import ChatMessageKernel from '#/components/business/ai-chat-kernel/ChatMessageK
 import { useDiagnosticsPolicy } from '#/composables/use-diagnostics-policy';
 import { $t } from '#/locales';
 
-import { shouldRenderTurnDiagnostics } from './chat-message-diagnostics-visibility';
 import AgentIdentityRail from './AgentIdentityRail.vue';
+import { shouldRenderTurnDiagnostics } from './chat-message-diagnostics-visibility';
 import ChatMessageContentBlock from './ChatMessageContentBlock.vue';
 import ChatMessageDiagnostics from './ChatMessageDiagnostics.vue';
 import ChatMessageErrorCard from './ChatMessageErrorCard.vue';
@@ -93,7 +93,6 @@ const showTurnDiagnostics = computed(() =>
 const showKernelSection = computed(
   () => hasKernelSections.value || showTurnDiagnostics.value,
 );
-
 </script>
 
 <template>
@@ -302,10 +301,10 @@ const showKernelSection = computed(
 
 .assistant-message-surface {
   position: relative;
-  min-width: 0;
   width: 100%;
-  border-left: 1px solid hsl(var(--border) / 0.24);
+  min-width: 0;
   background: transparent;
+  border-left: 1px solid hsl(var(--border) / 24%);
 }
 
 .assistant-message-body {
@@ -322,9 +321,9 @@ const showKernelSection = computed(
 
 .assistant-inline-panel,
 .assistant-inline-media {
-  border-color: hsl(var(--border) / 0.16);
-  background: hsl(var(--background) / 0.94);
-  box-shadow: 0 12px 22px -32px hsl(var(--foreground) / 0.1);
+  background: hsl(var(--background) / 94%);
+  border-color: hsl(var(--border) / 16%);
+  box-shadow: 0 12px 22px -32px hsl(var(--foreground) / 10%);
 }
 
 .assistant-message-surface :deep(.chat-message-kernel-shell) {

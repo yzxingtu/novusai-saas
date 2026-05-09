@@ -356,11 +356,11 @@ watch(
 }
 
 .ai-chat-history-overlay-pane {
-  border-color: hsl(var(--border) / 0.48);
-  background: hsl(var(--background) / 0.995);
+  background: hsl(var(--background) / 99.5%);
+  border-color: hsl(var(--border) / 48%);
   box-shadow:
-    0 20px 40px -36px hsl(var(--foreground) / 0.18),
-    0 0 0 1px hsl(var(--foreground) / 0.04);
+    0 20px 40px -36px hsl(var(--foreground) / 18%),
+    0 0 0 1px hsl(var(--foreground) / 4%);
 }
 
 .ai-chat-history-overlay-enter-active,

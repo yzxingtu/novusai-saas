@@ -44,13 +44,13 @@ import type {
 import axios from 'axios';
 import qs from 'qs';
 
+import { notifyAIAccessDenied } from './ai-availability-events';
 import {
   formatAppErrorMessage,
   normalizeHttpError,
   normalizeSseTransportError,
   toErrorWithAppError,
 } from './app-error';
-import { notifyAIAccessDenied } from './ai-availability-events';
 import { getEndpointByUrl } from './endpoint';
 import { isAuthError } from './error-codes';
 import { ensureTraceIdHeader } from './trace';
