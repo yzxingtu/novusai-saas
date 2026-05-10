@@ -9,3 +9,6 @@
 {"ts":"2026-05-11T02:47:00+08:00","type":"diff","command":"git diff --check","result":"passed_with_crlf_warnings_only"}
 {"ts":"2026-05-11T02:48:00+08:00","type":"trackability","command":"git status --short --ignored and git ls-files --others --exclude-standard for new governance files","result":"passed_new_files_are_unignored"}
 {"ts":"2026-05-11T02:49:00+08:00","type":"reference-scan","command":"rg for upstream governance, thin fork, overlay, cherry-pick -x, merge upstream, and .yudi-base references","result":"passed"}
+{"ts":"2026-05-11T03:11:00+08:00","type":"pr-template-scan","command":"rg for upstream/downstream, upstream-bugfix-policy, customer-fork-policy, verify-yudi-base, structural/behavioral/smoke, cherry-pick -x, and .yudi-base in .github/PULL_REQUEST_TEMPLATE.md","result":"passed"}
+{"ts":"2026-05-11T03:12:00+08:00","type":"pr-template-whitespace","command":"Select-String trailing whitespace scan over .github/PULL_REQUEST_TEMPLATE.md","result":"passed"}
+{"ts":"2026-05-11T03:13:00+08:00","type":"diff","command":"git diff --check after PR template follow-up","result":"passed"}
