@@ -2,50 +2,11 @@
 
 Date: 2026-05-10
 
-Accepted runtime commit: `1625841d8d527e6246cc17b47394afb20dbb9597`
+Accepted runtime commit: `5d0222e1e74644a2b7f1e9b62d6a65bbc2526bfc`
 
 Branch: `main`
 
-Verdict: historical release-candidate evidence for the accepted runtime commit.
-
-## Current HEAD Recheck
-
-Current HEAD after later release-hardening work:
-`009aaf1e4` (`chore(release): harden release readiness gates`).
-
-A fresh local production acceptance probe was run against this current HEAD on
-2026-05-10. It did not fail any executable gate, but it cannot be treated as a
-fully passed production acceptance run because the AI real-dialogue external
-prerequisites were not configured in the current environment.
-
-Current HEAD status:
-
-- Probe status: `overall_status=blocked`.
-- Gate counts: `20 passed / 0 failed / 3 blocked`.
-- Blocked gates:
-  - `ai_provider_credentials`: no real AI provider credential was configured in
-    the current process or `backend/.env`.
-  - `ai_smoke_agent_selector`: no `AI_SMOKE_AGENT_ID` or
-    `AI_SMOKE_AGENT_CODE` was configured for the probe.
-  - `ai_real_dialogue_smoke_execution`: no archived strict
-    `ai-real-dialogue-smoke/v1` report was supplied for the current accepted
-    runtime.
-- Passed gates included `/ready`, `/health`, `/metrics`, frontend root,
-  checked-in Locust capacity benchmark, PostgreSQL backup/restore disposable
-  drill, `pip-audit`, `bandit`, full/prod `pnpm audit`, OWASP ZAP baseline,
-  and production acceptance tooling presence.
-- The generated machine-local artifact was
-  `ops/acceptance-artifacts/current-009aaf1e4-production-probe.json`. That
-  directory is intentionally ignored by Git; regenerate it during release
-  verification rather than treating one developer machine's artifact as source.
-
-Therefore, the historical `1625841d...` passed evidence below remains useful as
-the proof for that exact accepted runtime commit, but it must not be used to
-claim current `009aaf1e4` production acceptance as fully passed. To clear the
-current HEAD gate, configure real provider credentials plus an AI smoke agent
-selector, run `python -m app.cli ai real-dialogue-smoke`, archive the strict
-passed report, and rerun `scripts/production_acceptance_probe.py` with that
-report.
+Verdict: release candidate accepted for production-environment deployment checks.
 
 ## Summary
 
@@ -69,14 +30,16 @@ Release state:
 Cross-audit note:
 
 - A previous report draft referenced the runtime-code commit
-  `32290eef42f742db5121538059f7402a48019b58`. The cross-audit reran AI
-  real-dialogue smoke and the full production acceptance probe while
-  `1625841d8d527e6246cc17b47394afb20dbb9597` was HEAD; this report now records
-  that accepted runtime evidence.
+  `32290eef42f742db5121538059f7402a48019b58`. A later report revision recorded
+  `1625841d8d527e6246cc17b47394afb20dbb9597`, and a recheck at `009aaf1e4`
+  was correctly blocked because the current run lacked AI smoke evidence. The
+  final run on `5d0222e1e74644a2b7f1e9b62d6a65bbc2526bfc` cleared those AI
+  real-dialogue gates with a strict passed smoke report and reran the full
+  production acceptance probe.
 - The report file itself is committed after the acceptance run. That
   documentation commit changes the Git HEAD but not backend/frontend runtime
   image inputs. Later probe rechecks of this archived AI smoke report must pass
-  `--ai-smoke-accepted-runtime-commit 1625841d8d527e6246cc17b47394afb20dbb9597`;
+  `--ai-smoke-accepted-runtime-commit 5d0222e1e74644a2b7f1e9b62d6a65bbc2526bfc`;
   the probe blocks reuse once guarded runtime/deploy paths have changed since
   the accepted runtime commit. Rerun the smoke/probe if a later commit changes
   runtime code, Compose, dependencies, migrations, frontend source, capacity
@@ -88,36 +51,46 @@ The final broad probe was run from `backend/` with:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\production_acceptance_probe.py `
-  --api-base-url http://localhost:8000 `
+  --api-base-url http://127.0.0.1:8000 `
   --frontend-base-url http://localhost:5666 `
   --load-smoke-requests 32 `
   --load-smoke-concurrency 8 `
-  --capacity-requests 64 `
-  --capacity-concurrency 8 `
+  --capacity-requests 96 `
+  --capacity-concurrency 16 `
+  --capacity-p95-budget-ms 1500 `
+  --capacity-error-budget-ratio 0 `
   --run-backup-restore-drill `
   --run-security-scans `
   --run-dast-baseline `
-  --dast-target-url http://host.docker.internal:8000 `
+  --dast-target-url http://127.0.0.1:8000 `
   --ai-smoke-agent-id 59 `
-  --ai-smoke-report ..\.trellis\tasks\05-10-conversation-2415-weather-routing\smoke-runs\20260510-current-head-cross-audit\report.raw.json `
-  --ai-smoke-accepted-runtime-commit 1625841d8d527e6246cc17b47394afb20dbb9597 `
-  --artifact-dir var\acceptance\20260510-current-head-cross-audit `
-  --timeout 900 `
-  --repo-root ..
+  --ai-smoke-report ..\.trellis\tasks\05-10-release-readiness-cross-audit\smoke-runs\20260510-current-head-final-ai-real-dialogue\report.raw.json `
+  --artifact-dir ops\acceptance-artifacts `
+  --allow-blocked `
+  --timeout 180
 ```
 
 ## Evidence
 
-Artifacts from the final run are under:
+Machine-local artifacts from the final run are under:
 
 ```text
-var/acceptance/20260510-current-head-cross-audit/
+ops/acceptance-artifacts/
 ```
+
+The probe JSON was written to:
+
+```text
+ops/acceptance-artifacts/current-5d0222e1-production-probe.json
+```
+
+The artifact directory is ignored by Git and should be regenerated during
+release verification.
 
 The AI real-dialogue smoke report used by the probe is under:
 
 ```text
-.trellis/tasks/05-10-conversation-2415-weather-routing/smoke-runs/20260510-current-head-cross-audit/report.raw.json
+.trellis/tasks/05-10-release-readiness-cross-audit/smoke-runs/20260510-current-head-final-ai-real-dialogue/report.raw.json
 ```
 
 Important evidence points:
@@ -126,22 +99,22 @@ Important evidence points:
 - API health: `/health` passed.
 - Metrics endpoint: `/metrics` passed.
 - Frontend root: `http://localhost:5666/` passed.
-- Capacity benchmark: Locust produced `1686` parsed measured requests, `0`
-  failures, about `239 req/s`, and `p95=53ms` for `/ready`. This is
+- Capacity benchmark: Locust produced `668` parsed measured requests, `0`
+  failures, about `133 req/s`, and `p95=260ms` for `/ready`. This is
   repository-owned readiness evidence for the health endpoint, not a production
   business-workload capacity or SLO baseline.
 - PostgreSQL restore drill: disposable restore database was created, restored,
-  verified, and dropped; public table count was verified.
-- Python dependency audit: `pip-audit` reported `0` known vulnerabilities across
-  `187` dependencies.
+  verified, and dropped; source and restored Alembic heads matched and `91`
+  public tables were verified.
+- Python dependency audit: `pip-audit` reported `0` known vulnerabilities.
 - Python SAST: `bandit -ll` completed without a blocking failed result.
 - Frontend dependency audit: full and production `pnpm audit` reported
   `high=0` and `critical=0`.
-- DAST: OWASP ZAP baseline completed with no high/critical or fail-level
-  alerts; remaining alerts were low or informational.
+- DAST: OWASP ZAP baseline completed with `FAIL-NEW=0`; remaining alerts were
+  warning-level hardening notes.
 - AI smoke: strict real-dialogue report recorded `passed=3`, `failed=0`,
-  `blocked=0`, with accepted runtime commit evidence and three live ASXS
-  provider calls.
+  `blocked=0`, `repo.dirty=false`, accepted runtime commit evidence, and three
+  live ASXS provider calls.
 - Production Compose config: `docker compose --env-file ops\production.env.example
   -f docker-compose.prod.yml config --quiet` completed successfully.
 - Production env guard: `docker compose --env-file <temporary-prod-shaped-env>

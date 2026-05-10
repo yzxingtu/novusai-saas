@@ -1,0 +1,10 @@
+{
+  "id": "05-10-release-readiness-cross-audit",
+  "title": "Release readiness cross audit",
+  "description": "Cross-layer release-readiness pass for scheduler queues, AI runtime smoke guards, production deployment, frontend monitoring, and removal of real legacy compatibility surfaces.",
+  "path": "deep",
+  "status": "verified",
+  "owner": "codex",
+  "created_at": "2026-05-10",
+  "updated_at": "2026-05-10"
+}

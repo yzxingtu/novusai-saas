@@ -80,23 +80,18 @@ be claimed as passed.
 
 ## Latest Local Result
 
-Current `main` HEAD recheck:
+Current `main` accepted runtime recheck:
 
-- Commit: `009aaf1e4` (`chore(release): harden release readiness gates`)
-- Probe status: `overall_status=blocked`
-- Gate counts: `20 passed / 0 failed / 3 blocked`
-- Blocked gates:
-  - `ai_provider_credentials`
-  - `ai_smoke_agent_selector`
-  - `ai_real_dialogue_smoke_execution`
+- Commit: `5d0222e1e74644a2b7f1e9b62d6a65bbc2526bfc`
+- Probe status: `overall_status=passed`
+- Gate counts: `23 passed / 0 failed / 0 blocked`
+- AI real-dialogue smoke: strict `ai-real-dialogue-smoke/v1` report passed with
+  `repo.dirty=false`, agent `59`, and three live ASXS provider calls.
 
 The executable local gates had no failures: readiness, health, metrics,
 frontend reachability, checked-in capacity benchmark, PostgreSQL backup/restore
-drill, dependency audits, SAST, frontend audits, DAST baseline, and acceptance
-tooling checks passed. The remaining blocked items are external AI
-real-dialogue prerequisites and must stay blocked until real provider
-credentials, an agent selector, and an archived strict passed smoke report are
-available.
+drill, dependency audits, SAST, frontend audits, DAST baseline, AI
+real-dialogue smoke evidence, and acceptance tooling checks passed.
 
 The latest accepted local release-candidate evidence is recorded in:
 
@@ -104,17 +99,17 @@ The latest accepted local release-candidate evidence is recorded in:
 ops/production-acceptance/20260510-release-readiness.md
 ```
 
-Historical fully passed status for accepted runtime commit
-`1625841d8d527e6246cc17b47394afb20dbb9597`:
+Fully passed status for accepted runtime commit
+`5d0222e1e74644a2b7f1e9b62d6a65bbc2526bfc`:
 
 - `overall_status=passed`
 - `23 passed / 0 failed / 0 blocked`
-- AI real-dialogue smoke report matched the accepted runtime commit through
-  `--ai-smoke-accepted-runtime-commit` and recorded `repo.dirty=false`.
+- AI real-dialogue smoke report matched the accepted runtime commit and
+  recorded `repo.dirty=false`.
 - Capacity acceptance used the checked-in Locust plan and produced parseable
   metrics.
 - The report itself may be committed after the accepted runtime commit; pass
-  `--ai-smoke-accepted-runtime-commit 1625841d8d527e6246cc17b47394afb20dbb9597`
+  `--ai-smoke-accepted-runtime-commit 5d0222e1e74644a2b7f1e9b62d6a65bbc2526bfc`
   when rechecking that accepted report from a later documentation/evidence
   commit. The probe rejects this reuse when guarded runtime/deploy paths have
   changed since the accepted runtime commit. Rerun the smoke/probe when runtime
