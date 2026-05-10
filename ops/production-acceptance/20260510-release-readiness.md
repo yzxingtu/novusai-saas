@@ -24,6 +24,7 @@ Release state:
 - Capacity benchmark: `passed`.
 - Backup/restore drill: `passed`.
 - Dependency audit, SAST, frontend audit, and DAST baseline: `passed`.
+- Production Compose config and production env guard: `passed`.
 
 ## Probe Command
 
@@ -81,6 +82,11 @@ Important evidence points:
   alerts; remaining alerts were low or informational.
 - AI smoke: strict real-dialogue report recorded `passed=3`, `failed=0`,
   `blocked=0`, with current commit evidence.
+- Production Compose config: `docker compose --env-file ops\production.env.example
+  -f docker-compose.prod.yml config --quiet` completed successfully.
+- Production env guard: `docker compose --env-file <temporary-prod-shaped-env>
+  -f docker-compose.prod.yml run --rm production-guard` printed
+  `production env guard passed`.
 
 ## AI Runtime Fix Evidence
 
