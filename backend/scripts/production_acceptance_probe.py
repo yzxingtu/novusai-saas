@@ -2783,8 +2783,13 @@ def _parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def _resolve_cli_path(value: str) -> Path:
+    return Path(value).expanduser().resolve()
+
+
 def main() -> int:
     args = _parse_args()
+    repo_root = _resolve_cli_path(args.repo_root)
     report = build_report(
         api_base_url=args.api_base_url,
         frontend_base_url=args.frontend_base_url,
@@ -2794,7 +2799,7 @@ def main() -> int:
         capacity_requests=max(0, args.capacity_requests),
         capacity_p95_budget_ms=max(1.0, args.capacity_p95_budget_ms),
         capacity_error_budget_ratio=max(0.0, args.capacity_error_budget_ratio),
-        repo_root=Path(args.repo_root),
+        repo_root=repo_root,
         timeout=max(0.5, args.timeout),
         postgres_container=args.postgres_container,
         postgres_db=args.postgres_db,
@@ -2809,7 +2814,9 @@ def main() -> int:
         artifact_dir=Path(args.artifact_dir),
         ai_smoke_agent_id=args.ai_smoke_agent_id,
         ai_smoke_agent_code=args.ai_smoke_agent_code,
-        ai_smoke_report=Path(args.ai_smoke_report) if args.ai_smoke_report else None,
+        ai_smoke_report=(
+            _resolve_cli_path(args.ai_smoke_report) if args.ai_smoke_report else None
+        ),
     )
     print(json.dumps(report, ensure_ascii=False, indent=2))
     if report["overall_status"] == STATUS_FAILED:

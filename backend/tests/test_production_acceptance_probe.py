@@ -703,6 +703,17 @@ def test_capacity_benchmark_blocks_when_not_requested() -> None:
     assert result.details["run_with"] == "--capacity-requests"
 
 
+def test_cli_path_resolution_makes_relative_repo_root_absolute(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    backend_dir = tmp_path / "backend"
+    backend_dir.mkdir()
+    monkeypatch.chdir(backend_dir)
+
+    assert probe._resolve_cli_path("..") == tmp_path.resolve()
+
+
 def test_local_load_smoke_blocks_when_target_is_unavailable(monkeypatch) -> None:
     def raise_bad_gateway(url: str, *, timeout: float):
         del timeout
