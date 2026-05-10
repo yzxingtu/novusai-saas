@@ -218,6 +218,29 @@ describe('globalPlainTextInputAiAssist', () => {
     wrapper.unmount();
   });
 
+  it('renders the selection assist above the global command bar layer', async () => {
+    const wrapper = mount(GlobalPlainTextInputAiAssist, {
+      attachTo: document.body,
+      props: { apiPrefix: '/admin', enabled: true },
+    });
+    const textarea = document.createElement('textarea');
+    textarea.value = 'Command bar selected text';
+    document.body.append(textarea);
+    textarea.focus();
+    textarea.setSelectionRange(12, 25);
+
+    textarea.dispatchEvent(
+      new MouseEvent('mouseup', { bubbles: true, clientX: 90, clientY: 80 }),
+    );
+    await flushOverlayOpen();
+
+    expect(
+      wrapper.get('[data-testid="rte-ai-selection-prompt"]').classes(),
+    ).toContain('z-[1120]');
+
+    wrapper.unmount();
+  });
+
   it('keeps the frozen input selection after focus moves to the floating menu', async () => {
     const wrapper = mount(GlobalPlainTextInputAiAssist, {
       attachTo: document.body,

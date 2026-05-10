@@ -1232,7 +1232,7 @@ defineExpose<TextSelectionAiAssistExpose>({
 <template>
   <div
     v-if="aiNotice"
-    class="fixed bottom-5 left-1/2 z-[1100] -translate-x-1/2 rounded-lg border px-4 py-2 text-sm shadow-lg"
+    class="fixed bottom-5 left-1/2 z-[1130] -translate-x-1/2 rounded-lg border px-4 py-2 text-sm shadow-lg"
     :class="{
       'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-300':
         aiNotice.type === 'info',
@@ -1253,7 +1253,7 @@ defineExpose<TextSelectionAiAssistExpose>({
     data-text-selection-ai-assist
     data-testid="rte-ai-selection-prompt"
     :role="aiPreview || aiInlineChat ? 'dialog' : 'menu'"
-    class="fixed z-[1050] max-w-[calc(100vw-16px)] rounded-xl border border-border bg-popover p-1 text-popover-foreground shadow-lg"
+    class="fixed z-[1120] max-w-[calc(100vw-16px)] rounded-xl border border-border bg-popover p-1 text-popover-foreground shadow-lg"
     :style="aiFloatingLayerStyle"
     @click.stop
     @keydown="onPromptKeydown"
