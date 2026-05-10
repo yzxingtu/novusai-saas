@@ -71,24 +71,23 @@ be claimed as passed.
 
 ## Latest Local Result
 
-The previous 2026-05-09 local Compose run is no longer sufficient evidence
-after the probe was hardened. Its capacity result used the built-in readiness
-benchmark, and its archived AI smoke report was generated from an older dirty
-worktree. Treat that artifact as historical only.
+The latest accepted local release-candidate evidence is recorded in:
 
-Current expected local status without fresh external evidence: `blocked`
+```text
+ops/production-acceptance/20260510-release-readiness.md
+```
 
-Blocked gates:
+Status for commit `32290eef42f742db5121538059f7402a48019b58`:
 
-- Capacity acceptance now runs the checked-in Locust/k6 plan described below.
-  It remains `blocked` only when no runner is installed or the benchmark cannot
-  produce parseable evidence.
-- AI real-dialogue smoke reports must include repo evidence matching the current
-  `git rev-parse HEAD` and must be generated from a clean worktree.
+- `overall_status=passed`
+- `23 passed / 0 failed / 0 blocked`
+- AI real-dialogue smoke report matched the current commit and clean worktree.
+- Capacity acceptance used the checked-in Locust plan and produced parseable
+  metrics.
 
-The archived real-dialogue report used for this run exists at
-`.trellis/tasks/05-08-production-acceptance-gates/smoke-runs/20260509-ai-real-dialogue/report.json`
-but it no longer satisfies the hardened current-commit smoke requirement.
+Older 2026-05-09 local Compose artifacts are historical only because the probe
+was later hardened to require current-commit AI smoke evidence and checked-in
+capacity runner output.
 
 ## AI Real-Dialogue Smoke
 
