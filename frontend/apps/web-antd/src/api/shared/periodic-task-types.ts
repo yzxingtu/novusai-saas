@@ -34,6 +34,8 @@ export interface PeriodicTaskInfo {
   isLocked: boolean;
   isEditable: boolean;
   defaultPriority: null | number;
+  requiredFeatureCodes: string[];
+  requiredPluginNames: string[];
   maxRetries: number;
   retryDelay: number;
   timeout: null | number;
@@ -56,6 +58,8 @@ export interface PeriodicTaskFormData {
   owner_tenant_id?: null | number;
   tenant_ids?: number[];
   default_priority?: null | number;
+  required_feature_codes?: string[];
+  required_plugin_names?: string[];
   max_retries?: number;
   retry_delay?: number;
   timeout?: null | number;

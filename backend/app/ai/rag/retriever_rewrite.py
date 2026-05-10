@@ -13,11 +13,10 @@ async def rewrite_queries(
     tenant_id: int | None,
     query: str,
     rewrite_strategy: str,
-    llm_model: str | None,
 ) -> list[str]:
     from app.ai.rag.query_rewriter import get_rewriter
 
-    rewriter = get_rewriter(rewrite_strategy, db, tenant_id, llm_model)
+    rewriter = get_rewriter(rewrite_strategy, db, tenant_id)
     return await rewriter.rewrite(query)
 
 

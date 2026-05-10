@@ -1,10 +1,43 @@
-"""Database migration startup contract tests. / 数据库启动迁移契约测试。"""
+"""Database migration startup contract tests. / 数据库启动迁移契约测试。
+
+Test type: structural
+Scope: Startup migration safety contracts and Alembic graph diagnostics.
+"""
 
 from __future__ import annotations
 
 from pathlib import Path
 
 from app.core import database
+
+
+def test_overlapping_current_stamp_diagnostic_accepts_short_stale_parent() -> None:
+    """中文: Alembic 短版本戳和后代 head 同时存在时给出明确诊断。
+
+    EN: A short ancestor stamp together with a descendant head is diagnosed
+    before Alembic emits its generic overlap error.
+    """
+    backend_dir = Path(__file__).resolve().parents[1]
+
+    overlaps = database.resolve_overlapping_alembic_current_stamps(
+        alembic_ini=backend_dir / "alembic.ini",
+        backend_dir=backend_dir,
+        db_url="postgresql://unused",
+        version_locations=[str(backend_dir / "migrations" / "versions")],
+        current_stamps=[
+            "20260510_0042_task_ent",
+            "20260510_0043_task_run_truth",
+        ],
+    )
+
+    assert overlaps == [
+        database.AlembicStampOverlap(
+            ancestor_stamp="20260510_0042_task_ent",
+            ancestor_revision="20260510_0042_task_entitlements",
+            descendant_stamp="20260510_0043_task_run_truth",
+            descendant_revision="20260510_0043_task_run_truth",
+        )
+    ]
 
 
 def test_run_migrations_script_does_not_auto_stamp_or_auto_repair(

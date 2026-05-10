@@ -286,6 +286,9 @@ export function useGridFormSchema(): VbenFormSchema[] {
     searchInput('task_id', $t('admin.system.taskLog.taskId'), {
       placeholder: $t('admin.system.taskLog.placeholder.searchTaskId'),
     }),
+    searchInput('run_key', $t('admin.system.taskLog.runKey'), {
+      placeholder: $t('admin.system.taskLog.placeholder.searchRunKey'),
+    }),
     searchInput('handler_path', $t('admin.system.taskLog.handlerPath'), {
       placeholder: $t('admin.system.taskLog.placeholder.searchHandlerPath'),
     }),
@@ -297,11 +300,15 @@ export function useGridFormSchema(): VbenFormSchema[] {
       options: getQueueOptions(),
       placeholder: $t('admin.system.taskLog.placeholder.searchQueue'),
     }),
-    select('filter[tenant_id][eq]', $t('admin.system.taskLog.tenantName'), {
-      api: getTenantSelectApi,
-      params: { is_active: 'true' },
-      placeholder: $t('admin.system.taskLog.placeholder.allTenant'),
-    }),
+    select(
+      'filter[effective_tenant_id][eq]',
+      $t('admin.system.taskLog.tenantName'),
+      {
+        api: getTenantSelectApi,
+        params: { is_active: 'true' },
+        placeholder: $t('admin.system.taskLog.placeholder.allTenant'),
+      },
+    ),
     searchDateRange({
       field: 'created_at',
       label: $t('admin.system.taskLog.createdAt'),

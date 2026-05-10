@@ -106,12 +106,15 @@ cd frontend
 
 ## Compose Startup
 
-For a release host that already has immutable images, prefer `--no-build`.
-For a local clean-room verification, `--build` is acceptable.
+The production Compose file consumes immutable images by tag and intentionally
+contains no `build:` sections. Build and push the backend and frontend images in
+the release pipeline or in the explicit image-build step above, then start the
+stack with `--no-build` so Compose cannot silently turn local source into a
+production runtime.
 
 ```powershell
 $envFile = "C:\secure\novusai-prod.env"
-docker compose --env-file $envFile -f docker-compose.prod.yml up -d --build --wait
+docker compose --env-file $envFile -f docker-compose.prod.yml up -d --no-build --wait
 ```
 
 If another process owns one of the loopback ports, edit the private env file and

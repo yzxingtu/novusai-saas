@@ -3,7 +3,7 @@ import type { TaskBindingOverrideDraft } from './binding-overrides';
 
 import type {
   PeriodicTaskBindingInfo,
-  PeriodicTaskBindingUpdatePayload,
+  PeriodicTaskBindingSyncItemPayload,
 } from '#/api/admin/periodic-task';
 import type { TenantSelectOption } from '#/api/admin/tenant';
 
@@ -346,7 +346,7 @@ function updateBindingDraft(
 }
 
 function resolveBindingPayloads() {
-  const payloads: PeriodicTaskBindingUpdatePayload[] = [];
+  const payloads: PeriodicTaskBindingSyncItemPayload[] = [];
   const errorFields = new Set<'config' | 'kwargs'>();
   for (const draft of bindingDrafts.value) {
     const result = toBindingOverridePayload(draft);
@@ -417,7 +417,7 @@ async function onSave() {
   try {
     await syncPeriodicTaskBindingsApi(taskId.value, {
       scope: bindingScope.value,
-      tenantIds: selectedTenantIds.value,
+      tenant_ids: selectedTenantIds.value,
       bindings: shouldShowOverrides.value ? payloads : [],
     });
     message.success(

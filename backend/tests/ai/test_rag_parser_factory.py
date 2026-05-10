@@ -1,4 +1,8 @@
-"""Parser factory coverage for multimodal KB / 多模态知识库解析器工厂测试。"""
+"""Parser factory coverage for multimodal KB / 多模态知识库解析器工厂测试。
+
+Test type: structural / behavioral
+Scope: Existing AI tests in this module; no real-dialogue smoke acceptance is claimed.
+"""
 
 from app.ai.rag.parser import AudioParser, VideoParser, get_parser
 

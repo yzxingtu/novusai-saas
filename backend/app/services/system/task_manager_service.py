@@ -52,6 +52,8 @@ class TaskManagerService:
             "run_kind": getattr(original_run, "run_kind", None),
             "owner_tenant_id": getattr(original_run, "owner_tenant_id", None),
             "effective_tenant_id": getattr(original_run, "effective_tenant_id", None),
+            "queue": getattr(original_run, "queue", None),
+            "priority": getattr(original_run, "priority", None),
             "trace_id": getattr(original_run, "trace_id", None),
             "trigger_id": trigger_id,
             "retry_of_run_id": getattr(original_run, "id", None),
@@ -69,11 +71,19 @@ class TaskManagerService:
         original_run: Any | None = None,
     ) -> dict[str, Any]:
         headers = TaskManagerService._build_retry_headers(original_run)
+        dispatch_queue = queue or getattr(original_run, "queue", None) or "default"
+        dispatch_priority = getattr(original_run, "priority", None)
+        if headers:
+            headers["queue"] = dispatch_queue
+            if dispatch_priority is not None:
+                headers["priority"] = int(dispatch_priority)
         send_options: dict[str, Any] = {
             "args": args or [],
             "kwargs": kwargs or {},
-            "queue": queue or "default",
+            "queue": dispatch_queue,
         }
+        if dispatch_priority is not None:
+            send_options["priority"] = int(dispatch_priority)
         if headers:
             send_options["headers"] = headers
         result = celery_app.send_task(task_name, **send_options)

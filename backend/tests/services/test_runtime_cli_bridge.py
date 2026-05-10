@@ -60,7 +60,9 @@ async def test_runtime_cli_bridge_fails_closed_when_service_import_fails(
 
     monkeypatch.setattr(runtime_cli_bridge, "import_module", _raise_import_error)
 
-    with pytest.raises(RuntimeCliDependencyMissing, match="diagnostics service missing"):
+    with pytest.raises(
+        RuntimeCliDependencyMissing, match="diagnostics service missing"
+    ):
         await AIRuntimeCliBridge("db-session").run_smoke(RuntimeCliScope(agent_id=59))
 
 

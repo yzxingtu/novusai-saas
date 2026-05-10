@@ -16,14 +16,13 @@ async def rerank_results(
     query: str,
     results: list[ChunkSearchResult],
     top_k: int,
-    llm_model: str | None,
 ) -> list[ChunkSearchResult]:
     if not results:
         return results
 
     from app.ai.rag.reranker import LLMReranker
 
-    reranker = LLMReranker(db, tenant_id, llm_model)
+    reranker = LLMReranker(db, tenant_id)
     return await reranker.rerank(query, results, top_k=top_k)
 
 

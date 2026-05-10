@@ -1,3 +1,10 @@
+"""中文: 管理端周期任务路由契约测试。
+
+EN: Admin periodic task route contract tests.
+
+Test type: structural / behavioral
+"""
+
 from __future__ import annotations
 
 import importlib.util
@@ -24,8 +31,10 @@ def _load_periodic_tasks_module():
         module_path,
     )
     module = importlib.util.module_from_spec(spec)
-    assert spec is not None
-    assert spec.loader is not None
+    if spec is None or spec.loader is None:
+        raise RuntimeError(
+            "Failed to load periodic tasks module for route contract tests"
+        )
     spec.loader.exec_module(module)
     return module
 
@@ -237,6 +246,8 @@ def test_create_periodic_task_route_maps_request_fields_and_syncs_bindings(
                 "notify_on_failure": True,
                 "notify_emails": "ops@example.com",
                 "default_priority": 7,
+                "required_feature_codes": ["storage_billing_enabled"],
+                "required_plugin_names": ["storage-billing"],
             },
         )
 
@@ -270,6 +281,8 @@ def test_create_periodic_task_route_maps_request_fields_and_syncs_bindings(
             "notify_emails": "ops@example.com",
             "default_queue": "scheduled",
             "default_priority": 7,
+            "required_feature_codes": ["storage_billing_enabled"],
+            "required_plugin_names": ["storage-billing"],
             "definition_type": "system",
         }
     )
@@ -358,9 +371,76 @@ def test_sync_bindings_route_preserves_explicit_scope_when_request_omits_scope(
         [8, 9],
         target_scope="selected_tenants",
         binding_payloads=[],
-        replace_all_tenant_bindings=True,
     )
     mock_db.commit.assert_awaited_once_with()
+
+
+def test_update_periodic_task_route_maps_entitlement_fields(monkeypatch) -> None:
+    periodic_tasks_module = _load_periodic_tasks_module()
+    monkeypatch.setattr(
+        periodic_tasks_module.AdminPeriodicTaskController, "_instance", None
+    )
+    monkeypatch.setattr(
+        periodic_tasks_module.AdminPeriodicTaskController, "_router", None
+    )
+
+    task = SimpleNamespace(id=18, scope="admin_only")
+    service = SimpleNamespace(
+        get_by_id=AsyncMock(return_value=task),
+        update=AsyncMock(return_value=task),
+    )
+    binding_service = SimpleNamespace(
+        get_definition_binding_summary=AsyncMock(return_value={18: {}}),
+    )
+    plugin_state_service = SimpleNamespace(
+        resolve_enabled_map=AsyncMock(return_value={})
+    )
+    presenter = SimpleNamespace(
+        collect_plugin_names=Mock(return_value=[]),
+        serialize_definition=Mock(return_value={"id": 18}),
+    )
+
+    monkeypatch.setattr(
+        periodic_tasks_module.AdminPeriodicTaskController,
+        "get_service",
+        _return(service),
+    )
+    monkeypatch.setattr(
+        periodic_tasks_module,
+        "TaskBindingService",
+        _return(binding_service),
+    )
+    monkeypatch.setattr(
+        periodic_tasks_module,
+        "PeriodicTaskPluginStateService",
+        _return(plugin_state_service),
+    )
+    monkeypatch.setattr(
+        periodic_tasks_module.AdminPeriodicTaskController,
+        "_presentation",
+        presenter,
+    )
+
+    app = _build_test_app(SimpleNamespace(), periodic_tasks_module)
+
+    with TestClient(app) as client:
+        response = client.put(
+            "/periodic-tasks/18",
+            json={
+                "required_feature_codes": ["storage_billing_enabled"],
+                "required_plugin_names": ["storage-billing"],
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json()["data"] == {"id": 18}
+    service.update.assert_awaited_once_with(
+        18,
+        {
+            "required_feature_codes": ["storage_billing_enabled"],
+            "required_plugin_names": ["storage-billing"],
+        },
+    )
 
 
 def test_trigger_periodic_task_route_returns_full_dispatch_payload(monkeypatch) -> None:

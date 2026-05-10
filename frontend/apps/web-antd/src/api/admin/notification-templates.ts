@@ -21,6 +21,14 @@ export interface NotificationTemplateEffectivePreviewRaw {
   title_template?: string;
 }
 
+export type NotificationTemplateLockedField =
+  | 'body_template'
+  | 'channels'
+  | 'is_enabled'
+  | 'priority'
+  | 'title_template'
+  | (string & {});
+
 /** Notification template info / 通知模板信息 */
 export interface NotificationTemplateInfo {
   id: number;
@@ -38,6 +46,7 @@ export interface NotificationTemplateInfo {
   source: null | string;
   overrideOf: null | number;
   isOverride: boolean;
+  lockedFields: NotificationTemplateLockedField[];
   enabled: boolean;
   effectivePreview: NotificationTemplateEffectivePreview;
   createdAt: null | string;
@@ -60,6 +69,7 @@ export interface NotificationTemplateInfoRaw {
   source?: null | string;
   override_of?: null | number;
   is_override?: boolean;
+  locked_fields?: NotificationTemplateLockedField[] | null;
   is_enabled?: boolean;
   effective_preview?: NotificationTemplateEffectivePreviewRaw;
   created_at?: null | string;
@@ -124,6 +134,7 @@ function transformNotificationTemplateInfo(
     source: raw.source ?? null,
     overrideOf: raw.override_of ?? null,
     isOverride: raw.is_override ?? false,
+    lockedFields: Array.isArray(raw.locked_fields) ? raw.locked_fields : [],
     enabled: raw.is_enabled ?? true,
     effectivePreview: transformEffectivePreview(raw.effective_preview, raw),
     createdAt: raw.created_at ?? null,

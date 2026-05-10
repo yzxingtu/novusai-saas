@@ -95,6 +95,15 @@ const { Drawer, detailData: detail } = useCrudDrawer<TaskLogDetailInfo>({
               {{ detail.taskId }}
             </code>
           </DescriptionsItem>
+          <DescriptionsItem
+            v-if="detail.runKey"
+            :label="$t('admin.system.taskLog.runKey')"
+            :span="2"
+          >
+            <code class="break-all rounded bg-accent px-1 py-0.5 text-xs">
+              {{ detail.runKey }}
+            </code>
+          </DescriptionsItem>
           <DescriptionsItem :label="$t('admin.system.taskLog.queue')">
             <Tag :color="getQueueColor(detail.queue)">
               {{ getQueueText(detail.queue) }}

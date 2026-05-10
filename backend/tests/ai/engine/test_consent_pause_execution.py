@@ -1,3 +1,11 @@
+"""中文: AI 测试模块分类标记。
+
+EN: AI test module classification marker.
+
+Test type: structural / behavioral
+Scope: Existing AI tests in this module; no real-dialogue smoke acceptance is claimed.
+"""
+
 import asyncio
 from types import SimpleNamespace
 

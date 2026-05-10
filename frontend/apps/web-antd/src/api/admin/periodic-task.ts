@@ -52,6 +52,8 @@ export interface PeriodicTaskInfoRaw {
   is_locked: boolean;
   is_editable: boolean;
   default_priority?: null | number;
+  required_feature_codes?: string[];
+  required_plugin_names?: string[];
   max_retries: number;
   retry_delay: number;
   timeout: null | number;
@@ -60,7 +62,7 @@ export interface PeriodicTaskInfoRaw {
 }
 
 export interface PeriodicTaskBindingInfo {
-  id: null | number;
+  id: number;
   tenantId: number;
   tenantName: null | string;
   isEnabled: boolean;
@@ -78,39 +80,24 @@ export interface PeriodicTaskBindingInfo {
 }
 
 export interface PeriodicTaskBindingInfoRaw {
-  id?: null | number;
-  tenant_id?: number;
-  tenantId?: number;
+  id: number;
+  tenant_id: number;
   tenant_name?: null | string;
-  tenantName?: null | string;
   is_enabled?: boolean;
-  isEnabled?: boolean;
   disabled_reason?: null | string;
-  disabledReason?: null | string;
   schedule_type_override?: null | string;
-  scheduleTypeOverride?: null | string;
   cron_expression_override?: null | string;
-  cronExpressionOverride?: null | string;
   interval_seconds_override?: null | number;
-  intervalSecondsOverride?: null | number;
   kwargs_override?: null | Record<string, unknown>;
-  kwargsOverride?: null | Record<string, unknown>;
   config_override?: null | Record<string, unknown>;
-  configOverride?: null | Record<string, unknown>;
   effective_schedule_type?: null | string;
-  effectiveScheduleType?: null | string;
   effective_cron_expression?: null | string;
-  effectiveCronExpression?: null | string;
   effective_interval_seconds?: null | number;
-  effectiveIntervalSeconds?: null | number;
   last_run_at?: null | string;
-  lastRunAt?: null | string;
   next_run_at?: null | string;
-  nextRunAt?: null | string;
 }
 
 export interface PeriodicTaskBindingUpdatePayload {
-  tenantId: number;
   isEnabled?: boolean;
   disabledReason?: null | string;
   scheduleTypeOverride?: null | string;
@@ -120,11 +107,14 @@ export interface PeriodicTaskBindingUpdatePayload {
   configOverride?: null | Record<string, unknown>;
 }
 
+export interface PeriodicTaskBindingSyncItemPayload extends PeriodicTaskBindingUpdatePayload {
+  tenantId: number;
+}
+
 export interface PeriodicTaskBindingSyncPayload {
-  bindings?: PeriodicTaskBindingUpdatePayload[];
+  bindings?: PeriodicTaskBindingSyncItemPayload[];
   scope?: null | string;
   tenant_ids?: number[];
-  tenantIds?: number[];
 }
 
 function getTaskLeafCandidates(raw: PeriodicTaskInfoRaw): string[] {
@@ -203,6 +193,8 @@ function transformPeriodicTaskInfo(raw: PeriodicTaskInfoRaw): PeriodicTaskInfo {
     isLocked: raw.is_locked,
     isEditable: raw.is_editable,
     defaultPriority: raw.default_priority ?? null,
+    requiredFeatureCodes: raw.required_feature_codes ?? [],
+    requiredPluginNames: raw.required_plugin_names ?? [],
     maxRetries: raw.max_retries,
     retryDelay: raw.retry_delay,
     timeout: raw.timeout,
@@ -215,27 +207,21 @@ function transformPeriodicTaskBindingInfo(
   raw: PeriodicTaskBindingInfoRaw,
 ): PeriodicTaskBindingInfo {
   return {
-    id: raw.id ?? null,
-    tenantId: raw.tenant_id ?? raw.tenantId ?? 0,
-    tenantName: raw.tenant_name ?? raw.tenantName ?? null,
-    isEnabled: raw.is_enabled ?? raw.isEnabled ?? true,
-    disabledReason: raw.disabled_reason ?? raw.disabledReason ?? null,
-    scheduleTypeOverride:
-      raw.schedule_type_override ?? raw.scheduleTypeOverride ?? null,
-    cronExpressionOverride:
-      raw.cron_expression_override ?? raw.cronExpressionOverride ?? null,
-    intervalSecondsOverride:
-      raw.interval_seconds_override ?? raw.intervalSecondsOverride ?? null,
-    kwargsOverride: raw.kwargs_override ?? raw.kwargsOverride ?? null,
-    configOverride: raw.config_override ?? raw.configOverride ?? null,
-    effectiveScheduleType:
-      raw.effective_schedule_type ?? raw.effectiveScheduleType ?? null,
-    effectiveCronExpression:
-      raw.effective_cron_expression ?? raw.effectiveCronExpression ?? null,
-    effectiveIntervalSeconds:
-      raw.effective_interval_seconds ?? raw.effectiveIntervalSeconds ?? null,
-    lastRunAt: raw.last_run_at ?? raw.lastRunAt ?? null,
-    nextRunAt: raw.next_run_at ?? raw.nextRunAt ?? null,
+    id: raw.id,
+    tenantId: raw.tenant_id,
+    tenantName: raw.tenant_name ?? null,
+    isEnabled: raw.is_enabled ?? true,
+    disabledReason: raw.disabled_reason ?? null,
+    scheduleTypeOverride: raw.schedule_type_override ?? null,
+    cronExpressionOverride: raw.cron_expression_override ?? null,
+    intervalSecondsOverride: raw.interval_seconds_override ?? null,
+    kwargsOverride: raw.kwargs_override ?? null,
+    configOverride: raw.config_override ?? null,
+    effectiveScheduleType: raw.effective_schedule_type ?? null,
+    effectiveCronExpression: raw.effective_cron_expression ?? null,
+    effectiveIntervalSeconds: raw.effective_interval_seconds ?? null,
+    lastRunAt: raw.last_run_at ?? null,
+    nextRunAt: raw.next_run_at ?? null,
   };
 }
 
@@ -247,7 +233,6 @@ function compactPayload<T extends Record<string, unknown>>(payload: T): T {
 
 function toBindingRawPayload(payload: PeriodicTaskBindingUpdatePayload) {
   return compactPayload({
-    tenant_id: payload.tenantId,
     is_enabled: payload.isEnabled,
     disabled_reason: payload.disabledReason,
     schedule_type_override: payload.scheduleTypeOverride,
@@ -256,6 +241,13 @@ function toBindingRawPayload(payload: PeriodicTaskBindingUpdatePayload) {
     kwargs_override: payload.kwargsOverride,
     config_override: payload.configOverride,
   });
+}
+
+function toBindingSyncRawPayload(payload: PeriodicTaskBindingSyncItemPayload) {
+  return {
+    tenant_id: payload.tenantId,
+    ...toBindingRawPayload(payload),
+  };
 }
 
 // ============================================================
@@ -387,11 +379,11 @@ export async function getPeriodicTaskBindingsApi(
   id: number,
   options?: ApiRequestOptions,
 ): Promise<PeriodicTaskBindingInfo[]> {
-  const response = await requestClient.get<
-    PeriodicTaskBindingInfoRaw[] | { items: PeriodicTaskBindingInfoRaw[] }
-  >(`${API_PREFIX}/${id}/bindings`, options);
-  const items = Array.isArray(response) ? response : response.items;
-  return items.map((item) => transformPeriodicTaskBindingInfo(item));
+  const response = await requestClient.get<PeriodicTaskBindingInfoRaw[]>(
+    `${API_PREFIX}/${id}/bindings`,
+    options,
+  );
+  return response.map((item) => transformPeriodicTaskBindingInfo(item));
 }
 
 /**
@@ -400,16 +392,14 @@ export async function getPeriodicTaskBindingsApi(
  */
 export async function syncPeriodicTaskBindingsApi(
   id: number,
-  payload: number[] | PeriodicTaskBindingSyncPayload,
+  payload: PeriodicTaskBindingSyncPayload,
   options?: ApiRequestOptions,
 ): Promise<{ added: number; reenabled: number; removed: number }> {
-  const body = Array.isArray(payload)
-    ? { tenant_ids: payload }
-    : compactPayload({
-        scope: payload.scope,
-        tenant_ids: payload.tenant_ids ?? payload.tenantIds ?? [],
-        bindings: payload.bindings?.map((item) => toBindingRawPayload(item)),
-      });
+  const body = compactPayload({
+    scope: payload.scope,
+    tenant_ids: payload.tenant_ids ?? [],
+    bindings: payload.bindings?.map((item) => toBindingSyncRawPayload(item)),
+  });
   return await requestClient.put<{
     added: number;
     reenabled: number;
@@ -429,7 +419,7 @@ export async function updatePeriodicTaskBindingApi(
 ): Promise<PeriodicTaskBindingInfo> {
   const raw = await requestClient.patch<PeriodicTaskBindingInfoRaw>(
     `${API_PREFIX}/${id}/bindings/${tenantId}`,
-    toBindingRawPayload({ ...payload, tenantId }),
+    toBindingRawPayload(payload),
     options,
   );
   return transformPeriodicTaskBindingInfo(raw);

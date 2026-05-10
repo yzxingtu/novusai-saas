@@ -658,6 +658,24 @@ export function useFormSchema(isEdit: boolean): VbenFormSchema[] {
         placeholder: $t('admin.system.periodicTask.placeholder.inputPriority'),
       },
     ),
+    inputField(
+      'required_feature_codes',
+      $t('admin.system.periodicTask.requiredFeatureCodes'),
+      {
+        placeholder: $t(
+          'admin.system.periodicTask.placeholder.inputRequiredFeatureCodes',
+        ),
+      },
+    ),
+    inputField(
+      'required_plugin_names',
+      $t('admin.system.periodicTask.requiredPluginNames'),
+      {
+        placeholder: $t(
+          'admin.system.periodicTask.placeholder.inputRequiredPluginNames',
+        ),
+      },
+    ),
 
     dividerField(
       'retry_divider',
@@ -716,6 +734,8 @@ export function getFormDefaults(): Record<string, unknown> {
     scope: 'admin_only',
     tenant_ids: [],
     default_priority: null,
+    required_feature_codes: '',
+    required_plugin_names: '',
     max_retries: 0,
     retry_delay: 60,
     timeout: 3600,

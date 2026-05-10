@@ -378,10 +378,21 @@ def _ensure_error_surface(
     }
 
 
-def _map_source_kind(raw_kind: Any) -> str:
+def _map_source_kind(raw_kind: Any) -> str | None:
     kind = str(raw_kind or "").strip().lower()
-    if kind == "web":
+    if not kind:
         return "knowledge_base"
+    if kind in {
+        "current_page",
+        "page",
+        "page_context",
+        "page_data",
+        "page_search",
+        "search",
+        "url",
+        "web",
+    }:
+        return None
     if kind in {"knowledge", "knowledge_base", "kb", "formal_kb"}:
         return "knowledge_base"
     if kind in {"memory", "long_term_memory", "session_memory"}:
@@ -393,6 +404,8 @@ def _map_source_kind(raw_kind: Any) -> str:
 
 def _is_user_facing_evidence_item(item: dict[str, Any]) -> bool:
     kind = _map_source_kind(item.get("kind") or item.get("source_kind"))
+    if kind is None:
+        return False
     if kind == "tool":
         return bool(
             _to_non_empty_str(item.get("tool_call_id"))
@@ -617,9 +630,12 @@ def _normalize_evidence_item(item: Any) -> dict[str, Any] | None:
     evidence_id = _to_non_empty_str(item.get("id"))
     if not evidence_id:
         return None
+    kind = _map_source_kind(item.get("kind") or item.get("source_kind"))
+    if kind is None:
+        return None
     payload = {
         "id": evidence_id,
-        "kind": _map_source_kind(item.get("kind") or item.get("source_kind")),
+        "kind": kind,
         "title": _to_non_empty_str(item.get("title")) or "Source",
         "url": _to_non_empty_str(item.get("url")),
         "snippet": _to_non_empty_str(item.get("snippet")),

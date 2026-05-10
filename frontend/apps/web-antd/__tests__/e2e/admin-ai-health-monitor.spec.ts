@@ -1,3 +1,6 @@
+// Test type: behavioral
+// 中文: Mock 管理端健康 API 传输层，真实运行页面渲染与浏览器断言。
+// EN: Mock admin health API transport while exercising real page rendering and browser assertions.
 import { expect, test } from '@playwright/test';
 
 import { hasAdminCredentials, loginAsAdmin } from './common/admin-auth';
@@ -34,6 +37,21 @@ const providerStatuses = [
     consecutive_failures: 1,
     error_message: 'Tool probe degraded',
     checked_at: '2026-05-08T15:15:35Z',
+  },
+  {
+    provider_id: 303,
+    provider_code: 'no-history-provider',
+    provider_name: 'No history provider',
+    provider_icon: null,
+    primary_wire_api: 'responses',
+    is_healthy: false,
+    is_available: false,
+    base_connectivity_healthy: false,
+    tool_calling_healthy: false,
+    response_time_ms: 0,
+    consecutive_failures: 2,
+    error_message: 'history lookup failed',
+    checked_at: '2026-05-08T15:14:35Z',
   },
 ];
 
@@ -123,6 +141,13 @@ test.describe('Admin AI Health Monitor smoke', () => {
       const providerId = /\/admin\/ai\/health\/(\d+)\/history/.exec(
         requestUrl.pathname,
       )?.[1];
+      if (providerId === '303') {
+        await route.fulfill({
+          contentType: 'application/json',
+          json: { code: 500, data: null, message: 'history lookup failed' },
+        });
+        return;
+      }
       await route.fulfill({
         contentType: 'application/json',
         json: {
@@ -140,7 +165,7 @@ test.describe('Admin AI Health Monitor smoke', () => {
     await page.waitForLoadState('networkidle');
 
     const cards = page.locator('[data-testid="health-provider-card"]');
-    await expect(cards).toHaveCount(2);
+    await expect(cards).toHaveCount(3);
 
     const firstCard = cards.first();
     await expect(firstCard.getByText('1倍率 GPT-5.4')).toBeVisible();
@@ -158,7 +183,7 @@ test.describe('Admin AI Health Monitor smoke', () => {
     await expect(
       firstCard.locator('[data-testid="health-history-point"]'),
     ).toHaveCount(60);
-    expect(historyRequestLimits).toEqual(['60', '60']);
+    expect([...historyRequestLimits].toSorted()).toEqual(['60', '60', '60']);
 
     const historyPointSizes = await firstCard
       .locator('[data-testid="health-history-point"]')
@@ -174,15 +199,17 @@ test.describe('Admin AI Health Monitor smoke', () => {
       );
     const historyPointWidths = historyPointSizes.map((item) => item.width);
     const historyPointHeights = historyPointSizes.map((item) => item.height);
-    expect(Math.min(...historyPointWidths)).toBeGreaterThan(4);
+    expect(Math.min(...historyPointWidths)).toBeGreaterThan(1);
+    expect(Math.max(...historyPointWidths)).toBeLessThan(10);
     expect(
       Math.max(...historyPointWidths) - Math.min(...historyPointWidths),
     ).toBeLessThanOrEqual(1);
-    expect(new Set(historyPointHeights)).toEqual(new Set([28]));
+    expect(new Set(historyPointHeights)).toEqual(new Set([32]));
     expect(
       historyPointSizes.every(
         (item) =>
-          item.className.includes('flex-1') && item.className.includes('h-7'),
+          item.className.includes('h-8') &&
+          item.className.includes('rounded-[2px]'),
       ),
     ).toBe(true);
 
@@ -205,20 +232,42 @@ test.describe('Admin AI Health Monitor smoke', () => {
     });
 
     const secondCard = cards.nth(1);
+    await expect(
+      secondCard.locator('[data-testid="health-availability"]'),
+    ).toHaveText('0.00%');
     await expect(secondCard.getByText(/0\/35\s*(成功|success)/)).toBeVisible();
     await expect(
       secondCard.locator('[data-testid="health-history-point"]'),
     ).toHaveCount(60);
-    const secondCardHasMissingSlots = await secondCard
+    const secondCardHistoryState = await secondCard
       .locator('[data-testid="health-history-point"]')
-      .evaluateAll((points) =>
-        points.some((point) =>
-          (point.getAttribute('class') ?? '').includes(
-            'bg-muted-foreground/20',
-          ),
-        ),
-      );
-    expect(secondCardHasMissingSlots).toBe(true);
+      .evaluateAll((points) => {
+        const state = { missing: 0, unavailable: 0 };
+        for (const point of points) {
+          const className = point.getAttribute('class') ?? '';
+          if (className.includes('bg-muted-foreground/20')) state.missing += 1;
+          if (className.includes('bg-rose-600')) state.unavailable += 1;
+        }
+        return state;
+      });
+    expect(secondCardHistoryState).toEqual({
+      missing: 25,
+      unavailable: 35,
+    });
+
+    const thirdCard = cards.nth(2);
+    await expect(
+      thirdCard.locator('[data-testid="health-availability"]'),
+    ).toHaveText('--');
+    await expect(
+      thirdCard.locator('[data-testid="health-success-summary"]'),
+    ).toHaveText(/History unavailable|历史数据不可用/);
+    await expect(
+      thirdCard.locator('[data-testid="health-history-error"]'),
+    ).toContainText(/history lookup failed|History unavailable|历史数据不可用/);
+    await expect(
+      thirdCard.locator('[data-testid="health-history-point"]'),
+    ).toHaveCount(0);
     expect(consoleErrors).toEqual([]);
   });
 });

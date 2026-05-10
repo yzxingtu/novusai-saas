@@ -55,17 +55,15 @@ class MultiQueryRewriter(BaseRewriter):
 
     SYSTEM_PROMPT = render_prompt_contract("rag_multi_query_system")
 
-    def __init__(self, db: AsyncSession, tenant_id: int, model: str | None = None):
+    def __init__(self, db: AsyncSession, tenant_id: int):
         """
         Args:
             db: Database session / 数据库会话
             tenant_id: Tenant ID / 企业 ID
-            model: LLM model code (None for default) / LLM 模型代码（None 时使用默认）
         """
         self.db = db
         self.tenant_id = tenant_id
         self.gateway = AIGateway(db)
-        self.model = model
 
     async def rewrite(self, query: str) -> list[str]:
         """
@@ -116,15 +114,6 @@ class MultiQueryRewriter(BaseRewriter):
 
     async def _get_model_info(self) -> tuple[str, str]:
         """Get LLM model info / 获取 LLM 模型信息"""
-        from app.repositories.ai import AIModelRepository
-
-        if self.model:
-            model_repo = AIModelRepository(self.db)
-            ai_model = await model_repo.get_by_code(self.model)
-            if ai_model and ai_model.provider:
-                return ai_model.provider.code, ai_model.code
-
-        # Fallback to default model / 回退到默认模型
         from app.core.config import settings
 
         return settings.DEFAULT_AI_PROVIDER, settings.DEFAULT_AI_MODEL
@@ -143,11 +132,10 @@ class HyDERewriter(BaseRewriter):
 
     SYSTEM_PROMPT = render_prompt_contract("rag_hyde_system")
 
-    def __init__(self, db: AsyncSession, tenant_id: int, model: str | None = None):
+    def __init__(self, db: AsyncSession, tenant_id: int):
         self.db = db
         self.tenant_id = tenant_id
         self.gateway = AIGateway(db)
-        self.model = model
 
     async def rewrite(self, query: str) -> list[str]:
         """
@@ -192,14 +180,6 @@ class HyDERewriter(BaseRewriter):
 
     async def _get_model_info(self) -> tuple[str, str]:
         """Get LLM model info / 获取 LLM 模型信息"""
-        from app.repositories.ai import AIModelRepository
-
-        if self.model:
-            model_repo = AIModelRepository(self.db)
-            ai_model = await model_repo.get_by_code(self.model)
-            if ai_model and ai_model.provider:
-                return ai_model.provider.code, ai_model.code
-
         from app.core.config import settings
 
         return settings.DEFAULT_AI_PROVIDER, settings.DEFAULT_AI_MODEL
@@ -209,7 +189,6 @@ def get_rewriter(
     strategy: str,
     db: AsyncSession,
     tenant_id: int,
-    model: str | None = None,
 ) -> BaseRewriter:
     """
     Factory function: get rewriter instance by strategy name
@@ -219,17 +198,15 @@ def get_rewriter(
         strategy: Rewrite strategy (none/multi/hyde) / 改写策略
         db: Database session / 数据库会话
         tenant_id: Tenant ID / 企业 ID
-        model: LLM model code / LLM 模型代码
-
     Returns:
         Rewriter instance / 改写器实例
     """
     from app.enums.knowledge_base import RewriteStrategyEnum
 
     if strategy == RewriteStrategyEnum.MULTI.value:
-        return MultiQueryRewriter(db, tenant_id, model)
+        return MultiQueryRewriter(db, tenant_id)
     elif strategy == RewriteStrategyEnum.HYDE.value:
-        return HyDERewriter(db, tenant_id, model)
+        return HyDERewriter(db, tenant_id)
     else:
         return NoneRewriter()
 

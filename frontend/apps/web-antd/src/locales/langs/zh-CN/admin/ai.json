@@ -1014,6 +1014,8 @@
     "historyNow": "NOW",
     "success": "成功",
     "noSample": "无采样",
+    "historyLoadFailed": "历史数据不可用",
+    "historyTimeout": "历史请求超时",
     "responseTime": "响应时间",
     "failures": "连续失败",
     "wireApi": "协议",

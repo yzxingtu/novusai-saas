@@ -210,10 +210,6 @@ services:
 
   backend-migrate:
     <<: *backend-env
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-      target: api
     image: novusai/backend:${NOVUSAI_IMAGE_TAG:?set NOVUSAI_IMAGE_TAG}
     command: ["novusai", "db", "upgrade", "heads"]
     depends_on:
@@ -227,10 +223,6 @@ services:
 
   backend-api:
     <<: *backend-env
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-      target: api
     image: novusai/backend:${NOVUSAI_IMAGE_TAG:?set NOVUSAI_IMAGE_TAG}
     depends_on:
       production-guard:
@@ -255,10 +247,6 @@ services:
 
   backend-worker:
     <<: *backend-env
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-      target: worker
     image: novusai/backend-worker:${NOVUSAI_IMAGE_TAG:?set NOVUSAI_IMAGE_TAG}
     depends_on:
       production-guard:
@@ -281,10 +269,6 @@ services:
 
   backend-beat:
     <<: *backend-env
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-      target: beat
     image: novusai/backend-beat:${NOVUSAI_IMAGE_TAG:?set NOVUSAI_IMAGE_TAG}
     depends_on:
       production-guard:
@@ -314,15 +298,6 @@ services:
       - novusai-prod
 
   frontend:
-    build:
-      context: .
-      dockerfile: frontend/scripts/deploy/Dockerfile
-      args:
-        VITE_GLOB_API_URL: ${FRONTEND_VITE_GLOB_API_URL:?set FRONTEND_VITE_GLOB_API_URL}
-        VITE_PLATFORM_DOMAINS: ${FRONTEND_VITE_PLATFORM_DOMAINS:?set FRONTEND_VITE_PLATFORM_DOMAINS}
-        VITE_APP_TITLE: ${FRONTEND_VITE_APP_TITLE:-NovusAI SaaS}
-        VITE_APP_NAMESPACE: ${FRONTEND_VITE_APP_NAMESPACE:-novusai-web-saas}
-        VITE_APP_STORE_SECURE_KEY: ${FRONTEND_VITE_APP_STORE_SECURE_KEY:?set FRONTEND_VITE_APP_STORE_SECURE_KEY}
     image: novusai/frontend-web-antd:${NOVUSAI_IMAGE_TAG:?set NOVUSAI_IMAGE_TAG}
     depends_on:
       production-guard:

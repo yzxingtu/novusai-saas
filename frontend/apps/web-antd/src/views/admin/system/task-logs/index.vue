@@ -163,6 +163,7 @@ const { Grid, gridApi } = useCrudPage<TaskLogInfo>({
       fields: [
         'filter[task_name][ilike]',
         'filter[task_id][ilike]',
+        'filter[run_key][ilike]',
         'filter[handler_path][ilike]',
       ],
     },
@@ -222,10 +223,19 @@ const { Grid, gridApi } = useCrudPage<TaskLogInfo>({
                 {{ row.handlerPath || row.taskName }}
               </code>
             </Tooltip>
-            <Tooltip :title="getTaskRelationSecondaryText(row)">
+            <Tooltip
+              :title="
+                row.runKey
+                  ? `${getTaskRelationSecondaryText(row)} · ${$t('admin.system.taskLog.runKey')} ${row.runKey}`
+                  : getTaskRelationSecondaryText(row)
+              "
+            >
               <span class="line-clamp-1 text-xs text-muted-foreground">
                 {{ getTaskRelationPrimaryText(row) }} ·
                 {{ getTaskRelationSecondaryText(row) }}
+                <template v-if="row.runKey">
+                  · {{ $t('admin.system.taskLog.runKey') }} {{ row.runKey }}
+                </template>
               </span>
             </Tooltip>
           </div>

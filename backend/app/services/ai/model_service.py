@@ -26,18 +26,6 @@ class AIModelService(BaseService[AIModel, AIModelRepository]):
     model = AIModel
     repository_class = AIModelRepository
 
-    async def get_by_code(self, code: str) -> AIModel | None:
-        """
-        根据代码获取模型 / Get model by code.
-
-        Args:
-            code: 模型代码
-
-        Returns:
-            AIModel 实例或 None
-        """
-        return await self.repo.get_by_code(code)
-
     async def get_by_provider(
         self,
         provider_id: int,

@@ -1,3 +1,4 @@
+// Test type: behavioral
 // 中文: 测试类型 behavioral，覆盖通知模板 API canonical snake_case 转换与更新载荷。
 // EN: Test type behavioral, covering notification template API canonical snake_case transforms and update payloads.
 // 中文: Mock 请求传输层，真实运行 API 适配映射。
@@ -50,6 +51,7 @@ describe('notification template api', () => {
           source: 'plugin',
           override_of: 4,
           is_override: true,
+          locked_fields: ['title_template', 'body_template'],
           is_enabled: false,
           effective_preview: {
             title_template: 'Effective title',
@@ -86,6 +88,7 @@ describe('notification template api', () => {
       source: 'plugin',
       overrideOf: 4,
       isOverride: true,
+      lockedFields: ['title_template', 'body_template'],
       enabled: false,
       effectivePreview: {
         titleTemplate: 'Effective title',
@@ -110,6 +113,7 @@ describe('notification template api', () => {
           pluginName: 'legacy-plugin',
           overrideOf: 2,
           isOverride: true,
+          lockedFields: ['channels'],
           effectivePreview: {
             titleTemplate: 'Legacy effective title',
             bodyTemplate: 'Legacy effective body',
@@ -136,6 +140,7 @@ describe('notification template api', () => {
       pluginName: null,
       overrideOf: null,
       isOverride: false,
+      lockedFields: [],
       effectivePreview: {
         titleTemplate: '',
         bodyTemplate: null,

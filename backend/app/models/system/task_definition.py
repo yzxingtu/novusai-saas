@@ -173,6 +173,18 @@ class TaskDefinition(BaseModel):
         default=None,
         comment="覆盖配置 Schema",
     )
+    required_feature_codes: Mapped[list[str] | None] = mapped_column(
+        JSON,
+        nullable=True,
+        default=None,
+        comment="要求的企业套餐特性代码 / Required tenant plan feature codes",
+    )
+    required_plugin_names: Mapped[list[str] | None] = mapped_column(
+        JSON,
+        nullable=True,
+        default=None,
+        comment="要求的企业可用插件名称 / Required tenant-visible plugin names",
+    )
     is_system_builtin: Mapped[bool] = mapped_column(
         nullable=False,
         default=False,

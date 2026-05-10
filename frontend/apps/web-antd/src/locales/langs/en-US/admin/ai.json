@@ -1014,6 +1014,8 @@
     "historyNow": "NOW",
     "success": "success",
     "noSample": "No sample",
+    "historyLoadFailed": "History unavailable",
+    "historyTimeout": "History request timed out",
     "responseTime": "Response Time",
     "failures": "Consecutive Failures",
     "wireApi": "Wire API",

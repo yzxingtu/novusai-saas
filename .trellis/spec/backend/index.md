@@ -107,6 +107,11 @@
   tenant not deleted, tenant active, active plan present, and required
   feature/plugin entitlement enabled when the task has tenant-facing effects.
   `all_tenants` means all eligible tenants, not merely all non-deleted rows.
+- TaskDefinition tenant entitlement requirements are modeled explicitly as
+  `required_feature_codes` and `required_plugin_names`. Scheduler wrappers,
+  `TaskBindingService`, and `TaskTenantEligibilityService` must pass these
+  fields through unchanged; missing feature flags, unavailable plugin gates, or
+  inactive plugin licenses fail closed before dispatch.
 - Tenant-dispatched periodic handlers must use `@register_task` with
   `base=TenantTask`; scheduler wrappers must overwrite the effective
   `tenant_id` and tenant-aware tasks must fail closed when tenant context is

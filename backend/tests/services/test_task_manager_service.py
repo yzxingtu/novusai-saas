@@ -1,4 +1,9 @@
-"""TaskManagerService tests / 任务管理服务测试。"""
+"""中文: TaskManagerService 重试调度契约测试。
+
+EN: TaskManagerService retry dispatch contract tests.
+
+Test type: behavioral
+"""
 
 from __future__ import annotations
 
@@ -21,6 +26,8 @@ def test_retry_task_preserves_task_run_headers(monkeypatch) -> None:
         run_kind="tenant_binding",
         owner_tenant_id=None,
         effective_tenant_id=56,
+        queue="ai_gateway",
+        priority=7,
         trace_id="trace-original",
     )
     send_task = MagicMock(return_value=SimpleNamespace(id="celery-retry"))
@@ -33,17 +40,20 @@ def test_retry_task_preserves_task_run_headers(monkeypatch) -> None:
         "app.tasks.demo.cleanup",
         args=[1],
         kwargs={"tenant_id": 56},
-        queue="scheduled",
         original_run=original_run,
     )
 
     headers = send_task.call_args.kwargs["headers"]
+    assert send_task.call_args.kwargs["queue"] == "ai_gateway"
+    assert send_task.call_args.kwargs["priority"] == 7
     assert result["new_task_id"] == "celery-retry"
     assert result["retry_of_run_id"] == 41
     assert result["trace_id"] == "trace-original"
     assert headers["task_definition_id"] == 12
     assert headers["binding_id"] == 34
     assert headers["effective_tenant_id"] == 56
+    assert headers["queue"] == "ai_gateway"
+    assert headers["priority"] == 7
     assert headers["trace_id"] == "trace-original"
     assert headers["retry_of_task_id"] == "celery-original"
     assert headers["trigger_id"].startswith("manual_retry:41:")

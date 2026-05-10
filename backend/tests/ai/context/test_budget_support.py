@@ -1,3 +1,11 @@
+"""中文: AI 测试模块分类标记。
+
+EN: AI test module classification marker.
+
+Test type: structural / behavioral
+Scope: Existing AI tests in this module; no real-dialogue smoke acceptance is claimed.
+"""
+
 from app.ai.context.budget_support import (
     _DEFAULT_CAPABILITY_BLOCK_BUDGET_TOKENS,
     _DEFAULT_COMPACT_SUMMARY_BUDGET_TOKENS,

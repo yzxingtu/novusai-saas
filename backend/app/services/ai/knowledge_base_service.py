@@ -7,6 +7,8 @@ from __future__ import annotations
 from typing import Any
 
 from app.core.base_service import GlobalService, TenantService
+from app.core.i18n import _
+from app.exceptions import BusinessException
 from app.models.ai.document_chunk import DocumentChunk
 from app.models.ai.knowledge_base import KnowledgeBase
 from app.models.ai.knowledge_document import KnowledgeDocument
@@ -22,6 +24,19 @@ from app.services.ai.knowledge_base_command_service import (
 )
 from app.services.ai.knowledge_base_query_service import KnowledgeBaseQueryService
 
+_RETIRED_TENANT_KB_ALIAS_FIELDS = (
+    "assigned_tenant_ids",
+    "tenant_id",
+)
+
+
+def _reject_retired_tenant_kb_alias_fields(data: dict[str, Any]) -> None:
+    for field in _RETIRED_TENANT_KB_ALIAS_FIELDS:
+        if field in data:
+            raise BusinessException(
+                message=_("agent.error.rejected_legacy_field").format(field=field)
+            )
+
 
 class KnowledgeBaseService(TenantService[KnowledgeBase, KnowledgeBaseRepository]):
     """Tenant knowledge-base facade over command/query helpers."""
@@ -30,10 +45,12 @@ class KnowledgeBaseService(TenantService[KnowledgeBase, KnowledgeBaseRepository]
     repository_class = KnowledgeBaseRepository
 
     async def _before_create(self, data: dict[str, Any]) -> None:
+        _reject_retired_tenant_kb_alias_fields(data)
         await super()._before_create(data)
         await KnowledgeBaseCommandService.before_create(self, data)
 
     async def _before_update(self, id: int, data: dict[str, Any]) -> None:
+        _reject_retired_tenant_kb_alias_fields(data)
         await super()._before_update(id, data)
         await KnowledgeBaseCommandService.before_update(self, id, data)
 
@@ -49,6 +66,9 @@ class KnowledgeBaseService(TenantService[KnowledgeBase, KnowledgeBaseRepository]
 
     async def get_kb_detail(self, kb_id: int) -> dict[str, Any]:
         return await KnowledgeBaseQueryService(self.repo).get_kb_detail(kb_id)
+
+    async def list_selectable(self, *, limit: int = 500) -> list[KnowledgeBase]:
+        return await self.repo.list_selectable(limit=limit)
 
     async def update_statistics(self, kb_id: int) -> None:
         await KnowledgeBaseCommandService.update_statistics(self, kb_id)

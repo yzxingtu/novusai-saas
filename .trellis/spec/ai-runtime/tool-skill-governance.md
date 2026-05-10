@@ -36,6 +36,11 @@ backend boundary instead of page perception:
 - If a product area knows AI will need to analyze its data, reserve an explicit
   backend API or skill-pack tool contract during feature design. Do not add a
   generic page-perception fallback later.
+- Turn-flow, diagnostics, monitoring, and root-cause read models must not turn
+  retired current-page, `page_search`, `web`, `search`, or URL-only evidence into
+  knowledge-base source chips. Knowledge references for new turns must come from
+  formal KB retrieval, explicit documents/artifacts, memory, or executed tool
+  evidence with provenance.
 
 ## Skill Governance
 
@@ -60,6 +65,11 @@ backend boundary instead of page perception:
   Platform-owned generic controls may still enforce authorization, tenant
   isolation, quotas, budgeting, schema conversion, provider safety guards, and
   retired capability deny lists.
+- AI smoke and diagnostics checks must stay generic as well. If an intent plan
+  marks `requires_tools=true`, acceptance must come from tool-completion
+  evidence such as `completed_by_tool_names`, successful tool events, or matching
+  executed tool names from diagnostics. Do not special-case a plugin domain such
+  as weather, search, CRM, or storage in the main smoke validator.
 - Agent routing may show the LLM skill names/descriptions only after the runtime
   resolver has produced executable tools for that agent and tenant. Active grant
   rows, catalog preview tool names, and manifest preview semantic families are

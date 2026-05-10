@@ -9,7 +9,7 @@ import asyncio
 import hashlib
 import re
 import subprocess
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -28,6 +28,9 @@ from app.schemas.ai.invalid_ai_runtime_input import is_invalid_ai_runtime_refere
 from app.services.ai.agent_chat_service import AgentChatService
 from app.services.ai.runtime_diagnostics_support import RuntimeDiagnosticsCheckSupport
 from app.services.ai.runtime_inventory_service import RuntimeInventoryService
+from app.services.ai.runtime_real_dialogue_smoke_evidence import (
+    build_required_tool_completion_evidence,
+)
 from app.services.ai.runtime_root_cause_projector import RuntimeRootCauseProjector
 
 AI_REAL_DIALOGUE_SMOKE_SCHEMA_VERSION = "ai-real-dialogue-smoke/v1"
@@ -118,7 +121,6 @@ _RETIRED_CAPABILITY_FREE_TEXT_KEYS = frozenset(
         "user_input",
     }
 )
-
 logger = get_logger(__name__)
 
 
@@ -132,6 +134,7 @@ class RealDialogueSmokeScenario:
     scenario_id: str
     user_input: str
     must_pass: bool = True
+    required_capabilities: tuple[str, ...] = field(default_factory=tuple)
 
 
 @dataclass(frozen=True, slots=True)
@@ -164,6 +167,50 @@ def _extract_backtick_or_value(line: str, key: str) -> str:
     return match.group(1).strip().strip("`").strip()
 
 
+def _split_required_capabilities(value: str) -> tuple[str, ...]:
+    return tuple(
+        item.strip().strip("`").strip()
+        for item in re.split(r"[,/|]+", value)
+        if item.strip().strip("`").strip()
+    )
+
+
+def _append_required_capabilities(
+    current: dict[str, Any],
+    values: tuple[str, ...],
+) -> None:
+    current["required_capabilities"] = tuple(
+        dict.fromkeys(
+            [
+                *(current.get("required_capabilities") or ()),
+                *values,
+            ]
+        )
+    )
+
+
+def _append_required_capability_continuation(
+    current: dict[str, Any],
+    value: str,
+) -> None:
+    text = value.strip().strip("`").strip()
+    if not text:
+        return
+    capabilities = list(current.get("required_capabilities") or ())
+    if not capabilities:
+        _append_required_capabilities(current, (text,))
+        return
+    capabilities[-1] = f"{capabilities[-1]} {text}".strip()
+    current["required_capabilities"] = tuple(dict.fromkeys(capabilities))
+
+
+def _line_starts_ledger_marker(line: str) -> bool:
+    normalized = line.strip()
+    if normalized.startswith("- "):
+        normalized = normalized[2:].strip()
+    return any(normalized.startswith(f"{marker}:") for marker in _LEDGER_MARKERS)
+
+
 def _parse_smoke_ledger(path: Path | None) -> RealDialogueSmokeLedger:
     if path is None or not path.exists():
         return RealDialogueSmokeLedger(
@@ -181,6 +228,7 @@ def _parse_smoke_ledger(path: Path | None) -> RealDialogueSmokeLedger:
     missing_markers = [marker for marker in _LEDGER_MARKERS if marker not in text]
     scenarios: list[RealDialogueSmokeScenario] = []
     current: dict[str, Any] | None = None
+    active_multiline_field: str | None = None
     for line in text.splitlines():
         if "scenario_id" in line:
             if current is not None and current.get("scenario_id"):
@@ -189,30 +237,60 @@ def _parse_smoke_ledger(path: Path | None) -> RealDialogueSmokeLedger:
                         scenario_id=str(current.get("scenario_id") or "").strip(),
                         user_input=str(current.get("user_input") or "").strip(),
                         must_pass=bool(current.get("must_pass", True)),
+                        required_capabilities=tuple(
+                            current.get("required_capabilities") or ()
+                        ),
                     )
                 )
             current = {
                 "scenario_id": _extract_backtick_or_value(line, "scenario_id"),
                 "user_input": "",
                 "must_pass": True,
+                "required_capabilities": (),
             }
+            active_multiline_field = None
             continue
         if current is None:
             continue
+        stripped = line.strip()
+        if active_multiline_field == "required_capabilities":
+            if _line_starts_ledger_marker(stripped):
+                active_multiline_field = None
+            elif stripped.startswith("- "):
+                value = stripped[2:].strip().strip("`").strip()
+                _append_required_capabilities(
+                    current,
+                    _split_required_capabilities(value),
+                )
+                continue
+            elif stripped and not stripped.startswith("#"):
+                _append_required_capability_continuation(current, stripped)
+                continue
         if "user_input" in line:
             current["user_input"] = _extract_backtick_or_value(line, "user_input")
+            active_multiline_field = None
         elif "priority" in line:
             priority = _extract_backtick_or_value(line, "priority").lower()
             current["must_pass"] = priority in {"", "must-pass", "p0", "p1", "high"}
+            active_multiline_field = None
         elif "must_pass" in line:
             value = _extract_backtick_or_value(line, "must_pass").lower()
             current["must_pass"] = value not in {"false", "0", "no"}
+            active_multiline_field = None
+        elif "required_capabilities" in line:
+            value = _extract_backtick_or_value(line, "required_capabilities")
+            _append_required_capabilities(
+                current,
+                _split_required_capabilities(value),
+            )
+            active_multiline_field = "required_capabilities" if not value else None
     if current is not None and current.get("scenario_id"):
         scenarios.append(
             RealDialogueSmokeScenario(
                 scenario_id=str(current.get("scenario_id") or "").strip(),
                 user_input=str(current.get("user_input") or "").strip(),
                 must_pass=bool(current.get("must_pass", True)),
+                required_capabilities=tuple(current.get("required_capabilities") or ()),
             )
         )
 
@@ -329,6 +407,11 @@ def _scenario_requires_short_enterprise_answer(scenario_id: str) -> bool:
 
 def _scenario_requires_tool_policy_guard(scenario_id: str) -> bool:
     return "tool-policy-guard" in scenario_id
+
+
+def _scenario_declares_required_tools(scenario: RealDialogueSmokeScenario) -> bool:
+    text = " ".join(scenario.required_capabilities).lower()
+    return "skill" in text or "tool" in text
 
 
 def _blocking_checks_passed(checks: list[dict[str, Any]]) -> bool:
@@ -596,6 +679,7 @@ class RuntimeRealDialogueSmokeService:
                     scenario_id="CLI-CUSTOM-real-dialogue-smoke",
                     user_input=str(message).strip(),
                     must_pass=True,
+                    required_capabilities=(),
                 )
             ]
         scenarios = list(ledger.scenarios)
@@ -666,12 +750,27 @@ class RuntimeRealDialogueSmokeService:
             retired_capability_exposed = _contains_retired_capability(
                 retired_probe_values
             )
+            required_tool_completion_evidence = build_required_tool_completion_evidence(
+                response.context_diagnostics,
+                response.last_run_summary,
+            )
+            if _scenario_declares_required_tools(scenario):
+                required_tool_completion_evidence = {
+                    **required_tool_completion_evidence,
+                    "required": True,
+                    "required_by_ledger": True,
+                    "passed": bool(
+                        required_tool_completion_evidence.get("required")
+                        and required_tool_completion_evidence.get("passed")
+                    ),
+                }
             scripted_checks = self._build_scripted_checks(
                 scenario=scenario,
                 assistant_text=assistant_text,
                 selected_tools=selected_tools,
                 selected_skills=selected_skills,
                 capability_smoke=capability_smoke,
+                required_tool_completion_evidence=required_tool_completion_evidence,
             )
             observable_checks = {
                 "assistant_text_non_empty": bool(assistant_text),
@@ -710,6 +809,11 @@ class RuntimeRealDialogueSmokeService:
                 "retired_capability_probe_values": retired_probe_values
                 if retired_capability_exposed
                 else {},
+                "required_tool_completion_evidence": (
+                    required_tool_completion_evidence
+                    if required_tool_completion_evidence.get("required")
+                    else {}
+                ),
                 "capability_smoke": capability_smoke,
                 "context_diagnostics": response.context_diagnostics,
                 "last_run_summary": response.last_run_summary,
@@ -811,9 +915,14 @@ class RuntimeRealDialogueSmokeService:
         selected_tools: list[Any],
         selected_skills: list[Any],
         capability_smoke: dict[str, Any] | None,
+        required_tool_completion_evidence: dict[str, Any],
     ) -> dict[str, bool]:
         scenario_id = scenario.scenario_id
         checks: dict[str, bool] = {}
+        if required_tool_completion_evidence.get("required"):
+            checks["required_tool_completion_evidence"] = bool(
+                required_tool_completion_evidence.get("passed")
+            )
         if _scenario_requires_capability_smoke(scenario_id):
             checks["capability_smoke_green_or_passed"] = bool(
                 capability_smoke and capability_smoke.get("passed")

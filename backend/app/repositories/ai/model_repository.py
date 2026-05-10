@@ -22,27 +22,6 @@ class AIModelRepository(BaseRepository[AIModel]):
 
     model = AIModel
 
-    async def get_by_code(
-        self, code: str, include_deleted: bool = False
-    ) -> AIModel | None:
-        """
-        根据代码获取模型 / Get model by code.
-
-        Args:
-            code: 模型代码
-            include_deleted: 是否包含已删除的记录
-
-        Returns:
-            AIModel 对象或 None
-        """
-        stmt = select(AIModel).where(AIModel.code == code)
-
-        if not include_deleted:
-            stmt = stmt.where(AIModel.is_deleted.is_(False))
-
-        result = await self.db.execute(stmt)
-        return result.scalar_one_or_none()
-
     async def get_by_provider(
         self, provider_id: int, include_deleted: bool = False
     ) -> list[AIModel]:
@@ -88,27 +67,6 @@ class AIModelRepository(BaseRepository[AIModel]):
 
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
-
-    async def code_exists(self, code: str, exclude_id: int | None = None) -> bool:
-        """
-        检查模型代码是否全局存在 / Check if model code exists globally.
-
-        保留该方法以兼容仍依赖旧全局唯一语义的调用方；新模型写路径应使用
-        code_exists_for_provider()。
-        """
-        from sqlalchemy import func
-
-        stmt = select(func.count(AIModel.id)).where(
-            AIModel.code == code,
-            AIModel.is_deleted.is_(False),
-        )
-
-        if exclude_id is not None:
-            stmt = stmt.where(AIModel.id != exclude_id)
-
-        result = await self.db.execute(stmt)
-        count = result.scalar() or 0
-        return count > 0
 
     async def code_exists_for_provider(
         self,

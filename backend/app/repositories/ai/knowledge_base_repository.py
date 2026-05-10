@@ -23,7 +23,7 @@ _ASSIGNED_SCOPES = (
 )
 
 
-def _kb_visible_condition(tenant_id: int):
+def _kb_visible_condition(tenant_id: int | None):
     """当前企业可见的知识库条件 / KB visible to tenant."""
     assigned_subq = assigned_resource_ids_subquery("knowledge_base", tenant_id)
     tenant_owned_visible = and_(
@@ -48,6 +48,25 @@ def _kb_visible_condition(tenant_id: int):
         tenant_owned_visible,
         platform_visible,
         assigned_visible,
+    )
+
+
+def _kb_child_visible_condition(tenant_id: int | None, child_tenant_column):
+    """当前企业可读的 KB 子资源条件 / KB child rows readable by current tenant."""
+    if tenant_id is None:
+        return and_(
+            KnowledgeBase.owner_tenant_id.is_(None),
+            child_tenant_column.is_(None),
+        )
+    return or_(
+        and_(
+            KnowledgeBase.owner_tenant_id == tenant_id,
+            child_tenant_column == tenant_id,
+        ),
+        and_(
+            KnowledgeBase.owner_tenant_id.is_(None),
+            child_tenant_column.is_(None),
+        ),
     )
 
 
@@ -147,6 +166,20 @@ class KnowledgeBaseRepository(TenantRepository[KnowledgeBase]):
         )
         result = await self.db.execute(stmt)
         return {int(kb_id) for kb_id in result.scalars().all()}
+
+    async def list_selectable(self, *, limit: int = 500) -> list[KnowledgeBase]:
+        """获取当前企业可选择的知识库 / List KB rows selectable by the current tenant."""
+        stmt = (
+            select(KnowledgeBase)
+            .where(
+                KnowledgeBase.is_deleted.is_(False),
+                _kb_visible_condition(self.tenant_id),
+            )
+            .order_by(KnowledgeBase.name.asc())
+            .limit(limit)
+        )
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
 
     async def update_statistics(
         self,
@@ -251,6 +284,77 @@ class KnowledgeDocumentRepository(TenantRepository[KnowledgeDocument]):
 
     model = KnowledgeDocument
 
+    async def get_by_id(
+        self,
+        id: int,
+        include_deleted: bool = False,
+    ) -> KnowledgeDocument | None:
+        """按当前企业可见 KB 边界读取文档 / Read a document through current tenant KB visibility."""
+        stmt = (
+            select(KnowledgeDocument)
+            .join(
+                KnowledgeBase, KnowledgeBase.id == KnowledgeDocument.knowledge_base_id
+            )
+            .where(
+                KnowledgeDocument.id == id,
+                KnowledgeBase.is_deleted.is_(False),
+                _kb_visible_condition(self.tenant_id),
+                _kb_child_visible_condition(
+                    self.tenant_id,
+                    KnowledgeDocument.tenant_id,
+                ),
+            )
+        )
+        if not include_deleted:
+            stmt = stmt.where(KnowledgeDocument.is_deleted.is_(False))
+
+        result = await self.db.execute(stmt)
+        return result.scalars().first()
+
+    async def query_list(
+        self,
+        spec: QuerySpec,
+        scope: str | None = None,
+        forced_filters: list[FilterRule] | None = None,
+        include_deleted: bool = False,
+    ) -> tuple[list[KnowledgeDocument], int]:
+        """按 KB 可见性列出文档 / List documents through KB visibility rules."""
+        allowed_fields = self.get_allowed_fields(scope)
+        all_fields = self.get_allowed_fields(None)
+
+        query = select(KnowledgeDocument).join(
+            KnowledgeBase,
+            KnowledgeBase.id == KnowledgeDocument.knowledge_base_id,
+        )
+
+        if not include_deleted:
+            query = query.where(KnowledgeDocument.is_deleted.is_(False))
+
+        query = query.where(
+            KnowledgeBase.is_deleted.is_(False),
+            _kb_visible_condition(self.tenant_id),
+            _kb_child_visible_condition(self.tenant_id, KnowledgeDocument.tenant_id),
+        )
+
+        extra_forced = [f for f in (forced_filters or []) if f.field != "tenant_id"]
+        if extra_forced:
+            query = self._apply_filters(query, extra_forced, all_fields)
+
+        if spec.filters:
+            query = self._apply_filters(query, spec.filters, allowed_fields)
+
+        count_query = select(func.count()).select_from(query.subquery())
+        count_result = await self.db.execute(count_query)
+        total = count_result.scalar() or 0
+
+        sortable_fields = self.get_sortable_fields()
+        query = self._apply_sort(query, spec.sort, sortable_fields)
+        query = query.offset(spec.offset).limit(spec.limit)
+
+        result = await self.db.execute(query)
+        items = list(result.scalars().all())
+        return items, total
+
     async def get_by_kb_and_hash(
         self,
         knowledge_base_id: int,
@@ -330,11 +434,27 @@ class DocumentChunkRepository(TenantRepository[DocumentChunk]):
     ) -> list[DocumentChunk]:
         stmt = (
             select(DocumentChunk)
+            .join(KnowledgeDocument, KnowledgeDocument.id == DocumentChunk.document_id)
+            .join(
+                KnowledgeBase, KnowledgeBase.id == KnowledgeDocument.knowledge_base_id
+            )
             .where(
                 and_(
                     DocumentChunk.document_id == document_id,
-                    DocumentChunk.tenant_id == self.tenant_id,
+                    DocumentChunk.knowledge_base_id
+                    == KnowledgeDocument.knowledge_base_id,
                     DocumentChunk.is_deleted.is_(False),
+                    KnowledgeDocument.is_deleted.is_(False),
+                    KnowledgeBase.is_deleted.is_(False),
+                    _kb_visible_condition(self.tenant_id),
+                    _kb_child_visible_condition(
+                        self.tenant_id,
+                        KnowledgeDocument.tenant_id,
+                    ),
+                    _kb_child_visible_condition(
+                        self.tenant_id,
+                        DocumentChunk.tenant_id,
+                    ),
                 )
             )
             .order_by(DocumentChunk.chunk_index.asc())

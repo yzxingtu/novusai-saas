@@ -155,46 +155,8 @@ class TenantKnowledgeBaseController(TenantController):
 
             权限 / Permission: knowledge_base:selectable
             """
-            from sqlalchemy import and_, or_, select
-
-            from app.enums.common import ResourceScopeEnum
-            from app.models.ai.knowledge_base import KnowledgeBase
-            from app.repositories.system.resource_tenant_assignment_repository import (
-                assigned_resource_ids_subquery,
-            )
-
-            tenant_id = tenant_admin.tenant_id
-            assigned_subq = assigned_resource_ids_subquery("knowledge_base", tenant_id)
-            stmt = (
-                select(KnowledgeBase)
-                .where(
-                    KnowledgeBase.is_deleted.is_(False),
-                    or_(
-                        # 本企业创建的 KB / KBs created by current tenant
-                        and_(
-                            KnowledgeBase.scope == ResourceScopeEnum.ALL_TENANTS.value,
-                            KnowledgeBase.tenant_id == tenant_id,
-                        ),
-                        # 全局共享的 KB（admin 创建，所有企业可见） / Global shared KBs (admin-created, visible to all tenants)
-                        KnowledgeBase.scope == ResourceScopeEnum.GLOBAL_SHARED.value,
-                        # 已分配给当前企业的 KB / KBs assigned to current tenant
-                        and_(
-                            KnowledgeBase.scope.in_(
-                                [
-                                    ResourceScopeEnum.SELECTED_TENANTS.value,
-                                    ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
-                                ]
-                            ),
-                            KnowledgeBase.id.in_(assigned_subq),
-                        ),
-                    ),
-                )
-                .order_by(KnowledgeBase.name.asc())
-                .limit(500)
-            )
-            result = await db.execute(stmt)
-            kbs = list(result.scalars().all())
-
+            service = KnowledgeBaseService(db, tenant_admin.tenant_id)
+            kbs = await service.list_selectable(limit=500)
             items = await serialize_selectable_knowledge_bases(db, kbs)
             return success(data=items)
 

@@ -391,6 +391,8 @@ class BaseTask(Task):
             "run_kind": str(headers.get("run_kind") or "platform"),
             "owner_tenant_id": _to_int(headers.get("owner_tenant_id")),
             "effective_tenant_id": _to_int(headers.get("effective_tenant_id")),
+            "queue": str(headers.get("queue") or getattr(self, "queue", "default")),
+            "priority": _to_int(headers.get("priority")),
             "trigger_slot": headers.get("trigger_slot"),
             "trigger_id": headers.get("trigger_id"),
             "retry_of_run_id": _to_int(headers.get("retry_of_run_id")),
@@ -468,7 +470,9 @@ class BaseTask(Task):
             from app.models.system.task_run import TaskRun
 
             session = sync_session_factory()
-            queue = getattr(self, "queue", "default") or "default"
+            queue = (
+                context.get("queue") or getattr(self, "queue", "default") or "default"
+            )
             safe_args = self._safe_json(list(args)) if args else None
             safe_kwargs = self._safe_json(dict(kwargs)) if kwargs else None
             args_summary = None
@@ -501,9 +505,14 @@ class BaseTask(Task):
                 owner_tenant_id=context["owner_tenant_id"],
                 effective_tenant_id=context["effective_tenant_id"],
                 queue=queue,
+                priority=context["priority"],
                 status=TaskStatusEnum.RUNNING.value,
                 args_summary=args_summary,
                 trace_id=trace_id_var.get() or None,
+                trigger_slot=context["trigger_slot"],
+                trigger_id=context["trigger_id"],
+                retry_of_run_id=context["retry_of_run_id"],
+                retry_of_task_id=context["retry_of_task_id"],
                 started_at=utc_now(),
             )
             session.add(run)
@@ -618,13 +627,20 @@ class BaseTask(Task):
                     run_kind=context["run_kind"],
                     owner_tenant_id=context["owner_tenant_id"],
                     effective_tenant_id=context["effective_tenant_id"],
-                    queue=getattr(self, "queue", "default") or "default",
+                    queue=context.get("queue")
+                    or getattr(self, "queue", "default")
+                    or "default",
+                    priority=context["priority"],
                     status=TaskStatusEnum.FAILED.value,
                     summary=str(exc)[:500],
                     error_message_public=str(exc)[:500],
                     error_message_internal=str(exc)[:2000],
                     traceback_internal=str(einfo)[:5000] if einfo else None,
                     trace_id=trace_id_var.get() or None,
+                    trigger_slot=context["trigger_slot"],
+                    trigger_id=context["trigger_id"],
+                    retry_of_run_id=context["retry_of_run_id"],
+                    retry_of_task_id=context["retry_of_task_id"],
                     started_at=now,
                     finished_at=now,
                     duration_ms=int(elapsed * 1000),
@@ -849,14 +865,36 @@ class TenantTask(BaseTask):
         """中文: 兜底校验企业任务资格。EN: Guard tenant task eligibility as a final runtime boundary."""
         session = None
         try:
+            from app.models.system.task_definition import TaskDefinition
             from app.services.system.task_tenant_eligibility_service import (
+                TaskTenantEligibilityRequirements,
                 TaskTenantEligibilityService,
             )
 
             session = sync_session_factory()
+            requirements = TaskTenantEligibilityRequirements()
+            headers = getattr(self.request, "headers", None) or {}
+            if isinstance(headers, dict) and headers.get("task_definition_id"):
+                try:
+                    task_definition_id = int(headers["task_definition_id"])
+                except (TypeError, ValueError):
+                    task_definition_id = 0
+                if task_definition_id > 0:
+                    definition = (
+                        session.query(TaskDefinition)
+                        .filter(
+                            TaskDefinition.id == task_definition_id,
+                            TaskDefinition.is_deleted.is_(False),
+                        )
+                        .first()
+                    )
+                    requirements = TaskTenantEligibilityRequirements.from_definition(
+                        definition
+                    )
             result = TaskTenantEligibilityService.resolve_tenant_eligibility_sync(
                 session,
                 tenant_id,
+                requirements=requirements,
             )
             if not result.is_eligible:
                 logger.warning(

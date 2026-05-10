@@ -1,9 +1,14 @@
-"""NotificationService 单元测试 / Test.
+"""中文: NotificationService 单元测试，覆盖通知读写与投递审计记录。
 
-覆盖：通知创建、查询、标记已读、批量已读、删除。"""
+EN: NotificationService unit tests covering notification read/write paths and
+delivery audit records.
+
+Test type: structural / behavioral
+"""
 
 from __future__ import annotations
 
+from datetime import datetime
 from unittest.mock import AsyncMock
 
 import pytest
@@ -106,13 +111,51 @@ class TestNotificationDelete:
     async def test_delete_notification(self, mock_db):
         from app.services.common.notification_service import NotificationService
 
-        service = NotificationService.__new__(NotificationService)
-        service.db = mock_db
-        service.repo = AsyncMock()
-        service.repo.delete = AsyncMock(return_value=True)
+        result = make_mock_model(rowcount=1)
+        mock_db.execute.return_value = result
+        service = NotificationService(mock_db)
 
-        result = await service.repo.delete(1, soft=True)
-        assert result is True
+        found = await service.delete_notification(
+            notification_id=11,
+            user_type="tenant_admin",
+            user_id=7,
+            tenant_id=99,
+        )
+
+        statement = mock_db.execute.await_args.args[0]
+        compiled = statement.compile(dialect=postgresql.dialect())
+        sql = str(compiled).lower()
+        assert found is True
+        assert "is_deleted is false" in sql
+        assert 11 in compiled.params.values()
+        assert 7 in compiled.params.values()
+        assert 99 in compiled.params.values()
+
+    @pytest.mark.asyncio
+    async def test_delete_notification_excludes_already_soft_deleted_rows(
+        self, mock_db
+    ):
+        from app.services.common.notification_service import NotificationService
+
+        result = make_mock_model(rowcount=0)
+        mock_db.execute.return_value = result
+        service = NotificationService(mock_db)
+
+        found = await service.delete_notification(
+            notification_id=10,
+            user_type="tenant_admin",
+            user_id=7,
+            tenant_id=99,
+        )
+
+        statement = mock_db.execute.await_args.args[0]
+        compiled = statement.compile(dialect=postgresql.dialect())
+        sql = str(compiled).lower()
+        assert found is False
+        assert "is_deleted is false" in sql
+        assert 10 in compiled.params.values()
+        assert 7 in compiled.params.values()
+        assert 99 in compiled.params.values()
 
     @pytest.mark.asyncio
     async def test_delete_not_found(self, mock_db):
@@ -401,13 +444,14 @@ class TestNotificationDeliveryOutbox:
             if isinstance(call.args[0], NotificationDelivery)
         ]
         assert sent == 1
-        assert len(deliveries) == 1
-        assert deliveries[0].template_id == 5
-        assert deliveries[0].template_code == "task.failed"
-        assert deliveries[0].channel == "ws"
-        assert deliveries[0].tenant_id == 42
-        assert deliveries[0].recipient_type == "tenant_admin"
-        assert deliveries[0].recipient_id == 7
-        assert deliveries[0].status == "sent"
-        assert deliveries[0].attempt == 1
-        assert deliveries[0].delivered_at is not None
+        assert deliveries
+        delivery = deliveries[0]
+        assert delivery.template_id == 5
+        assert delivery.template_code == "task.failed"
+        assert delivery.channel == "ws"
+        assert delivery.tenant_id == 42
+        assert delivery.recipient_type == "tenant_admin"
+        assert delivery.recipient_id == 7
+        assert delivery.status == "sent"
+        assert delivery.attempt == 1
+        assert isinstance(delivery.delivered_at, datetime)

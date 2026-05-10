@@ -76,7 +76,6 @@ class HybridRetriever:
         kb_ids: list[int] | None = None,
         rewrite_strategy: str = "none",
         reranker_enabled: bool = False,
-        llm_model: str | None = None,
         *,
         knowledge_bases: list[KnowledgeBase] | None = None,
         kb_weights: dict[int, float] | None = None,
@@ -134,7 +133,6 @@ class HybridRetriever:
             tenant_id=self.tenant_id,
             query=effective_query,
             rewrite_strategy=rewrite_strategy,
-            llm_model=llm_model,
         )
 
         best_results: dict[int, ChunkSearchResult] = {}
@@ -165,7 +163,6 @@ class HybridRetriever:
                 query=effective_query,
                 results=results,
                 top_k=top_k,
-                llm_model=llm_model,
             )
 
         results = relevance_gap_filter(results)

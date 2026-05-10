@@ -180,6 +180,38 @@ class FailoverService:
             int(getattr(model, "id", 0) or 0),
         )
 
+    @staticmethod
+    def _fallback_constraint_mismatches(
+        model: AIModel,
+        *,
+        needs_vision: bool,
+        needs_audio: bool,
+        needs_video: bool,
+        needs_fc: bool,
+        min_context_window: int | None,
+    ) -> list[str]:
+        mismatches: list[str] = []
+        if needs_vision and not bool(getattr(model, "supports_vision", False)):
+            mismatches.append("vision")
+        if needs_audio and not bool(getattr(model, "supports_audio", False)):
+            mismatches.append("audio")
+        if needs_video and not bool(getattr(model, "supports_video", False)):
+            mismatches.append("video")
+        if needs_fc and not bool(getattr(model, "supports_function_calling", False)):
+            mismatches.append("function_calling")
+        if min_context_window is not None:
+            try:
+                required_context = int(min_context_window or 0)
+            except (TypeError, ValueError):
+                required_context = 0
+            try:
+                context_window = int(getattr(model, "context_window", 0) or 0)
+            except (TypeError, ValueError):
+                context_window = 0
+            if context_window < required_context:
+                mismatches.append(f"context_window<{required_context}")
+        return mismatches
+
     async def is_provider_healthy(self, provider_id: int) -> bool:
         """
         Check if provider is healthy.
@@ -236,6 +268,7 @@ class FailoverService:
             Available fallback AIModel, or None / 可用的备用 AIModel，如果没有返回 None
         """
         visited = set()
+        skipped_explicit_fallback_ids: set[int] = set()
         current_id = model_id
         original_model = await self._model_repo.get_active_with_provider(model_id)
         preferred_provider_id = (
@@ -276,6 +309,27 @@ class FailoverService:
             if not fallback:
                 break
 
+            mismatches = self._fallback_constraint_mismatches(
+                fallback,
+                needs_vision=needs_vision,
+                needs_audio=needs_audio,
+                needs_video=needs_video,
+                needs_fc=needs_fc,
+                min_context_window=min_context_window,
+            )
+            if mismatches:
+                skipped_explicit_fallback_ids.add(fallback.id)
+                logger.info(
+                    "Failover explicit fallback skipped: original_model={} current_model={} fallback_model={} fallback_name={} mismatches={}",
+                    model_id,
+                    current_id,
+                    fallback.id,
+                    fallback.name,
+                    ",".join(mismatches),
+                )
+                current_id = fallback_id
+                continue
+
             # Check if fallback model's provider is healthy / 检查备用模型的供应商是否健康
             if await self.is_provider_healthy(fallback.provider_id):
                 logger.info(
@@ -296,7 +350,9 @@ class FailoverService:
             unhealthy_provider_ids.add(preferred_provider_id)
 
         compatible_candidates = await self._model_repo.list_compatible_chat_models(
-            exclude_model_ids=list({model_id, *visited}),
+            exclude_model_ids=sorted(
+                {model_id, *visited, *skipped_explicit_fallback_ids}
+            ),
             needs_vision=needs_vision,
             needs_audio=needs_audio,
             needs_video=needs_video,

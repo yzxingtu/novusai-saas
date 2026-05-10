@@ -309,6 +309,13 @@ const avgDuration = () => {
                 <code class="break-all text-xs">{{ selectedLog.taskId }}</code>
               </DescriptionsItem>
               <DescriptionsItem
+                v-if="selectedLog.runKey"
+                :label="$t('admin.system.taskLog.runKey')"
+                :span="2"
+              >
+                <code class="break-all text-xs">{{ selectedLog.runKey }}</code>
+              </DescriptionsItem>
+              <DescriptionsItem
                 :label="$t('admin.system.taskLog.status.label')"
               >
                 <Tag :color="getStatusColor(selectedLog.status)">

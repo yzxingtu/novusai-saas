@@ -161,6 +161,8 @@ class AdminPeriodicTaskController(GlobalController):
                 "notify_emails": body.notify_emails,
                 "default_queue": "scheduled",
                 "default_priority": body.default_priority,
+                "required_feature_codes": body.required_feature_codes,
+                "required_plugin_names": body.required_plugin_names,
                 "definition_type": "system",
             }
             task = await service.create(payload)
@@ -283,7 +285,6 @@ class AdminPeriodicTaskController(GlobalController):
                 binding_payloads=[
                     item.model_dump(exclude_unset=True) for item in body.bindings
                 ],
-                replace_all_tenant_bindings=True,
             )
             await db.commit()
             return success(data=result)
@@ -355,6 +356,8 @@ class AdminPeriodicTaskController(GlobalController):
                 "notify_on_failure": "notify_on_failure",
                 "notify_emails": "notify_emails",
                 "default_priority": "default_priority",
+                "required_feature_codes": "required_feature_codes",
+                "required_plugin_names": "required_plugin_names",
             }
             for old_key, new_key in field_map.items():
                 if old_key in raw:

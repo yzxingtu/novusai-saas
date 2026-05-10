@@ -8,6 +8,7 @@ Provides async database connections, session management and dependency injection
 import asyncio
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager, suppress
+from dataclasses import dataclass
 from pathlib import Path
 
 from sqlalchemy import create_engine, text
@@ -26,6 +27,20 @@ logger = LogManager.get_logger("db")
 
 # 最近一次 init_database 失败原因（供 main 抛出可读 RuntimeError）/ Last init_database failure detail
 _db_init_failure_reason: str | None = None
+
+
+@dataclass(frozen=True)
+class AlembicStampOverlap:
+    """中文: 表示 alembic_version 中同一线性分支的父子版本同时盖章。
+
+    EN: Represents ancestor and descendant stamps from the same Alembic lineage
+    appearing together in alembic_version.
+    """
+
+    ancestor_stamp: str
+    ancestor_revision: str
+    descendant_stamp: str
+    descendant_revision: str
 
 
 def get_last_db_init_failure_reason() -> str | None:
@@ -299,6 +314,93 @@ def resolve_expected_alembic_heads(
     return sorted(str(head) for head in ScriptDirectory.from_config(cfg).get_heads())
 
 
+def resolve_overlapping_alembic_current_stamps(
+    *,
+    alembic_ini: Path,
+    backend_dir: Path,
+    db_url: str,
+    version_locations: list[str],
+    current_stamps: list[str],
+) -> list[AlembicStampOverlap]:
+    """中文: 找出当前盖章中祖先和后代同时存在的 Alembic 版本。
+
+    EN: Find Alembic current stamps where an ancestor and descendant revision are
+    both stamped at the same time.
+    """
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+
+    cfg = Config(str(alembic_ini))
+    cfg.set_main_option("script_location", str(backend_dir / "migrations"))
+    cfg.set_main_option("sqlalchemy.url", db_url)
+    cfg.set_main_option("version_locations", "\n".join(version_locations))
+    script = ScriptDirectory.from_config(cfg)
+
+    resolved_stamps: list[tuple[str, str]] = []
+    for raw_stamp in current_stamps:
+        stamp = str(raw_stamp or "").strip()
+        if not stamp:
+            continue
+        try:
+            revision = script.get_revision(stamp)
+        except Exception:
+            continue
+        if revision is not None:
+            resolved_stamps.append((stamp, str(revision.revision)))
+
+    overlaps: list[AlembicStampOverlap] = []
+    for index, (left_stamp, left_revision) in enumerate(resolved_stamps):
+        for right_stamp, right_revision in resolved_stamps[index + 1 :]:
+            if left_revision == right_revision:
+                continue
+            if _is_alembic_ancestor(
+                script,
+                ancestor_revision=left_revision,
+                descendant_revision=right_revision,
+            ):
+                overlaps.append(
+                    AlembicStampOverlap(
+                        ancestor_stamp=left_stamp,
+                        ancestor_revision=left_revision,
+                        descendant_stamp=right_stamp,
+                        descendant_revision=right_revision,
+                    )
+                )
+            elif _is_alembic_ancestor(
+                script,
+                ancestor_revision=right_revision,
+                descendant_revision=left_revision,
+            ):
+                overlaps.append(
+                    AlembicStampOverlap(
+                        ancestor_stamp=right_stamp,
+                        ancestor_revision=right_revision,
+                        descendant_stamp=left_stamp,
+                        descendant_revision=left_revision,
+                    )
+                )
+    return overlaps
+
+
+def _is_alembic_ancestor(
+    script,
+    *,
+    ancestor_revision: str,
+    descendant_revision: str,
+) -> bool:
+    """中文: 判断 ancestor_revision 是否为 descendant_revision 的祖先。
+
+    EN: Return whether ancestor_revision is an ancestor of descendant_revision.
+    """
+    if ancestor_revision == descendant_revision:
+        return False
+    try:
+        list(script.iterate_revisions(descendant_revision, ancestor_revision))
+    except Exception:
+        return False
+    return True
+
+
 def should_skip_migration_subprocess(
     *,
     current_stamps: list[str],
@@ -392,6 +494,24 @@ def run_migrations() -> bool:
             version_locations=version_locations,
         )
         current_stamps = _read_alembic_version_rows(db_url)
+        overlapping_stamps = resolve_overlapping_alembic_current_stamps(
+            alembic_ini=alembic_ini,
+            backend_dir=backend_dir,
+            db_url=db_url,
+            version_locations=version_locations,
+            current_stamps=current_stamps,
+        )
+        if overlapping_stamps:
+            overlap_detail = "; ".join(
+                f"{item.ancestor_stamp}({item.ancestor_revision}) -> "
+                f"{item.descendant_stamp}({item.descendant_revision})"
+                for item in overlapping_stamps
+            )
+            raise RuntimeError(
+                "alembic_version contains overlapping ancestor/descendant stamps: "
+                f"{overlap_detail}; inspect alembic_version and remove stale "
+                "ancestor stamps only after confirming the descendant schema is present"
+            )
         should_skip_upgrade, skip_reason = should_skip_migration_subprocess(
             current_stamps=current_stamps,
             expected_heads=expected_heads,

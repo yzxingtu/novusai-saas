@@ -1,4 +1,8 @@
-"""Tests for _try_repair_json enhancements."""
+"""Tests for _try_repair_json enhancements.
+
+Test type: structural / behavioral
+Scope: Existing AI tests in this module; no real-dialogue smoke acceptance is claimed.
+"""
 
 import json
 

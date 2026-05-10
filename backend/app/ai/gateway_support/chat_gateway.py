@@ -8,6 +8,10 @@ from typing import Any
 from app.ai.exceptions import AIGatewayError
 from app.ai.gateway_support.adapter_support import build_adapter_extra
 from app.ai.gateway_support.call_log_bridge import GatewayCallLogBridge
+from app.ai.gateway_support.failover_orchestrator import (
+    build_gateway_fallback_requirements,
+    scrub_gateway_failover_runtime_kwargs,
+)
 from app.ai.types import ChatMessage, ChatResponse, messages_to_dicts
 from app.ai.usage_mode import resolve_chat_usage
 from app.core.i18n import _
@@ -147,7 +151,14 @@ async def execute_chat(
             model_id=model_id,
             error=original_error,
         )
-        fallback_model = await gateway.failover.get_fallback_model(model_id)
+        fallback_model = await gateway.failover.get_fallback_model(
+            model_id,
+            **build_gateway_fallback_requirements(
+                messages=messages,
+                tools=tools,
+                estimated_input=estimated_input,
+            ),
+        )
         if not fallback_model:
             await gateway.usage_recorder.log_call_failure(
                 error=original_error,
@@ -195,6 +206,7 @@ async def execute_chat(
         )
 
         try:
+            fallback_extra_kwargs = scrub_gateway_failover_runtime_kwargs(kwargs)
             fb_provider, fb_api_key = await gateway.get_provider_and_key(
                 fallback_model.provider.code, tenant_id
             )
@@ -213,7 +225,7 @@ async def execute_chat(
                     stream=stream,
                     tools=tools,
                     tool_choice=tool_choice,
-                    extra_kwargs=kwargs,
+                    extra_kwargs=fallback_extra_kwargs,
                 ),
                 tenant_id=tenant_id,
                 adapter_extra={

@@ -123,7 +123,6 @@ class TaskLogRelationService:
             finished_at=task_run.finished_at,
             duration_ms=task_run.duration_ms,
             retry_count=task_run.retry_count,
-            tenant_id=task_run.effective_tenant_id,
             created_at=task_run.created_at,
         ).model_dump()
 
@@ -178,7 +177,6 @@ class TaskLogRelationService:
             finished_at=task_run.finished_at,
             duration_ms=task_run.duration_ms,
             retry_count=task_run.retry_count,
-            tenant_id=task_run.effective_tenant_id,
             created_at=task_run.created_at,
             traceback=task_run.traceback_internal,
         ).model_dump()

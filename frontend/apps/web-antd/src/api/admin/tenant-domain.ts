@@ -272,27 +272,14 @@ export async function getTenantDomainsApi(
   tenantId: number,
   options?: ApiRequestOptions,
 ): Promise<TenantDomainListResponse> {
-  const response = await requestClient.get<TenantDomainInfoRaw[]>(
-    getDomainApiPrefix(tenantId),
-    options,
-  );
-
-  // Backend may return array or paginated object, handle both / 后端可能返回数组或分页对象
-  if (Array.isArray(response)) {
-    return {
-      items: response.map((item) => transformDomainInfo(item)),
-      total: response.length,
-    };
-  }
-
-  // If backend returns paginated format / 如果后端返回分页格式
-  const pageResponse = response as unknown as {
+  const response = await requestClient.get<{
     items: TenantDomainInfoRaw[];
     total: number;
-  };
+  }>(getDomainApiPrefix(tenantId), options);
+
   return {
-    items: pageResponse.items.map((item) => transformDomainInfo(item)),
-    total: pageResponse.total,
+    items: response.items.map((item) => transformDomainInfo(item)),
+    total: response.total,
   };
 }
 

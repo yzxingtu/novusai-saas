@@ -62,6 +62,14 @@ class PeriodicTaskResponse(BaseSchema):
         le=9,
         description="默认 Celery broker 优先级（0-9）",
     )
+    required_feature_codes: list[str] = Field(
+        default_factory=list,
+        description="要求的企业套餐特性代码",
+    )
+    required_plugin_names: list[str] = Field(
+        default_factory=list,
+        description="要求的企业可用插件名称",
+    )
     max_retries: int = Field(0, description="最大重试次数")
     retry_delay: int = Field(60, description="重试间隔（秒）")
     timeout: int = Field(3600, description="执行超时（秒）")
@@ -94,6 +102,14 @@ class PeriodicTaskCreateRequest(BaseSchema):
         ge=0,
         le=9,
         description="默认 Celery broker 优先级（0-9）",
+    )
+    required_feature_codes: list[str] = Field(
+        default_factory=list,
+        description="要求的企业套餐特性代码",
+    )
+    required_plugin_names: list[str] = Field(
+        default_factory=list,
+        description="要求的企业可用插件名称",
     )
     max_retries: int = Field(0, ge=0, le=10, description="最大重试次数")
     retry_delay: int = Field(60, ge=1, le=3600, description="重试间隔（秒）")
@@ -144,6 +160,14 @@ class PeriodicTaskUpdateRequest(BaseSchema):
         ge=0,
         le=9,
         description="默认 Celery broker 优先级（0-9）",
+    )
+    required_feature_codes: list[str] | None = Field(
+        None,
+        description="要求的企业套餐特性代码",
+    )
+    required_plugin_names: list[str] | None = Field(
+        None,
+        description="要求的企业可用插件名称",
     )
     max_retries: int | None = Field(None, ge=0, le=10, description="最大重试次数")
     retry_delay: int | None = Field(None, ge=1, le=3600, description="重试间隔（秒）")

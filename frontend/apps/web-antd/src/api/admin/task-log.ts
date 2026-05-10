@@ -29,12 +29,10 @@ export type {
 /** Task run info (backend raw snake_case) / 任务运行信息（后端原始格式） */
 export interface TaskLogInfoRaw {
   id: number;
-  task_id?: string;
-  celery_task_id?: string;
-  task_name?: string;
-  task_name_snapshot?: string;
+  task_id: string;
+  run_key: null | string;
+  task_name: string;
   handler_path?: null | string;
-  handler_path_snapshot?: null | string;
   task_definition_id?: null | number;
   binding_id?: null | number;
   task_definition_name?: null | string;
@@ -47,15 +45,8 @@ export interface TaskLogInfoRaw {
   status: string;
   args?: null | Record<string, unknown> | unknown[];
   kwargs?: null | Record<string, unknown>;
-  args_summary?: null | {
-    args?: null | Record<string, unknown> | unknown[];
-    kwargs?: null | Record<string, unknown>;
-  };
   result?: null | Record<string, unknown>;
-  result_summary?: null | Record<string, unknown>;
   error_message?: null | string;
-  error_message_public?: null | string;
-  error_message_internal?: null | string;
   trigger_source?: null | string;
   run_kind?: null | string;
   trace_id?: null | string;
@@ -63,14 +54,12 @@ export interface TaskLogInfoRaw {
   finished_at: null | string;
   duration_ms: null | number;
   retry_count: number;
-  tenant_id?: null | number;
   created_at: string;
 }
 
 /** Task log detail raw format / 任务日志详情原始格式 */
 interface TaskLogDetailInfoRaw extends TaskLogInfoRaw {
   traceback?: null | string;
-  traceback_internal?: null | string;
 }
 
 /** Task stats item (backend raw format) / 任务统计项（后端原始格式） */
@@ -101,21 +90,12 @@ export interface ActiveTaskInfo {
 // ============================================================
 
 function transformTaskLogInfo(raw: TaskLogInfoRaw): TaskLogInfo {
-  const argsSummary = raw.args_summary;
-  const args =
-    raw.args ??
-    (argsSummary && 'args' in argsSummary ? (argsSummary.args ?? null) : null);
-  const kwargs =
-    raw.kwargs ??
-    (argsSummary && 'kwargs' in argsSummary
-      ? (argsSummary.kwargs ?? null)
-      : null);
-
   return {
     id: raw.id,
-    taskId: raw.task_id ?? raw.celery_task_id ?? '',
-    taskName: raw.task_name ?? raw.task_name_snapshot ?? '',
-    handlerPath: raw.handler_path ?? raw.handler_path_snapshot ?? null,
+    taskId: raw.task_id,
+    runKey: raw.run_key,
+    taskName: raw.task_name,
+    handlerPath: raw.handler_path ?? null,
     taskDefinitionId: raw.task_definition_id ?? null,
     bindingId: raw.binding_id ?? null,
     taskDefinitionName: raw.task_definition_name ?? null,
@@ -126,14 +106,10 @@ function transformTaskLogInfo(raw: TaskLogInfoRaw): TaskLogInfo {
     effectiveTenantName: raw.effective_tenant_name ?? null,
     queue: raw.queue,
     status: raw.status,
-    args,
-    kwargs,
-    result: raw.result_summary ?? raw.result ?? null,
-    errorMessage:
-      raw.error_message_public ??
-      raw.error_message ??
-      raw.error_message_internal ??
-      null,
+    args: raw.args ?? null,
+    kwargs: raw.kwargs ?? null,
+    result: raw.result ?? null,
+    errorMessage: raw.error_message ?? null,
     triggerSource: raw.trigger_source ?? null,
     runKind: raw.run_kind ?? null,
     traceId: raw.trace_id ?? null,
@@ -150,7 +126,7 @@ function transformTaskLogDetailInfo(
 ): TaskLogDetailInfo {
   return {
     ...transformTaskLogInfo(raw),
-    traceback: raw.traceback_internal ?? raw.traceback ?? null,
+    traceback: raw.traceback ?? null,
   };
 }
 

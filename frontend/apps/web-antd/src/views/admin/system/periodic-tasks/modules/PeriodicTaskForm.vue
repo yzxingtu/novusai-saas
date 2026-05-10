@@ -19,6 +19,20 @@ const emits = defineEmits<{ success: [] }>();
 
 type PeriodicTaskInfo = adminApi.PeriodicTaskInfo;
 
+function parseCodeList(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item).trim()).filter(Boolean);
+  }
+  return String(value ?? '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function formatCodeList(value: string[] | undefined): string {
+  return (value ?? []).join(', ');
+}
+
 const [Form, formApi] = useVbenForm({
   schema: useFormSchema(false),
   showDefaultActions: false,
@@ -40,6 +54,9 @@ const { Drawer, isEdit } = useCrudDrawer<PeriodicTaskInfo>({
       scope: values.scope || 'admin_only',
       owner_tenant_id: null,
       tenant_ids: Array.isArray(values.tenant_ids) ? values.tenant_ids : [],
+      default_priority: values.default_priority ?? null,
+      required_feature_codes: parseCodeList(values.required_feature_codes),
+      required_plugin_names: parseCodeList(values.required_plugin_names),
       max_retries: values.max_retries ?? 0,
       retry_delay: values.retry_delay ?? 60,
       timeout: values.timeout ?? 3600,
@@ -58,6 +75,9 @@ const { Drawer, isEdit } = useCrudDrawer<PeriodicTaskInfo>({
       description: data.description,
       scope: data.scope,
       tenant_ids: data.assignedTenantIds ?? [],
+      default_priority: data.defaultPriority,
+      required_feature_codes: formatCodeList(data.requiredFeatureCodes),
+      required_plugin_names: formatCodeList(data.requiredPluginNames),
       max_retries: data.maxRetries,
       retry_delay: data.retryDelay,
       timeout: data.timeout,

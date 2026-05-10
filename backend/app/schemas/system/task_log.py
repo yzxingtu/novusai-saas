@@ -29,7 +29,6 @@ class TaskLogResponse(BaseSchema):
     owner_tenant_name: str | None = Field(None, description="归属企业名称")
     effective_tenant_id: int | None = Field(None, description="生效企业 ID")
     effective_tenant_name: str | None = Field(None, description="生效企业名称")
-    tenant_id: int | None = Field(None, description="兼容字段：生效企业 ID")
     queue: str = Field("default", description="队列名称")
     status: str = Field(..., description="任务状态")
     args: Any = Field(None, description="位置参数")

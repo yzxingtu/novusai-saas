@@ -1,4 +1,9 @@
-"""TaskDefinitionService tests."""
+"""中文: TaskDefinitionService 调度触发行为测试。
+
+EN: TaskDefinitionService scheduling trigger behavior tests.
+
+Test type: behavioral
+"""
 
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -68,6 +73,7 @@ async def test_trigger_now_dispatches_binding_wrapper_for_tenant_owned_definitio
     )
     service.get_by_id = AsyncMock(return_value=definition)
     service.update = AsyncMock(return_value=definition)
+    mock_db.get = AsyncMock(return_value=definition)
 
     fake_result = SimpleNamespace(id="celery-tenant-1")
     binding_rows = MagicMock()
@@ -185,6 +191,7 @@ async def test_trigger_now_dispatches_all_bindings_and_returns_first_task_id(
     )
     service.get_by_id = AsyncMock(return_value=definition)
     service.update = AsyncMock(return_value=definition)
+    mock_db.get = AsyncMock(return_value=definition)
     binding_rows = MagicMock()
     binding_rows.scalars.return_value.all.return_value = [
         SimpleNamespace(
@@ -255,6 +262,7 @@ async def test_trigger_now_dispatches_platform_and_selected_bindings_for_admin_a
     )
     service.get_by_id = AsyncMock(return_value=definition)
     service.update = AsyncMock(return_value=definition)
+    mock_db.get = AsyncMock(return_value=definition)
     binding_rows = MagicMock()
     binding_rows.scalars.return_value.all.return_value = [
         SimpleNamespace(
@@ -319,6 +327,7 @@ async def test_trigger_now_rejects_selected_scope_without_dispatch_targets(
     )
     service.get_by_id = AsyncMock(return_value=definition)
     service.update = AsyncMock(return_value=definition)
+    mock_db.get = AsyncMock(return_value=definition)
     binding_rows = MagicMock()
     binding_rows.scalars.return_value.all.return_value = []
     mock_db.execute = AsyncMock(return_value=binding_rows)

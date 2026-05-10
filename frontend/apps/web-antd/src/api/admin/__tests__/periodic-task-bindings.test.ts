@@ -1,5 +1,6 @@
-// 中文: 测试类型 behavioral，覆盖定时任务企业绑定 API 兼容转换。
-// EN: Test type behavioral, covering periodic task binding API compatibility transforms.
+// Test type: behavioral
+// 中文: 测试类型 behavioral，覆盖定时任务企业绑定 API 当前 snake_case 转换。
+// EN: Test type behavioral, covering current snake_case periodic task binding API transforms.
 // 中文: Mock 请求传输层，真实运行 API 适配映射。
 // EN: Mock request transport while running the real API adapter mapping.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -57,6 +58,8 @@ describe('periodic task binding api', () => {
           is_locked: false,
           is_editable: true,
           default_priority: 7,
+          required_feature_codes: ['ai_runtime'],
+          required_plugin_names: ['analytics'],
           max_retries: 0,
           retry_delay: 60,
           timeout: 3600,
@@ -74,31 +77,31 @@ describe('periodic task binding api', () => {
     expect(result.items[0]).toMatchObject({
       id: 8,
       defaultPriority: 7,
+      requiredFeatureCodes: ['ai_runtime'],
+      requiredPluginNames: ['analytics'],
     });
   });
 
   it('normalizes disabled binding overrides from backend fields', async () => {
-    requestGetMock.mockResolvedValue({
-      items: [
-        {
-          id: 12,
-          tenant_id: 3,
-          tenant_name: 'Acme',
-          is_enabled: false,
-          disabled_reason: 'maintenance',
-          schedule_type_override: 'cron',
-          cron_expression_override: '0 3 * * *',
-          interval_seconds_override: null,
-          kwargs_override: { plan: 'pro' },
-          config_override: { retries: 1 },
-          effective_schedule_type: 'cron',
-          effective_cron_expression: '0 3 * * *',
-          effective_interval_seconds: null,
-          last_run_at: '2026-05-01T00:00:00Z',
-          next_run_at: '2026-05-02T00:00:00Z',
-        },
-      ],
-    });
+    requestGetMock.mockResolvedValue([
+      {
+        id: 12,
+        tenant_id: 3,
+        tenant_name: 'Acme',
+        is_enabled: false,
+        disabled_reason: 'maintenance',
+        schedule_type_override: 'cron',
+        cron_expression_override: '0 3 * * *',
+        interval_seconds_override: null,
+        kwargs_override: { plan: 'pro' },
+        config_override: { retries: 1 },
+        effective_schedule_type: 'cron',
+        effective_cron_expression: '0 3 * * *',
+        effective_interval_seconds: null,
+        last_run_at: '2026-05-01T00:00:00Z',
+        next_run_at: '2026-05-02T00:00:00Z',
+      },
+    ]);
 
     const result = await getPeriodicTaskBindingsApi(7);
 
@@ -127,7 +130,7 @@ describe('periodic task binding api', () => {
 
     await syncPeriodicTaskBindingsApi(7, {
       scope: 'selected_tenants',
-      tenantIds: [3],
+      tenant_ids: [3],
       bindings: [
         {
           tenantId: 3,
@@ -170,7 +173,6 @@ describe('periodic task binding api', () => {
     });
 
     const result = await updatePeriodicTaskBindingApi(7, 5, {
-      tenantId: 5,
       isEnabled: true,
       scheduleTypeOverride: null,
     });
@@ -178,7 +180,6 @@ describe('periodic task binding api', () => {
     expect(requestPatchMock).toHaveBeenCalledWith(
       '/admin/periodic-tasks/7/bindings/5',
       {
-        tenant_id: 5,
         is_enabled: true,
         schedule_type_override: null,
       },

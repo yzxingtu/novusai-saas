@@ -21,6 +21,7 @@ from app.repositories.system.tenant_task_binding_repository import (
     TenantTaskBindingRepository,
 )
 from app.services.system.task_tenant_eligibility_service import (
+    TaskTenantEligibilityRequirements,
     TaskTenantEligibilityService,
 )
 from app.tasks.task_scheduling import (
@@ -140,6 +141,8 @@ class TaskBindingService(GlobalService[TenantTaskBinding, TenantTaskBindingRepos
         self,
         task_definition_id: int,
     ) -> list[TenantTaskBinding]:
+        definition = await self.db.get(TaskDefinition, task_definition_id)
+        requirements = TaskTenantEligibilityRequirements.from_definition(definition)
         result = await self.db.execute(
             select(TenantTaskBinding)
             .join(Tenant, Tenant.id == TenantTaskBinding.tenant_id)
@@ -155,7 +158,17 @@ class TaskBindingService(GlobalService[TenantTaskBinding, TenantTaskBindingRepos
             )
             .order_by(TenantTaskBinding.tenant_id.asc())
         )
-        return list(result.scalars().all())
+        bindings = list(result.scalars().all())
+        if not requirements.has_requirements:
+            return bindings
+
+        service = TaskTenantEligibilityService(self.db, requirements=requirements)
+        eligible_bindings: list[TenantTaskBinding] = []
+        for binding in bindings:
+            eligibility = await service.resolve_tenant_eligibility(binding.tenant_id)
+            if eligibility.is_eligible:
+                eligible_bindings.append(binding)
+        return eligible_bindings
 
     async def get_definition_binding_summary(
         self,
@@ -264,9 +277,16 @@ class TaskBindingService(GlobalService[TenantTaskBinding, TenantTaskBindingRepos
             for binding, tenant_name in rows
         ]
 
-    async def _require_eligible_tenant(self, tenant_id: int) -> None:
+    async def _require_eligible_tenant(
+        self,
+        tenant_id: int,
+        *,
+        definition: TaskDefinition | None = None,
+    ) -> None:
+        requirements = TaskTenantEligibilityRequirements.from_definition(definition)
         eligibility = await TaskTenantEligibilityService(
-            self.db
+            self.db,
+            requirements=requirements,
         ).resolve_tenant_eligibility(tenant_id)
         if eligibility.is_eligible:
             return
@@ -323,7 +343,7 @@ class TaskBindingService(GlobalService[TenantTaskBinding, TenantTaskBindingRepos
             handler_path=getattr(definition, "handler_path", None),
             scope=getattr(definition, "scope", None),
         )
-        await self._require_eligible_tenant(tenant_id)
+        await self._require_eligible_tenant(tenant_id, definition=definition)
         payload = self._normalize_binding_payload_for_scope(
             definition=definition,
             data=data,
@@ -357,7 +377,6 @@ class TaskBindingService(GlobalService[TenantTaskBinding, TenantTaskBindingRepos
         tenant_ids: list[int],
         target_scope: str | None = None,
         binding_payloads: list[dict[str, Any]] | None = None,
-        replace_all_tenant_bindings: bool = False,
     ) -> dict[str, int]:
         definition = await self.db.get(TaskDefinition, task_definition_id)
         result = await self.db.execute(
@@ -417,7 +436,7 @@ class TaskBindingService(GlobalService[TenantTaskBinding, TenantTaskBindingRepos
             definition.scope = target_scope
 
         for tenant_id in sorted(target - current):
-            await self._require_eligible_tenant(tenant_id)
+            await self._require_eligible_tenant(tenant_id, definition=definition)
             payload = dict(payloads_by_tenant.get(tenant_id, {}))
             payload.pop("tenant_id", None)
             payload.setdefault("is_enabled", not is_all_tenants)
@@ -440,7 +459,7 @@ class TaskBindingService(GlobalService[TenantTaskBinding, TenantTaskBindingRepos
             added += 1
 
         for tenant_id in sorted(target & current):
-            await self._require_eligible_tenant(tenant_id)
+            await self._require_eligible_tenant(tenant_id, definition=definition)
             binding = existing_map[tenant_id]
             payload = dict(payloads_by_tenant.get(tenant_id, {}))
             payload.pop("tenant_id", None)
@@ -460,16 +479,11 @@ class TaskBindingService(GlobalService[TenantTaskBinding, TenantTaskBindingRepos
             updated += 1
 
         if is_all_tenants:
-            if replace_all_tenant_bindings:
-                stale_ids = [
-                    existing_map[tenant_id].id for tenant_id in sorted(current - target)
-                ]
-            else:
-                stale_ids = [
-                    binding.id
-                    for binding in existing
-                    if bool(binding.is_enabled) and binding.tenant_id not in target
-                ]
+            stale_ids = [
+                binding.id
+                for binding in existing
+                if bool(binding.is_enabled) and binding.tenant_id not in target
+            ]
         elif effective_scope in self.EXPLICIT_BINDING_SCOPES:
             stale_ids = [
                 existing_map[tenant_id].id for tenant_id in sorted(current - target)

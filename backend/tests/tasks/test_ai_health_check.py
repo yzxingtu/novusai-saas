@@ -557,3 +557,82 @@ async def test_failover_service_uses_compatible_candidate_when_chain_missing(
         needs_function_calling=True,
         min_context_window=128000,
     )
+
+
+@pytest.mark.asyncio
+async def test_failover_service_skips_incompatible_explicit_fallback(
+    monkeypatch,
+) -> None:
+    original_model = SimpleNamespace(
+        id=1,
+        provider_id=10,
+        tier="premium",
+        fallback_model_id=2,
+        is_active=True,
+    )
+    explicit_fallback = SimpleNamespace(
+        id=2,
+        name="healthy-small-text",
+        provider_id=20,
+        tier="premium",
+        fallback_model_id=None,
+        is_active=True,
+        supports_function_calling=False,
+        supports_vision=True,
+        supports_audio=True,
+        supports_video=False,
+        context_window=8192,
+        input_price_per_1k=0.01,
+    )
+    compatible_candidate = SimpleNamespace(
+        id=3,
+        name="healthy-multimodal-tool-model",
+        provider_id=30,
+        tier="premium",
+        supports_function_calling=True,
+        supports_vision=True,
+        supports_audio=True,
+        supports_video=True,
+        context_window=256000,
+        input_price_per_1k=0.02,
+    )
+    models_by_id = {
+        1: original_model,
+        2: explicit_fallback,
+    }
+
+    service = FailoverService(db=MagicMock())
+    service._model_repo = SimpleNamespace(
+        get_active_with_provider=AsyncMock(
+            side_effect=lambda model_id: models_by_id.get(model_id)
+        ),
+        get_by_id=AsyncMock(side_effect=lambda model_id: models_by_id.get(model_id)),
+        list_compatible_chat_models=AsyncMock(return_value=[compatible_candidate]),
+    )
+    provider_health_checks: list[int] = []
+
+    async def _fake_is_provider_healthy(provider_id: int) -> bool:
+        provider_health_checks.append(provider_id)
+        return True
+
+    monkeypatch.setattr(service, "is_provider_healthy", _fake_is_provider_healthy)
+
+    fallback = await service.get_fallback_model(
+        1,
+        needs_vision=True,
+        needs_audio=True,
+        needs_video=True,
+        needs_fc=True,
+        min_context_window=128000,
+    )
+
+    assert fallback is compatible_candidate
+    assert provider_health_checks == [10, 30]
+    service._model_repo.list_compatible_chat_models.assert_awaited_once_with(
+        exclude_model_ids=[1, 2],
+        needs_vision=True,
+        needs_audio=True,
+        needs_video=True,
+        needs_function_calling=True,
+        min_context_window=128000,
+    )

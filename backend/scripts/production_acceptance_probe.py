@@ -109,6 +109,31 @@ _CAPACITY_PLAN_DIR = Path("ops") / "production-acceptance" / "capacity"
 _K6_CAPACITY_SCRIPT = _CAPACITY_PLAN_DIR / "k6_ready.js"
 _LOCUST_CAPACITY_FILE = _CAPACITY_PLAN_DIR / "locust_ready.py"
 _PIP_AUDIT_MAX_ATTEMPTS = 2
+# 中文: Git 路径清单是验收证据，截断会漏掉受保护的运行时/部署变更。
+# EN: Git path lists are acceptance evidence; truncation can hide guarded
+# EN: runtime/deploy changes.
+_GIT_PATH_LIST_OUTPUT_LIMIT: int | None = None
+# 中文: 这些运行时/部署路径发生变化时，不允许 accepted runtime commit 复用旧 smoke 报告。
+# EN: Only changes in these runtime/deploy paths should force a fresh smoke report.
+_ACCEPTED_RUNTIME_GUARDED_PATH_PREFIXES = (
+    "backend/app/",
+    "backend/migrations/",
+    "backend/scripts/",
+    "backend/Dockerfile",
+    "backend/pyproject.toml",
+    "docker-compose.prod.yml",
+    "frontend/apps/",
+    "frontend/scripts/deploy/",
+    "frontend/package.json",
+    "frontend/pnpm-lock.yaml",
+    "frontend/pnpm-workspace.yaml",
+    "package.json",
+    "pnpm-lock.yaml",
+    "ops/production.env.example",
+    "ops/production-acceptance/capacity/",
+    "ops/prometheus/prometheus.dev.yml",
+    "ops/prometheus/rules/",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -238,9 +263,11 @@ def _request_text(
         }
 
 
-def _tail_text(value: str | None, limit: int = 4000) -> str:
+def _tail_text(value: str | None, limit: int | None = 4000) -> str:
     if not value:
         return ""
+    if limit is None:
+        return value
     return value[-limit:]
 
 
@@ -259,6 +286,8 @@ def _run_command(
     env: Mapping[str, str] | None = None,
     stdout_path: Path | None = None,
     stderr_path: Path | None = None,
+    stdout_tail_limit: int | None = 4000,
+    stderr_tail_limit: int | None = 4000,
     timeout: float,
 ) -> dict[str, Any]:
     started_at = time.perf_counter()
@@ -294,8 +323,8 @@ def _run_command(
             "elapsed_ms": round((time.perf_counter() - started_at) * 1000, 2),
             "timed_out": True,
             "timeout_seconds": timeout,
-            "stdout_tail": _tail_text(stdout),
-            "stderr_tail": _tail_text(stderr),
+            "stdout_tail": _tail_text(stdout, stdout_tail_limit),
+            "stderr_tail": _tail_text(stderr, stderr_tail_limit),
         }
 
     if stdout_path is not None:
@@ -310,8 +339,8 @@ def _run_command(
         "cwd": str(cwd) if cwd else None,
         "exit_code": completed.returncode,
         "elapsed_ms": round((time.perf_counter() - started_at) * 1000, 2),
-        "stdout_tail": _tail_text(completed.stdout),
-        "stderr_tail": _tail_text(completed.stderr),
+        "stdout_tail": _tail_text(completed.stdout, stdout_tail_limit),
+        "stderr_tail": _tail_text(completed.stderr, stderr_tail_limit),
         "stdout_path": str(stdout_path) if stdout_path else None,
         "stderr_path": str(stderr_path) if stderr_path else None,
     }
@@ -454,6 +483,102 @@ def _current_repo_state(repo_root: Path) -> dict[str, Any]:
         "dirty": bool(str(status.get("stdout_tail") or "").strip()),
         "head_command": head,
         "status_command": status,
+    }
+
+
+def _normalize_repo_path(value: str) -> str:
+    return value.replace("\\", "/").lstrip("./")
+
+
+def _is_guarded_runtime_path(path: str) -> bool:
+    normalized = _normalize_repo_path(path)
+    return any(
+        normalized == prefix.rstrip("/") or normalized.startswith(prefix)
+        for prefix in _ACCEPTED_RUNTIME_GUARDED_PATH_PREFIXES
+    )
+
+
+def _accepted_runtime_commit_guard(
+    repo_root: Path, accepted_runtime_commit: str
+) -> dict[str, Any]:
+    diff_args = ["git", "diff", "--name-only", f"{accepted_runtime_commit}..HEAD"]
+    diff = _run_command(
+        diff_args,
+        cwd=repo_root,
+        stdout_tail_limit=_GIT_PATH_LIST_OUTPUT_LIMIT,
+        timeout=10,
+    )
+    if diff.get("exit_code") != 0:
+        return {
+            "available": False,
+            "diff_command": diff,
+            "guarded_paths": [],
+        }
+
+    staged = _run_command(
+        ["git", "diff", "--cached", "--name-only"],
+        cwd=repo_root,
+        stdout_tail_limit=_GIT_PATH_LIST_OUTPUT_LIMIT,
+        timeout=10,
+    )
+    unstaged = _run_command(
+        ["git", "diff", "--name-only"],
+        cwd=repo_root,
+        stdout_tail_limit=_GIT_PATH_LIST_OUTPUT_LIMIT,
+        timeout=10,
+    )
+    untracked = _run_command(
+        ["git", "ls-files", "--others", "--exclude-standard"],
+        cwd=repo_root,
+        stdout_tail_limit=_GIT_PATH_LIST_OUTPUT_LIMIT,
+        timeout=10,
+    )
+    if (
+        staged.get("exit_code") != 0
+        or unstaged.get("exit_code") != 0
+        or untracked.get("exit_code") != 0
+    ):
+        return {
+            "available": False,
+            "diff_command": diff,
+            "staged_command": staged,
+            "unstaged_command": unstaged,
+            "untracked_command": untracked,
+            "guarded_paths": [],
+        }
+
+    changed_paths = {
+        _normalize_repo_path(path)
+        for path in str(diff.get("stdout_tail") or "").splitlines()
+        if path.strip()
+    }
+    changed_paths.update(
+        _normalize_repo_path(path)
+        for path in str(staged.get("stdout_tail") or "").splitlines()
+        if path.strip()
+    )
+    changed_paths.update(
+        _normalize_repo_path(path)
+        for path in str(unstaged.get("stdout_tail") or "").splitlines()
+        if path.strip()
+    )
+    changed_paths.update(
+        _normalize_repo_path(path)
+        for path in str(untracked.get("stdout_tail") or "").splitlines()
+        if path.strip()
+    )
+    guarded_paths = sorted(
+        path for path in changed_paths if _is_guarded_runtime_path(path)
+    )
+    return {
+        "available": True,
+        "accepted_runtime_commit": accepted_runtime_commit,
+        "diff_command": diff,
+        "staged_command": staged,
+        "unstaged_command": unstaged,
+        "untracked_command": untracked,
+        "changed_paths": sorted(changed_paths),
+        "guarded_paths": guarded_paths,
     }
 
 
@@ -907,6 +1032,7 @@ def _smoke_report_status(
     expected_agent_id: int | None = None,
     expected_agent_code: str | None = None,
     repo_root: Path | None = None,
+    accepted_runtime_commit: str | None = None,
 ) -> tuple[str, dict[str, Any]]:
     if path is None:
         return STATUS_BLOCKED, {"path": None}
@@ -1033,24 +1159,52 @@ def _smoke_report_status(
     elif ledger and ledger.valid and report_ledger.get("sha256") != ledger.sha256:
         blocking_errors.append("ledger_sha256_mismatch")
 
-    repo_details: dict[str, Any] = {"required": repo_root is not None}
+    normalized_accepted_commit = str(accepted_runtime_commit or "").strip() or None
+    repo_details: dict[str, Any] = {
+        "required": repo_root is not None,
+        "accepted_runtime_commit": normalized_accepted_commit,
+        "expected_commit_source": None,
+        "expected_commit": None,
+    }
     if repo_root is not None:
         current_repo = _current_repo_state(repo_root)
         report_repo = payload.get("repo")
         repo_details.update({"current": current_repo, "report": report_repo})
-        if not current_repo.get("available"):
+        if not current_repo.get("available") and normalized_accepted_commit is None:
             blocking_errors.append("repo_current_state_unavailable")
-        elif current_repo.get("dirty") is True:
+        elif normalized_accepted_commit is None and current_repo.get("dirty") is True:
             blocking_errors.append("repo_current_worktree_dirty")
+        expected_commit = normalized_accepted_commit
+        expected_commit_source = "accepted_runtime_commit"
+        if expected_commit is None:
+            expected_commit = (
+                str(current_repo.get("commit") or "").strip()
+                if current_repo.get("available")
+                else None
+            )
+            expected_commit_source = "current_head"
+        repo_details.update(
+            {
+                "expected_commit_source": expected_commit_source,
+                "expected_commit": expected_commit,
+            }
+        )
+        if normalized_accepted_commit is not None:
+            guard_state = _accepted_runtime_commit_guard(
+                repo_root, normalized_accepted_commit
+            )
+            repo_details["accepted_runtime_guard"] = guard_state
+            if not guard_state.get("available"):
+                blocking_errors.append("accepted_runtime_guard_unavailable")
+            elif guard_state.get("guarded_paths"):
+                blocking_errors.append("accepted_runtime_guarded_paths_changed")
         if not isinstance(report_repo, dict):
             blocking_errors.append("repo_evidence_missing")
         else:
             report_commit = str(report_repo.get("commit") or "").strip()
             if not report_commit:
                 blocking_errors.append("repo_commit_missing")
-            elif current_repo.get("available") and report_commit != str(
-                current_repo.get("commit") or ""
-            ):
+            elif expected_commit and report_commit != expected_commit:
                 blocking_errors.append("repo_commit_mismatch")
             if report_repo.get("dirty") is not False:
                 blocking_errors.append("repo_report_dirty_worktree")
@@ -1227,9 +1381,16 @@ def _smoke_report_status(
 
 
 def _smoke_report_passed(
-    path: Path | None, *, ledger: SmokeScenarioLedger | None = None
+    path: Path | None,
+    *,
+    ledger: SmokeScenarioLedger | None = None,
+    accepted_runtime_commit: str | None = None,
 ) -> tuple[bool, dict[str, Any]]:
-    status, details = _smoke_report_status(path, ledger=ledger)
+    status, details = _smoke_report_status(
+        path,
+        ledger=ledger,
+        accepted_runtime_commit=accepted_runtime_commit,
+    )
     return status == STATUS_PASSED, details
 
 
@@ -1239,6 +1400,7 @@ def probe_ai_smoke_readiness(
     ai_smoke_agent_id: int | None = None,
     ai_smoke_agent_code: str | None = None,
     smoke_report_path: Path | None = None,
+    accepted_runtime_commit: str | None = None,
 ) -> list[ProbeResult]:
     backend_env = _read_env_file(repo_root / "backend" / ".env")
     has_provider_key, provider_keys = _has_env_value(
@@ -1307,6 +1469,7 @@ def probe_ai_smoke_readiness(
         expected_agent_id=expected_agent_id,
         expected_agent_code=expected_agent_code,
         repo_root=repo_root,
+        accepted_runtime_commit=accepted_runtime_commit,
     )
     smoke_passed = smoke_report_status == STATUS_PASSED
     report_provider_evidence = bool(
@@ -2635,6 +2798,7 @@ def build_report(
     ai_smoke_agent_id: int | None,
     ai_smoke_agent_code: str | None,
     ai_smoke_report: Path | None,
+    ai_smoke_accepted_runtime_commit: str | None = None,
 ) -> dict[str, Any]:
     results: list[ProbeResult] = []
     results.extend(probe_api(api_base_url, timeout=timeout))
@@ -2652,6 +2816,7 @@ def build_report(
             ai_smoke_agent_id=ai_smoke_agent_id,
             ai_smoke_agent_code=ai_smoke_agent_code,
             smoke_report_path=ai_smoke_report,
+            accepted_runtime_commit=ai_smoke_accepted_runtime_commit,
         )
     )
     results.append(
@@ -2769,6 +2934,15 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--ai-smoke-agent-id", type=int, default=None)
     parser.add_argument("--ai-smoke-agent-code", default=None)
     parser.add_argument("--ai-smoke-report", default=None)
+    parser.add_argument(
+        "--ai-smoke-accepted-runtime-commit",
+        default=None,
+        help=(
+            "Accept an AI smoke report whose repo.commit matches this runtime "
+            "commit instead of the current repository HEAD. Reuse is blocked "
+            "when guarded runtime/deploy paths changed after that commit."
+        ),
+    )
     parser.add_argument("--timeout", type=float, default=5.0)
     parser.add_argument(
         "--allow-blocked",
@@ -2817,6 +2991,7 @@ def main() -> int:
         ai_smoke_report=(
             _resolve_cli_path(args.ai_smoke_report) if args.ai_smoke_report else None
         ),
+        ai_smoke_accepted_runtime_commit=args.ai_smoke_accepted_runtime_commit,
     )
     print(json.dumps(report, ensure_ascii=False, indent=2))
     if report["overall_status"] == STATUS_FAILED:

@@ -21,6 +21,7 @@ from app.middleware.trace import trace_id_var
 from app.models.system.task_definition import TaskDefinition
 from app.models.system.tenant_task_binding import TenantTaskBinding
 from app.services.system.task_tenant_eligibility_service import (
+    TaskTenantEligibilityRequirements,
     TaskTenantEligibilityService,
 )
 from app.tasks.base import BaseTask, get_task_registry, register_task
@@ -182,7 +183,7 @@ def _get_current_request_id(task: BaseTask) -> str | None:
 
 def _resolve_queue(definition: TaskDefinition) -> str:
     registry_info = get_task_registry().get(definition.handler_path, {})
-    return str(definition.default_queue or registry_info.get("queue") or "scheduled")
+    return str(registry_info.get("queue") or definition.default_queue or "scheduled")
 
 
 def _resolve_priority(definition: TaskDefinition) -> int | None:
@@ -197,13 +198,16 @@ def _build_handler_options(
     *,
     headers: dict[str, Any],
 ) -> dict[str, Any]:
+    queue = _resolve_queue(definition)
+    headers = {**headers, "queue": queue}
     options: dict[str, Any] = {
-        "queue": _resolve_queue(definition),
+        "queue": queue,
         "headers": headers,
     }
     priority = _resolve_priority(definition)
     if priority is not None:
         options["priority"] = priority
+        headers["priority"] = priority
     return options
 
 
@@ -230,10 +234,15 @@ def resolve_handler_kwargs(
     return kwargs
 
 
-def _resolve_all_tenant_ids(session, task_definition_id: int) -> list[int]:
+def _resolve_all_tenant_ids(
+    session,
+    task_definition_id: int,
+    requirements: TaskTenantEligibilityRequirements | None = None,
+) -> list[int]:
     return TaskTenantEligibilityService.resolve_all_tenant_ids_sync(
         session,
         task_definition_id=task_definition_id,
+        requirements=requirements,
     )
 
 
@@ -364,9 +373,18 @@ def run_all_tenants_task_definition(
                 "handler_path": definition.handler_path,
             }
 
-        tenant_ids = _resolve_all_tenant_ids(session, definition.id)
+        tenant_ids = _resolve_all_tenant_ids(
+            session,
+            definition.id,
+            TaskTenantEligibilityRequirements.from_definition(definition),
+        )
         dispatched_task_ids: list[str] = []
         dispatch_results: list[dict[str, Any]] = []
+        trigger_slot = _resolve_trigger_slot(
+            definition=definition,
+            binding=None,
+            trigger_source=trigger_source,
+        )
 
         for tenant_id in tenant_ids:
             args = _resolve_args(definition.default_args, None)
@@ -396,11 +414,7 @@ def run_all_tenants_task_definition(
                 run_kind=TaskRunKindEnum.TENANT_BINDING.value,
                 effective_tenant_id=tenant_id,
                 trigger_id=_get_current_request_id(self),
-                trigger_slot=_resolve_trigger_slot(
-                    definition=definition,
-                    binding=None,
-                    trigger_source=trigger_source,
-                ),
+                trigger_slot=trigger_slot,
             )
 
             try:
@@ -525,6 +539,20 @@ def run_tenant_task_binding(
                 "task_definition_id": binding.task_definition_id,
                 "handler_path": definition.handler_path,
             }
+        requirements = TaskTenantEligibilityRequirements.from_definition(definition)
+        if requirements.has_requirements:
+            eligibility = TaskTenantEligibilityService.resolve_tenant_eligibility_sync(
+                session,
+                binding.tenant_id,
+                requirements=requirements,
+            )
+            if not eligibility.is_eligible:
+                return {
+                    "dispatched": False,
+                    "reason": eligibility.reason,
+                    "binding_id": binding_id,
+                    "tenant_id": binding.tenant_id,
+                }
 
         args = _resolve_args(definition.default_args, binding.args_override)
         kwargs = resolve_handler_kwargs(

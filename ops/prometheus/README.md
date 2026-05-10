@@ -91,13 +91,16 @@ The local rule file provides baseline acceptance alerts:
 - database readiness unhealthy
 - Redis health degraded
 
-The DB and Redis component gauges are updated by `/ready` and `/health`. For
-this local acceptance flow, the production probe calls `/ready` and `/health`
-before `/metrics`, so those component gauges are refreshed before the scrape
-assertion. A production deployment must add a continuous health prober,
-blackbox exporter, or in-process refresh strategy before treating these
-component gauges as self-sustaining DB/Redis alerts under Prometheus-only
-scraping.
+The DB and Redis component gauges are refreshed by `/ready`, `/health`, and the
+`/metrics` scrape path. The scrape-time refresh is TTL-cached so Prometheus does
+not force a database and Redis probe on every scrape while still avoiding stale
+component-health samples when Prometheus is the only continuous caller.
+
+For production, keep the TTL and scrape interval aligned. If the deployment uses
+multiple workers, choose and document one aggregation strategy: single-worker
+scrape, one target per worker, or Prometheus multiprocess mode. A blackbox
+probe can still be added as an external alerting layer, but it is not required
+for the in-process component gauges to refresh.
 
 ## Production Acceptance Probe
 
@@ -117,6 +120,10 @@ Expected monitoring result after this task:
 ```text
 prometheus_metrics_endpoint: passed
 ```
+
+That probe result means the Prometheus exposition contract passed and the
+scrape-time component refresh path is reachable. It still does not replace
+production observability rollout, capacity testing, or external blackbox checks.
 
 The overall report can still be `blocked` while load/capacity tooling,
 backup/restore tooling, DAST tooling, and AI real-dialogue smoke prerequisites

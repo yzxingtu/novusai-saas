@@ -33,17 +33,15 @@ class LLMReranker:
 
     SYSTEM_PROMPT = render_prompt_contract("rag_reranker_system")
 
-    def __init__(self, db: AsyncSession, tenant_id: int, model: str | None = None):
+    def __init__(self, db: AsyncSession, tenant_id: int):
         """
         Args:
             db: Database session / 数据库会话
             tenant_id: Tenant ID / 企业 ID
-            model: LLM model code / LLM 模型代码
         """
         self.db = db
         self.tenant_id = tenant_id
         self.gateway = AIGateway(db)
-        self.model = model
 
     async def rerank(
         self,
@@ -162,14 +160,6 @@ class LLMReranker:
 
     async def _get_model_info(self) -> tuple[str, str]:
         """Get LLM model info / 获取 LLM 模型信息"""
-        from app.repositories.ai import AIModelRepository
-
-        if self.model:
-            model_repo = AIModelRepository(self.db)
-            ai_model = await model_repo.get_by_code(self.model)
-            if ai_model and ai_model.provider:
-                return ai_model.provider.code, ai_model.code
-
         from app.core.config import settings
 
         return settings.DEFAULT_AI_PROVIDER, settings.DEFAULT_AI_MODEL

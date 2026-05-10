@@ -20,6 +20,9 @@ import pytest
 from app.exceptions import BusinessException
 from app.services.ai import runtime_real_dialogue_smoke_service as smoke_module
 from app.services.ai.runtime_inventory_service import RuntimeInventoryService
+from app.services.ai.runtime_real_dialogue_smoke_evidence import (
+    build_required_tool_completion_evidence,
+)
 from app.services.ai.runtime_real_dialogue_smoke_service import (
     AI_REAL_DIALOGUE_SMOKE_EXECUTION_KIND,
     RuntimeRealDialogueSmokeService,
@@ -58,6 +61,78 @@ def _write_capability_ledger(path: Path) -> None:
     )
 
 
+def _write_required_tool_ledger(path: Path) -> None:
+    path.write_text(
+        "\n".join(
+            [
+                "# AI Real-Dialogue Smoke Scenarios",
+                "scenario_id: `SCENARIO-003-required-tool-completion`",
+                "priority: `must-pass`",
+                "user_input: `查询 CRM 客户 Acme 的续费状态。`",
+                "required_capabilities:",
+                "  - CRM skill tool",
+                "expected_observable_outcome: completed tool evidence",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+
+def _required_tool_planner(*, completed: bool) -> dict[str, Any]:
+    completed_names = ["get_customer_renewal_status"] if completed else []
+    return {
+        "intent": "crm_lookup",
+        "family": "crm",
+        "intent_plan": [
+            {
+                "intent_id": "intent-crm-1",
+                "kind": "crm_lookup",
+                "family": "crm",
+                "status": "completed" if completed else "pending",
+                "requires_tools": True,
+                "allowed_tool_names": ["get_customer_renewal_status"],
+                "completed_by_tool_names": completed_names,
+            }
+        ],
+    }
+
+
+def _write_secondary_required_tool_ledger(path: Path) -> None:
+    path.write_text(
+        "\n".join(
+            [
+                "# AI Real-Dialogue Smoke Scenarios",
+                "scenario_id: `SCENARIO-003-secondary-tool-required`",
+                "priority: `must-pass`",
+                "user_input: `查询 SKU-001 当前可售库存。`",
+                "required_capabilities:",
+                "  - inventory skill tool",
+                "expected_observable_outcome: completed inventory tool evidence",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+
+def _secondary_required_tool_planner(*, completed: bool) -> dict[str, Any]:
+    completed_names = ["lookup_inventory_quantity"] if completed else []
+    return {
+        "intent": "inventory_lookup",
+        "family": "inventory",
+        "intent_plan": [
+            {
+                "intent_id": "intent-inventory-1",
+                "kind": "inventory_lookup",
+                "family": "inventory",
+                "status": "completed" if completed else "pending",
+                "requires_tools": True,
+                "allowed_tool_names": ["lookup_inventory_quantity"],
+                "completed_by_tool_names": completed_names,
+            }
+        ],
+    }
+
+
 def _manifest_without_optional_skills_or_kb() -> dict[str, Any]:
     return {
         "summary": {
@@ -83,6 +158,178 @@ def _manifest_without_optional_skills_or_kb() -> dict[str, Any]:
         "knowledge_bases": [],
         "memory": [{"name": "memory", "status": "available", "reason": None}],
     }
+
+
+def test_parse_smoke_ledger_keeps_wrapped_required_capabilities_scoped(
+    tmp_path: Path,
+) -> None:
+    """Test type: behavioral.
+
+    中文: 多行 required_capabilities 只解析自身列表，并拼接缩进续行。
+    EN: Multiline required_capabilities parsing stays scoped to its own list and
+    joins indented continuation lines.
+    """
+
+    ledger_path = tmp_path / "smoke-scenarios.md"
+    ledger_path.write_text(
+        "\n".join(
+            [
+                "# AI Real-Dialogue Smoke Scenarios",
+                "- scenario_id: `SCENARIO-001-runtime-capability-smoke`",
+                "- priority: `must-pass`",
+                "- user_input: `说明一下这个系统的核心能力，并保持回答简洁。`",
+                "- required_capabilities:",
+                "  - Real provider credential configured for the selected agent.",
+                "  - `python -m app.cli ai smoke --agent-id <id> --json` or",
+                "    `python -m app.cli ai smoke --agent-code <code> --json` can resolve the",
+                "    agent.",
+                "- expected_observable_outcome:",
+                "  - CLI exits with code `0`.",
+                "  - Runtime diagnostics do not expose retired current-page tools.",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    ledger = smoke_module._parse_smoke_ledger(ledger_path)
+
+    assert ledger.valid is True
+    assert ledger.scenario_ids == ["SCENARIO-001-runtime-capability-smoke"]
+    assert ledger.scenarios[0].required_capabilities == (
+        "Real provider credential configured for the selected agent.",
+        "python -m app.cli ai smoke --agent-id <id> --json` or "
+        "python -m app.cli ai smoke --agent-code <code> --json` can resolve the agent.",
+    )
+
+
+def test_required_tool_completion_evidence_accepts_turn_completed_event() -> None:
+    """Test type: behavioral.
+
+    中文: requires_tools 意图可用 turn.tool_completed 诊断作为完成证据。
+    EN: requires_tools intents can use turn.tool_completed diagnostics as
+    completion evidence.
+    """
+
+    evidence = build_required_tool_completion_evidence(
+        {
+            "intent_plan": [
+                {
+                    "intent_id": "intent-inventory-1",
+                    "kind": "inventory_lookup",
+                    "requires_tools": True,
+                    "allowed_tool_names": ["lookup_inventory_quantity"],
+                    "completed_by_tool_names": [],
+                }
+            ],
+        },
+        {
+            "events": [
+                {
+                    "kind": "turn.tool_completed",
+                    "data": {"tool_name": "lookup_inventory_quantity", "success": True},
+                }
+            ]
+        },
+    )
+
+    assert evidence["required"] is True
+    assert evidence["passed"] is True
+    assert evidence["matched_tool_names"] == ["lookup_inventory_quantity"]
+
+
+def test_required_tool_completion_evidence_rejects_unrelated_tool_name() -> None:
+    """Test type: behavioral.
+
+    中文: 完成证据必须匹配 requires_tools 意图声明的工具名。
+    EN: Completion evidence must match the tool names declared by the
+    requires_tools intent.
+    """
+
+    evidence = build_required_tool_completion_evidence(
+        {
+            "intent_plan": [
+                {
+                    "intent_id": "intent-inventory-1",
+                    "kind": "inventory_lookup",
+                    "requires_tools": True,
+                    "allowed_tool_names": ["lookup_inventory_quantity"],
+                    "completed_by_tool_names": ["crm_lookup"],
+                }
+            ],
+        }
+    )
+
+    assert evidence["required"] is True
+    assert evidence["passed"] is False
+    assert evidence["matched_tool_names"] == []
+    assert evidence["completed_tool_names"] == ["crm_lookup"]
+
+
+def test_required_tool_completion_evidence_rejects_global_completion_without_declared_name() -> (
+    None
+):
+    """Test type: behavioral.
+
+    中文: requires_tools 意图未声明工具名时，不能用全局任意完成事件假绿。
+    EN: A requires_tools intent without declared tool names cannot pass via an
+    arbitrary global completion event.
+    """
+
+    evidence = build_required_tool_completion_evidence(
+        {
+            "intent_plan": [
+                {
+                    "intent_id": "intent-crm-1",
+                    "kind": "crm_lookup",
+                    "requires_tools": True,
+                    "completed_by_tool_names": [],
+                }
+            ],
+        },
+        {
+            "events": [
+                {
+                    "kind": "turn.tool_completed",
+                    "data": {"tool_name": "unrelated_tool", "success": True},
+                }
+            ]
+        },
+    )
+
+    assert evidence["required"] is True
+    assert evidence["passed"] is False
+    assert evidence["matched_tool_names"] == []
+    assert evidence["completed_tool_names"] == ["unrelated_tool"]
+
+
+def test_required_tool_completion_evidence_rejects_intent_completion_without_declared_name() -> (
+    None
+):
+    """Test type: behavioral.
+
+    中文: requires_tools 意图未声明工具名时，不能用 intent 内任意完成工具自证通过。
+    EN: A requires_tools intent without declared tool names cannot pass via an
+    arbitrary intent-local completed tool name.
+    """
+
+    evidence = build_required_tool_completion_evidence(
+        {
+            "intent_plan": [
+                {
+                    "intent_id": "intent-crm-1",
+                    "kind": "crm_lookup",
+                    "requires_tools": True,
+                    "completed_by_tool_names": ["arbitrary_tool"],
+                }
+            ],
+        },
+    )
+
+    assert evidence["required"] is True
+    assert evidence["passed"] is False
+    assert evidence["matched_tool_names"] == []
+    assert evidence["completed_tool_names"] == ["arbitrary_tool"]
+    assert evidence["required_intents"][0]["missing_required_tool_names"] is True
 
 
 @pytest.mark.asyncio
@@ -529,6 +776,364 @@ async def test_real_dialogue_smoke_accepts_nonblocking_capability_degradation(
 
 
 @pytest.mark.asyncio
+async def test_real_dialogue_smoke_requires_tool_completion_evidence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test type: behavioral.
+
+    中文: requires_tools 意图需要工具时，非空回答不能替代工具完成证据。
+    EN: When an intent requires tools, non-empty text cannot replace tool
+    completion evidence.
+    """
+
+    async def fake_resolve_agent(
+        self,
+        *,
+        tenant_id: int | None,
+        agent_id: int | None,
+        agent_code: str | None,
+    ):
+        del self, tenant_id, agent_code
+        return SimpleNamespace(id=agent_id, name="Smoke Agent")
+
+    class FakeAgentChatService:
+        def __init__(self, db: Any, tenant_id: int) -> None:
+            _ = db, tenant_id
+
+        async def chat(self, **kwargs: Any):
+            _ = kwargs
+            tool_planner = _required_tool_planner(completed=False)
+            return SimpleNamespace(
+                conversation_id=101,
+                message="Acme 的续费状态良好。",
+                context_diagnostics={
+                    "selected_tool_names": ["get_customer_renewal_status"],
+                    "selected_skill_names": ["CRM Lookup"],
+                    "tool_planner": tool_planner,
+                },
+                total_tokens=12,
+                duration_ms=34,
+                last_run_summary={"tool_planner": tool_planner},
+            )
+
+    async def fake_latest_call_log(self, **kwargs: Any):
+        _ = self, kwargs
+        return SimpleNamespace(
+            id=202,
+            status="success",
+            provider_name_snapshot="provider",
+            model_name_snapshot="model",
+            request_type="chat",
+            call_type="main_chat",
+        )
+
+    monkeypatch.setattr(RuntimeInventoryService, "_resolve_agent", fake_resolve_agent)
+    monkeypatch.setattr(smoke_module, "AgentChatService", FakeAgentChatService)
+    monkeypatch.setattr(
+        RuntimeRealDialogueSmokeService,
+        "_latest_call_log",
+        fake_latest_call_log,
+    )
+
+    ledger = tmp_path / "smoke-scenarios.md"
+    _write_required_tool_ledger(ledger)
+    service = RuntimeRealDialogueSmokeService(db=object())
+
+    report = await service.run(
+        tenant_id=7,
+        agent_id=59,
+        agent_code=None,
+        ledger_path=str(ledger),
+        scenario_ids=["SCENARIO-003-required-tool-completion"],
+        message=None,
+        user_id=3,
+        user_role="platform_admin",
+        user_role_id=None,
+        repo_root=None,
+    )
+
+    result = report["scenario_results"][0]
+    assert report["overall_status"] == "failed"
+    assert result["status"] == "failed"
+    assert result["observable_checks"]["assistant_text_non_empty"] is True
+    assert result["observable_checks"]["provider_call_succeeded"] is True
+    assert result["observable_checks"]["required_tool_completion_evidence"] is False
+    assert result["required_tool_completion_evidence"]["required"] is True
+    assert result["required_tool_completion_evidence"]["matched_tool_names"] == []
+
+
+@pytest.mark.asyncio
+async def test_real_dialogue_smoke_fails_ledger_required_tool_without_planner_evidence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test type: behavioral.
+
+    中文: ledger 声明需要工具时，runtime 未产出 requires_tools 诊断也必须失败。
+    EN: When the ledger declares a required tool capability, missing runtime
+    requires_tools diagnostics must fail closed.
+    """
+
+    async def fake_resolve_agent(
+        self,
+        *,
+        tenant_id: int | None,
+        agent_id: int | None,
+        agent_code: str | None,
+    ):
+        del self, tenant_id, agent_code
+        return SimpleNamespace(id=agent_id, name="Smoke Agent")
+
+    class FakeAgentChatService:
+        def __init__(self, db: Any, tenant_id: int) -> None:
+            _ = db, tenant_id
+
+        async def chat(self, **kwargs: Any):
+            _ = kwargs
+            return SimpleNamespace(
+                conversation_id=101,
+                message="Acme 的续费状态良好。",
+                context_diagnostics={
+                    "selected_tool_names": ["get_customer_renewal_status"],
+                    "selected_skill_names": ["CRM Lookup"],
+                },
+                total_tokens=12,
+                duration_ms=34,
+                last_run_summary={"finish": "ok"},
+            )
+
+    async def fake_latest_call_log(self, **kwargs: Any):
+        _ = self, kwargs
+        return SimpleNamespace(
+            id=202,
+            status="success",
+            provider_name_snapshot="provider",
+            model_name_snapshot="model",
+            request_type="chat",
+            call_type="main_chat",
+        )
+
+    monkeypatch.setattr(RuntimeInventoryService, "_resolve_agent", fake_resolve_agent)
+    monkeypatch.setattr(smoke_module, "AgentChatService", FakeAgentChatService)
+    monkeypatch.setattr(
+        RuntimeRealDialogueSmokeService,
+        "_latest_call_log",
+        fake_latest_call_log,
+    )
+
+    ledger = tmp_path / "smoke-scenarios.md"
+    _write_required_tool_ledger(ledger)
+    service = RuntimeRealDialogueSmokeService(db=object())
+
+    report = await service.run(
+        tenant_id=7,
+        agent_id=59,
+        agent_code=None,
+        ledger_path=str(ledger),
+        scenario_ids=["SCENARIO-003-required-tool-completion"],
+        message=None,
+        user_id=3,
+        user_role="platform_admin",
+        user_role_id=None,
+        repo_root=None,
+    )
+
+    result = report["scenario_results"][0]
+    assert report["overall_status"] == "failed"
+    assert result["observable_checks"]["required_tool_completion_evidence"] is False
+    assert result["required_tool_completion_evidence"]["required"] is True
+    assert result["required_tool_completion_evidence"]["required_by_ledger"] is True
+
+
+@pytest.mark.asyncio
+async def test_real_dialogue_smoke_accepts_completed_by_tool_names(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test type: behavioral.
+
+    中文: completed_by_tool_names 是 requires_tools smoke 的可接受完成证据。
+    EN: completed_by_tool_names is acceptable completion evidence for
+    requires_tools smoke.
+    """
+
+    async def fake_resolve_agent(
+        self,
+        *,
+        tenant_id: int | None,
+        agent_id: int | None,
+        agent_code: str | None,
+    ):
+        del self, tenant_id, agent_code
+        return SimpleNamespace(id=agent_id, name="Smoke Agent")
+
+    class FakeAgentChatService:
+        def __init__(self, db: Any, tenant_id: int) -> None:
+            _ = db, tenant_id
+
+        async def chat(self, **kwargs: Any):
+            _ = kwargs
+            tool_planner = _required_tool_planner(completed=True)
+            return SimpleNamespace(
+                conversation_id=101,
+                message="Acme 的续费状态已通过 CRM 工具查询完成。",
+                context_diagnostics={
+                    "selected_tool_names": ["get_customer_renewal_status"],
+                    "selected_skill_names": ["CRM Lookup"],
+                    "tool_planner": tool_planner,
+                },
+                total_tokens=12,
+                duration_ms=34,
+                last_run_summary={"tool_planner": tool_planner},
+            )
+
+    async def fake_latest_call_log(self, **kwargs: Any):
+        _ = self, kwargs
+        return SimpleNamespace(
+            id=303,
+            status="success",
+            provider_name_snapshot="provider",
+            model_name_snapshot="model",
+            request_type="chat",
+            call_type="main_chat",
+        )
+
+    monkeypatch.setattr(RuntimeInventoryService, "_resolve_agent", fake_resolve_agent)
+    monkeypatch.setattr(smoke_module, "AgentChatService", FakeAgentChatService)
+    monkeypatch.setattr(
+        RuntimeRealDialogueSmokeService,
+        "_latest_call_log",
+        fake_latest_call_log,
+    )
+
+    ledger = tmp_path / "smoke-scenarios.md"
+    _write_required_tool_ledger(ledger)
+    service = RuntimeRealDialogueSmokeService(db=object())
+
+    report = await service.run(
+        tenant_id=7,
+        agent_id=59,
+        agent_code=None,
+        ledger_path=str(ledger),
+        scenario_ids=["SCENARIO-003-required-tool-completion"],
+        message=None,
+        user_id=3,
+        user_role="platform_admin",
+        user_role_id=None,
+        repo_root=None,
+    )
+
+    result = report["scenario_results"][0]
+    assert report["overall_status"] == "passed"
+    assert result["status"] == "passed"
+    assert result["observable_checks"]["required_tool_completion_evidence"] is True
+    assert result["required_tool_completion_evidence"]["matched_tool_names"] == [
+        "get_customer_renewal_status"
+    ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("completed", "expected_status", "expected_passed", "expected_matched"),
+    [
+        (False, "failed", False, []),
+        (True, "passed", True, ["lookup_inventory_quantity"]),
+    ],
+)
+async def test_real_dialogue_smoke_generic_tool_intent_requires_completion_evidence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    completed: bool,
+    expected_status: str,
+    expected_passed: bool,
+    expected_matched: list[str],
+) -> None:
+    """Test type: behavioral.
+
+    中文: requires_tools=true 的任意工具意图必须以工具完成证据判定。
+    EN: Any tool intent with requires_tools=true must be judged by tool
+    completion evidence.
+    """
+
+    async def fake_resolve_agent(
+        self,
+        *,
+        tenant_id: int | None,
+        agent_id: int | None,
+        agent_code: str | None,
+    ):
+        del self, tenant_id, agent_code
+        return SimpleNamespace(id=agent_id, name="Smoke Agent")
+
+    class FakeAgentChatService:
+        def __init__(self, db: Any, tenant_id: int) -> None:
+            _ = db, tenant_id
+
+        async def chat(self, **kwargs: Any):
+            _ = kwargs
+            tool_planner = _secondary_required_tool_planner(completed=completed)
+            return SimpleNamespace(
+                conversation_id=101,
+                message="SKU-001 当前可售库存已通过工具查询完成。",
+                context_diagnostics={
+                    "selected_tool_names": ["lookup_inventory_quantity"],
+                    "selected_skill_names": ["Inventory"],
+                    "tool_planner": tool_planner,
+                },
+                total_tokens=12,
+                duration_ms=34,
+                last_run_summary={"tool_planner": tool_planner},
+            )
+
+    async def fake_latest_call_log(self, **kwargs: Any):
+        _ = self, kwargs
+        return SimpleNamespace(
+            id=404,
+            status="success",
+            provider_name_snapshot="provider",
+            model_name_snapshot="model",
+            request_type="chat",
+            call_type="main_chat",
+        )
+
+    monkeypatch.setattr(RuntimeInventoryService, "_resolve_agent", fake_resolve_agent)
+    monkeypatch.setattr(smoke_module, "AgentChatService", FakeAgentChatService)
+    monkeypatch.setattr(
+        RuntimeRealDialogueSmokeService,
+        "_latest_call_log",
+        fake_latest_call_log,
+    )
+
+    ledger = tmp_path / "smoke-scenarios.md"
+    _write_secondary_required_tool_ledger(ledger)
+    service = RuntimeRealDialogueSmokeService(db=object())
+
+    report = await service.run(
+        tenant_id=7,
+        agent_id=59,
+        agent_code=None,
+        ledger_path=str(ledger),
+        scenario_ids=["SCENARIO-003-secondary-tool-required"],
+        message=None,
+        user_id=3,
+        user_role="platform_admin",
+        user_role_id=None,
+        repo_root=None,
+    )
+
+    result = report["scenario_results"][0]
+    assert report["overall_status"] == expected_status
+    assert result["observable_checks"]["required_tool_completion_evidence"] is (
+        expected_passed
+    )
+    assert (
+        result["required_tool_completion_evidence"]["matched_tool_names"]
+        == expected_matched
+    )
+
+
+@pytest.mark.asyncio
 async def test_real_dialogue_smoke_fails_on_retired_provider_search_diagnostics(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -609,3 +1214,97 @@ async def test_real_dialogue_smoke_fails_on_retired_provider_search_diagnostics(
     assert result["retired_capability_probe_values"]["context_diagnostics"][
         "provider_events"
     ] == [{"kind": "response.web_search_call.completed"}]
+
+
+@pytest.mark.asyncio
+async def test_real_dialogue_smoke_fails_required_tool_intent_without_completion(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test type: behavioral.
+
+    中文: 任意 requires_tools 意图都必须有工具完成证据。
+    EN: Any requires_tools intent must have tool completion evidence.
+    """
+
+    async def fake_resolve_agent(
+        self,
+        *,
+        tenant_id: int | None,
+        agent_id: int | None,
+        agent_code: str | None,
+    ):
+        del self, tenant_id, agent_code
+        return SimpleNamespace(id=agent_id, name="Smoke Agent")
+
+    class FakeAgentChatService:
+        def __init__(self, db: Any, tenant_id: int) -> None:
+            _ = db, tenant_id
+
+        async def chat(self, **kwargs: Any):
+            _ = kwargs
+            return SimpleNamespace(
+                conversation_id=101,
+                message="我已经处理了这个企业查询请求。",
+                context_diagnostics={
+                    "selected_tool_names": ["crm_lookup"],
+                    "selected_skill_names": ["CRM Lookup"],
+                    "intent_plan": [
+                        {
+                            "intent_id": "intent-1",
+                            "kind": "crm_lookup",
+                            "requires_tools": True,
+                            "allowed_tool_names": ["crm_lookup"],
+                            "completed_by_tool_names": [],
+                        }
+                    ],
+                },
+                total_tokens=12,
+                duration_ms=34,
+                last_run_summary={"finish": "ok"},
+            )
+
+    async def fake_latest_call_log(self, **kwargs: Any):
+        _ = self, kwargs
+        return SimpleNamespace(
+            id=202,
+            status="success",
+            provider_name_snapshot="provider",
+            model_name_snapshot="model",
+            request_type="chat",
+            call_type="main_chat",
+        )
+
+    monkeypatch.setattr(RuntimeInventoryService, "_resolve_agent", fake_resolve_agent)
+    monkeypatch.setattr(smoke_module, "AgentChatService", FakeAgentChatService)
+    monkeypatch.setattr(
+        RuntimeRealDialogueSmokeService,
+        "_latest_call_log",
+        fake_latest_call_log,
+    )
+
+    ledger = tmp_path / "smoke-scenarios.md"
+    _write_ledger(ledger)
+    service = RuntimeRealDialogueSmokeService(db=object())
+
+    report = await service.run(
+        tenant_id=7,
+        agent_id=59,
+        agent_code=None,
+        ledger_path=str(ledger),
+        scenario_ids=["SCENARIO-002-short-answer-real-turn"],
+        message=None,
+        user_id=3,
+        user_role="platform_admin",
+        user_role_id=None,
+        repo_root=None,
+    )
+
+    result = report["scenario_results"][0]
+    assert report["overall_status"] == "failed"
+    assert result["status"] == "failed"
+    assert result["observable_checks"]["required_tool_completion_evidence"] is False
+    evidence = result["required_tool_completion_evidence"]
+    assert evidence["required"] is True
+    assert evidence["passed"] is False
+    assert evidence["required_tool_names"] == ["crm_lookup"]

@@ -393,6 +393,73 @@ def _clean_repo_state() -> dict:
     return {"available": True, "commit": "current-head", "dirty": False}
 
 
+def _dirty_repo_state() -> dict:
+    return {"available": True, "commit": "current-head", "dirty": True}
+
+
+def _clean_accepted_runtime_guard(accepted_runtime_commit: str) -> dict:
+    return {
+        "available": True,
+        "accepted_runtime_commit": accepted_runtime_commit,
+        "changed_paths": ["ops/production-acceptance/README.md"],
+        "guarded_paths": [],
+    }
+
+
+def test_accepted_runtime_guard_reports_runtime_and_deploy_paths(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    def command(args, **kwargs):
+        del kwargs
+        if args == ["git", "diff", "--name-only", "accepted-runtime..HEAD"]:
+            return {
+                "exit_code": 0,
+                "stdout_tail": (
+                    "ops/production-acceptance/README.md\n"
+                    "docker-compose.prod.yml\n"
+                    "frontend/apps/web-antd/src/main.ts\n"
+                ),
+            }
+        return {"exit_code": 0, "stdout_tail": ""}
+
+    monkeypatch.setattr(probe, "_run_command", command)
+
+    state = probe._accepted_runtime_commit_guard(tmp_path, "accepted-runtime")
+
+    assert state["available"] is True
+    assert state["guarded_paths"] == [
+        "docker-compose.prod.yml",
+        "frontend/apps/web-antd/src/main.ts",
+    ]
+    assert "ops/production-acceptance/README.md" in state["changed_paths"]
+
+
+def test_accepted_runtime_guard_uses_untruncated_git_path_lists(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    guarded_path = "backend/app/runtime_changed.py"
+    filler_paths = "\n".join(
+        f"docs/generated/acceptance-note-{index:04d}.md" for index in range(800)
+    )
+    long_stdout = f"{guarded_path}\n{filler_paths}\n"
+
+    def command(args, **kwargs):
+        if args == ["git", "diff", "--name-only", "accepted-runtime..HEAD"]:
+            limit = kwargs.get("stdout_tail_limit", 4000)
+            stdout_tail = long_stdout if limit is None else long_stdout[-limit:]
+            return {"exit_code": 0, "stdout_tail": stdout_tail}
+        return {"exit_code": 0, "stdout_tail": ""}
+
+    monkeypatch.setattr(probe, "_run_command", command)
+
+    state = probe._accepted_runtime_commit_guard(tmp_path, "accepted-runtime")
+
+    assert guarded_path in state["changed_paths"]
+    assert state["guarded_paths"] == [guarded_path]
+
+
 def test_ai_smoke_minimal_passed_json_is_not_execution_evidence(
     tmp_path: Path,
     monkeypatch,
@@ -951,6 +1018,33 @@ def test_dast_tooling_blocks_when_only_zap_cli_exists(monkeypatch) -> None:
     assert result.details["native_required_any"] == ["zap-baseline.py"]
 
 
+def test_ai_smoke_report_passes_when_report_commit_matches_current_head(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    ledger = tmp_path / "ledger" / "smoke-scenarios.md"
+    ledger_hash = _write_smoke_ledger(ledger)
+    report = tmp_path / "smoke-report.json"
+    report.write_text(
+        json.dumps(_strict_ai_smoke_report_payload(ledger_hash)),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        probe, "_current_repo_state", lambda _repo_root: _clean_repo_state()
+    )
+
+    status, details = probe._smoke_report_status(
+        report,
+        ledger=probe._parse_smoke_scenario_ledger(ledger),
+        expected_agent_id=59,
+        repo_root=tmp_path,
+    )
+
+    assert status == probe.STATUS_PASSED
+    assert details["repo"]["expected_commit"] == "current-head"
+    assert details["repo"]["expected_commit_source"] == "current_head"
+
+
 def test_ai_smoke_report_blocks_when_report_commit_mismatches_current_head(
     tmp_path: Path,
     monkeypatch,
@@ -982,9 +1076,173 @@ def test_ai_smoke_report_blocks_when_report_commit_mismatches_current_head(
     assert "repo_commit_mismatch" in details["blocking_errors"]
 
 
+def test_ai_smoke_report_passes_when_report_matches_accepted_runtime_commit(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    ledger = tmp_path / "ledger" / "smoke-scenarios.md"
+    ledger_hash = _write_smoke_ledger(ledger)
+    report = tmp_path / "smoke-report.json"
+    report.write_text(
+        json.dumps(
+            _strict_ai_smoke_report_payload(
+                ledger_hash,
+                repo={"commit": "accepted-runtime", "dirty": False},
+            )
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        probe, "_current_repo_state", lambda _repo_root: _clean_repo_state()
+    )
+    monkeypatch.setattr(
+        probe,
+        "_accepted_runtime_commit_guard",
+        lambda _repo_root, commit: _clean_accepted_runtime_guard(commit),
+    )
+
+    status, details = probe._smoke_report_status(
+        report,
+        ledger=probe._parse_smoke_scenario_ledger(ledger),
+        expected_agent_id=59,
+        repo_root=tmp_path,
+        accepted_runtime_commit="accepted-runtime",
+    )
+
+    assert status == probe.STATUS_PASSED
+    assert details["repo"]["current"]["commit"] == "current-head"
+    assert details["repo"]["expected_commit"] == "accepted-runtime"
+    assert details["repo"]["expected_commit_source"] == "accepted_runtime_commit"
+    assert details["repo"]["accepted_runtime_guard"]["guarded_paths"] == []
+
+
+def test_ai_smoke_report_allows_accepted_runtime_commit_for_docs_only_diff(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    ledger = tmp_path / "ledger" / "smoke-scenarios.md"
+    ledger_hash = _write_smoke_ledger(ledger)
+    report = tmp_path / "smoke-report.json"
+    report.write_text(
+        json.dumps(
+            _strict_ai_smoke_report_payload(
+                ledger_hash,
+                repo={"commit": "accepted-runtime", "dirty": False},
+            )
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        probe, "_current_repo_state", lambda _repo_root: _dirty_repo_state()
+    )
+    monkeypatch.setattr(
+        probe,
+        "_accepted_runtime_commit_guard",
+        lambda _repo_root, commit: _clean_accepted_runtime_guard(commit),
+    )
+
+    status, details = probe._smoke_report_status(
+        report,
+        ledger=probe._parse_smoke_scenario_ledger(ledger),
+        expected_agent_id=59,
+        repo_root=tmp_path,
+        accepted_runtime_commit="accepted-runtime",
+    )
+
+    assert status == probe.STATUS_PASSED
+    assert "repo_current_worktree_dirty" not in details["blocking_errors"]
+    assert details["repo"]["accepted_runtime_guard"]["changed_paths"] == [
+        "ops/production-acceptance/README.md"
+    ]
+
+
+def test_ai_smoke_report_blocks_accepted_runtime_commit_when_guarded_path_changed(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    ledger = tmp_path / "ledger" / "smoke-scenarios.md"
+    ledger_hash = _write_smoke_ledger(ledger)
+    report = tmp_path / "smoke-report.json"
+    report.write_text(
+        json.dumps(
+            _strict_ai_smoke_report_payload(
+                ledger_hash,
+                repo={"commit": "accepted-runtime", "dirty": False},
+            )
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        probe, "_current_repo_state", lambda _repo_root: _dirty_repo_state()
+    )
+    monkeypatch.setattr(
+        probe,
+        "_accepted_runtime_commit_guard",
+        lambda _repo_root, _commit: {
+            "available": True,
+            "changed_paths": ["docker-compose.prod.yml"],
+            "guarded_paths": ["docker-compose.prod.yml"],
+        },
+    )
+
+    status, details = probe._smoke_report_status(
+        report,
+        ledger=probe._parse_smoke_scenario_ledger(ledger),
+        expected_agent_id=59,
+        repo_root=tmp_path,
+        accepted_runtime_commit="accepted-runtime",
+    )
+
+    assert status == probe.STATUS_BLOCKED
+    assert "accepted_runtime_guarded_paths_changed" in details["blocking_errors"]
+    assert details["repo"]["accepted_runtime_guard"]["guarded_paths"] == [
+        "docker-compose.prod.yml"
+    ]
+
+
+def test_ai_smoke_report_blocks_when_accepted_runtime_commit_mismatches_report(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    ledger = tmp_path / "ledger" / "smoke-scenarios.md"
+    ledger_hash = _write_smoke_ledger(ledger)
+    report = tmp_path / "smoke-report.json"
+    report.write_text(
+        json.dumps(
+            _strict_ai_smoke_report_payload(
+                ledger_hash,
+                repo={"commit": "other-runtime", "dirty": False},
+            )
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        probe, "_current_repo_state", lambda _repo_root: _clean_repo_state()
+    )
+    monkeypatch.setattr(
+        probe,
+        "_accepted_runtime_commit_guard",
+        lambda _repo_root, commit: _clean_accepted_runtime_guard(commit),
+    )
+
+    status, details = probe._smoke_report_status(
+        report,
+        ledger=probe._parse_smoke_scenario_ledger(ledger),
+        expected_agent_id=59,
+        repo_root=tmp_path,
+        accepted_runtime_commit="accepted-runtime",
+    )
+
+    assert status == probe.STATUS_BLOCKED
+    assert "repo_commit_mismatch" in details["blocking_errors"]
+    assert details["repo"]["expected_commit"] == "accepted-runtime"
+
+
+@pytest.mark.parametrize("accepted_runtime_commit", [None, "current-head"])
 def test_ai_smoke_report_blocks_when_report_was_generated_from_dirty_worktree(
     tmp_path: Path,
     monkeypatch,
+    accepted_runtime_commit: str | None,
 ) -> None:
     ledger = tmp_path / "ledger" / "smoke-scenarios.md"
     ledger_hash = _write_smoke_ledger(ledger)
@@ -1001,12 +1259,18 @@ def test_ai_smoke_report_blocks_when_report_was_generated_from_dirty_worktree(
     monkeypatch.setattr(
         probe, "_current_repo_state", lambda _repo_root: _clean_repo_state()
     )
+    monkeypatch.setattr(
+        probe,
+        "_accepted_runtime_commit_guard",
+        lambda _repo_root, commit: _clean_accepted_runtime_guard(commit),
+    )
 
     status, details = probe._smoke_report_status(
         report,
         ledger=probe._parse_smoke_scenario_ledger(ledger),
         expected_agent_id=59,
         repo_root=tmp_path,
+        accepted_runtime_commit=accepted_runtime_commit,
     )
 
     assert status == probe.STATUS_BLOCKED

@@ -1,4 +1,9 @@
-"""Model service unit tests / AI 模型服务单元测试。"""
+"""中文: AI 模型服务单元测试。
+
+EN: AI model service unit tests.
+
+Test type: behavioral
+"""
 
 from __future__ import annotations
 
@@ -19,32 +24,6 @@ class _FakeModel:
 
 
 class TestModelQueries:
-    @pytest.mark.asyncio
-    async def test_get_by_code_returns_model_from_repo(self, mock_db):
-        from app.services.ai.model_service import AIModelService
-
-        service = AIModelService.__new__(AIModelService)
-        service.db = mock_db
-        service.repo = AsyncMock()
-        service.repo.get_by_code = AsyncMock(
-            return_value=SimpleNamespace(code="gpt-4o")
-        )
-
-        result = await service.get_by_code("gpt-4o")
-
-        assert result.code == "gpt-4o"
-
-    @pytest.mark.asyncio
-    async def test_get_by_code_returns_none_when_repo_misses(self, mock_db):
-        from app.services.ai.model_service import AIModelService
-
-        service = AIModelService.__new__(AIModelService)
-        service.db = mock_db
-        service.repo = AsyncMock()
-        service.repo.get_by_code = AsyncMock(return_value=None)
-
-        assert await service.get_by_code("missing") is None
-
     @pytest.mark.asyncio
     async def test_get_by_provider_passes_include_deleted_flag(self, mock_db):
         from app.services.ai.model_service import AIModelService

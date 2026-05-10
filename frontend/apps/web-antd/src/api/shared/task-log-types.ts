@@ -15,6 +15,7 @@ export interface TaskLogListParams extends Record<string, unknown> {
 export interface TaskLogInfo {
   id: number;
   taskId: string;
+  runKey: null | string;
   taskName: string;
   handlerPath: null | string;
   taskDefinitionId: null | number;

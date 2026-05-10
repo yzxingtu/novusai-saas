@@ -64,6 +64,11 @@ and must not be forwarded downstream as ordinary provider kwargs.
   model pool. Absence of a per-model chain is not a valid reason to skip
   runtime failover when another active model satisfies the turn capability
   requirements.
+- Runtime model failover must not carry the original model's forced protocol
+  selection (`_runtime_force_wire_api` / `_runtime_force_protocol_path`) into the
+  fallback adapter call. The fallback provider/model resolves its own
+  `protocol_capabilities.primary_wire_api`; runtime guard keys such as
+  `_runtime_disable_cross_protocol_fallback` still travel with the call.
 - Provider-native or hosted web search is removed from AI dialogue runtime
   contracts. Provider configs and protocol capabilities must not expose hosted
   search, native search, `SearchProvider`, or search/fetch support as callable

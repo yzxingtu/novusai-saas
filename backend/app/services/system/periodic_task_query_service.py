@@ -217,6 +217,12 @@ class PeriodicTaskPresentationService:
             is_locked=not definition.is_deletable,
             is_editable=definition.is_editable,
             default_priority=getattr(definition, "default_priority", None),
+            required_feature_codes=list(
+                getattr(definition, "required_feature_codes", None) or []
+            ),
+            required_plugin_names=list(
+                getattr(definition, "required_plugin_names", None) or []
+            ),
             max_retries=definition.max_retries,
             retry_delay=definition.retry_delay,
             timeout=definition.timeout,

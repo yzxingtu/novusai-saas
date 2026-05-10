@@ -35,12 +35,16 @@ class TaskRun(BaseModel):
         "task_name": "task_name_snapshot",
         "handler_path": "handler_path_snapshot",
         "queue": "queue",
+        "priority": "priority",
         "status": "status",
         "trigger_source": "trigger_source",
+        "trigger_slot": "trigger_slot",
+        "trigger_id": "trigger_id",
         "run_kind": "run_kind",
         "owner_tenant_id": "owner_tenant_id",
         "effective_tenant_id": "effective_tenant_id",
-        "tenant_id": "effective_tenant_id",
+        "retry_of_run_id": "retry_of_run_id",
+        "retry_of_task_id": "retry_of_task_id",
         "created_at": "created_at",
     }
 
@@ -78,6 +82,12 @@ class TaskRun(BaseModel):
             "run_kind",
             "created_at",
         ),
+        Index(
+            "ix_task_runs_definition_trigger_slot",
+            "task_definition_id",
+            "trigger_slot",
+        ),
+        Index("ix_task_runs_retry_of_run_id", "retry_of_run_id"),
     )
 
     celery_task_id: Mapped[str] = mapped_column(
@@ -151,6 +161,12 @@ class TaskRun(BaseModel):
         default="default",
         comment="执行队列",
     )
+    priority: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        default=None,
+        comment="Broker 优先级 / Broker priority",
+    )
     status: Mapped[str] = mapped_column(
         String(20),
         nullable=False,
@@ -198,6 +214,31 @@ class TaskRun(BaseModel):
         String(100),
         nullable=True,
         comment="链路追踪 ID",
+    )
+    trigger_slot: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+        default=None,
+        comment="调度槽位 / Scheduler trigger slot",
+    )
+    trigger_id: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+        default=None,
+        comment="触发请求 ID / Trigger request id",
+    )
+    retry_of_run_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("task_runs.id", ondelete="SET NULL"),
+        nullable=True,
+        default=None,
+        comment="重试来源运行 ID / Source run id for retry",
+    )
+    retry_of_task_id: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+        default=None,
+        comment="重试来源 Celery 任务 ID / Source Celery task id for retry",
     )
     started_at: Mapped[datetime | None] = mapped_column(
         nullable=True,

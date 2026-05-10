@@ -1,6 +1,6 @@
 import type {
   PeriodicTaskBindingInfo,
-  PeriodicTaskBindingUpdatePayload,
+  PeriodicTaskBindingSyncItemPayload,
 } from '#/api/admin/periodic-task';
 
 type TenantOptionLike = {
@@ -25,7 +25,7 @@ export interface TaskBindingOverrideDraft {
 
 export interface TaskBindingOverridePayloadResult {
   errors: Array<'config' | 'kwargs'>;
-  payload: PeriodicTaskBindingUpdatePayload;
+  payload: PeriodicTaskBindingSyncItemPayload;
 }
 
 function toJsonText(value: null | Record<string, unknown> | undefined): string {

@@ -2,9 +2,13 @@
 /**
  * 管理端通知模板管理页面
  */
-import type { NotificationTemplateInfo } from '#/api/admin/notification-templates';
+import type {
+  NotificationTemplateInfo,
+  NotificationTemplateLockedField,
+  UpdateNotificationTemplateParams,
+} from '#/api/admin/notification-templates';
 
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 
@@ -62,6 +66,7 @@ const editForm = ref<{
   enabled: boolean;
   id: number;
   isOverride: boolean;
+  lockedFields: NotificationTemplateLockedField[];
   pluginName: null | string;
   priority: string;
   scope: null | string;
@@ -76,6 +81,7 @@ const editForm = ref<{
   pluginName: null,
   source: null,
   isOverride: false,
+  lockedFields: [],
   enabled: true,
   channels: [],
   priority: 'normal',
@@ -118,6 +124,57 @@ const PRIORITY_OPTIONS = [
   },
 ];
 
+const LOCKABLE_TEMPLATE_FIELDS = [
+  'channels',
+  'priority',
+  'title_template',
+  'body_template',
+  'is_enabled',
+] as const;
+
+type LockableTemplateField = (typeof LOCKABLE_TEMPLATE_FIELDS)[number];
+
+const LOCKED_FIELD_LABEL_KEYS: Record<LockableTemplateField, string> = {
+  body_template: 'bodyTemplate',
+  channels: 'channels',
+  is_enabled: 'enabled',
+  priority: 'priority',
+  title_template: 'titleTemplate',
+};
+
+function isKnownLockableField(
+  field: NotificationTemplateLockedField,
+): field is LockableTemplateField {
+  return (LOCKABLE_TEMPLATE_FIELDS as readonly string[]).includes(field);
+}
+
+function getLockedFieldLabel(field: NotificationTemplateLockedField) {
+  if (!isKnownLockableField(field)) {
+    return field;
+  }
+  return $t(
+    `admin.system.notificationTemplate.${LOCKED_FIELD_LABEL_KEYS[field]}`,
+  );
+}
+
+function getLockedFieldLabels(
+  fields: NotificationTemplateLockedField[] | null | undefined,
+) {
+  return (fields ?? []).map((field) => getLockedFieldLabel(field));
+}
+
+function isLockedField(field: LockableTemplateField) {
+  return editForm.value.lockedFields.includes(field);
+}
+
+const canSaveEdit = computed(() =>
+  LOCKABLE_TEMPLATE_FIELDS.some((field) => !isLockedField(field)),
+);
+
+const editLockedFieldLabels = computed(() =>
+  getLockedFieldLabels(editForm.value.lockedFields),
+);
+
 async function onTest(row: NotificationTemplateInfo) {
   try {
     await testNotificationTemplateApi(row.id);
@@ -138,6 +195,7 @@ function onEdit(row: NotificationTemplateInfo) {
     pluginName: row.pluginName,
     source: row.source,
     isOverride: row.isOverride,
+    lockedFields: row.lockedFields,
     enabled: row.enabled,
     channels: row.channels || [],
     priority: row.priority,
@@ -145,6 +203,26 @@ function onEdit(row: NotificationTemplateInfo) {
     bodyTemplate: row.bodyTemplate || '',
   };
   editOpen.value = true;
+}
+
+function buildUpdatePayload(): UpdateNotificationTemplateParams {
+  const payload: UpdateNotificationTemplateParams = {};
+  if (!isLockedField('channels')) {
+    payload.channels = editForm.value.channels;
+  }
+  if (!isLockedField('priority')) {
+    payload.priority = editForm.value.priority;
+  }
+  if (!isLockedField('is_enabled')) {
+    payload.enabled = editForm.value.enabled;
+  }
+  if (!isLockedField('title_template')) {
+    payload.titleTemplate = editForm.value.titleTemplate;
+  }
+  if (!isLockedField('body_template')) {
+    payload.bodyTemplate = editForm.value.bodyTemplate || null;
+  }
+  return payload;
 }
 
 async function onPreview(row: NotificationTemplateInfo) {
@@ -178,15 +256,14 @@ function onRestore(row: NotificationTemplateInfo) {
 }
 
 async function handleSave() {
+  const payload = buildUpdatePayload();
+  if (Object.keys(payload).length === 0) {
+    return;
+  }
+
   editLoading.value = true;
   try {
-    await updateNotificationTemplateApi(editForm.value.id, {
-      channels: editForm.value.channels,
-      priority: editForm.value.priority,
-      enabled: editForm.value.enabled,
-      titleTemplate: editForm.value.titleTemplate,
-      bodyTemplate: editForm.value.bodyTemplate || null,
-    });
+    await updateNotificationTemplateApi(editForm.value.id, payload);
     message.success(
       $t('admin.system.notificationTemplate.messages.updateSuccess'),
     );
@@ -262,33 +339,69 @@ const { Grid, onRefresh: gridReload } = useCrudPage<NotificationTemplateInfo>({
         <Form.Item :label="$t('admin.system.notificationTemplate.override')">
           <Input :value="getOverrideLabel(editForm.isOverride)" disabled />
         </Form.Item>
+        <Form.Item
+          :label="$t('admin.system.notificationTemplate.lockedFields')"
+        >
+          <div
+            v-if="editLockedFieldLabels.length > 0"
+            class="flex flex-wrap gap-1"
+          >
+            <Tag
+              v-for="label in editLockedFieldLabels"
+              :key="label"
+              color="orange"
+            >
+              {{ label }}
+            </Tag>
+          </div>
+          <span v-else class="text-xs text-muted-foreground">
+            {{ $t('admin.system.notificationTemplate.noLockedFields') }}
+          </span>
+        </Form.Item>
         <Form.Item :label="$t('admin.system.notificationTemplate.enabled')">
-          <Switch v-model:checked="editForm.enabled" />
+          <Switch
+            v-model:checked="editForm.enabled"
+            :disabled="isLockedField('is_enabled')"
+          />
         </Form.Item>
         <Form.Item :label="$t('admin.system.notificationTemplate.channels')">
           <Checkbox.Group
             v-model:value="editForm.channels"
+            :disabled="isLockedField('channels')"
             :options="CHANNEL_OPTIONS"
           />
         </Form.Item>
         <Form.Item :label="$t('admin.system.notificationTemplate.priority')">
           <Select
             v-model:value="editForm.priority"
+            :disabled="isLockedField('priority')"
             :options="PRIORITY_OPTIONS"
           />
         </Form.Item>
         <Form.Item
           :label="$t('admin.system.notificationTemplate.titleTemplate')"
         >
-          <Input v-model:value="editForm.titleTemplate" />
+          <Input
+            v-model:value="editForm.titleTemplate"
+            :disabled="isLockedField('title_template')"
+          />
         </Form.Item>
         <Form.Item
           :label="$t('admin.system.notificationTemplate.bodyTemplate')"
         >
-          <Input.TextArea v-model:value="editForm.bodyTemplate" :rows="4" />
+          <Input.TextArea
+            v-model:value="editForm.bodyTemplate"
+            :disabled="isLockedField('body_template')"
+            :rows="4"
+          />
         </Form.Item>
         <Form.Item>
-          <Button type="primary" :loading="editLoading" @click="handleSave">
+          <Button
+            type="primary"
+            :disabled="!canSaveEdit"
+            :loading="editLoading"
+            @click="handleSave"
+          >
             {{ $t('common.save') }}
           </Button>
         </Form.Item>
@@ -456,6 +569,25 @@ const { Grid, onRefresh: gridReload } = useCrudPage<NotificationTemplateInfo>({
               :label="$t('admin.system.notificationTemplate.override')"
             >
               {{ getOverrideLabel(previewRecord?.isOverride || false) }}
+            </Descriptions.Item>
+            <Descriptions.Item
+              :label="$t('admin.system.notificationTemplate.lockedFields')"
+            >
+              <div
+                v-if="previewRecord?.lockedFields.length"
+                class="flex flex-wrap gap-1"
+              >
+                <Tag
+                  v-for="label in getLockedFieldLabels(
+                    previewRecord?.lockedFields,
+                  )"
+                  :key="label"
+                  color="orange"
+                >
+                  {{ label }}
+                </Tag>
+              </div>
+              <span v-else>-</span>
             </Descriptions.Item>
             <Descriptions.Item
               :label="$t('admin.system.notificationTemplate.enabled')"

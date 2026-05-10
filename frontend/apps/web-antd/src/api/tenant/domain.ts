@@ -143,27 +143,14 @@ function transformDomainInfo(raw: TenantDomainInfoRaw): TenantDomainInfo {
 export async function getTenantDomainsApi(
   options?: ApiRequestOptions,
 ): Promise<TenantDomainListResponse> {
-  const response = await requestClient.get<TenantDomainInfoRaw[]>(
-    '/tenant/domains',
-    options,
-  );
-
-  // Backend may return array or paginated object, handle both / 兼容处理
-  if (Array.isArray(response)) {
-    return {
-      items: response.map((item) => transformDomainInfo(item)),
-      total: response.length,
-    };
-  }
-
-  // If backend returns paginated format / 如果后端返回分页格式
-  const pageResponse = response as unknown as {
+  const response = await requestClient.get<{
     items: TenantDomainInfoRaw[];
     total: number;
-  };
+  }>('/tenant/domains', options);
+
   return {
-    items: pageResponse.items.map((item) => transformDomainInfo(item)),
-    total: pageResponse.total,
+    items: response.items.map((item) => transformDomainInfo(item)),
+    total: response.total,
   };
 }
 

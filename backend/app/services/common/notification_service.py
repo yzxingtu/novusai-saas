@@ -389,6 +389,7 @@ class NotificationService:
                 Notification.recipient_type == user_type,
                 Notification.recipient_id == user_id,
                 self._notification_tenant_condition(tenant_id),
+                Notification.is_deleted.is_(False),
             )
             .values(is_deleted=True, deleted_at=utc_now())
         )

@@ -1,4 +1,8 @@
-"""Custom recovery manager coverage for consent-pause semantics."""
+"""Custom recovery manager coverage for consent-pause semantics.
+
+Test type: structural / behavioral
+Scope: Existing AI tests in this module; no real-dialogue smoke acceptance is claimed.
+"""
 
 from app.ai.engine.recovery_manager import RecoveryManager
 from app.ai.engine.types import IntentPlan

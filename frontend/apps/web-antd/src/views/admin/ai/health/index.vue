@@ -34,6 +34,7 @@ import {
 import { useCrudList } from '#/composables';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
+import { getErrorMessage } from '#/utils/error-helpers';
 import { toAttachmentImageUrl } from '#/utils/image';
 
 defineOptions({ name: 'AIHealthMonitor' });
@@ -42,7 +43,14 @@ interface HealthHistoryDisplayPoint extends AIHealthHistoryEntry {
   isMissing?: boolean;
 }
 
+interface HealthHistoryState {
+  errorMessage?: string;
+  items: AIHealthHistoryEntry[];
+  status: 'error' | 'loaded';
+}
+
 const HISTORY_SLOT_COUNT = 60;
+const HISTORY_LOAD_TIMEOUT_MS = 12_000;
 
 // ========== 声明式列表管理 + 30秒自动刷新 / Declarative list + 30s refresh ==========
 const {
@@ -75,7 +83,7 @@ const unavailableCount = computed(
   () => statuses.value.filter((s) => !s.is_available).length,
 );
 
-const healthHistoryMap = ref<Record<number, AIHealthHistoryEntry[]>>({});
+const healthHistoryMap = ref<Record<number, HealthHistoryState>>({});
 const historyLoading = ref(false);
 let historyLoadToken = 0;
 
@@ -160,9 +168,31 @@ function getStatusAccentClass(status: AIHealthStatus): string {
   return 'text-rose-600 dark:text-rose-300';
 }
 
+function getProviderHistoryState(
+  status: AIHealthStatus,
+): HealthHistoryState | undefined {
+  return healthHistoryMap.value[status.provider_id];
+}
+
+function getProviderHistoryLoadState(
+  status: AIHealthStatus,
+): 'error' | 'loaded' | 'unknown' {
+  return getProviderHistoryState(status)?.status ?? 'unknown';
+}
+
 function getProviderHistory(status: AIHealthStatus): AIHealthHistoryEntry[] {
-  const history = healthHistoryMap.value[status.provider_id] ?? [];
-  return history.slice(0, HISTORY_SLOT_COUNT).toReversed();
+  const history = getProviderHistoryState(status)?.items ?? [];
+  return history
+    .toSorted((left, right) => {
+      const parsedLeftTime = left.checked_at ? Date.parse(left.checked_at) : 0;
+      const parsedRightTime = right.checked_at
+        ? Date.parse(right.checked_at)
+        : 0;
+      const leftTime = Number.isFinite(parsedLeftTime) ? parsedLeftTime : 0;
+      const rightTime = Number.isFinite(parsedRightTime) ? parsedRightTime : 0;
+      return leftTime - rightTime;
+    })
+    .slice(-HISTORY_SLOT_COUNT);
 }
 
 function getHistoryDisplayPoints(
@@ -182,10 +212,30 @@ function getHistorySuccessCount(status: AIHealthStatus): number {
     .length;
 }
 
-function getHistoryAvailability(status: AIHealthStatus): string {
+function getHistoryAvailabilityLabel(status: AIHealthStatus): string {
   const history = getProviderHistory(status);
-  if (history.length === 0) return '0.00';
-  return ((getHistorySuccessCount(status) / history.length) * 100).toFixed(2);
+  if (
+    getProviderHistoryLoadState(status) !== 'loaded' ||
+    history.length === 0
+  ) {
+    return '--';
+  }
+  return `${((getHistorySuccessCount(status) / history.length) * 100).toFixed(
+    2,
+  )}%`;
+}
+
+function getHistorySuccessSummary(status: AIHealthStatus): string {
+  const history = getProviderHistory(status);
+  if (getProviderHistoryLoadState(status) === 'error') {
+    return $t('admin.ai.health.historyLoadFailed');
+  }
+  if (history.length === 0) {
+    return $t('admin.ai.health.noSample');
+  }
+  return `${getHistorySuccessCount(status)}/${history.length} ${$t(
+    'admin.ai.health.success',
+  )}`;
 }
 
 function getHistoryPointClass(point: HealthHistoryDisplayPoint): string {
@@ -222,10 +272,46 @@ function getHistoryPointTooltip(point: HealthHistoryDisplayPoint): string {
   return `${checkedAt} · ${getHistoryPointStatusText(point)} · ${responseTime}`;
 }
 
+function getHistoryErrorMessage(status: AIHealthStatus): string {
+  return (
+    getProviderHistoryState(status)?.errorMessage ??
+    $t('admin.ai.health.historyLoadFailed')
+  );
+}
+
+async function loadProviderHistory(
+  providerId: number,
+): Promise<AIHealthHistoryEntry[]> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<AIHealthHistoryEntry[]>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error($t('admin.ai.health.historyTimeout')));
+    }, HISTORY_LOAD_TIMEOUT_MS);
+  });
+  try {
+    return await Promise.race([
+      getAIHealthHistoryApi(
+        providerId,
+        { limit: HISTORY_SLOT_COUNT },
+        {
+          showCodeMessage: false,
+          showErrorMessage: false,
+        },
+      ),
+      timeoutPromise,
+    ]);
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
+}
+
 async function loadHealthHistory(items: AIHealthStatus[]) {
   const currentToken = ++historyLoadToken;
   if (items.length === 0) {
     healthHistoryMap.value = {};
+    historyLoading.value = false;
     return;
   }
   historyLoading.value = true;
@@ -233,17 +319,23 @@ async function loadHealthHistory(items: AIHealthStatus[]) {
     const entries = await Promise.all(
       items.map(async (item) => {
         try {
-          const history = await getAIHealthHistoryApi(
+          const history = await loadProviderHistory(item.provider_id);
+          return [
             item.provider_id,
-            { limit: HISTORY_SLOT_COUNT },
+            { items: history, status: 'loaded' },
+          ] as const;
+        } catch (error) {
+          return [
+            item.provider_id,
             {
-              showCodeMessage: false,
-              showErrorMessage: false,
+              errorMessage: getErrorMessage(
+                error,
+                'admin.ai.health.historyLoadFailed',
+              ),
+              items: [],
+              status: 'error',
             },
-          );
-          return [item.provider_id, history] as const;
-        } catch {
-          return [item.provider_id, []] as const;
+          ] as const;
         }
       }),
     );
@@ -320,7 +412,7 @@ watch(
               {{ $t('admin.ai.health.runtimeDoctor') }}
             </Button>
             <Button
-              v-access:code="['ai_runtime:create']"
+              v-access:code="['ai_runtime:list']"
               data-testid="runtime-smoke"
               size="small"
               :loading="runtimeLoading"
@@ -367,7 +459,7 @@ watch(
             v-for="status in statuses"
             :key="status.provider_id"
             data-testid="health-provider-card"
-            class="overflow-hidden rounded-lg border border-border/70 bg-gradient-to-br from-background via-background to-muted/25 shadow-sm transition-shadow duration-200 hover:shadow-md dark:border-white/[0.08] dark:from-card dark:via-card dark:to-primary/[0.04]"
+            class="overflow-hidden rounded-lg border border-border/70 bg-gradient-to-br from-background via-background to-muted/30 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-md dark:border-white/[0.08] dark:from-card dark:via-card dark:to-primary/[0.04]"
           >
             <div class="space-y-2.5 px-3 py-3">
               <div class="flex items-start justify-between gap-3">
@@ -455,16 +547,17 @@ watch(
                     {{ $t('admin.ai.health.availabilityOneHour') }}
                   </div>
                   <div
+                    data-testid="health-availability"
                     class="mt-0.5 text-lg font-semibold"
                     :class="getStatusAccentClass(status)"
                   >
-                    {{ getHistoryAvailability(status) }}%
+                    {{ getHistoryAvailabilityLabel(status) }}
                   </div>
-                  <div class="text-[11px] text-muted-foreground">
-                    {{ getHistorySuccessCount(status) }}/{{
-                      getProviderHistory(status).length
-                    }}
-                    {{ $t('admin.ai.health.success') }}
+                  <div
+                    data-testid="health-success-summary"
+                    class="text-[11px] text-muted-foreground"
+                  >
+                    {{ getHistorySuccessSummary(status) }}
                   </div>
                 </div>
                 <div
@@ -486,8 +579,9 @@ watch(
                   <span>{{ $t('admin.ai.health.historyNow') }}</span>
                 </div>
                 <div
+                  v-if="getProviderHistoryLoadState(status) === 'loaded'"
                   data-testid="health-history-chart"
-                  class="flex items-center gap-[3px]"
+                  class="grid grid-cols-[repeat(60,minmax(1px,1fr))] items-end gap-[2px] rounded-md border border-border/50 bg-background/70 px-2 py-2 dark:border-white/[0.08] dark:bg-background/35"
                 >
                   <Tooltip
                     v-for="(point, index) in getHistoryDisplayPoints(status)"
@@ -496,10 +590,23 @@ watch(
                   >
                     <span
                       data-testid="health-history-point"
-                      class="h-7 min-w-0 flex-1 rounded-full"
+                      class="h-8 min-w-0 rounded-[2px]"
                       :class="getHistoryPointClass(point)"
                     ></span>
                   </Tooltip>
+                </div>
+                <div
+                  v-else-if="getProviderHistoryLoadState(status) === 'error'"
+                  data-testid="health-history-error"
+                  class="flex items-start gap-2 rounded-md border border-rose-500/25 bg-rose-500/5 px-2.5 py-2 text-xs text-rose-600 dark:text-rose-300"
+                >
+                  <IconifyIcon
+                    icon="lucide:triangle-alert"
+                    class="mt-0.5 size-3.5 shrink-0"
+                  />
+                  <span class="line-clamp-2">{{
+                    getHistoryErrorMessage(status)
+                  }}</span>
                 </div>
               </div>
 

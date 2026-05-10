@@ -12,6 +12,10 @@ from fastapi.responses import StreamingResponse
 from app.ai.exceptions import AIGatewayError, is_retryable
 from app.ai.gateway_support.adapter_support import build_adapter_extra
 from app.ai.gateway_support.call_log_bridge import GatewayCallLogBridge
+from app.ai.gateway_support.failover_orchestrator import (
+    build_gateway_fallback_requirements,
+    scrub_gateway_failover_runtime_kwargs,
+)
 from app.ai.retry_service import MAX_RETRIES, RETRY_BASE_DELAY, RETRY_MULTIPLIER
 from app.ai.sse import SSEStreamingResponse
 from app.ai.types import ChatChunk, ChatMessage, messages_to_dicts
@@ -196,7 +200,14 @@ async def execute_stream_chat(
                 model_id=ai_model.id,
                 error=original_error,
             )
-            fallback_model = await gateway.failover.get_fallback_model(ai_model.id)
+            fallback_model = await gateway.failover.get_fallback_model(
+                ai_model.id,
+                **build_gateway_fallback_requirements(
+                    messages=messages,
+                    tools=tools,
+                    estimated_input=estimated_input,
+                ),
+            )
             if not fallback_model:
                 await gateway.usage_recorder.log_call_failure(
                     error=original_error,
@@ -243,6 +254,7 @@ async def execute_stream_chat(
             )
 
             try:
+                fallback_extra_kwargs = scrub_gateway_failover_runtime_kwargs(kwargs)
                 fb_provider, fb_api_key = await gateway.get_provider_and_key(
                     fallback_model.provider.code, tenant_id
                 )
@@ -268,7 +280,7 @@ async def execute_stream_chat(
                     top_p=top_p,
                     tools=tools,
                     tool_choice=tool_choice,
-                    extra_kwargs=kwargs,
+                    extra_kwargs=fallback_extra_kwargs,
                 ):
                     yield chunk
 

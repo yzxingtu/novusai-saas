@@ -1,6 +1,9 @@
-"""KnowledgeBaseService 单元测试 / Test.
+"""Test type: structural / behavioral.
 
-覆盖：知识库 CRUD、文档管理、向量化状态、权限检查。"""
+中文: 覆盖知识库 CRUD、文档管理、向量化状态、权限检查与选择列表边界。
+EN: Covers KB CRUD, document management, vectorization state, permission checks,
+and selectable-list boundaries.
+"""
 
 from __future__ import annotations
 
@@ -11,7 +14,11 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from sqlalchemy import select
 
-from tests.services.conftest import make_mock_model, make_scalar_result
+from tests.services.conftest import (
+    make_mock_model,
+    make_scalar_result,
+    make_scalars_result,
+)
 
 
 def _make_kb(**overrides):
@@ -110,6 +117,24 @@ class TestKBCreate:
             )
 
         service.repo.count_by_tenant.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_tenant_create_rejects_retired_tenant_id_alias(self, mock_db):
+        from app.exceptions import BusinessException
+        from app.services.ai.knowledge_base_service import KnowledgeBaseService
+
+        service = KnowledgeBaseService.__new__(KnowledgeBaseService)
+        service.db = mock_db
+        service.tenant_id = 7
+        service.repo = AsyncMock()
+
+        with pytest.raises(BusinessException, match="tenant_id"):
+            await service._before_create(
+                {
+                    "name": "Legacy alias KB",
+                    "tenant_id": 7,
+                }
+            )
 
 
 class TestKBDelete:
@@ -348,6 +373,27 @@ class TestKBUpdate:
         with pytest.raises(BusinessException):
             await service._before_update(9, {"name": "Tenant cannot edit platform KB"})
 
+    @pytest.mark.asyncio
+    async def test_tenant_update_rejects_retired_assignment_alias(self, mock_db):
+        from app.exceptions import BusinessException
+        from app.services.ai.knowledge_base_service import KnowledgeBaseService
+
+        service = KnowledgeBaseService.__new__(KnowledgeBaseService)
+        service.db = mock_db
+        service.tenant_id = 7
+        service.repo = AsyncMock()
+        service.repo.get_by_id = AsyncMock()
+
+        with pytest.raises(BusinessException, match="assigned_tenant_ids"):
+            await service._before_update(
+                1,
+                {
+                    "assigned_tenant_ids": [7],
+                },
+            )
+
+        service.repo.get_by_id.assert_not_awaited()
+
 
 class TestKBQuota:
     @pytest.mark.asyncio
@@ -471,6 +517,121 @@ class TestTenantKBVisibility:
         assert "knowledge_bases.owner_tenant_id IS NULL" in sql
         assert "OR knowledge_bases.scope = 'global_shared'" not in sql
         assert "knowledge_bases.scope != 'admin_only'" not in sql
+
+    @pytest.mark.asyncio
+    async def test_selectable_repository_uses_canonical_visibility_condition(
+        self, mock_db
+    ):
+        from app.repositories.ai.knowledge_base_repository import (
+            KnowledgeBaseRepository,
+        )
+
+        mock_db.execute = AsyncMock(return_value=make_scalars_result([]))
+        repo = KnowledgeBaseRepository(mock_db, tenant_id=7)
+
+        await repo.list_selectable(limit=25)
+
+        stmt = mock_db.execute.await_args.args[0]
+        sql = str(stmt.compile(compile_kwargs={"literal_binds": True}))
+
+        assert "knowledge_bases.owner_tenant_id = 7" in sql
+        assert "knowledge_bases.tenant_id = 7" not in sql
+        assert "knowledge_bases.scope = 'all_tenants'" in sql
+        assert "'global_shared'" in sql
+        assert "'selected_tenants'" in sql
+        assert "'admin_and_selected_tenants'" in sql
+        assert "ORDER BY knowledge_bases.name ASC" in sql
+        assert "LIMIT 25" in sql
+
+    @pytest.mark.asyncio
+    async def test_selectable_service_delegates_to_repository(self, mock_db):
+        from app.services.ai.knowledge_base_service import KnowledgeBaseService
+
+        expected = [_make_kb(id=8, name="Selectable KB")]
+        service = KnowledgeBaseService.__new__(KnowledgeBaseService)
+        service.db = mock_db
+        service.tenant_id = 7
+        service.repo = AsyncMock()
+        service.repo.list_selectable = AsyncMock(return_value=expected)
+
+        result = await service.list_selectable(limit=19)
+
+        service.repo.list_selectable.assert_awaited_once_with(limit=19)
+        assert result == expected
+
+    @pytest.mark.asyncio
+    async def test_document_repository_reads_platform_docs_through_kb_visibility(
+        self, mock_db
+    ):
+        from app.repositories.ai.knowledge_base_repository import (
+            KnowledgeDocumentRepository,
+        )
+        from app.schemas.common.query import FilterOp, FilterRule, QuerySpec
+
+        mock_db.execute = AsyncMock(
+            side_effect=[
+                make_scalar_result(0),
+                make_scalars_result([]),
+            ]
+        )
+        repo = KnowledgeDocumentRepository(mock_db, tenant_id=7)
+
+        await repo.query_list(
+            QuerySpec(
+                filters=[
+                    FilterRule(
+                        field="knowledge_base_id",
+                        op=FilterOp.eq,
+                        value="12",
+                    )
+                ]
+            )
+        )
+
+        stmt = mock_db.execute.await_args_list[1].args[0]
+        sql = str(stmt.compile(compile_kwargs={"literal_binds": True}))
+
+        assert (
+            "JOIN knowledge_bases ON knowledge_bases.id = "
+            "knowledge_documents.knowledge_base_id"
+        ) in sql
+        assert "knowledge_bases.owner_tenant_id = 7" in sql
+        assert "knowledge_documents.tenant_id = 7" in sql
+        assert "knowledge_bases.owner_tenant_id IS NULL" in sql
+        assert "knowledge_documents.tenant_id IS NULL" in sql
+        assert "resource_tenant_assignments.resource_type = 'knowledge_base'" in sql
+        assert "knowledge_documents.knowledge_base_id = 12" in sql
+
+    @pytest.mark.asyncio
+    async def test_chunk_repository_reads_platform_chunks_through_kb_visibility(
+        self, mock_db
+    ):
+        from app.repositories.ai.knowledge_base_repository import (
+            DocumentChunkRepository,
+        )
+
+        mock_db.execute = AsyncMock(return_value=make_scalars_result([]))
+        repo = DocumentChunkRepository(mock_db, tenant_id=7)
+
+        await repo.get_by_document(document_id=15, skip=3, limit=9)
+
+        stmt = mock_db.execute.await_args.args[0]
+        sql = str(stmt.compile(compile_kwargs={"literal_binds": True}))
+
+        assert (
+            "JOIN knowledge_documents ON knowledge_documents.id = "
+            "document_chunks.document_id"
+        ) in sql
+        assert (
+            "document_chunks.knowledge_base_id = knowledge_documents.knowledge_base_id"
+        ) in sql
+        assert "knowledge_bases.owner_tenant_id = 7" in sql
+        assert "document_chunks.tenant_id = 7" in sql
+        assert "knowledge_bases.owner_tenant_id IS NULL" in sql
+        assert "document_chunks.tenant_id IS NULL" in sql
+        assert "document_chunks.document_id = 15" in sql
+        assert "LIMIT 9" in sql
+        assert "OFFSET 3" in sql
 
     def test_model_declares_scope_owner_check_constraint(self):
         from sqlalchemy import CheckConstraint

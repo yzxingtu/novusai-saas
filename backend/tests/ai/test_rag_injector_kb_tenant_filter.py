@@ -1,4 +1,8 @@
-"""RAG 知识库绑定按企业过滤 / RAG KB binding tenant filter tests."""
+"""RAG 知识库绑定按企业过滤 / RAG KB binding tenant filter tests.
+
+Test type: structural / behavioral
+Scope: Existing AI tests in this module; no real-dialogue smoke acceptance is claimed.
+"""
 
 from __future__ import annotations
 

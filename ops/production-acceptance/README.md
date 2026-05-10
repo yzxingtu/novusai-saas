@@ -25,6 +25,7 @@ are available:
   --dast-target-url http://localhost:8000 `
   --ai-smoke-agent-id <id> `
   --ai-smoke-report ..\.trellis\tasks\05-08-production-acceptance-gates\smoke-runs\<run-id>\report.json `
+  --ai-smoke-accepted-runtime-commit <accepted-runtime-commit> `
   --artifact-dir ops\acceptance-artifacts `
   --allow-blocked `
   --timeout 5
@@ -37,7 +38,14 @@ frontend on `5666`.
 
 When the target is the production Docker Compose smoke stack, target the
 production compose host ports and pass the matching PostgreSQL container and
-database identity from the compose environment:
+database identity from the compose environment. `docker-compose.prod.yml`
+sets the Compose project name to `novusai-prod`, so the default PostgreSQL
+container is `novusai-prod-postgres-1`. If an operator starts the stack with
+`docker compose -p <project>`, use `<project>-postgres-1` instead.
+
+The production Compose file consumes immutable prebuilt images through
+`NOVUSAI_IMAGE_TAG`. It intentionally contains no `build:` sections, so a
+production smoke cannot silently rebuild local source into the release stack.
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\production_acceptance_probe.py `
@@ -53,11 +61,12 @@ database identity from the compose environment:
   --run-security-scans `
   --run-dast-baseline `
   --dast-target-url http://127.0.0.1:18000 `
-  --postgres-container novusai-prod-smoke-postgres-1 `
+  --postgres-container novusai-prod-postgres-1 `
   --postgres-db novusai_saas `
   --postgres-user novusai `
   --ai-smoke-agent-id <id> `
   --ai-smoke-report ..\.trellis\tasks\05-08-production-acceptance-gates\smoke-runs\<run-id>\report.json `
+  --ai-smoke-accepted-runtime-commit <accepted-runtime-commit> `
   --artifact-dir ops\acceptance-artifacts `
   --allow-blocked `
   --timeout 5
@@ -81,13 +90,17 @@ Status for accepted runtime commit `1625841d8d527e6246cc17b47394afb20dbb9597`:
 
 - `overall_status=passed`
 - `23 passed / 0 failed / 0 blocked`
-- AI real-dialogue smoke report matched the accepted runtime commit and clean
-  worktree at probe time.
+- AI real-dialogue smoke report matched the accepted runtime commit through
+  `--ai-smoke-accepted-runtime-commit` and recorded `repo.dirty=false`.
 - Capacity acceptance used the checked-in Locust plan and produced parseable
   metrics.
-- The report itself may be committed after the accepted runtime commit; rerun
-  the smoke/probe when runtime code, Compose, dependencies, migrations,
-  frontend source, or deployment scripts change.
+- The report itself may be committed after the accepted runtime commit; pass
+  `--ai-smoke-accepted-runtime-commit 1625841d8d527e6246cc17b47394afb20dbb9597`
+  when rechecking that accepted report from a later documentation/evidence
+  commit. The probe rejects this reuse when guarded runtime/deploy paths have
+  changed since the accepted runtime commit. Rerun the smoke/probe when runtime
+  code, Compose, dependencies, migrations, frontend source, capacity plans, or
+  deployment scripts change.
 
 Older 2026-05-09 local Compose artifacts are historical only because the probe
 was later hardened to require current-commit AI smoke evidence and checked-in
@@ -109,6 +122,11 @@ passed without real external evidence. To clear the remaining blocked gates:
    hash, provider call evidence, `provider.call_logs`, and per-scenario
    `conversation_id`, `provider_call_log_id`, observable checks, and pass/fail
    results. Then pass the report path to the probe with `--ai-smoke-report`.
+   If later documentation or evidence commits move HEAD beyond the runtime
+   commit that produced the report, also pass
+   `--ai-smoke-accepted-runtime-commit <commit>`. The probe still rejects a
+   report whose `repo.dirty` is not exactly `false`, and it blocks accepted
+   runtime reuse when guarded runtime/deploy paths changed after that commit.
 
 Example:
 
@@ -124,6 +142,7 @@ New-Item -ItemType Directory -Force -Path $smokeDir | Out-Null
   --frontend-base-url http://localhost:5666 `
   --ai-smoke-agent-id <id> `
   --ai-smoke-report "$smokeDir\report.json" `
+  --ai-smoke-accepted-runtime-commit <accepted-runtime-commit> `
   --allow-blocked
 ```
 
@@ -145,13 +164,21 @@ and falls back to `k6` when only `k6` is installed. The benchmark targets
 `ops/acceptance-artifacts/capacity/`, and parses the runner output before
 classifying the gate.
 
-Accepted local release baseline. `--capacity-requests` is the minimum completed
-request count required by the probe, not a hard stop for the runner:
+Local readiness runner target. `--capacity-requests` is the minimum completed
+request count required by the probe, not a hard stop for the runner. These
+values prove that the checked-in `/ready` runner can execute and stay within
+the configured thresholds on the tested machine; they are not a production
+traffic baseline, a business-workload soak test, or an SLO claim:
 
 - `--capacity-requests 96`
 - `--capacity-concurrency 16`
 - `--capacity-p95-budget-ms 1500`
 - `--capacity-error-budget-ratio 0`
+
+The 2026-05-10 release-readiness run used the same `/ready` gate with
+`--capacity-requests 64` and `--capacity-concurrency 8`; that result is
+accepted only as repository-owned local readiness evidence for the stated
+runtime commit.
 
 Pass / fail / blocked rules:
 

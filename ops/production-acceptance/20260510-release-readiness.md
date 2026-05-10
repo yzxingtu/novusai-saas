@@ -36,8 +36,12 @@ Cross-audit note:
   that accepted runtime evidence.
 - The report file itself is committed after the acceptance run. That
   documentation commit changes the Git HEAD but not backend/frontend runtime
-  image inputs; rerun the smoke/probe if a later commit changes runtime code,
-  Compose, dependencies, migrations, frontend source, or deployment scripts.
+  image inputs. Later probe rechecks of this archived AI smoke report must pass
+  `--ai-smoke-accepted-runtime-commit 1625841d8d527e6246cc17b47394afb20dbb9597`;
+  the probe blocks reuse once guarded runtime/deploy paths have changed since
+  the accepted runtime commit. Rerun the smoke/probe if a later commit changes
+  runtime code, Compose, dependencies, migrations, frontend source, capacity
+  plans, or deployment scripts.
 
 ## Probe Command
 
@@ -57,6 +61,7 @@ The final broad probe was run from `backend/` with:
   --dast-target-url http://host.docker.internal:8000 `
   --ai-smoke-agent-id 59 `
   --ai-smoke-report ..\.trellis\tasks\05-10-conversation-2415-weather-routing\smoke-runs\20260510-current-head-cross-audit\report.raw.json `
+  --ai-smoke-accepted-runtime-commit 1625841d8d527e6246cc17b47394afb20dbb9597 `
   --artifact-dir var\acceptance\20260510-current-head-cross-audit `
   --timeout 900 `
   --repo-root ..
@@ -83,7 +88,9 @@ Important evidence points:
 - Metrics endpoint: `/metrics` passed.
 - Frontend root: `http://localhost:5666/` passed.
 - Capacity benchmark: Locust produced `1686` parsed measured requests, `0`
-  failures, about `239 req/s`, and `p95=53ms` for `/ready`.
+  failures, about `239 req/s`, and `p95=53ms` for `/ready`. This is
+  repository-owned readiness evidence for the health endpoint, not a production
+  business-workload capacity or SLO baseline.
 - PostgreSQL restore drill: disposable restore database was created, restored,
   verified, and dropped; public table count was verified.
 - Python dependency audit: `pip-audit` reported `0` known vulnerabilities across
