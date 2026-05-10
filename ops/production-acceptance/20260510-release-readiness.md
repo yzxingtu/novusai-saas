@@ -6,7 +6,46 @@ Accepted runtime commit: `1625841d8d527e6246cc17b47394afb20dbb9597`
 
 Branch: `main`
 
-Verdict: release candidate accepted for production-environment deployment checks.
+Verdict: historical release-candidate evidence for the accepted runtime commit.
+
+## Current HEAD Recheck
+
+Current HEAD after later release-hardening work:
+`009aaf1e4` (`chore(release): harden release readiness gates`).
+
+A fresh local production acceptance probe was run against this current HEAD on
+2026-05-10. It did not fail any executable gate, but it cannot be treated as a
+fully passed production acceptance run because the AI real-dialogue external
+prerequisites were not configured in the current environment.
+
+Current HEAD status:
+
+- Probe status: `overall_status=blocked`.
+- Gate counts: `20 passed / 0 failed / 3 blocked`.
+- Blocked gates:
+  - `ai_provider_credentials`: no real AI provider credential was configured in
+    the current process or `backend/.env`.
+  - `ai_smoke_agent_selector`: no `AI_SMOKE_AGENT_ID` or
+    `AI_SMOKE_AGENT_CODE` was configured for the probe.
+  - `ai_real_dialogue_smoke_execution`: no archived strict
+    `ai-real-dialogue-smoke/v1` report was supplied for the current accepted
+    runtime.
+- Passed gates included `/ready`, `/health`, `/metrics`, frontend root,
+  checked-in Locust capacity benchmark, PostgreSQL backup/restore disposable
+  drill, `pip-audit`, `bandit`, full/prod `pnpm audit`, OWASP ZAP baseline,
+  and production acceptance tooling presence.
+- The generated machine-local artifact was
+  `ops/acceptance-artifacts/current-009aaf1e4-production-probe.json`. That
+  directory is intentionally ignored by Git; regenerate it during release
+  verification rather than treating one developer machine's artifact as source.
+
+Therefore, the historical `1625841d...` passed evidence below remains useful as
+the proof for that exact accepted runtime commit, but it must not be used to
+claim current `009aaf1e4` production acceptance as fully passed. To clear the
+current HEAD gate, configure real provider credentials plus an AI smoke agent
+selector, run `python -m app.cli ai real-dialogue-smoke`, archive the strict
+passed report, and rerun `scripts/production_acceptance_probe.py` with that
+report.
 
 ## Summary
 
