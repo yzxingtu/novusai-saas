@@ -40,14 +40,17 @@ def resolve_capability_injection_decision(
     capability_summary_injected: bool,
 ) -> dict[str, Any]:
     decision = dict(diagnostics.get("capability_injection_decision") or {})
-    decision.setdefault("all_shortcircuit", bool(intent_flags.get("all_shortcircuit")))
+    all_shortcircuit = bool(intent_flags.get("all_shortcircuit"))
+    decision["all_shortcircuit"] = all_shortcircuit
     decision.setdefault("skills_injected", False)
     decision.setdefault("kb_injected", False)
     decision.setdefault("memory_injected", False)
-    decision.setdefault(
-        "bypass_reason",
-        "all_shortcircuit" if bool(intent_flags.get("all_shortcircuit")) else None,
-    )
+    if all_shortcircuit:
+        decision.setdefault("bypass_reason", "all_shortcircuit")
+    elif decision.get("bypass_reason") == "all_shortcircuit":
+        decision["bypass_reason"] = None
+    else:
+        decision.setdefault("bypass_reason", None)
 
     active_context_source_kinds = {
         str(source.kind or "").strip()

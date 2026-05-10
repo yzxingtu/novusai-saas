@@ -179,8 +179,14 @@ def test_conversation_2362_direct_weather_query_discovers_plugin_tools() -> None
         "get_weather_forecast",
         "get_current_weather",
     ]
-    assert plan.tool_use_policy.mode == "auto"
+    assert plan.intent_plan[0].kind == "weather_query"
+    assert plan.intent_plan[0].family == "weather"
+    assert plan.intent_plan[0].requires_tools is True
+    assert plan.intent_plan[0].shortcircuit is False
+    assert plan.intent_flags["all_shortcircuit"] is False
+    assert plan.tool_use_policy.mode == "required"
     assert plan.tool_use_policy.allowed_tool_names == plan.candidate_tool_names
+    assert plan.tool_use_policy.reason == "intent:weather_query"
 
 
 def test_conversation_2362_explicit_weather_skill_request_requires_tool_use() -> None:

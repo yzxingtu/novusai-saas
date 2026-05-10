@@ -63,11 +63,17 @@ def _build_structured_skill_result() -> SkillResolveResult:
             ToolDefinition(
                 name="get_current_weather",
                 description="Current weather",
+                source_skill_name="实时天气查询",
+                source_plugin="weather-widget",
+                semantic_family="weather",
                 semantic_tags=["天气", "当前天气", "current weather"],
             ),
             ToolDefinition(
                 name="get_weather_forecast",
                 description="Forecast",
+                source_skill_name="实时天气查询",
+                source_plugin="weather-widget",
+                semantic_family="weather",
                 semantic_tags=["天气预报", "未来天气", "forecast"],
             ),
         ]
@@ -1166,27 +1172,34 @@ async def test_prepare_execution_exposes_plugin_weather_tools_by_metadata_only()
             skill_result=_build_structured_skill_result(),
         )
 
-    assert prep.execution_path == "fast"
-    assert [intent.kind for intent in prep.intent_plan] == ["direct_reply"]
+    assert prep.execution_path == "normal"
+    assert [intent.kind for intent in prep.intent_plan] == ["weather_query"]
+    assert [intent.family for intent in prep.intent_plan] == ["weather"]
+    assert prep.intent_plan[0].requires_tools is True
+    assert prep.intent_plan[0].shortcircuit is False
     assert [tool.name for tool in prep.tools] == [
         "get_current_weather",
         "get_weather_forecast",
     ]
-    assert prep.intent_plan[0].allowed_tool_names == []
+    assert prep.intent_plan[0].allowed_tool_names == [
+        "get_current_weather",
+        "get_weather_forecast",
+    ]
     assert prep.tool_use_policy == ToolUsePolicy(
-        family="none",
-        mode="auto",
+        family="weather",
+        mode="required",
         allowed_tool_names=["get_current_weather", "get_weather_forecast"],
-        reason="direct_reply_discoverable_tools",
+        retry_on_contract_breach=True,
+        reason="intent:weather_query",
     )
     assert prep.execution_budget is not None
-    assert prep.execution_budget.max_tool_rounds == 2
+    assert prep.execution_budget.max_tool_rounds == 3
     assert prep.diagnostics["capability_injection_decision"] == {
-        "all_shortcircuit": True,
-        "skills_injected": False,
+        "all_shortcircuit": False,
+        "skills_injected": True,
         "kb_injected": False,
         "memory_injected": False,
-        "bypass_reason": "all_shortcircuit",
+        "bypass_reason": None,
     }
 
 

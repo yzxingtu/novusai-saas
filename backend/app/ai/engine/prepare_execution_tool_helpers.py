@@ -15,7 +15,11 @@ from app.ai.runtime.context_assembler import (
 )
 from app.ai.runtime.manifest import AIRuntimeInventoryService
 from app.ai.runtime.types import project_capability_bundle_to_tools
-from app.ai.tools.semantic_defaults import tool_semantic_tags
+from app.ai.tools.semantic_defaults import (
+    normalize_semantic_family,
+    tool_semantic_family,
+    tool_semantic_tags,
+)
 from app.ai.tools.types import ToolDefinition
 from app.ai.types import ChatMessage
 from app.core.logging import LogManager
@@ -244,6 +248,68 @@ def _direct_reply_discoverable_tools(
     return selected
 
 
+def _single_metadata_family(
+    tools: list[ToolDefinition],
+    input_variables: dict[str, Any] | None,
+) -> str:
+    families: list[str] = []
+    for tool in tools:
+        family = tool_semantic_family(tool, input_variables)
+        normalized = normalize_semantic_family(family)
+        if not normalized or normalized == "none" or normalized in families:
+            continue
+        families.append(normalized)
+    return families[0] if len(families) == 1 else ""
+
+
+def _promote_direct_reply_metadata_intent(
+    *,
+    intent_plan: list[IntentPlan],
+    tool_candidates: list[ToolDefinition],
+    input_variables: dict[str, Any] | None,
+) -> IntentPlan | None:
+    if len(intent_plan) != 1 or not tool_candidates:
+        return None
+
+    intent = intent_plan[0]
+    if (
+        intent.kind != "direct_reply"
+        or intent.family != "none"
+        or intent.requires_tools
+        or not intent.shortcircuit
+    ):
+        return None
+
+    family = _single_metadata_family(tool_candidates, input_variables)
+    if not family:
+        return None
+
+    allowed_names = [tool.name for tool in tool_candidates]
+    intent.kind = f"{family}_query"
+    intent.family = family
+    intent.user_visible_label = family
+    intent.status = "pending"
+    intent.requires_tools = True
+    intent.shortcircuit = False
+    intent.allow_text_response = False
+    intent.allowed_tool_names = list(allowed_names)
+    intent.preferred_tool_names = list(allowed_names)
+    intent.completion_signals = _intent_completion_signals_impl(
+        family,
+        intent_kind=intent.kind,
+        allowed_tool_names=list(allowed_names),
+        preferred_tool_names=list(allowed_names),
+        intent_metadata=intent.metadata,
+    )
+    intent.metadata = {
+        **dict(intent.metadata or {}),
+        "original_kind": "direct_reply",
+        "routing_mode": "structured_semantic",
+        "routing_source": "tool_metadata",
+    }
+    return intent
+
+
 def _rebuild_runtime_capability_diagnostics(
     *,
     agent: Any,
@@ -424,18 +490,40 @@ def plan_execution_tools(
             )
             candidate_tool_names = [tool.name for tool in tool_candidates]
             if tool_candidates:
-                explicit_request = _looks_like_explicit_tool_request(user_query)
-                tool_use_policy = ToolUsePolicy(
-                    family="none",
-                    mode="required" if explicit_request else "auto",
-                    allowed_tool_names=list(candidate_tool_names),
-                    retry_on_contract_breach=explicit_request,
-                    reason=(
-                        "direct_reply_explicit_tool_request"
-                        if explicit_request
-                        else "direct_reply_discoverable_tools"
-                    ),
+                promoted_intent = _promote_direct_reply_metadata_intent(
+                    intent_plan=intent_plan,
+                    tool_candidates=tool_candidates,
+                    input_variables=request.input_variables,
                 )
+                if promoted_intent is not None:
+                    actionable_intents = [promoted_intent]
+                    explicit_requested_families = (
+                        _ordered_requested_families_from_intents_impl(
+                            intents=intent_plan
+                        )
+                    )
+                    execution_path = PathSelector.select(intent_plan)
+                    execution_budget = BudgetGuard.build_default(
+                        execution_path,
+                        intent_count=len(intent_plan),
+                    )
+                    intent_flags = _intent_plan_gating_flags_impl(
+                        intent_plan,
+                        request=request,
+                    )
+                else:
+                    explicit_request = _looks_like_explicit_tool_request(user_query)
+                    tool_use_policy = ToolUsePolicy(
+                        family="none",
+                        mode="required" if explicit_request else "auto",
+                        allowed_tool_names=list(candidate_tool_names),
+                        retry_on_contract_breach=explicit_request,
+                        reason=(
+                            "direct_reply_explicit_tool_request"
+                            if explicit_request
+                            else "direct_reply_discoverable_tools"
+                        ),
+                    )
         if not tool_candidates and actionable_intents:
             fallback_allowed_names = _allowed_tool_names_for_families_impl(
                 explicit_requested_families,
