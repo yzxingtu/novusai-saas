@@ -2,7 +2,7 @@
 
 Date: 2026-05-10
 
-Commit: `32290eef42f742db5121538059f7402a48019b58`
+Accepted runtime commit: `1625841d8d527e6246cc17b47394afb20dbb9597`
 
 Branch: `main`
 
@@ -10,14 +10,15 @@ Verdict: release candidate accepted for production-environment deployment checks
 
 ## Summary
 
-The local production acceptance gates passed for the current `main` commit. This
-report records the release evidence that was available after the final
-acceptance run, so operators do not need to reconstruct the decision from chat
-history or ignored local artifacts.
+The local production acceptance gates passed for the accepted runtime commit
+above. This report records the release evidence that was available after the
+final acceptance run, so operators do not need to reconstruct the decision from
+chat history or ignored local artifacts.
 
 Release state:
 
-- Git state: `main...origin/main`, clean working tree.
+- Git state during the cross-audit run: clean working tree at the accepted
+  runtime commit.
 - Probe status: `overall_status=passed`.
 - Gate counts: `23 passed / 0 failed / 0 blocked`.
 - AI real-dialogue smoke: `passed`.
@@ -25,6 +26,18 @@ Release state:
 - Backup/restore drill: `passed`.
 - Dependency audit, SAST, frontend audit, and DAST baseline: `passed`.
 - Production Compose config and production env guard: `passed`.
+
+Cross-audit note:
+
+- A previous report draft referenced the runtime-code commit
+  `32290eef42f742db5121538059f7402a48019b58`. The cross-audit reran AI
+  real-dialogue smoke and the full production acceptance probe while
+  `1625841d8d527e6246cc17b47394afb20dbb9597` was HEAD; this report now records
+  that accepted runtime evidence.
+- The report file itself is committed after the acceptance run. That
+  documentation commit changes the Git HEAD but not backend/frontend runtime
+  image inputs; rerun the smoke/probe if a later commit changes runtime code,
+  Compose, dependencies, migrations, frontend source, or deployment scripts.
 
 ## Probe Command
 
@@ -43,8 +56,8 @@ The final broad probe was run from `backend/` with:
   --run-dast-baseline `
   --dast-target-url http://host.docker.internal:8000 `
   --ai-smoke-agent-id 59 `
-  --ai-smoke-report ..\.trellis\tasks\05-10-conversation-2415-weather-routing\smoke-runs\20260510-acceptance-after-path-fix\report.raw.json `
-  --artifact-dir var\acceptance\20260510-final `
+  --ai-smoke-report ..\.trellis\tasks\05-10-conversation-2415-weather-routing\smoke-runs\20260510-current-head-cross-audit\report.raw.json `
+  --artifact-dir var\acceptance\20260510-current-head-cross-audit `
   --timeout 900 `
   --repo-root ..
 ```
@@ -54,13 +67,13 @@ The final broad probe was run from `backend/` with:
 Artifacts from the final run are under:
 
 ```text
-var/acceptance/20260510-final/
+var/acceptance/20260510-current-head-cross-audit/
 ```
 
 The AI real-dialogue smoke report used by the probe is under:
 
 ```text
-.trellis/tasks/05-10-conversation-2415-weather-routing/smoke-runs/20260510-acceptance-after-path-fix/report.raw.json
+.trellis/tasks/05-10-conversation-2415-weather-routing/smoke-runs/20260510-current-head-cross-audit/report.raw.json
 ```
 
 Important evidence points:
@@ -69,8 +82,8 @@ Important evidence points:
 - API health: `/health` passed.
 - Metrics endpoint: `/metrics` passed.
 - Frontend root: `http://localhost:5666/` passed.
-- Capacity benchmark: Locust produced `1824` measured requests, `0` failures,
-  about `267 req/s`, and `p95=50ms` for `/ready`.
+- Capacity benchmark: Locust produced `1686` parsed measured requests, `0`
+  failures, about `239 req/s`, and `p95=53ms` for `/ready`.
 - PostgreSQL restore drill: disposable restore database was created, restored,
   verified, and dropped; public table count was verified.
 - Python dependency audit: `pip-audit` reported `0` known vulnerabilities across
@@ -81,7 +94,8 @@ Important evidence points:
 - DAST: OWASP ZAP baseline completed with no high/critical or fail-level
   alerts; remaining alerts were low or informational.
 - AI smoke: strict real-dialogue report recorded `passed=3`, `failed=0`,
-  `blocked=0`, with current commit evidence.
+  `blocked=0`, with accepted runtime commit evidence and three live ASXS
+  provider calls.
 - Production Compose config: `docker compose --env-file ops\production.env.example
   -f docker-compose.prod.yml config --quiet` completed successfully.
 - Production env guard: `docker compose --env-file <temporary-prod-shaped-env>
@@ -125,7 +139,7 @@ Result:
 
 ## Release Decision
 
-This codebase is accepted as a release candidate for deployment into the
+This runtime codebase is accepted as a release candidate for deployment into the
 production environment, subject to environment-level checks during the release
 window.
 

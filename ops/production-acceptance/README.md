@@ -77,13 +77,17 @@ The latest accepted local release-candidate evidence is recorded in:
 ops/production-acceptance/20260510-release-readiness.md
 ```
 
-Status for commit `32290eef42f742db5121538059f7402a48019b58`:
+Status for accepted runtime commit `1625841d8d527e6246cc17b47394afb20dbb9597`:
 
 - `overall_status=passed`
 - `23 passed / 0 failed / 0 blocked`
-- AI real-dialogue smoke report matched the current commit and clean worktree.
+- AI real-dialogue smoke report matched the accepted runtime commit and clean
+  worktree at probe time.
 - Capacity acceptance used the checked-in Locust plan and produced parseable
   metrics.
+- The report itself may be committed after the accepted runtime commit; rerun
+  the smoke/probe when runtime code, Compose, dependencies, migrations,
+  frontend source, or deployment scripts change.
 
 Older 2026-05-09 local Compose artifacts are historical only because the probe
 was later hardened to require current-commit AI smoke evidence and checked-in
