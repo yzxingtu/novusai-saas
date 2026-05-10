@@ -12,6 +12,7 @@ The default rule is simple:
 ## Source Of Truth
 
 - Path rules: `.trellis/spec/guides/trellis-paths.md`
+- Upstream/downstream governance: `.trellis/spec/guides/upstream-downstream-governance.md`
 - Backend conventions: `.trellis/spec/backend/index.md`
 - Frontend conventions: `.trellis/spec/frontend/index.md`
 - AI runtime governance: `.trellis/spec/ai-runtime/index.md`
@@ -19,6 +20,11 @@ The default rule is simple:
 This repo's canonical docs describe the current multi-tenant SaaS system.
 Single-instance split planning must not be kept as active canonical guidance in
 this repo's `docs/**`, `.trellis/**`, or root entry documents.
+This repo also remains the upstream SaaS product line for customer delivery.
+Customer fork, overlay, bugfix, release, and backport rules are carried by
+`docs/guides/upstream-bugfix-policy.md` and
+`docs/operations/release-backport-policy.md`; Trellis entrypoints should link
+to those runbooks instead of duplicating their full body.
 
 All other command docs, hooks, and skills must stay thin and point back to these files.
 
@@ -34,6 +40,10 @@ All other command docs, hooks, and skills must stay thin and point back to these
   in an audit note or task record instead of weakening the global rule.
 - When a repo pattern becomes canonical, update the owning spec file in the
   same change rather than leaving the rule only in task docs.
+- Upstream/downstream audits should check whether customer repositories contain
+  long-lived core patches in shared product areas. Common core fixes belong in
+  Yudi first, then synchronize downstream by merging the Yudi release line or
+  using `cherry-pick -x` with provenance.
 
 ## Path Selector
 

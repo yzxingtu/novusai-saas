@@ -12,6 +12,29 @@ Thank you for your interest in improving this project. This document describes h
    [`.trellis/spec/guides/trellis-paths.md`](.trellis/spec/guides/trellis-paths.md),
    and the relevant backend/frontend/AI runtime spec index.
 
+## Upstream-first contribution rules
+
+`novusai-saas-yudi` is the canonical multi-tenant SaaS upstream. Customer
+projects should remain thin forks or overlays, with customer-specific workflows,
+branding, deployment overlays, configuration, seed data, and plugins kept in the
+customer repository.
+
+- Develop common platform bug fixes and shared SaaS features in Yudi first.
+- Keep customer-only workflows, branding, deployment overlays, and plugins in
+  the customer repository.
+- Triage ambiguous changes explicitly before implementation so they land
+  upstream or downstream intentionally.
+- Reproduce common bugs in Yudi with a focused regression test, fix and verify
+  them here, then synchronize customer repositories from the Yudi release or
+  hotfix line.
+- Do not keep long-lived downstream patches to auth, tenant isolation, task
+  queues, notifications, AI runtime, plugin framework, migrations, Docker
+  baseline, or shared UI.
+
+For the full policy, release/backport steps, and customer sync runbooks, use the
+current docs under [`docs/guides/`](docs/guides/) and
+[`docs/operations/`](docs/operations/) instead of copying policy text into PRs.
+
 ## Branching and pull requests
 
 - Base your work on the branch your team uses for integration (often `develop`).

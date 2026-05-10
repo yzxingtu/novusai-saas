@@ -11,6 +11,7 @@
 ## 目录
 
 - [概述](#概述)
+- [上游治理](#上游治理)
 - [架构](#架构)
 - [技术栈](#技术栈)
 - [仓库结构](#仓库结构)
@@ -38,6 +39,19 @@
 | **数据** | 列表协议含 `filter` / `sort` / `page`；租户隔离与数据权限在 Service / RBAC 中实现。 |
 | **实时** | Celery 异步；Socket.IO 用于通知及 admin / tenant / user 实时通道。 |
 | **扩展** | 插件位于 `backend/plugins/`；CRUD 生成与回滚依赖根目录 [`codegen_manifest.json`](codegen_manifest.json)。 |
+
+## 上游治理
+
+本仓库 `novusai-saas-yudi` 是多租户 SaaS 的上游产品主线。客户项目应保持为
+薄 fork 或 overlay，只承载客户专属流程、品牌、部署覆盖、配置、种子数据和插件。
+
+通用平台缺陷与共享 SaaS 能力应先在 Yudi 复现、修复并验证，再由客户仓库从 Yudi
+的 release 或 hotfix 线同步。客户仓库不应长期保留对鉴权、租户隔离、队列、通知、
+AI runtime、插件框架、迁移、Docker 基线或共享 UI 等核心区域的下游补丁。
+
+上游/下游规则、客户同步 runbook、发布与回补步骤请从
+[`docs/guides/`](docs/guides/) 和 [`docs/operations/`](docs/operations/) 查找。
+边界不清的改动应先做 upstream/downstream triage，再开始实现。
 
 ## 架构
 
@@ -200,6 +214,8 @@ pnpm build:antd
 | [`.trellis/spec/backend/index.md`](.trellis/spec/backend/index.md) | 后端规范与指南索引 |
 | [`.trellis/spec/frontend/index.md`](.trellis/spec/frontend/index.md) | 前端规范与指南索引 |
 | [`.trellis/spec/ai-runtime/index.md`](.trellis/spec/ai-runtime/index.md) | AI runtime 治理与测试纪律 |
+| [`docs/guides/`](docs/guides/) | 开发指南、上游/下游策略与客户同步指引 |
+| [`docs/operations/`](docs/operations/) | 运维 runbook、发布验收与生产同步流程 |
 | [`.agents/skills/`](.agents/skills) | 当前本地代理技能；入口应回指 Trellis specs |
 | [`.cursor/skills/`](.cursor/skills) | 编辑器兼容技能；事实源以 Trellis spec 为准 |
 

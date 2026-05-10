@@ -12,6 +12,7 @@ Multi-tenant, AI-native SaaS platform with **platform admin**, **tenant**, and *
 ## Table of contents
 
 - [Overview](#overview)
+- [Upstream governance](#upstream-governance)
 - [Architecture](#architecture)
 - [Tech stack](#tech-stack)
 - [Repository structure](#repository-structure)
@@ -39,6 +40,24 @@ NovusAI SaaS is a **monorepo**: [`backend`](backend) (FastAPI), [`frontend`](fro
 | **Data** | JSON:API-style `filter` / `sort` / `page`; tenant isolation and data permissions in services and RBAC. |
 | **Realtime** | Celery for async work; Socket.IO for notifications and tenant/user/admin realtime channels. |
 | **Extensibility** | Plugins under `backend/plugins/`; CRUD codegen and rollback via root [`codegen_manifest.json`](codegen_manifest.json). |
+
+## Upstream governance
+
+This repository, `novusai-saas-yudi`, is the canonical multi-tenant SaaS
+upstream product line. Customer projects are expected to stay as thin forks or
+overlays that carry customer-only workflows, branding, deployment overlays,
+configuration, seed data, and plugins.
+
+Common platform bugs and shared SaaS features should be reproduced, fixed, and
+verified in Yudi first. Customer repositories then synchronize from the Yudi
+release or hotfix line instead of keeping long-lived downstream patches to core
+areas such as auth, tenant isolation, queues, notifications, AI runtime,
+plugins, migrations, Docker baseline, or shared UI.
+
+For the detailed upstream/downstream rules, customer sync runbooks, and release
+or backport steps, start with [`docs/guides/`](docs/guides/) and
+[`docs/operations/`](docs/operations/). Ambiguous changes should be triaged
+explicitly before implementation so the work lands in the right repository.
 
 ## Architecture
 
@@ -234,6 +253,8 @@ In typical **production** settings, these URLs are disabled (`None` when `DEBUG`
 | [`.trellis/spec/backend/index.md`](.trellis/spec/backend/index.md) | Backend conventions and guide index |
 | [`.trellis/spec/frontend/index.md`](.trellis/spec/frontend/index.md) | Frontend conventions and guide index |
 | [`.trellis/spec/ai-runtime/index.md`](.trellis/spec/ai-runtime/index.md) | AI runtime governance and testing discipline |
+| [`docs/guides/`](docs/guides/) | Developer guides, upstream/downstream policy, and customer sync guidance |
+| [`docs/operations/`](docs/operations/) | Operational runbooks, release acceptance, and production sync procedures |
 | [`.agents/skills/`](.agents/skills) | Active local agent skills that point back to Trellis specs |
 | [`.cursor/skills/`](.cursor/skills) | Editor compatibility skills; use Trellis specs as the source of truth |
 

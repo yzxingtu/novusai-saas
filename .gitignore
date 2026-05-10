@@ -255,8 +255,17 @@ ehthumbs_vista.db
 # Local production-acceptance artifacts
 /ops/acceptance-artifacts/
 
-# Workspace docs & Trellis (not committed)
-/docs/
+# Workspace docs & Trellis (not committed by default)
+/docs/*
+!/docs/guides/
+/docs/guides/*
+!/docs/guides/customer-fork-policy.md
+!/docs/guides/upstream-bugfix-policy.md
+!/docs/operations/
+/docs/operations/*
+!/docs/operations/customer-sync-runbook.md
+!/docs/operations/production-acceptance-runbook.md
+!/docs/operations/release-backport-policy.md
 /.trellis/
 !/.trellis/
 /.trellis/*
@@ -266,7 +275,9 @@ ehthumbs_vista.db
 /.trellis/spec/*
 !/.trellis/spec/guides/
 /.trellis/spec/guides/*
+!/.trellis/spec/guides/index.md
 !/.trellis/spec/guides/trellis-paths.md
+!/.trellis/spec/guides/upstream-downstream-governance.md
 !/.trellis/spec/ai-runtime/
 /.trellis/spec/ai-runtime/*
 !/.trellis/spec/ai-runtime/index.md
@@ -299,6 +310,13 @@ ehthumbs_vista.db
 !/.trellis/tasks/05-08-05-08-online-search-retirement-cleanup/task.json
 !/.trellis/tasks/05-08-05-08-online-search-retirement-cleanup/prd.md
 !/.trellis/tasks/05-08-05-08-online-search-retirement-cleanup/info.md
+!/.trellis/tasks/05-11-yudi-upstream-governance/
+/.trellis/tasks/05-11-yudi-upstream-governance/*
+!/.trellis/tasks/05-11-yudi-upstream-governance/task.json
+!/.trellis/tasks/05-11-yudi-upstream-governance/prd.md
+!/.trellis/tasks/05-11-yudi-upstream-governance/info.md
+!/.trellis/tasks/05-11-yudi-upstream-governance/implement.jsonl
+!/.trellis/tasks/05-11-yudi-upstream-governance/check.jsonl
 
 # Uploads and media
 uploads/

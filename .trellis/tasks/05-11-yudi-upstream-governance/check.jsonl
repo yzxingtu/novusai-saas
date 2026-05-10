@@ -1,0 +1,11 @@
+{"ts":"2026-05-11T02:00:00+08:00","type":"verification-plan","summary":"Planned checks: task JSON/JSONL parsing, markdown/path sanity, targeted contradictory-guidance scans, optional base-version validation script tests, and git diff whitespace check."}
+{"ts":"2026-05-11T02:40:00+08:00","type":"parse","command":"ConvertFrom-Json over task.json, implement.jsonl, and check.jsonl","result":"passed"}
+{"ts":"2026-05-11T02:41:00+08:00","type":"paths","command":"Test-Path for governance docs, operations docs, Trellis guide files, and ops/verify-yudi-base.ps1","result":"passed"}
+{"ts":"2026-05-11T02:42:00+08:00","type":"scan","command":"rg for retired .yudi-base field names upstream_remote/upstream_repo/synced_at/YUDI_* in new docs and verifier","result":"passed"}
+{"ts":"2026-05-11T02:43:00+08:00","type":"scan","command":"rg for contradictory guidance that would allow long-lived customer core patches","result":"passed"}
+{"ts":"2026-05-11T02:44:00+08:00","type":"whitespace","command":"Select-String trailing whitespace scan over new governance docs","result":"passed"}
+{"ts":"2026-05-11T02:45:00+08:00","type":"verifier-pass","command":"pwsh -File ops/verify-yudi-base.ps1 -Path <temp repo with upstream, base_tag, last_synced_at>","result":"passed"}
+{"ts":"2026-05-11T02:46:00+08:00","type":"verifier-fail","command":"pwsh -File ops/verify-yudi-base.ps1 -Path <temp repo missing base_tag/base_commit and last_synced_at>","result":"passed_expected_failure"}
+{"ts":"2026-05-11T02:47:00+08:00","type":"diff","command":"git diff --check","result":"passed_with_crlf_warnings_only"}
+{"ts":"2026-05-11T02:48:00+08:00","type":"trackability","command":"git status --short --ignored and git ls-files --others --exclude-standard for new governance files","result":"passed_new_files_are_unignored"}
+{"ts":"2026-05-11T02:49:00+08:00","type":"reference-scan","command":"rg for upstream governance, thin fork, overlay, cherry-pick -x, merge upstream, and .yudi-base references","result":"passed"}
