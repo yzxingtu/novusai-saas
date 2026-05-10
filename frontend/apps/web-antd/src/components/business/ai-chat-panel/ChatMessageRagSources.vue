@@ -53,7 +53,7 @@ const ragGroups = computed(() => {
 <template>
   <!-- RAG sources -->
   <div
-    v-if="ragSources.length > 0 && !msg.streaming"
+    v-if="ragSources.length > 0"
     :class="compact ? 'mt-1' : 'mt-1.5'"
   >
     <details class="group">

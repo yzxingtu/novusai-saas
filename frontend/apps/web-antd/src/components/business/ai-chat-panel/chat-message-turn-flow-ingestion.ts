@@ -19,8 +19,10 @@ import {
   normalizeStage,
   normalizeTurnFlowViewModel,
   settleTurnFlowFinalState,
+  syncToolExecutionStage,
   upsertEvidence,
   upsertStage,
+  upsertToolEvidence,
 } from './chat-message-turn-flow-core';
 import {
   normalizeObjectRecord,
@@ -564,7 +566,12 @@ export function applyCanonicalTurnEvidenceEvent(
     return;
   }
   const flow = getOrCreateCanonicalTurnFlow(message);
-  upsertEvidence(flow, evidence);
+  if (evidence.kind === 'tool') {
+    upsertToolEvidence(flow, evidence);
+    syncToolExecutionStage(flow);
+  } else {
+    upsertEvidence(flow, evidence);
+  }
   message.turnFlow = flow;
 }
 
@@ -616,6 +623,26 @@ export function applyCanonicalDoneEvent(
       message.turnOutcome = message.turnOutcome || 'partial';
       message.terminationReason =
         message.terminationReason || completionReason || 'interrupted';
+    }
+    if (finalStageStatus === 'error' || finalStageStatus === 'interrupted') {
+      const flow = getOrCreateCanonicalTurnFlow(message);
+      if (completionReason) {
+        flow.completionReason = completionReason;
+      }
+      const failureKind =
+        normalizeFailureSignal(event.failure_kind) ??
+        extractCanonicalFailureKind(turnRecord);
+      if (failureKind) {
+        flow.failureKind = failureKind;
+      }
+      if (turnOutcome) {
+        flow.turnOutcome = turnOutcome;
+      }
+      flow.finalStageStatus = finalStageStatus;
+      flow.complete = true;
+      flow.interrupted = finalStageStatus === 'interrupted';
+      settleTurnFlowFinalState(flow, finalStageStatus);
+      message.turnFlow = flow;
     }
     return;
   }

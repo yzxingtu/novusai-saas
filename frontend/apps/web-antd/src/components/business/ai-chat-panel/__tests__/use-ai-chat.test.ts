@@ -904,6 +904,134 @@ describe('useAIChat interrupted stream recovery', () => {
     );
   });
 
+  it('surfaces canonical tool and knowledge evidence while stream is still running', async () => {
+    let releaseDone: (() => void) | undefined;
+    apiMocks.sendChatStreamApi.mockImplementation(
+      async (
+        _prefix: string,
+        _agentId: number,
+        _body: Record<string, unknown>,
+        options: {
+          onMessage: (chunk: string) => Promise<void>;
+        },
+      ) => {
+        await options.onMessage(
+          sseEvent({ event: 'conversation', conversation_id: 42 }),
+        );
+        await options.onMessage(
+          sseEvent({
+            event: 'turn_evidence',
+            evidence: {
+              arguments: { question: '统计今天调用情况' },
+              id: 'live-tool-running',
+              kind: 'tool',
+              status: 'running',
+              title: 'query_records',
+              tool_call_id: 'call_live_1',
+              tool_name: 'query_records',
+            },
+          }),
+        );
+        await options.onMessage(
+          sseEvent({
+            event: 'turn_evidence',
+            evidence: {
+              doc_name: '实时资料.md',
+              id: 'live-kb-1',
+              kind: 'knowledge_base',
+              knowledge_base_name: '实时知识库',
+              snippet: '流式过程中已经命中知识库资料',
+              title: '实时资料.md',
+            },
+          }),
+        );
+        await new Promise<void>((resolve) => {
+          releaseDone = resolve;
+        });
+        await options.onMessage(
+          sseEvent({
+            event: 'turn_evidence',
+            evidence: {
+              duration_ms: 13,
+              id: 'live-tool-result-different-id',
+              kind: 'tool',
+              output: '查询完成',
+              snippet: '已查询今天调用情况',
+              status: 'success',
+              title: 'query_records',
+              tool_call_id: 'call_live_1',
+              tool_name: 'query_records',
+            },
+          }),
+        );
+        await options.onMessage(
+          sseEvent({
+            completion_reason: 'completed',
+            event: 'done',
+            final_stage_status: 'completed',
+            total_tokens: 18,
+            turn_flow_complete: true,
+          }),
+        );
+      },
+    );
+
+    const chat = createChat();
+
+    await chat.loadAgents();
+    chat.inputMessage.value = '边查边告诉我进度';
+    const sendPromise = chat.sendMessage();
+    await flushPromises();
+
+    const streamingAssistant = chat.chatMessages.value.find(
+      (msg) => msg.role === 'assistant',
+    );
+    expect(streamingAssistant).toBeDefined();
+    if (!streamingAssistant) {
+      throw new Error('assistant message missing while streaming');
+    }
+    expect(streamingAssistant.streaming).toBe(true);
+    expect(getToolCallsForDisplay(streamingAssistant)).toEqual([
+      expect.objectContaining({
+        arguments: { question: '统计今天调用情况' },
+        id: 'call_live_1',
+        name: 'query_records',
+        status: 'running',
+      }),
+    ]);
+    expect(getRagSourcesForDisplay(streamingAssistant)?.[0]).toMatchObject({
+      doc_name: '实时资料.md',
+      knowledge_base_name: '实时知识库',
+      snippet: '流式过程中已经命中知识库资料',
+    });
+    expect(
+      (streamingAssistant.turnFlow?.timeline ?? []).find(
+        (stage) => stage.type === 'tool_execution',
+      )?.status,
+    ).toBe('running');
+
+    releaseDone?.();
+    await sendPromise;
+    await flushStreamSend();
+
+    const completedAssistant = chat.chatMessages.value.find(
+      (msg) => msg.role === 'assistant',
+    );
+    expect(completedAssistant).toBeDefined();
+    if (!completedAssistant) {
+      throw new Error('assistant message missing after stream completion');
+    }
+    expect(getToolCallsForDisplay(completedAssistant) ?? []).toEqual([
+      expect.objectContaining({
+        durationMs: 13,
+        id: 'call_live_1',
+        output: '查询完成',
+        status: 'success',
+        summary: '已查询今天调用情况',
+      }),
+    ]);
+  });
+
   it('drops retired web evidence kind from SSE instead of showing it as knowledge-base', async () => {
     apiMocks.sendChatStreamApi.mockImplementation(
       async (
@@ -945,7 +1073,7 @@ describe('useAIChat interrupted stream recovery', () => {
     if (!assistantMessage) {
       throw new Error('assistant message missing');
     }
-    expect(assistantMessage.turnFlow?.evidence).toEqual([]);
+    expect(assistantMessage.turnFlow?.evidence ?? []).toEqual([]);
     expect(getToolCallsForDisplay(assistantMessage)).toBeUndefined();
     expect(getRagSourcesForDisplay(assistantMessage)).toBeUndefined();
   });
@@ -2452,7 +2580,7 @@ describe('useAIChat interrupted stream recovery', () => {
       throw new Error('assistant message missing');
     }
     expect(getToolCallsForDisplay(assistantMessage)).toBeUndefined();
-    expect(assistantMessage.turnFlow?.evidence).toEqual([]);
+    expect(assistantMessage.turnFlow?.evidence ?? []).toEqual([]);
   });
 
   it('prefers trusted final assistant content over concatenated intermediate history parts', async () => {

@@ -33,6 +33,7 @@ from .stream_replay_events import (
 from .turn_flow_projector import (
     build_initial_turn_flow_events,
     build_turn_answer_card_event,
+    build_turn_evidence_events,
     build_turn_flow_view_model,
 )
 from .types import ExecutionResult
@@ -71,6 +72,7 @@ def build_initial_events(
     handler: Any,
     *,
     optimize_event: Any,
+    rag_sources: list[dict[str, Any]] | None = None,
 ) -> list[str]:
     view = _resolve_generation_view(handler)
     request = view.request
@@ -114,6 +116,10 @@ def build_initial_events(
         optimize_event=optimize_event
     ):
         events.append(SSEChunkEncoder.encode(_trace_payload(canonical_event)))
+
+    if rag_sources:
+        for canonical_event in build_turn_evidence_events(rag_sources):
+            events.append(SSEChunkEncoder.encode(_trace_payload(canonical_event)))
 
     return events
 

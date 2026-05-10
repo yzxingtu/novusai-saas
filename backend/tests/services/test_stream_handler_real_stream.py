@@ -1029,6 +1029,45 @@ async def test_stream_handler_emits_knowledge_base_feedback_event():
 
 
 @pytest.mark.asyncio
+async def test_stream_handler_emits_retrieval_evidence_before_first_message():
+    engine = _FakeEngine(
+        rounds=[[ChatChunk(delta="完成", finish_reason="stop", total_tokens=3)]],
+    )
+    handler = _build_handler(engine)
+    handler.prep.rag_sources = [
+        {
+            "doc_id": 21,
+            "doc_name": "runtime.md",
+            "id": "kb-live-1",
+            "kind": "knowledge_base",
+            "knowledge_base_id": 7,
+            "knowledge_base_name": "实时知识库",
+            "snippet": "流式开始前已命中知识库资料",
+        }
+    ]
+
+    events: list[dict] = []
+    async for raw in handler.generate():
+        if raw.strip().startswith("data: {"):
+            events.append(_parse_sse_payload(raw))
+
+    evidence_index = next(
+        index
+        for index, event in enumerate(events)
+        if event.get("event") == "turn_evidence"
+        and (event.get("evidence") or {}).get("id") == "kb-live-1"
+    )
+    message_index = next(
+        index for index, event in enumerate(events) if event.get("event") == "message"
+    )
+    evidence = events[evidence_index]["evidence"]
+    assert evidence_index < message_index
+    assert evidence["kind"] == "knowledge_base"
+    assert evidence["knowledge_base_name"] == "实时知识库"
+    assert evidence["snippet"] == "流式开始前已命中知识库资料"
+
+
+@pytest.mark.asyncio
 async def test_stream_handler_tool_rounds_keep_real_stream_and_final_answer():
     """
     工具轮次与最终回复都走真实流式；工具调用在流中增量聚合，最终答复继续流出。
@@ -1074,6 +1113,28 @@ async def test_stream_handler_tool_rounds_keep_real_stream_and_final_answer():
     assert any(
         e.get("event") == "tool_call" and e.get("success") is True for e in events
     )
+    running_evidence_index = next(
+        index
+        for index, event in enumerate(events)
+        if event.get("event") == "turn_evidence"
+        and (event.get("evidence") or {}).get("tool_call_id") == "call_1"
+        and (event.get("evidence") or {}).get("status") == "running"
+    )
+    completed_evidence_index = next(
+        index
+        for index, event in enumerate(events)
+        if event.get("event") == "turn_evidence"
+        and (event.get("evidence") or {}).get("tool_call_id") == "call_1"
+        and (event.get("evidence") or {}).get("status") == "success"
+    )
+    done_index = next(
+        index for index, event in enumerate(events) if event.get("event") == "done"
+    )
+    assert running_evidence_index < completed_evidence_index < done_index
+    completed_evidence = events[completed_evidence_index]["evidence"]
+    assert completed_evidence["tool_name"] == "query_db"
+    assert completed_evidence["duration_ms"] >= 0
+    assert completed_evidence["output"] == '{"ok": true}'
     msg_deltas = [e["delta"] for e in events if e.get("event") == "message"]
     assert "查询完成" in "".join(msg_deltas) and "。" in "".join(msg_deltas)
 

@@ -15,7 +15,9 @@ from app.core.i18n import _
 from . import tool_processor as tool_processor_mod
 from .turn_flow_projector import (
     build_tool_execution_result_event,
+    build_tool_execution_result_evidence_event,
     build_tool_execution_started_event,
+    build_tool_execution_started_evidence_event,
 )
 
 
@@ -178,6 +180,7 @@ async def _apply_single_result(
     skill_info: dict[str, str | None],
     result: ToolResult,
     tc_duration: int,
+    arguments: dict[str, Any] | None,
     tool_message: ChatMessage | None,
     follow_up_message: ChatMessage | None,
 ) -> bool:
@@ -208,6 +211,15 @@ async def _apply_single_result(
             tool_call_id=tc_id or result.tool_call_id,
         )
     )
+    result_evidence_event = build_tool_execution_result_evidence_event(
+        result=result,
+        duration_ms=int(tc_duration or 0),
+        arguments=arguments,
+        skill_info=skill_info,
+        name_override=func_name or result.name,
+    )
+    if result_evidence_event is not None:
+        await callbacks.emit_event(result_evidence_event)
     result_summary = str(result.summary or "").strip()
     current_response_text = str(runtime.response.message.content or "").strip()
     if _should_emit_tool_result_preview(
@@ -263,6 +275,14 @@ async def _run_parallel_batch(
             )
         )
         await callbacks.emit_event(
+            build_tool_execution_started_evidence_event(
+                tool_name=func_name,
+                arguments=arguments,
+                skill_info=skill_info,
+                tool_call_id=tc_id,
+            )
+        )
+        await callbacks.emit_event(
             build_tool_execution_started_event(
                 tool_name=func_name,
                 tool_call_id=tc_id,
@@ -297,6 +317,7 @@ async def _run_parallel_batch(
             skill_info=skill_info,
             result=single.tool_result,
             tc_duration=int(single.duration_ms or 0),
+            arguments=_arguments,
             tool_message=single.tool_message,
             follow_up_message=single.follow_up_message,
         )
@@ -353,6 +374,14 @@ async def _run_sequential_batch(
                     tool_call_id=tc_id or err_result.tool_call_id,
                 )
             )
+            result_evidence_event = build_tool_execution_result_evidence_event(
+                result=err_result,
+                duration_ms=0,
+                skill_info=processor.get_skill_info(func_name),
+                name_override=func_name or err_result.name,
+            )
+            if result_evidence_event is not None:
+                await callbacks.emit_event(result_evidence_event)
             runtime.messages.append(processor.build_tool_message(err_result, tc_id))
             continue
 
@@ -407,6 +436,14 @@ async def _run_sequential_batch(
             )
         )
         await callbacks.emit_event(
+            build_tool_execution_started_evidence_event(
+                tool_name=func_name,
+                arguments=arguments,
+                skill_info=skill_info,
+                tool_call_id=tc_id,
+            )
+        )
+        await callbacks.emit_event(
             build_tool_execution_started_event(
                 tool_name=func_name,
                 tool_call_id=tc_id,
@@ -432,6 +469,7 @@ async def _run_sequential_batch(
             skill_info=skill_info,
             result=result,
             tc_duration=tc_duration,
+            arguments=arguments,
             tool_message=processor.build_tool_message(result, tc_id),
             follow_up_message=processor.build_attachment_relay_message(result),
         )

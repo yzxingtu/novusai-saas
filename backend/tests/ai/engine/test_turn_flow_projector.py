@@ -9,6 +9,12 @@ from __future__ import annotations
 from importlib import import_module
 
 turn_flow_projector = import_module("app.ai.engine.turn_flow_projector")
+build_tool_execution_result_evidence_event = (
+    turn_flow_projector.build_tool_execution_result_evidence_event
+)
+build_tool_execution_started_evidence_event = (
+    turn_flow_projector.build_tool_execution_started_evidence_event
+)
 build_turn_evidence_events = turn_flow_projector.build_turn_evidence_events
 build_turn_flow_view_model = turn_flow_projector.build_turn_flow_view_model
 
@@ -214,6 +220,55 @@ def test_build_turn_flow_view_model_projects_tool_results_into_canonical_evidenc
             "url": None,
         }
     ]
+
+
+def test_build_tool_execution_started_evidence_event_marks_tool_running() -> None:
+    event = build_tool_execution_started_evidence_event(
+        tool_name="query_records",
+        arguments={"question": "统计今天调用情况"},
+        skill_info={"skill_name": "报表技能", "skill_type": "toolkit"},
+        tool_call_id="tc_live_1",
+    )
+
+    assert event["event"] == "turn_evidence"
+    evidence = event["evidence"]
+    assert evidence["id"] == "tc_live_1"
+    assert evidence["kind"] == "tool"
+    assert evidence["status"] == "running"
+    assert evidence["tool_call_id"] == "tc_live_1"
+    assert evidence["tool_name"] == "query_records"
+    assert evidence["arguments"] == {"question": "统计今天调用情况"}
+    assert evidence["skill_name"] == "报表技能"
+    assert evidence["skill_type"] == "toolkit"
+
+
+def test_build_tool_execution_result_evidence_event_preserves_result_details() -> None:
+    event = build_tool_execution_result_evidence_event(
+        result={
+            "display_name": "报表查询",
+            "name": "query_records",
+            "output": "查询完成",
+            "success": True,
+            "summary": "已查询今天调用情况",
+            "summary_payload": {"tables": ["ai_call_logs"]},
+            "tool_call_id": "tc_live_1",
+        },
+        duration_ms=27,
+        arguments={"question": "统计今天调用情况"},
+        skill_info={"skill_name": "报表技能", "skill_type": "toolkit"},
+    )
+
+    assert event is not None
+    assert event["event"] == "turn_evidence"
+    evidence = event["evidence"]
+    assert evidence["id"] == "tc_live_1"
+    assert evidence["display_name"] == "报表查询"
+    assert evidence["duration_ms"] == 27
+    assert evidence["output"] == "查询完成"
+    assert evidence["snippet"] == "已查询今天调用情况"
+    assert evidence["status"] == "success"
+    assert evidence["summary_payload"] == {"tables": ["ai_call_logs"]}
+    assert evidence["tool_call_id"] == "tc_live_1"
 
 
 def test_build_turn_evidence_events_emits_retrieval_and_items() -> None:

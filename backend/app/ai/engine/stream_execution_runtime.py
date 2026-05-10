@@ -1377,6 +1377,7 @@ async def run_stream_execution(
         for initial_event in build_initial_events(
             handler,
             optimize_event=optimize_event,
+            rag_sources=rag_sources,
         ):
             yield initial_event
 

@@ -426,6 +426,77 @@ def build_tool_evidence_items(
     return evidence_items
 
 
+def _skill_name_from_info(
+    skill_info: Mapping[str, str | None] | None,
+) -> str | None:
+    if not isinstance(skill_info, Mapping):
+        return None
+    return _as_text(skill_info.get("skill_name"))
+
+
+def _skill_type_from_info(
+    skill_info: Mapping[str, str | None] | None,
+) -> str | None:
+    if not isinstance(skill_info, Mapping):
+        return None
+    return _as_text(skill_info.get("skill_type")) or _as_text(
+        skill_info.get("source_skill_type")
+    )
+
+
+def build_tool_execution_started_evidence_event(
+    *,
+    tool_name: str,
+    arguments: Mapping[str, Any] | None = None,
+    skill_info: Mapping[str, str | None] | None = None,
+    tool_call_id: str | None = None,
+) -> dict[str, Any]:
+    normalized_tool_name = _as_text(tool_name) or "tool"
+    normalized_tool_call_id = _as_text(tool_call_id)
+    evidence = TurnEvidenceItem(
+        id=normalized_tool_call_id or normalized_tool_name,
+        kind="tool",
+        title=normalized_tool_name,
+        arguments=dict(arguments or {}) or None,
+        skill_name=_skill_name_from_info(skill_info),
+        skill_type=_skill_type_from_info(skill_info),
+        source_ref=normalized_tool_name,
+        status="running",
+        tool_call_id=normalized_tool_call_id,
+        tool_name=normalized_tool_name,
+    )
+    return {"event": "turn_evidence", "evidence": evidence.to_dict()}
+
+
+def build_tool_execution_result_evidence_event(
+    *,
+    result: Any,
+    duration_ms: int = 0,
+    arguments: Mapping[str, Any] | None = None,
+    skill_info: Mapping[str, str | None] | None = None,
+    name_override: str | None = None,
+) -> dict[str, Any] | None:
+    result_payload = _tool_result_payload(result)
+    if not result_payload:
+        return None
+    if duration_ms and result_payload.get("duration_ms") is None:
+        result_payload["duration_ms"] = duration_ms
+    if arguments and result_payload.get("arguments") is None:
+        result_payload["arguments"] = dict(arguments)
+    if name_override and not _as_text(result_payload.get("name")):
+        result_payload["name"] = name_override
+    skill_name = _skill_name_from_info(skill_info)
+    skill_type = _skill_type_from_info(skill_info)
+    if skill_name and not _as_text(result_payload.get("skill_name")):
+        result_payload["skill_name"] = skill_name
+    if skill_type and not _as_text(result_payload.get("skill_type")):
+        result_payload["skill_type"] = skill_type
+    evidence_items = build_tool_evidence_items([result_payload])
+    if not evidence_items:
+        return None
+    return {"event": "turn_evidence", "evidence": evidence_items[0].to_dict()}
+
+
 def build_turn_evidence_events(
     rag_sources: list[dict[str, Any]] | None,
 ) -> list[dict[str, Any]]:
@@ -1036,7 +1107,9 @@ __all__ = [
     "build_turn_evidence_items",
     "build_turn_flow_view_model",
     "build_thinking_turn_flow_event",
+    "build_tool_execution_result_evidence_event",
     "build_tool_execution_result_event",
+    "build_tool_execution_started_evidence_event",
     "build_tool_execution_started_event",
     "build_tool_selection_turn_flow_events",
     "resolve_final_stage_status",
