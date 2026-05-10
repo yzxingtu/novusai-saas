@@ -57,6 +57,9 @@ BACKEND_HTTP_PORT=18000
 FRONTEND_HTTP_PORT=18080
 ```
 
+`production-guard` requires both values and rejects `9090`, which is reserved
+for external monitoring. Keep the values numeric and in the TCP port range.
+
 Before startup on Windows, verify the chosen ports are free:
 
 ```powershell
@@ -128,12 +131,14 @@ FRONTEND_HTTP_PORT=18081
 The production compose graph starts in this order:
 
 - `production-guard` validates required production env values and refuses the
-  checked-in example.
+  checked-in example, placeholder/short secrets, missing custom-domain toggles,
+  `ACME_USE_STAGING=true`, and host port `9090`.
 - `postgres` and password-protected `redis` become healthy.
 - `backend-migrate` runs `novusai db upgrade heads` once and must exit `0`.
 - `backend-api`, `backend-worker`, and `backend-beat` start only after the
   migration container completes successfully.
-- `frontend` starts after the API healthcheck passes.
+- `frontend` starts after the API healthcheck passes and has its own Compose
+  healthcheck against `http://127.0.0.1:8080/`.
 
 ## Migration Strategy
 
@@ -189,6 +194,9 @@ high-availability platform design.
   `VITE_APP_STORE_SECURE_KEY` as a build-time public configuration value, not as
   a server-side secret.
 - If custom domains are enabled, set a real `TENANT_DOMAIN_SUFFIX`,
-  `ACME_ACCOUNT_EMAIL`, and `SSL_PRIVATE_KEY_ENCRYPTION_KEY`.
+  `ACME_ACCOUNT_EMAIL`, and a Fernet-format `SSL_PRIVATE_KEY_ENCRYPTION_KEY`
+  generated from the platform config tool. Production compose requires
+  `ALLOW_CUSTOM_DOMAIN` and `ACME_USE_STAGING` to be explicit, and
+  `ACME_USE_STAGING` must be `false`.
 - Do not claim full production readiness until the acceptance runbook gates are
   green or explicitly recorded as blocked with owner follow-up.
