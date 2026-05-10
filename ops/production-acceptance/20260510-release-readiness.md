@@ -2,7 +2,9 @@
 
 Date: 2026-05-10
 
-Accepted runtime commit: `5d0222e1e74644a2b7f1e9b62d6a65bbc2526bfc`
+Latest local recheck: 2026-05-11 00:35 Asia/Shanghai
+
+Accepted runtime commit: `a2acf02cf1257b81bff6c972e05fa99572382aea`
 
 Branch: `main`
 
@@ -26,6 +28,8 @@ Release state:
 - Backup/restore drill: `passed`.
 - Dependency audit, SAST, frontend audit, and DAST baseline: `passed`.
 - Production Compose config and production env guard: `passed`.
+- Current production image tag tested through Docker Compose:
+  `rc-20260511-a2acf02c`.
 
 Cross-audit note:
 
@@ -36,10 +40,15 @@ Cross-audit note:
   final run on `5d0222e1e74644a2b7f1e9b62d6a65bbc2526bfc` cleared those AI
   real-dialogue gates with a strict passed smoke report and reran the full
   production acceptance probe.
+- A later frontend/ops recheck on `a2acf02cf1257b81bff6c972e05fa99572382aea`
+  preserved the same production posture after hardening the Docker production
+  guard and adding a frontend Compose healthcheck. The current accepted runtime
+  commit for the latest local evidence is therefore
+  `a2acf02cf1257b81bff6c972e05fa99572382aea`.
 - The report file itself is committed after the acceptance run. That
   documentation commit changes the Git HEAD but not backend/frontend runtime
   image inputs. Later probe rechecks of this archived AI smoke report must pass
-  `--ai-smoke-accepted-runtime-commit 5d0222e1e74644a2b7f1e9b62d6a65bbc2526bfc`;
+  `--ai-smoke-accepted-runtime-commit a2acf02cf1257b81bff6c972e05fa99572382aea`;
   the probe blocks reuse once guarded runtime/deploy paths have changed since
   the accepted runtime commit. Rerun the smoke/probe if a later commit changes
   runtime code, Compose, dependencies, migrations, frontend source, capacity
@@ -47,12 +56,12 @@ Cross-audit note:
 
 ## Probe Command
 
-The final broad probe was run from `backend/` with:
+The current-image broad probe was run from `backend/` with:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\production_acceptance_probe.py `
-  --api-base-url http://127.0.0.1:8000 `
-  --frontend-base-url http://localhost:5666 `
+  --api-base-url http://127.0.0.1:18004 `
+  --frontend-base-url http://127.0.0.1:18084 `
   --load-smoke-requests 32 `
   --load-smoke-concurrency 8 `
   --capacity-requests 96 `
@@ -60,28 +69,32 @@ The final broad probe was run from `backend/` with:
   --capacity-p95-budget-ms 1500 `
   --capacity-error-budget-ratio 0 `
   --run-backup-restore-drill `
+  --postgres-container novusai-prod-a2acf02c-postgres-1 `
+  --postgres-db novusai_saas `
+  --postgres-user novusai `
   --run-security-scans `
   --run-dast-baseline `
-  --dast-target-url http://127.0.0.1:8000 `
+  --dast-target-url http://127.0.0.1:18004 `
   --ai-smoke-agent-id 59 `
-  --ai-smoke-report ..\.trellis\tasks\05-10-release-readiness-cross-audit\smoke-runs\20260510-current-head-final-ai-real-dialogue\report.raw.json `
-  --artifact-dir ops\acceptance-artifacts `
+  --ai-smoke-report ..\.trellis\tasks\05-10-release-readiness-cross-audit\smoke-runs\20260511-current-head-real-dialogue-retry2\report.raw.json `
+  --ai-smoke-accepted-runtime-commit a2acf02cf1257b81bff6c972e05fa99572382aea `
+  --artifact-dir ops\acceptance-artifacts\prod-compose-a2acf02c `
   --allow-blocked `
   --timeout 180
 ```
 
 ## Evidence
 
-Machine-local artifacts from the final run are under:
+Machine-local artifacts from the final current-image Docker Compose run are under:
 
 ```text
-ops/acceptance-artifacts/
+ops/acceptance-artifacts/prod-compose-a2acf02c/
 ```
 
-The probe JSON was written to:
+The generated probe scan artifacts were written under:
 
 ```text
-ops/acceptance-artifacts/current-5d0222e1-production-probe.json
+ops/acceptance-artifacts/prod-compose-a2acf02c/
 ```
 
 The artifact directory is ignored by Git and should be regenerated during
@@ -90,7 +103,7 @@ release verification.
 The AI real-dialogue smoke report used by the probe is under:
 
 ```text
-.trellis/tasks/05-10-release-readiness-cross-audit/smoke-runs/20260510-current-head-final-ai-real-dialogue/report.raw.json
+.trellis/tasks/05-10-release-readiness-cross-audit/smoke-runs/20260511-current-head-real-dialogue-retry2/report.raw.json
 ```
 
 Important evidence points:
@@ -98,9 +111,9 @@ Important evidence points:
 - API readiness: `/ready` passed.
 - API health: `/health` passed.
 - Metrics endpoint: `/metrics` passed.
-- Frontend root: `http://localhost:5666/` passed.
-- Capacity benchmark: Locust produced `668` parsed measured requests, `0`
-  failures, about `133 req/s`, and `p95=260ms` for `/ready`. This is
+- Frontend root: `http://127.0.0.1:18084/` passed.
+- Capacity benchmark: Locust produced `7641` parsed measured requests, `0`
+  failures, about `1521 req/s`, and `p95=12ms` for `/ready`. This is
   repository-owned readiness evidence for the health endpoint, not a production
   business-workload capacity or SLO baseline.
 - PostgreSQL restore drill: disposable restore database was created, restored,
@@ -120,6 +133,12 @@ Important evidence points:
 - Production env guard: `docker compose --env-file <temporary-prod-shaped-env>
   -f docker-compose.prod.yml run --rm production-guard` printed
   `production env guard passed`.
+- Current image Docker Compose smoke: images tagged
+  `rc-20260511-a2acf02c` started with `--no-build --wait`; API, frontend,
+  worker, beat, PostgreSQL, and Redis all became healthy. The frontend service
+  healthcheck was evaluated at the Compose layer.
+- Temporary production Compose stacks and older smoke stacks were removed after
+  verification so release checks do not leave ports occupied.
 
 ## AI Runtime Fix Evidence
 

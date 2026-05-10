@@ -82,7 +82,8 @@ be claimed as passed.
 
 Current `main` accepted runtime recheck:
 
-- Commit: `5d0222e1e74644a2b7f1e9b62d6a65bbc2526bfc`
+- Commit: `a2acf02cf1257b81bff6c972e05fa99572382aea`
+- Production image tag: `rc-20260511-a2acf02c`
 - Probe status: `overall_status=passed`
 - Gate counts: `23 passed / 0 failed / 0 blocked`
 - AI real-dialogue smoke: strict `ai-real-dialogue-smoke/v1` report passed with
@@ -100,7 +101,7 @@ ops/production-acceptance/20260510-release-readiness.md
 ```
 
 Fully passed status for accepted runtime commit
-`5d0222e1e74644a2b7f1e9b62d6a65bbc2526bfc`:
+`a2acf02cf1257b81bff6c972e05fa99572382aea`:
 
 - `overall_status=passed`
 - `23 passed / 0 failed / 0 blocked`
@@ -109,16 +110,17 @@ Fully passed status for accepted runtime commit
 - Capacity acceptance used the checked-in Locust plan and produced parseable
   metrics.
 - The report itself may be committed after the accepted runtime commit; pass
-  `--ai-smoke-accepted-runtime-commit 5d0222e1e74644a2b7f1e9b62d6a65bbc2526bfc`
+  `--ai-smoke-accepted-runtime-commit a2acf02cf1257b81bff6c972e05fa99572382aea`
   when rechecking that accepted report from a later documentation/evidence
   commit. The probe rejects this reuse when guarded runtime/deploy paths have
   changed since the accepted runtime commit. Rerun the smoke/probe when runtime
   code, Compose, dependencies, migrations, frontend source, capacity plans, or
   deployment scripts change.
 
-Older 2026-05-09 local Compose artifacts are historical only because the probe
-was later hardened to require current-commit AI smoke evidence and checked-in
-capacity runner output.
+Older 2026-05-09 and earlier 2026-05-10 local Compose artifacts are historical
+only because the probe was later hardened to require current-commit AI smoke
+evidence, checked-in capacity runner output, and current production Compose
+guard evidence.
 
 ## AI Real-Dialogue Smoke
 
