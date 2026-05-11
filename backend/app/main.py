@@ -531,6 +531,13 @@ def _get_metrics_component_health_lock() -> asyncio.Lock:
     return _metrics_component_health_lock
 
 
+def _describe_health_probe_exception(exc: Exception) -> str:
+    message = str(exc).strip()
+    if message:
+        return f"{type(exc).__name__}: {message}"
+    return repr(exc)
+
+
 async def _refresh_metrics_component_health() -> None:
     """中文: Prometheus 抓取前主动刷新组件健康，避免只依赖 /ready 和 /health 副作用。
 
@@ -562,7 +569,10 @@ async def _refresh_metrics_component_health() -> None:
         except Exception as exc:
             set_component_health("database", False)
             logger = get_logger(__name__)
-            logger.warning("Metrics component refresh failed (database): {}", exc)
+            logger.warning(
+                "Metrics component refresh failed (database): {}",
+                _describe_health_probe_exception(exc),
+            )
 
         try:
             from app.core.redis import RedisManager
@@ -575,7 +585,10 @@ async def _refresh_metrics_component_health() -> None:
         except Exception as exc:
             set_component_health("redis", False)
             logger = get_logger(__name__)
-            logger.warning("Metrics component refresh failed (redis): {}", exc)
+            logger.warning(
+                "Metrics component refresh failed (redis): {}",
+                _describe_health_probe_exception(exc),
+            )
 
         _metrics_component_health_last_refresh = loop.time()
 

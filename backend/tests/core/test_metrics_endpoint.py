@@ -167,6 +167,14 @@ def test_metrics_path_is_infra_exempt_and_not_audited() -> None:
     assert should_log_request("/metrics-admin", "GET") is True
 
 
+def test_health_probe_exception_description_keeps_blank_exception_type() -> None:
+    assert app_main._describe_health_probe_exception(TimeoutError()) == "TimeoutError()"
+    assert (
+        app_main._describe_health_probe_exception(RuntimeError("db timeout"))
+        == "RuntimeError: db timeout"
+    )
+
+
 @pytest.mark.asyncio
 async def test_metrics_component_health_refresh_is_ttl_cached(monkeypatch) -> None:
     calls = {"database": 0, "redis": 0}

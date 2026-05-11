@@ -352,6 +352,25 @@ class TestWeatherAggregation:
         assert result["hourly"][0]["is_current"] is True
 
     @pytest.mark.asyncio
+    async def test_get_weather_all_falls_back_to_stale_cache_when_upstream_fails(
+        self,
+    ):
+        stale_result = {
+            "current": {"temperature": 18.0},
+            "daily": [{"date": "2026-02-23"}],
+            "hourly": [{"time": "02:00"}],
+        }
+        cache_key = "all:31.23:121.47:3"
+        _cache[cache_key] = (time.time() - 1200, stale_result)
+        fetch_mock = AsyncMock(side_effect=httpx.ConnectError(""))
+
+        with patch.object(mod, "_fetch_met_timeseries", new=fetch_mock):
+            result = await get_weather_all(31.23, 121.47, 3)
+
+        assert result == stale_result
+        assert fetch_mock.await_count == 1
+
+    @pytest.mark.asyncio
     async def test_get_current_weather_wraps_aggregate_payload(self):
         with patch.object(
             mod,

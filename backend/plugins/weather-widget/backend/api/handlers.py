@@ -130,7 +130,7 @@ async def get_current_weather(request, ctx) -> dict:
         except Exception as exc:
             last_exc = exc
             if attempt == 0:
-                logger.warning(
+                logger.info(
                     "Weather API attempt {} failed for lat={} lon={}: {}",
                     attempt + 1,
                     latitude,
@@ -168,7 +168,7 @@ async def get_forecast(request, ctx) -> dict:
         except Exception as exc:
             last_exc = exc
             if attempt == 0:
-                logger.warning(
+                logger.info(
                     "Forecast API attempt {} failed for lat={} lon={} days={}: {}",
                     attempt + 1,
                     latitude,
@@ -206,7 +206,7 @@ async def get_hourly(request, ctx) -> dict:
         except Exception as exc:
             last_exc = exc
             if attempt == 0:
-                logger.warning(
+                logger.info(
                     "Hourly API attempt {} failed for lat={} lon={}: {}",
                     attempt + 1,
                     latitude,

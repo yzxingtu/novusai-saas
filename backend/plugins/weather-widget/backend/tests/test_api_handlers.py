@@ -142,12 +142,14 @@ class TestGetCurrentWeather:
 
         with (
             patch.object(mod, "_get_open_meteo", return_value=mock_open_meteo),
+            patch.object(mod.logger, "info") as info_mock,
             patch.object(mod.logger, "warning") as warning_mock,
         ):
             result = await get_current_weather(req, ctx=_make_ctx())
 
         assert result.get("code") == 5000
-        assert warning_mock.call_count == 2
+        assert info_mock.call_count == 1
+        assert warning_mock.call_count == 1
         final_call = warning_mock.call_args_list[-1]
         assert final_call.args[0] == (
             "Failed to get current weather after retry for lat={} lon={}: {}"

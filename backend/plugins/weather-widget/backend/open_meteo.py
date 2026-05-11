@@ -56,7 +56,9 @@ _FORECAST_DAYS_MIN = 1
 _FORECAST_DAYS_MAX = 7
 
 _DEFAULT_CACHE_TTL = 600
+_DEFAULT_STALE_CACHE_TTL = 21_600
 _CACHE_TTL = _DEFAULT_CACHE_TTL
+_STALE_CACHE_TTL = _DEFAULT_STALE_CACHE_TTL
 _cache: dict[str, tuple[float, Any]] = {}
 
 _nominatim_lock = asyncio.Lock()
@@ -156,13 +158,19 @@ _CITY_FIELDS = (
 
 
 def configure(config: Mapping[str, Any] | None) -> None:
-    global _CACHE_TTL
+    global _CACHE_TTL, _STALE_CACHE_TTL
     mapping = dict(config or {})
     _CACHE_TTL = _clamp_int(
         mapping.get("cache_ttl"),
         minimum=60,
         maximum=3600,
         default=_DEFAULT_CACHE_TTL,
+    )
+    _STALE_CACHE_TTL = _clamp_int(
+        mapping.get("stale_cache_ttl"),
+        minimum=_CACHE_TTL,
+        maximum=86_400,
+        default=max(_DEFAULT_STALE_CACHE_TTL, _CACHE_TTL),
     )
 
 
@@ -207,15 +215,21 @@ def validate_forecast_days(value: Any, *, default: int | None = None) -> int:
     return parsed
 
 
-def _cache_get(key: str) -> Any | None:
+def _cache_get(key: str, *, max_age: int | None = None) -> Any | None:
     entry = _cache.get(key)
     if entry is None:
         return None
     ts, value = entry
-    if time.time() - ts > _CACHE_TTL:
-        _cache.pop(key, None)
+    effective_max_age = _CACHE_TTL if max_age is None else max_age
+    if time.time() - ts > effective_max_age:
+        if effective_max_age >= _STALE_CACHE_TTL:
+            _cache.pop(key, None)
         return None
     return value
+
+
+def _cache_get_stale(key: str) -> Any | None:
+    return _cache_get(key, max_age=_STALE_CACHE_TTL)
 
 
 def _cache_set(key: str, value: Any) -> None:
@@ -565,7 +579,21 @@ async def get_weather_all(
     if cached is not None:
         return cached
 
-    timeseries = await _fetch_met_timeseries(latitude, longitude)
+    try:
+        timeseries = await _fetch_met_timeseries(latitude, longitude)
+    except Exception as exc:
+        stale = _cache_get_stale(cache_key)
+        if stale is not None:
+            logger.warning(
+                "Weather provider returned stale cache for lat={} lon={} days={} "
+                "after upstream error: {}",
+                latitude,
+                longitude,
+                days,
+                _describe_exception(exc),
+            )
+            return stale
+        raise
     tz = _approx_timezone(longitude)
 
     current_entry = timeseries[0]
