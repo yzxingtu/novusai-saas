@@ -53,6 +53,15 @@ AI runtime、插件框架、迁移、Docker 基线或共享 UI 等核心区域�
 [`docs/guides/`](docs/guides/) 和 [`docs/operations/`](docs/operations/) 查找。
 边界不清的改动应先做 upstream/downstream triage，再开始实现。
 
+客户项目从本仓 fork 后，应把代码放在主仓预留的隔离目录里：
+
+- [`business/<project-code>/`](business/)：客户或行业业务模块代码。
+- [`customer/<project-code>/`](customer/)：部署、种子、品牌、交付覆盖。
+- [`extensions/<package-code>/`](extensions/)：可复用插件、连接器、技能包和集成资产。
+
+不要把客户业务模块直接混入 Yudi 核心 `backend/app`、`frontend/apps` 或共享平台包。
+如果业务模块需要新的通用 SaaS 扩展点，应先回 Yudi 上游实现。
+
 ## 架构
 
 ```mermaid
@@ -89,7 +98,10 @@ flowchart LR
 
 ## 仓库结构
 
-与 [Repository structure](README.md#repository-structure) 一致；主应用位于 `frontend/apps/web-antd/`。
+与 [Repository structure](README.md#repository-structure) 一致；主应用位于
+`frontend/apps/web-antd/`。客户/行业业务代码使用 `business/<project-code>/`，
+客户交付覆盖使用 `customer/<project-code>/`，可复用扩展使用
+`extensions/<package-code>/`。
 
 ## 环境要求
 

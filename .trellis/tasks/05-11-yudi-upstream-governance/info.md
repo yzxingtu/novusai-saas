@@ -9,7 +9,10 @@ This is a Trellis `deep` task because it defines a cross-repository development 
 - This repository remains the canonical multi-tenant SaaS upstream.
 - `novusai-admin` or other single-admin/custom projects are downstream or sibling products, not the active target state of this repository.
 - Customer repositories may fork Yudi, but the expected shape is a thin fork:
-  customer plugins, customer deployment overlays, customer configuration, customer data seeds, and customer business pages.
+  customer or vertical business modules under `business/<project-code>/`,
+  customer deployment overlays/configuration/data seeds under
+  `customer/<project-code>/`, and reusable non-core packages under
+  `extensions/<package-code>/`.
 - Common platform defects must be fixed upstream first in Yudi.
 
 ## Work Packages

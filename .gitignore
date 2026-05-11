@@ -317,6 +317,12 @@ ehthumbs_vista.db
 !/.trellis/tasks/05-11-yudi-upstream-governance/info.md
 !/.trellis/tasks/05-11-yudi-upstream-governance/implement.jsonl
 !/.trellis/tasks/05-11-yudi-upstream-governance/check.jsonl
+!/.trellis/tasks/05-11-customer-business-directories/
+/.trellis/tasks/05-11-customer-business-directories/*
+!/.trellis/tasks/05-11-customer-business-directories/task.json
+!/.trellis/tasks/05-11-customer-business-directories/prd.md
+!/.trellis/tasks/05-11-customer-business-directories/implement.jsonl
+!/.trellis/tasks/05-11-customer-business-directories/check.jsonl
 
 # Uploads and media
 uploads/

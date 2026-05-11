@@ -59,6 +59,20 @@ or backport steps, start with [`docs/guides/`](docs/guides/) and
 [`docs/operations/`](docs/operations/). Ambiguous changes should be triaged
 explicitly before implementation so the work lands in the right repository.
 
+Downstream projects should keep their code in the sanctioned roots inherited
+from this repo:
+
+- [`business/<project-code>/`](business/) for customer or vertical business
+  modules.
+- [`customer/<project-code>/`](customer/) for deployment, seed, branding, and
+  delivery overlays.
+- [`extensions/<package-code>/`](extensions/) for reusable plugins,
+  connectors, skill packages, and integration assets.
+
+Do not mix customer business modules directly into the Yudi core `backend/app`,
+`frontend/apps`, or shared platform packages. If a business module needs a new
+shared SaaS hook, add that hook in Yudi upstream first.
+
 ## Architecture
 
 ```mermaid
@@ -106,6 +120,9 @@ novusai-saas-yudi/
 ├── frontend/                # pnpm + Turbo monorepo
 │   ├── apps/web-antd/       # Main NovusAI app (admin / tenant / user)
 │   └── packages/
+├── business/                # Downstream customer/vertical business modules
+├── customer/                # Downstream deployment/config/seed overlays
+├── extensions/              # Reusable non-core plugins/connectors/packages
 ├── docs/                    # Guides, audits, design notes
 ├── shared/
 ├── .trellis/                # Canonical workflow, specs, and task records

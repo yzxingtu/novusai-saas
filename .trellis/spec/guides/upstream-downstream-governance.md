@@ -9,6 +9,13 @@ governance. It intentionally stays thin: the operational runbooks live in
 - `novusai-saas-yudi` remains the canonical multi-tenant SaaS upstream product
   line.
 - Customer repositories are downstream thin forks or overlays.
+- Downstream customer or vertical business code belongs under
+  `business/<project-code>/`, not mixed into Yudi core `backend/app`,
+  `frontend/apps`, migrations, AI runtime, task infrastructure, or shared
+  platform packages.
+- Customer deployment, config, seed, branding, and delivery overlays belong
+  under `customer/<project-code>/`.
+- Reusable non-core packages belong under `extensions/<package-code>/`.
 - Shared plugins, skills, or reusable extensions may live outside this repo
   when they are not core product code.
 - `novusai-admin` and other single-admin or customer-specific targets are not
@@ -17,8 +24,9 @@ governance. It intentionally stays thin: the operational runbooks live in
 ## Work Location Rule
 
 Develop common platform bugs and shared SaaS features in Yudi first. Customer
-repositories are for customer-only workflows, branding, deployment overlays,
-configuration, seed data, and private plugins.
+repositories are for business modules in `business/<project-code>/`, customer
+overlays in `customer/<project-code>/`, and private or reusable extensions in
+`extensions/<package-code>/` or a dedicated extension repository.
 
 If ownership is ambiguous, record the upstream/downstream triage decision before
 implementation. Do not start a core fix downstream and later decide whether it
@@ -45,6 +53,11 @@ Specifically, check whether any customer repository keeps long-lived core
 patches in shared product areas such as auth/RBAC, tenant isolation, task
 queues, notifications, AI runtime, plugin framework, migrations, Docker or CI
 baseline, or shared UI.
+
+Audits should also check whether customer business modules are isolated under
+`business/<project-code>/`. Business code living directly in Yudi core
+directories is treated as a downstream structure failure unless the change has
+already been upstreamed as shared SaaS product work.
 
 If a customer repository contains a temporary emergency core patch, audit for:
 

@@ -17,12 +17,28 @@ sync procedure, see
 | Repository type | Role | Expected work |
 |---|---|---|
 | Yudi upstream | Canonical multi-tenant SaaS product line | Shared platform fixes, shared SaaS features, common migrations, shared UI, plugin framework, runtime governance, release branches and tags |
-| Customer repository | Downstream thin fork or overlay | Customer branding, deployment overlays, customer-only workflows, customer plugins, customer data seeds, customer environment templates |
-| Reusable extension repository | Shared extension package outside core product | Plugins, skill packages, connectors, templates, or integration assets that are reusable across customers but are not core Yudi product code |
+| Customer repository | Downstream thin fork with sanctioned business and overlay roots | Customer or vertical business modules under `business/<project-code>/`; customer branding, deployment overlays, seed data, and delivery config under `customer/<project-code>/` |
+| Reusable extension repository | Shared extension package outside core product | Plugins, skill packages, connectors, templates, or integration assets under `extensions/<package-code>/` when they are reusable across customers but are not core Yudi product code |
 
 Common platform bugs and shared SaaS features must be developed in Yudi first.
 Customer-only changes stay downstream. Ambiguous changes require explicit
 upstream/downstream triage before implementation.
+
+## Required Downstream Directory Roots
+
+Customer forks must keep downstream work out of Yudi core directories unless the
+change is intentionally upstreamed. Use these roots:
+
+| Root | Use For | Do Not Use For |
+|---|---|---|
+| `business/<project-code>/` | Real customer or vertical business code: backend services, frontend pages, shared contracts, business adapters | Shared SaaS platform fixes, deployment overlays, one-off secrets |
+| `customer/<project-code>/` | Deployment overlays, environment examples, seeds, branding, customer acceptance notes, fork decisions | Runtime business modules or long-lived core patches |
+| `extensions/<package-code>/` | Reusable plugins, connectors, report packs, skill packages, integration assets | One-customer workflows or customer deployment config |
+
+Yudi core directories such as `backend/app`, `frontend/apps`, shared platform
+packages, migrations, task infrastructure, AI runtime, and plugin framework
+belong to upstream product code. Do not put customer business modules there just
+because the code is convenient to import.
 
 ## Required Customer Upstream Remote
 
@@ -80,17 +96,22 @@ Rules:
 
 Customer repositories may keep thin, customer-specific changes in these areas:
 
+- Customer or vertical business modules under `business/<project-code>/`.
 - Customer branding assets, theme variables, logos, display names, and localized
-  customer copy.
+  customer copy under `customer/<project-code>/`.
 - Customer deployment overlays such as Compose override files, Helm values,
   platform manifests, reverse-proxy configuration, domain/TLS wiring, and
-  environment examples with no secrets.
+  environment examples with no secrets under `customer/<project-code>/`.
 - Customer configuration defaults, feature flags, tenant bootstrap data, data
-  seeds, import fixtures, and customer-specific admin setup scripts.
+  seeds, import fixtures, and customer-specific admin setup scripts under
+  `customer/<project-code>/`.
 - Customer-only plugins, skill packages, connectors, report templates, and
-  workflow packages that use the supported plugin/config extension boundaries.
-- Customer-only pages or workflow screens when they do not modify shared route,
-  auth, permission, tenancy, plugin, AI runtime, or migration contracts.
+  workflow packages that use supported extension boundaries. If they are part
+  of the project business domain, keep their implementation under
+  `business/<project-code>/` and keep Yudi/plugin adapters thin.
+- Customer-only pages or workflow screens under `business/<project-code>/` when
+  they do not modify shared route, auth, permission, tenancy, plugin, AI
+  runtime, or migration contracts.
 - Documentation that explains the customer delivery environment, operator
   process, and customer-specific acceptance evidence.
 
@@ -130,12 +151,15 @@ follow-up with the same root cause.
 When customer behavior differs from Yudi, choose the narrowest supported overlay
 before editing core code:
 
-1. Configuration, feature flag, tenant data, or seed overlay.
-2. Plugin, skill package, connector, or reusable extension repository.
-3. Deployment overlay such as Compose override, Helm values, ingress, secrets
+1. Customer or vertical business module under `business/<project-code>/`.
+2. Configuration, feature flag, tenant data, or seed overlay under
+   `customer/<project-code>/`.
+3. Plugin, skill package, connector, or reusable extension under `extensions/`
+   when it is not tied to one customer.
+4. Deployment overlay such as Compose override, Helm values, ingress, secrets
    manager binding, or platform-specific runtime setting.
-4. Customer-only UI/page/workflow module that depends on stable Yudi APIs.
-5. Upstream Yudi change, when the requirement is shared or needs a new core
+5. Yudi plugin adapter or business adapter that depends on stable Yudi APIs.
+6. Upstream Yudi change, when the requirement is shared or needs a new core
    extension point.
 
 Core forks are a last resort. A customer-only behavior that needs core changes

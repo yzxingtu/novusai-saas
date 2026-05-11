@@ -1,0 +1,10 @@
+{
+  "id": "05-11-customer-business-directories",
+  "title": "Customer business directory contract",
+  "description": "Add sanctioned business/customer/extension roots so downstream projects keep customer business code out of Yudi SaaS core directories.",
+  "path": "normal",
+  "status": "completed",
+  "owner": "codex",
+  "created_at": "2026-05-11",
+  "updated_at": "2026-05-11"
+}
