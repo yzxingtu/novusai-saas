@@ -212,3 +212,11 @@ Before merging customer repository work, confirm:
 - Yudi sync commits use `merge upstream/<release>` or `cherry-pick -x`.
 - Migration and regression validation evidence is recorded for the customer
   environment.
+- Customer boundary guidance passes:
+
+```powershell
+pwsh -File ops/verify-customer-boundaries.ps1 -Path .
+```
+
+In a customer fork, run the same script from the Yudi root or after syncing the
+latest Yudi governance tooling into the fork.
