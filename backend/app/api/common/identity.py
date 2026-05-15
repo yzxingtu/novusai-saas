@@ -41,6 +41,7 @@ def _build_identity_payload(
     updated_at: datetime | None,
     last_login_at: datetime | None,
     last_login_ip: str | None,
+    can_view_activity: bool = True,
     extra: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     role_id = _extract_attribute(role_attr, "id")
@@ -70,10 +71,13 @@ def _build_identity_payload(
         "org_node_id": org_node_id,
         "org_node_name": org_node_name,
         "tenant_id": tenant_id,
-        "created_at": _normalize_datetime(created_at),
-        "updated_at": _normalize_datetime(updated_at),
-        "last_login_at": _normalize_datetime(last_login_at),
-        "last_login_ip": last_login_ip,
+        "created_at": _normalize_datetime(created_at) if can_view_activity else None,
+        "updated_at": _normalize_datetime(updated_at) if can_view_activity else None,
+        "last_login_at": (
+            _normalize_datetime(last_login_at) if can_view_activity else None
+        ),
+        "last_login_ip": last_login_ip if can_view_activity else None,
+        "can_view_activity": can_view_activity,
     }
 
     if extra:
@@ -104,6 +108,7 @@ def serialize_admin_identity_detail(
     admin: Any,
     *,
     ai_profile: dict[str, Any] | None = None,
+    can_view_activity: bool = True,
 ) -> dict[str, Any]:
     org_node = getattr(admin, "org_node", None)
     role = getattr(admin, "role", None)
@@ -130,6 +135,7 @@ def serialize_admin_identity_detail(
         updated_at=admin.updated_at,
         last_login_at=admin.last_login_at,
         last_login_ip=admin.last_login_ip,
+        can_view_activity=can_view_activity,
         extra=extra,
     )
 
@@ -138,6 +144,7 @@ def serialize_tenant_admin_identity_detail(
     admin: Any,
     *,
     ai_profile: dict[str, Any] | None = None,
+    can_view_activity: bool = True,
 ) -> dict[str, Any]:
     org_node = getattr(admin, "org_node", None)
     role = getattr(admin, "role", None)
@@ -165,11 +172,16 @@ def serialize_tenant_admin_identity_detail(
         updated_at=admin.updated_at,
         last_login_at=admin.last_login_at,
         last_login_ip=admin.last_login_ip,
+        can_view_activity=can_view_activity,
         extra=extra,
     )
 
 
-def serialize_tenant_user_identity_detail(user: Any) -> dict[str, Any]:
+def serialize_tenant_user_identity_detail(
+    user: Any,
+    *,
+    can_view_activity: bool = True,
+) -> dict[str, Any]:
     org_node = getattr(user, "org_node", None)
     role = getattr(user, "role", None)
     extra = {
@@ -194,6 +206,7 @@ def serialize_tenant_user_identity_detail(user: Any) -> dict[str, Any]:
         updated_at=user.updated_at,
         last_login_at=user.last_login_at,
         last_login_ip=user.last_login_ip,
+        can_view_activity=can_view_activity,
         extra=extra,
     )
 

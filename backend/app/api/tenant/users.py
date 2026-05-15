@@ -33,10 +33,11 @@ from app.schemas.tenant import (
     TenantUserUpdateRequest,
 )
 from app.services.common import AuthService
+from app.services.tenant.tenant_org_authority_service import TenantOrgAuthorityService
 from app.services.tenant.tenant_user_service import TenantUserService
 
 
-def _serialize_user(user) -> dict:
+def _serialize_user(user, *, can_view_activity: bool = True) -> dict:
     """序列化用户信息 / Serialize user info"""
     org_node = getattr(user, "org_node", None)
     display_name = (
@@ -58,8 +59,13 @@ def _serialize_user(user) -> dict:
         "role_name": user.role.name if user.role else None,
         "org_node_id": getattr(user, "org_node_id", None),
         "org_node_name": getattr(org_node, "name", None),
-        "last_login_at": serialize_datetime_for_api(user.last_login_at),
-        "last_login_ip": user.last_login_ip,
+        "last_login_at": (
+            serialize_datetime_for_api(user.last_login_at)
+            if can_view_activity
+            else None
+        ),
+        "last_login_ip": user.last_login_ip if can_view_activity else None,
+        "can_view_activity": can_view_activity,
         "is_owner": False,
         "is_leader": False,
         "user_type": "tenant_user",
@@ -100,9 +106,20 @@ class TenantUserController(TenantController):
             """获取企业用户分页列表 / Get tenant user paginated list"""
             service = TenantUserService(db, current_admin.tenant_id)
             items, total = await service.query_list(spec=query)
+            activity_visible_ids = await TenantOrgAuthorityService(
+                db,
+                current_admin,
+            ).get_member_ai_manageable_org_node_ids()
 
             return paginated(
-                items=[_serialize_user(item) for item in items],
+                items=[
+                    _serialize_user(
+                        item,
+                        can_view_activity=getattr(item, "org_node_id", None)
+                        in activity_visible_ids,
+                    )
+                    for item in items
+                ],
                 total=total,
                 page=query.page,
                 page_size=query.size,
@@ -141,8 +158,15 @@ class TenantUserController(TenantController):
             """获取单个企业用户详情 / Get single tenant user details"""
             service = TenantUserService(db, current_admin.tenant_id)
             user = await service.get_identity_detail(user_id)
+            can_view_activity = await TenantOrgAuthorityService(
+                db,
+                current_admin,
+            ).can_view_member_activity_for_node(getattr(user, "org_node_id", None))
             return success(
-                data=serialize_tenant_user_identity_detail(user),
+                data=serialize_tenant_user_identity_detail(
+                    user,
+                    can_view_activity=can_view_activity,
+                ),
                 message=_("common.success"),
             )
 

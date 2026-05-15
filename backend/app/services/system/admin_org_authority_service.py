@@ -43,6 +43,11 @@ class AdminOrgAuthorityService:
             return False
         return org_node_id in await self.get_member_ai_manageable_org_node_ids()
 
+    async def can_view_member_activity_for_node(self, org_node_id: int | None) -> bool:
+        if org_node_id is None:
+            return False
+        return org_node_id in await self.get_member_ai_manageable_org_node_ids()
+
     async def get_member_ai_manageable_org_node_ids(self) -> set[int]:
         """Return nodes whose member AI switches are owned by this admin."""
         if self._member_ai_manageable_ids is not None:

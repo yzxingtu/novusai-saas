@@ -201,6 +201,7 @@ def test_identity_detail_helpers_include_expected_flags() -> None:
     assert admin_detail["display_name"] == "平台管理员"
     assert admin_detail["user_type"] == "admin"
     assert admin_detail["is_leader"] is True
+    assert admin_detail["can_view_activity"] is True
     assert admin_detail["org_node_name"] == "平台组织"
     assert admin_detail["display_role_name"] == "平台角色"
 
@@ -226,6 +227,7 @@ def test_identity_detail_helpers_include_expected_flags() -> None:
     assert tenant_admin_detail["user_type"] == "tenant_admin"
     assert tenant_admin_detail["is_owner"] is True
     assert tenant_admin_detail["tenant_id"] == 99
+    assert tenant_admin_detail["can_view_activity"] is True
     assert tenant_admin_detail["display_role_name"] == "企业角色"
 
     tenant_user = SimpleNamespace(
@@ -251,7 +253,35 @@ def test_identity_detail_helpers_include_expected_flags() -> None:
     assert tenant_user_detail["user_type"] == "tenant_user"
     assert tenant_user_detail["tenant_id"] == 100
     assert tenant_user_detail["approval_status"] == "approved"
+    assert tenant_user_detail["can_view_activity"] is True
     assert tenant_user_detail["display_role_name"] == "业务角色"
+
+
+def test_identity_detail_helpers_suppress_activity_fields_when_unauthorized() -> None:
+    now = datetime.now(timezone.utc)
+    admin = SimpleNamespace(
+        id=12,
+        username="activity_admin",
+        nickname="活动管理员",
+        avatar=None,
+        email="activity_admin@example.com",
+        phone=None,
+        is_active=True,
+        org_node=SimpleNamespace(id=18, name="平台管理组", leader_id=99),
+        role=None,
+        created_at=now,
+        updated_at=now,
+        last_login_at=now,
+        last_login_ip="127.0.0.1",
+    )
+
+    admin_detail = serialize_admin_identity_detail(admin, can_view_activity=False)
+
+    assert admin_detail["can_view_activity"] is False
+    assert admin_detail["created_at"] is None
+    assert admin_detail["updated_at"] is None
+    assert admin_detail["last_login_at"] is None
+    assert admin_detail["last_login_ip"] is None
 
 
 def test_identity_role_presentation_suppresses_architecture_duplicates() -> None:

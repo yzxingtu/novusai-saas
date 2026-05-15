@@ -5,6 +5,7 @@ import type { IdentityDetail } from '../identity-detail';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  buildIdentityActivityRows,
   buildIdentitySummaryRows,
   formatIdentityDateTime,
   resolveIdentityPrimaryContextLabel,
@@ -117,5 +118,22 @@ describe('detail presentation', () => {
       label: 'shared.identity.field.aiChat',
       value: 'shared.common.statusDisabled',
     });
+  });
+
+  it('masks recent activity rows when the viewer cannot access activity data', () => {
+    const rows = buildIdentityActivityRows({
+      canViewActivity: false,
+      createdAt: null,
+      lastLoginAt: null,
+      lastLoginIp: null,
+      updatedAt: null,
+    });
+
+    expect(rows.map((row) => row.value)).toEqual([
+      '*****',
+      '*****',
+      '*****',
+      '*****',
+    ]);
   });
 });

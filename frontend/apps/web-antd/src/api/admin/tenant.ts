@@ -423,6 +423,7 @@ export interface TenantAdminIdentityDetail {
   avatar?: null | string;
   ai_enabled?: boolean;
   ai_unavailable_reason?: null | string;
+  can_view_activity?: boolean;
   created_at?: null | string;
   display_name?: null | string;
   display_role_name?: null | string;

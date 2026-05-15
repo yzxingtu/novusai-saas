@@ -56,7 +56,7 @@ async def get_tenant_user_detail(
     _current_admin = current_admin
     user = await TenantUserService(db, tenant_id).get_identity_detail(user_id)
     return success(
-        data=serialize_tenant_user_identity_detail(user),
+        data=serialize_tenant_user_identity_detail(user, can_view_activity=False),
         message=_("common.success"),
     )
 

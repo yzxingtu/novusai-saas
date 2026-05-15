@@ -30,6 +30,7 @@ export type IdentitySubjectType =
 export interface IdentityDetail extends Omit<IdentityDisplayModel, 'id'> {
   aiEnabled?: boolean;
   approvalStatus?: null | string;
+  canViewActivity?: boolean;
   createdAt?: null | string;
   detailScope?: IdentityDetailScope;
   displayName?: null | string;
@@ -152,6 +153,7 @@ export function toIdentityDetailFallback(
     aiEnabled: source.aiEnabled,
     approvalStatus: toOptionalString(source.approvalStatus),
     badges: source.badges ? [...source.badges] : undefined,
+    canViewActivity: source.canViewActivity,
     createdAt: toOptionalString(source.createdAt),
     detailScope: source.detailScope,
     displayName: toOptionalString(source.displayName),
@@ -236,6 +238,7 @@ function normalizeIdentityDetail(
     ...displayModel,
     aiEnabled: merged.aiEnabled,
     approvalStatus: merged.approvalStatus,
+    canViewActivity: merged.canViewActivity ?? true,
     createdAt: merged.createdAt,
     detailScope: request.scope,
     displayName:
@@ -352,6 +355,7 @@ function mapAdminIdentityDetail(
   return {
     aiEnabled: detail.effective_ai_enabled ?? detail.ai_enabled ?? true,
     avatar: detail.avatar,
+    canViewActivity: detail.can_view_activity,
     createdAt: detail.created_at,
     displayName: detail.display_name ?? undefined,
     email: detail.email,
@@ -379,6 +383,7 @@ function mapTenantAdminIdentityDetail(
   return {
     aiEnabled: detail.effective_ai_enabled ?? detail.ai_enabled ?? true,
     avatar: detail.avatar,
+    canViewActivity: detail.can_view_activity,
     createdAt: detail.created_at,
     displayName: detail.display_name ?? undefined,
     email: detail.email,
@@ -406,6 +411,7 @@ function mapTenantUserIdentityDetail(
   return {
     approvalStatus: detail.approvalStatus,
     avatar: detail.avatar,
+    canViewActivity: detail.canViewActivity,
     createdAt: detail.createdAt,
     displayName: detail.displayName ?? undefined,
     email: detail.email,

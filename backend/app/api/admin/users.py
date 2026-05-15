@@ -21,6 +21,7 @@ from app.rbac.decorators import (
 )
 from app.services.ai.account_ai_access_service import AccountAIAccessService
 from app.services.common import AuthService
+from app.services.system.admin_org_authority_service import AdminOrgAuthorityService
 from app.services.system.admin_service import AdminService
 
 
@@ -75,8 +76,16 @@ class AdminUserController(GlobalController):
             ai_profile = await AccountAIAccessService(
                 db
             ).get_platform_admin_ai_availability_profile(admin)
+            can_view_activity = await AdminOrgAuthorityService(
+                db,
+                current_admin,
+            ).can_view_member_activity_for_node(getattr(admin, "org_node_id", None))
             return success(
-                data=serialize_admin_identity_detail(admin, ai_profile=ai_profile),
+                data=serialize_admin_identity_detail(
+                    admin,
+                    ai_profile=ai_profile,
+                    can_view_activity=can_view_activity,
+                ),
                 message=_("common.success"),
             )
 

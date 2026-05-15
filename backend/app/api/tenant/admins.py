@@ -14,6 +14,7 @@ from app.core.response import success
 from app.rbac.decorators import auth_only
 from app.services.ai.account_ai_access_service import AccountAIAccessService
 from app.services.tenant.tenant_admin_service import TenantAdminService
+from app.services.tenant.tenant_org_authority_service import TenantOrgAuthorityService
 
 router = APIRouter(prefix="/admins", tags=["Tenant Admin Identity"])
 
@@ -58,8 +59,16 @@ async def get_tenant_admin_detail(
     ai_profile = await AccountAIAccessService(
         db
     ).get_tenant_admin_ai_availability_profile(admin)
+    can_view_activity = await TenantOrgAuthorityService(
+        db,
+        current_admin,
+    ).can_view_member_activity_for_node(getattr(admin, "org_node_id", None))
     return success(
-        data=serialize_tenant_admin_identity_detail(admin, ai_profile=ai_profile),
+        data=serialize_tenant_admin_identity_detail(
+            admin,
+            ai_profile=ai_profile,
+            can_view_activity=can_view_activity,
+        ),
         message=_("common.success"),
     )
 

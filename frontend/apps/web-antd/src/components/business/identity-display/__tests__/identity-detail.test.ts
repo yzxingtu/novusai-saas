@@ -118,6 +118,7 @@ describe('identity detail contract mapping', () => {
     apiMocks.getAdminIdentityDetailApi.mockResolvedValueOnce({
       ai_enabled: false,
       avatar: null,
+      can_view_activity: false,
       created_at: null,
       display_name: '平台管理员',
       display_role_name: null,
@@ -148,5 +149,6 @@ describe('identity detail contract mapping', () => {
     });
 
     expect(detail.aiEnabled).toBe(false);
+    expect(detail.canViewActivity).toBe(false);
   });
 });

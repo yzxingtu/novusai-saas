@@ -879,8 +879,14 @@ onMounted(async () => {
               </template>
 
               <template #lastLoginAt_cell="{ row }">
+                <span
+                  v-if="row.canViewActivity === false"
+                  class="text-muted-foreground"
+                >
+                  *****
+                </span>
                 <Tooltip
-                  v-if="row.lastLoginAt"
+                  v-else-if="row.lastLoginAt"
                   :title="formatDate(row.lastLoginAt)"
                 >
                   <span class="text-muted-foreground">

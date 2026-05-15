@@ -34,6 +34,8 @@ export type IdentitySummaryMode =
   | 'embedded'
   | 'quick';
 
+const ACTIVITY_MASK_VALUE = '*****';
+
 function normalizeText(value?: null | string): string {
   return typeof value === 'string' ? value.trim() : '';
 }
@@ -185,14 +187,16 @@ function buildQuickRows(detail: IdentityDetail): IdentityPresentationRow[] {
     );
   }
 
-  pushOptionalRow(
-    rows,
-    'last-login',
-    $t('shared.identity.field.lastLoginAt'),
-    normalizeText(detail.lastLoginAt)
-      ? formatIdentityRecentActivity(detail.lastLoginAt)
-      : undefined,
-  );
+  if (detail.canViewActivity !== false) {
+    pushOptionalRow(
+      rows,
+      'last-login',
+      $t('shared.identity.field.lastLoginAt'),
+      normalizeText(detail.lastLoginAt)
+        ? formatIdentityRecentActivity(detail.lastLoginAt)
+        : undefined,
+    );
+  }
 
   return rows;
 }
@@ -372,9 +376,38 @@ export function buildIdentityStatusChips(
 export function buildIdentityActivityRows(
   detail: Pick<
     IdentityDetail,
-    'createdAt' | 'lastLoginAt' | 'lastLoginIp' | 'updatedAt'
+    | 'canViewActivity'
+    | 'createdAt'
+    | 'lastLoginAt'
+    | 'lastLoginIp'
+    | 'updatedAt'
   >,
 ): IdentityPresentationRow[] {
+  if (detail.canViewActivity === false) {
+    return [
+      {
+        key: 'created-at',
+        label: $t('shared.identity.field.createdAt'),
+        value: ACTIVITY_MASK_VALUE,
+      },
+      {
+        key: 'updated-at',
+        label: $t('shared.identity.field.updatedAt'),
+        value: ACTIVITY_MASK_VALUE,
+      },
+      {
+        key: 'last-login-at',
+        label: $t('shared.identity.field.lastLoginAt'),
+        value: ACTIVITY_MASK_VALUE,
+      },
+      {
+        key: 'last-login-ip',
+        label: $t('shared.identity.field.lastLoginIp'),
+        value: ACTIVITY_MASK_VALUE,
+      },
+    ];
+  }
+
   return [
     {
       key: 'created-at',

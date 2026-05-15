@@ -74,6 +74,7 @@ def test_admin_user_routes_delegate_to_services(monkeypatch) -> None:
         updated_at=None,
         last_login_at=None,
         last_login_ip=None,
+        org_node_id=9,
         role=None,
         org_node=None,
     )
@@ -84,15 +85,32 @@ def test_admin_user_routes_delegate_to_services(monkeypatch) -> None:
     auth_service = SimpleNamespace(
         token_sessions=SimpleNamespace(force_logout=AsyncMock(return_value=None)),
     )
+    authority_service = SimpleNamespace(
+        can_view_member_activity_for_node=AsyncMock(return_value=True),
+    )
+    ai_access_service = SimpleNamespace(
+        get_platform_admin_ai_availability_profile=AsyncMock(return_value={}),
+    )
 
     monkeypatch.setattr(admin_module, "AdminService", lambda _db: admin_service)
     monkeypatch.setattr(admin_module, "AuthService", lambda _db: auth_service)
+    monkeypatch.setattr(
+        admin_module,
+        "AccountAIAccessService",
+        lambda _db: ai_access_service,
+    )
+    monkeypatch.setattr(
+        admin_module,
+        "AdminOrgAuthorityService",
+        lambda _db, _admin: authority_service,
+    )
     monkeypatch.setattr(
         admin_module,
         "serialize_admin_identity_detail",
         lambda payload_admin, **_kwargs: {
             "id": payload_admin.id,
             "username": payload_admin.username,
+            "can_view_activity": _kwargs["can_view_activity"],
         },
     )
 
@@ -107,6 +125,7 @@ def test_admin_user_routes_delegate_to_services(monkeypatch) -> None:
 
     assert select_response.status_code == 200
     assert detail_response.status_code == 200
+    assert detail_response.json()["data"]["can_view_activity"] is True
     assert logout_response.status_code == 200
     admin_service.get_identity_select_options.assert_awaited_once_with(
         search="a",
@@ -115,6 +134,10 @@ def test_admin_user_routes_delegate_to_services(monkeypatch) -> None:
     )
     assert admin_service.get_identity_detail.await_count >= 1
     admin_service.get_identity_detail.assert_any_await(7)
+    ai_access_service.get_platform_admin_ai_availability_profile.assert_awaited_once_with(
+        admin
+    )
+    authority_service.can_view_member_activity_for_node.assert_awaited_once_with(9)
     auth_service.token_sessions.force_logout.assert_awaited_once_with(
         user_type="admin",
         user_id=7,

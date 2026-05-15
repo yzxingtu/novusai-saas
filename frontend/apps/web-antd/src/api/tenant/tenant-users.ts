@@ -47,6 +47,7 @@ export interface TenantUserResetPasswordRequest {
 export interface TenantUserInfoRaw {
   approval_status: string;
   avatar?: string;
+  can_view_activity?: boolean;
   created_at: string;
   display_name?: null | string;
   display_role_name?: null | string;
@@ -74,6 +75,7 @@ export interface TenantUserInfoRaw {
 export interface TenantUserInfo {
   approvalStatus: string;
   avatar?: string;
+  canViewActivity?: boolean;
   createdAt: string;
   displayName?: null | string;
   displayRoleName?: null | string;
@@ -129,6 +131,7 @@ export function transformUserInfo(raw: TenantUserInfoRaw): TenantUserInfo {
   return {
     approvalStatus: raw.approval_status,
     avatar: raw.avatar,
+    canViewActivity: raw.can_view_activity,
     createdAt: raw.created_at,
     displayName: raw.display_name,
     displayRoleName: raw.display_role_name,
