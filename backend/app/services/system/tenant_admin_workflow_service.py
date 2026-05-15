@@ -44,10 +44,11 @@ def _serialize_tenant_admin(tenant_admin: Any) -> dict[str, Any]:
         "permission_role_id": tenant_admin.role_id,
         "org_node_name": org_node.name if org_node else None,
         "org_node_id": tenant_admin.org_node_id,
-        "last_login_at": serialize_datetime_for_api(tenant_admin.last_login_at),
-        "last_login_ip": tenant_admin.last_login_ip,
-        "created_at": serialize_datetime_for_api(tenant_admin.created_at),
-        "updated_at": serialize_datetime_for_api(tenant_admin.updated_at),
+        "last_login_at": None,
+        "last_login_ip": None,
+        "created_at": None,
+        "updated_at": None,
+        "can_view_activity": False,
     }
 
 

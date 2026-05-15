@@ -302,12 +302,13 @@ class TenantPlanService(GlobalService[TenantPlan, TenantPlanRepository]):
         plan_id: int,
         permission_ids: list[int],
     ) -> TenantPlan:
-        """
-        分配套餐权限 / Assign permissions to plan.
+        """中文: 分配套餐权限。
+
+        EN: Assign permissions to a plan.
 
         Args:
             plan_id: 套餐 ID
-            permission_ids: 权限 ID 列表（仅支持 tenant scope 的 menu 类型）
+            permission_ids: 权限 ID 列表（tenant/both scope 的 menu 或 operation 类型）
 
         Returns:
             更新后的套餐
@@ -324,7 +325,8 @@ class TenantPlanService(GlobalService[TenantPlan, TenantPlanRepository]):
 
         requested_ids = list(dict.fromkeys(permission_ids))
 
-        # 获取有效的权限列表（仅 tenant/both scope 的 menu 类型）
+        # 中文: 套餐既限制菜单可见性，也限制具体操作点，二者必须一起保存。
+        # EN: Plans gate both menu visibility and concrete operations, so both types are persisted.
         valid_permissions = await self._get_valid_permissions(requested_ids)
         valid_ids = {permission.id for permission in valid_permissions}
         invalid_ids = sorted(set(requested_ids) - valid_ids)
@@ -368,8 +370,9 @@ class TenantPlanService(GlobalService[TenantPlan, TenantPlanRepository]):
         self,
         permission_ids: list[int],
     ) -> list[Permission]:
-        """
-        获取有效的权限列表（仅 tenant/both scope 的 menu 类型）/ Get valid permissions (tenant/both scope, menu type only).
+        """中文: 获取有效的套餐权限列表。
+
+        EN: Get valid plan permissions.
 
         Args:
             permission_ids: 权限 ID 列表
@@ -385,7 +388,12 @@ class TenantPlanService(GlobalService[TenantPlan, TenantPlanRepository]):
             Permission.id.in_(permission_ids),
             Permission.is_deleted.is_(False),
             Permission.is_enabled.is_(True),
-            Permission.type == PermissionType.MENU.value,
+            Permission.type.in_(
+                [
+                    PermissionType.MENU.value,
+                    PermissionType.OPERATION.value,
+                ]
+            ),
             Permission.scope.in_(
                 [
                     PermissionScope.TENANT.value,
@@ -397,10 +405,12 @@ class TenantPlanService(GlobalService[TenantPlan, TenantPlanRepository]):
         return list(result.scalars().all())
 
     async def get_available_permissions(self) -> list[Permission]:
-        """
-        获取可分配给套餐的权限列表 / Get permissions assignable to plans.
+        """中文: 获取可分配给套餐的权限列表。
 
-        返回所有 tenant/both scope 的 menu 类型权限
+        EN: Get permissions assignable to plans.
+
+        中文: 返回所有 tenant/both scope 的 menu 和 operation 类型权限。
+        EN: Returns all menu and operation permissions with tenant/both scope.
 
         Returns:
             可用权限列表
@@ -410,7 +420,12 @@ class TenantPlanService(GlobalService[TenantPlan, TenantPlanRepository]):
             .where(
                 Permission.is_deleted.is_(False),
                 Permission.is_enabled.is_(True),
-                Permission.type == PermissionType.MENU.value,
+                Permission.type.in_(
+                    [
+                        PermissionType.MENU.value,
+                        PermissionType.OPERATION.value,
+                    ]
+                ),
                 Permission.scope.in_(
                     [
                         PermissionScope.TENANT.value,

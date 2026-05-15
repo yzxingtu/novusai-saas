@@ -7,7 +7,7 @@ Defines tenant admin API request and response data structures.
 
 from datetime import datetime
 
-from pydantic import Field, field_validator
+from pydantic import ConfigDict, Field, field_validator
 
 from app.core.base_schema import BaseSchema
 
@@ -50,13 +50,12 @@ def _normalize_readable_avatar_value(value: object) -> str | None:
 class TenantAdminLoginRequest(BaseSchema):
     """企业管理员登录请求 / Tenant admin login request."""
 
+    model_config = ConfigDict(extra="forbid")
+
     username: str = Field(
         ..., min_length=1, max_length=50, description="用户名或邮箱 / Username or email"
     )
     password: str = Field(..., min_length=1, description="密码")
-    tenant_code: str = Field(
-        ..., min_length=1, max_length=50, description="企业编码（用于限定登录范围）"
-    )
     captcha_challenge_id: str | None = Field(None, description="验证码挑战 ID")
     captcha_solution: str | None = Field(None, description="验证码答案")
     captcha_provider_code: str | None = Field(None, description="验证码提供方标识")
@@ -82,6 +81,7 @@ class TenantAdminResponse(BaseSchema):
     tenant_ai_enabled: bool = Field(True, description="企业套餐/配额 AI 开关")
     effective_ai_enabled: bool = Field(True, description="当前账号实际是否可用 AI")
     ai_unavailable_reason: str | None = Field(None, description="AI 不可用原因代码")
+    permissions: list[str] = Field(default_factory=list, description="权限码列表")
     last_login_at: datetime | None = Field(None, description="最后登录时间")
     created_at: datetime = Field(..., description="创建时间")
 
@@ -94,6 +94,7 @@ class TenantAdminResponse(BaseSchema):
         tenant_ai_enabled: bool = True,
         effective_ai_enabled: bool | None = None,
         ai_unavailable_reason: str | None = None,
+        permissions: list[str] | None = None,
     ) -> "TenantAdminResponse":
         """从模型创建响应，包含角色名称和套餐状态 / Build response from model with role name and plan status."""
         account_ai_enabled = getattr(admin, "ai_enabled", True)
@@ -120,6 +121,7 @@ class TenantAdminResponse(BaseSchema):
             tenant_ai_enabled=tenant_ai_enabled,
             effective_ai_enabled=effective_ai_enabled,
             ai_unavailable_reason=ai_unavailable_reason,
+            permissions=permissions or [],
             last_login_at=admin.last_login_at,
             created_at=admin.created_at,
         )

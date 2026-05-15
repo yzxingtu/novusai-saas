@@ -13,6 +13,7 @@ from app.core.i18n import _
 from app.core.logging import ImpersonateLoggerMixin
 from app.core.rate_limit import check_login_rate_limit
 from app.core.response import success
+from app.middleware.tenant import get_tenant_context
 from app.rbac.decorators import auth_only, public
 from app.schemas.common import (
     DevBootstrapRequest,
@@ -23,7 +24,6 @@ from app.schemas.common import (
 from app.schemas.tenant import (
     TenantAdminChangePasswordRequest,
     TenantAdminLoginRequest,
-    TenantAdminResponse,
     TenantAdminUpdateProfileRequest,
 )
 from app.services.common import AuthService
@@ -47,6 +47,18 @@ def _client_ip(request: Request) -> str | None:
     return request.client.host if request.client else None
 
 
+def _tenant_code_from_request_domain(request: Request) -> str | None:
+    """中文: 企业端登录的企业边界只来自请求域名解析结果。
+
+    EN: Tenant-admin login derives its tenant boundary only from the
+    domain-resolved request context.
+    """
+    tenant_ctx = get_tenant_context(request)
+    if tenant_ctx and tenant_ctx.is_resolved:
+        return tenant_ctx.tenant_code
+    return None
+
+
 @router.post("/login", summary="企业管理员登录")
 @public
 async def tenant_admin_login(
@@ -64,10 +76,11 @@ async def tenant_admin_login(
     if rate_limited:
         return rate_limited
     auth_service = AuthService(db)
+    tenant_code = _tenant_code_from_request_domain(request)
     tokens = await auth_service.tenant_admin_auth.authenticate(
         username=login_data.username,
         password=login_data.password,
-        tenant_code=login_data.tenant_code,
+        tenant_code=tenant_code,
         client_ip=_client_ip(request),
         captcha_challenge_id=login_data.captcha_challenge_id,
         captcha_solution=login_data.captcha_solution,
@@ -165,21 +178,10 @@ async def get_current_tenant_admin_info(
     响应中包含 has_plan 字段，前端据此判断是否显示“未分配套餐”提示。
     Response includes has_plan field for frontend to determine whether to show "no plan assigned" prompt.
     """
-    auth_service = AuthService(db)
-    profile_flags = await auth_service.tenant_admin_auth.get_profile_flags(
-        current_admin
-    )
-    ai_profile = await TenantAdminService(
+    resp = await TenantAdminService(
         db,
         current_admin.tenant_id,
-    ).get_ai_availability_profile(current_admin)
-
-    resp = TenantAdminResponse.model_validate(current_admin, from_attributes=True)
-    resp.has_plan = bool(profile_flags["has_plan"])
-    resp.plan_name = profile_flags["plan_name"]
-    resp.tenant_ai_enabled = bool(ai_profile["tenant_ai_enabled"])
-    resp.effective_ai_enabled = bool(ai_profile["effective_ai_enabled"])
-    resp.ai_unavailable_reason = ai_profile["ai_unavailable_reason"]
+    ).build_auth_profile_response(current_admin)
     return success(data=resp, message=_("common.success"))
 
 
@@ -228,17 +230,10 @@ async def update_profile(
         profile_data=update_fields,
     )
     await db.commit()
-    resp = TenantAdminResponse.model_validate(tenant_admin, from_attributes=True)
-    profile_flags = await auth_service.tenant_admin_auth.get_profile_flags(tenant_admin)
-    ai_profile = await TenantAdminService(
+    resp = await TenantAdminService(
         db,
         tenant_admin.tenant_id,
-    ).get_ai_availability_profile(tenant_admin)
-    resp.has_plan = bool(profile_flags["has_plan"])
-    resp.plan_name = profile_flags["plan_name"]
-    resp.tenant_ai_enabled = bool(ai_profile["tenant_ai_enabled"])
-    resp.effective_ai_enabled = bool(ai_profile["effective_ai_enabled"])
-    resp.ai_unavailable_reason = ai_profile["ai_unavailable_reason"]
+    ).build_auth_profile_response(tenant_admin)
     return success(data=resp, message=_("auth.profile_updated"))
 
 

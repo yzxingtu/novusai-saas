@@ -18,6 +18,22 @@ from app.services.system.admin_org_authority_service import AdminOrgAuthoritySer
 from app.services.tenant.tenant_org_authority_service import TenantOrgAuthorityService
 
 
+def _enabled_permission_codes(permissions) -> set[str]:
+    return {
+        permission.code
+        for permission in permissions
+        if permission.is_enabled and not permission.is_deleted
+    }
+
+
+def _enabled_permission_ids(permissions) -> set[int]:
+    return {
+        permission.id
+        for permission in permissions
+        if permission.is_enabled and not permission.is_deleted
+    }
+
+
 class _TenantPlanPermissionResolver:
     """Resolve tenant-plan permissions and expanded child operations."""
 
@@ -117,6 +133,23 @@ class PermissionAggregationDomain:
             return None
         return org_node
 
+    async def get_tenant_admin_role(
+        self,
+        tenant_admin: TenantAdmin,
+    ) -> TenantAdminRole | None:
+        if tenant_admin.role_id is None:
+            return None
+
+        result = await self._db.execute(
+            select(TenantAdminRole)
+            .where(TenantAdminRole.id == tenant_admin.role_id)
+            .options(selectinload(TenantAdminRole.permissions))
+        )
+        role = result.scalar_one_or_none()
+        if role is None or not role.is_active:
+            return None
+        return role
+
     async def get_admin_permissions(self, admin: Admin) -> set[str]:
         if admin.is_super:
             return {"*"}
@@ -211,34 +244,16 @@ class PermissionAggregationDomain:
         if tenant_admin.is_owner:
             return plan_perms[0]
 
+        permission_codes: set[str] = set()
         org_node = await self.get_tenant_org_node(tenant_admin)
         if org_node is not None:
-            org_node_perms = {
-                permission.code
-                for permission in org_node.permissions
-                if permission.is_enabled and not permission.is_deleted
-            }
-            return org_node_perms & plan_perms[0]
+            permission_codes.update(_enabled_permission_codes(org_node.permissions))
 
-        if tenant_admin.role_id is None:
-            return set()
+        role = await self.get_tenant_admin_role(tenant_admin)
+        if role is not None:
+            permission_codes.update(_enabled_permission_codes(role.permissions))
 
-        result = await self._db.execute(
-            select(TenantAdminRole)
-            .where(TenantAdminRole.id == tenant_admin.role_id)
-            .options(selectinload(TenantAdminRole.permissions))
-        )
-        role = result.scalar_one_or_none()
-
-        if role is None or not role.is_active:
-            return set()
-
-        role_perms = {
-            permission.code
-            for permission in role.permissions
-            if permission.is_enabled and not permission.is_deleted
-        }
-        return role_perms & plan_perms[0]
+        return permission_codes & plan_perms[0]
 
     async def get_tenant_admin_effective_permission_ids(
         self,
@@ -251,29 +266,14 @@ class PermissionAggregationDomain:
         if tenant_admin.is_owner:
             return plan_perms[1]
 
+        permission_ids: set[int] = set()
         org_node = await self.get_tenant_org_node(tenant_admin)
         if org_node is not None:
-            org_node_permission_ids = {
-                permission.id
-                for permission in org_node.permissions
-                if permission.is_enabled and not permission.is_deleted
-            }
-            return org_node_permission_ids & plan_perms[1]
+            permission_ids.update(_enabled_permission_ids(org_node.permissions))
 
-        if tenant_admin.role_id is None:
-            return set()
-
-        permission_ids: set[int] = set()
-        result = await self._db.execute(
-            select(TenantAdminRole)
-            .where(TenantAdminRole.id == tenant_admin.role_id)
-            .options(selectinload(TenantAdminRole.permissions))
-        )
-        role = result.scalar_one_or_none()
-        if role and role.is_active:
-            for permission in role.permissions:
-                if permission.is_enabled and not permission.is_deleted:
-                    permission_ids.add(permission.id)
+        role = await self.get_tenant_admin_role(tenant_admin)
+        if role is not None:
+            permission_ids.update(_enabled_permission_ids(role.permissions))
 
         return permission_ids & plan_perms[1]
 

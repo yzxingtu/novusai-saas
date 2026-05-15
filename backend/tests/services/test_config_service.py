@@ -102,6 +102,26 @@ def test_config_value_validation_rejects_unknown_select_option() -> None:
     assert exc_info.value.code == ErrorCode.CONFIG_VALIDATION_FAILED
 
 
+def test_config_value_validation_allows_dynamic_select_option() -> None:
+    """
+    中文: 测试类型 behavioral；动态 select 配置允许运行时注入的选项值。
+    EN: Test type behavioral; dynamic select configs accept runtime-injected option values.
+    中文: 无 mock。
+    EN: No mocks.
+    """
+    service = ConfigService(MagicMock())
+    meta = ConfigMeta(
+        key="user_default_role_id",
+        name_key="config.tenant.user_default_role_id.name",
+        value_type=ConfigValueType.SELECT,
+        options=[option(0, "config.tenant.user_default_role_id.option_none")],
+        allow_dynamic_options=True,
+    )
+
+    assert service._normalize_and_validate_config_value(meta, 7) == 7
+    assert service._normalize_and_validate_config_value(meta, 0) == 0
+
+
 def test_config_value_validation_normalizes_boolean_and_tag_values() -> None:
     """
     中文: 测试类型 behavioral；boolean 与 tag 类型按后端存储契约归一化。

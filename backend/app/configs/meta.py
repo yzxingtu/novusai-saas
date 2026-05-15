@@ -108,6 +108,9 @@ class ConfigMeta:
     options: list[ConfigOption] = field(default_factory=list)
     """Options list (for select/multi_select) / 选项列表"""
 
+    allow_dynamic_options: bool = False
+    """Allow values injected at runtime outside static options / 允许运行时注入的非静态选项值"""
+
     validation_rules: list[ValidationRule] = field(default_factory=list)
     """Validation rules list / 验证规则列表"""
 
@@ -163,6 +166,7 @@ class ConfigMeta:
             "value_type": self.value_type.value,
             "default_value": self.default_value,
             "options": [opt.to_dict() for opt in self.options],
+            "allow_dynamic_options": self.allow_dynamic_options,
             "validation_rules": [rule.to_dict() for rule in self.validation_rules],
             "is_required": self.is_required,
             "is_visible": self.is_visible,

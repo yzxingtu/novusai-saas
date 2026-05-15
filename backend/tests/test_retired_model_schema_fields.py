@@ -216,27 +216,26 @@ def test_behavioral_agent_access_rejects_retired_access_type_writes() -> None:
         access.access_type = "all_users"
 
 
-def test_behavioral_tenant_admin_login_requires_explicit_tenant_code() -> None:
-    """中文: 测试类型 behavioral；企业管理员登录必须显式给出企业编码。
+def test_behavioral_tenant_admin_login_rejects_body_tenant_code() -> None:
+    """中文: 测试类型 behavioral；企业管理员登录不接受请求体企业编码。
 
-    EN: Test type behavioral; tenant admin login requires an explicit tenant
-    code.
+    EN: Test type behavioral; tenant admin login does not accept a tenant code
+    from the request body.
     """
-    with pytest.raises(ValidationError, match="tenant_code"):
-        TenantAdminLoginRequest.model_validate(
-            {"username": "owner", "password": "secret123"}
-        )
+    request = TenantAdminLoginRequest.model_validate(
+        {"username": "owner", "password": "secret123"}
+    )
+    assert "tenant_code" not in TenantAdminLoginRequest.model_fields
+    assert "tenant_code" not in request.model_dump()
 
-    assert (
+    with pytest.raises(ValidationError, match="tenant_code"):
         TenantAdminLoginRequest.model_validate(
             {
                 "username": "owner",
                 "password": "secret123",
                 "tenant_code": "acme",
             }
-        ).tenant_code
-        == "acme"
-    )
+        )
 
 
 @pytest.mark.parametrize(

@@ -174,10 +174,12 @@ class AdminPlanController(GlobalController):
             db: DbSession,
             current_admin: ActiveAdmin,
         ):
-            """
-            获取可分配给套餐的权限树 / Get assignable permission tree for plans
+            """中文: 获取可分配给套餐的权限树。
 
-            返回 tenant/both scope 的 menu 类型权限（树形结构） / Returns menu-type permissions with tenant/both scope (tree structure)
+            EN: Get the assignable permission tree for tenant plans.
+
+            中文: 返回 tenant/both scope 的 menu 和 operation 类型权限（树形结构）。
+            EN: Returns menu and operation permissions with tenant/both scope.
 
             权限 / Permission: tenant_plan:available_permissions
             """
@@ -381,11 +383,12 @@ class AdminPlanController(GlobalController):
             data: TenantPlanPermissionsRequest,
             current_admin: ActiveAdmin,
         ):
-            """
-            设置套餐关联的权限 / Set plan associated permissions
+            """中文: 设置套餐关联的权限。
 
-            - 仅支持 tenant/both scope 的 menu 类型权限 / Only supports menu-type permissions with tenant/both scope
-            - 无效的权限 ID 会被拒绝 / Invalid permission IDs are rejected
+            EN: Set plan-associated permissions.
+
+            中文: 支持 tenant/both scope 的 menu 和 operation 类型权限；无效的权限 ID 会被拒绝。
+            EN: Supports menu and operation permissions with tenant/both scope; invalid IDs are rejected.
 
             权限 / Permission: tenant_plan:assign_permissions
             """

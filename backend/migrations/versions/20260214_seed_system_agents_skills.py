@@ -1,10 +1,9 @@
 """seed_system_agents_skills
 
-NOTE: SkillPackages partially superseded by 20260226_0410_merge_system_skill_packages:
-  - 系统聊天技能包 → renamed to 系统核心技能包 (unified package)
-  - 系统向量化技能包 → soft-deleted, skill moved to unified package
-  Agents (system_chat_agent, system_embedding_agent) and skills (llm_chat, llm_embedding)
-  remain valid and are now under the unified package.
+NOTE: These historical system packages are retired by
+20260513_0044_retire_llm_builtin. They remain here only because historical
+Alembic revisions are replayed by fresh databases before the retirement
+migration runs.
 
 Original: Create system-level Agents, Skills, and SkillPackages with is_system=True.
 These records serve as the unified AI dispatch layer (Agent→Skill architecture).
@@ -14,19 +13,18 @@ Revises: f6a7b8c9d0e1
 Create Date: 2026-02-14 00:10:00.000000+08:00
 
 """
-from typing import Sequence, Union
 
 import json
+from collections.abc import Sequence
 
 from alembic import op
 from sqlalchemy import text
 
-
 # revision identifiers, used by Alembic.
 revision: str = "a7b8c9d0e1f2"
-down_revision: Union[str, None] = "f6a7b8c9d0e1"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "f6a7b8c9d0e1"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -101,11 +99,14 @@ SYSTEM_AGENTS = [
 
 def _find_model(conn, model_type: str) -> int | None:
     """Find the first active AI model of the given type."""
-    row = conn.execute(text(
-        "SELECT id FROM ai_models "
-        "WHERE type = :type AND is_active = true AND is_deleted = false "
-        "ORDER BY id LIMIT 1"
-    ), {"type": model_type}).fetchone()
+    row = conn.execute(
+        text(
+            "SELECT id FROM ai_models "
+            "WHERE type = :type AND is_active = true AND is_deleted = false "
+            "ORDER BY id LIMIT 1"
+        ),
+        {"type": model_type},
+    ).fetchone()
     return row[0] if row else None
 
 
@@ -115,30 +116,38 @@ def upgrade() -> None:
     # ---------- 1. Create system skill packages ----------
     pkg_ids: dict[str, int] = {}
     for pkg in SYSTEM_SKILL_PACKAGES:
-        existing = conn.execute(text(
-            "SELECT id FROM skill_packages "
-            "WHERE name = :name AND tenant_id IS NULL AND is_deleted = false"
-        ), {"name": pkg["name"]}).fetchone()
+        existing = conn.execute(
+            text(
+                "SELECT id FROM skill_packages "
+                "WHERE name = :name AND tenant_id IS NULL AND is_deleted = false"
+            ),
+            {"name": pkg["name"]},
+        ).fetchone()
 
         if existing:
             pkg_ids[pkg["name"]] = existing[0]
-            print(f"[SEED] SkillPackage '{pkg['name']}' already exists (id={existing[0]})")
+            print(
+                f"[SEED] SkillPackage '{pkg['name']}' already exists (id={existing[0]})"
+            )
             continue
 
-        result = conn.execute(text(
-            "INSERT INTO skill_packages "
-            "(tenant_id, name, description, scope, is_system, is_active, sort_order, "
-            " created_at, updated_at, is_deleted) "
-            "VALUES "
-            "(NULL, :name, :description, :scope, true, true, :sort_order, "
-            " NOW(), NOW(), false) "
-            "RETURNING id"
-        ), {
-            "name": pkg["name"],
-            "description": pkg["description"],
-            "scope": pkg["scope"],
-            "sort_order": pkg["sort_order"],
-        })
+        result = conn.execute(
+            text(
+                "INSERT INTO skill_packages "
+                "(tenant_id, name, description, scope, is_system, is_active, sort_order, "
+                " created_at, updated_at, is_deleted) "
+                "VALUES "
+                "(NULL, :name, :description, :scope, true, true, :sort_order, "
+                " NOW(), NOW(), false) "
+                "RETURNING id"
+            ),
+            {
+                "name": pkg["name"],
+                "description": pkg["description"],
+                "scope": pkg["scope"],
+                "sort_order": pkg["sort_order"],
+            },
+        )
         pkg_id = result.fetchone()[0]
         pkg_ids[pkg["name"]] = pkg_id
         print(f"[SEED] Created system SkillPackage '{pkg['name']}' (id={pkg_id})")
@@ -146,10 +155,13 @@ def upgrade() -> None:
     # ---------- 2. Create system skills ----------
     skill_ids: dict[str, int] = {}
     for skill in SYSTEM_SKILLS:
-        existing = conn.execute(text(
-            "SELECT id FROM skills "
-            "WHERE name = :name AND tenant_id IS NULL AND is_deleted = false"
-        ), {"name": skill["name"]}).fetchone()
+        existing = conn.execute(
+            text(
+                "SELECT id FROM skills "
+                "WHERE name = :name AND tenant_id IS NULL AND is_deleted = false"
+            ),
+            {"name": skill["name"]},
+        ).fetchone()
 
         if existing:
             skill_ids[skill["name"]] = existing[0]
@@ -158,39 +170,47 @@ def upgrade() -> None:
 
         pkg_id = pkg_ids.get(skill["package_name"])
         if not pkg_id:
-            print(f"[SEED] WARNING: Package '{skill['package_name']}' not found, skipping skill '{skill['name']}'")
+            print(
+                f"[SEED] WARNING: Package '{skill['package_name']}' not found, skipping skill '{skill['name']}'"
+            )
             continue
 
-        result = conn.execute(text(
-            "INSERT INTO skills "
-            "(tenant_id, package_id, name, description, type, scope, config, "
-            " is_system, is_active, timeout, sort_order, "
-            " created_at, updated_at, is_deleted) "
-            "VALUES "
-            "(NULL, :package_id, :name, :description, :type, :scope, CAST(:config AS jsonb), "
-            " true, true, :timeout, :sort_order, "
-            " NOW(), NOW(), false) "
-            "RETURNING id"
-        ), {
-            "package_id": pkg_id,
-            "name": skill["name"],
-            "description": skill["description"],
-            "type": skill["type"],
-            "scope": skill["scope"],
-            "config": json.dumps(skill["config"]),
-            "timeout": skill["timeout"],
-            "sort_order": skill["sort_order"],
-        })
+        result = conn.execute(
+            text(
+                "INSERT INTO skills "
+                "(tenant_id, package_id, name, description, type, scope, config, "
+                " is_system, is_active, timeout, sort_order, "
+                " created_at, updated_at, is_deleted) "
+                "VALUES "
+                "(NULL, :package_id, :name, :description, :type, :scope, CAST(:config AS jsonb), "
+                " true, true, :timeout, :sort_order, "
+                " NOW(), NOW(), false) "
+                "RETURNING id"
+            ),
+            {
+                "package_id": pkg_id,
+                "name": skill["name"],
+                "description": skill["description"],
+                "type": skill["type"],
+                "scope": skill["scope"],
+                "config": json.dumps(skill["config"]),
+                "timeout": skill["timeout"],
+                "sort_order": skill["sort_order"],
+            },
+        )
         skill_id = result.fetchone()[0]
         skill_ids[skill["name"]] = skill_id
         print(f"[SEED] Created system Skill '{skill['name']}' (id={skill_id})")
 
     # ---------- 3. Create system agents (requires AI models) ----------
     for agent in SYSTEM_AGENTS:
-        existing = conn.execute(text(
-            "SELECT id FROM agents "
-            "WHERE name = :name AND owner_tenant_id IS NULL AND is_deleted = false"
-        ), {"name": agent["name"]}).fetchone()
+        existing = conn.execute(
+            text(
+                "SELECT id FROM agents "
+                "WHERE name = :name AND owner_tenant_id IS NULL AND is_deleted = false"
+            ),
+            {"name": agent["name"]},
+        ).fetchone()
 
         if existing:
             print(f"[SEED] Agent '{agent['name']}' already exists (id={existing[0]})")
@@ -205,29 +225,34 @@ def upgrade() -> None:
             )
             continue
 
-        result = conn.execute(text(
-            "INSERT INTO agents "
-            "(owner_tenant_id, name, description, scope, system_prompt, model_id, "
-            " temperature, execution_mode, status, visibility, is_system, "
-            " created_at, updated_at, is_deleted) "
-            "VALUES "
-            "(NULL, :name, :description, :scope, :system_prompt, :model_id, "
-            " :temperature, :execution_mode, :status, :visibility, true, "
-            " NOW(), NOW(), false) "
-            "RETURNING id"
-        ), {
-            "name": agent["name"],
-            "description": agent["description"],
-            "scope": agent["scope"],
-            "system_prompt": agent["system_prompt"],
-            "model_id": model_id,
-            "temperature": agent["temperature"],
-            "execution_mode": agent["execution_mode"],
-            "status": agent["status"],
-            "visibility": agent["visibility"],
-        })
+        result = conn.execute(
+            text(
+                "INSERT INTO agents "
+                "(owner_tenant_id, name, description, scope, system_prompt, model_id, "
+                " temperature, execution_mode, status, visibility, is_system, "
+                " created_at, updated_at, is_deleted) "
+                "VALUES "
+                "(NULL, :name, :description, :scope, :system_prompt, :model_id, "
+                " :temperature, :execution_mode, :status, :visibility, true, "
+                " NOW(), NOW(), false) "
+                "RETURNING id"
+            ),
+            {
+                "name": agent["name"],
+                "description": agent["description"],
+                "scope": agent["scope"],
+                "system_prompt": agent["system_prompt"],
+                "model_id": model_id,
+                "temperature": agent["temperature"],
+                "execution_mode": agent["execution_mode"],
+                "status": agent["status"],
+                "visibility": agent["visibility"],
+            },
+        )
         agent_id = result.fetchone()[0]
-        print(f"[SEED] Created system Agent '{agent['name']}' (id={agent_id}, model_id={model_id})")
+        print(
+            f"[SEED] Created system Agent '{agent['name']}' (id={agent_id}, model_id={model_id})"
+        )
 
     print("[SEED] System agents and skills seeding done.")
 
@@ -238,20 +263,29 @@ def downgrade() -> None:
 
     # Remove agents
     for agent in SYSTEM_AGENTS:
-        conn.execute(text(
-            "DELETE FROM agents WHERE name = :name AND owner_tenant_id IS NULL AND is_system = true"
-        ), {"name": agent["name"]})
+        conn.execute(
+            text(
+                "DELETE FROM agents WHERE name = :name AND owner_tenant_id IS NULL AND is_system = true"
+            ),
+            {"name": agent["name"]},
+        )
 
     # Remove skills
     for skill in SYSTEM_SKILLS:
-        conn.execute(text(
-            "DELETE FROM skills WHERE name = :name AND tenant_id IS NULL AND is_system = true"
-        ), {"name": skill["name"]})
+        conn.execute(
+            text(
+                "DELETE FROM skills WHERE name = :name AND tenant_id IS NULL AND is_system = true"
+            ),
+            {"name": skill["name"]},
+        )
 
     # Remove packages
     for pkg in SYSTEM_SKILL_PACKAGES:
-        conn.execute(text(
-            "DELETE FROM skill_packages WHERE name = :name AND tenant_id IS NULL AND is_system = true"
-        ), {"name": pkg["name"]})
+        conn.execute(
+            text(
+                "DELETE FROM skill_packages WHERE name = :name AND tenant_id IS NULL AND is_system = true"
+            ),
+            {"name": pkg["name"]},
+        )
 
     print("[SEED] System agents and skills removed.")

@@ -27,6 +27,8 @@ from app.repositories.tenant.tenant_permission_role_repository import (
     TenantPermissionRoleRepository,
 )
 from app.schemas.common.select import SelectOption, SelectResponse
+from app.schemas.tenant.admin import TenantAdminResponse
+from app.services.common.auth_service import AuthService
 
 
 class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
@@ -429,6 +431,32 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
         return await AccountAIAccessService(
             self.db
         ).get_tenant_admin_ai_availability_profile(tenant_admin)
+
+    async def build_auth_profile_response(
+        self,
+        tenant_admin: TenantAdmin,
+    ) -> TenantAdminResponse:
+        """
+        构建企业管理员认证资料响应 / Build tenant-admin auth profile response.
+        """
+        profile_flags = await AuthService(
+            self.db
+        ).tenant_admin_auth.get_profile_flags(tenant_admin)
+        ai_profile = await self.get_ai_availability_profile(tenant_admin)
+        from app.rbac.services import PermissionService
+
+        permission_codes = sorted(
+            await PermissionService(self.db).get_tenant_admin_permissions(tenant_admin)
+        )
+
+        resp = TenantAdminResponse.model_validate(tenant_admin, from_attributes=True)
+        resp.has_plan = bool(profile_flags["has_plan"])
+        resp.plan_name = profile_flags["plan_name"]
+        resp.tenant_ai_enabled = bool(ai_profile["tenant_ai_enabled"])
+        resp.effective_ai_enabled = bool(ai_profile["effective_ai_enabled"])
+        resp.ai_unavailable_reason = ai_profile["ai_unavailable_reason"]
+        resp.permissions = permission_codes
+        return resp
 
     async def _get_tenant_root_node(self) -> TenantOrgNode | None:
         """

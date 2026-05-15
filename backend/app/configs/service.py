@@ -658,6 +658,8 @@ class ConfigService:
         for option in config_meta.options:
             if value == option.value or str(value) == str(option.value):
                 return option.value
+        if config_meta.allow_dynamic_options:
+            return value
         self._raise_config_validation_failed()
 
     def _normalize_multi_select_config_value(
@@ -679,7 +681,9 @@ class ConfigService:
                     normalized_values.append(option.value)
                     matched = True
                     break
-            if not matched:
+            if not matched and config_meta.allow_dynamic_options:
+                normalized_values.append(raw_value)
+            elif not matched:
                 self._raise_config_validation_failed()
         return normalized_values
 

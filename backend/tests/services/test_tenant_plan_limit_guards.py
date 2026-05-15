@@ -77,6 +77,47 @@ async def test_assign_permissions_rejects_invalid_ids_without_mutating_plan(
     service._sync_plan_plugin_entitlements.assert_not_awaited()
 
 
+@pytest.mark.asyncio
+async def test_get_valid_permissions_includes_operation_permissions(mock_db) -> None:
+    from app.enums import PermissionScope, PermissionType
+    from app.services.tenant.tenant_plan_service import TenantPlanService
+
+    captured_statements = []
+    valid_permissions = [
+        SimpleNamespace(
+            id=51,
+            type=PermissionType.MENU.value,
+            scope=PermissionScope.TENANT.value,
+        ),
+        SimpleNamespace(
+            id=304,
+            type=PermissionType.OPERATION.value,
+            scope=PermissionScope.TENANT.value,
+        ),
+    ]
+
+    async def execute(stmt):
+        captured_statements.append(stmt)
+        return _DBResult(scalars=valid_permissions)
+
+    mock_db.execute = AsyncMock(side_effect=execute)
+    service = TenantPlanService.__new__(TenantPlanService)
+    service.db = mock_db
+
+    permissions = await service._get_valid_permissions([51, 304])
+
+    assert [permission.id for permission in permissions] == [51, 304]
+    assert captured_statements
+    params = captured_statements[0].compile().params
+    permission_type_values = next(
+        value for key, value in params.items() if key.startswith("type_")
+    )
+    assert set(permission_type_values) == {
+        PermissionType.MENU.value,
+        PermissionType.OPERATION.value,
+    }
+
+
 def test_plan_quota_schema_rejects_unknown_limit_keys() -> None:
     with pytest.raises(ValidationError):
         TenantPlanCreateRequest(
@@ -469,7 +510,7 @@ async def test_custom_domain_activation_rejects_inactive_plan(
 
 
 @pytest.mark.asyncio
-async def test_custom_domain_middleware_refuses_disabled_entitlement(
+async def test_custom_domain_middleware_resolves_verified_domain_without_entitlement(
     mock_db,
 ) -> None:
     from app.middleware.tenant import TenantMiddleware
@@ -488,6 +529,7 @@ async def test_custom_domain_middleware_refuses_disabled_entitlement(
         id=3,
         name="No custom tenant",
         code="no-custom-tenant",
+        is_active=True,
         plan_id=7,
     )
     tenant.tenant_plan = plan
@@ -513,7 +555,7 @@ async def test_custom_domain_middleware_refuses_disabled_entitlement(
         domain_type="custom",
     )
 
-    assert resolved is None
+    assert resolved is tenant
 
 
 @pytest.mark.asyncio

@@ -225,7 +225,7 @@ class TenantPlanPermissionsRequest(BaseSchema):
     """设置套餐权限请求 / Set plan permissions request"""
 
     permission_ids: list[int] = Field(
-        default_factory=list, description="权限ID列表（仅支持菜单类型权限）"
+        default_factory=list, description="权限ID列表（支持菜单和操作权限）"
     )
 
     @field_validator("permission_ids")

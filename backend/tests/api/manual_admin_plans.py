@@ -124,12 +124,19 @@ class ManualTestAdminPlans(BaseAPITest):
 
         assert_true(isinstance(data["data"], list), "data 应为列表")
 
-        # 收集所有权限 ID（包括子节点）
+        # 中文: 收集所有权限 ID（包括子节点）。
+        # EN: Collect all permission IDs, including child nodes.
         def collect_permission_ids(nodes: list, ids: list) -> None:
-            """递归收集权限 ID / ID"""
+            """中文: 递归收集权限 ID。
+
+            EN: Recursively collect permission IDs.
+            """
             for node in nodes:
                 assert_has_keys(node, ["id", "code", "name", "type", "children"])
-                assert_equals(node["type"], "menu", "应只返回 menu 类型权限")
+                assert_true(
+                    node["type"] in {"menu", "operation"},
+                    "应只返回 menu 或 operation 类型权限",
+                )
                 ids.append(node["id"])
                 if node.get("children"):
                     collect_permission_ids(node["children"], ids)
@@ -300,7 +307,8 @@ class ManualTestAdminPlans(BaseAPITest):
         # 验证权限数量
         actual_count = len(data["data"]["permissions"])
         expected_count = len(permission_ids)
-        # 由于只有 menu 类型权限可分配，实际数量可能小于等于请求数量
+        # 中文: 服务端会拒绝无效 ID，实际数量应小于等于请求数量。
+        # EN: The backend rejects invalid IDs, so the persisted count cannot exceed the request.
         assert_true(
             actual_count <= expected_count or expected_count == 0,
             f"权限数量不匹配: 期望 <= {expected_count}，实际 {actual_count}",

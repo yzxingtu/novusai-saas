@@ -90,6 +90,7 @@ USER_DEFAULT_ROLE_ID = ConfigMeta(
             value=0, label_key="config.tenant.user_default_role_id.option_none"
         ),
     ],
+    allow_dynamic_options=True,
     display_rules=[
         DisplayRule(
             field="tenant_allow_registration",

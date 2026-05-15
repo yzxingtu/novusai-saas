@@ -158,6 +158,48 @@ async def test_tenant_admin_workflow_masks_activity_in_platform_detail() -> None
 
 
 @pytest.mark.asyncio
+async def test_tenant_admin_workflow_masks_activity_in_platform_list() -> None:
+    service = TenantAdminWorkflowService.__new__(TenantAdminWorkflowService)
+    service._db = SimpleNamespace()
+    service._tenant_service = SimpleNamespace(
+        get_by_id=AsyncMock(return_value=object())
+    )
+    service._auth_service = SimpleNamespace()
+
+    tenant_admin = SimpleNamespace(
+        id=9,
+        username="alice",
+        email="alice@example.com",
+        nickname="Alice",
+        avatar=None,
+        is_active=True,
+        ai_enabled=True,
+        is_owner=False,
+        role_id=None,
+        org_node_id=3,
+        tenant_id=5,
+        created_at="created",
+        updated_at="updated",
+        last_login_at="last",
+        last_login_ip="127.0.0.1",
+        role=None,
+        org_node=SimpleNamespace(id=3, name="Sales", leader_id=9),
+    )
+    tenant_admin_service = SimpleNamespace(
+        list_identity_details=AsyncMock(return_value=[tenant_admin])
+    )
+    service._get_tenant_admin_service = lambda _tenant_id: tenant_admin_service
+
+    items = await service.list_tenant_admins(tenant_id=5)
+
+    assert items[0]["can_view_activity"] is False
+    assert items[0]["created_at"] is None
+    assert items[0]["updated_at"] is None
+    assert items[0]["last_login_at"] is None
+    assert items[0]["last_login_ip"] is None
+
+
+@pytest.mark.asyncio
 async def test_tenant_storage_admin_service_rejects_local_admin_override() -> None:
     service = TenantStorageAdminService.__new__(TenantStorageAdminService)
     service._db = SimpleNamespace(commit=AsyncMock())

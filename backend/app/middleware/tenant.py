@@ -200,9 +200,7 @@ class TenantMiddleware:
 
             result = await db.execute(
                 select(TenantDomain)
-                .options(
-                    selectinload(TenantDomain.tenant).selectinload(Tenant.tenant_plan)
-                )
+                .options(selectinload(TenantDomain.tenant))
                 .where(
                     TenantDomain.domain == domain,
                     TenantDomain.is_verified.is_(True),
@@ -216,10 +214,9 @@ class TenantMiddleware:
                 and tenant_domain.tenant
                 and tenant_domain.tenant.is_active
                 and not tenant_domain.tenant.is_deleted
-                and tenant_domain.tenant.has_active_plan
-                and tenant_domain.tenant.get_quota_value("allow_custom_domain", False)
             ):
-                # Check if tenant and its custom-domain entitlement are active.
+                # 中文: 运行时域名解析只负责企业身份识别；套餐自定义域名权益由新增、SSL、续期等写侧流程校验。
+                # EN: Runtime domain resolution only identifies the tenant; create/SSL/renewal flows enforce custom-domain entitlements.
                 return tenant_domain.tenant
 
         return None

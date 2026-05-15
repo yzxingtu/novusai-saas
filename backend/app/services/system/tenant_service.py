@@ -11,6 +11,7 @@ from datetime import datetime
 from typing import Any
 
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.base_service import GlobalService
 from app.core.i18n import _
@@ -216,7 +217,8 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
         )
 
         # 异步发送欢迎邮件（失败不阻塞创建流程） / Async welcome email (failure does not block create)
-        self._send_welcome_email(
+        await self._send_welcome_email(
+            db=self.db,
             tenant_name=name,
             admin_name=admin_username,
             admin_email=admin_email,
@@ -232,7 +234,8 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
         return tenant
 
     @staticmethod
-    def _send_welcome_email(
+    async def _send_welcome_email(
+        db: AsyncSession,
         tenant_name: str,
         admin_name: str,
         admin_email: str,
@@ -246,7 +249,7 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
         _ = admin_email
         try:
             from app.services.common.email_templates import render_welcome_email
-            from app.services.common.notification_service import notify_sync
+            from app.services.common.notification_service import notify
 
             login_url = "/tenant/login"
             subject, html_body, text_body = render_welcome_email(
@@ -254,15 +257,17 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
                 admin_name=admin_name,
                 login_url=login_url,
             )
-            notify_sync(
-                template_code="system.tenant_welcome",
-                recipients=[("tenant_admin", 0)],
-                data={"tenant_name": tenant_name, "admin_name": admin_name},
-                tenant_id=tenant_id,
-                email_html=html_body,
-                email_subject=subject,
-                email_text=text_body,
-            )
+            async with db.begin_nested():
+                await notify(
+                    db,
+                    template_code="system.tenant_welcome",
+                    recipients=[("tenant_admin", 0)],
+                    data={"tenant_name": tenant_name, "admin_name": admin_name},
+                    tenant_id=tenant_id,
+                    email_html=html_body,
+                    email_subject=subject,
+                    email_text=text_body,
+                )
         except Exception as e:
             logger.warning("Failed to send welcome notification: {}", str(e))
 
@@ -445,7 +450,8 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
 
         # 异步发送密码重置通知邮件（失败不阻塞重置流程） / Async password-reset email (failure does not block reset)
         if owner.email:
-            self._send_password_reset_notification(
+            await self._send_password_reset_notification(
+                db=self.db,
                 user_name=owner.username,
                 user_email=owner.email,
                 tenant_id=tenant_id,
@@ -454,7 +460,8 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
         return owner
 
     @staticmethod
-    def _send_password_reset_notification(
+    async def _send_password_reset_notification(
+        db: AsyncSession,
         user_name: str,
         user_email: str,
         tenant_id: int,
@@ -467,7 +474,7 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
         _ = user_email
         try:
             from app.services.common.email_templates import render_password_reset_email
-            from app.services.common.notification_service import notify_sync
+            from app.services.common.notification_service import notify
 
             login_url = "/tenant/login"
             subject, html_body, text_body = render_password_reset_email(
@@ -475,15 +482,17 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
                 reset_url=login_url,
                 expire_minutes=0,
             )
-            notify_sync(
-                template_code="system.password_reset",
-                recipients=[("tenant_admin", 0)],
-                data={"user_name": user_name},
-                tenant_id=tenant_id,
-                email_html=html_body,
-                email_subject=subject,
-                email_text=text_body,
-            )
+            async with db.begin_nested():
+                await notify(
+                    db,
+                    template_code="system.password_reset",
+                    recipients=[("tenant_admin", 0)],
+                    data={"user_name": user_name},
+                    tenant_id=tenant_id,
+                    email_html=html_body,
+                    email_subject=subject,
+                    email_text=text_body,
+                )
         except Exception as e:
             logger.warning("Failed to send password reset notification: {}", str(e))
 
