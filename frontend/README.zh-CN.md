@@ -23,7 +23,7 @@ pnpm install
 pnpm dev:antd
 ```
 
-默认开发端口由 `apps/web-antd/.env.development` 配置（`VITE_PORT=5666`）。默认 API 地址为 `VITE_GLOB_API_URL=http://localhost:8000`。
+默认开发端口由 `apps/web-antd/.env.development` 配置（`VITE_PORT=5666`）。默认 API 地址为 `VITE_GLOB_API_URL=http://127.0.0.1:8000`。
 
 ## 检查命令
 

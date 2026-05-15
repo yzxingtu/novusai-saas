@@ -195,7 +195,7 @@ cd frontend
 pnpm install
 ```
 
-Set the API base URL in [`frontend/apps/web-antd/.env.development`](frontend/apps/web-antd/.env.development) (`VITE_GLOB_API_URL`, default `http://localhost:8000`). You may add `frontend/apps/web-antd/.env.local` for local overrides (Vite).
+Set the API base URL in [`frontend/apps/web-antd/.env.development`](frontend/apps/web-antd/.env.development) (`VITE_GLOB_API_URL`, default `http://127.0.0.1:8000`). You may add `frontend/apps/web-antd/.env.local` for local overrides (Vite).
 
 ```bash
 pnpm dev:antd
@@ -244,9 +244,9 @@ When **`DEBUG=true`**, the API serves interactive docs (see [`backend/app/main.p
 
 | URL | Description |
 |-----|----------------|
-| `http://localhost:8000/docs` | Swagger UI |
-| `http://localhost:8000/redoc` | ReDoc |
-| `http://localhost:8000/openapi.json` | OpenAPI schema |
+| `http://127.0.0.1:8000/docs` | Swagger UI |
+| `http://127.0.0.1:8000/redoc` | ReDoc |
+| `http://127.0.0.1:8000/openapi.json` | OpenAPI schema |
 
 In typical **production** settings, these URLs are disabled (`None` when `DEBUG` is false). Rely on versioned API contracts and internal documentation instead.
 
@@ -256,7 +256,7 @@ In typical **production** settings, these URLs are disabled (`None` when `DEBUG`
 
 | Item | Value |
 |------|--------|
-| API | `http://localhost:8000` |
+| API | `http://127.0.0.1:8000` |
 | Web app | `http://localhost:5666` |
 | Platform login | `/admin/login` — example: `admin` / `admin123456` |
 | Tenant login | `/tenant/login` — example: `adminsss` / `admin123456` |

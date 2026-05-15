@@ -105,6 +105,20 @@ def runtime_disabled():
 
 
 @pytest.fixture()
+def runtime_requires_elevation():
+    """模拟 DEBUG=True 但 hosts 缺少写权限 / Runtime info mock for DEBUG=True without hosts write access"""
+    return {
+        "enabled": True,
+        "debug": True,
+        "supported": True,
+        "os_name": "Windows",
+        "hosts_path": r"C:\Windows\System32\drivers\etc\hosts",
+        "requires_elevation": True,
+        "can_write_hint": False,
+    }
+
+
+@pytest.fixture()
 def entry_managed():
     """系统托管条目状态 / Managed entry status"""
     return {
@@ -228,6 +242,30 @@ async def test_get_dev_hosts_status_manual_entry_identified(
 
 
 @pytest.mark.asyncio
+async def test_get_dev_hosts_status_missing_entry_explains_elevation_required(
+    service, verified_domain, runtime_requires_elevation, entry_missing
+):
+    """场景3b：已验证域名未写入且进程缺权时返回提权原因 / Scenario 3b: Missing verified domains report the elevation reason"""
+    service.repo.get_tenant_domains = AsyncMock(return_value=[verified_domain])
+
+    with (
+        patch(
+            "app.services.system.tenant_domain_service.async_get_runtime_info",
+            new=AsyncMock(return_value=runtime_requires_elevation),
+        ),
+        patch(
+            "app.services.system.tenant_domain_service.async_get_domain_entry_status",
+            new=AsyncMock(return_value=entry_missing),
+        ),
+    ):
+        result = await service.get_dev_hosts_status(tenant_id=1)
+
+    domain_status = result["domains"][0]
+    assert domain_status["status"] == "missing"
+    assert domain_status["reason"] == "requires_elevation"
+
+
+@pytest.mark.asyncio
 async def test_sync_dev_host_unverified_raises_exception(
     service, unverified_domain, runtime_enabled
 ):
@@ -339,6 +377,36 @@ async def test_sync_all_dev_hosts_counts_synced_and_skipped(
 
     assert result["synced"] == 1
     assert result["skipped"] == 1
+    mock_add.assert_awaited_once_with("app.example.local")
+
+
+@pytest.mark.asyncio
+async def test_sync_all_dev_hosts_counts_failed_write_as_skipped(
+    service, verified_domain, runtime_requires_elevation, entry_missing
+):
+    """场景8b：hosts 写入失败不计入 synced / Scenario 8b: Failed hosts writes are counted as skipped, not synced"""
+    service.repo.get_tenant_domains = AsyncMock(return_value=[verified_domain])
+
+    mock_add = AsyncMock(return_value=False)
+    with (
+        patch(
+            "app.services.system.tenant_domain_service.async_add_host_entry",
+            new=mock_add,
+        ),
+        patch(
+            "app.services.system.tenant_domain_service.async_get_runtime_info",
+            new=AsyncMock(return_value=runtime_requires_elevation),
+        ),
+        patch(
+            "app.services.system.tenant_domain_service.async_get_domain_entry_status",
+            new=AsyncMock(return_value=entry_missing),
+        ),
+    ):
+        result = await service.sync_all_dev_hosts(tenant_id=1)
+
+    assert result["synced"] == 0
+    assert result["skipped"] == 1
+    assert result["domains"][0]["reason"] == "requires_elevation"
     mock_add.assert_awaited_once_with("app.example.local")
 
 

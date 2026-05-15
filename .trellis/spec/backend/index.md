@@ -124,6 +124,12 @@
   effective tenant, trigger source, run kind, queue, and trace metadata into
   `task_runs`. Business duplicate execution must be prevented by a run key or
   distributed lock; `celery_task_id` uniqueness alone is not enough.
+- Durable periodic jobs must be registered in the scheduler catalog as well as
+  Celery: `@register_task` only makes the handler executable. Any default
+  system or business recurring job that Beat should run or admins should see
+  must have a `task_definitions` seed/migration or plugin task manifest entry,
+  plus a focused test covering the seed contract and admin periodic-task
+  visibility.
 - Notification templates must have an explicit platform/tenant/plugin scope and
   deterministic tenant-aware fallback. Runtime template lookup must not rely on
   globally unique `code` alone when tenant overrides are expected.
@@ -137,6 +143,10 @@
   permission assignments must reject permission IDs outside the tenant's current
   active plan at write time. Runtime plan intersection is still required, but
   historical out-of-plan permissions must not be pre-stored for later upgrades.
+- Tenant-admin functional permissions combine explicit permission-role grants
+  with tenant organization-node direct grants, then intersect the combined set
+  with the active plan. Binding an admin to an organization node must not
+  suppress their assigned permission role.
 - Attachment chunk-upload writes must re-check upload enablement and active plan
   storage entitlement before every temporary chunk write and before completion.
   Existing chunk sessions must not keep consuming temporary storage after a
@@ -153,13 +163,15 @@
 - Protected plugin API routes (`auth` other than `none`) must declare an
   explicit permission code. Standalone plugin page slots without access codes
   are hidden unless the caller has `*`.
-- Custom-domain runtime resolution, activation, primary-domain switching, SSL
-  provisioning/verification/renewal/upload, and auto-renew enablement must
-  re-check the current tenant plan custom-domain entitlement. Default tenant
-  subdomains are exempt; custom domains fail closed after downgrade or plan
-  deactivation. Platform-admin domain and SSL write routes must follow the same
-  entitlement checks unless a deliberately designed, audited override contract is
-  introduced.
+- Custom-domain runtime resolution is an identity boundary: a verified,
+  non-deleted domain attached to an active tenant resolves that tenant even when
+  the current plan no longer grants custom-domain management. Activation,
+  primary-domain switching, SSL provisioning/verification/renewal/upload, and
+  auto-renew enablement must still re-check the current tenant plan
+  custom-domain entitlement. Default tenant subdomains are exempt; custom-domain
+  management writes fail closed after downgrade or plan deactivation.
+  Platform-admin domain and SSL write routes must follow the same entitlement
+  checks unless a deliberately designed, audited override contract is introduced.
 - Do not hardcode fixed LLM-facing prompts, tool descriptions, or model
   instruction blocks directly in Python business/runtime code; store them under
   `backend/app/ai/prompt_contracts/resources/` and load them through the shared

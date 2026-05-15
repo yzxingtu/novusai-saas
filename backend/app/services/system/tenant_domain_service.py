@@ -656,6 +656,8 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
             reason = "unsupported_platform"
         elif not runtime["enabled"]:
             reason = "dev_hosts_disabled"
+        elif runtime["requires_elevation"] and entry_status["status"] == "missing":
+            reason = "requires_elevation"
 
         return {
             "domain_id": domain_obj.id,
@@ -728,8 +730,10 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
                 if not domain_obj.is_verified:
                     skipped += 1
                     continue
-                await async_add_host_entry(domain_obj.domain)
-                synced += 1
+                if await async_add_host_entry(domain_obj.domain):
+                    synced += 1
+                else:
+                    skipped += 1
         else:
             skipped = len(domains)
 

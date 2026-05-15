@@ -195,6 +195,25 @@ def _make_entry(domain: str) -> str:
     return f"{LOOPBACK_IP}  {domain}  {MARKER}\n"
 
 
+def _probe_write_access(path: Path) -> bool:
+    """
+    中文: 探测当前进程是否真的能写 hosts 文件。
+
+    EN: Probe whether the current process can actually write the hosts file.
+    """
+    if not path.exists():
+        return path.parent.exists() and os.access(path.parent, os.W_OK)
+
+    try:
+        # 中文: Windows 的 os.access 在 UAC/ACL 下会误报可写；实际打开写句柄才可靠。
+        # EN: Windows os.access can be optimistic under UAC/ACL; opening a write handle is the reliable probe.
+        with path.open("a", encoding="utf-8"):
+            pass
+    except OSError:
+        return False
+    return True
+
+
 def get_runtime_info() -> HostsRuntimeInfo:
     """返回当前 hosts 管理的运行时信息 / Return runtime information for current hosts management"""
     from app.core.config import settings
@@ -204,8 +223,7 @@ def get_runtime_info() -> HostsRuntimeInfo:
 
     can_write_hint = False
     if hosts_path is not None:
-        probe_path = hosts_path if hosts_path.exists() else hosts_path.parent
-        can_write_hint = probe_path.exists() and os.access(probe_path, os.W_OK)
+        can_write_hint = _probe_write_access(hosts_path)
 
     return {
         "enabled": bool(settings.DEBUG) and supported,
@@ -288,14 +306,9 @@ def add_host_entry(domain: str) -> bool:
             "┌─────────────────────────────────────────────────────────┐\n"
             "│  [NovusAI-Dev] LOCAL DEV ENVIRONMENT - hosts updated    │\n"
             "└─────────────────────────────────────────────────────────┘\n"
-            "  Added : %s  %s\n"
-            "  File  : %s\n"
-            "  Access: http://%s:8000 (API) | http://%s:5666 (Frontend)\n",
-            LOOPBACK_IP,
-            domain,
-            hosts_path,
-            domain,
-            domain,
+            f"  Added : {LOOPBACK_IP}  {domain}\n"
+            f"  File  : {hosts_path}\n"
+            f"  Access: http://{domain}:8000 (API) | http://{domain}:5666 (Frontend)\n"
         )
         return True
 
@@ -499,24 +512,18 @@ def _print_permission_warning(
     logger.warning(
         "\n"
         "╔══════════════════════════════════════════════════════════════════════╗\n"
-        "║  [NovusAI-Dev] Cannot %s hosts entry — Permission Denied           ║\n"
+        f"║  [NovusAI-Dev] Cannot {action} hosts entry — Permission Denied           ║\n"
         "╚══════════════════════════════════════════════════════════════════════╝\n"
         "\n"
-        "  Action : %s  →  %s\n"
-        "  File   : %s\n"
-        "%s"
+        f"  Action : {action}  →  {target}\n"
+        f"  File   : {path_str}\n"
+        f"{_instructions}"
         "\n"
         "  NOTE: Domain record has been saved to database.\n"
         "        hosts update is optional for local browser access.\n"
         "        Use CLI to manage manually (run as admin):\n"
-        "        python -m app.core.hosts_helper %s %s\n",
-        action,
-        action,
-        target,
-        path_str,
-        _instructions,
-        action,
-        target if action != "cleanup" else "",
+        f"        python -m app.core.hosts_helper {action}"
+        f"{f' {target}' if action != 'cleanup' else ''}\n"
     )
 
 

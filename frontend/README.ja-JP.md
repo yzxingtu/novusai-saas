@@ -23,7 +23,7 @@ pnpm install
 pnpm dev:antd
 ```
 
-The default dev server port is configured by `apps/web-antd/.env.development` (`VITE_PORT=5666`). The default API base is `VITE_GLOB_API_URL=http://localhost:8000`.
+The default dev server port is configured by `apps/web-antd/.env.development` (`VITE_PORT=5666`). The default API base is `VITE_GLOB_API_URL=http://127.0.0.1:8000`.
 
 ## Checks
 

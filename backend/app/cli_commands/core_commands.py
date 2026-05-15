@@ -24,6 +24,14 @@ _STATUS_FAIL = S._STATUS_FAIL
 _run_async = S._run_async
 _CELERY_BEAT_STATE_DIR = _BACKEND_DIR / "var" / "celerybeat"
 _CELERY_BEAT_SCHEDULE = _CELERY_BEAT_STATE_DIR / "celerybeat-schedule"
+_UVICORN_GRACEFUL_EXIT_CODES = {
+    -15,
+    -2,
+    -1,
+    0xFFFFFFFF,
+    0xC000013A,
+    -1073741510,
+}
 
 
 def _celery_broker_hint() -> str:
@@ -42,6 +50,25 @@ def _ensure_celery_broker_available() -> None:
     if runtime_helpers.check_celery_broker_url(settings.celery_broker_url, logger):
         return
     raise click.ClickException(_celery_broker_hint())
+
+
+def _run_uvicorn(cmd: list[str]) -> None:
+    try:
+        result = subprocess.run(cmd, check=False)
+    except KeyboardInterrupt:
+        click.echo("\nStopping server...")
+        return
+    if result.returncode == 0:
+        return
+    if result.returncode in _UVICORN_GRACEFUL_EXIT_CODES:
+        # 中文: Windows/Unix 外部终止 reload 子进程时会返回这些中断码，不能再向终端抛内部 traceback。
+        # EN: Windows/Unix reload subprocess termination can use these interrupt codes, so avoid surfacing an internal traceback.
+        logger.info("Uvicorn stopped: exit_code={}", result.returncode)
+        return
+    raise click.ClickException(
+        f"Uvicorn exited with status {result.returncode}. Check the server log "
+        "above for the original startup error."
+    )
 
 
 @click.command("run")
@@ -80,7 +107,7 @@ def run_cmd(
     if workers > 1 and not do_reload:
         cmd.extend(["--workers", str(workers)])
     logger.info("Starting uvicorn: host={} port={} reload={}", host, port, do_reload)
-    subprocess.run(cmd, check=True)
+    _run_uvicorn(cmd)
 
 
 # ============================================================

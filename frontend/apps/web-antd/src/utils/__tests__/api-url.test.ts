@@ -37,6 +37,14 @@ describe('resolveApiUrl', () => {
     ).toBe('http://localhost:8000');
   });
 
+  it('preserves explicit ipv4 loopback in local browser development', () => {
+    expect(
+      resolveApiUrl('http://127.0.0.1:8000/', {
+        currentHostname: 'localhost',
+      }),
+    ).toBe('http://127.0.0.1:8000');
+  });
+
   it('does not rewrite api hosts in production mode', () => {
     expect(
       resolveApiUrl('http://127.0.0.1:8000/', {

@@ -24,7 +24,10 @@ _verified_custom_domain_hosts: set[str] = set()
 
 DEFAULT_EXPOSE_HEADERS = "X-Trace-ID"
 DEFAULT_ALLOW_METHODS = "DELETE,GET,OPTIONS,PATCH,POST,PUT"
-DEFAULT_ALLOW_HEADERS = "Authorization,Content-Type,Origin,X-Language,X-Trace-ID"
+DEFAULT_ALLOW_HEADERS = (
+    "Accept-Language,Authorization,Cache-Control,Content-Type,Origin,Pragma,"
+    "X-Language,X-Trace-ID"
+)
 
 
 def _normalize_origin_host(value: str | None) -> str:

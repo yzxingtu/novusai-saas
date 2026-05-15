@@ -157,7 +157,7 @@ cd frontend
 pnpm install
 ```
 
-按需修改 [`frontend/apps/web-antd/.env.development`](frontend/apps/web-antd/.env.development) 中的 `VITE_GLOB_API_URL`（默认 `http://localhost:8000`）；可新增 `frontend/apps/web-antd/.env.local` 覆盖本地变量。
+按需修改 [`frontend/apps/web-antd/.env.development`](frontend/apps/web-antd/.env.development) 中的 `VITE_GLOB_API_URL`（默认 `http://127.0.0.1:8000`）；可新增 `frontend/apps/web-antd/.env.local` 覆盖本地变量。
 
 ```bash
 pnpm dev:antd
@@ -200,9 +200,9 @@ pnpm build:antd
 
 | URL | 说明 |
 |-----|------|
-| `http://localhost:8000/docs` | Swagger UI |
-| `http://localhost:8000/redoc` | ReDoc |
-| `http://localhost:8000/openapi.json` | OpenAPI JSON |
+| `http://127.0.0.1:8000/docs` | Swagger UI |
+| `http://127.0.0.1:8000/redoc` | ReDoc |
+| `http://127.0.0.1:8000/openapi.json` | OpenAPI JSON |
 
 生产环境通常在 `DEBUG=false` 时关闭上述入口；以发布流程与内部文档为准。
 
@@ -212,7 +212,7 @@ pnpm build:antd
 
 | 项 | 值 |
 |----|-----|
-| API | `http://localhost:8000` |
+| API | `http://127.0.0.1:8000` |
 | 前端 | `http://localhost:5666` |
 | 平台登录 | `/admin/login` — 示例：`admin` / `admin123456` |
 | 企业登录 | `/tenant/login` — 示例：`adminsss` / `admin123456` |

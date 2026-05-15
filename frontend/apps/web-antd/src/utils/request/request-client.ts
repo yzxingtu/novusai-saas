@@ -167,8 +167,6 @@ export class RequestClient {
       timeout,
       headers: {
         'Content-Type': 'application/json;charset=utf-8',
-        'Cache-Control': 'no-cache',
-        Pragma: 'no-cache',
         ...headers,
       },
       paramsSerializer: getParamsSerializer(
