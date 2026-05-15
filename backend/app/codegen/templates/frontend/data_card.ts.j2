@@ -161,7 +161,9 @@ export function getFormDefaults(): Record<string, unknown> {
   return {
 {% for f in fields if not f.get('divider') and (f.get('default') is not none or f.get('form_default') is not none) %}
 {% set dv = f.get('form_default') if f.get('form_default') is not none else f.get('default') %}
-    {{ f.name }}: {% if dv is boolean %}{{ dv | lower }}{% elif dv is number %}{{ dv }}{% elif dv is none %}undefined{% else %}'{{ dv }}'{% endif %},
+{% set dv_str = dv | string %}
+{% set dv_clean = dv_str.strip("'\"") if dv_str.startswith("'") or dv_str.startswith('"') else dv_str %}
+    {{ f.name }}: {% if dv is boolean %}{{ dv | lower }}{% elif dv is number %}{{ dv }}{% elif dv is none %}undefined{% else %}'{{ dv_clean }}'{% endif %},
 {% endfor %}
   };
 }

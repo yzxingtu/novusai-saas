@@ -5,7 +5,7 @@
  */
 import type { TenantDomainInfo } from './domains-types';
 
-import { ref } from 'vue';
+import { nextTick, ref } from 'vue';
 
 import { useVbenDrawer, useVbenForm } from '@vben/common-ui';
 
@@ -94,11 +94,12 @@ async function onSubmit() {
 /** 打开抽屉 / Open drawer */
 async function open(tid: number, defaults?: DomainCreateDefaults) {
   tenantId.value = tid;
+  drawerApi.setData({ mode: 'add' }).open();
+  await nextTick();
   await formApi.resetForm();
   if (defaults && Object.keys(defaults).length > 0) {
     await formApi.setValues(defaults);
   }
-  drawerApi.setData({ mode: 'add' }).open();
 }
 
 defineExpose({ open });

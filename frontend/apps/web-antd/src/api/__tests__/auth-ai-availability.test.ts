@@ -78,6 +78,42 @@ describe('auth AI availability mapping', () => {
     expect(user.aiUnavailableReason).toBe('tenant_plan_ai_disabled');
   });
 
+  it('preserves tenant permissions from /tenant/auth/me', async () => {
+    requestMocks.get.mockResolvedValueOnce({
+      avatar: null,
+      email: 'owner@example.com',
+      id: 7,
+      permissions: ['menu:tenant.ai.chat', 'agent_chat:chat'],
+      tenant_id: 5,
+      tenant_name: 'Tenant',
+      username: 'owner',
+    });
+
+    const { getTenantAdminInfoApi } = await import('../tenant/auth');
+    const user = await getTenantAdminInfoApi();
+
+    expect(user.permissions).toEqual([
+      'menu:tenant.ai.chat',
+      'agent_chat:chat',
+    ]);
+  });
+
+  it('does not synthesize empty tenant permissions when /tenant/auth/me omits them', async () => {
+    requestMocks.get.mockResolvedValueOnce({
+      avatar: null,
+      email: 'owner@example.com',
+      id: 7,
+      tenant_id: 5,
+      tenant_name: 'Tenant',
+      username: 'owner',
+    });
+
+    const { getTenantAdminInfoApi } = await import('../tenant/auth');
+    const user = await getTenantAdminInfoApi();
+
+    expect(Object.hasOwn(user, 'permissions')).toBe(false);
+  });
+
   it('uses endpoint-scoped TokenStorage tokens for logout authorization headers', async () => {
     TokenStorage.setToken('admin', 'admin-token');
     TokenStorage.setToken('tenant', 'tenant-token');

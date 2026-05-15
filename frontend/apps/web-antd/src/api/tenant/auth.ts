@@ -38,10 +38,8 @@ export async function tenantLoginApi(
     username: data.username,
   };
 
-  // Add tenant code (if present) / 添加企业编码
-  if (data.tenantCode) {
-    requestBody.tenant_code = data.tenantCode;
-  }
+  // 中文: 企业端登录的企业边界由后端 Host 域名解析，body 不发送 tenant_code。
+  // EN: Tenant-admin login is scoped by backend Host-domain resolution.
 
   // Add captcha params (if present) / 添加验证码参数
   if (data.captchaChallengeId) {
@@ -172,7 +170,7 @@ export async function getTenantAdminInfoApi(
     tenantId: raw.tenant_id || 0,
     tenantName: raw.tenant_name,
     roles: [],
-    permissions: raw.permissions || [],
+    ...(Array.isArray(raw.permissions) ? { permissions: raw.permissions } : {}),
     hasPlan: raw.has_plan ?? true,
     planName: raw.plan_name,
   };

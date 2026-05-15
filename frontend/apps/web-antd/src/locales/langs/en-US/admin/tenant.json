@@ -264,6 +264,8 @@
       "syncAllSuccess": "Batch sync complete: {synced} synced, {skipped} skipped",
       "sync": "Sync hosts",
       "syncSuccess": "Synced to hosts",
+      "syncRequiresElevation": "Hosts not written: current process lacks permission. Run the command above manually.",
+      "syncNoChange": "Hosts status did not change. Please refresh and try again.",
       "remove": "Remove managed entry",
       "removeSuccess": "Removed from hosts",
       "refresh": "Refresh status",
@@ -281,7 +283,8 @@
       "reason": {
         "unverified": "Domain not verified, no hosts entry needed",
         "unsupported_platform": "Current OS does not support hosts management",
-        "dev_hosts_disabled": "Dev Hosts disabled (not DEBUG mode)"
+        "dev_hosts_disabled": "Dev Hosts disabled (not DEBUG mode)",
+        "requires_elevation": "Current process lacks hosts write permission"
       }
     }
   },
@@ -312,7 +315,8 @@
       "quarterly": "Quarterly",
       "yearly": "Yearly",
       "lifetime": "Lifetime",
-      "one_time": "One-time"
+      "one_time": "One-time",
+      "custom": "Custom"
     },
     "storageLimitGb": "Storage Limit (GB)",
     "maxUsers": "Max Users",

@@ -365,6 +365,10 @@ function canRemoveDevHost(domainStatus: DevHostDomainStatus | null) {
   return domainStatus.managed;
 }
 
+function isDevHostPresent(status: DevHostsStatus) {
+  return status === 'managed_present' || status === 'manual_present';
+}
+
 function getDevHostsCliCommand(domain?: string) {
   if (!domain) return '';
   return $t('admin.tenant.domain.devHosts.cliCommand', { domain });
@@ -393,12 +397,16 @@ async function onSyncAllDevHosts() {
       runtime: result.runtime,
       domains: result.domains,
     };
-    message.success(
-      $t('admin.tenant.domain.devHosts.syncAllSuccess', {
-        skipped: result.skipped,
-        synced: result.synced,
-      }),
-    );
+    if (result.synced > 0 || !result.runtime.requiresElevation) {
+      message.success(
+        $t('admin.tenant.domain.devHosts.syncAllSuccess', {
+          skipped: result.skipped,
+          synced: result.synced,
+        }),
+      );
+    } else {
+      message.warning($t('admin.tenant.domain.devHosts.syncRequiresElevation'));
+    }
     await loadDomains();
   } catch {
   } finally {
@@ -425,7 +433,13 @@ async function onSyncDevHost(domain: TenantDomainInfo) {
     } else {
       await loadDevHosts();
     }
-    message.success($t('admin.tenant.domain.devHosts.syncSuccess'));
+    if (isDevHostPresent(result.domain.status)) {
+      message.success($t('admin.tenant.domain.devHosts.syncSuccess'));
+    } else if (result.runtime.requiresElevation) {
+      message.warning($t('admin.tenant.domain.devHosts.syncRequiresElevation'));
+    } else {
+      message.warning($t('admin.tenant.domain.devHosts.syncNoChange'));
+    }
   } catch {
   } finally {
     syncingDomainIds.value = syncingDomainIds.value.filter(

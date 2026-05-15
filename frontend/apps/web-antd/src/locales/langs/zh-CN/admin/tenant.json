@@ -264,6 +264,8 @@
       "syncAllSuccess": "批量同步完成：同步 {synced} 个，跳过 {skipped} 个",
       "sync": "同步 hosts",
       "syncSuccess": "已同步到 hosts",
+      "syncRequiresElevation": "未写入 hosts：当前进程缺少权限，请按上方命令手动执行",
+      "syncNoChange": "hosts 状态未变化，请刷新后重试",
       "remove": "移除托管条目",
       "removeSuccess": "已从 hosts 移除",
       "refresh": "刷新状态",
@@ -281,7 +283,8 @@
       "reason": {
         "unverified": "域名未验证，无需写入",
         "unsupported_platform": "当前系统不支持 hosts 管理",
-        "dev_hosts_disabled": "Dev Hosts 未启用（非 DEBUG 模式）"
+        "dev_hosts_disabled": "Dev Hosts 未启用（非 DEBUG 模式）",
+        "requires_elevation": "当前进程缺少 hosts 写入权限"
       }
     }
   },
@@ -312,7 +315,8 @@
       "quarterly": "季付",
       "yearly": "年付",
       "lifetime": "终身",
-      "one_time": "一次性"
+      "one_time": "一次性",
+      "custom": "自定义"
     },
     "storageLimitGb": "存储限制(GB)",
     "maxUsers": "最大用户数",

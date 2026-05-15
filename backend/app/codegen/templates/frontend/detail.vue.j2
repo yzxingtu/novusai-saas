@@ -5,8 +5,15 @@
  */
 import type { {{ resource | pascal }}Info } from '#/api/{{ api_scope | default('admin') }}/{{ resource }}';
 import { get{{ resource | pascal }}DetailApi } from '#/api/{{ api_scope | default('admin') }}/{{ resource }}';
-import { formatDate } from '#/utils/common';
-import { Descriptions, Drawer, Image, Spin } from 'ant-design-vue';
+{% set ns = namespace(has_date=false, has_image=false) %}
+{% for f in (fields or []) if not f.get('divider') %}
+{% set ftype = f.type | default('') %}
+{% if 'DateTime' in ftype or 'Date' in ftype %}{% set ns.has_date = true %}{% endif %}
+{% if 'Image' in ftype or 'Images' in ftype or (f.form | default({})).get('component') == 'ImageUpload' %}{% set ns.has_image = true %}{% endif %}
+{% endfor %}
+{% if ns.has_date %}import { formatDate } from '#/utils/common';
+{% endif %}
+import { Descriptions, Drawer, {% if ns.has_image %}Image, {% endif %}Spin } from 'ant-design-vue';
 import { computed, ref, watch } from 'vue';
 import { $t } from '#/locales';
 

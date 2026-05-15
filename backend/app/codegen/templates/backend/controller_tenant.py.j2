@@ -48,13 +48,14 @@ from app.services.{{ module }}.{{ resource }}_service import {{ resource | pasca
 {% set has_batch_import = batch and batch.get('import') %}
 {% set has_workflow = workflow and workflow.get('transitions') %}
 {% set has_clone = clone and clone.get('enabled') %}
-{% set res_name = resource.replace('_', '-') %}
+{% set perm_resource = perm.get('resource') or resource %}
+{% set res_name = perm_resource %}
 {% set ResponseCls = 'Tenant' + resource | pascal + 'Response' if scenario == 'D' else resource | pascal + 'Response' %}
 
 @permission_resource(
     resource="{{ res_name }}",
-    name="menu.tenant.{{ resource }}",
-    scope=PermissionScope.ALL_TENANTS,
+    name="menu.tenant.{{ perm_resource }}",
+    scope=PermissionScope.TENANT,
     parent_resource="{{ perm.get('parent_resource') or 'system' }}",
     menu=MenuConfig(
         icon="{{ menu.get('icon') or 'lucide:file' }}",

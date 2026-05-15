@@ -170,7 +170,8 @@ function buildAdminMeta(admin: TenantAdminItem): IdentityDetailMeta {
   return {
     aiEnabled: admin.ai_enabled,
     email: admin.email,
-    lastLoginAt: admin.last_login_at,
+    lastLoginAt:
+      admin.can_view_activity === false ? undefined : admin.last_login_at,
     orgNodeName: admin.org_node_name,
     roleName: admin.role_name,
     scope: 'admin',
@@ -255,7 +256,10 @@ onMounted(() => {
                     >
                       {{ $t('shared.identity.field.aiDisabled') }}
                     </Tag>
-                    <span v-if="admin.last_login_at">
+                    <span v-if="admin.can_view_activity === false">
+                      · {{ $t('admin.tenant.adminPanel.lastLogin') }} *****
+                    </span>
+                    <span v-else-if="admin.last_login_at">
                       · {{ $t('admin.tenant.adminPanel.lastLogin') }}
                       {{ formatRelativeTime(admin.last_login_at) }}
                     </span>

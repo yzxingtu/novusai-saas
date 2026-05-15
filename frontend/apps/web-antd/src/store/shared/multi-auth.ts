@@ -474,9 +474,10 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
 
     userStore.setUserInfo(vbenUserInfo);
 
-    // Set permission codes in accessStore for button-level access control / 设置权限码
-    const permissions = normalizedUserInfo?.permissions || [];
-    accessStore.setAccessCodes(permissions);
+    // Set permission codes only when the endpoint explicitly returns them. / 仅在接口明确返回权限码时覆盖权限快照。
+    if (Array.isArray(normalizedUserInfo?.permissions)) {
+      accessStore.setAccessCodes(normalizedUserInfo.permissions);
+    }
 
     return normalizedUserInfo;
   }

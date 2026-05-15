@@ -12,6 +12,7 @@ import { requestClient } from '#/utils/request';
 
 /** Billing cycle / 计费周期 */
 export type BillingCycle =
+  | 'custom'
   | 'lifetime'
   | 'monthly'
   | 'one_time'

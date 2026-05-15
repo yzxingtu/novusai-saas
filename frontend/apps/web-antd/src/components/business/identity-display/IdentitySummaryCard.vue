@@ -158,7 +158,7 @@ const summaryRows = computed(() =>
     : [],
 );
 const auxiliaryItems = computed(() =>
-  buildIdentityAuxiliaryItems(previewDetail.value),
+  props.showRows ? [] : buildIdentityAuxiliaryItems(previewDetail.value),
 );
 const primaryContextLabel = computed(() =>
   resolveIdentityPrimaryContextLabel(previewDetail.value),

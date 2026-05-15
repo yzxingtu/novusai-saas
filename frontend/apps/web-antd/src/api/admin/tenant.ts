@@ -392,6 +392,7 @@ export interface TenantAdminItem {
   nickname: null | string;
   avatar: null | string;
   ai_enabled: boolean;
+  can_view_activity?: boolean;
   is_owner: boolean;
   is_active: boolean;
   org_node_id?: null | number;
@@ -479,6 +480,7 @@ export async function getTenantAdminsApi(
   return items.map((item) => ({
     ...item,
     ai_enabled: item.ai_enabled ?? true,
+    can_view_activity: item.can_view_activity ?? false,
   }));
 }
 

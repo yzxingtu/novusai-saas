@@ -52,13 +52,14 @@ from app.services.{{ module }}.{{ resource }}_service import {{ resource | pasca
 {% set has_workflow = workflow and workflow.get('transitions') %}
 {% set has_clone = clone and clone.get('enabled') %}
 {% set _fe = (admin_ep.get('frontend') or {}) %}
-{% set res_name = resource.replace('_', '-') %}
+{% set perm_resource = perm.get('resource') or resource %}
+{% set res_name = perm_resource %}
 {% set ResponseCls = 'Admin' + resource | pascal + 'Response' if scenario == 'D' else resource | pascal + 'Response' %}
 {% set SvcCls = 'Admin' + resource | pascal + 'Service' if scenario == 'D' else resource | pascal + 'Service' %}
 
 @permission_resource(
     resource="{{ res_name }}",
-    name="menu.admin.{{ resource }}",
+    name="menu.admin.{{ perm_resource }}",
     scope=PermissionScope.ADMIN_ONLY,
     parent_resource="{{ perm.get('parent_resource') or 'system' }}",
     menu=MenuConfig(

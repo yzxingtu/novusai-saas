@@ -12,8 +12,8 @@
 {% set _fallback_list = (module | replace('_', '-')) + '/' + (resource | replace('_', '-')) + 's' %}
 {% set _list_path = list_path | default(_fallback_list) %}
 {% set i18n_pre = i18n_prefix | default('admin.' + module + '.' + resource) %}
-{% set res_name = resource | replace('_', '-') %}
-{% set perm_resource = res_name %}
+{% set perm = _ep.get('permission') or {} %}
+{% set perm_resource = perm.get('resource') or resource %}
 {% set name_field = (fields | selectattr('list_visible', 'ne', false) | selectattr('name') | map(attribute='name') | first) or 'name' %}
 {% set _recycle_bin = _fe.get('recycle_bin', False) %}
 {% set _export = _fe.get('export', False) %}
@@ -42,7 +42,9 @@ import { useAutoTableDragSort } from '#/adapter/vxe-table';
 {% for f in (fields or []) if not f.get('divider') %}
 {% if type_registry.get_cell_render(f) == 'CellImage' %}{% set ns.has_cell_image = true %}{% endif %}
 {% endfor %}
-import { {% if ns.has_cell_image %}Image, {% endif %}{% if _import %}Button, {% endif %}message, Modal } from 'ant-design-vue';
+{% set _needs_message = toggle_field or _import %}
+{% set _needs_modal = toggle_field %}
+import { {% if ns.has_cell_image %}Image, {% endif %}{% if _import %}Button, {% endif %}{% if _needs_message %}message, {% endif %}{% if _needs_modal %}Modal{% endif %} } from 'ant-design-vue';
 import { $t } from '#/locales';
 
 import {

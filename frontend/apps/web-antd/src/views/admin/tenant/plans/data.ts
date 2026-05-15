@@ -53,6 +53,10 @@ export function getBillingCycleOptions(): {
       label: $t('admin.tenant.plan.billingCycleOptions.one_time'),
       value: 'one_time',
     },
+    {
+      label: $t('admin.tenant.plan.billingCycleOptions.custom'),
+      value: 'custom',
+    },
   ];
 }
 

@@ -114,6 +114,49 @@ describe('identitySummaryCard presence indicator', () => {
     presenceMocks.isOnline.mockReturnValue(false);
   });
 
+  it('does not duplicate username in auxiliary text when summary rows are visible', () => {
+    const wrapper = mount(IdentitySummaryCard, {
+      props: {
+        model: {
+          id: 27,
+          nickname: '张紫奕',
+          orgNodeName: 'Min Eric',
+          username: 'zhangziyi',
+        },
+      },
+    });
+
+    expect(wrapper.find('.identity-summary-card__auxiliary').exists()).toBe(
+      false,
+    );
+    expect(
+      wrapper.findAll('.identity-summary-card__meta-value').map((node) =>
+        node.text(),
+      ),
+    ).toContain('zhangziyi');
+  });
+
+  it('keeps auxiliary identity text when summary rows are hidden', () => {
+    const wrapper = mount(IdentitySummaryCard, {
+      props: {
+        model: {
+          id: 28,
+          nickname: '张紫奕',
+          orgNodeName: 'Min Eric',
+          username: 'zhangziyi',
+        },
+        showRows: false,
+      },
+    });
+
+    expect(wrapper.find('.identity-summary-card__auxiliary').text()).toContain(
+      'zhangziyi',
+    );
+    expect(wrapper.find('.identity-summary-card__meta-row').exists()).toBe(
+      false,
+    );
+  });
+
   it('shows a green online indicator for supported online identities', async () => {
     presenceMocks.isOnline.mockReturnValue(true);
 

@@ -44,9 +44,10 @@ import { $t } from '#/locales';
 
 {% set i18n_pre = i18n_prefix | default('admin.' + module + '.' + resource) %}
 {% set name_field = (fields | selectattr('list_visible', 'ne', false) | selectattr('name') | map(attribute='name') | first) or 'name' %}
-{% set res_name = resource | replace('_', '-') %}
 {% set _ep = (admin_ep if (api_scope | default('admin')) == 'admin' else tenant_ep) or {} %}
 {% set _fe = _ep.get('frontend') or {} %}
+{% set perm = _ep.get('permission') or {} %}
+{% set perm_resource = perm.get('resource') or resource %}
 {% set _base_ops = ['edit', 'delete'] + ((actions or []) | selectattr('action') | map(attribute='action') | list) %}
 {% set _has_detail = detail and detail.get('enabled') %}
 
@@ -115,7 +116,7 @@ export function useColumns<T = {{ resource | pascal }}Info>(
       align: 'center',
       cellRender: {
         attrs: {
-          resource: '{{ res_name }}',
+          resource: '{{ perm_resource }}',
           nameField: '{{ name_field | camel }}',
           nameTitle: $t('{{ i18n_pre }}.name'),
           onClick: onActionClick,
@@ -356,7 +357,9 @@ export function getFormDefaults(): Record<string, unknown> {
   return {
 {% for f in fields if not f.get('divider') and (f.get('default') is not none or f.get('form_default') is not none) %}
 {% set dv = f.get('form_default') if f.get('form_default') is not none else f.get('default') %}
-    {{ f.name }}: {% if dv is boolean %}{{ dv | lower }}{% elif dv is number %}{{ dv }}{% elif dv is none %}undefined{% else %}'{{ dv }}'{% endif %},
+{% set dv_str = dv | string %}
+{% set dv_clean = dv_str.strip("'\"") if dv_str.startswith("'") or dv_str.startswith('"') else dv_str %}
+    {{ f.name }}: {% if dv is boolean %}{{ dv | lower }}{% elif dv is number %}{{ dv }}{% elif dv is none %}undefined{% else %}'{{ dv_clean }}'{% endif %},
 {% endfor %}
   };
 }
