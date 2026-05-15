@@ -1,95 +1,349 @@
-"""Test type: structural.
-
-中文: 覆盖退役后的独立操作/动作日志 API 暴露合同。
-EN: Covers the retired standalone operation/action log API exposure contract.
-中文: 仅使用文件存在性和聚合路由检查，不启动数据库或网络依赖。
-EN: Uses file existence and aggregate router inspection only, with no database
-or network dependencies.
-"""
-
 from __future__ import annotations
 
+import importlib.util
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
-ROOT = Path(__file__).resolve().parents[1]
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 
-RETIRED_ROUTE_MODULES = (
-    ROOT / "app" / "api" / "admin" / "operation_logs.py",
-    ROOT / "app" / "api" / "tenant" / "operation_logs.py",
-    ROOT / "app" / "api" / "tenant" / "ai_action_logs.py",
-)
-
-RETIRED_ROUTE_PREFIXES = (
-    "/operation-logs",
-    "/ai/action-logs",
-)
-
-RETIRED_IMPORT_TOKENS = (
-    "AdminOperationLogController",
-    "TenantOperationLogController",
-    "TenantAIActionLogController",
-    "operation_logs_router",
-    "ai_action_logs_router",
-)
+from app.core.deps import get_current_active_admin, get_db
+from app.repositories.system.operation_log_repository import OperationLogRepository
+from tests.services.conftest import make_scalar_result
 
 
-def _route_paths(router) -> set[str]:
-    return {str(getattr(route, "path", "")) for route in router.routes}
-
-
-def test_retired_log_route_modules_are_removed() -> None:
-    for module_path in RETIRED_ROUTE_MODULES:
-        assert not module_path.exists()
-
-
-def test_admin_and_tenant_aggregate_routers_do_not_mount_retired_log_paths() -> None:
-    from app.api.admin import admin_router
-    from app.api.tenant import tenant_router
-
-    for router in (admin_router, tenant_router):
-        route_paths = _route_paths(router)
-        for prefix in RETIRED_ROUTE_PREFIXES:
-            assert all(not path.startswith(prefix) for path in route_paths)
-
-
-def test_admin_and_tenant_api_packages_do_not_import_retired_log_controllers() -> None:
-    source_by_file = {
-        "admin": (ROOT / "app" / "api" / "admin" / "__init__.py").read_text(
-            encoding="utf-8"
-        ),
-        "tenant": (ROOT / "app" / "api" / "tenant" / "__init__.py").read_text(
-            encoding="utf-8"
-        ),
-    }
-
-    for source in source_by_file.values():
-        for token in RETIRED_IMPORT_TOKENS:
-            assert token not in source
-
-
-def test_retained_log_evidence_services_stay_importable() -> None:
-    from app.models.ai.action_log import AIActionLog
-    from app.models.system.operation_log import OperationLog
-    from app.services.ai.action_log_service import (
-        AIActionLogService,
-        write_ai_action_log,
+def _load_operation_logs_module():
+    module_path = (
+        Path(__file__).resolve().parent.parent
+        / "app"
+        / "api"
+        / "admin"
+        / "operation_logs.py"
     )
-    from app.services.ai.conversation_timeline_service import (
-        ConversationTimelineService,
+    spec = importlib.util.spec_from_file_location(
+        "test_admin_operation_logs_module",
+        module_path,
     )
-    from app.services.system.dashboard_service_parts import activity
-    from app.services.system.operation_log_service import (
+    module = importlib.util.module_from_spec(spec)
+    assert spec is not None
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
+
+
+def _build_test_app(mock_db, operation_logs_module) -> FastAPI:
+    controller = operation_logs_module.AdminOperationLogController
+    app = FastAPI()
+
+    @app.middleware("http")
+    async def inject_permissions(request, call_next):
+        request.state.user_permissions = {"operation_log:detail", "operation_log:list"}
+        return await call_next(request)
+
+    app.include_router(controller.get_router())
+
+    async def override_db():
+        yield mock_db
+
+    async def override_admin():
+        return SimpleNamespace(id=1, is_active=True, is_super=True)
+
+    app.dependency_overrides[get_db] = override_db
+    app.dependency_overrides[get_current_active_admin] = override_admin
+    return app
+
+
+def test_get_log_route_keeps_operation_log_facade_chain(monkeypatch) -> None:
+    from app.services.system.operation_log_service import OperationLogService
+
+    operation_logs_module = _load_operation_logs_module()
+    monkeypatch.setattr(
+        operation_logs_module.AdminOperationLogController,
+        "_instance",
+        None,
+    )
+    monkeypatch.setattr(
+        operation_logs_module.AdminOperationLogController,
+        "_router",
+        None,
+    )
+
+    log_record = SimpleNamespace(id=7, path="/admin/tenants", method="GET")
+    mock_db = AsyncMock()
+    mock_db.execute.return_value = make_scalar_result(log_record)
+
+    def fake_init(self, db) -> None:
+        self.db = db
+        self.repo = OperationLogRepository(db)
+
+    serialize_log = AsyncMock(
+        return_value={
+            "id": 7,
+            "path": "/admin/tenants",
+            "method": "GET",
+        }
+    )
+
+    monkeypatch.setattr(OperationLogService, "__init__", fake_init)
+    monkeypatch.setattr(OperationLogService, "serialize_log", serialize_log)
+
+    app = _build_test_app(mock_db, operation_logs_module)
+
+    with TestClient(app) as client:
+        response = client.get("/operation-logs/7")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["code"] == 0
+    assert payload["data"]["id"] == 7
+    assert payload["data"]["path"] == "/admin/tenants"
+    assert payload["data"]["method"] == "GET"
+    serialize_log.assert_awaited_once_with(log_record)
+
+
+def test_list_logs_route_returns_paginated_envelope(monkeypatch) -> None:
+    from app.services.system.operation_log_service import OperationLogService
+
+    operation_logs_module = _load_operation_logs_module()
+    monkeypatch.setattr(
+        operation_logs_module.AdminOperationLogController,
+        "_instance",
+        None,
+    )
+    monkeypatch.setattr(
+        operation_logs_module.AdminOperationLogController,
+        "_router",
+        None,
+    )
+
+    def fake_init(self, db) -> None:
+        self.db = db
+        self.repo = OperationLogRepository(db)
+
+    query_admin_logs = AsyncMock(
+        return_value=([SimpleNamespace(id=9, path="/admin/plugins", method="GET")], 1)
+    )
+    serialize_logs = AsyncMock(
+        return_value=[{"id": 9, "path": "/admin/plugins", "method": "GET"}]
+    )
+
+    monkeypatch.setattr(OperationLogService, "__init__", fake_init)
+    monkeypatch.setattr(
         OperationLogService,
-        create_log_async,
+        "query_admin_logs_by_permission",
+        query_admin_logs,
     )
-    from app.services.system.trace_lookup_service import TraceLookupService
+    monkeypatch.setattr(OperationLogService, "serialize_logs", serialize_logs)
 
-    assert OperationLog.__tablename__ == "operation_logs"
-    assert AIActionLog.__tablename__ == "ai_action_logs"
-    assert OperationLogService is not None
-    assert create_log_async is not None
-    assert TraceLookupService is not None
-    assert activity._operation_log_identity_ref is not None
-    assert AIActionLogService is not None
-    assert write_ai_action_log is not None
-    assert ConversationTimelineService is not None
+    app = _build_test_app(AsyncMock(), operation_logs_module)
+
+    with TestClient(app) as client:
+        response = client.get("/operation-logs?page[number]=1&page[size]=20")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["code"] == 0
+    assert payload["data"]["items"][0]["id"] == 9
+    assert payload["data"]["total"] == 1
+    assert payload["data"]["page"] == 1
+    assert payload["data"]["page_size"] == 20
+
+
+def test_list_operators_route_returns_paged_payload(monkeypatch) -> None:
+    from app.services.system.operation_log_service import OperationLogService
+
+    operation_logs_module = _load_operation_logs_module()
+    monkeypatch.setattr(
+        operation_logs_module.AdminOperationLogController,
+        "_instance",
+        None,
+    )
+    monkeypatch.setattr(
+        operation_logs_module.AdminOperationLogController,
+        "_router",
+        None,
+    )
+
+    def fake_init(self, db) -> None:
+        self.db = db
+        self.repo = OperationLogRepository(db)
+
+    get_admin_operators_select = AsyncMock(
+        return_value=(
+            [
+                {
+                    "label": "Alice",
+                    "value": "alice",
+                    "extra": {"user_id": 7},
+                    "disabled": False,
+                }
+            ],
+            1,
+        )
+    )
+
+    monkeypatch.setattr(OperationLogService, "__init__", fake_init)
+    monkeypatch.setattr(
+        OperationLogService,
+        "get_admin_operators_select",
+        get_admin_operators_select,
+    )
+
+    app = _build_test_app(AsyncMock(), operation_logs_module)
+
+    with TestClient(app) as client:
+        response = client.get(
+            "/operation-logs/operators?page=1&page_size=10&search=ali"
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["code"] == 0
+    assert payload["data"]["total"] == 1
+    assert payload["data"]["items"][0]["label"] == "Alice"
+    assert payload["data"]["page"] == 1
+    assert payload["data"]["page_size"] == 10
+    get_admin_operators_select.assert_awaited_once_with(
+        search="ali",
+        page=1,
+        page_size=10,
+    )
+
+
+def test_list_operators_route_defaults_to_paged_payload(monkeypatch) -> None:
+    from app.services.system.operation_log_service import OperationLogService
+
+    operation_logs_module = _load_operation_logs_module()
+    monkeypatch.setattr(
+        operation_logs_module.AdminOperationLogController,
+        "_instance",
+        None,
+    )
+    monkeypatch.setattr(
+        operation_logs_module.AdminOperationLogController,
+        "_router",
+        None,
+    )
+
+    def fake_init(self, db) -> None:
+        self.db = db
+        self.repo = OperationLogRepository(db)
+
+    get_admin_operators_select = AsyncMock(
+        return_value=(
+            [
+                {
+                    "label": "Alice",
+                    "value": "alice",
+                    "extra": {"user_id": 7},
+                    "disabled": False,
+                }
+            ],
+            1,
+        )
+    )
+    get_admin_operators = AsyncMock()
+
+    monkeypatch.setattr(OperationLogService, "__init__", fake_init)
+    monkeypatch.setattr(
+        OperationLogService,
+        "get_admin_operators_select",
+        get_admin_operators_select,
+    )
+    monkeypatch.setattr(
+        OperationLogService,
+        "get_admin_operators",
+        get_admin_operators,
+    )
+
+    app = _build_test_app(AsyncMock(), operation_logs_module)
+
+    with TestClient(app) as client:
+        response = client.get("/operation-logs/operators")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["code"] == 0
+    assert payload["data"] == {
+        "items": [
+            {
+                "label": "Alice",
+                "value": "alice",
+                "extra": {"user_id": 7},
+                "disabled": False,
+            }
+        ],
+        "total": 1,
+        "page": 1,
+        "page_size": 10,
+    }
+    get_admin_operators_select.assert_awaited_once_with(
+        search=None,
+        page=1,
+        page_size=10,
+    )
+    get_admin_operators.assert_not_awaited()
+
+
+def test_export_logs_route_uses_serialized_labels(monkeypatch) -> None:
+    from app.services.system.operation_log_service import OperationLogService
+
+    operation_logs_module = _load_operation_logs_module()
+    monkeypatch.setattr(
+        operation_logs_module.AdminOperationLogController,
+        "_instance",
+        None,
+    )
+    monkeypatch.setattr(
+        operation_logs_module.AdminOperationLogController,
+        "_router",
+        None,
+    )
+
+    def fake_init(self, db) -> None:
+        self.db = db
+        self.repo = OperationLogRepository(db)
+
+    query_admin_logs = AsyncMock(
+        return_value=(
+            [SimpleNamespace(id=11, path="/api/public/attachments/26/image")],
+            1,
+        )
+    )
+    serialize_logs = AsyncMock(
+        return_value=[
+            {
+                "id": 11,
+                "display_name": "管理员",
+                "username": "admin",
+                "module": "attachment",
+                "module_label": "附件",
+                "action": "query",
+                "action_label": "查询",
+                "ip": "127.0.0.1",
+                "response_code": 0,
+                "created_at": "2026-04-15T15:17:50+00:00",
+            }
+        ]
+    )
+
+    monkeypatch.setattr(OperationLogService, "__init__", fake_init)
+    monkeypatch.setattr(
+        OperationLogService,
+        "query_admin_logs_by_permission",
+        query_admin_logs,
+    )
+    monkeypatch.setattr(OperationLogService, "serialize_logs", serialize_logs)
+
+    app = _build_test_app(AsyncMock(), operation_logs_module)
+
+    with TestClient(app) as client:
+        response = client.get("/operation-logs/export")
+
+    assert response.status_code == 200
+    assert "text/csv" in response.headers["content-type"]
+    content = response.content.decode("utf-8-sig")
+    assert "附件" in content
+    assert "查询" in content
+    assert "attachment" not in content

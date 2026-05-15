@@ -218,9 +218,8 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
         parent_code="menu:tenant.system_maintenance",
     ),
     # Child menus declared by controllers / 子菜单由控制器声明:
+    # - menu:tenant.operation_log (Operation Log / 操作日志)
     # - menu:tenant.task_log (Task Log / 任务日志)
-    # 中文: 独立操作日志页面已退役；保留的审计证据仍作为内部能力使用。
-    # EN: The standalone operation-log page is retired; retained evidence stays internal.
     # Other child menus declared by controllers / 其他子菜单由控制器声明:
     # - menu:tenant.periodic_task (Periodic Task / 定时任务)
     # ========================================

@@ -170,6 +170,15 @@ function transformMenuItem(
   if (item.icon) meta.icon = item.icon;
   if (item.sort_order !== undefined) meta.order = item.sort_order;
   if (item.hidden) meta.hideInMenu = item.hidden;
+  const accessCodes = Array.from(
+    new Set(
+      [item.code, ...(Array.isArray(item.permissions) ? item.permissions : [])]
+        .filter((code): code is string => typeof code === 'string')
+        .map((code) => code.trim())
+        .filter(Boolean),
+    ),
+  );
+  if (accessCodes.length > 0) meta.accessCodes = accessCodes;
 
   if (item.meta?.ai) {
     const aiMeta: Record<string, unknown> = {};

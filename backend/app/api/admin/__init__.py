@@ -67,6 +67,8 @@ from app.api.admin.notification_preferences import (
 from app.api.admin.notification_templates import AdminNotificationTemplateController
 from app.api.admin.notification_templates import router as notification_templates_router
 from app.api.admin.notifications import router as notifications_router
+from app.api.admin.operation_logs import AdminOperationLogController
+from app.api.admin.operation_logs import router as operation_logs_router
 from app.api.admin.organization import AdminOrganizationController
 from app.api.admin.organization import router as organization_router
 from app.api.admin.periodic_tasks import AdminPeriodicTaskController
@@ -122,6 +124,7 @@ admin_router.include_router(tenants_router)
 admin_router.include_router(tenant_domains_router)
 admin_router.include_router(configs_router)
 admin_router.include_router(plans_router)
+admin_router.include_router(operation_logs_router)
 admin_router.include_router(system_logs_router)
 admin_router.include_router(attachments_router)
 admin_router.include_router(tasks_router)
@@ -194,6 +197,7 @@ __all__ = [
     "AdminUserController",
     "AdminConfigController",
     "AdminPlanController",
+    "AdminOperationLogController",
     "AdminSystemLogController",
     "AdminAttachmentController",
     "AdminTaskController",

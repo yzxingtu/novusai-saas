@@ -11,6 +11,7 @@ export * from './codegen';
 export * from './configs';
 export * from './long-term-memory';
 export * from './menu';
+export * from './operation-log';
 export * from './organization';
 export * from './periodic-task';
 export * from './permission';

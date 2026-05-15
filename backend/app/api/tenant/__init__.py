@@ -47,6 +47,8 @@ from app.api.tenant.notification_preferences import (
     router as notification_preferences_router,
 )
 from app.api.tenant.notifications import router as notifications_router
+from app.api.tenant.operation_logs import TenantOperationLogController
+from app.api.tenant.operation_logs import router as operation_logs_router
 from app.api.tenant.organization import TenantOrganizationController
 from app.api.tenant.organization import router as organization_router
 from app.api.tenant.permission_roles import TenantPermissionRoleController
@@ -71,6 +73,7 @@ tenant_router.include_router(dashboard_router)
 tenant_router.include_router(configs_router)
 tenant_router.include_router(attachments_router)
 tenant_router.include_router(domains_router)
+tenant_router.include_router(operation_logs_router)
 tenant_router.include_router(permissions_router)
 tenant_router.include_router(permission_roles_router)
 tenant_router.include_router(organization_router)
@@ -121,6 +124,7 @@ __all__ = [
     "TenantConfigController",
     "TenantAttachmentController",
     "TenantDomainController",
+    "TenantOperationLogController",
     "TenantPermissionController",
     "TenantPermissionRoleController",
     "TenantOrganizationController",

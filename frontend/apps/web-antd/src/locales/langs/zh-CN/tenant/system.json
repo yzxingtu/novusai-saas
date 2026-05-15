@@ -372,6 +372,45 @@
       "copyFailed": "复制失败"
     }
   },
+  "operationLog": {
+    "title": "操作日志",
+    "list": "操作日志列表",
+    "detail": "日志详情",
+    "username": "操作用户",
+    "userType": "用户类型",
+    "traceId": "追踪 ID",
+    "module": "模块",
+    "action": "操作类型",
+    "method": "请求方法",
+    "path": "请求路径",
+    "statusCode": "状态码",
+    "responseCode": "响应码",
+    "responseMessage": "响应消息",
+    "ip": "IP地址",
+    "durationMs": "耗时(ms)",
+    "createdAt": "操作时间",
+    "userInfo": "用户信息",
+    "requestInfo": "请求信息",
+    "responseInfo": "响应信息",
+    "clientInfo": "客户端信息",
+    "queryParams": "请求参数",
+    "requestBody": "请求体",
+    "userTypeOptions": {
+      "tenantAdmin": "企业管理员",
+      "tenantUser": "普通用户"
+    },
+    "placeholder": {
+      "searchUsername": "搜索操作用户",
+      "searchTraceId": "搜索追踪 ID",
+      "searchModule": "搜索模块",
+      "searchAction": "搜索操作类型",
+      "searchStatusCode": "选择状态码",
+      "searchIp": "搜索IP地址",
+      "startDate": "开始日期",
+      "endDate": "结束日期",
+      "allUserTypes": "全部用户类型"
+    }
+  },
   "organization": {
     "name": "组织架构",
     "title": "组织架构管理",

@@ -52,6 +52,7 @@ describe('menu-transformer', () => {
         icon: 'lucide:users',
         order: 20,
         title: '用户管理',
+        accessCodes: ['menu:admin.system.users'],
       },
       name: 'menu:admin.system.users',
       path: '/admin/system/users',
@@ -106,5 +107,35 @@ describe('menu-transformer', () => {
       'menu:tenant.plugin_storage_billing_storage-billing-home',
     );
     expect(permissions).toContain('plugin.storage-billing.billing_portal:view');
+  });
+
+  it('writes menu code and backend permissions into route meta accessCodes', () => {
+    setExistingComponents({
+      '../views/tenant/ai/chat/index.vue': {},
+    });
+
+    const [menu] = transformMenuData(
+      [
+        {
+          code: ' menu:tenant.ai.chat ',
+          component: 'ai/chat/index',
+          id: 1,
+          name: 'AI Chat',
+          path: '/ai/chat',
+          permissions: [
+            'agent_chat:chat',
+            ' agent_chat:conversations ',
+            'agent_chat:chat',
+          ],
+        },
+      ],
+      'tenant',
+    );
+
+    expect(menu?.meta?.accessCodes).toEqual([
+      'menu:tenant.ai.chat',
+      'agent_chat:chat',
+      'agent_chat:conversations',
+    ]);
   });
 });
