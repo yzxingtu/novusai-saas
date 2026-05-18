@@ -5,7 +5,10 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 
+from app.api.admin import tenant_users as admin_tenant_users_module
 from app.api.admin.organization import _serialize_member
 from app.api.admin.tenant_admins import router as admin_tenant_admins_router
 from app.api.admin.tenant_users import router as admin_tenant_users_router
@@ -17,6 +20,7 @@ from app.api.common.identity import (
 )
 from app.api.tenant.admins import router as tenant_admins_router
 from app.api.tenant.users import router as tenant_users_router
+from app.core.deps import get_current_active_admin, get_db
 from app.core.identity import resolve_identity_display_role_name
 from app.services.system.admin_service import AdminService
 from app.services.tenant.tenant_admin_service import TenantAdminService
@@ -177,6 +181,56 @@ def test_identity_detail_routes_registered() -> None:
 
     tenant_user_paths = {route.path for route in tenant_users_router.routes}
     assert "/users/{user_id}" in tenant_user_paths
+
+
+def test_admin_tenant_user_detail_exposes_activity_to_platform_admin(
+    monkeypatch,
+) -> None:
+    user = SimpleNamespace(
+        id=9,
+        username="tenant_user",
+        last_login_at="2026-05-15T03:54:44+00:00",
+    )
+    tenant_user_service = SimpleNamespace(
+        get_identity_detail=AsyncMock(return_value=user),
+    )
+
+    monkeypatch.setattr(
+        admin_tenant_users_module,
+        "TenantUserService",
+        lambda _db, _tenant_id: tenant_user_service,
+    )
+    monkeypatch.setattr(
+        admin_tenant_users_module,
+        "serialize_tenant_user_identity_detail",
+        lambda payload_user, **kwargs: {
+            "id": payload_user.id,
+            "can_view_activity": kwargs["can_view_activity"],
+            "last_login_at": payload_user.last_login_at,
+        },
+    )
+
+    app = FastAPI()
+    app.include_router(admin_tenant_users_module.router)
+
+    async def override_db():
+        yield SimpleNamespace()
+
+    async def override_admin():
+        return SimpleNamespace(id=1, username="platform_admin", is_active=True)
+
+    app.dependency_overrides[get_db] = override_db
+    app.dependency_overrides[get_current_active_admin] = override_admin
+
+    with TestClient(app) as client:
+        response = client.get("/tenants/5/users/9")
+
+    assert response.status_code == 200
+    assert response.json()["data"] == {
+        "id": 9,
+        "can_view_activity": True,
+        "last_login_at": "2026-05-15T03:54:44+00:00",
+    }
 
 
 def test_identity_detail_helpers_include_expected_flags() -> None:

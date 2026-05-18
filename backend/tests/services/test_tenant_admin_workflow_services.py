@@ -115,7 +115,7 @@ async def test_tenant_admin_workflow_force_logout_delegates(monkeypatch) -> None
 
 
 @pytest.mark.asyncio
-async def test_tenant_admin_workflow_masks_activity_in_platform_detail() -> None:
+async def test_tenant_admin_workflow_exposes_activity_in_platform_detail() -> None:
     service = TenantAdminWorkflowService.__new__(TenantAdminWorkflowService)
     service._db = SimpleNamespace()
     service._tenant_service = SimpleNamespace(
@@ -150,15 +150,15 @@ async def test_tenant_admin_workflow_masks_activity_in_platform_detail() -> None
 
     detail = await service.get_tenant_admin_detail(tenant_id=5, admin_id=9)
 
-    assert detail["can_view_activity"] is False
-    assert detail["created_at"] is None
-    assert detail["updated_at"] is None
-    assert detail["last_login_at"] is None
-    assert detail["last_login_ip"] is None
+    assert detail["can_view_activity"] is True
+    assert detail["created_at"] == "created"
+    assert detail["updated_at"] == "updated"
+    assert detail["last_login_at"] == "last"
+    assert detail["last_login_ip"] == "127.0.0.1"
 
 
 @pytest.mark.asyncio
-async def test_tenant_admin_workflow_masks_activity_in_platform_list() -> None:
+async def test_tenant_admin_workflow_exposes_activity_in_platform_list() -> None:
     service = TenantAdminWorkflowService.__new__(TenantAdminWorkflowService)
     service._db = SimpleNamespace()
     service._tenant_service = SimpleNamespace(
@@ -192,11 +192,11 @@ async def test_tenant_admin_workflow_masks_activity_in_platform_list() -> None:
 
     items = await service.list_tenant_admins(tenant_id=5)
 
-    assert items[0]["can_view_activity"] is False
-    assert items[0]["created_at"] is None
-    assert items[0]["updated_at"] is None
-    assert items[0]["last_login_at"] is None
-    assert items[0]["last_login_ip"] is None
+    assert items[0]["can_view_activity"] is True
+    assert items[0]["created_at"] == "created"
+    assert items[0]["updated_at"] == "updated"
+    assert items[0]["last_login_at"] == "last"
+    assert items[0]["last_login_ip"] == "127.0.0.1"
 
 
 @pytest.mark.asyncio

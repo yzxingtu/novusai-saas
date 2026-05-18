@@ -15,7 +15,6 @@ from app.core.identity import (
     resolve_identity_display_name,
     resolve_identity_display_role_name,
 )
-from app.core.response import serialize_datetime_for_api
 from app.exceptions import BusinessException, NotFoundException
 from app.services.common import AuthService
 from app.services.system import TenantService
@@ -44,11 +43,11 @@ def _serialize_tenant_admin(tenant_admin: Any) -> dict[str, Any]:
         "permission_role_id": tenant_admin.role_id,
         "org_node_name": org_node.name if org_node else None,
         "org_node_id": tenant_admin.org_node_id,
-        "last_login_at": None,
-        "last_login_ip": None,
-        "created_at": None,
-        "updated_at": None,
-        "can_view_activity": False,
+        "last_login_at": tenant_admin.last_login_at,
+        "last_login_ip": tenant_admin.last_login_ip,
+        "created_at": tenant_admin.created_at,
+        "updated_at": tenant_admin.updated_at,
+        "can_view_activity": True,
     }
 
 
@@ -89,11 +88,11 @@ def _serialize_tenant_admin_detail(tenant_admin: Any) -> dict[str, Any]:
         "org_node_id": org_node_id,
         "org_node_name": org_node_name,
         "tenant_id": getattr(tenant_admin, "tenant_id", None),
-        "created_at": None,
-        "updated_at": None,
-        "last_login_at": None,
-        "last_login_ip": None,
-        "can_view_activity": False,
+        "created_at": tenant_admin.created_at,
+        "updated_at": tenant_admin.updated_at,
+        "last_login_at": tenant_admin.last_login_at,
+        "last_login_ip": tenant_admin.last_login_ip,
+        "can_view_activity": True,
         "permission_role_id": role_id,
         "permission_role_name": role_name,
     }

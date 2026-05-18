@@ -480,7 +480,7 @@ export async function getTenantAdminsApi(
   return items.map((item) => ({
     ...item,
     ai_enabled: item.ai_enabled ?? true,
-    can_view_activity: item.can_view_activity ?? false,
+    can_view_activity: item.can_view_activity ?? true,
   }));
 }
 

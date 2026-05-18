@@ -4,6 +4,8 @@ import { defineComponent } from 'vue';
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import TenantAdminPanel from '../TenantAdminPanel.vue';
+
 const mocks = vi.hoisted(() => ({
   forceLogoutTenantAdminApi: vi.fn(),
   getTenantAdminsApi: vi.fn(),
@@ -42,7 +44,8 @@ vi.mock('#/components/business/identity-display', () => ({
       online: Boolean,
       showOnlineStatus: Boolean,
     },
-    template: '<div data-testid="identity-display"><slot /><slot name="after" /></div>',
+    template:
+      '<div data-testid="identity-display"><slot /><slot name="after" /></div>',
   }),
 }));
 
@@ -117,9 +120,7 @@ vi.mock('ant-design-vue', () => {
   };
 });
 
-import TenantAdminPanel from '../TenantAdminPanel.vue';
-
-describe('TenantAdminPanel activity masking', () => {
+describe('tenant admin panel platform activity visibility', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.loadTenantPresence.mockResolvedValue(undefined);
@@ -127,8 +128,8 @@ describe('TenantAdminPanel activity masking', () => {
       {
         ai_enabled: true,
         avatar: null,
-        can_view_activity: false,
-        created_at: null,
+        can_view_activity: true,
+        created_at: '2026-05-01 00:00:00',
         email: 'alice@example.com',
         id: 9,
         is_active: true,
@@ -145,7 +146,7 @@ describe('TenantAdminPanel activity masking', () => {
     ]);
   });
 
-  it('masks tenant-admin list activity and omits it from identity fallback meta', async () => {
+  it('shows tenant-admin list activity and passes it into identity fallback meta', async () => {
     const wrapper = mount(TenantAdminPanel, {
       global: {
         directives: {
@@ -159,12 +160,16 @@ describe('TenantAdminPanel activity masking', () => {
     });
     await flushPromises();
 
-    expect(wrapper.text()).toContain('admin.tenant.adminPanel.lastLogin *****');
-    expect(wrapper.text()).not.toContain('relative:2026-05-15 03:54:44');
+    expect(wrapper.text()).toContain(
+      'admin.tenant.adminPanel.lastLogin relative:2026-05-15 03:54:44',
+    );
+    expect(wrapper.text()).not.toContain(
+      'admin.tenant.adminPanel.lastLogin *****',
+    );
     expect(
       wrapper.find('[data-testid="identity-trigger"]').attributes()[
         'data-last-login-at'
       ],
-    ).toBe('');
+    ).toBe('2026-05-15 03:54:44');
   });
 });
