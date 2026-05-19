@@ -412,12 +412,12 @@ onMounted(() => {
         </div>
 
         <div class="flex shrink-0 flex-wrap gap-2">
-          <Button v-access:code="['action.codegen.db']" @click="openDbImport">
+          <Button v-access:code="['codegen:db']" @click="openDbImport">
             <IconifyIcon icon="lucide:database" class="mr-1 size-4" />
             {{ $t('admin.system.codegen.importFromDb') }}
           </Button>
           <Button
-            v-access:code="['action.codegen.create']"
+            v-access:code="['codegen:create']"
             type="primary"
             @click="openPresetSelect"
           >

@@ -150,13 +150,13 @@ export function useColumns<T = Record<string, unknown>>(
             code: 'edit',
             text: $t('common.edit'),
             icon: 'lucide:pencil',
-            accessCodes: ['action.codegen.update'],
+            accessCodes: ['codegen:update'],
           },
           {
             code: 'generate',
             text: $t('admin.system.codegen.actions.generate'),
             icon: 'lucide:wand-2',
-            accessCodes: ['action.codegen.generate'],
+            accessCodes: ['codegen:generate'],
           },
           {
             code: 'download',
@@ -165,7 +165,7 @@ export function useColumns<T = Record<string, unknown>>(
                 ? $t('admin.system.codegen.actions.download')
                 : $t('admin.system.codegen.actions.downloadDisabledHint'),
             icon: 'lucide:download',
-            accessCodes: ['action.codegen.download'],
+            accessCodes: ['codegen:download'],
             disabled: (row: Record<string, unknown>) =>
               !canDownloadGenerated(row),
           },
@@ -173,7 +173,7 @@ export function useColumns<T = Record<string, unknown>>(
             code: 'duplicate',
             text: $t('admin.system.codegen.actions.duplicate'),
             icon: 'lucide:copy',
-            accessCodes: ['action.codegen.duplicate'],
+            accessCodes: ['codegen:duplicate'],
           },
           {
             code: 'rollback',
@@ -182,7 +182,7 @@ export function useColumns<T = Record<string, unknown>>(
                 ? $t('admin.system.codegen.actions.rollback')
                 : $t('admin.system.codegen.actions.rollbackDisabledHint'),
             icon: 'lucide:undo-2',
-            accessCodes: ['action.codegen.rollback'],
+            accessCodes: ['codegen:rollback'],
             disabled: (row: Record<string, unknown>) =>
               !canCodegenRollback(row),
           },
@@ -194,7 +194,7 @@ export function useColumns<T = Record<string, unknown>>(
                 : (row.delete_reason_message as string | undefined) ||
                   $t('admin.system.codegen.actions.deleteDisabledHint'),
             icon: 'lucide:trash-2',
-            accessCodes: ['action.codegen.delete'],
+            accessCodes: ['codegen:delete'],
             disabled: (row: Record<string, unknown>) =>
               !canDeleteCodegenConfig(row),
           },

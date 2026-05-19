@@ -359,7 +359,7 @@ const { focusBuilderTop, locateValidationIssue, onDbImported, onPaletteAdd } =
             </Tooltip>
             <Tooltip :title="$t('admin.system.codegen.toolbar.preview')">
               <Button
-                v-access:code="['action.codegen.preview']"
+                v-access:code="['codegen:preview']"
                 type="text"
                 size="small"
                 @click="codePreviewOpen = true"
@@ -384,21 +384,21 @@ const { focusBuilderTop, locateValidationIssue, onDbImported, onPaletteAdd } =
                   </MenuItem>
                   <MenuItem
                     v-if="configId"
-                    v-access:code="['action.codegen.update']"
+                    v-access:code="['codegen:update']"
                     @click="onOpenVersionHistory"
                   >
                     <IconifyIcon icon="lucide:history" class="mr-1 size-4" />
                     {{ $t('admin.system.codegen.toolbar.versionHistory') }}
                   </MenuItem>
                   <MenuItem
-                    v-access:code="['action.codegen.preview']"
+                    v-access:code="['codegen:preview']"
                     @click="onDownloadZip"
                   >
                     <IconifyIcon icon="lucide:archive" class="mr-1 size-4" />
                     {{ $t('admin.system.codegen.toolbar.downloadZip') }}
                   </MenuItem>
                   <MenuItem
-                    v-access:code="['action.codegen.db']"
+                    v-access:code="['codegen:db']"
                     @click="dbImportOpen = true"
                   >
                     <IconifyIcon icon="lucide:database" class="mr-1 size-4" />
@@ -412,7 +412,7 @@ const { focusBuilderTop, locateValidationIssue, onDbImported, onPaletteAdd } =
               </template>
             </Dropdown>
             <Button
-              v-access:code="['action.codegen.update']"
+              v-access:code="['codegen:update']"
               size="small"
               :loading="isSaving"
               @click="onSave"
@@ -426,7 +426,7 @@ const { focusBuilderTop, locateValidationIssue, onDbImported, onPaletteAdd } =
               :show-zero="false"
             >
               <Button
-                v-access:code="['action.codegen.generate']"
+                v-access:code="['codegen:generate']"
                 type="primary"
                 size="small"
                 :loading="isGenerating || isPreparingGenerate"

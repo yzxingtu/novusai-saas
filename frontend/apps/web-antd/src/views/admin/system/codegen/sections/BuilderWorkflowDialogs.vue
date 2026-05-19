@@ -291,7 +291,7 @@ const resultModalOpen = computed({
       <div class="mt-4 flex justify-end gap-2">
         <Button
           v-if="hasPreviewSnapshot"
-          v-access:code="['action.codegen.preview']"
+          v-access:code="['codegen:preview']"
           type="primary"
           ghost
           @click="openPreviewFromResult"
