@@ -13,7 +13,7 @@ import type {
   TextSelectionAiSnapshot,
 } from '#/components/business/text-selection-ai-assist';
 
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 
 import { $t } from '@vben/locales';
 
@@ -152,6 +152,13 @@ const aiApiPrefix = computed(() => props.aiWriting?.apiPrefix || '/admin');
 const aiI18nPrefix = computed(
   () => props.aiWriting?.i18nPrefix || 'plugin.novusdoc.ai',
 );
+let pendingSelectionMouseupTimer: null | number = null;
+
+function clearPendingSelectionMouseup() {
+  if (pendingSelectionMouseupTimer === null) return;
+  window.clearTimeout(pendingSelectionMouseupTimer);
+  pendingSelectionMouseupTimer = null;
+}
 
 function closeTextSelectionAiAssist() {
   textSelectionAiAssistRef.value?.close();
@@ -279,7 +286,11 @@ function onEditorContextMenu(event: MouseEvent) {
 }
 
 function onEditorSelectionMouseup(event: MouseEvent) {
-  openAiSelectionPrompt(event, { silent: true });
+  clearPendingSelectionMouseup();
+  pendingSelectionMouseupTimer = window.setTimeout(() => {
+    pendingSelectionMouseupTimer = null;
+    openAiSelectionPrompt(event, { silent: true });
+  }, 0);
 }
 
 function onEditorSelectionKeyup(event: KeyboardEvent) {
@@ -300,6 +311,11 @@ function onEditorKeydown(event: KeyboardEvent) {
     openAiSelectionPrompt(event);
   }
 }
+
+onBeforeUnmount(() => {
+  clearPendingSelectionMouseup();
+});
+
 defineExpose({
   editor,
   wordCount,
@@ -384,13 +400,19 @@ defineExpose({
     <MiniToolbar v-if="toolbar !== false" :editor="editor" :upload="upload" />
 
     <div
-      class="overflow-y-auto px-3 py-2"
+      class="rte-editor-body flex flex-col overflow-y-auto px-3 py-2"
       :style="{ minHeight: minH, maxHeight: maxH }"
+      @click.self="focusEditorEnd"
       @contextmenu="onEditorContextMenu"
       @keyup="onEditorSelectionKeyup"
       @mouseup="onEditorSelectionMouseup"
     >
-      <EditorContent v-if="editor" :editor="editor" />
+      <EditorContent
+        v-if="editor"
+        :editor="editor"
+        class="rte-editor-content flex flex-1 flex-col"
+        @click.self="focusEditorEnd"
+      />
     </div>
   </div>
 

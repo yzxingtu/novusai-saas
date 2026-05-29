@@ -7,6 +7,13 @@
   outline: none;
 }
 
+.rte-editor-content {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 100%;
+}
+
 .rte-editor-content > div {
   display: flex;
   flex: 1;

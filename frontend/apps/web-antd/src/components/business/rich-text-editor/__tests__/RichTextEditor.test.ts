@@ -3,8 +3,10 @@
 // EN: Test type structural + behavioral; verifies the rich-text AI preview-before-apply loop.
 // 中文: Mock TipTap、编辑器 composable、绑定解析、富文本 SSE API；组件菜单、预览、内联对话与应用逻辑保持真实。
 // EN: Mocks TipTap, editor composable, assignment resolve, and rich-text SSE API while keeping component menu, preview, inline chat, and apply behavior real.
+import type { VueWrapper } from '@vue/test-utils';
+
 import { flushPromises, mount } from '@vue/test-utils';
-import { defineComponent, ref, shallowRef } from 'vue';
+import { defineComponent, nextTick, ref, shallowRef } from 'vue';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -133,6 +135,23 @@ interface EditorMock {
   };
 }
 
+async function flushDeferredMouseupOpen() {
+  await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+  await flushPromises();
+  await nextTick();
+}
+
+async function triggerEditorMouseup(
+  wrapper: VueWrapper,
+  clientX = 120,
+  clientY = 80,
+) {
+  await wrapper
+    .find('.rte-editor-body')
+    .trigger('mouseup', { clientX, clientY });
+  await flushDeferredMouseupOpen();
+}
+
 function sseRewriteSuccess() {
   richTextAiMocks.streamRichTextAiOperationApi.mockImplementation(
     async (
@@ -237,9 +256,7 @@ describe('richTextEditor', () => {
     const wrapper = mount(RichTextEditor);
 
     expect(mocks.useRichTextEditor).toHaveBeenCalledOnce();
-    await wrapper
-      .find('.overflow-y-auto')
-      .trigger('mouseup', { clientX: 20, clientY: 30 });
+    await triggerEditorMouseup(wrapper, 20, 30);
     await wrapper
       .find('.overflow-y-auto')
       .trigger('contextmenu', { clientX: 20, clientY: 30 });
@@ -252,12 +269,22 @@ describe('richTextEditor', () => {
     wrapper.unmount();
   });
 
+  it('focuses the editor when compact blank space is clicked', async () => {
+    const wrapper = mount(RichTextEditor);
+
+    await wrapper.find('.rte-editor-body').trigger('click');
+
+    expect(editor.value.commands.focus).toHaveBeenCalledWith('end');
+    expect(wrapper.get('.editor-content-stub').classes()).toContain(
+      'rte-editor-content',
+    );
+    wrapper.unmount();
+  });
+
   it('shows action-template backed AI actions when selected text is available', async () => {
     const wrapper = mount(RichTextEditor, { props: aiWritingProps });
 
-    await wrapper
-      .find('.overflow-y-auto')
-      .trigger('mouseup', { clientX: 120, clientY: 80 });
+    await triggerEditorMouseup(wrapper);
 
     const prompt = wrapper.get('[data-testid="rte-ai-selection-prompt"]');
     expect(prompt.attributes('role')).toBe('menu');
@@ -298,6 +325,66 @@ describe('richTextEditor', () => {
       false,
     );
     wrapper.unmount();
+  });
+
+  // 中文: 回归富文本选区的时序问题，mouseup 后延迟读取，避免读到拖选前的旧光标态。
+  // EN: Regression guard for the rich-text selection timing bug; mouseup reads after a delay so it does not capture the stale pre-drag cursor state.
+  it('opens the AI prompt after the rich-text selection settles', async () => {
+    vi.useFakeTimers();
+    let selectionSettled = false;
+    getSelectionSnapshotMock.mockImplementation(() =>
+      selectionSettled ? selectedSnapshot : emptySnapshot,
+    );
+    const wrapper = mount(RichTextEditor, { props: aiWritingProps });
+    try {
+      await wrapper
+        .find('.rte-editor-body')
+        .trigger('mouseup', { clientX: 120, clientY: 80 });
+
+      expect(
+        wrapper.find('[data-testid="rte-ai-selection-prompt"]').exists(),
+      ).toBe(false);
+
+      selectionSettled = true;
+      await vi.runOnlyPendingTimersAsync();
+      await flushPromises();
+      await nextTick();
+
+      expect(
+        wrapper
+          .get('[data-testid="rte-ai-selection-prompt"]')
+          .attributes('role'),
+      ).toBe('menu');
+      expect(getSelectionSnapshotMock).toHaveBeenCalledTimes(1);
+    } finally {
+      wrapper.unmount();
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not open stale AI actions when a blank click clears the selection', async () => {
+    vi.useFakeTimers();
+    getSelectionSnapshotMock.mockReturnValue(selectedSnapshot);
+    const wrapper = mount(RichTextEditor, { props: aiWritingProps });
+    try {
+      await wrapper
+        .find('.rte-editor-body')
+        .trigger('mouseup', { clientX: 120, clientY: 80 });
+      expect(getSelectionSnapshotMock).not.toHaveBeenCalled();
+
+      getSelectionSnapshotMock.mockReturnValue(emptySnapshot);
+      await vi.runOnlyPendingTimersAsync();
+      await flushPromises();
+      await nextTick();
+
+      expect(
+        wrapper.find('[data-testid="rte-ai-selection-prompt"]').exists(),
+      ).toBe(false);
+      expect(getSelectionSnapshotMock).toHaveBeenCalled();
+    } finally {
+      wrapper.unmount();
+      vi.useRealTimers();
+    }
   });
 
   it('opens cursor-capable actions without selected text and disables selection-only actions', async () => {
@@ -376,9 +463,7 @@ describe('richTextEditor', () => {
     });
     const wrapper = mount(RichTextEditor, { props: aiWritingProps });
 
-    await wrapper
-      .find('.overflow-y-auto')
-      .trigger('mouseup', { clientX: 20, clientY: 20 });
+    await triggerEditorMouseup(wrapper, 20, 20);
 
     const prompt = wrapper.get('[data-testid="rte-ai-selection-prompt"]');
     expect(prompt.attributes('style')).toContain('left: 492px');
@@ -396,9 +481,7 @@ describe('richTextEditor', () => {
   it('streams rewrite into an editable preview and applies it only after confirmation', async () => {
     const wrapper = mount(RichTextEditor, { props: aiWritingProps });
 
-    await wrapper
-      .find('.overflow-y-auto')
-      .trigger('mouseup', { clientX: 120, clientY: 80 });
+    await triggerEditorMouseup(wrapper);
     await wrapper.get('[data-testid="rte-ai-action-rewrite"]').trigger('click');
     await flushPromises();
 
@@ -506,9 +589,7 @@ describe('richTextEditor', () => {
     );
     const wrapper = mount(RichTextEditor, { props: aiWritingProps });
 
-    await wrapper
-      .find('.overflow-y-auto')
-      .trigger('mouseup', { clientX: 120, clientY: 80 });
+    await triggerEditorMouseup(wrapper);
     await wrapper.get('[data-testid="rte-ai-action-rewrite"]').trigger('click');
     await flushPromises();
 
@@ -537,9 +618,7 @@ describe('richTextEditor', () => {
     getSelectionSnapshotMock.mockReturnValue(chineseSnapshot);
     const wrapper = mount(RichTextEditor, { props: aiWritingProps });
 
-    await wrapper
-      .find('.overflow-y-auto')
-      .trigger('mouseup', { clientX: 120, clientY: 80 });
+    await triggerEditorMouseup(wrapper);
     await wrapper
       .get('[data-testid="rte-ai-action-summarize"]')
       .trigger('click');
@@ -560,9 +639,7 @@ describe('richTextEditor', () => {
     getSelectionSnapshotMock.mockReturnValue(selectedSnapshot);
     const wrapper = mount(RichTextEditor, { props: aiWritingProps });
 
-    await wrapper
-      .find('.overflow-y-auto')
-      .trigger('mouseup', { clientX: 120, clientY: 80 });
+    await triggerEditorMouseup(wrapper);
     await wrapper
       .get('[data-testid="rte-ai-action-translate"]')
       .trigger('click');
@@ -582,9 +659,7 @@ describe('richTextEditor', () => {
   it('discarding a streamed preview never writes back to the editor', async () => {
     const wrapper = mount(RichTextEditor, { props: aiWritingProps });
 
-    await wrapper
-      .find('.overflow-y-auto')
-      .trigger('mouseup', { clientX: 120, clientY: 80 });
+    await triggerEditorMouseup(wrapper);
     await wrapper.get('[data-testid="rte-ai-action-rewrite"]').trigger('click');
     await flushPromises();
     await wrapper
@@ -602,9 +677,7 @@ describe('richTextEditor', () => {
     validateSelectionSnapshotMock.mockReturnValue(false);
     const wrapper = mount(RichTextEditor, { props: aiWritingProps });
 
-    await wrapper
-      .find('.overflow-y-auto')
-      .trigger('mouseup', { clientX: 120, clientY: 80 });
+    await triggerEditorMouseup(wrapper);
     await wrapper.get('[data-testid="rte-ai-action-rewrite"]').trigger('click');
     await flushPromises();
     await wrapper.get('[data-testid="rte-ai-preview-apply"]').trigger('click');
@@ -619,9 +692,7 @@ describe('richTextEditor', () => {
   it('runs more/chat as an inline editor conversation without opening the side panel', async () => {
     const wrapper = mount(RichTextEditor, { props: aiWritingProps });
 
-    await wrapper
-      .find('.overflow-y-auto')
-      .trigger('mouseup', { clientX: 120, clientY: 80 });
+    await triggerEditorMouseup(wrapper);
     await wrapper.get('[data-testid="rte-ai-action-more"]').trigger('click');
     await flushPromises();
 

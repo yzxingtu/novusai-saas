@@ -577,6 +577,15 @@ function removeAiFloatingAnchorListeners() {
   window.removeEventListener('resize', repositionAiFloatingLayer);
 }
 
+function isSelectionRequiredToOpen(
+  options: TextSelectionAiAssistOpenOptions,
+): boolean {
+  if (typeof options.requireSelection === 'boolean') {
+    return options.requireSelection;
+  }
+  return props.requireSelectionToOpen === true || options.silent === true;
+}
+
 function closeAiSelectionPrompt() {
   if (aiPreview.value || aiInlineChat.value) return;
   aiSelectionPromptOpen.value = false;
@@ -601,19 +610,14 @@ function open(
 
   aiSelection.value = readCurrentSelection();
   const selection = aiSelection.value;
+  const selectionRequired = isSelectionRequiredToOpen(options);
   if (!selection) {
     closeAiSelectionPrompt();
     return;
   }
-  if (
-    !selection.selectedText.trim() &&
-    (options.requireSelection ?? props.requireSelectionToOpen ?? options.silent)
-  ) {
+  if (!selection.selectedText.trim() && selectionRequired) {
     closeAiSelectionPrompt();
-    if (
-      !options.silent &&
-      (options.requireSelection ?? props.requireSelectionToOpen)
-    ) {
+    if (!options.silent && selectionRequired) {
       showAiNotice('error', 'requiresSelection');
     }
     return;
