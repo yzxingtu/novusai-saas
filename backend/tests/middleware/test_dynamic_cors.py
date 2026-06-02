@@ -127,6 +127,22 @@ class TestDynamicCORSMiddleware:
         assert "Pragma" in DEFAULT_ALLOW_HEADERS
         assert "X-Trace-ID" in DEFAULT_ALLOW_HEADERS
 
+    @pytest.mark.asyncio
+    async def test_malformed_configured_origins_do_not_break_error_headers(
+        self, monkeypatch
+    ):
+        monkeypatch.setattr(
+            settings,
+            "CORS_ORIGINS",
+            "[http://localhost:5666],http://w2w.w.cn:5758",
+            raising=False,
+        )
+
+        headers = await get_cors_headers_for_origin("http://w2w.w.cn:5758")
+
+        assert headers["Access-Control-Allow-Origin"] == "http://w2w.w.cn:5758"
+        assert not is_origin_allowed_sync("http://localhost:5666]")
+
     def test_socketio_origin_checker_uses_shared_cache(self):
         remember_verified_custom_domain("tenant.custom.example.com")
         try:

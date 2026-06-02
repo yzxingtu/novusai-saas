@@ -6,6 +6,7 @@ import pytest
 
 from app.exceptions import BusinessException, NotFoundException
 from app.services.tenant.announcement_service import (
+    ANNOUNCEMENT_PENDING_LIMIT,
     SUPPORTED_RECIPIENT_TYPES,
     AnnouncementBusinessMixin,
 )
@@ -161,12 +162,17 @@ class FakeDb:
 class FakeDeliveryRepo:
     def __init__(self, delivery) -> None:
         self.delivery = delivery
+        self.pending_deliveries = [delivery] if delivery is not None else []
         self.marked_read = False
         self.lookup_kwargs = None
 
     async def get_for_recipient(self, **kwargs):
         self.lookup_kwargs = kwargs
         return self.delivery
+
+    async def list_pending_for_recipient(self, **kwargs):
+        self.lookup_kwargs = kwargs
+        return self.pending_deliveries
 
     async def mark_read(self, delivery) -> None:
         self.marked_read = True
@@ -208,6 +214,32 @@ class FakeAnnouncementService(AnnouncementBusinessMixin):
 
     def _response_repo(self) -> FakeResponseRepo:
         return self.response_repo
+
+
+@pytest.mark.asyncio
+async def test_pending_announcements_are_bounded_for_background_load() -> None:
+    delivery = SimpleNamespace(id=1)
+    service = FakeAnnouncementService(delivery)
+
+    result = await service.list_pending_for_user(34, limit=999)
+
+    assert result == [delivery]
+    assert service.delivery_repo.lookup_kwargs == {
+        "recipient_type": "tenant_admin",
+        "recipient_id": 34,
+        "tenant_id": 7,
+        "limit": ANNOUNCEMENT_PENDING_LIMIT,
+    }
+
+
+@pytest.mark.asyncio
+async def test_pending_announcements_skip_query_when_limit_is_empty() -> None:
+    service = FakeAnnouncementService(SimpleNamespace(id=1))
+
+    result = await service.list_pending_for_user(34, limit=0)
+
+    assert result == []
+    assert service.delivery_repo.lookup_kwargs is None
 
 
 @pytest.mark.asyncio

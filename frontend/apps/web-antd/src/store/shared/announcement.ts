@@ -51,6 +51,9 @@ export const useAnnouncementStore = defineStore('announcement', () => {
   const loading = ref(false);
   const submitting = ref(false);
   const initialized = ref(false);
+  let pendingLoadEndpoint: AnnouncementEndpoint | null = null;
+  let pendingLoadPromise: null | Promise<void> = null;
+  let pendingLoadToken: null | symbol = null;
 
   const current = computed(() => pendingQueue.value[0] ?? null);
   const visible = computed(() => Boolean(current.value));
@@ -68,16 +71,39 @@ export const useAnnouncementStore = defineStore('announcement', () => {
   }
 
   async function loadPending(): Promise<void> {
-    loading.value = true;
-    try {
-      const loader =
-        endpoint.value === 'admin'
-          ? getAdminPendingAnnouncementsApi
-          : getTenantPendingAnnouncementsApi;
-      pendingQueue.value = sortPendingAnnouncements(await loader());
-    } finally {
-      loading.value = false;
+    const loadEndpoint = endpoint.value;
+    if (pendingLoadPromise && pendingLoadEndpoint === loadEndpoint) {
+      return pendingLoadPromise;
     }
+    loading.value = true;
+    pendingLoadEndpoint = loadEndpoint;
+    const loadToken = Symbol('announcement-pending-load');
+    pendingLoadToken = loadToken;
+    const activePromise = (async () => {
+      try {
+        const loader =
+          loadEndpoint === 'admin'
+            ? getAdminPendingAnnouncementsApi
+            : getTenantPendingAnnouncementsApi;
+        const rows = sortPendingAnnouncements(await loader());
+        if (endpoint.value === loadEndpoint) {
+          pendingQueue.value = rows;
+        }
+      } catch {
+        if (endpoint.value === loadEndpoint) {
+          pendingQueue.value = [];
+        }
+      } finally {
+        if (pendingLoadToken === loadToken) {
+          pendingLoadPromise = null;
+          pendingLoadEndpoint = null;
+          pendingLoadToken = null;
+          loading.value = false;
+        }
+      }
+    })();
+    pendingLoadPromise = activePromise;
+    return activePromise;
   }
 
   async function openAnnouncement(id: number): Promise<void> {
@@ -183,6 +209,9 @@ export const useAnnouncementStore = defineStore('announcement', () => {
     loading.value = false;
     submitting.value = false;
     initialized.value = false;
+    pendingLoadEndpoint = null;
+    pendingLoadPromise = null;
+    pendingLoadToken = null;
     endpoint.value = 'tenant';
   }
 

@@ -24,6 +24,7 @@ from app.schemas.common.query import FilterRule, QuerySpec
 from app.services.common.notification_service import NotificationService
 
 ANNOUNCEMENT_TEMPLATE_CODE = "announcement.published"
+ANNOUNCEMENT_PENDING_LIMIT = 20
 SUPPORTED_RECIPIENT_TYPES = {"admin", "tenant_admin", "tenant_user"}
 
 
@@ -222,13 +223,17 @@ class AnnouncementBusinessMixin:
         recipient_id: int,
         *,
         recipient_type: str | None = None,
+        limit: int = ANNOUNCEMENT_PENDING_LIMIT,
     ) -> list[AnnouncementDelivery]:
         resolved_type = recipient_type or self._recipient_type()
         self._ensure_supported_recipient_type(resolved_type)
+        if limit <= 0:
+            return []
         return await self._delivery_repo().list_pending_for_recipient(
             recipient_type=resolved_type,
             recipient_id=recipient_id,
             tenant_id=self._announcement_tenant_id(),
+            limit=min(limit, ANNOUNCEMENT_PENDING_LIMIT),
         )
 
     async def get_for_current_user(
@@ -591,6 +596,7 @@ class AnnouncementService(
 
 
 __all__ = [
+    "ANNOUNCEMENT_PENDING_LIMIT",
     "ANNOUNCEMENT_TEMPLATE_CODE",
     "SUPPORTED_RECIPIENT_TYPES",
     "AdminAnnouncementService",

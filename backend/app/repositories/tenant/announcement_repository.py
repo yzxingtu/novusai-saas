@@ -129,6 +129,7 @@ class AnnouncementDeliveryRepository(BaseRepository[AnnouncementDelivery]):
         recipient_type: str,
         recipient_id: int,
         tenant_id: int,
+        limit: int = 20,
     ) -> list[AnnouncementDelivery]:
         result = await self.db.execute(
             select(AnnouncementDelivery)
@@ -139,11 +140,13 @@ class AnnouncementDeliveryRepository(BaseRepository[AnnouncementDelivery]):
                 AnnouncementDelivery.tenant_id == tenant_id,
                 AnnouncementDelivery.status == "pending",
                 AnnouncementDelivery.is_deleted.is_(False),
+                Announcement.tenant_id == tenant_id,
                 Announcement.status == "published",
                 Announcement.is_deleted.is_(False),
             )
             .options(selectinload(AnnouncementDelivery.announcement))
             .order_by(Announcement.published_at.asc(), Announcement.id.asc())
+            .limit(limit)
         )
         return list(result.scalars().all())
 

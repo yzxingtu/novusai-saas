@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 // Test type: behavioral
 // Scope: Pending announcement queue ordering and submit progression.
 // Mock strategy: API modules and notification unread refresh transport are mocked; Pinia store logic runs real.
@@ -107,6 +108,41 @@ describe('useAnnouncementStore', () => {
     expect(store.pendingQueue.map((item) => item.id)).toEqual([1, 2]);
     expect(store.current?.id).toBe(1);
     expect(store.visible).toBe(true);
+  });
+
+  it('keeps background pending announcement failures out of the modal queue', async () => {
+    adminPendingMock.mockRejectedValue(new Error('timeout'));
+
+    const store = useAnnouncementStore();
+    store.setEndpoint('admin');
+    await expect(store.loadPending()).resolves.toBeUndefined();
+
+    expect(adminPendingMock).toHaveBeenCalledOnce();
+    expect(store.pendingQueue).toEqual([]);
+    expect(store.visible).toBe(false);
+  });
+
+  it('coalesces concurrent pending announcement loads for the same endpoint', async () => {
+    let resolvePending: (
+      value: ReturnType<typeof pending>[],
+    ) => void = () => {};
+    adminPendingMock.mockReturnValue(
+      new Promise((resolve) => {
+        resolvePending = resolve;
+      }),
+    );
+
+    const store = useAnnouncementStore();
+    store.setEndpoint('admin');
+    const firstLoad = store.loadPending();
+    const secondLoad = store.loadPending();
+
+    expect(adminPendingMock).toHaveBeenCalledOnce();
+
+    resolvePending([pending(40, '2026-04-28T16:00:00Z')]);
+    await Promise.all([firstLoad, secondLoad]);
+
+    expect(store.pendingQueue.map((item) => item.id)).toEqual([40]);
   });
 
   it('submits current tenant announcement and advances the queue', async () => {

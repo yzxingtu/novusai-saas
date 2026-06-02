@@ -7,7 +7,7 @@ Provides shared Origin checks for both HTTP and Socket.IO.
 
 from __future__ import annotations
 
-from urllib.parse import urlparse
+from urllib.parse import ParseResult, urlparse
 
 from sqlalchemy import select
 
@@ -30,13 +30,22 @@ DEFAULT_ALLOW_HEADERS = (
 )
 
 
+def _parse_origin(value: str) -> ParseResult | None:
+    try:
+        return urlparse(value if "://" in value else f"https://{value}")
+    except ValueError:
+        return None
+
+
 def _normalize_origin_host(value: str | None) -> str:
     if not value:
         return ""
     raw = str(value).strip()
     if not raw:
         return ""
-    parsed = urlparse(raw if "://" in raw else f"https://{raw}")
+    parsed = _parse_origin(raw)
+    if parsed is None:
+        return ""
     return (parsed.hostname or raw.split(":")[0]).strip().lower()
 
 
@@ -46,14 +55,19 @@ def _normalize_origin(value: str | None) -> str:
     raw = str(value).strip()
     if not raw:
         return ""
-    parsed = urlparse(raw if "://" in raw else f"https://{raw}")
+    parsed = _parse_origin(raw)
+    if parsed is None:
+        return ""
     scheme = parsed.scheme.strip().lower()
     host = (parsed.hostname or "").strip().lower()
     if scheme not in {"http", "https"} or not host:
         return ""
 
     default_port = 80 if scheme == "http" else 443
-    port = parsed.port
+    try:
+        port = parsed.port
+    except ValueError:
+        return ""
     if port in {None, default_port}:
         return f"{scheme}://{host}"
     return f"{scheme}://{host}:{port}"
@@ -105,7 +119,9 @@ def is_origin_allowed_sync(origin: str | None, _environ=None) -> bool:
     """
     if not origin:
         return False
-    parsed = urlparse(origin)
+    parsed = _parse_origin(origin)
+    if parsed is None:
+        return False
     if parsed.scheme not in {"http", "https"}:
         return False
 
@@ -138,7 +154,9 @@ async def is_origin_allowed(origin: str | None) -> bool:
     if not origin:
         return False
 
-    parsed = urlparse(origin)
+    parsed = _parse_origin(origin)
+    if parsed is None:
+        return False
     if parsed.scheme not in {"http", "https"}:
         return False
 

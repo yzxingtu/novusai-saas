@@ -7,7 +7,15 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, UniqueConstraint
+from sqlalchemy import (
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base_model import TenantModel
@@ -33,6 +41,14 @@ class AnnouncementDelivery(TenantModel):
             "recipient_type",
             "recipient_id",
             "status",
+        ),
+        Index(
+            "idx_announcement_deliveries_pending_lookup",
+            "tenant_id",
+            "recipient_type",
+            "recipient_id",
+            "status",
+            postgresql_where=text("is_deleted = false"),
         ),
         Index("idx_announcement_deliveries_announcement", "announcement_id"),
     )
